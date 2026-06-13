@@ -1,6 +1,6 @@
 # M10.1 — Wire-Band Reconcile + AI-D8 Module-Policy Descriptor — Implementation Runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-13  
 > Language: English  
@@ -256,23 +256,45 @@ possibly "retention endpoints are protocol-fixed, interior module-declared" — 
 and the audit findings register flip (**M10-A-01 → RESOLVED**; **M10-A-03 → carried** as the MP-F2-followon
 sibling decision).
 
-## 7. Definition of Done
+## 7. Definition of Done — SHIPPED
 
-- [ ] Groundings §2 re-confirmed at impl start (file:line still hold on the impl HEAD).
-- [ ] Step A: `ModuleKind` / `ModulePolicy` / `Erasability` / `Retention` + four accessors land in
-      `xgen-common/src/trust_assertion.rs`; re-exported per crate convention.
-- [ ] Step B: `ASSERTION_KYC_VERIFICATION_PENDING = (3031, …)` const lands in `xgen-core` `registration.rs`;
-      `to_registration_code` emitted arms **unchanged**.
-- [ ] Step C: ch3 §3.11.7 + L3829 reconciled; §3.8.4 descriptor documented; Appendix C/I per grep; §3.6.5
-      unchanged; no Appendix F.
-- [ ] The four §5 witnesses present, each with a **recorded genuine RED-on-revert**.
-- [ ] `cargo build --workspace --all-targets` 0 errors.
-- [ ] `cargo clippy --workspace --lib --tests --all-features -- -D warnings` clean (default + all-features).
-- [ ] `cargo test --workspace` green; **baseline captured at impl start (Rule 5 — do not invent), delta = the new
-      witnesses only**; no existing-test outcome change (§2.6 — else STOP + surface).
-- [ ] No node/client behaviour change confirmed (§2.6); if false → flagged, not papered (D-065).
-- [ ] Status: COMPLETED (the shipped signal — this DoD never lists "commit pushed", unflippable inside its own
-      commit; Joe pushes).
+- [x] Groundings §2 re-confirmed at impl start — all held on `2698f43` (3010/3011/3030 at registration.rs:120–122;
+      3030 also at tiers.rs:144 ⇒ fold is spec-only; ch3 §3.6.5 L1911–12 / §3.11.7 L3833–34 / L3829;
+      TrustClaims.extra trust_assertion.rs:105–106; canonical_value recursion canonical.rs:81).
+- [x] Step A: `ModuleKind` / `ModulePolicy` / `Erasability` / `Retention` + four accessors
+      (`module_kind`/`set_module_kind`/`module_policy`/`set_module_policy`) in `xgen-common/src/trust_assertion.rs`;
+      re-exported from `xgen-common/src/lib.rs`. No `TrustAssertion` field change (AE-D5).
+- [x] Step B: `ASSERTION_KYC_VERIFICATION_PENDING = (3031, "kyc_verification_pending")` in `xgen-core`
+      `registration.rs`; `to_registration_code` emitted arms **unchanged** (zero emitted-code change).
+- [x] Step C: ch3 §3.11.7 reconciled (3010/3011 collision rows removed; RC-F-01 note added; 3030 live + 3031
+      reserved rows added; L3829 sub-range note corrected); §3.8.4 open-namespace descriptor documented; §3.6.5
+      unchanged. **Appendix C/I: not applicable** — C references `TrustClaims` as a type but enumerates no members;
+      I has no TrustClaims entry (no manufactured home). **Appendix F: none** (no operator-visible surface).
+- [x] The four §5 witnesses present, each with a **genuine RED-on-revert recorded** (see "RED-on-revert results").
+- [x] `cargo build --workspace --all-targets` — 0 errors (32.84s).
+- [x] `cargo clippy --workspace --lib --tests -- -D warnings` clean **and** `--all-features` clean (one
+      `unnecessary_get_then_check` nit fixed: `.get(…).is_none()` → `!….contains_key(…)`).
+- [x] `cargo test --workspace` — **1374 passed, 0 failed** (all buckets). Pre-work 1370 ⇒ delta **+4** = the four
+      witnesses only (xgen-common lib 141→**144**, xgen-core lib 693→**694**). No existing-test outcome change.
+- [x] No node/client behaviour change confirmed — `assertion_tier_of` / `validate_assertion` /
+      `to_registration_code` emitted arms untouched; all changes additive. §2.6 expectation held (not falsified).
+- [x] Status: COMPLETED — the shipped signal (this DoD lists no "commit pushed"; Joe pushes).
+
+### RED-on-revert results (each reverted in the working tree, observed RED, restored)
+
+| Witness | Revert applied | Observed RED |
+|---|---|---|
+| 1 sign/verify covers descriptor | drop `"claims"` from `TRUST_ASSERTION_FIELDS` (descriptor leaves signed bytes) | `module_descriptor_is_signature_covered`: tamper → `left: Ok(()) right: Err(SignatureInvalid)` |
+| 2 §8 open-doors | `ModulePolicy.extra` `#[serde(flatten)]` → `#[serde(skip)]` | `module_policy_unknown_members_round_trip`: `left: None right: Some({"k":1})` (unknown member dropped) |
+| 3 band reconcile | const `3031` → `3017` | `band_reconcile_codes_unchanged_and_kyc_reserved`: `left: (3017,…) right: (3031,…)` |
+| 4 mock-label default | `module_kind()` default `Reference` → `Mock` | `module_kind_accessor_reads_signed_value_and_defaults`: absent → `left: Mock right: Reference` |
+
+### Erasability design-close detail (flagged for Joe at J-361 bridge — non-blocking)
+
+Per §4: `erasability` is an **object** (`{retention}`) not a flat enum (forward-extensible, AI-D8); `retention` ∈
+{`erasable`,`retained`} = AI-D4's protocol-fixed endpoints; **no default-by-tier in M10.1** (enforcement →
+deferred D3 consumer; M10.1 is expression-only). Grounded against Arc-I/D-088; specced not guessed. If Joe vetoes
+the object shape or the two-value `retention`, it is a one-struct change.
 
 ## 8. Next
 

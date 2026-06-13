@@ -129,6 +129,115 @@ impl TrustClaims {
     }
 }
 
+// ── AI-D8 module-policy descriptor + mock self-label (M10.1-D3 / D4) ───────────
+//
+// Both ride `TrustClaims.extra` (a `BTreeMap<String, Value>`), so they are part of
+// the signed canonical bytes: `TrustAssertion::canonical_bytes` includes the whole
+// `claims` object, and `canonical::canonical_value` sorts every nested object key
+// *recursively* — so a member at any depth under `claims.extra` is signed by the
+// issuing Auth Module. A *new top-level `TrustAssertion` field* would be wrong
+// (AE-D5: `TRUST_ASSERTION_FIELDS` is a fixed canonical set). This arc lands the
+// descriptor as *expression* only — there is no enforcement consumer (no
+// default-by-tier resolution, no tier-gate read); interpreting absence is the
+// D3-gated consumer's call (Arc-I AI-D4/AI-D8).
+
+/// An Auth Module's self-declared kind (M10.1-D4 / AI-A7). **Expression, not
+/// trust** — a Node honours a module only via its explicit `trusted_auth_modules`
+/// gate (M10-A-04); this label never grants trust. `reference` is the project's
+/// reference build; `mock` is the parameterised T2–T4 demonstrator (M10.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ModuleKind {
+    Reference,
+    Mock,
+}
+
+/// The AI-D8 module-policy descriptor (M10.1-D3): an Auth Module's declared policy,
+/// carried under `claims.extra["module_policy"]`. **Forward-extensible by design** —
+/// `erasability` is its *first* member, not its only one; unknown members are
+/// preserved verbatim (the §8 open-doors principle, realised structurally by the
+/// flattened `extra`). No protocol change is needed when a module brings a future
+/// policy member.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct ModulePolicy {
+    /// The module's declared erasure/retention policy (Arc-I AI-D8 first member).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub erasability: Option<Erasability>,
+    /// Unknown module-policy members, preserved round-trip (forward compat).
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+/// The erasability sub-descriptor (Arc-I AI-D8 / AI-D4). Itself forward-extensible:
+/// `retention` is the declared posture; unknown members are preserved verbatim.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct Erasability {
+    /// The declared retention posture — one of AI-D4's protocol-fixed endpoints.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retention: Option<Retention>,
+    /// Unknown erasability members, preserved round-trip (forward compat).
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+/// Arc-I AI-D4's protocol-fixed erasability endpoints. T1 = max-erasable,
+/// T4 = no record destruction; a T2/T3 module declares one of these, bounded by the
+/// gradient. M10.1 carries the value; the *enforcement* of the gradient (and the
+/// default for an absent descriptor) is the deferred D3-gated consumer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Retention {
+    /// Content / identity-binding may be erased (T1 endpoint; module-declarable).
+    Erasable,
+    /// No record destruction — legal-hold retention (T4 endpoint; module-declarable).
+    Retained,
+}
+
+impl TrustClaims {
+    /// The `claims.extra` key carrying the mock self-label (M10.1-D4).
+    pub const MODULE_KIND_KEY: &'static str = "module_kind";
+    /// The `claims.extra` key carrying the AI-D8 module-policy descriptor (M10.1-D3).
+    pub const MODULE_POLICY_KEY: &'static str = "module_policy";
+
+    /// Read the signed module self-label (M10.1-D4). Absent — or present but
+    /// unparseable — resolves to [`ModuleKind::Reference`], the confirmed default
+    /// (the reference build is the unlabelled baseline; legacy assertions with no
+    /// `module_kind` are reference by definition).
+    pub fn module_kind(&self) -> ModuleKind {
+        self.extra
+            .get(Self::MODULE_KIND_KEY)
+            .and_then(|v| serde_json::from_value::<ModuleKind>(v.clone()).ok())
+            .unwrap_or(ModuleKind::Reference)
+    }
+
+    /// Set the signed module self-label (M10.1-D4). The value joins the canonical
+    /// bytes, so it must be set before signing.
+    pub fn set_module_kind(&mut self, kind: ModuleKind) {
+        self.extra.insert(
+            Self::MODULE_KIND_KEY.to_string(),
+            serde_json::to_value(kind).expect("ModuleKind derives Serialize"),
+        );
+    }
+
+    /// Read the AI-D8 module-policy descriptor (M10.1-D3). `None` = absent. A
+    /// present-but-malformed value also resolves to `None` — a deliberate lenient
+    /// read for this expression-only arc; the D3-gated consumer defines strictness.
+    pub fn module_policy(&self) -> Option<ModulePolicy> {
+        self.extra
+            .get(Self::MODULE_POLICY_KEY)
+            .and_then(|v| serde_json::from_value::<ModulePolicy>(v.clone()).ok())
+    }
+
+    /// Set the AI-D8 module-policy descriptor (M10.1-D3). The descriptor joins the
+    /// canonical bytes, so it must be set before signing.
+    pub fn set_module_policy(&mut self, policy: &ModulePolicy) {
+        self.extra.insert(
+            Self::MODULE_POLICY_KEY.to_string(),
+            serde_json::to_value(policy).expect("ModulePolicy derives Serialize"),
+        );
+    }
+}
+
 /// A signed Trust Assertion (ch3 §3.8.4). Fields are exactly the wire schema;
 /// `valid_until` (not `expires_at`) is wire-authoritative per AE-D1.
 ///
@@ -465,5 +574,114 @@ mod tests {
             .extra
             .insert("org.example.off".to_string(), json!(false));
         assert!(!claims.has_claim("org.example.off"));
+    }
+
+    // ── M10.1 — AI-D8 descriptor + mock self-label witnesses (RED-on-revert) ──
+
+    /// Unsigned assertion (sample claims) so a test can set descriptor members
+    /// *before* signing — the descriptor must be inside the canonical bytes.
+    fn unsigned_assertion(issuer_key: &SigningKey, identity_id: &str) -> TrustAssertion {
+        TrustAssertion {
+            kind: trust_assertion_type(),
+            tier: 1,
+            issuer: AuthModuleXgid::from_pubkey(&issuer_key.verifying_key()).to_string(),
+            identity_id: identity_id.to_string(),
+            issued_at: "2026-04-26T10:06:00.000Z".to_string(),
+            valid_until: "2027-04-26T00:00:00.000Z".to_string(),
+            claims: sample_claims(),
+            signature: None,
+        }
+    }
+
+    /// Witness 1 — `module_kind` + `module_policy` set in `claims.extra` are covered
+    /// by the assertion signature (canonical bytes recurse into `claims`). Tampering
+    /// a signed descriptor member invalidates the signature. RED if the descriptor
+    /// ever rides an unsigned side-channel instead of `claims`.
+    #[test]
+    fn module_descriptor_is_signature_covered() {
+        let key = test_signing_key(0x42);
+        let mut ta = unsigned_assertion(&key, "xgen://pubkey/ed25519:CLIENT");
+        ta.claims.set_module_kind(ModuleKind::Mock);
+        ta.claims.set_module_policy(&ModulePolicy {
+            erasability: Some(Erasability {
+                retention: Some(Retention::Erasable),
+                extra: BTreeMap::new(),
+            }),
+            extra: BTreeMap::new(),
+        });
+        let ta = ta.sign(&key);
+        ta.verify().expect("freshly signed descriptor assertion verifies");
+
+        // canonical_bytes is recomputed from the struct, so flipping a signed
+        // descriptor member after signing must break verification.
+        let mut tampered = ta.clone();
+        tampered.claims.set_module_kind(ModuleKind::Reference);
+        assert_eq!(
+            tampered.verify(),
+            Err(TrustAssertionVerifyError::SignatureInvalid),
+            "tampering the signed module_kind must invalidate the signature"
+        );
+    }
+
+    /// Witness 2 — §8 open-doors: an unknown member at *both* descriptor depths
+    /// round-trips verbatim through the wire AND the typed accessor, and does not
+    /// break verification. RED if the `#[serde(flatten)] extra` on `ModulePolicy` /
+    /// `Erasability` is dropped (the unknown member would be lost on read).
+    #[test]
+    fn module_policy_unknown_members_round_trip() {
+        let key = test_signing_key(0x43);
+        let mut policy = ModulePolicy {
+            erasability: Some(Erasability {
+                retention: Some(Retention::Retained),
+                extra: BTreeMap::from([(
+                    "future_erasability_member".to_string(),
+                    json!("keep-me"),
+                )]),
+            }),
+            extra: BTreeMap::from([("future_policy_member".to_string(), json!({"k": 1}))]),
+        };
+        policy.extra.insert("another".to_string(), json!(true));
+
+        let mut ta = unsigned_assertion(&key, "xgen://pubkey/ed25519:CLIENT");
+        ta.claims.set_module_policy(&policy);
+        let ta = ta.sign(&key);
+
+        let back: TrustAssertion =
+            serde_json::from_str(&serde_json::to_string(&ta).unwrap()).unwrap();
+        back.verify()
+            .expect("unknown descriptor members must not break verification");
+
+        let read = back.claims.module_policy().expect("module_policy present");
+        assert_eq!(
+            read.extra.get("future_policy_member"),
+            Some(&json!({"k": 1})),
+            "unknown module_policy member preserved verbatim"
+        );
+        let er = read.erasability.expect("erasability present");
+        assert_eq!(er.retention, Some(Retention::Retained));
+        assert_eq!(
+            er.extra.get("future_erasability_member"),
+            Some(&json!("keep-me")),
+            "unknown erasability member preserved verbatim"
+        );
+    }
+
+    /// Witness 4 — `module_kind` accessor returns the signed value; an assertion
+    /// with no `module_kind` key resolves to the confirmed default `Reference`.
+    /// RED if the default flips or the read ignores `extra`.
+    #[test]
+    fn module_kind_accessor_reads_signed_value_and_defaults() {
+        let key = test_signing_key(0x44);
+
+        let mut ta = unsigned_assertion(&key, "xgen://pubkey/ed25519:CLIENT");
+        ta.claims.set_module_kind(ModuleKind::Mock);
+        let ta = ta.sign(&key);
+        let back: TrustAssertion =
+            serde_json::from_str(&serde_json::to_string(&ta).unwrap()).unwrap();
+        assert_eq!(back.claims.module_kind(), ModuleKind::Mock);
+
+        let plain = signed_assertion(&key, "xgen://pubkey/ed25519:CLIENT");
+        assert!(!plain.claims.extra.contains_key(TrustClaims::MODULE_KIND_KEY));
+        assert_eq!(plain.claims.module_kind(), ModuleKind::Reference);
     }
 }

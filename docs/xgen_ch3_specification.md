@@ -2956,6 +2956,29 @@ The claims object reflects what the Auth Module actually verified. `tier_verifie
 | `email_hash` | hash string | Salted SHA-256 hash of email — only the hash propagates |
 | `phone_hash` | hash string | Salted SHA-256 hash of phone — only the hash propagates |
 
+**Open-namespace claims members (forward-compatible)**
+
+The `claims` object is an open namespace: members beyond those above are preserved verbatim and are part of the signed canonical form. Claims keys are sorted recursively before signing (3.8.5), so a member at any depth is covered by the Auth Module's signature. This realises the open-doors principle — an Auth Module may attach future policy members without a wire-format change, and a Node that does not recognise a member ignores it but preserves it round-trip. (A new top-level Trust Assertion field would be wrong — the canonical field set is fixed; module-declared data belongs inside `claims`.)
+
+Two members are reserved by the protocol (M10.1):
+
+| Member | Type | Meaning |
+|---|---|---|
+| `module_kind` | string | The issuing Auth Module's self-label — `"reference"` or `"mock"`. **Expression only** — trust is the Node's `trusted_auth_modules` gate (3.8.7), never this label. Absent ⇒ `reference`. |
+| `module_policy` | object | The AI-D8 module-policy descriptor (DECISIONS.md D-088) — the module's declared policy, forward-extensible. First member `erasability`. |
+
+The `module_policy.erasability` sub-descriptor declares the module's erasure/retention posture:
+
+```json
+"claims": {
+  "tier_verified": true,
+  "module_kind": "reference",
+  "module_policy": { "erasability": { "retention": "erasable" } }
+}
+```
+
+`erasability.retention` ∈ {`erasable`, `retained`} — the protocol-fixed endpoints (D-088 / Arc-I AI-D4): Tier 1 is max-erasable, Tier 4 retains all records, and a Tier 2/3 module declares one of these bounded by the monotonic gradient. The descriptor is *expression*: enforcement of the gradient (and the default for an absent descriptor) is a separate, deferred mechanism. Both `module_policy` and `erasability` are themselves forward-extensible — unknown members are preserved verbatim.
+
 **Two contact data options for Node operators**
 
 Node operators choose how contact details appear in assertions. Plaintext contact details are not permitted in XGen Trust Assertions — the federation is append-only and plaintext contact data propagated to peer Nodes cannot be reliably recalled. Two privacy-preserving options are available:
@@ -3824,19 +3847,21 @@ These requirements are institutional obligations — the protocol does not enfor
 
 #### 3.11.7 Auth Module Error Codes for Higher Tiers
 
-Higher-Tier Auth Module failures extend the 3000 error code range established in 3.6.5. The following codes are added for Phase 2:
+Higher-Tier Auth Module failures extend the 3000 error code range established in 3.6.5.
 
-> **Identity error range reservation:** the full range 3000–3099 is reserved for identity-related errors. Codes 3000–3009 cover registration errors (3.6.5). Codes 3010–3016 cover higher-tier Auth Module errors (this section). Codes 3020–3023 cover identity replication errors (3.13.10). Implementers MUST NOT use any code in the 3000–3099 range for non-identity purposes.
+> **RC-F-01 reconcile (M10.1).** This section originally double-defined 3010 (`auth_tier_insufficient`) and 3011 (`kyc_verification_pending`) on top of the live §3.6.5 Arc-E codes 3010 `assertion_identity_mismatch` / 3011 `assertion_claims_insufficient` (which are emitted and test-asserted). The Arc-E meanings are authoritative and unchanged. Tier-insufficiency — at registration check 4 and at the PG-13 join gate — emits the live **3030 `tier_mismatch`** (§3.8.5 implementation note); `auth_tier_insufficient` was the same gate under a dormant name and is **folded into 3030** (no separate code). `kyc_verification_pending` is **re-homed to 3031** (adjacent to 3030 — Auth-Tier and KYC are one domain), **reserved/dormant** until a Tier-3/4 KYC gate emits it. Zero emitted codes changed.
+
+> **Identity error range reservation:** the full range 3000–3099 is reserved for identity-related errors. Codes 3001–3011 cover registration + Auth-Module-assertion errors (§3.6.5, including the Arc-E PG-03 codes 3010 `assertion_identity_mismatch` and 3011 `assertion_claims_insufficient`). Codes 3012–3016 cover higher-tier Auth Module errors (this section). Codes 3020–3023 cover identity replication errors (3.13.10). Codes 3030–3031 cover Auth-Tier / KYC gating (3030 `tier_mismatch` live; 3031 `kyc_verification_pending` reserved). Implementers MUST NOT use any code in the 3000–3099 range for non-identity purposes.
 
 | Code | Error string | Meaning |
 |---|---|---|
-| 3010 | `auth_tier_insufficient` | Identity's Trust Assertion Tier is below the Space's required `auth_tier` |
-| 3011 | `kyc_verification_pending` | Identity's KYC/AML verification has not yet completed — Tier 3/4 |
 | 3012 | `watchlist_match` | Identity matched a watchlist entry — Tier 3/4 — requires human review |
 | 3013 | `eidas_loa_insufficient` | Trust Assertion eIDAS LoA is below the Space's required level — Tier 4 |
 | 3014 | `government_credential_required` | Space requires government credential binding — Tier 4 |
 | 3015 | `clearance_level_insufficient` | Identity's clearance level is below the Space's requirement — Tier 4 government Spaces |
 | 3016 | `data_localisation_violation` | Auth Module's data localisation does not satisfy the Space's jurisdictional requirements — Tier 4 |
+| 3030 | `tier_mismatch` | Trust Assertion Tier is below the Space's / Node's required Tier — **live** (registration check 4 + PG-13 join gate; folds in the former `auth_tier_insufficient`) |
+| 3031 | `kyc_verification_pending` | Identity's KYC/AML verification has not yet completed — Tier 3/4 — **reserved** (no emitter yet) |
 
 **Display rule** — same pattern as all other error ranges:
 

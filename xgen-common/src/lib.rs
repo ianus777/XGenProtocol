@@ -36,7 +36,10 @@ pub use clock::{Clock, RealClock};
 pub use conn::ConnId;
 
 // Arc E (PG-03) — the Trust Assertion SignedPrimitive (ch3 §3.8.4 / §3.8.5).
-pub use trust_assertion::{TrustAssertion, TrustAssertionVerifyError, TrustClaims};
+pub use trust_assertion::{
+    Erasability, ModuleKind, ModulePolicy, Retention, TrustAssertion, TrustAssertionVerifyError,
+    TrustClaims,
+};
 
 // Storage-Engine / Plugin-Framework milestone (SE-D2) — host-neutral module /
 // plugin descriptor + identity vocabulary, re-exported at the crate root.

@@ -129,6 +129,24 @@ impl RegistrationError {
     }
 }
 
+/// RC-F-01 / M10.1-D1 — `kyc_verification_pending` re-homed to **3031**.
+///
+/// ch3 §3.11.7 originally double-defined 3010/3011 (higher-tier Auth Module) on top
+/// of the live Arc-E §3.6.5 codes (`assertion_identity_mismatch` /
+/// `assertion_claims_insufficient`, emitted by [`RegistrationError::to_registration_code`]
+/// above and test-asserted). The reconcile keeps Arc-E's 3010/3011, folds the old
+/// §3.11.7 `auth_tier_insufficient` into the **live 3030 `tier_mismatch`** (the same
+/// tier gate, already emitted here at check 4 and at the PG-13 join gate via
+/// `auth::tiers`), and re-homes `kyc_verification_pending` to **3031** — adjacent to
+/// 3030 because tier and KYC are one domain.
+///
+/// **Reserved / dormant:** no emitter this arc. No Tier-3/4 KYC gate exists yet, so
+/// there is no `RegistrationError` variant for it (a variant would imply an emit path
+/// that does not exist). The `to_registration_code` map above is **unchanged** —
+/// M10.1 changes zero emitted codes. The eventual KYC gate (M10.3 mock / D3 consumer)
+/// emits `ASSERTION_KYC_VERIFICATION_PENDING`.
+pub const ASSERTION_KYC_VERIFICATION_PENDING: (u32, &str) = (3031, "kyc_verification_pending");
+
 // ── Trust Assertion validation (Arc E PG-03, ch3 §3.8.5) ──────────────────────
 
 /// A Node's Trust-Assertion acceptance policy (AE-D3 / CP-2). Sourced from the
@@ -1253,6 +1271,33 @@ mod tests {
         let err = validate_assertion(&ta, "xgen://pubkey/ed25519:CLIENT", &policy_trusting(&issuer), now()).unwrap_err();
         assert_eq!(err, RegistrationError::AssertionIdentityMismatch);
         assert_eq!(err.to_registration_code(), (3010, "assertion_identity_mismatch"));
+    }
+
+    /// Witness 3 (M10.1-D1, RC-F-01 band reconcile). The Arc-E §3.6.5 codes stay
+    /// exactly as emitted (3010/3011 identity-assertion, 3030 `tier_mismatch`), and
+    /// `kyc_verification_pending` is reserved at **3031**, distinct from the band.
+    /// Zero change to emitted codes; the spec half (§3.11.7 no longer claims
+    /// 3010/3011) is verified by the ch3 edit. RED if any wire integer/string drifts.
+    #[test]
+    fn band_reconcile_codes_unchanged_and_kyc_reserved() {
+        assert_eq!(
+            RegistrationError::AssertionIdentityMismatch.to_registration_code(),
+            (3010, "assertion_identity_mismatch")
+        );
+        assert_eq!(
+            RegistrationError::AssertionClaimsInsufficient.to_registration_code(),
+            (3011, "assertion_claims_insufficient")
+        );
+        assert_eq!(
+            RegistrationError::AssertionTierInsufficient.to_registration_code(),
+            (3030, "tier_mismatch")
+        );
+        // `auth_tier_insufficient` folded into the live 3030 (no separate code).
+        // `kyc_verification_pending` re-homed to 3031, reserved/dormant.
+        assert_eq!(ASSERTION_KYC_VERIFICATION_PENDING, (3031, "kyc_verification_pending"));
+        // 3031 is distinct from the live Arc-E band integers.
+        let band = [3010u32, 3011, 3030];
+        assert!(!band.contains(&ASSERTION_KYC_VERIFICATION_PENDING.0));
     }
 
     #[test]

@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-365 — M10.3 OPENED (parameterized T2–T4 mock + dormant-tier-path activation): four calls Joe-locked; Phase-0 brief authored; next-active = Clair D-071 audit
+
+**What happened.** With M10.2 closed (J-364), Joe opened M10.3 — the third and **heaviest** M10 sub-arc (three converging threads). Chat authored the Phase-0 framing brief `tasks/M10_3_MOCK_TIER_PHASE0_BRIEF.md` (ACTIVE v1.0) and Joe locked the four calls (by-recomms). Heaviest → a **genuine D-071 Phase-0 audit**. Doc-only; no code; no DECISIONS change (M10.3 decisions arc-local, D-069).
+
+**Goal.** Now that a real module can issue higher-tier assertions (M10.2), exercise + witness every tier-conditional path dormant since Arc E. Three artifacts land together: (a) the parameterized T2–T4 mock; (b) `accepted_tiers` enforcement (the M10.2-A1 deferral comes due); (c) dormant-tier-path activation (per-tier claims/TTLs, the Arc-E Thread participation tier-gate, the D-088 erasure tier-gate — issuance-side).
+
+**Four calls Joe-LOCKED.**
+- **M10.3-C1 — mock form = extend the one binary.** A parameterized `--tier <N>` (N ∈ {2,3,4}) issue path on the shipped `xgen-auth-module`, self-labelling `module_kind: mock`. This *is* the "reference template an institution forks" (J-358) — fork the binary, swap mock issuance for real KYC. Reference-T1 stays the honest default; mock higher-tiers are the same code parameterized; no second crate.
+- **M10.3-C2 — `accepted_tiers` enforcement = a new explicit check.** M10.2's live-read already hands the gate the issuer's registry record, so `assertion.tier ∈ issuer.accepted_tiers` is clean. **Distinct** from the node-wide `tier ≥ required_tier` (`registration.rs:230`) — two gates: "is this tier high enough for this Space" vs "is this issuer authorized to attest this tier". Witness: a T2-scoped issuer's T3 assertion rejected.
+- **M10.3-C3 — dormant-tier scope; erasure stays issuance-side.** Activate + witness per-tier claims/TTLs + the Arc-E Thread participation tier-gate. The **D-088 erasure tier-gate is issuance-side only**: the mock issues tier-appropriate `module_policy.erasability` (T1–T3 `erasable`, **T4 `retained`**); M10.3 witnesses *the field*, **not** erasure-refusal enforcement — that consumer stays D3-gated (Fork 3 = hook only). "T4 refuses erasure" is expressed, not yet enforced.
+- **M10.3-C4 — `module_kind: mock` = expression-only.** No new node-side special-casing; the operator's explicit `trusted_auth_modules`/registry trust is the safety mechanism (a mock is real *software*, never a deployable *trust* anchor); the label is informational. "Refuse mock in production-mode" = flagged future, not M10.3.
+
+**Out (explicit):** MP-F13 → M10.4; MP-F6 fold + MP-C-06/MP-C-16 re-run → M10.5; erasure *enforcement* (D3-gated); a mock-refusing node behaviour (flagged).
+
+**What the Phase-0 audit must ground (brief §3, to file:line):** the `accepted_tiers` field (`module_registry.rs:59`) + the M10.2 live-read seam + the exact C2 insert point relative to the node-wide `required_tier` check (`registration.rs:230`); confirm the two gates are genuinely distinct (no double-reject ambiguity); the Arc-E Thread participation tier-gate (the dormant gate C3 activates); per-tier claims/TTL handling on `TrustClaims` (what differs T1→T4); the mock issue surface on `xgen-auth-module` (the M10.2 `issue_tier1()` path → minimal `--tier <N>` parameterization + tier-appropriate `erasability`); the D-088 erasure touch-point (issuance-side is all M10.3 builds; ground where an enforcement consumer *would* attach without building it). D-065/D-078 guardrails — if grounding contradicts a locked call, surface + re-lock.
+
+**Canonical flips (D-074).** `tasks/M10_3_MOCK_TIER_PHASE0_BRIEF.md` NEW (ACTIVE v1.0); `CLAUDE.md` PLAY head; `docs/ROADMAP.md` v3.54→v3.55 (M10 detail M10.3-open annotation + M-series/chain markers M10.2-DONE → M10.3-PHASE-0); this JOURNAL J-365. No DECISIONS change.
+
+**Next-active: Clair opens the M10.3 D-071 Phase-0 audit** — ground brief §3 to file:line → design (lock C1–C4 shapes + the witness set + the §4 deferred questions) → Joe-lock → runbook → impl (the mock `--tier` issue path + the C2 check + the dormant-path witnesses) → close. Witness set: T2/T3/T4 mock assertion accepted; accepted_tiers-scope rejection; Thread-participation tier-gate fires; tier-appropriate erasability (T4 retained); `module_kind: mock` populated; empty-baseline invariant. No code until the M10.3 design is Joe-locked. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-365 → `tasks/M10_3_MOCK_TIER_PHASE0_BRIEF.md` → `tasks/M10_AUTH_MODULE_AUDIT.md` (M10.2-A1, M10-A-04, M10-A-05).**
+
+---
+
 ## Entry J-364 — M10.2 SHIPPED + CLOSED (doc-bridge): Tier-1 reference binary `xgen-auth-module` + registry→policy live-read landed; AMR-D1 closed; next-active = M10.3
 
 **What happened.** Clair shipped M10.2 (runbook `e824844` → C1 `113504f` → C2 `b87f6e3` → C3 `6a3f972` → runbook-COMPLETED `47ce2f7` → Cargo.lock `8a6024c`; all pushed). This is the Chat close doc-bridge. D1–D5 as locked, not reopened. The §5 design-close detail was resolved by Clair without a Joe-fork (live-read = a `NodeRuntime` field + lock-per-validation).

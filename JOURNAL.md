@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-364 — M10.2 SHIPPED + CLOSED (doc-bridge): Tier-1 reference binary `xgen-auth-module` + registry→policy live-read landed; AMR-D1 closed; next-active = M10.3
+
+**What happened.** Clair shipped M10.2 (runbook `e824844` → C1 `113504f` → C2 `b87f6e3` → C3 `6a3f972` → runbook-COMPLETED `47ce2f7` → Cargo.lock `8a6024c`; all pushed). This is the Chat close doc-bridge. D1–D5 as locked, not reopened. The §5 design-close detail was resolved by Clair without a Joe-fork (live-read = a `NodeRuntime` field + lock-per-validation).
+
+**What shipped (verified on disk).** **C1** (`xgen-core`, behaviour-neutral): `AuthModuleRegistry::trusted_issuers()` (live-read derivation from non-revoked records, D2) + `seed()` (add-only, D3 — deliberately distinct from `register`'s insert-or-replace, which would be the un-revoke footgun) + a `NodeRuntime.auth_module_registry` field/setter; +2 unit witnesses. **C2** (the new `xgen-auth-module` workspace member, library-first): `issue_tier1()` self-signs a Tier-1 `TrustAssertion` as itself + populates the M10.1 descriptor (`module_kind: reference` + `module_policy.erasability`) before signing; minimal offline `keygen`/`issue` CLI (no endpoint); witnesses 1 (end-to-end accept) + 2 (live revoke) in `tests/end_to_end.rs`. **C3** (the behaviour change): the registry relocated to one shared `run_node` top-level instance (the transient floor read rewired, not stranded; **first runtime consumer → AMR-D1 structurally closed**); the gate live-reads `trusted_issuers()` per registration (revoke bites without restart); config `trusted_auth_modules` bootstrap-seeds add-only/idempotent/revoke-wins/skips-malformed; the startup `trusted_issuers` snapshot emptied (migration-free); witnesses 3+4.
+
+**Verification (Clair, actual):** `cargo test --workspace` **1382/0** (+8 over the M10.1 1374 baseline); clippy `-D warnings` clean (default + all-features); `--all-targets` build 0; all four witnesses carry genuine RED-on-revert; the **empty-baseline invariant** is asserted and the `local_mode` regression intact.
+
+**Locks honored.** D1 offline token (no endpoint), D2 live-read + registry to `run_node` top-level, D3 add-only/idempotent/revoke-wins seed, D4 `accepted_tiers` enforcement NOT built (→ M10.3), D5 pure offline signer populating the descriptor — all as locked. **D-092 not triggered** (no node verb-surface change — the binary CLI is its own arg parser). **Honesty (audit A5) reflected:** no `SignedPrimitive` trait was hunted; T1 = proof-of-key-possession only.
+
+**D-065 close note (operator-visible semantics).** With the config→registry bootstrap-seed, **removing an issuer from config no longer un-trusts it** — once seeded, the registry rules; trust is withdrawn via `auth-module revoke`/delete, not a config edit. Documented in **Appendix F §F.10** (the new binary section; the session log renumbered §F.10→§F.11).
+
+**Findings flips.** M10 audit (§8, v1.1→v1.2): **M10-A-02 → ✅ RESOLVED** (registry→policy wired) + **M10-A-06 → ✅ RESOLVED** (operator-CRUD offline-signer binary shipped). M10.2 audit (§10, v1.0→v1.1, ACTIVE→COMPLETED): **M10.2-A1 → CARRIED → M10.3** (accepted_tiers enforcement); A2 (live-read) / A3 (run_node relocation, AMR-D1 closed) / A4 (seed semantics) → RESOLVED; A5 → ACKNOWLEDGED. M10 milestone audit stays ACTIVE → COMPLETED at the M10 close.
+
+**DECISIONS — no change.** M10.2-D# arc-local (D-069); the M10.1 arc-local candidate ("module-policy lives in a signed `claims.extra` namespace") remains a candidate. No promotion.
+
+**Canonical flips (D-074).** Design doc `tasks/M10_2_REFERENCE_BINARY_DESIGN.md` ACTIVE→**COMPLETED** (v1.0→v1.1, close stamp); M10.2 audit ACTIVE→**COMPLETED** (v1.0→v1.1, findings disposition); M10 audit v1.1→v1.2 (A-02/A-06 RESOLVED); `docs/xgen_appendix_f_en.md` v1.6→v1.7 (new §F.10 + D-065 note + Session 3); `CLAUDE.md` PLAY head; `docs/ROADMAP.md` v3.53→v3.54 (M10 detail M10.2-closed annotation + M-series/chain markers); this JOURNAL J-364. Runbook already COMPLETED in `47ce2f7` (untouched). All M10.2 code already on remote.
+
+**Next-active: M10.3** — the parameterized T2–T4 mock + dormant-tier-path activation (per-tier claims/TTLs, the Arc-E Thread participation gate, the D-088 erasure tier-gate), **and the home for `accepted_tiers` enforcement** (M10.2-A1, the per-issuer `assertion.tier ∈ issuer.accepted_tiers` check — now there are higher tiers to gate + a mock to witness it) + the mock-population of `module_kind: mock` (M10-A-04 second half). Opens its own D-071 Phase-0. No code until the M10.3 design is Joe-locked. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-364 → `tasks/M10_2_REFERENCE_BINARY_DESIGN.md` → `tasks/M10_AUTH_MODULE_AUDIT.md` (§8).**
+
+---
+
 ## Entry J-363 — M10.2 design Joe-LOCKED: offline-token issuance + live-read registry→policy + config-seed; accepted_tiers deferred to M10.3; next-active = Clair runbook
 
 **What happened.** Clair's M10.2 Phase-0 audit landed (`629b30c`, `tasks/M10_2_REFERENCE_BINARY_AUDIT.md` v1.0, grounded vs `main` @`a86db48`, 5 findings, hash-typo self-caught + fixed). Chat verified it, framed the four shape calls the audit surfaced, and Joe locked them (by-recomms). Chat authored the design doc `tasks/M10_2_REFERENCE_BINARY_DESIGN.md` (v1.0 ACTIVE). Doc-only; no code; no DECISIONS change (M10.2-D# arc-local, D-069).

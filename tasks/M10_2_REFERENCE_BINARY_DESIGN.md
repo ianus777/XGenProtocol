@@ -1,6 +1,6 @@
 # M10.2 — Tier-1 Reference Auth Module (`xgen-auth-module`) — Design
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-13  
 > Language: English  
@@ -113,3 +113,5 @@ Clair: author `tasks/M10_2_REFERENCE_BINARY_IMPL.md` (the binary crate + the tru
 relocation + config-seed + the four witnesses), confirming the §3 groundings + §5 details to file:line →
 implement → Chat doc-bridge → close. The one design-close detail to surface if non-obvious: the live-read shape
 (§5).
+
+**CLOSED J-364** — shipped runbook `e824844` + C1 `113504f` / C2 `b87f6e3` / C3 `6a3f972` + Cargo.lock `8a6024c`; D1–D5 as locked; the §5 detail resolved by Clair (live-read = NodeRuntime field + lock-per-validation, no Joe-fork); 1382/0 (+8), clippy clean, all four witnesses RED-on-revert; AMR-D1 structurally closed; M10-A-02 + M10-A-06 RESOLVED, M10.2-A1 carried → M10.3. D-065 close note: config-removal no longer un-trusts a seeded issuer ("registry rules") → Appendix F §F.10.

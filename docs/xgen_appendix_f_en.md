@@ -1,8 +1,8 @@
 # Appendix F — CLI Reference and Usage Examples
 > **Status:** ACTIVE  
-> Version: 1.6  
+> Version: 1.7  
 > Date: May 2026  
-> **Last updated**: 2026-06-08  
+> **Last updated**: 2026-06-13  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -1207,10 +1207,51 @@ Operator now resolves to: xgen://pubkey/ed25519:kFluTpiB...   (Alice, via invite
 
 ---
 
-## F.10 Session log
+## F.10 — `xgen-auth-module` (Tier-1 reference Auth Module) and registry-as-trust-source semantics
+
+*(Added M10.2, J-364.)* `xgen-auth-module` is a standalone binary (its own workspace member, own keypair) that
+**issues** Tier-1 `TrustAssertion`s, signing them as itself. It is an **offline signer** — it never serves a
+live endpoint the Node calls; the Node verifies a presented assertion's signature offline against the trusted
+issuer's public key. T1 verification attests **proof-of-key-possession only** (key control), not external KYC.
+
+**CLI (minimal, witness-scope — not a product surface).**
+
+```
+xgen-auth-module keygen --out <path>            # generate + save the module keypair (encrypt-at-rest)
+xgen-auth-module issue  --key <path> \           # self-sign a Tier-1 TrustAssertion for a subject identity
+                        --subject <xgid> [--out <path>]
+```
+
+The issued assertion carries the M10.1 module-policy descriptor on `claims.extra`: `module_kind = reference`
+and a `module_policy` with `erasability` (a `reference` module issues an erasable Tier-1 claim). The subject
+identity attaches the assertion to its `register` message; the Node validates it through the live 7-check
+`validate_assertion`.
+
+**Registry is the trust source (M10.2 behaviour change).** As of M10.2, the Node's assertion gate **live-reads
+`AuthModuleRegistry`** at validation time — the operator-managed `auth-module` CRUD verbs are now
+enforcement-bearing:
+
+- `auth-module register` makes an issuer **trusted for validation** (no separate config edit needed).
+- `auth-module revoke` **takes effect immediately, without a Node restart** — a subsequent registration
+  presenting that issuer's assertion is rejected.
+
+**Config `trusted_auth_modules` is now a bootstrap-seed (D-065 honesty note).** At startup the Node seeds each
+configured issuer into the registry **add-only**: it inserts an issuer only if absent, re-runs idempotently on
+every boot, never un-revokes a CRUD-revoked issuer (operator revoke is authoritative), and skips malformed
+entries. **Consequence:** **removing an issuer from the config no longer un-trusts it** — once seeded, the
+registry rules. To withdraw trust, use `auth-module revoke` (or delete the record); editing the config alone has
+no effect on an already-seeded issuer. An empty config + empty registry leaves behaviour byte-for-byte as before
+(the `local_mode`/baseline path is untouched).
+
+---
+
+## F.11 Session log
 
 ### Session 1 — April 2026 (JozefN)
 **Covered:** Appendix F written in full covering: F.1 configuration file reference for both binaries including the new `[logging]` section and the removal of `log_path`/`spaces_dir` from config (D-035); F.2 complete xgen-node command reference; F.3 complete xgen-client command reference; F.4 Node operator workflow examples (setup, status, identity list, federation check, debug logging); F.5 Identity and Space workflow examples (init, register, create-space, create-room, invite, join, spaces/rooms/members list, send message, federate); F.6 complete two-Node full session example mirroring the Phase 1 smoke test with real event_ids from J-029; F.7 `--help` output requirements and the canonical source rule (D-028).
 
 ### Session 2 — 2026-05-17 (JozefN)
 **Covered:** comprehensive M2/M3/M4 documentation sweep. Header reformatted to standard template (Version 1.1, Date, Language, License lines added). New **§F.0 Flag model** introducing the fundamental-vs-non-fundamental axis (symmetry between binaries, not internal dispatch order): F.0.1 fundamental flags table, F.0.2 fundamental subcommands table, F.0.3 non-fundamental flags table, F.0.4 non-fundamental subcommands tables (Node-only and Client-only), F.0.5 the `spaces` name collision (full role-perspective table plus rejected-rename rationale plus related pairs `identity list` vs `whoami`/`status` and `peers` vs `federate`). §F.1 `xgen-client_config.toml` extended with the M3+M4 `[ai]` family (`is_ai`, `plugin`, `[ai.capabilities]` with `dm_initiate`/`spontaneous_post`, `[ai.behavior]` with `mention_token`), including the deliberate split rationale and M3-staged-config forward compat. §F.3 Client command reference fully extended: fundamental options table, non-fundamental options table (`--ai-mode` added with `requires = service` constraint, `--batch` and `--node` clarified), `init` row extended with `--ai` and `--cap`, full `ai delegate` / `ai revoke` / `ai status` rows added (M3 D-064), `history` subcommand documented, `smoke-ph2` / `stress-test` / `stress-complete` added. New §F.3.1 `--health` reply format documenting the M4 `mode=ai operator_known=N/M` extension and the `mode=` field universal presence. New §F.3.2 `init --ai` and `--cap` semantics. New **§F.9 AI Identity workflows** with three subsections: F.9.1 set up AI Identity (full `init --ai` output, resulting config TOML, register flow), F.9.2 run as AI resident (`--ai-mode --service` startup logs, `--health` reply, pacing-drop smoke quoting J-077's real transcript with the literal greppable WARN line and the 703ms inter-reply timing), F.9.3 operator delegation flow (alice as inviter-fallback operator, delegate to charlie, charlie verifies via `ai status`, alice revokes; rationale for fall-upward silent revert as instance of "honest behaviour over polite behaviour"). Duplicate §F.8 heading (collision between Multi-instance/batch and Session log) resolved — Session log renumbered to §F.10. M1 binary-consolidation preamble box removed (its content was absorbed into §F.0 and the per-section refreshes). The previous "preamble only — comprehensive example sweep pending" disclaimer in the header is now resolved — this commit *is* that sweep. Cross-references to D-028, D-035, D-043, D-056, D-062, D-063, D-064, D-065, and Ch6 §6.15 added throughout.
+
+### Session 3 — 2026-06-13 (JozefN)
+**Covered:** new **§F.10** documenting the `xgen-auth-module` Tier-1 reference binary (offline signer; `keygen`/`issue` CLI; the M10.1 `module_kind`/`module_policy` descriptor on issued assertions) and the M10.2 **registry-as-trust-source** behaviour change (the gate live-reads `AuthModuleRegistry`; `auth-module register`/`revoke` are now enforcement-bearing; `revoke` bites without restart). D-065 honesty note recorded: config `trusted_auth_modules` is now an add-only/idempotent/revoke-wins **bootstrap-seed**, so removing an issuer from config no longer un-trusts it ("registry rules" — use `auth-module revoke` to withdraw trust); empty config + empty registry = prior behaviour byte-for-byte. Session log renumbered §F.10→§F.11. Cross-refs to D-069/D-083/AMR-D1 and the M10.2 design/audit (J-363/J-364).

@@ -2,11 +2,17 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-12  
+> **Last updated:** 2026-06-13  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 ---
+
+## 🟢 M10.1 design Joe-LOCKED (J-360) — RC-F-01 renumber + AI-D8 module-policy descriptor on claims.extra; next-active = Clair runbook
+
+**M10.1 design Joe-LOCKED (J-360, doc-only, no code).** First M10 sub-arc. Chat authored `tasks/M10_1_WIREBAND_DESCRIPTOR_DESIGN.md` (v1.0 ACTIVE), decisions grounded on the M10 audit (`f759a7d`, §A3 band + §A4 `claims.extra`) — no fresh full audit. **Scope:** (a) RC-F-01 reconcile of the 3010–3016 auth-module band; (b) the AI-D8 module-policy descriptor + the mock self-label, both on `claims.extra`. **Out:** M10-A-02 registry↔policy → M10.2; the erasure *consumer* stays D3-gated (Fork 3 = hook only). **Four locked decisions:** **D1** RC-F-01 renumber — Arc-E **keeps** 3010 `assertion_identity_mismatch` + 3011 `assertion_claims_insufficient` (live/emitted/tested); the dormant §3.11.7 rows re-home (`auth_tier_insufficient`→**folds into the live 3030 `tier_mismatch`**; `kyc_verification_pending`→**3031**); 3012–3016 reserved (net = spec correction + one reserved constant, zero emitted-code change). **D2** the 7 event-validation codes (`exchange.rs:140`→4000) **split to a sibling decision** (MP-F2-followon) — NOT M10.1. **D3** AI-D8 descriptor at **`claims.extra["module_policy"]`** — one namespaced **signed** object (a new top-level field would be wrong, AE-D5), first member `erasability` (Fork-3 hook); §8 open-doors satisfied structurally (extra preserves unknown members). **D4** mock self-label at **`claims.extra["module_kind"]`** ∈ {reference,mock}, signed (enforcement stays the `trusted_auth_modules` gate — label is expression, not trust). **Schema (Clair confirms):** `extra = { "module_kind":"reference", "module_policy":{ "erasability":{"retention":"erasable"} } }`; the one design-close detail = the `erasability` member shape (grounded vs D-088/Arc-I; Joe-call only if non-obvious). **Impl surface (audit-grounded; Clair confirms):** `registration.rs:120–121` + the live 3030 site + ch3 §3.6.5/§3.11.7 + the L3829 reservation (reserve 3031); `TrustClaims`/`claims.extra` (`trust_assertion.rs:105`) + typed accessors; crates `xgen-common` (+ any `xgen-core` ref); **no node/client behaviour change**. Witnesses (RED-on-revert): sign/verify covers both keys; §8 open-doors (unknown member survives); band reconcile; mock-label accessor. **Canonical flips (D-074):** design doc NEW (v1.0); this PLAY; `docs/ROADMAP.md` v3.49→v3.50; JOURNAL J-360. No DECISIONS change (M10.1-D# arc-local, D-069). **Next-active: Clair** — confirm groundings to file:line + author `tasks/M10_1_WIREBAND_DESCRIPTOR_IMPL.md` (renumber + descriptor/accessors + the 4 witnesses) → implements → Chat doc-bridge → close. No code until the runbook lands. **Entry (Rule 0): this PLAY → JOURNAL J-360 → `tasks/M10_1_WIREBAND_DESCRIPTOR_DESIGN.md` → `tasks/M10_AUTH_MODULE_AUDIT.md` (§A3/§A4).** Not pushed — Joe pushes.
+
+**(M10-audit-DONE block (J-359) below — historical; this M10.1-design block supersedes its "next-active = M10.1 design".)**
 
 ## 🟢 M10 — D-071 Phase-0 audit DONE (J-359) — foundation = two disconnected trust surfaces (M10-A-02, load-bearing); RC-F-01 confirmed + renumber rec; 5 new findings; next-active = M10.1 design
 

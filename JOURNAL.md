@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-362 — M10.2 OPENED (Tier-1 reference binary `xgen-auth-module`): two calls Joe-locked (M10-A-02 = registry→policy wiring; M10-A-06 = operator-CRUD); Phase-0 brief authored; next-active = Clair D-071 audit
+
+**What happened.** With M10.1 closed (J-361), Joe opened M10.2 — the second M10 sub-arc and the **first with a real new binary**. Chat authored the Phase-0 framing brief `tasks/M10_2_REFERENCE_BINARY_PHASE0_BRIEF.md` (ACTIVE v1.0) and Joe locked the two calls (by-recomms). Because M10.2 ships a real binary + a node-side validation behaviour change, it warrants a **genuine D-071 Phase-0 audit** (not the M10-audit-grounded shortcut M10.1 rode). Doc-only; no code; no DECISIONS change (M10.2 decisions arc-local, D-069).
+
+**Goal.** Ship `xgen-auth-module` — a separate binary, own keypair, that **issues** Tier-1 `TrustAssertion`s (signs them as itself) so an identity can present a real (non-synthetic) module-signed assertion at registration and drive the live 7-check `validate_assertion` end-to-end against a registry-trusted issuer. Turns the shipped foundation from *dormant-but-correct* into *demonstrated* (Fork 1: a demonstrator over the hardcoded baseline, floor untouched).
+
+**Two calls Joe-LOCKED.**
+- **M10-A-02 (spine) = (b) wire registry → policy.** `validate_assertion` consults `AuthModuleRegistry` as the trust source; `register`/`revoke`/`accepted_tiers` become enforcement-bearing (closes the AMR-D1 standalone-no-consumer deferral). Rejected (a) status-quo config seam — it leaves the two disconnected surfaces + ships a `revoke` that doesn't revoke. **Config-seed sub-lock:** `[node].trusted_auth_modules` is neither deprecated nor a second live source — at startup it **bootstrap-seeds the registry** (migration-free; existing config trust keeps working) and the gate reads the registry. Seed-vs-CRUD precedence = a design-lock detail.
+- **M10-A-06 = operator-CRUD kept.** The trust decision stays operator-controlled (a module self-asserting trust would break the `trusted_auth_modules` safety model). The binary is a pure **signer + issuance endpoint**; operator registers it via the existing 5 CRUD verbs. A module-presented manifest/handshake is a **flagged future enhancement**, not M10.2.
+
+**Out (explicit):** M10.3 the T2–T4 mock + dormant-tier-path activation; M10.4 MP-F13; a module-presented manifest (flagged); erasure *enforcement* (the `module_policy.erasability` consumer stays D3-gated — M10.1 landed only the field).
+
+**What the Phase-0 audit must ground (brief §3, to file:line):** the **issuance path** (challenge/response vs offline-signed vs operator-mediated; what the synthetic test issuer does today + the exact `TrustAssertion` shape to produce); the **Call-1b trust-source seam** (`app.rs:746` config → `AssertionPolicy.trusted_issuers` `registration.rs:200`; the minimal change to read `AuthModuleRegistry` + where the startup config-seed lands); **`AuthModuleRecord`/`endpoint_url` semantics** (does the node ever *call* the module, or only verify the presented assertion's signature against the trusted issuer pubkey — i.e. is the binary an offline signer or a live endpoint in M10.2); the **keypair/signing surface** (`SignedPrimitive` canonical-bytes signer; `AuthModuleXgid`, D-083); **what "Tier-1 verification" means in code** (likely proof-of-key-possession only); and confirm the binary **populates the M10.1 descriptor** (`module_kind: reference` + `module_policy.erasability`) on issued assertions. D-065/D-078 guardrails apply — if grounding contradicts a locked call, surface + re-lock.
+
+**Canonical flips (D-074).** `tasks/M10_2_REFERENCE_BINARY_PHASE0_BRIEF.md` NEW (ACTIVE v1.0); `CLAUDE.md` PLAY head; `docs/ROADMAP.md` v3.51→v3.52 (M10 detail M10.2-open annotation + M-series/chain markers M10.1-DONE → M10.2-PHASE-0); this JOURNAL J-362. No DECISIONS change.
+
+**Next-active: Clair opens the M10.2 D-071 Phase-0 audit** — ground brief §3 to file:line → design (lock the Call-1b wiring shape + the issuance shape + the §4 deferred questions) → Joe-lock → runbook → impl (the new `xgen-auth-module` bin + the registry→policy wiring + config-seed + the end-to-end RED-on-revert witness) → close. No code until the M10.2 design is Joe-locked. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-362 → `tasks/M10_2_REFERENCE_BINARY_PHASE0_BRIEF.md` → `tasks/M10_AUTH_MODULE_AUDIT.md` (M10-A-02/A-06).**
+
+---
+
 ## Entry J-361 — M10.1 SHIPPED + CLOSED (doc-bridge): RC-F-01 renumber + AI-D8 module-policy descriptor landed; one D-065 close-catch corrected; next-active = M10.2
 
 **What happened.** Clair shipped M10.1 in the directed order — runbook `66cf31c` (`tasks/M10_1_WIREBAND_DESCRIPTOR_IMPL.md`, now COMPLETED) precedes impl `01ea770` (one atomic: code + ch3 + runbook flip). This is the Chat close doc-bridge. Joe pushed both before this bridge. D1–D4 as locked, not reopened.

@@ -1,6 +1,6 @@
 # M10.4 — Production Identity→Home-Node Discovery (MP-F13) — D-071 Phase-0 Audit
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-14  
 > Language: English  
@@ -342,3 +342,27 @@ never surfaced before the real-binary witness (§1.2).
 
 **Next:** Chat design bridge → Joe-lock → runbook → Clair impl → MP-C-16 re-run at M10.5. No code
 until the M10.4 design is Joe-locked.
+
+## 8. Close disposition (J-371)
+
+M10.4 shipped (Shape B) + closed at J-371. Findings final state:
+
+- **M10.4-A1 (load-bearing) — RESOLVED.** The Space-created `content["home_node"]` now carries the
+  Node's pubkey node_id (the client captures the `AuthOk.node_id` echo + writes it); the URL anomaly is
+  gone. Every consumer + both migration sites work with the correct value, zero projection.
+- **M10.4-A2 — RESOLVED.** Both stall sites verified by the C3 witnesses: Site 1 (`MIG_6010`
+  homed-here) and the cutover authority gate clear with a pubkey `home_node` and fire on a URL. (Site 2
+  proven at the applier level — the documented twin of `validate_event`'s 6009; the `validate_event`
+  + end-to-end is M10.5.)
+- **M10.4-A3 (decisive) — CONFIRMED.** The escape did not fire — clean green was reachable on Layer-1
+  reconciliation alone; no Layer-2 discovery was needed for the migration flow.
+- **M10.4-A4 — RESOLVED as Shape B.** The client learns the node_id via the additive `AuthOk` echo and
+  writes it; chosen over Shape A (which would have fought the authority gates). The grounding correction
+  (the wire/auth fns are in `xgen-core`, and the surface is two additive `xgen-core` API touches) did not
+  change the shape — see the design §8.
+- **M10.4-A5 — RECORDED (leave-as-legacy).** Pre-existing URL-homed Spaces stay legacy; new Spaces are
+  correct. A migration of legacy Spaces remains its own (named, out-of-M10.4) concern.
+
+**MP-F13** is not flipped here — it RESOLVES at the **M10.5** MP-C-16 box-gated re-run (no
+unobserved-result claim). All grounded symbols held at the cited lines; the only correction was the crate
+home (`xgen-common`/`xgen-client` → `xgen-core`), recorded in the design §8.

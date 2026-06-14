@@ -1,6 +1,6 @@
 # XGen Protocol — Chapter 3: Specification
 > **Status:** ACTIVE  
-> Version: 0.54  
+> Version: 0.55  
 > Date: May 2026  
 > **Last updated**: 2026-06-14  
 > Language: English  
@@ -1026,9 +1026,12 @@ The `nonce` in `transport.auth` MUST match the nonce from `transport.challenge`.
   "protocol_version": "0.1",
   "type": "transport.auth_ok",
   "identity_id": "xgen://pubkey/ed25519:AAAAC3NzaC1lZDI1NTE5...",
+  "node_id": "xgen://pubkey/ed25519:NODEKEY...",
   "timestamp": "2026-04-26T10:00:00.000Z"
 }
 ```
+
+The `node_id` field (additive, optional; present since M10.4 / MP-F13) carries the **Node's own** `node_id` — its signing-key pubkey URI — distinct from the client's `identity_id` above. A client stores it for the session and writes it into the `home_node` of any Space it creates (the `state.space_create` / `state.dm_space_create` signed content), so a Space's home is named by the Node's pubkey identity, not a transport URL. Older Nodes omit the field; a client that receives no `node_id` MUST NOT fall back to writing a transport URL as `home_node`.
 
 `transport.auth_fail` — sent by Node on failed authentication, followed immediately by connection close:
 

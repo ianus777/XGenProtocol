@@ -1,6 +1,6 @@
 # M10.4 — Production Identity→Home-Node Discovery (MP-F13) — Implementation Runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-14  
 > Language: English  
@@ -251,3 +251,14 @@ Proves both stall sites clear with a pubkey `home_node` — confirming D2's "no 
 
 None of (1)–(4) contradicts a locked decision (D-065/D-078), so no re-lock — these are the file:line
 confirmations the design asked Clair to make at runbook. Proceed to C1.
+
+---
+
+## Close (J-371)
+
+**COMPLETED — shipped + verified.** C1 `77c906d` (AuthOk echo + node populate, 1392/0) → C2 `59e9193`
+(client capture + pubkey write + absent-echo refusal + connect-before-build, 1394/0) → C3 `de53cf0`
+(D2 both-stall-site witnesses, 1397/0). `cargo test --workspace` 1397/0 (+7 over the 1390 baseline);
+clippy clean default + all-features; all witnesses RED-on-revert verified. Chat doc-bridge J-371
+(ch3 v0.55 auth_ok.node_id field; design + audit COMPLETED; findings A1/A2/A4 RESOLVED, A3 confirmed,
+A5 recorded; MP-F13 → M10.5). No DECISIONS change (arc-local, D-069). Next: M10.5.

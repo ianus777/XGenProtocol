@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-371 — M10.4 SHIPPED + CLOSED: Shape B landed (client writes the Node's pubkey node_id via AuthOk echo); namespace reconciled, both stall sites clear; next-active = M10.5
+
+**What happened.** Clair implemented M10.4 (Shape B) across 4 commits (`cfa9775` runbook → C1 `77c906d` / C2 `59e9193` / C3 `de53cf0`), pushed. Chat verified + ran this J-371 doc-bridge. `cargo test --workspace` **1397/0** (+7 witnesses over the 1390 baseline); clippy clean default + all-features. No DECISIONS change (arc-local, D-069).
+
+**What shipped (Shape B, D1–D5).** The Node echoes its own pubkey `node_id` on `TransportMessage::AuthOk` (additive optional field; populated in `server_authenticate` from the in-scope `home_node_id`). The client captures it (`client_authenticate` widened to return an `AuthOutcome`) and stashes it in `SessionState` beside the URL. `create_space`/`create_dm_space` write the **pubkey node_id** — not the WS URL — into the Space's signed `content["home_node"]`, with a connect-before-build reorder (the node_id is captured at auth) and an **absent-echo refusal** (an older Node sending no `node_id` makes the client error, not silently write a URL). The URL is kept only for the client's own `node_endpoint` dial record. **No node-gate change** (D2): the six `SpaceState.home_node` consumers + both migration sites already compared against the pubkey, so the value becoming correct is the whole fix.
+
+**Grounding corrections surfaced at impl (D-065; none forked a locked decision — touch-points relocated, the shape held).** (1) The wire types + auth fns live in **xgen-core**, not xgen-common/xgen-client as the design/audit cited (`xgen-core/src/wire/types.rs` AuthOk; `xgen-core/src/transport/connection.rs` server/client_authenticate) — line numbers held. (2) D1 landed as two additive xgen-core API touches: `server_authenticate(node_id)` (the value was already in scope as `handle_connection`'s `home_node_id`, no `run_node` plumbing) + `client_authenticate → AuthOutcome` (of ~80 callers, only the binding sites changed; the `server_authenticate` arg rippled to ~17 test callers — surfaced by `cargo test --workspace`, which `cargo build` skips). (3) `create_space`/`create_dm_space` needed the connect-before-build reorder.
+
+**One honest deviation (D-065).** C3 **Witness 3** proves the cutover authority gate at the **applier level** (`apply_space_migrate`, the documented defensive twin of `validate_event`'s 6009 — same `sender == home_node` equality), rather than driving `validate_event` (whose fixture — registry + store + registered sender + predecessor — was disproportionate for a fast witness). The `validate_event`-level + the end-to-end re-home is the M10.5 box-gated MP-C-16 (D3) regardless. Recorded in the C3 commit message + the design §8.
+
+**Witnesses (all RED-on-revert verified).** Namespace value-correctness (`create_space` writes the pubkey, not the URL — fixes the in-process-test blind spot where the unit fixtures wrote a pubkey); Site 1 clears (no `MIG_6010`); Site 2 clears (no `6009`, at the applier level); the absent-echo refusal.
+
+**Findings.** **M10.4-A1 RESOLVED** (namespace reconciled), **M10.4-A2 RESOLVED** (both stall sites), **M10.4-A4 RESOLVED-as-Shape-B**; **M10.4-A3** confirmed (escape did not fire); **M10.4-A5** recorded (leave-as-legacy). **MP-F13 → RESOLVED at the M10.5 MP-C-16 re-run, NOT at this code commit** (no unobserved-result claim, J-352 precedent).
+
+**Canonical flips (D-074).** ch3 v0.54→v0.55 (additive `transport.auth_ok.node_id` field + the client-write/MUST-NOT-fallback note); `tasks/M10_4_HOME_NODE_DISCOVERY_DESIGN.md` → COMPLETED v1.1 (§8 close + the grounding corrections + the deviation); `…_AUDIT.md` → COMPLETED v1.1 (§8 disposition); `…_IMPL.md` → COMPLETED v1.1 (close); `tasks/MP_findings.md` v1.21 (MP-F13 progress note, not flipped); `docs/ROADMAP.md` v3.59→v3.60 (M10.4 DONE markers); `CLAUDE.md` PLAY head; this JOURNAL J-371. No DECISIONS change (the "Space `home_node` = pubkey node_id from the AuthOk echo" invariant remains a candidate).
+
+**Next-active: M10.5** — the box-gated **MP-C-16** end-to-end re-home re-run (flips MP-F13 RESOLVED on observed green) + the **MP-F6** fold (the `runtime.rs:691` swallowed-apply-error breadcrumb) + the **MP-C-06** re-home scenario (the sole surviving R1 test-debt item). Opens its own framing. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-371 → `docs/ROADMAP.md` (M10 / M10.5) → `tasks/MP_findings.md` (MP-F13/MP-F6/MP-C-06).** Not pushed — Joe pushes.
+
+---
+
 ## Entry J-370 — M10.4 design Joe-LOCKED: Shape B (client writes node_id via additive AuthOk echo) reconciles the home_node namespace; no node-gate change; next-active = Clair runbook
 
 **What happened.** Clair's M10.4 Phase-0 audit landed (`c5677f3`, `tasks/M10_4_HOME_NODE_DISCOVERY_AUDIT.md` v1.0, 5 findings, pushed). Chat verified it (spot-checked the three load-bearing groundings — `session.home_node: String` is the WS URL, the client wraps it verbatim into a `NodeXgid`, the cutover gate is `sender == home_node` → 6009 — all hold), Joe locked the two design calls by-recomms, and Chat authored `tasks/M10_4_HOME_NODE_DISCOVERY_DESIGN.md` (v1.0 ACTIVE). Doc-only; no code; no DECISIONS change (M10.4-D# arc-local, D-069).

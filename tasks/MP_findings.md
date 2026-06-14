@@ -1,8 +1,8 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.20  
+> Version: 1.21  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-12  
+> **Last updated**: 2026-06-14  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -388,6 +388,7 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
 - **Route (Joe-LOCKED J-347):** **R3 as a named dependency — the J-278 / F1B-D5 home-node-identity arc** ("production identity→home-node discovery", already routed to a ROADMAP horizon; same root). The root fix is the client writing the node's pubkey id as `home_node`, which requires the client to *learn* it (the J-278 gap). **Fix-shape forks (string-resolved):** (c) deeper J-278 dependency = the root, **the lean/route**; (b) migration-resolves/compares-URL (node compares `home_node` against its own known listen URL) = a bounded near-term symptom-fix that could green MP-C-16 without solving J-278 — **flagged, NOT taken** (papers over the NodeXgid contract violation + leaves the broader inconsistency); (a) node-normalizes-home_node-on-ingest = **blocked** (signed content, node can't rewrite). Same shape as MP-F11.
 - **Code anchors:** `migration_initiate` homed check (`xgen-node` admin_ops.rs:2081; MIG_6010 on `st.home_node != rt.node_id`); `ops::create_space(home_node)` writes `content["home_node"]` from `session.home_node` (`xgen-client`); `from_space_create` stores verbatim (`xgen-core`); the in-process test setting `home_node = node_id` (runtime.rs:2207); J-278 / F1B-D5 (client learns the WS URL only).
 - **Status:** ROUTED → R3 named dependency (J-278/F1B-D5 family, Joe-LOCKED J-347). MP-C-16 is its first witness row. Does **not** re-open the gate.
+- **UPDATE (J-371) — Layer-1 root fix SHIPPED at M10.4 (Shape B); MP-F13 NOT flipped here — resolves at the M10.5 MP-C-16 re-run.** M10.4 (J-369 open → J-370 design → J-371 close) reconciled the namespace: the client now learns the Node's pubkey `node_id` via an additive `AuthOk.node_id` echo and writes it (not the WS URL) into `content["home_node"]` for both `space_create` + `dm_space_create` (fork (c), the J-278 root — fork (b) URL-compare explicitly NOT taken). Both stall sites proven to clear with a pubkey + fire on a URL by the C3 witnesses (Site 1 `MIG_6010`; Site 2 cutover `6009` at the applier level). `cargo test --workspace` 1397/0. The **box-gated end-to-end MP-C-16 re-home** re-runs at **M10.5** — MP-F13 flips RESOLVED there, on an observed green (no unobserved-result claim, J-352).
 
 ---
 

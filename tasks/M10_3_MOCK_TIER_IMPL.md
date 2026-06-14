@@ -1,6 +1,6 @@
 # M10.3 — Parameterized T2–T4 Mock + `accepted_tiers` Enforcement + Dormant-Tier Activation — Implementation Runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-14  
 > Language: English  
@@ -157,21 +157,26 @@ existing `pg08_thread_create_above_creator_tier_rejected_3030` is the RED side.
    side, now reachable via a higher-tier identity); the T1-creator reject pin holds. RED: creator T1 → rejected.
 5. **`module_kind: mock` populated** (C2 lib) — issued mock assertions carry the label. RED: not set.
 
-## 5. Definition of Done
+## 5. Definition of Done — SHIPPED
 
-- [ ] C1: `accepted_tiers_by_issuer()` + `AssertionPolicy` field (Default empty) + C2 check (after Step 1,
-      restrictive-only) + `AssertionTierUnauthorized`/3012; behaviour-neutral (gate not yet deriving the map);
-      unit witnesses 2/3 + witness 4 (Thread accept) green.
-- [ ] C2: `xgen-auth-module issue --tier <N>` parameterized (mock for N∈{2,3,4}, grounded TTL/erasability,
-      `module_kind: mock`); `--tier 1` byte-identical to reference; lib + integration witnesses 1/2/5 green.
-- [ ] C3: gate derives `accepted_tiers_by_issuer` live (the behaviour flip); empty-baseline node regression
-      green (M10.2 install base unchanged).
-- [ ] All five witnesses carry a genuine RED-on-revert.
-- [ ] `cargo build --workspace --all-targets` 0; clippy `-D warnings` clean (default + all-features);
-      `cargo test --workspace` green (record the count delta over the 1382 M10.2 baseline).
-- [ ] Empty-baseline prime invariant asserted: C2 invisible when no issuer has a non-empty `accepted_tiers` (the
-      entire M10.2 install base) — the regression guard.
-- [ ] D-092 confirmed not triggered (no node verb surface change; the mock CLI is the binary's own arg parser;
+Commits: runbook `a355ed2` → C1 `14972df` → C2 `a0e049b` → C3 `db3b882` (not pushed — Joe pushes).
+
+- [x] C1 (`14972df`): `accepted_tiers_by_issuer()` + `AssertionPolicy` field (Default empty) + C2 check (after
+      Step 1, restrictive-only) + `AssertionTierUnauthorized`/3012; behaviour-neutral (gate not yet deriving the
+      map); witnesses 2/3 (unit) + witness 4 (Thread accept) green.
+- [x] C2 (`a0e049b`): `xgen-auth-module issue --tier <N>` parameterized (`issue(tier)`; mock for N∈{2,3,4},
+      grounded TTL/erasability, `module_kind: mock`); `--tier 1` byte-identical to reference (`issue_tier1`
+      wrapper); lib + integration witnesses 1/2/5 green; bin builds.
+- [x] C3 (`db3b882`): gate derives `accepted_tiers_by_issuer` live (the behaviour flip); empty-baseline node
+      witness `seeded_issuers_have_empty_tier_scope_so_c2_stays_invisible` green (M10.2 install base unchanged).
+- [x] All five witnesses carry a genuine RED-on-revert (recorded in the test bodies + commit messages).
+- [x] `cargo build --workspace --all-targets` 0; clippy `-D warnings` clean (default + all-features);
+      `cargo test --workspace` **1390/0** (+8 over the 1382 M10.2 baseline: xgen-core +4, xgen-node +1,
+      xgen-auth-module +3).
+- [x] Empty-baseline prime invariant asserted: C2 invisible when no issuer has a non-empty `accepted_tiers` (the
+      entire M10.2 install base — every seeded issuer carries empty `accepted_tiers`); all M10.2 + M10.1
+      witnesses green (no regression).
+- [x] D-092 confirmed not triggered (no node verb surface change; the mock CLI is the binary's own arg parser;
       `accepted_tiers` set via the existing CRUD verbs). No DECISIONS change (M10.3-D# arc-local, D-069).
 
 *(Runbook DoD never lists "commit pushed" — Status: COMPLETED is the shipped signal. Clair's runbook commit

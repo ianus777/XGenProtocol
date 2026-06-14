@@ -1,10 +1,12 @@
 # XGen Protocol — Chapter 6: Client Design
-
-> **Status:** ACTIVE  
-> Version: 0.3  
-> **Last updated**: 2026-05-29  
+> **Status**: ACTIVE  
+> Version: 0.4  
+> Date: May 2026  
+> **Last updated**: 2026-06-14  
+> Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
+> License: BSL 1.1 (converts to GPL upon project handover)  
 
 ---
 
@@ -1488,6 +1490,24 @@ Forward-reference: the protocol primitives this section consumes — `is_ai` dec
 
 ---
 
+## 6.16 The `self` thread (Saved Messages)
+
+A personal single-user thread for notes-to-self — text messages with full chronological history, surfaced to the user as **"Saved Messages."** It is realised as a **self-DM**: a DM Space whose creator and sole invitee are the same identity, built on the existing Space/Room/Event/DAG machinery with no new protocol surface.
+
+**Reuses the user's existing identity.** The `self` thread is not a separate account and has no second keypair — both endpoints of the DM are the user's own already-registered identity. There is no new registration and no synthetic local-only key; `self` is *you*, addressed to yourself. This is the anchor that keeps the feature from drifting into "a second account."
+
+**Never federated, never broadcast.** A self-DM inherits the DM non-federation guarantee structurally: the same `DmFederationNotAllowed` rule that walls every DM off from federation applies, so a `self` thread's events never leave its home Node. Privacy here is a structural property of the DM primitive, not a configurable default.
+
+**Reach.** The thread is reachable from any client authenticated as the user — their own devices. Because it lives Node-side (not in device-local storage), a second device authenticating as the same identity sees the same thread and its full history. It is Node-resident, not device-local.
+
+**Attachments** are an inherited capability: when M12 lands, the `self` thread carries attachments through the same event/blob mechanism as any DM. M11 ships text-first.
+
+**Boundary.** The `self` thread is not an account, not a Node-side service, and introduces no new wire type, event kind, or reject code. The entire protocol/applier delta is the existing DM creation path with a single construction-time guard that skips the (vestigial) self-invite when the invitee is the creator; the client adds a thin `self` convenience verb (create-if-absent → open) and a "Saved Messages" label over the existing send/history surface.
+
+*Decision record: D-021 (reconciled — registered via the existing identity, never federated; the pre-machinery "never registered" clause relaxed, its spirit preserved). Milestone M11. No Phase 2 protocol implications.*
+
+---
+
 ## Session Log
 
 ### Session 1 — April 2026 (JozefN)
@@ -1528,3 +1548,6 @@ Component independence principle documented: each component in `components/` is 
 
 ### Session 8 — 2026-05-17 (JozefN)
 **Covered:** §6.15 AI Client (resident mode) written as Ch6's first-pass client-side implementation home for the M4 AI Client (D-065). Ten subsections: 6.15.1 mode selection and dispatch (three top-level modes for `xgen-client`; `--ai-mode` requires `--service`; clap rejects standalone uses); 6.15.2 configuration (the M3 `[ai] is_ai = true` + `[ai.capabilities]` extended by M4 with `plugin = "echo"` and a `[ai.behavior]` sub-table; deliberate split between "which plugin" and "how that plugin is tuned"); 6.15.3 the `AiBehavior` trait (`on_event` returning `Option<String>`, fast-and-non-blocking contract, runtime owns pacing/mute/prev_events/I-O); 6.15.4 reference plugin `echo` with deterministic reply format (`[echo-plugin] received mention from <last-12>`) and explicit non-configurability rationale; 6.15.5 mention detection (two-rail OR'd: identity_id substring always-on plus optional `mention_token` from `[ai.behavior]`; case-sensitive per RFC 3986); 6.15.6 runtime loop (load → connect → sync → receive loop applies events to per-Space SpaceState, tracks last-event-per-Space for prev_events chaining, invokes plugin, gates replies); 6.15.7 pacing and mute — drop, don't queue, articulating the named recurring principle "honest behaviour over polite behaviour" with the literal greppable WARN line (`dropping reply — pacing cap not yet elapsed (honest behaviour over polite behaviour)`) and the cross-instance list (D-064 fall-upward operator resolution, Node event-acceptance pipeline, mute-as-wall, the cmd_create_space optimistic-ack UX carry-over); 6.15.8 lifecycle and control commands inherited from M2 with `__HEALTH__` extended to `HEALTHY pid=<pid> mode=ai operator_known=<known>/<total>`; 6.15.9 manual join (no auto-join — trust-model rationale: AI presence stays explicit and auditable through `membership.join`); 6.15.10 out-of-scope forward-references (real LLM hookups, operator command surface, temperature reaction, multi-device, Tauri surface — all future milestones). No new EventTypes, no new wire shape — the section is pure client-side implementation reading existing M3 protocol primitives (`is_ai`, `ai_capabilities`, `ai_pacing_ms`, `active_mutes`, `resolve_operator`). Ch3 §3.6.10 cross-reference list extended with D-064, D-065, and the forward link to §6.15. Header bumped to 0.3 / 2026-05-17.
+
+### Session 9 — 2026-06-14 (JozefN)
+**Covered:** §6.16 The `self` thread (Saved Messages) written as the M11 close deliverable (D-021). Documents the self-DM shape (shape B): a personal single-user thread reusing the user's existing registered identity as both DM endpoints — not a separate account, no second keypair, no new registration. Never federated / never broadcast by structural inheritance of `DmFederationNotAllowed`; reachable from any client authenticated as the user (their own devices; Node-resident, not device-local); attachments inherited at M12, text-first at M11. Boundary recorded: no new wire type, event kind, or reject code — the entire protocol/applier delta is a construction-time guard skipping the vestigial self-invite when invitee == creator, plus a thin client `self` convenience verb and "Saved Messages" label. D-021 reconciled (relaxed the pre-machinery "never registered" clause; spirit preserved). No Phase 2 protocol implications. Header bumped to 0.4 / 2026-06-14.

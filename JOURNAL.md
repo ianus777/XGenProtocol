@@ -1,11 +1,27 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
 > **Last updated:** 2026-06-14  
-> (latest: J-377 — M11 design Joe-LOCKED; shape B self-DM; D1 guard-at-construction + D5 `self` verb; next-active = Clair runbook)  
+> (latest: J-378 — M11 (`self` thread) SHIPPED + CLOSED; 3 Clair commits, gate green 1405/0; D4 ch6 §6.16 note + canonical flips; next-active = M12)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-378 — M11 (`self` thread, D-021) SHIPPED + CLOSED: 3 Clair code commits + the doc-bridge close (D4 ch6 §6.16 note + canonical flips); next-active = M12
+
+**What happened.** Clair shipped the M11 build in three code commits on `main`, gate green; Chat ran this doc-bridge close (the D4 ch6 note + the canonical-record flips, one-writer atomic per D-074). Doc-only on Chat's side; no DECISIONS change (M11-D1..D5 arc-local, D-069); D-021 reconciled.
+
+**What shipped (Clair, 3 commits, pushed).** **`2c2bc4c`** — D1 guard at both DM constructors (`from_dm_space_create` / `from_dm_space_create_node`, `xgen-core`): skip the auto self-invite when `invitee == creator`; constructor-only, no `apply_join` belt-and-suspenders (the `AlreadyMember` short-circuit already neutralizes a stray self-invite). The entire applier/protocol delta — two sites, a few lines, no wire/event/reject change. Witnesses W1a/W1b (no `pending_invites[self]`, RED-on-revert), W2 (creator Owner + dm-Room member), W3 (`DmFederationNotAllowed`); non-self regression held. **`092ddb9`** — D5 `self` verb + label + D2 wording (`xgen-client`): `ClientCommand::SelfThread` (clap `"self"`), `ops::self_open` (resolve session identity → create-if-absent scan for the `"self"`-labelled KnownSpace → open, or run the create chain when absent), all four D-092 dispatch arms (CLI / run-path / batch / aicontrol). `create_dm_space` labels the KnownSpace `"self"` when `invitee == creator`, so the raw `--invitee <own-id>` floor and the verb converge on one core / one label, no drift. Witnesses V-idempotent / V-autotarget. **`ebc2bf6`** — W4 reach witness (`xgen-node`, test-only): the self-DM is served via member-gated `collect_sync_history`; a second sync as the same identity sees it (the D2 reach property).
+
+**Gate (final).** `cargo build --workspace --all-targets` 0 · `cargo clippy --workspace --lib --tests --all-features -- -D warnings` clean · `cargo test --workspace` **1405/0** (+6 over the 1399 baseline = W1a/W1b/W2/W3 + V-idempotent/V-autotarget + W4).
+
+**Joe-lock checkpoints resolved by-recommendation (runbook §2, C1–C6).** C1 label-based create-if-absent detection · C2 one create-core with the label parameterized (floor + verb converge) · C3 the swallowed wire self-invite left as the named-benign D1 residue (suppressing it is out of D1's two-site scope) · C4 `name="self"` storage key / "Saved Messages" display · C5 W4 its own test-only commit · C6 variant `SelfThread` / clap `"self"`. One grounding resolved an open design question: D5 needs **all four** dispatch arms (a `self` verb is a real new `ClientCommand`, sibling-shape to `CreateDmSpace`).
+
+**Doc-bridge close (this entry, D-074 atomic).** D4 ch6 note authored: `docs/xgen_ch6_client_design.md` v0.3→0.4, new **§6.16 "The `self` thread (Saved Messages)"** (self-DM shape; reuses-existing-identity anchor; never-federated / never-broadcast by `DmFederationNotAllowed`; reach = any client authenticated as the user — their own devices, Node-resident not device-local; attachments inherited at M12; boundary = no new wire/event/reject surface) + a Session 9 log entry; ch6 header brought to the full mandated structure (Date / Language / License added). **Canonical flips:** `tasks/M11_SELF_THREAD_{DESIGN,PHASE0_AUDIT,IMPL}.md` → COMPLETED (v1.1; IMPL carries the close banner); this PLAY/JOURNAL; `docs/ROADMAP.md` v3.66→v3.67 (M11 🟢→✅ at all three sites: tree / index / detail); `docs/xgen_appendix_f_en.md` v1.8→v1.9 (the `self` verb added to the F.0.4 Client-only list + the F.3 detailed reference, Session 5 — a missing close deliverable caught by Joe at close, per the thin-verb-arc Appendix-F convention J-334; the runbook §6 close list had omitted it). No DECISIONS change. D-021 reconciled (registered-via-existing-identity / never-federated spirit preserved; the pre-machinery "never registered" clause relaxed).
+
+**Next-active.** **M12 — attachments** (the pre-UI mechanic; opens its own D-071 Phase-0), then the Round-2 final pre-UI gate → UI → Streams (the J-357 reconciled chain). **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-378 → `docs/ROADMAP.md` (M12) → `docs/xgen_ch6_client_design.md` §6.16.** Not pushed — Joe pushes.
 
 ---
 

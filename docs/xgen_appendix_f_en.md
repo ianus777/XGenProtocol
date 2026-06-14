@@ -1,6 +1,6 @@
 # Appendix F — CLI Reference and Usage Examples
 > **Status:** ACTIVE  
-> Version: 1.8  
+> Version: 1.9  
 > Date: May 2026  
 > **Last updated**: 2026-06-14  
 > Language: English  
@@ -99,6 +99,7 @@ Binary-specific. Listed in full detail in §F.2 (Node) and §F.3 (Client).
 | `join` | Join a Space (accept invite or join an open Space) |
 | `send` | Send a `message.text` Event to a Room |
 | `history` | Fetch and display Room message history in causal order |
+| `self` | Open the personal "Saved Messages" self-thread (create-if-absent; M11, D-021) |
 | `spaces` | List Spaces this Identity has joined (membership view — see §F.0.5) |
 | `rooms` | List Rooms within a Space (shipped M6 Phase 1, R1) |
 | `members` | List members of a Space (**deferred** — not a zero-network local read; `xgen-client_state.json` persists no per-member data. Needs either a Node query or a state-schema expansion; re-enters as its own scoped piece. M6 Phase 1 decision, 2026-05-29) |
@@ -348,6 +349,7 @@ See §F.0 for the full fundamental/non-fundamental flag taxonomy. Tables below a
 | `join` | `--space <id>` | Yes | Join a Space (accept invite or join an open Space). |
 | `send` | `--space <id>` `--room <id>` `--text <text>` | Yes | Send a `message.text` Event to a Room. |
 | `history` | `--space <id>` `--room <id>` `[--limit <N>]` | Yes | Fetch and display Room message history in causal order. |
+| `self` | — | Yes | Open the personal **"Saved Messages"** thread (M11, D-021): a *self-DM* — a DM whose creator and sole invitee are the same identity, reusing your existing registered identity (no second account, no new registration). No id argument — auto-resolves the session identity. Create-if-absent: creates the `"self"`-labelled self-DM on the first call, opens it (no network round-trip) thereafter. Never federated (`DmFederationNotAllowed`); reachable from any client authenticated as you. Post/read with `send`/`history` against the returned room. |
 | `spaces` | — | No | List Spaces this Identity has joined (see §F.0.5 collision note). |
 | `rooms` | `--space <id>` | No | List Rooms in a Space. Shipped M6 Phase 1 (R1). |
 | `members` | `--space <id>` | No | List members of a Space. **Deferred** (M6 Phase 1, 2026-05-29) — no local data source today; see the §F.3 §F.10 command-table note above. |
@@ -1294,3 +1296,6 @@ with the reserved `3012 watchlist_match` — see ch3 §3.11.7.)
 
 ### Session 4 — 2026-06-14 (JozefN)
 **Covered:** new **§F.10.1** documenting the M10.3 parameterized higher-tier mock issuance — the `issue --tier <N>` flag (N=1 reference default; N∈{2,3,4} auto-sets `module_kind = mock` + grounded TTL T2=365/T3=180/T4=90 + tier-appropriate `erasability`, T4 `retained`), the expression-only nature of the `mock` label (the registry CRUD gate remains the safety mechanism, not the label), and the operator-visible per-issuer **`accepted_tiers` scope** with its **`3032 assertion_tier_unauthorized`** reject (restrictive-only; distinct from the node-floor `3030 tier_mismatch`). D-065 note: the reject code was renumbered **3012 → 3032** at close (J-367 catch) — the M10.3 design's 3012 collided with the reserved `3012 watchlist_match` in ch3 §3.11.7; `watchlist_match` keeps 3012, the auth-tier-authz code moved to 3032 (adjacent to the 3030/3031 tier-authz band). Cross-refs to ch3 §3.11.7 and the M10.3 design/audit (J-366/J-368).
+
+### Session 5 — 2026-06-14 (JozefN)
+**Covered:** new `self` Client subcommand added to the command tables (F.0.4 Client-only + F.3 detailed reference) — the M11 (D-021) personal **"Saved Messages"** self-thread: a self-DM reusing the user's existing identity as both endpoints (no second account, no new registration), auto-resolving the session identity (no id argument), create-if-absent (creates the `"self"`-labelled self-DM on the first call, opens thereafter), never federated (`DmFederationNotAllowed`), reachable from any client authenticated as the user; post/read via the existing `send`/`history`. Caught at the M11 close as a missing close deliverable (the thin-verb-arc Appendix-F convention, J-334; the runbook §6 close list had omitted it). Cross-refs to ch6 §6.16 and the M11 design/close (J-377/J-378). (Note: the underlying `create-dm-space` verb remains undocumented in this appendix — a pre-existing gap, out of M11 scope.)

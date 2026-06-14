@@ -1,6 +1,6 @@
 # M11 — `self` Thread: Implementation Runbook (D-021)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-14  
 > Language: English  
@@ -11,6 +11,8 @@
 ---
 
 ## 0. Purpose & gate
+
+> **CLOSED (J-378, 2026-06-14).** All three Clair code commits shipped + pushed — `2c2bc4c` (D1 guard, xgen-core) · `092ddb9` (D5 `self` verb + label + D2 wording, xgen-client) · `ebc2bf6` (W4 reach, xgen-node). Final gate green: workspace build 0 · clippy `--all-features -D warnings` clean · `cargo test --workspace` **1405/0** (+6 over the 1399 baseline = W1a/W1b/W2/W3 + V-idempotent/V-autotarget + W4). Joe-lock checkpoints C1–C6 resolved by-recommendation (C1 label-based detection · C2 one create-core, label parameterized · C3 benign wire self-invite left as D1 residue · C4 `name="self"` / "Saved Messages" · C5 W4 its own commit · C6 `SelfThread` / clap `"self"`); D5 grounding resolved — all four dispatch arms needed. Doc-bridge close = §6 (D4 ch6 §6.16 note + canonical flips) + the `self` verb appended to **Appendix F** (F.0.4 Client-only list + F.3 detailed reference; the §6 close list below had **omitted** it — caught by Joe at close, per the thin-verb-arc Appendix-F convention J-334). M11-D1..D5 stay arc-local (D-069, none promoted); D-021 reconciled. Sections below are the as-built plan, retained as the historical record.
 
 The Clair-facing build plan for M11, executing the Joe-LOCKED design
 (`tasks/M11_SELF_THREAD_DESIGN.md` v1.0, M11-D1..D5) on the Phase-0 grounding

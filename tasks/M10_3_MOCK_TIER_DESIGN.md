@@ -1,6 +1,6 @@
 # M10.3 — Parameterized T2–T4 Mock + `accepted_tiers` Enforcement + Dormant-Tier Activation — Design
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-14  
 > Language: English  
@@ -114,3 +114,25 @@ verbs (D-092 not triggered — the binary CLI is its own arg parser, not a node 
 Clair: author `tasks/M10_3_MOCK_TIER_IMPL.md` (the `accepted_tiers_by_issuer` + `AssertionPolicy` field + the
 C2 check/3012 + the mock `--tier` path + the dormant-gate witnesses), confirming the §3 groundings + §5 details
 to file:line → implement → Chat doc-bridge → close. No code until the runbook lands.
+
+## 8. Close (J-368)
+
+**SHIPPED + CLOSED.** Clair shipped 6 commits (`a355ed2` runbook → C1 `14972df` / C2 `a0e049b` / C3 `db3b882`
+→ runbook-COMPLETED `80902ba`); D1–D5 honored, D-092 not triggered. Verified `cargo test --workspace` 1390/0;
+clippy clean (default + all-features); 5 witnesses RED-on-revert; empty-baseline invariant + M10.1/M10.2
+witnesses intact.
+
+**D3 slot correction — 3012 → 3032 (D-065, J-367 catch).** The locked D3 reject code **3012** was grounded on
+*no code emitter* but missed a *spec reservation*: ch3 §3.11.7 already assigned **3012 = `watchlist_match`**
+(L3858, Tier-3/4 dormant). Closing as-is would have re-introduced the exact RC-F-01 double-definition M10.1
+eliminated. Resolution (Joe-locked slot): `watchlist_match` keeps **3012**; the M10.3 auth-tier-authz code moves
+to **3032**, adjacent to the 3030/3031 tier-authz sub-band. Code renumber + witness sweep landed pre-bridge
+(registration.rs + xgen-auth-module/end_to_end.rs; 1390/0 held); ch3 activates the 3032 row this close. The D3
+decision direction (a distinct auth-module-band code for issuer-tier-authz, separate from 3030) is unchanged —
+only the integer moved.
+
+**Findings flipped (this bridge):** M10.3-A1/A2 RESOLVED (D1 live-read / D2 empty=unrestricted); **M10.3-A3
+RESOLVED-with-correction** (the “3012 free” call was wrong — shipped 3032); M10.3-A4 dormant-schema boundary
+recorded; M10.3-A5 no-action. Cross-arc: **M10.2-A1 CARRIED → RESOLVED** (`accepted_tiers` enforcement-bearing);
+**M10-A-04 → fully RESOLVED** (`module_kind: mock` populated — the J-361 “second half”). DECISIONS: no change
+(arc-local, D-069). **Next-active: M10.4 (MP-F13).**

@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 3: Specification
 > **Status:** ACTIVE  
-> Version: 0.53  
+> Version: 0.54  
 > Date: May 2026  
-> **Last updated**: 2026-06-13  
+> **Last updated**: 2026-06-14  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -3851,7 +3851,7 @@ Higher-Tier Auth Module failures extend the 3000 error code range established in
 
 > **RC-F-01 reconcile (M10.1).** This section originally double-defined 3010 (`auth_tier_insufficient`) and 3011 (`kyc_verification_pending`) on top of the live §3.6.5 Arc-E codes 3010 `assertion_identity_mismatch` / 3011 `assertion_claims_insufficient` (which are emitted and test-asserted). The Arc-E meanings are authoritative and unchanged. Tier-insufficiency — at registration check 4 and at the PG-13 join gate — emits the live **3030 `tier_mismatch`** (§3.8.5 implementation note); `auth_tier_insufficient` was the same gate under a dormant name and is **folded into 3030** (no separate code). `kyc_verification_pending` is **re-homed to 3031** (adjacent to 3030 — Auth-Tier and KYC are one domain), **reserved/dormant** until a Tier-3/4 KYC gate emits it. Zero emitted codes changed.
 
-> **Identity error range reservation:** the full range 3000–3099 is reserved for identity-related errors. Codes 3001–3011 cover registration + Auth-Module-assertion errors (§3.6.5, including the Arc-E PG-03 codes 3010 `assertion_identity_mismatch` and 3011 `assertion_claims_insufficient`). Codes 3012–3016 cover higher-tier Auth Module errors (this section). Codes 3020–3023 cover identity replication errors (3.13.10). Codes 3030–3031 cover Auth-Tier / KYC gating (3030 `tier_mismatch` live; 3031 `kyc_verification_pending` reserved). Implementers MUST NOT use any code in the 3000–3099 range for non-identity purposes.
+> **Identity error range reservation:** the full range 3000–3099 is reserved for identity-related errors. Codes 3001–3011 cover registration + Auth-Module-assertion errors (§3.6.5, including the Arc-E PG-03 codes 3010 `assertion_identity_mismatch` and 3011 `assertion_claims_insufficient`). Codes 3012–3016 cover higher-tier Auth Module errors (this section). Codes 3020–3023 cover identity replication errors (3.13.10). Codes 3030–3032 cover Auth-Tier / KYC gating (3030 `tier_mismatch` live; 3031 `kyc_verification_pending` reserved; 3032 `assertion_tier_unauthorized` live, M10.3 per-issuer accepted_tiers scope). Implementers MUST NOT use any code in the 3000–3099 range for non-identity purposes.
 
 | Code | Error string | Meaning |
 |---|---|---|
@@ -3862,6 +3862,7 @@ Higher-Tier Auth Module failures extend the 3000 error code range established in
 | 3016 | `data_localisation_violation` | Auth Module's data localisation does not satisfy the Space's jurisdictional requirements — Tier 4 |
 | 3030 | `tier_mismatch` | Trust Assertion Tier is below the Space's / Node's required Tier — **live** (registration check 4 + PG-13 join gate; folds in the former `auth_tier_insufficient`) |
 | 3031 | `kyc_verification_pending` | Identity's KYC/AML verification has not yet completed — Tier 3/4 — **reserved** (no emitter yet) |
+| 3032 | `assertion_tier_unauthorized` | Trusted issuer is not authorized to attest the asserted Tier (per-issuer `accepted_tiers` scope) — **live** (registration Step 1.5, M10.3 C2; distinct from the node-floor 3030 `tier_mismatch`) |
 
 **Display rule** — same pattern as all other error ranges:
 

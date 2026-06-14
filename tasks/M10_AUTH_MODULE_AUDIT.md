@@ -1,8 +1,8 @@
 # M10 — Auth Module Reference Set — D-071 Phase-0 Audit
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-13  
+> **Last updated**: 2026-06-14  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -313,3 +313,13 @@ none reopen a locked fork — they sharpen what each sub-arc must build.*
 §A4) → Joe-lock → runbook. The two design-shaping calls for M10.1/M10.2: **(M10-A-02)** does the real T1 module's
 trust ride config or a registry→policy wiring, and **(M10-A-03)** do the event-validation codes ride the
 wire-band reconcile or split to a sibling decision.
+
+## Close update (J-368) — M10-A-04 fully RESOLVED
+
+**M10-A-04 — fully RESOLVED.** The expression field landed at M10.1 (`claims.extra["module_kind"]`, J-361); the
+**mock population** — the J-361 “second half” — landed at M10.3 (J-368): the parameterized `issue --tier <N>`
+path populates `module_kind: mock` (N ∈ {2,3,4}) alongside the grounded TTL and tier-appropriate
+`module_policy.erasability` (T4 `retained`), witnessed RED-on-revert. Enforcement remains the
+`trusted_auth_modules`/registry gate (the label is expression, not trust — C4). Both halves shipped; the finding
+is closed. (M10-A-02/A-06 resolved at M10.2/J-364; M10-A-01 at M10.1/J-361. Remaining open M10 findings track
+the later sub-arcs — the audit stays ACTIVE until M10 closes.)

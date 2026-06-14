@@ -1,8 +1,8 @@
 # Appendix F — CLI Reference and Usage Examples
 > **Status:** ACTIVE  
-> Version: 1.7  
+> Version: 1.8  
 > Date: May 2026  
-> **Last updated**: 2026-06-13  
+> **Last updated**: 2026-06-14  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -1243,6 +1243,42 @@ registry rules. To withdraw trust, use `auth-module revoke` (or delete the recor
 no effect on an already-seeded issuer. An empty config + empty registry leaves behaviour byte-for-byte as before
 (the `local_mode`/baseline path is untouched).
 
+### F.10.1 Higher-tier mock issuance — `issue --tier <N>` (M10.3)
+
+*(Added M10.3, J-368.)* The `issue` subcommand takes an optional `--tier <N>` flag so the same reference binary
+can stand in as a **parameterized higher-tier mock** — the template an institution forks, not a deployable trust
+anchor.
+
+```
+xgen-auth-module issue --key <path> --subject <xgid> [--tier <N>] [--out <path>]
+```
+
+| `--tier` | Behaviour |
+|---|---|
+| `1` (default / omitted) | Tier-1 **reference** assertion — unchanged from §F.10 (`module_kind = reference`, erasable). |
+| `2` \| `3` \| `4` | Auto-**mock**: sets `module_kind = mock`, a grounded TTL (**T2 = 365d, T3 = 180d, T4 = 90d**), and tier-appropriate `module_policy.erasability` (**T2–T3 `erasable`, T4 `retained`**). |
+
+The mock issues exactly what validation consumes — the tier integer, the TTL, and the descriptor; it does **not**
+populate richer per-tier claim schemas (no production validator reads them, so populating them would be theater).
+The `mock` label is **expression-only**: a mock is honoured only if an operator has trusted its issuer via the
+`auth-module` CRUD verbs (the registry gate is the safety mechanism — a mock is never a trust anchor by virtue of
+its label).
+
+**Per-issuer tier scope + the `3032` reject (operator-visible).** An operator can scope a trusted issuer to
+specific tiers via the issuer's `accepted_tiers`. At registration the Node enforces, per issuer, that the
+asserted tier is within that issuer's scope (Step 1.5, **restrictive-only**: an empty/absent `accepted_tiers`
+means *unrestricted*). An assertion whose tier is **outside** the issuer's scope is rejected with:
+
+```
+Error 3032 (assertion_tier_unauthorized): This Auth Module issuer is not
+authorized to attest the asserted Tier.
+```
+
+This is **distinct** from `3030 tier_mismatch` ("the asserted tier is below the Space's/Node's required floor"):
+3030 is a node-wide ordered floor; 3032 is a per-issuer set-membership check. A T2-scoped issuer's T2 assertion
+is accepted; its T3 assertion is rejected with 3032. (3032 was renumbered from a draft 3012 to avoid colliding
+with the reserved `3012 watchlist_match` — see ch3 §3.11.7.)
+
 ---
 
 ## F.11 Session log
@@ -1255,3 +1291,6 @@ no effect on an already-seeded issuer. An empty config + empty registry leaves b
 
 ### Session 3 — 2026-06-13 (JozefN)
 **Covered:** new **§F.10** documenting the `xgen-auth-module` Tier-1 reference binary (offline signer; `keygen`/`issue` CLI; the M10.1 `module_kind`/`module_policy` descriptor on issued assertions) and the M10.2 **registry-as-trust-source** behaviour change (the gate live-reads `AuthModuleRegistry`; `auth-module register`/`revoke` are now enforcement-bearing; `revoke` bites without restart). D-065 honesty note recorded: config `trusted_auth_modules` is now an add-only/idempotent/revoke-wins **bootstrap-seed**, so removing an issuer from config no longer un-trusts it ("registry rules" — use `auth-module revoke` to withdraw trust); empty config + empty registry = prior behaviour byte-for-byte. Session log renumbered §F.10→§F.11. Cross-refs to D-069/D-083/AMR-D1 and the M10.2 design/audit (J-363/J-364).
+
+### Session 4 — 2026-06-14 (JozefN)
+**Covered:** new **§F.10.1** documenting the M10.3 parameterized higher-tier mock issuance — the `issue --tier <N>` flag (N=1 reference default; N∈{2,3,4} auto-sets `module_kind = mock` + grounded TTL T2=365/T3=180/T4=90 + tier-appropriate `erasability`, T4 `retained`), the expression-only nature of the `mock` label (the registry CRUD gate remains the safety mechanism, not the label), and the operator-visible per-issuer **`accepted_tiers` scope** with its **`3032 assertion_tier_unauthorized`** reject (restrictive-only; distinct from the node-floor `3030 tier_mismatch`). D-065 note: the reject code was renumbered **3012 → 3032** at close (J-367 catch) — the M10.3 design's 3012 collided with the reserved `3012 watchlist_match` in ch3 §3.11.7; `watchlist_match` keeps 3012, the auth-tier-authz code moved to 3032 (adjacent to the 3030/3031 tier-authz band). Cross-refs to ch3 §3.11.7 and the M10.3 design/audit (J-366/J-368).

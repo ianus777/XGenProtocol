@@ -1,8 +1,8 @@
 # M10.3 — Parameterized T2–T4 Mock + Dormant-Tier-Path Activation — D-071 Phase-0 Audit
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-13  
+> **Last updated**: 2026-06-14  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -360,3 +360,21 @@ is the wire-code; A4 is the dormant-schema honesty; A5 is a witness detail. **D-
 + reject code) + the mock parameterization (§8) + the witness set (T2/T3/T4 accepted; T2-issuer's T3 rejected via
 C2; Thread participation gate fires; T4 `retained`; `module_kind: mock`; empty-baseline) + the §11 deferred
 questions → Joe-lock → runbook → impl → close → M10.4 (MP-F13).
+
+## 13. Close disposition (J-368)
+
+M10.3 shipped + closed (J-368). Findings final state:
+
+- **M10.3-A1 — RESOLVED.** D1 landed the live-read: `AuthModuleRegistry::accepted_tiers_by_issuer()` +
+  `AssertionPolicy.accepted_tiers_by_issuer`, derived at the gate beside `trusted_issuers`.
+- **M10.3-A2 — RESOLVED.** D2 shipped restrictive-only (empty/absent ⇒ unrestricted); empty-baseline invariant
+  held byte-for-byte; config-seeded issuers stay unrestricted (non-regressive, as recommended).
+- **M10.3-A3 — RESOLVED-with-correction (D-065).** The audit's “3012 is a free dormant slot” call was **wrong**:
+  ch3 §3.11.7 had already assigned **3012 = `watchlist_match`** (L3858). The wire-code direction holds (a
+  distinct auth-module-band code, not 3030), but the integer moved to **3032** (Joe-locked, J-367), adjacent to
+  the 3030/3031 tier-authz sub-band. A genuine cross-file grounding miss the close caught before it shipped a
+  double-definition — the value of the D-065 close-check.
+- **M10.3-A4 — boundary recorded.** The dormant `Tier2/3/4Claims` schemas were **not** populated (no production
+  reader = theater); the mock issues the tier integer + grounded TTL + descriptor only. Richer schemas remain a
+  flagged future.
+- **M10.3-A5 — no action** (witness-construction detail; the T1-Space participation-gate setup was used as noted).

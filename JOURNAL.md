@@ -1,10 +1,26 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-12  
+> **Last updated:** 2026-06-14  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-368 — M10.3 SHIPPED + CLOSED: 3012→3032 renumber (D-065 close-catch) + doc-bridge; accepted_tiers enforcement-bearing, mock --tier path, module_kind:mock; next-active = M10.4 (MP-F13)
+
+**What happened.** The J-367 held close is resolved and M10.3 is closed. Joe locked the renumber slot (**3032**, by Chat's recommendation); the `3012→3032` code renumber landed as its own commit (Joe-pushed); Chat then ran this J-368 doc-bridge (doc-only, atomic D-074). No DECISIONS change (arc-local, D-069).
+
+**The renumber (D-065 close-catch, J-367).** M10.3's reject code **3012** collided with ch3 §3.11.7's reserved **`watchlist_match`** (L3858) — a missed spec assignment, the RC-F-01 class of bug M10.1 eliminated. Resolution: `watchlist_match` keeps **3012**; the auth-tier-authz code moves to **3032**, adjacent to the 3030/3031 tier-authz sub-band (semantic home: "issuer not authorized to attest this tier" sits with the tier-authz codes). Literal `3012→3032` across two files — `registration.rs` (5 sites: `#[error]` string, `to_registration_code` map, the Step-1.5 comment, the §7 witness doc-comment + `assert_eq!`) + `xgen-auth-module/tests/end_to_end.rs` (3 sites: 2 comments + the witness). No behaviour change; `cargo test --workspace` **1390/0** held; clippy clean (default + all-features); both witnesses flipped to 3032 and pass. The code commit **precedes** this doc-bridge (D-074 ordering).
+
+**What M10.3 shipped (J-366 design, J-367 impl).** C2 `accepted_tiers` enforcement-bearing: `AuthModuleRegistry::accepted_tiers_by_issuer()` + `AssertionPolicy.accepted_tiers_by_issuer`, live-read at the gate beside `trusted_issuers`; the C2 check at registration **Step 1.5**, **restrictive-only** (empty/absent `accepted_tiers` = unrestricted, so invisible at the empty/T1 baseline), **distinct** from the node-wide `tier ≥ required_tier` Step 4 (per-issuer set-membership vs node-wide ordered floor). Plus the mock `issue --tier <N>` path (N=1 reference; N∈{2,3,4} auto-`module_kind:mock` + grounded TTL T2=365/T3=180/T4=90 + tier-appropriate `erasability`, T4 `retained`; dormant `Tier2/3/4Claims` NOT populated — no production reader). The dormant Thread participation tier-gate witnessed. D1–D5 honored, D-092 not triggered.
+
+**Findings flipped (this bridge).** M10.3-A1/A2 RESOLVED (D1 live-read / D2 empty=unrestricted); **M10.3-A3 RESOLVED-with-correction** (the audit's "3012 free" call was wrong — the close-check caught the spec reservation before a double-definition shipped; the wire-code direction holds, the integer moved to 3032); M10.3-A4 dormant-schema boundary recorded; M10.3-A5 no-action. Cross-arc: **M10.2-A1 → RESOLVED** (`accepted_tiers` enforcement-bearing, the deferred-from-M10.2 prediction come due); **M10-A-04 → fully RESOLVED** (`module_kind:mock` population landed — the J-361 "second half").
+
+**Canonical flips (this atomic doc-bridge, D-074).** ch3 v0.53→v0.54 (new 3032 row in §3.11.7 + L3854 reservation note 3030–3032); `tasks/M10_3_MOCK_TIER_DESIGN.md` → COMPLETED v1.1 (§8 close + 3012→3032 D3 correction); `tasks/M10_3_MOCK_TIER_AUDIT.md` → COMPLETED v1.1 (§13 close disposition); `tasks/M10_2_REFERENCE_BINARY_AUDIT.md` v1.2 (M10.2-A1 close note); `tasks/M10_AUTH_MODULE_AUDIT.md` v1.3 (M10-A-04 close note; stays ACTIVE — M10.4/M10.5 open); `docs/xgen_appendix_f_en.md` v1.7→v1.8 (new §F.10.1 mock `--tier` + 3032 reject, operator-visible; Session 4 — note: implemented as §F.10.1 under the binary section + a Session-4 log entry, no session-log renumber, cleaner than the handoff's forecast §F.12/§F.13); `docs/ROADMAP.md` v3.56→v3.57 (M10.3 DONE markers, visual tree + chain + M-series detail); `CLAUDE.md` PLAY head; this JOURNAL J-368. `tasks/HANDOFF_M10_3_CLOSE_HELD.md` retired (COMPLETED).
+
+**Next-active: M10.4 — MP-F13** (production identity→home-node discovery, J-278/F1B-D5; a named M10 sub-arc, depth at its own mini-Phase-0; MP-C-16 re-runs after it lands) → M10.5 (fold MP-F6 + re-run MP-C-06/MP-C-16). **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-368 → `docs/ROADMAP.md` (M10 / M10.4) → `tasks/M10_AUTH_MODULE_AUDIT.md`.** Not pushed — Joe pushes.
 
 ---
 

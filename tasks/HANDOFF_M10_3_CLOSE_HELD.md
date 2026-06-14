@@ -1,6 +1,6 @@
 # HANDOFF — M10.3 close HELD (3012 reject-code collision; renumber pending Joe-lock)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-14  
 > Language: English  
@@ -11,6 +11,8 @@
 ---
 
 ## 0. Why this handoff exists
+
+**RETIRED — M10.3 CLOSED at J-368.** The renumber slot was Joe-locked (**3032**); the `3012→3032` code renumber landed + pushed; the J-368 doc-bridge ran (ch3 v0.54, design/M10.3-audit COMPLETED, M10.2-A1 RESOLVED, M10-A-04 fully RESOLVED, Appendix F v1.8 §F.10.1, ROADMAP v3.57). Next-active = M10.4 (MP-F13). This doc is kept as the contemporaneous record of the held interval; no further action.
 
 M10.3 implementation is **shipped + pushed**, but the **close is HELD** on a D-065 catch that needs **one Joe-lock**
 (the renumber slot) + **one tiny Clair code fix** before the Chat J-368 close bridge can run. This doc is the

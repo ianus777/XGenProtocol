@@ -1,8 +1,8 @@
 # M10.2 — Tier-1 Reference Auth Module (`xgen-auth-module`) — D-071 Phase-0 Audit
 > **Status**: COMPLETED  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-13  
+> **Last updated**: 2026-06-14  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -430,3 +430,13 @@ scope) + the issuance shape (§8: offline-signed token) + the config-seed semant
 runbook → impl (the `xgen-auth-module` bin + the registry→policy wiring + config-seed + the end-to-end
 RED-on-revert witness extending `non_local_registration_with_valid_assertion_accepted` with a registry-trusted
 issuer + a revoke→reject leg) → close.
+
+## 13. M10.2-A1 close (J-368)
+
+**M10.2-A1 — CARRIED → RESOLVED.** The deferred per-issuer `accepted_tiers` enforcement landed in M10.3 (J-368):
+D1 grew the gate to live-read `AuthModuleRegistry::accepted_tiers_by_issuer()` into a new
+`AssertionPolicy.accepted_tiers_by_issuer` field, and the C2 check (`assertion.tier ∈ issuer.accepted_tiers`,
+restrictive-only) inserts at registration Step 1.5 — distinct from the node-wide `tier ≥ required_tier` Step 4.
+`register`/`revoke`/`accepted_tiers` are now all enforcement-bearing. Reject code **3032
+`assertion_tier_unauthorized`** (renumbered from the M10.3 design's 3012 per the J-367 D-065 catch). Witnessed
+RED-on-revert (a T2-scoped issuer's T3 assertion rejected; its T2 accepted). The finding is closed.

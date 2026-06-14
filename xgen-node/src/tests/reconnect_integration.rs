@@ -91,7 +91,7 @@ mod tests {
             Ok(c) => c,
             Err(_) => return,
         };
-        if conn.server_authenticate().await.is_err() {
+        if conn.server_authenticate("xgen://pubkey/ed25519:TESTNODE").await.is_err() {
             return;
         }
         let hello = match conn.recv().await {

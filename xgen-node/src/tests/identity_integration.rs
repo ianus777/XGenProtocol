@@ -44,7 +44,7 @@ mod tests {
 
         let server_task = tokio::spawn(async move {
             let mut conn = server.accept().await.unwrap();
-            let authenticated_id = conn.server_authenticate().await.unwrap();
+            let authenticated_id = conn.server_authenticate("xgen://pubkey/ed25519:TESTNODE").await.unwrap();
 
             let inbound = conn.recv().await.unwrap();
             let reg_msg = match inbound {
@@ -112,7 +112,7 @@ mod tests {
 
         let server_task = tokio::spawn(async move {
             let mut conn = server.accept().await.unwrap();
-            let authenticated_id = conn.server_authenticate().await.unwrap();
+            let authenticated_id = conn.server_authenticate("xgen://pubkey/ed25519:TESTNODE").await.unwrap();
             let mut registry = IdentityRegistry::new();
 
             let inbound = conn.recv().await.unwrap();

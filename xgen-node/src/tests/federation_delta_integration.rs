@@ -206,7 +206,7 @@ mod tests {
 
         let server_task: tokio::task::JoinHandle<&'static str> = tokio::spawn(async move {
             let mut conn = server.accept().await.unwrap();
-            conn.server_authenticate().await.unwrap();
+            conn.server_authenticate("xgen://pubkey/ed25519:TESTNODE").await.unwrap();
 
             // F-1a: receiver-side tips — Node A's tip for the Space.
             let space_id_task_typed = sdx(&space_id_task);
@@ -393,7 +393,7 @@ mod tests {
 
         let server_task = tokio::spawn(async move {
             let mut conn = server.accept().await.unwrap();
-            conn.server_authenticate().await.unwrap();
+            conn.server_authenticate("xgen://pubkey/ed25519:TESTNODE").await.unwrap();
 
             let space_id_task_typed = sdx(&space_id_task);
             let our_tips = {
@@ -535,7 +535,7 @@ mod tests {
 
         let server_task = tokio::spawn(async move {
             let mut conn = server.accept().await.unwrap();
-            conn.server_authenticate().await.unwrap();
+            conn.server_authenticate("xgen://pubkey/ed25519:TESTNODE").await.unwrap();
 
             let space_id_task_typed = sdx(&space_id_task);
             let our_tips = {

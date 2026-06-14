@@ -41,7 +41,7 @@ mod tests {
         // Server task.
         let server_task = tokio::spawn(async move {
             let mut conn = server.accept().await.unwrap();
-            let identity_id = conn.server_authenticate().await.unwrap();
+            let identity_id = conn.server_authenticate("xgen://pubkey/ed25519:TESTNODE").await.unwrap();
             (identity_id, conn)
         });
 
@@ -75,6 +75,42 @@ mod tests {
         }
     }
 
+    /// M10.4 C1 witness — `AuthOk` echoes the Node's `node_id` (Shape B, MP-F13).
+    /// RED on revert of the populate in `server_authenticate`: `node_id` → None.
+    #[tokio::test]
+    async fn server_authenticate_echoes_node_id() {
+        use crate::wire::types::TransportMessage;
+        use crate::transport::connection::Inbound;
+
+        let mut server = Server::bind("127.0.0.1:0".parse().unwrap())
+            .await
+            .unwrap();
+        let addr = server.local_addr();
+        let client_key = keypair::generate();
+        const NODE_ID: &str = "xgen://pubkey/ed25519:WITNESSNODE";
+
+        let server_task = tokio::spawn(async move {
+            let mut conn = server.accept().await.unwrap();
+            conn.server_authenticate(NODE_ID).await.unwrap();
+        });
+
+        // Manual client handshake so we can read the raw AuthOk.
+        let mut conn = client::connect(addr).await.unwrap();
+        let nonce = match conn.recv().await.unwrap() {
+            Inbound::Transport(TransportMessage::Challenge { nonce, .. }) => nonce,
+            other => panic!("expected Challenge, got {other:?}"),
+        };
+        let auth = super::auth::build_auth_response(&nonce, &client_key);
+        conn.send_transport(&auth).await.unwrap();
+        match conn.recv().await.unwrap() {
+            Inbound::Transport(TransportMessage::AuthOk { node_id, .. }) => {
+                assert_eq!(node_id.as_deref(), Some(NODE_ID));
+            }
+            other => panic!("expected AuthOk, got {other:?}"),
+        }
+        server_task.await.unwrap();
+    }
+
     /// Authentication with a bad signature must return AuthFailed on the client.
     #[tokio::test]
     async fn bad_signature_rejected() {
@@ -90,7 +126,7 @@ mod tests {
         let server_task = tokio::spawn(async move {
             let mut conn = server.accept().await.unwrap();
             // server_authenticate will send auth_fail and return Err.
-            conn.server_authenticate().await.is_err()
+            conn.server_authenticate("xgen://pubkey/ed25519:TESTNODE").await.is_err()
         });
 
         // Client: tamper with the signature.
@@ -146,7 +182,7 @@ mod tests {
 
         let server_task = tokio::spawn(async move {
             let mut conn = server.accept().await.unwrap();
-            conn.server_authenticate().await.unwrap();
+            conn.server_authenticate("xgen://pubkey/ed25519:TESTNODE").await.unwrap();
             // Receive one event.
             match conn.recv().await.unwrap() {
                 Inbound::Event(ev) => ev,

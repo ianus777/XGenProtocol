@@ -174,7 +174,7 @@ mod tests {
 
         let server_task = tokio::spawn(async move {
             let mut conn = server.accept().await.unwrap();
-            conn.server_authenticate().await.unwrap();
+            conn.server_authenticate("xgen://pubkey/ed25519:TESTNODE").await.unwrap();
 
             // F-1a tip-exchange (runbook §3.3 Locked wire shape): Node A's
             // tip for the Space is the current DAG tip (invite_id). The

@@ -354,7 +354,14 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
     /// **Server-side** authentication (spec 3.3.4 Phase 2).
     /// Send challenge → verify auth response → send auth_ok or auth_fail.
     /// Returns the authenticated `identity_id` on success.
-    pub async fn server_authenticate(&mut self) -> Result<String, TransportError> {
+    ///
+    /// `node_id` is this Node's own pubkey id (`xgen://pubkey/ed25519:…`), echoed
+    /// on `AuthOk` so the client can write it as a Space's `home_node` (M10.4 /
+    /// MP-F13, Shape B).
+    pub async fn server_authenticate(
+        &mut self,
+        node_id: &str,
+    ) -> Result<String, TransportError> {
         let (issued, challenge_msg) = auth::issue_challenge();
         self.send_transport(&challenge_msg).await?;
 
@@ -376,6 +383,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
                     protocol_version: "0.1".to_string(),
                     identity_id: identity_id.clone(),
                     timestamp: ts,
+                    node_id: Some(node_id.to_string()),
                 };
                 self.send_transport(&ok).await?;
                 Ok(identity_id)

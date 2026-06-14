@@ -65,6 +65,12 @@ pub enum TransportMessage {
         protocol_version: String,
         identity_id: String,
         timestamp: String,
+        /// The Node's own pubkey `node_id` (`xgen://pubkey/ed25519:…`), echoed so
+        /// the client can write it as a Space's `home_node` (M10.4 / MP-F13,
+        /// Shape B). Additive optional (Ch3 §3.0.3): old nodes omit it, old
+        /// clients ignore it — no `protocol_version` bump.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        node_id: Option<String>,
     },
     /// Sent by Node on failed authentication, followed immediately by connection close.
     #[serde(rename = "transport.auth_fail")]
@@ -949,11 +955,37 @@ mod tests {
             protocol_version: "0.1".to_string(),
             identity_id: "xgen://pubkey/ed25519:abc".to_string(),
             timestamp: "2026-04-27T12:00:00.000Z".to_string(),
+            node_id: Some("xgen://pubkey/ed25519:NODE".to_string()),
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"type\":\"transport.auth_ok\""));
-        let parsed: TransportMessage = serde_json::from_str(&json).unwrap();
-        assert!(matches!(parsed, TransportMessage::AuthOk { .. }));
+        assert!(json.contains("\"node_id\":\"xgen://pubkey/ed25519:NODE\""));
+        match serde_json::from_str::<TransportMessage>(&json).unwrap() {
+            TransportMessage::AuthOk { node_id, .. } => {
+                assert_eq!(node_id.as_deref(), Some("xgen://pubkey/ed25519:NODE"));
+            }
+            other => panic!("expected AuthOk, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn transport_auth_ok_node_id_backcompat() {
+        // M10.4 — `node_id` is additive optional: an old node omits it (skip_
+        // serializing_if) and an old-shape JSON without it deserializes to None.
+        let none = TransportMessage::AuthOk {
+            protocol_version: "0.1".to_string(),
+            identity_id: "xgen://pubkey/ed25519:abc".to_string(),
+            timestamp: "2026-04-27T12:00:00.000Z".to_string(),
+            node_id: None,
+        };
+        let json = serde_json::to_string(&none).unwrap();
+        assert!(!json.contains("node_id"), "None node_id must be omitted: {json}");
+
+        let legacy = r#"{"type":"transport.auth_ok","protocol_version":"0.1","identity_id":"xgen://pubkey/ed25519:abc","timestamp":"2026-04-27T12:00:00.000Z"}"#;
+        match serde_json::from_str::<TransportMessage>(legacy).unwrap() {
+            TransportMessage::AuthOk { node_id, .. } => assert_eq!(node_id, None),
+            other => panic!("expected AuthOk, got {other:?}"),
+        }
     }
 
     #[test]

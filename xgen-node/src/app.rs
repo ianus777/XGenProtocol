@@ -1461,7 +1461,7 @@ pub(crate) async fn handle_connection(
     //
     // Pass 3 (Surface #5 Q5.1) — server_authenticate returns String (wire-
     // format Identity URI); project to typed IdentityXgid at the boundary.
-    let identity_id: IdentityXgid = match conn.server_authenticate().await {
+    let identity_id: IdentityXgid = match conn.server_authenticate(home_node_id.as_str()).await {
         Ok(id) => IdentityXgid::from_xgid(Xgid::new(id)),
         Err(e) => {
             tracing::error!(reason = %e, "Transport authentication failed");

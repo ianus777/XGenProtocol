@@ -63,7 +63,7 @@ async fn spawn_confirm_stub(actions: Vec<Act>) -> SocketAddr {
         let (stream, _) = listener.accept().await.unwrap();
         let ws = tokio_tungstenite::accept_async(stream).await.unwrap();
         let mut conn = Connection::new(ws);
-        if conn.server_authenticate().await.is_err() {
+        if conn.server_authenticate("xgen://pubkey/ed25519:TESTNODE").await.is_err() {
             return;
         }
         let mut i = 0usize;

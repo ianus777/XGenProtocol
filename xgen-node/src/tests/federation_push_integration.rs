@@ -219,7 +219,7 @@ mod tests {
         // drains apply_federation_push pushes).
         let server_task = tokio::spawn(async move {
             let mut conn = server.accept().await.unwrap();
-            conn.server_authenticate().await.unwrap();
+            conn.server_authenticate("xgen://pubkey/ed25519:TESTNODE").await.unwrap();
 
             // Read Hello to drive a manual handshake (mirrors
             // process_connection's first-message dispatch path).

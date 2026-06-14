@@ -38,7 +38,7 @@ async fn spawn_silent_server() -> (std::net::SocketAddr, tokio::task::JoinHandle
         let ws = tokio_tungstenite::accept_async(stream).await.unwrap();
         let mut conn = Connection::new(ws);
         // Complete auth handshake so the client can issue sync_request.
-        let _ = conn.server_authenticate().await;
+        let _ = conn.server_authenticate("xgen://pubkey/ed25519:TESTNODE").await;
         // Drain inbound forever, never reply. The client's sync_request
         // will sit unanswered until the safety-net timeout fires.
         loop {

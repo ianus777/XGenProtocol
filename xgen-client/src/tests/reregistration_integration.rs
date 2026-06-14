@@ -50,7 +50,7 @@ async fn spawn_register_capture_server() -> (SocketAddr, oneshot::Receiver<bool>
         let (stream, _) = listener.accept().await.unwrap();
         let ws = tokio_tungstenite::accept_async(stream).await.unwrap();
         let mut conn = Connection::new(ws);
-        let auth_id = match conn.server_authenticate().await {
+        let auth_id = match conn.server_authenticate("xgen://pubkey/ed25519:TESTNODE").await {
             Ok(id) => id,
             Err(_) => return,
         };

@@ -1385,6 +1385,31 @@ impl NodeRuntime {
 
         if matches!(event.event_type, EventType::MembershipJoin) {
             if let Some(space) = self.spaces.get(&space_id) {
+                // MP-F6 (M10.5-D2/D3) — dispatch-level banned pre-check. Without
+                // it, a banned identity's re-join is *accepted-but-inert*:
+                // `validate_event` does not consult `banned`, so the join passes
+                // validation and reaches `ingest_event`, whose
+                // `let _ = state.apply_event` (runtime.rs:748) swallows
+                // `apply_join`'s `Err(Banned)` (state.rs:1003) — `ingest_event`
+                // returns `()`, so the dispatch reply was `Accepted` (is_ok=true)
+                // for an event `derive_resolved` will drop. The end-state stayed
+                // correct (resolution is a second gate), but the *reply* lied.
+                // Surface the reject HERE (the reply); the apply-layer silence at
+                // :748 stays — it is load-bearing for replay tolerance (a replayed
+                // event resolution will drop must not crash replay; audit A4).
+                // Reject = PermissionDenied-class (4000-unmapped: `to_wire_code`
+                // returns None for it, exchange.rs:140), the same shape MP-C-09's
+                // banned-*send* reject lands as — no new wire code, no ch3 edit
+                // (M10.5-D3; a precise `join_banned` code is MP-F2-followon work).
+                if space.banned.contains(&event.sender) {
+                    return DispatchOutcome::Rejected(RejectInfo::from_exchange(
+                        &ExchangeError::PermissionDenied(format!(
+                            "membership.join: identity {} is banned from Space {}",
+                            event.sender.as_str(),
+                            space_id.as_str()
+                        )),
+                    ));
+                }
                 let joiner_tier = self
                     .identity_registry
                     .get(&event.sender)
@@ -3461,6 +3486,83 @@ mod persistence_amendment_commit_2a_tests {
         let room_id = event_id_str(&room_ev);
         node.ingest_event(room_ev);
         (node, space_id, room_id, alice)
+    }
+
+    /// MP-F6 (M10.5-D2/D3) — the dispatch-level banned pre-check makes the reply
+    /// honest. A banned identity's space re-join returns
+    /// `DispatchOutcome::Rejected` (PermissionDenied-class, wire 4000) instead of
+    /// the pre-M10.5 *accepted-but-inert* `Accepted` (is_ok=true while
+    /// `derive_resolved` silently drops the join via `apply_join`'s `banned`
+    /// consult, state.rs:1003).
+    ///
+    /// RED-on-revert: delete the banned pre-check in `dispatch_event`'s
+    /// `MembershipJoin` block (runtime.rs ~:1388) and the `Rejected` assertion
+    /// fails — the code returns `Accepted { .. }` with bob absent from members
+    /// (the exact MP-F6 symptom: honest end-state, dishonest reply).
+    #[test]
+    fn dispatch_banned_join_rejected_not_accepted_but_inert() {
+        let (mut node, space_id, _room_id, alice) = setup_space_with_room();
+        let sx = sdx(&space_id);
+        let bob = keypair::generate();
+        let bob_id = pubkey_uri(&bob);
+        node.register_identity(make_record(&bob, node.node_id.as_str()))
+            .unwrap();
+
+        // bob joins (open), then alice bans him — raw ingest (skips validation) to
+        // reach the banned state through the real appliers.
+        let tip0 = node.dag_tips(&sx).first().cloned().unwrap();
+        let mut join =
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({}));
+        join.prev_events = vec![EventXgid::from_xgid(Xgid::new(tip0))];
+        let join = sign_event(join, &bob);
+        let join_id = event_id_str(&join);
+        node.ingest_event(join);
+        assert!(
+            node.spaces[&sx].members.contains_key(&idx(&bob_id)),
+            "precondition: bob is a member before the ban"
+        );
+
+        let mut ban = build_membership_event(
+            &alice,
+            &space_id,
+            "",
+            EventType::MembershipBan,
+            json!({ "target_identity": bob_id }),
+        );
+        ban.prev_events = vec![EventXgid::from_xgid(Xgid::new(join_id))];
+        let ban = sign_event(ban, &alice);
+        node.ingest_event(ban);
+        assert!(node.spaces[&sx].banned.contains(&idx(&bob_id)), "bob is banned");
+        assert!(
+            !node.spaces[&sx].members.contains_key(&idx(&bob_id)),
+            "the ban cascade removed bob from members"
+        );
+
+        // bob re-joins → the pre-check rejects it (honest reply), not
+        // accepted-but-inert.
+        let current_tip = node.dag_tips(&sx).first().cloned().unwrap();
+        let mut rejoin =
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({}));
+        rejoin.prev_events = vec![EventXgid::from_xgid(Xgid::new(current_tip))];
+        let rejoin = sign_event(rejoin, &bob);
+        let outcome = node.dispatch_event(rejoin, EventOrigin::LocallySubmitted, None);
+        match outcome {
+            DispatchOutcome::Rejected(info) => {
+                assert_eq!(
+                    info.code, 4000,
+                    "banned join → PermissionDenied-class 4000 (M10.5-D3, no new wire code)"
+                );
+            }
+            other => panic!(
+                "banned re-join must be Rejected (honest reply), not {other:?} \
+                 (Accepted would be the MP-F6 accepted-but-inert bug)"
+            ),
+        }
+        // Protected state unchanged: bob is still not a member.
+        assert!(
+            !node.spaces[&sx].members.contains_key(&idx(&bob_id)),
+            "a banned bob must not become a member"
+        );
     }
 
     /// Test 1 — Q2(a) happy-path for the predecessor-arrival drain.

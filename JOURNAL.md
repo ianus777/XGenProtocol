@@ -1,10 +1,31 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
 > **Last updated:** 2026-06-14  
+> (latest: J-372 — M10.5 OPENED)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-372 — M10.5 OPENED: the final M10 sub-arc; the three M10-routed carve-outs come home (MP-C-16 re-run + MP-F6 fold + MP-C-06 re-home); three calls Joe-locked; next-active = Clair D-071 Phase-0 audit
+
+**What happened.** Joe opened M10.5, the certified next-active after M10.4 closed (J-371). Chat authored the framing brief `tasks/M10_5_CARVEOUTS_PHASE0_BRIEF.md` (ACTIVE v1.0) and Joe locked the three scope calls by-recomms. Doc-only; no code; no DECISIONS change (M10.5-D# arc-local, D-069).
+
+**What M10.5 is.** Fifth + **final** M10 sub-arc — when it closes, **M10 closes**. A **fix-and-rerun arc** (loop-to-green, D-065 / MP-R1-D10, the established MP round-close character), discharging the three carve-outs the multiparty test rounds routed to M10. These are the rounds' deferred items *coming home*, not fresh scope.
+
+**The three (characters differ sharply — the whole framing).** **(1) MP-C-16 / MP-F13 = a verification re-run, NOT a build.** The Layer-1 root fix already shipped at M10.4 (Shape B: the client writes the Node's pubkey `node_id`, via the additive `AuthOk.node_id` echo, into `content["home_node"]`, J-371). MP-F13 was deliberately not flipped at J-371 (no unobserved-result claim, J-352). M10.5 stands up the box-gated end-to-end re-home witness (`mp_r2_fixed::mp_c_16_live_migration_space_rehomes`; D3/J-370 = `require_ok` + home_node-flip-on-both), observes green → flips **MP-F13 RESOLVED**. Admin migration: the operator supplies both node_ids, so no discovery/notify is needed. **(2) MP-F6 = a bounded node-side fold.** The `let _ = …apply…` swallowed-apply-error at `runtime.rs:691` (+ no dispatch-level `banned` pre-check), surfaced by the ban arc (J-337/J-338). End-state correct (resolution is a second gate — `apply_join` consults `banned`, state.rs:1003); the dishonesty is in the **reply** (`is_ok=true` for an event resolution will drop). LOW-sev. **(3) MP-C-06 = the real iteration risk.** A client/Space re-home where members must be *told* the home moved (distinct from MP-C-16's operator-driven admin migration). Deferred (MP-R1-D10 / J-323) on two needs: the unbuilt `home_changed` client emit (J-278 CP-5 / J-279) + harness key-continuity across `--init` clients / the aicontrol `node_override` drop (per-command `--node`).
+
+**Three calls Joe-LOCKED (J-372, by-recomms).** **C1a** MP-C-16 = verification re-run, **loop-on-fault** (not a one-shot pass; if the re-run surfaces a fault, fix + rerun, D-065). **C1b** MP-F6 = bounded fold — sweep `dispatch_event`'s apply sites (D-077-bidirectional: is the swallow load-bearing **elsewhere**, an apply site with no second gate?), fix the reply-dishonesty (surface the apply-error / add the dispatch-level `banned` pre-check), route anything load-bearing-elsewhere it finds. **C1c** MP-C-06 = **NARROW-FIRST WITH ESCAPE** (the J-369 shape that worked for M10.4) — Phase-0 grounds how load-bearing the J-278 `home_changed` emit is; if thin, build it; if a real broadcast/fan-out dependency surfaces, surface + re-lock depth (D-065, do not smuggle a heavy broadcast arc into a re-home witness).
+
+**The MP-C-06 Phase-0 crux (grounding sharpens it favorably).** The `home_changed` **receive side is already built** (M8.5-C: applier / builder / sign / verify, a version-guarded signed delta, EventType registered ch3 §3.13.9 / §3.13.10). The **client emit was deferred for exactly one reason** (the CP-5 amendment, M8.5-C v1.2): the client *could not source* `new_home_node_id` — it only knew the WS URL (the J-278 gap). **M10.4 just dissolved that blocker** (the `AuthOk.node_id` echo + the `SessionState` stash → the client now learns the Node's pubkey id). So the question is *how thin is the emit*, not *build a big broadcast arc* — which decides whether M10.5 is "two re-runs + a fold" or "+ a thin emit arc."
+
+**Out (recorded).** The consolidated R1+R2+R3 ledger rides **MP-R3's MP-F14 close** (its own track), NOT M10.5 — M10.5 discharges the M10-routed carve-outs, not the ledger. Layer-2 production identity→home-node *discovery* of a stranger (M10.4-D4) stays separately-routed, never an MP-C-16/MP-C-06 dependency.
+
+**Canonical flips (D-074).** brief NEW (v1.0); `CLAUDE.md` PLAY head; `docs/ROADMAP.md` v3.60→v3.61 (M10.5 OPENED markers — visual-tree chain `[M10.5 PHASE-0 J-372]` + the M10 detail block); this JOURNAL J-372. No DECISIONS change.
+
+**Next-active: Clair opens the M10.5 D-071 Phase-0 audit** — ground §3.1 (the MP-C-16 re-run rails against final HEAD; both stall sites clear) + §3.2 (the MP-F6 `dispatch_event` apply-site sweep) + §3.3 (the MP-C-06 `home_changed` emit load-bearing-ness + the harness re-home rails) → design (lock the MP-C-06 build-vs-escape + the MP-F6 fix shape + the witness set) → Joe-lock → runbook → impl → close. No code until the M10.5 design is Joe-locked. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-372 → `tasks/M10_5_CARVEOUTS_PHASE0_BRIEF.md` → `tasks/MP_findings.md` (MP-F13/MP-F6/MP-C-06).** Not pushed — Joe pushes.
 
 ---
 

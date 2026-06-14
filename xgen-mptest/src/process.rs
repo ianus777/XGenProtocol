@@ -162,6 +162,14 @@ impl ManagedProcess {
         worker_threads: Option<u32>,
     ) -> Result<ManagedProcess> {
         Self::run_init(&bins.node, label)?;
+        // Align the node's *advertised* endpoint with its `--port` bind. `--port`
+        // overrides the bind (D-068), but the federation handshake advertises
+        // `[node].listen` (admin_ops `federation_initiate` dial-back hint), which
+        // `init` leaves at the default `:8080`. Without this, a peer records the
+        // wrong URL and `push_identity_to_peers` (identity re-home replication,
+        // MP-C-06) dials an unreachable address. A real node configures `listen`
+        // to its reachable address; the harness does the same here.
+        set_node_listen_in_config(&instance_data_dir(bins, label), port)?;
         let mut cmd = base_command(&bins.node, worker_threads);
         cmd.args(["--instance", label, "--service", "--port"])
             .arg(port.to_string());
@@ -356,6 +364,39 @@ impl Drop for ManagedProcess {
             let _ = std::fs::remove_dir_all(&self.data_dir);
         }
     }
+}
+
+/// Set `[node] listen = ws://127.0.0.1:<port>/xgen` in a node's
+/// `xgen-node_config.toml`, preserving any other config. `init` writes the
+/// default `:8080`; the node binds to `--port` (D-068) but advertises
+/// `[node].listen` in the federation handshake (the `federation_initiate`
+/// dial-back hint), so peers must record the reachable address — otherwise
+/// `push_identity_to_peers` dials `:8080` and fails (MP-C-06 re-home replication).
+fn set_node_listen_in_config(data_dir: &Path, port: u16) -> Result<()> {
+    let path = data_dir.join("xgen-node_config.toml");
+    let mut doc: toml::Value = match std::fs::read_to_string(&path) {
+        Ok(text) => toml::from_str(&text)
+            .unwrap_or_else(|_| toml::Value::Table(toml::map::Map::new())),
+        Err(_) => toml::Value::Table(toml::map::Map::new()),
+    };
+    let table = doc
+        .as_table_mut()
+        .ok_or_else(|| anyhow!("node config root is not a table: {}", path.display()))?;
+    let node = table
+        .entry("node".to_string())
+        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+    let node_tbl = node
+        .as_table_mut()
+        .ok_or_else(|| anyhow!("[node] is not a table in {}", path.display()))?;
+    node_tbl.insert(
+        "listen".to_string(),
+        toml::Value::String(format!("ws://127.0.0.1:{port}/xgen")),
+    );
+    let serialized = toml::to_string(&doc)
+        .with_context(|| format!("serializing node config {}", path.display()))?;
+    std::fs::write(&path, serialized)
+        .with_context(|| format!("writing node config {}", path.display()))?;
+    Ok(())
 }
 
 /// Set `[client] node = <url>` in a client's `xgen-client_config.toml`,

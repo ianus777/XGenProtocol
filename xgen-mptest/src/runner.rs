@@ -136,6 +136,13 @@ pub struct ScenarioOutcome {
     /// to `hosted_by_node`. Counts (not the full member-set) because the node
     /// exposes no per-Space member-set query and this arc adds none.
     pub hosted_state: Vec<(String, Vec<HostedSpaceCounts>)>,
+    /// MP-C-06 / J-374 — per-node stored `home_node` for each re-homed identity,
+    /// from `identity show <id>` on every node after the re-home phase. The
+    /// replicate-convergence witness (A7): after alice re-homes A→C, a federated
+    /// peer (B) re-points its replica of alice to C via the re-registration
+    /// `push_identity_to_peers` path — no `home_changed` emit (the J-374 re-lock).
+    /// `(node_label, [(identity_id, home_node)])`; empty without a `[[rehome]]` step.
+    pub identity_home_by_node: Vec<(String, Vec<(String, String)>)>,
 }
 
 /// MP-C-16 / J-374 — a node's resolved-state counts for one homed Space, read
@@ -166,6 +173,17 @@ impl ScenarioOutcome {
             .find(|(l, _)| l == node_label)
             .and_then(|(_, v)| v.iter().find(|c| c.space_id == space_id))
             .map(|c| (c.member_count, c.room_count))
+    }
+
+    /// MP-C-06 (J-374) — the `home_node` `node_label` stores for `identity_id`
+    /// (from `identity show`), if it holds a record. The replicate-convergence
+    /// witness: a peer that re-pointed reports the new home.
+    pub fn node_identity_home(&self, node_label: &str, identity_id: &str) -> Option<&str> {
+        self.identity_home_by_node
+            .iter()
+            .find(|(l, _)| l == node_label)
+            .and_then(|(_, v)| v.iter().find(|(id, _)| id == identity_id))
+            .map(|(_, home)| home.as_str())
     }
 }
 
@@ -567,6 +585,10 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
     // re-home client procs are held to function end (kill-on-drop) so the
     // re-homer stays online on its new home through the post-settle + oracle.
     let mut rehome_procs: Vec<ManagedProcess> = Vec::new();
+    // MP-C-06 (J-374) — the re-homed identities, for the replicate-convergence
+    // witness: after the re-home phase the oracle queries `identity show <id>` on
+    // every node to confirm peers re-pointed their replica to the new home (A7).
+    let mut rehomed_ids: Vec<String> = Vec::new();
     for step in &m.rehome {
         if let Some(key) = &step.after {
             registry
@@ -604,6 +626,15 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         let run = run_actor(&rehome_actor, &lines, &mut ctl, m, &registry, RESOLVE_TIMEOUT)
             .await
             .with_context(|| format!("driving re-home actor `{}`", step.actor))?;
+        if let Some(id) = run
+            .replies
+            .iter()
+            .find_map(|(_, r)| r.data_str("identity_id").map(|s| s.to_string()))
+        {
+            if !rehomed_ids.contains(&id) {
+                rehomed_ids.push(id);
+            }
+        }
         actor_runs.push(run);
         rehome_procs.push(proc); // held for kill-on-drop at function return
     }
@@ -658,6 +689,10 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
     // empty list. Mirrors the `members` query pattern above.
     let mut hosted_by_node: Vec<(String, Vec<String>)> = Vec::with_capacity(nodes.len());
     let mut hosted_state: Vec<(String, Vec<HostedSpaceCounts>)> = Vec::with_capacity(nodes.len());
+    // MP-C-06 (J-374) — per-node stored `home_node` for each re-homed identity
+    // (the replicate-convergence witness, A7). Empty when no `[[rehome]]` step ran.
+    let mut identity_home_by_node: Vec<(String, Vec<(String, String)>)> =
+        Vec::with_capacity(nodes.len());
     for n in nodes.iter_mut() {
         let mut hosted: Vec<String> = Vec::new();
         let mut counts: Vec<HostedSpaceCounts> = Vec::new();
@@ -687,6 +722,27 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         }
         hosted_by_node.push((n.label.clone(), hosted));
         hosted_state.push((n.label.clone(), counts));
+
+        // MP-C-06 (J-374) — query this node's stored `home_node` for each
+        // re-homed identity. `identity show` returns the full `IdentityRecord`;
+        // post-re-home a peer that re-pointed via `push_identity_to_peers` reports
+        // the new home. Best-effort: a node with no record / error contributes none.
+        let mut id_homes: Vec<(String, String)> = Vec::new();
+        for rid in &rehomed_ids {
+            let mut cmd = Command::new("identity show");
+            cmd.args.insert("identity_id".into(), json!(rid));
+            if let Ok(reply) = n.ctl.send(&cmd).await {
+                if let Some(home) = reply
+                    .data()
+                    .and_then(|d| d.get("record"))
+                    .and_then(|r| r.get("home_node"))
+                    .and_then(|v| v.as_str())
+                {
+                    id_homes.push((rid.clone(), home.to_string()));
+                }
+            }
+        }
+        identity_home_by_node.push((n.label.clone(), id_homes));
     }
 
     // MP-R3-D5b — did any spawned process exit unexpectedly (OOM / non-zero)?
@@ -708,6 +764,7 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         liveness,
         hosted_by_node,
         hosted_state,
+        identity_home_by_node,
     })
 }
 

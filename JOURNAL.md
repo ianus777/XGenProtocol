@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-369 — M10.4 OPENED: production identity→home-node discovery (MP-F13/F1B-D5); narrow-first-with-escape + aim-clean-green Joe-locked; next-active = Clair D-071 audit
+
+**What happened.** Joe opened M10.4, the certified next-active after M10.3 closed (J-368). Chat authored the framing brief `tasks/M10_4_HOME_NODE_DISCOVERY_PHASE0_BRIEF.md` (ACTIVE v1.0) and Joe locked the two scope calls by-recomms. Doc-only; no code; no DECISIONS change (M10.4-D# arc-local, D-069).
+
+**What M10.4 is.** Fourth M10 sub-arc, a **named** arc per the J-358 fork-2 lock (depth at its own mini-Phase-0, not silently absorbed). It owns **MP-F13** (J-278/F1B-D5): production identity→home-node discovery. The concrete blocker it must clear is **MP-C-16** (live migration — a Space re-homes to a new node), which re-runs at **M10.5** once M10.4's disposition lands.
+
+**The gap (two layers, one root).** **Layer 1 (the MP-C-16 RED) = a namespace mismatch:** the signed `home_node` field is a **WS URL**, but `migration_initiate` (and node-resolution consumers) expect the pubkey **`node_id` / NodeXgid** (`build_identity_home_nodes` runtime.rs:~1895 reads `IdentityRecord.home_node`, registry.rs:~47). **Layer 2 (F1B-D5) = discovery of a not-yet-known identity:** when a node holds only a pubkey and not the `IdentityRecord`, there is no path to resolve where that identity lives — the DM-stranger gap F1b routed here. Layer 1 is a field-semantics reconciliation; Layer 2 is a heavy distributed-discovery problem (gossip / directory / DHT / XGID-encoded home).
+
+**Calls Joe-LOCKED.** **C1 = narrow-first-with-escape** — the Phase-0 grounds the Layer-1 namespace; if reconciling `home_node` (URL↔NodeXgid) alone clears MP-C-16, ship that and keep Layer-2 discovery a separately-routed arc (not smuggled into a namespace fix); D-065-honest, re-lock depth if a discovery dependency proves load-bearing. **C2 = aim clean green** — migration is node→node with both `node_id`s knowable, so target end-to-end re-home green (no boundary); unreachable-without-Layer-2 is itself the C1 escape signal. **C3 (`home_node` canonical type) = audit-grounded, not locked** — URL vs node identity is the load-bearing Phase-0 grounding, surfaced back if it contradicts C1.
+
+**Out (recorded).** Layer-2 discovery (routed unless §3.3 proves it load-bearing); the MP-C-16 re-run → M10.5 (with the MP-F6 fold + the MP-C-06 re-run); the F1b DM-stranger boundary stays as recorded.
+
+**Canonical flips (D-074).** brief NEW (v1.0); `CLAUDE.md` PLAY head; `docs/ROADMAP.md` v3.57→v3.58 (M10.4 OPENED markers — visual tree + chain `[M10.4 PHASE-0 J-369]` + the M10 detail block); this JOURNAL J-369. No DECISIONS change.
+
+**Next-active: Clair opens the M10.4 D-071 Phase-0 audit** — ground §3.1 (the `home_node` namespace, canonical type, per-consumer expectations) + §3.2 (the `migration_initiate` path + the MP-C-16 witness `mp_r2_fixed::mp_c_16_live_migration_space_rehomes`) + §3.3 (the Layer-2 escape: is clean green reachable on Layer-1 alone?) → design → Joe-lock → runbook. No code until the M10.4 design is Joe-locked. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-369 → `tasks/M10_4_HOME_NODE_DISCOVERY_PHASE0_BRIEF.md` → `tasks/MP_findings.md` (MP-F13/F1B-D5).** Not pushed — Joe pushes.
+
+---
+
 ## Entry J-368 — M10.3 SHIPPED + CLOSED: 3012→3032 renumber (D-065 close-catch) + doc-bridge; accepted_tiers enforcement-bearing, mock --tier path, module_kind:mock; next-active = M10.4 (MP-F13)
 
 **What happened.** The J-367 held close is resolved and M10.3 is closed. Joe locked the renumber slot (**3032**, by Chat's recommendation); the `3012→3032` code renumber landed as its own commit (Joe-pushed); Chat then ran this J-368 doc-bridge (doc-only, atomic D-074). No DECISIONS change (arc-local, D-069).

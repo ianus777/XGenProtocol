@@ -8,6 +8,29 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-366 — M10.3 design Joe-LOCKED: live-read accepted_tiers (C2) + 3012 reject + mock --tier issuance; dormant claim schemas stay unwired; next-active = Clair runbook
+
+**What happened.** Clair's M10.3 Phase-0 audit landed (`325afec`, `tasks/M10_3_MOCK_TIER_AUDIT.md` v1.0, grounded vs `main` @`52897e5`, 5 findings). Chat verified it, framed the five shape calls the audit surfaced, and Joe locked them (by-recomms). Chat authored the design doc `tasks/M10_3_MOCK_TIER_DESIGN.md` (v1.0 ACTIVE). Doc-only; no code; no DECISIONS change (M10.3-D# arc-local, D-069). The four framing calls (C1–C4, J-365) hold.
+
+**Audit headline (three real catches; frame holds).** **A1 (load-bearing):** C2 (`assertion.tier ∈ issuer.accepted_tiers`) needs the issuer record, but `validate_assertion` sees only `AssertionPolicy.trusted_issuers: HashSet<String>` (URIs) — the M10.2 live-read never surfaces `accepted_tiers`. **A2 (load-bearing):** empty `accepted_tiers` must mean *unrestricted*, or C2 regresses M10.2 (which seeds config issuers with empty `accepted_tiers` and trusts them). **A4 (D-065):** `Tier2/3/4Claims` are `#[cfg(test)]` — no production reader; "per-tier claims" the validation actually sees = the tier integer (→ `assertion_tier_of` → the gates) + TTL + descriptor.
+
+**Five decisions Joe-LOCKED.**
+- **M10.3-D1 — C2 shape = live-read the issuer's accepted_tiers.** Add `AuthModuleRegistry::accepted_tiers_by_issuer()` + a new `AssertionPolicy` field (issuer → accepted_tiers), derived **live at the gate** beside `trusted_issuers` (~`app.rs:2895`); C2 inserts **after Step 1** (`registration.rs:218`), **distinct** from the node-wide `tier ≥ required_tier` Step 4 (`registration.rs:230`) — per-issuer set-membership vs node-wide floor, no double-reject. The M10.2-A1 deferral, come due; `accepted_tiers` finally enforcement-bearing.
+- **M10.3-D2 — empty `accepted_tiers` = unrestricted (restrictive-only).** Forced by the M10.2 baseline — empty ⇒ the issuer may attest any tier; C2 invisible at the empty/T1 baseline, bites only on an operator-set scope. Empty-baseline invariant byte-for-byte.
+- **M10.3-D3 — reject code 3012 `assertion_tier_unauthorized`.** New auth-module-band code (first free slot per the M10.1 reconcile), **distinct from 3030 `tier_mismatch`** (3030 = tier-too-low-for-Space; 3012 = issuer-not-authorized-for-this-tier).
+- **M10.3-D4 — mock issuance = tier + grounded TTL + descriptor; dormant claim schemas NOT populated.** The mock issues `tier ∈ {2,3,4}` + grounded TTL (T2=365 / T3=180 / T4=90 via `ttl_days`) + `module_kind: mock` + tier-appropriate `module_policy.erasability` (T2–T3 erasable, **T4 retained**). It does **not** populate the dormant `Tier2/3/4Claims` schemas (no production reader — would be theater). **Narrows C3 honestly:** M10.3 activates + witnesses the tier-integer-driven gates + the TTLs; the richer per-tier claim schemas stay a flagged future (wire when a production consumer exists).
+- **M10.3-D5 — CLI = a flag on the existing `issue`.** `xgen-auth-module issue --tier <N>`: N=1 → reference (today's default, unchanged); N ∈ {2,3,4} → auto `module_kind: mock` + tier-appropriate TTL/erasability. One parameterized path; D-092 not triggered (binary CLI is its own arg parser).
+
+**Out (explicit):** the dormant richer per-tier claim schemas (not wired this arc); MP-F13 → M10.4; MP-F6 + MP-C-06/MP-C-16 → M10.5; erasure *enforcement* (D3-gated); mock-refusing node behaviour (flagged).
+
+**Proof obligations (RED-on-revert, Clair builds):** (1) mock `issue --tier 2|3|4` produces a valid signed assertion accepted by a node trusting the issuer for that tier; (2) **C2 accepted_tiers scope** — a T2-scoped issuer's T3 assertion rejected with **3012**, its T2 accepted (distinct from a 3030 Space-floor reject); (3) **empty-baseline invariant** (empty `accepted_tiers` ⇒ any tier; M10.2 seeded path unchanged); (4) **Thread participation tier-gate** fires (`runtime.rs:1503`); (5) `module_kind: mock` populated.
+
+**Canonical flips (D-074).** `tasks/M10_3_MOCK_TIER_DESIGN.md` NEW (v1.0 ACTIVE); `CLAUDE.md` PLAY head; `docs/ROADMAP.md` v3.55→v3.56 (M10 detail M10.3-design annotation + M-series/chain markers M10.3-PHASE-0 → M10.3-DESIGN; header dates → 2026-06-14); this JOURNAL J-366. No DECISIONS change. (Audit `325afec` was committed-not-pushed at hand-off; rides with this bridge's push.)
+
+**Next-active: Clair** — author `tasks/M10_3_MOCK_TIER_IMPL.md` (the `accepted_tiers_by_issuer` + `AssertionPolicy` field + the C2 check/3012 + the mock `--tier` path + the dormant-gate witnesses), confirming the §3 groundings + §5 details to file:line → implement → Chat doc-bridge → close → M10.4 (MP-F13). No code until the runbook lands. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-366 → `tasks/M10_3_MOCK_TIER_DESIGN.md` → `tasks/M10_3_MOCK_TIER_AUDIT.md`.**
+
+---
+
 ## Entry J-365 — M10.3 OPENED (parameterized T2–T4 mock + dormant-tier-path activation): four calls Joe-locked; Phase-0 brief authored; next-active = Clair D-071 audit
 
 **What happened.** With M10.2 closed (J-364), Joe opened M10.3 — the third and **heaviest** M10 sub-arc (three converging threads). Chat authored the Phase-0 framing brief `tasks/M10_3_MOCK_TIER_PHASE0_BRIEF.md` (ACTIVE v1.0) and Joe locked the four calls (by-recomms). Heaviest → a **genuine D-071 Phase-0 audit**. Doc-only; no code; no DECISIONS change (M10.3 decisions arc-local, D-069).

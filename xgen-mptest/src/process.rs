@@ -230,6 +230,63 @@ impl ManagedProcess {
         })
     }
 
+    /// Spawn a client resident **reusing an existing actor's keypair** (M10.5 C1c /
+    /// MP-C-06 re-home rail, D6 — key continuity + per-phase node retarget). Unlike
+    /// [`init_and_spawn_client`] this does **not** run `init` (which would generate
+    /// a *fresh* keypair = a different `identity_id`); it creates the new instance
+    /// data dir, copies the keypair (and config) from `source_data_dir` so the
+    /// re-home client presents the **same `identity_id`**, retargets
+    /// `[client] node` to `node_url` (the new home), and spawns `--service`. The
+    /// re-home batch then runs `register --re-registration` over its `.aicontrol`.
+    /// The `source` actor's `ManagedProcess` must still be alive (its data dir not
+    /// yet dropped) when this is called, so the keypair is present to copy.
+    pub fn spawn_client_reusing_keypair(
+        bins: &Binaries,
+        label: &str,
+        source_data_dir: &Path,
+        node_url: &str,
+        worker_threads: Option<u32>,
+    ) -> Result<ManagedProcess> {
+        let data_dir = instance_data_dir(bins, label);
+        std::fs::create_dir_all(&data_dir)
+            .with_context(|| format!("creating re-home data dir {}", data_dir.display()))?;
+        // The keypair is the one artifact carrying the identity (same identity_id).
+        let keypair = "xgen-client_keypair.enc";
+        let src_kp = source_data_dir.join(keypair);
+        std::fs::copy(&src_kp, data_dir.join(keypair)).with_context(|| {
+            format!("copying re-home keypair from {}", src_kp.display())
+        })?;
+        // Copy the (full, init-shaped) config too, then retarget the node below —
+        // robust against any required config field the bare node-only write omits.
+        let config = "xgen-client_config.toml";
+        let src_cfg = source_data_dir.join(config);
+        if src_cfg.exists() {
+            std::fs::copy(&src_cfg, data_dir.join(config)).with_context(|| {
+                format!("copying re-home config from {}", src_cfg.display())
+            })?;
+        }
+        set_client_node_in_config(&data_dir, node_url)?;
+        let mut cmd = base_command(&bins.client, worker_threads);
+        cmd.args(["--instance", label, "--service", "--node", node_url]);
+        let child = cmd.spawn().with_context(|| {
+            format!("spawning re-home client `{label}` --service → {node_url}")
+        })?;
+        Ok(ManagedProcess {
+            kind: Kind::Client,
+            label: label.to_string(),
+            data_dir,
+            aicontrol_pipe: aicontrol_pipe(Kind::Client, label),
+            child,
+            keep_artifacts: false,
+            respawn: RespawnSpec::Client {
+                exe: bins.client.clone(),
+                node_url: node_url.to_string(),
+                ai_mode: false,
+                worker_threads,
+            },
+        })
+    }
+
     /// Kill + re-spawn this exact instance **without re-`init`** (MP-R2 C6b /
     /// D5). The instance label, data dir, and `.aicontrol` pipe are preserved, so
     /// the node replays its persisted Spaces from disk (the MP-C-15 restart+replay

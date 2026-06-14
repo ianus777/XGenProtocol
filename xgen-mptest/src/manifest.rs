@@ -85,6 +85,16 @@ pub struct Manifest {
     /// gated on `after`. Unblocks MP-C-16 (live migration during chat).
     #[serde(default)]
     pub migration: Vec<Migration>,
+    /// Identity re-home director steps (M10.5 C1c / MP-C-06). Like `[[migration]]`,
+    /// a director action — but it spawns a **new client process reusing an existing
+    /// actor's keypair** (key continuity, D6) pointed at the `to` node (per-phase
+    /// node retarget, D6), then runs a re-home batch on it (`register
+    /// --re-registration`, a post). Runs **after a settle** of the main drive so the
+    /// destination already holds the re-homer's replica (a faithful `re_home` —
+    /// runner §re-home). Closes MP-C-06 on replicate-convergence (M10.5 re-lock,
+    /// no `home_changed` emit).
+    #[serde(default)]
+    pub rehome: Vec<Rehome>,
     /// Chaos-overlay steps (MP-R3-D4a). The capstone composes fault-injection on
     /// the scale dial: **partition / heal** (relationship-level, R3-D2) are
     /// node-aicontrol actions run by the director (reusing the F10-D1 ordering);
@@ -269,6 +279,30 @@ pub struct Migration {
     pub after: Option<String>,
 }
 
+/// One identity re-home director step (M10.5 C1c / MP-C-06). After a settle of
+/// the main drive, the runner spawns a **new client reusing `actor`'s keypair**
+/// (key continuity, D6) pointed at the `to` node (the new home), then drives the
+/// `batch` on it (`register --re-registration`, then a post). The destination
+/// already holds the re-homer's replica (the pre-settle), so the re-registration
+/// is a faithful `re_home`; `push_identity_to_peers` re-points the peers
+/// (replicate-convergence, A7) — M10.5 ships **no** `home_changed` emit (re-lock).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rehome {
+    /// The actor whose identity (keypair) re-homes. Its keypair is reused for the
+    /// re-home client (same `identity_id` — key continuity).
+    pub actor: String,
+    /// Destination node label (the new home the actor re-homes to).
+    pub to: String,
+    /// The re-home batch file (relative to the scenario dir): the
+    /// `register --re-registration` + post the re-home client runs on `to`.
+    pub batch: String,
+    /// Optional export/clock key this step waits on before firing (it runs after
+    /// the main-drive settle regardless; `after` adds an explicit data gate).
+    #[serde(default)]
+    pub after: Option<String>,
+}
+
 /// A chaos-overlay action kind (MP-R3-D4a). The kind decides the seam:
 /// **node-conn** actions (`Partition`/`Heal`) run on the director (they need
 /// `federation` aicontrol verbs); **raw-WS** actions (`Flood`/`Storm`/`SlowLoris`)
@@ -405,6 +439,21 @@ impl Manifest {
                 ));
             }
         }
+        for r in &self.rehome {
+            if !has_actor(&r.actor) {
+                return Err(anyhow!(
+                    "rehome step references unknown actor `{}`",
+                    r.actor
+                ));
+            }
+            if !has_node(&r.to) {
+                return Err(anyhow!(
+                    "rehome step (actor `{}`) references unknown destination node `{}`",
+                    r.actor,
+                    r.to
+                ));
+            }
+        }
         for c in &self.chaos {
             for n in &c.nodes {
                 if !has_node(n) {
@@ -470,6 +519,16 @@ impl Scenario {
                 return Err(anyhow!(
                     "actor `{}` batch file not found: {}",
                     a.name,
+                    bp.display()
+                ));
+            }
+        }
+        for r in &manifest.rehome {
+            let bp = dir.join(&r.batch);
+            if !bp.exists() {
+                return Err(anyhow!(
+                    "rehome step (actor `{}`) batch file not found: {}",
+                    r.actor,
                     bp.display()
                 ));
             }
@@ -746,6 +805,50 @@ after = "space_built"
         let r = Manifest::parse(&bad);
         assert!(r.is_err());
         assert!(format!("{:#}", r.unwrap_err()).contains("unknown node"));
+    }
+
+    #[test]
+    fn parses_rehome_step_and_validates_actor_and_node() {
+        // M10.5 C1c: a `[[rehome]]` step parses; its actor + destination must be
+        // known; a manifest without it parses to an empty Vec (R1/R2 byte-compat).
+        let toml = r#"
+scenario = "MP-C-06"
+[[nodes]]
+label = "a"
+port = 8401
+[[nodes]]
+label = "c"
+port = 8403
+[[actors]]
+name = "alice"
+node = "a"
+batch = "alice.jsonl"
+[[rehome]]
+actor = "alice"
+to = "c"
+batch = "alice_rehome.jsonl"
+after = "setup_done"
+"#;
+        let m = Manifest::parse(toml).unwrap();
+        assert_eq!(m.rehome.len(), 1);
+        assert_eq!(m.rehome[0].actor, "alice");
+        assert_eq!(m.rehome[0].to, "c");
+        assert_eq!(m.rehome[0].batch, "alice_rehome.jsonl");
+        assert_eq!(m.rehome[0].after.as_deref(), Some("setup_done"));
+        // A manifest without [[rehome]] defaults to empty (byte-compat).
+        assert!(Manifest::parse(MP_C_02).unwrap().rehome.is_empty());
+
+        // Unknown actor rejected.
+        let bad_actor = toml.replace(r#"actor = "alice""#, r#"actor = "ghost""#);
+        let r = Manifest::parse(&bad_actor);
+        assert!(r.is_err());
+        assert!(format!("{:#}", r.unwrap_err()).contains("unknown actor"));
+
+        // Unknown destination node rejected.
+        let bad_node = toml.replace(r#"to = "c""#, r#"to = "ghost""#);
+        let r = Manifest::parse(&bad_node);
+        assert!(r.is_err());
+        assert!(format!("{:#}", r.unwrap_err()).contains("unknown destination node"));
     }
 
     #[test]

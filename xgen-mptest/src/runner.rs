@@ -527,6 +527,62 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
     // ── 5. Settle (bounded poll-until-stable; elastic ceiling, R3-D4c) ───────
     settle(&nodes, dial.settle_max()).await;
 
+    // ── 5b. Re-home phase (M10.5 C1c / MP-C-06) ──────────────────────────────
+    // Runs AFTER the main settle, so the destination already holds the re-homer's
+    // replica (a faithful `re_home` — not a fresh register). For each [[rehome]]
+    // step: gate on `after`, spawn a NEW client reusing the actor's keypair
+    // pointed at the `to` node (key continuity + per-phase node retarget, D6),
+    // drive the re-home batch over its `.aicontrol`, and append its run to
+    // `actor_runs`. Convergence rides re-registration's `push_identity_to_peers`
+    // (replicate, A7) — M10.5 ships NO `home_changed` emit (the re-lock). The
+    // re-home client procs are held to function end (kill-on-drop) so the
+    // re-homer stays online on its new home through the post-settle + oracle.
+    let mut rehome_procs: Vec<ManagedProcess> = Vec::new();
+    for step in &m.rehome {
+        if let Some(key) = &step.after {
+            registry
+                .wait_for(key, RESOLVE_TIMEOUT)
+                .await
+                .with_context(|| format!("rehome (actor `{}`) waiting on `{{{{{key}}}}}`", step.actor))?;
+        }
+        // Source the keypair from the actor's still-alive client (its data dir is
+        // not dropped until run_scenario returns).
+        let source_data_dir = actors
+            .iter()
+            .find(|a| a.spec.name == step.actor)
+            .ok_or_else(|| anyhow!("rehome references unknown actor `{}`", step.actor))?
+            .proc
+            .data_dir
+            .clone();
+        let dest_url = node_by_label(&nodes, &step.to)?.url.clone();
+        let lines = parse_batch_lines(
+            &std::fs::read_to_string(scenario.dir.join(&step.batch))
+                .with_context(|| format!("reading rehome batch for `{}`", step.actor))?,
+        )?;
+        let label = instance_label(&m.scenario, &format!("{}-rehome", step.actor));
+        let proc = ManagedProcess::spawn_client_reusing_keypair(
+            &bins,
+            &label,
+            &source_data_dir,
+            &dest_url,
+            dial.worker_threads,
+        )
+        .with_context(|| format!("spawning re-home client for `{}`", step.actor))?;
+        let mut ctl = AicontrolClient::connect(&proc.aicontrol_pipe, DEFAULT_CONNECT_TIMEOUT)
+            .await
+            .with_context(|| format!("connecting re-home client `{}` aicontrol", step.actor))?;
+        let rehome_actor = format!("{}-rehome", step.actor);
+        let run = run_actor(&rehome_actor, &lines, &mut ctl, m, &registry, RESOLVE_TIMEOUT)
+            .await
+            .with_context(|| format!("driving re-home actor `{}`", step.actor))?;
+        actor_runs.push(run);
+        rehome_procs.push(proc); // held for kill-on-drop at function return
+    }
+    // Settle again so the re-home register + post replicate before the oracle reads.
+    if !m.rehome.is_empty() {
+        settle(&nodes, dial.settle_max()).await;
+    }
+
     // ── 6. Oracle: per-actor membership projection + per-node transcript ─────
     let space_id = registry.get(PRIMARY_SPACE_KEY).await;
     let mut projections: Vec<MembershipProjection> = Vec::new();

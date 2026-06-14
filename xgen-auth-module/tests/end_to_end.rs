@@ -71,6 +71,10 @@ fn signed_register(
 fn gate_policy(reg: &AuthModuleRegistry) -> AssertionPolicy {
     AssertionPolicy {
         trusted_issuers: reg.trusted_issuers(),
+        // M10.3-D1 — derive per-issuer accepted tiers live from the registry,
+        // exactly as the node gate does (so the C2 check is enforcement-bearing
+        // in these end-to-end witnesses).
+        accepted_tiers_by_issuer: reg.accepted_tiers_by_issuer(),
         required_claims: Vec::new(),
         required_tier: 1,
     }

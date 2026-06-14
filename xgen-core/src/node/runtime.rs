@@ -4562,6 +4562,36 @@ mod persistence_amendment_commit_2a_tests {
         );
     }
 
+    /// M10.3 witness 4 — the participation gate's ACCEPT side, now reachable via a
+    /// real higher-tier identity: a Tier-2 creator (validated tier-2 assertion)
+    /// creates a Tier-2 Thread → accepted + inserted. The dormant gate fires
+    /// correctly once an identity actually carries a higher tier (what the mock
+    /// supplies). RED side = `pg08_thread_create_above_creator_tier_rejected_3030`.
+    #[test]
+    fn pg08_thread_create_tier2_creator_accepts() {
+        let (mut node, space_id, room_id, alice) = setup_space_with_room();
+        // alice was registered with trust_assertion: None (tier 1). Upgrade her to
+        // a validated tier-2 assertion (as a mock T2 module would have issued and
+        // this Node validated at registration).
+        let mut rec = make_record(&alice, node.node_id.as_str());
+        rec.trust_assertion = Some(json!({ "tier": 2 }));
+        node.identity_registry.upsert(rec);
+        assert_eq!(node.spaces[space_id.as_str()].auth_tier, 1, "fixture Space is Tier-1");
+
+        let ev = alice_thread_create(&node, &space_id, &room_id, &alice, 2);
+        let thread_id = thread_id_from_event_id(&event_id_str(&ev));
+        let outcome = node.dispatch_event(ev, EventOrigin::LocallySubmitted, None);
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "Tier-2 creator must pass the participation gate for a Tier-2 Thread; got {:?}",
+            outcome
+        );
+        assert!(
+            node.spaces[space_id.as_str()].threads.contains_key(&thread_id),
+            "accepted thread.create must insert the Thread"
+        );
+    }
+
     /// Arc E (PG-03) — `assertion_tier_of` reads the (now validated) stored tier.
     /// Guards a regression that would ignore the persisted assertion tier and
     /// silently flatten everyone to Tier 1 (which would defeat PG-13 at Tier 2–4).

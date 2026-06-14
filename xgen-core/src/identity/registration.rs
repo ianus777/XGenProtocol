@@ -14,7 +14,7 @@
 //   - verify_register() — node-side:   verify incoming identity.register signature
 //   - build_register()  — client-side: construct an unsigned identity.register
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
@@ -23,7 +23,7 @@ use xgen_common::xgid::{IdentityXgid, NodeXgid, Xgid};
 use xgen_common::TrustAssertion;
 
 use crate::{
-    auth::tiers::verify_tier_assertion,
+    auth::tiers::{verify_tier_assertion, AuthTier},
     crypto::{encoding, signing},
     identity::registry::{DeviceRecord, IdentityRecord},
     wire::{
@@ -95,6 +95,8 @@ pub enum RegistrationError {
     AssertionClaimsInsufficient,
     #[error("trust assertion tier below this node's required registration tier (code 3030)")]
     AssertionTierInsufficient,
+    #[error("issuer is not authorized to attest this tier (code 3012)")]
+    AssertionTierUnauthorized,
     #[error("node capacity exceeded (code 3008)")]
     NodeCapacityExceeded,
     #[error("display name invalid — empty or too long (code 3009)")]
@@ -120,6 +122,7 @@ impl RegistrationError {
             Self::AssertionIdentityMismatch => (3010, "assertion_identity_mismatch"),
             Self::AssertionClaimsInsufficient => (3011, "assertion_claims_insufficient"),
             Self::AssertionTierInsufficient => (3030, "tier_mismatch"),
+            Self::AssertionTierUnauthorized => (3012, "assertion_tier_unauthorized"),
             Self::NodeCapacityExceeded => (3008, "node_capacity_exceeded"),
             Self::DisplayNameInvalid => (3009, "display_name_invalid"),
             Self::AiDeclarationInvalid => (3040, "ai_declaration_invalid"),
@@ -171,6 +174,16 @@ pub struct AssertionPolicy {
     /// 1 — any valid Tier-1+ assertion satisfies registration; per-Space tier
     /// gating is the join-time concern (PG-13), not registration.
     pub required_tier: u32,
+    /// M10.3 (M10.3-D1) — per-issuer authorized tiers: `issuer URI → accepted_tiers`.
+    /// Derived live at the gate from the `AuthModuleRegistry` (beside
+    /// `trusted_issuers`), so `AuthModuleRecord.accepted_tiers` becomes
+    /// enforcement-bearing. The C2 check (`validate_assertion` step 1.5) requires
+    /// `assertion.tier ∈ accepted_tiers[issuer]`. **Restrictive-only (M10.3-D2):**
+    /// an empty or absent tier list ⇒ the issuer may attest any tier — so the
+    /// check is invisible at the empty/T1 baseline (every M10.2 issuer), preserving
+    /// the empty-baseline invariant byte-for-byte. Distinct from `required_tier`
+    /// (node-wide floor): per-issuer set-membership vs node-wide `≥`.
+    pub accepted_tiers_by_issuer: HashMap<String, Vec<AuthTier>>,
 }
 
 impl Default for AssertionPolicy {
@@ -179,6 +192,7 @@ impl Default for AssertionPolicy {
             trusted_issuers: HashSet::new(),
             required_claims: Vec::new(),
             required_tier: 1,
+            accepted_tiers_by_issuer: HashMap::new(),
         }
     }
 }
@@ -217,6 +231,17 @@ pub fn validate_assertion(
     // Step 1 — issuer is a trusted Auth Module on this Node.
     if !policy.trusted_issuers.contains(&assertion.issuer) {
         return Err(RegistrationError::AuthModuleUntrusted);
+    }
+    // Step 1.5 (C2, M10.3-D1/D2) — the trusted issuer is authorized to attest
+    // THIS tier (per-issuer scope). Restrictive-only: an empty/absent tier list
+    // means unrestricted, so this is invisible at the empty/T1 baseline (every
+    // M10.2 issuer). Distinct from Step 4 (node-wide floor): set-membership, not
+    // `≥`. A T2-scoped issuer attesting T3 fails here with 3012, even though
+    // T3 ≥ any floor.
+    if let Some(tiers) = policy.accepted_tiers_by_issuer.get(&assertion.issuer) {
+        if !tiers.is_empty() && !tiers.iter().any(|t| t.as_u32() == assertion.tier) {
+            return Err(RegistrationError::AssertionTierUnauthorized);
+        }
     }
     // Step 2 — signature verifies against the issuer key.
     assertion
@@ -1232,7 +1257,15 @@ mod tests {
             trusted_issuers: HashSet::from([issuer_uri(issuer)]),
             required_claims: Vec::new(),
             required_tier: 1,
+            accepted_tiers_by_issuer: HashMap::new(),
         }
+    }
+
+    /// M10.3 — `policy_trusting` plus a per-issuer accepted-tier scope (C2).
+    fn policy_trusting_tiers(issuer: &SigningKey, tiers: Vec<AuthTier>) -> AssertionPolicy {
+        let mut p = policy_trusting(issuer);
+        p.accepted_tiers_by_issuer.insert(issuer_uri(issuer), tiers);
+        p
     }
 
     #[test]
@@ -1353,6 +1386,47 @@ mod tests {
         let mut policy = policy_trusting(&issuer);
         policy.required_claims = vec!["email_verified".to_string()];
         assert!(validate_assertion(&ta, "xgen://pubkey/ed25519:CLIENT", &policy, now()).is_ok());
+    }
+
+    // ── M10.3 — C2 per-issuer accepted_tiers (witnesses 2 + 3 at validate level) ─
+
+    /// Witness 2: an issuer scoped to T2 has its T3 assertion rejected with 3012
+    /// (distinct from a node-floor 3030); its T2 assertion is accepted.
+    #[test]
+    fn validate_assertion_c2_rejects_tier_outside_issuer_scope() {
+        let issuer = issuer_key(0xA1);
+        let policy = policy_trusting_tiers(&issuer, vec![AuthTier::Tier2]);
+        let id = "xgen://pubkey/ed25519:CLIENT";
+
+        let ta3 = make_assertion(&issuer, id, 3, FUTURE, true);
+        let err = validate_assertion(&ta3, id, &policy, now()).unwrap_err();
+        assert!(matches!(err, RegistrationError::AssertionTierUnauthorized));
+        assert_eq!(err.to_registration_code(), (3012, "assertion_tier_unauthorized"));
+
+        let ta2 = make_assertion(&issuer, id, 2, FUTURE, true);
+        assert!(validate_assertion(&ta2, id, &policy, now()).is_ok(), "T2 is in scope");
+    }
+
+    /// Witness 3 (validate level): empty/absent `accepted_tiers` ⇒ any tier accepted
+    /// (M10.3-D2 restrictive-only) — the M10.2 empty-baseline invariant. RED if
+    /// empty were read as deny-all.
+    #[test]
+    fn validate_assertion_c2_empty_scope_is_unrestricted() {
+        let issuer = issuer_key(0xA1);
+        let id = "xgen://pubkey/ed25519:CLIENT";
+        let scoped_empty = policy_trusting_tiers(&issuer, vec![]); // issuer present, empty tiers
+        let absent = policy_trusting(&issuer); // issuer absent from the tier map
+        for tier in [1u32, 2, 3, 4] {
+            let ta = make_assertion(&issuer, id, tier, FUTURE, true);
+            assert!(
+                validate_assertion(&ta, id, &scoped_empty, now()).is_ok(),
+                "empty accepted_tiers must accept tier {tier}"
+            );
+            assert!(
+                validate_assertion(&ta, id, &absent, now()).is_ok(),
+                "absent tier map must accept tier {tier}"
+            );
+        }
     }
 
     // ── accept_registration end-to-end (non-local) ────────────────────────────

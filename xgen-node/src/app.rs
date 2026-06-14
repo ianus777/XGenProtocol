@@ -810,6 +810,10 @@ pub async fn run_node(
         trusted_issuers: std::collections::HashSet::new(),
         required_claims: Vec::new(),
         required_tier: 1,
+        // M10.3 (M10.3-D1) — per-issuer accepted tiers; like `trusted_issuers`,
+        // sourced LIVE from the registry by the gate per registration, so empty +
+        // unused here.
+        accepted_tiers_by_issuer: std::collections::HashMap::new(),
     });
     // M10.2 (M10.2-D2) — install the shared live registry as the gate's trust
     // source (first runtime consumer; closes AMR-D1). Same Arc handed to the CRUD

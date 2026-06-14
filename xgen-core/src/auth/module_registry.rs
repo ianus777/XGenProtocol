@@ -154,6 +154,21 @@ impl AuthModuleRegistry {
             .collect()
     }
 
+    /// M10.3 (M10.3-D1) — per-issuer authorized tiers: `issuer URI → accepted_tiers`,
+    /// over the **non-revoked** records (the same set as [`trusted_issuers`]). The
+    /// registration gate live-reads this beside `trusted_issuers` and threads it
+    /// into the `AssertionPolicy`, making `AuthModuleRecord.accepted_tiers`
+    /// enforcement-bearing (the C2 check). An issuer with empty `accepted_tiers`
+    /// maps to an empty `Vec` ⇒ unrestricted (M10.3-D2, restrictive-only) — so
+    /// the M10.2 empty-baseline install base stays invisible to the check.
+    pub fn accepted_tiers_by_issuer(&self) -> HashMap<String, Vec<AuthTier>> {
+        self.modules
+            .values()
+            .filter(|r| !r.revoked)
+            .map(|r| (r.module_id.to_string(), r.accepted_tiers.clone()))
+            .collect()
+    }
+
     /// Bootstrap-seed a record **add-only** (M10.2-D3): insert it only if no
     /// record for its `module_id` already exists; returns `true` iff inserted.
     /// Add-only is what makes the config→registry seed **idempotent** (a present
@@ -325,6 +340,31 @@ mod tests {
         assert!(!reg.seed(sample_record(0x22)), "seed skips an existing (revoked) record");
         assert!(reg.get(&module_id(0x22)).unwrap().revoked, "stays revoked");
         assert!(!reg.trusted_issuers().contains(&module_id(0x22).to_string()));
+    }
+
+    // ── M10.3 — per-issuer accepted-tier derivation (C2 live-read source) ───────
+
+    #[test]
+    fn accepted_tiers_by_issuer_maps_non_revoked() {
+        let mut reg = AuthModuleRegistry::new();
+        reg.register(sample_record(0x11)); // accepted_tiers = [Tier2, Tier3]
+        let mut unrestricted = sample_record(0x22);
+        unrestricted.accepted_tiers = vec![];
+        reg.register(unrestricted);
+
+        let map = reg.accepted_tiers_by_issuer();
+        assert_eq!(
+            map.get(&module_id(0x11).to_string()),
+            Some(&vec![AuthTier::Tier2, AuthTier::Tier3])
+        );
+        // Empty accepted_tiers maps to an empty Vec ⇒ unrestricted (M10.3-D2).
+        assert_eq!(map.get(&module_id(0x22).to_string()), Some(&vec![]));
+
+        // Revoked issuer drops out — same non-revoked set as trusted_issuers.
+        reg.revoke(&module_id(0x11), "2026-06-14T00:00:00.000Z".to_string());
+        assert!(!reg
+            .accepted_tiers_by_issuer()
+            .contains_key(&module_id(0x11).to_string()));
     }
 
     #[test]

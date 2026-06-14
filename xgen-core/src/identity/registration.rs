@@ -95,7 +95,7 @@ pub enum RegistrationError {
     AssertionClaimsInsufficient,
     #[error("trust assertion tier below this node's required registration tier (code 3030)")]
     AssertionTierInsufficient,
-    #[error("issuer is not authorized to attest this tier (code 3012)")]
+    #[error("issuer is not authorized to attest this tier (code 3032)")]
     AssertionTierUnauthorized,
     #[error("node capacity exceeded (code 3008)")]
     NodeCapacityExceeded,
@@ -122,7 +122,7 @@ impl RegistrationError {
             Self::AssertionIdentityMismatch => (3010, "assertion_identity_mismatch"),
             Self::AssertionClaimsInsufficient => (3011, "assertion_claims_insufficient"),
             Self::AssertionTierInsufficient => (3030, "tier_mismatch"),
-            Self::AssertionTierUnauthorized => (3012, "assertion_tier_unauthorized"),
+            Self::AssertionTierUnauthorized => (3032, "assertion_tier_unauthorized"),
             Self::NodeCapacityExceeded => (3008, "node_capacity_exceeded"),
             Self::DisplayNameInvalid => (3009, "display_name_invalid"),
             Self::AiDeclarationInvalid => (3040, "ai_declaration_invalid"),
@@ -236,7 +236,7 @@ pub fn validate_assertion(
     // THIS tier (per-issuer scope). Restrictive-only: an empty/absent tier list
     // means unrestricted, so this is invisible at the empty/T1 baseline (every
     // M10.2 issuer). Distinct from Step 4 (node-wide floor): set-membership, not
-    // `≥`. A T2-scoped issuer attesting T3 fails here with 3012, even though
+    // `≥`. A T2-scoped issuer attesting T3 fails here with 3032, even though
     // T3 ≥ any floor.
     if let Some(tiers) = policy.accepted_tiers_by_issuer.get(&assertion.issuer) {
         if !tiers.is_empty() && !tiers.iter().any(|t| t.as_u32() == assertion.tier) {
@@ -1390,7 +1390,7 @@ mod tests {
 
     // ── M10.3 — C2 per-issuer accepted_tiers (witnesses 2 + 3 at validate level) ─
 
-    /// Witness 2: an issuer scoped to T2 has its T3 assertion rejected with 3012
+    /// Witness 2: an issuer scoped to T2 has its T3 assertion rejected with 3032
     /// (distinct from a node-floor 3030); its T2 assertion is accepted.
     #[test]
     fn validate_assertion_c2_rejects_tier_outside_issuer_scope() {
@@ -1401,7 +1401,7 @@ mod tests {
         let ta3 = make_assertion(&issuer, id, 3, FUTURE, true);
         let err = validate_assertion(&ta3, id, &policy, now()).unwrap_err();
         assert!(matches!(err, RegistrationError::AssertionTierUnauthorized));
-        assert_eq!(err.to_registration_code(), (3012, "assertion_tier_unauthorized"));
+        assert_eq!(err.to_registration_code(), (3032, "assertion_tier_unauthorized"));
 
         let ta2 = make_assertion(&issuer, id, 2, FUTURE, true);
         assert!(validate_assertion(&ta2, id, &policy, now()).is_ok(), "T2 is in scope");

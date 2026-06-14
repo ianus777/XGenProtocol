@@ -128,7 +128,7 @@ fn witness2_live_revoke_rejects_without_restart() {
 }
 
 /// Witness 2 (M10.3 C2 `accepted_tiers` scope): the mock issues a T3 assertion,
-/// but the operator scoped this issuer to T2 only → rejected with **3012**
+/// but the operator scoped this issuer to T2 only → rejected with **3032**
 /// `assertion_tier_unauthorized` (distinct from a Space-floor 3030). Its T2
 /// assertion, in scope, is accepted. RED on revert of the C2 check.
 #[test]
@@ -143,13 +143,13 @@ fn witness2_c2_accepted_tiers_scope_rejects_out_of_scope_tier() {
     record.accepted_tiers = vec![AuthTier::Tier2];
     reg.register(record);
 
-    // The mock issues a T3 assertion → out of the issuer's scope → 3012.
+    // The mock issues a T3 assertion → out of the issuer's scope → 3032.
     let ta3 = issue(&module, &id, AuthTier::Tier3, FUTURE);
     let (msg3, _) = signed_register(&identity, &ta3);
     let err = accept_registration(&msg3, &id, false, false, HOME, REGISTERED_AT, &gate_policy(&reg))
         .unwrap_err();
     assert!(matches!(err, RegistrationError::AssertionTierUnauthorized));
-    assert_eq!(err.to_registration_code(), (3012, "assertion_tier_unauthorized"));
+    assert_eq!(err.to_registration_code(), (3032, "assertion_tier_unauthorized"));
 
     // A T2 assertion from the same issuer is in scope → accepted.
     let ta2 = issue(&module, &id, AuthTier::Tier2, FUTURE);

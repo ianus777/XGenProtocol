@@ -415,11 +415,20 @@ impl SpaceState {
         room.members.insert(creator.clone());
 
         let mut pending_invites = HashMap::new();
-        // The DM creator (Space owner) is the implicit inviter of the second member.
-        pending_invites.insert(
-            invitee,
-            PendingInvite { role: Role::Member, invited_by: Some(creator.clone()), valid_until: None },
-        );
+        // M11-D1 (self thread): skip seeding a self-invite when invitee == creator.
+        // A self-DM is a clean single-member room by construction — the creator is
+        // already the Owner member + dm-Room member, so no second party is pending.
+        // Constructor-only is the entire applier delta (apply_join already
+        // short-circuits AlreadyMember). The auto-invite event is still built and
+        // returned; `ops::create_dm_space` still sends a self-targeted invite that
+        // the node swallows under DM constraints — an inert residue, by design.
+        if invitee != creator {
+            // The DM creator (Space owner) is the implicit inviter of the second member.
+            pending_invites.insert(
+                invitee,
+                PendingInvite { role: Role::Member, invited_by: Some(creator.clone()), valid_until: None },
+            );
+        }
 
         let mut rooms = HashMap::new();
         rooms.insert(room_id, room);
@@ -527,10 +536,14 @@ impl SpaceState {
         // member (mirrors `from_dm_space_create`; apply_invite can't do this
         // under DM constraints).
         let mut pending_invites = HashMap::new();
-        pending_invites.insert(
-            invitee,
-            PendingInvite { role: Role::Member, invited_by: Some(creator.clone()), valid_until: None },
-        );
+        // M11-D1 (self thread): no self-invite when invitee == creator — a self-DM
+        // is a clean single-member room by construction (mirror of the client ctor).
+        if invitee != creator {
+            pending_invites.insert(
+                invitee,
+                PendingInvite { role: Role::Member, invited_by: Some(creator.clone()), valid_until: None },
+            );
+        }
 
         let human_pacing_ms = content["human_pacing_ms"]
             .as_u64()
@@ -2880,6 +2893,78 @@ mod tests {
         let bob_member = state.members.get(bob_id.as_str()).expect("bob is a member");
         assert_eq!(bob_member.role, Role::Member);
         assert_eq!(bob_member.invited_by.as_ref().map(|x| x.as_str()), Some(sender_id(&alice).as_str()));
+    }
+
+    // ── M11 self-thread (D-021) witnesses — W1/W2/W3 ─────────────────────────
+
+    #[test]
+    fn from_dm_space_create_self_dm_seeds_no_pending_invite() {
+        // W1a (M11-D1): a self-DM (invitee == creator) seeds NO pending invite —
+        // a clean single-member room. RED-on-revert: drop the guard at state.rs
+        // ~419 and the vestigial pending_invites[self] entry returns.
+        let alice = alice_key();
+        let self_id = sender_id(&alice);
+        let create_ev = sign_event(build_dm_space_create_event(&alice, &self_id, HOME), &alice);
+        let (state, _room, _invite) = SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
+        assert!(state.is_dm);
+        assert_eq!(state.members.len(), 1, "creator is the sole member");
+        assert_eq!(state.members.get(self_id.as_str()).unwrap().role, Role::Owner);
+        assert!(
+            state.pending_invites.is_empty(),
+            "self-DM must seed no pending invite (M11-D1)"
+        );
+    }
+
+    #[test]
+    fn from_dm_space_create_node_self_dm_seeds_no_pending_invite() {
+        // W1b (M11-D1): the key-less node-init mirror. RED-on-revert genuine at
+        // the second guard site (state.rs ~530).
+        let alice = alice_key();
+        let self_id = sender_id(&alice);
+        let create_ev = sign_event(build_dm_space_create_event(&alice, &self_id, HOME), &alice);
+        let state = SpaceState::from_dm_space_create_node(&create_ev).unwrap();
+        assert!(state.is_dm);
+        assert_eq!(state.members.len(), 1);
+        assert_eq!(state.owner_id.as_str(), self_id.as_str());
+        assert!(
+            state.pending_invites.is_empty(),
+            "self-DM node init must seed no pending invite (M11-D1)"
+        );
+    }
+
+    #[test]
+    fn self_dm_creator_is_owner_and_dm_room_member() {
+        // W2 (functional): post-create the creator is Owner + a member of the
+        // auto dm Room with no membership.join — a usable single-member thread.
+        // (Message admission under a live registry is the node reach witness,
+        // Commit 3 / W4.)
+        let alice = alice_key();
+        let self_id = sender_id(&alice);
+        let create_ev = sign_event(build_dm_space_create_event(&alice, &self_id, HOME), &alice);
+        let (state, _room, _invite) = SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
+        assert_eq!(state.members.get(self_id.as_str()).unwrap().role, Role::Owner);
+        assert_eq!(state.rooms.len(), 1, "auto dm Room is present");
+        let room = state.rooms.values().next().unwrap();
+        assert!(
+            room.members.contains(&xid(&self_id)),
+            "creator auto-joins the dm Room (no membership.join needed)"
+        );
+    }
+
+    #[test]
+    fn self_dm_never_federates() {
+        // W3 (non-federation): a self-DM rejects federation_add with the hard
+        // DmFederationNotAllowed guard — privacy as a structural property. The
+        // party set is degenerate {this_node}; nothing to push.
+        let alice = alice_key();
+        let self_id = sender_id(&alice);
+        let create_ev = sign_event(build_dm_space_create_event(&alice, &self_id, HOME), &alice);
+        let (mut state, _room, _invite) =
+            SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
+        let event = make_federation_event(&alice, &self_id, state.space_id.as_str());
+        let err = state.apply_event(&event, &self_id).unwrap_err();
+        assert_eq!(err, SpaceError::DmFederationNotAllowed);
+        assert!(state.federation_nodes.is_empty());
     }
 
     // ── Layer 14 — DM Space Promotion tests ──────────────────────────────────

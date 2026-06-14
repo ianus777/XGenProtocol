@@ -1,11 +1,33 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
 > **Last updated:** 2026-06-14  
-> (latest: J-375 — M10.5 + M10 CLOSED; MP-C-06 GREEN; full multiparty suite 37/37)  
+> (latest: J-376 — M11 (`self` thread, D-021) OPENED; concept Joe-LOCKED [Node-side never-federated self-DM, reuses the user's existing keypair]; Phase-0 scope locked)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-376 — M11 (`self` thread, D-021) OPENED: concept Joe-LOCKED (Node-side never-federated self-DM, reuses the user's existing keypair); Phase-0 scope locked; next-active = Clair D-071 Phase-0 audit
+
+**What happened.** M11 opened cold (M10 closed at J-375; `main` clean). After a full concept discussion, Joe LOCKED the `self`-thread concept and the Phase-0 grounding scope. Chat authored the framing brief `tasks/M11_SELF_THREAD_PHASE0_BRIEF.md` (v1.0 ACTIVE) and superseded `tasks/HANDOFF_M11.md` (→ COMPLETED). Doc-only; no code; no DECISIONS change (M11 design not started; D-021 is the standing source).
+
+**Provenance grounded (D-065).** A fresh grep of ch0–ch6 + appendices A–L returns ZERO detailed `self` grounding (all "self" hits unrelated). The sole source is D-021 (a terse 2026-04-28 deferral note, "Spec reference: —"); ROADMAP carries name-only placeholders. M11 builds something the spec never described — which legitimizes relaxing D-021's pre-machinery wording (no specified mechanism is overridden).
+
+**Concept Joe-LOCKED.** `self` = a Node-side, never-federated, never-broadcast personal thread reusing the user's EXISTING keypair (single identity — `self` is *you*, not a second account); streams omitted; realized on the existing Space/Room/Event/DAG + DM-non-federation machinery; chronological history + "reachable from any client on the Node" are free properties of the Space apparatus; M12 attachments inherited (text-first at M11). Reconciles D-021 by relaxing the single pre-machinery clause "never registered" → registered via the already-registered identity, keeping the spirit (own keypair, never federated, private, Node-mediated reach). Chose **B (reuse keypair)** over A (own synthetic key — would re-shape "my space" into "a separate account" + itself need registration) and C (single-member regular Space — the named fallback; lacks the DM path's hard `DmFederationNotAllowed` guarantee).
+
+**Grounding findings (verified main tree, J-376).** (1) a client Identity is a device-local keypair file (`ClientIdentity::load`, session.rs:60) — Node-side `self` makes reach free via Space-sync. (2) `validate_event` step 11 rejects an unregistered signer (`UnknownSender`, exchange.rs:202-209) — B reuses the registered identity, satisfying the gate. (3) DM never federates (`DmFederationNotAllowed`, runtime.rs:2105) — the non-broadcast property is already built; BUT `from_dm_space_create` (state.rs:342) has NO `invitee == creator` guard (verified — only wrong-type / missing-field errors), so a self-DM's admissibility is unproven — the one real unknown.
+
+**Phase-0 scope (Joe-LOCKED).** Headline = the self-DM admissibility edge (`from_dm_space_create` → `apply_join` when invitee == creator), which decides B vs the C fallback. Supporting grounding in order: (1) registration cost (expect zero new registration under B); (2) DM-creation entry point; (3) reach (Space-sync to any client); (4) client surface in `xgen-client`/ch6. Named deliverable = a short ch6 descriptive note (reuses-existing-identity anchor line + attachments-as-inherited-M12 + "not an account / no new protocol surface"), authored at close — NOT a ch3 normative edit.
+
+**Forks Joe-LOCKED.** F1 shape = target B, fallback C. F2 registration = none (provisional, Phase-0 confirms). F3 scope = text-first, attachments at M12. The keypair fork and the data-shape fork fold into one unknown: whether the DM machinery tolerates invitee == creator decides self-DM (B) vs single-member Space (C).
+
+**Canonical correction.** ROADMAP's "M11 identity-layer; rides M10 auth-module work" tag is corrected at this bridge — under B, M11 is a client/Space feature reusing an existing identity; it does not touch the auth-module work.
+
+**Canonical (D-074).** brief `tasks/M11_SELF_THREAD_PHASE0_BRIEF.md` NEW (v1.0 ACTIVE); `tasks/HANDOFF_M11.md` ACTIVE→COMPLETED (v1.1); `CLAUDE.md` PLAY head; `docs/ROADMAP.md` v3.64→v3.65 (M11 🟡→🟢 + tag correction); this JOURNAL J-376. No DECISIONS change.
+
+**Next-active.** Clair opens the M11 D-071 Phase-0 audit against the locked B shape (this brief is the agenda) → design → Joe-lock → runbook → implement (text-first) → Chat doc-bridge → close. No code until the design is Joe-locked. Then the J-357 chain: M11 → M12 → Round-2 pre-UI gate → UI → Streams. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-376 → `tasks/M11_SELF_THREAD_PHASE0_BRIEF.md` → DECISIONS.md D-021.** Not pushed — Joe pushes.
 
 ---
 

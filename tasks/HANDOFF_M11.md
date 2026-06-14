@@ -1,6 +1,6 @@
 # HANDOFF — M11 (`self` account) Session Kickoff
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-14  
 > Language: English  
@@ -89,3 +89,5 @@ immediately before UI.
 
 Flip this file's Status ACTIVE -> COMPLETED (or supersede it with the M11 Phase-0 brief) as part
 of the first M11 doc-bridge, so it doesn't linger as a stale ACTIVE handoff.
+
+**Done (J-376):** superseded by `tasks/M11_SELF_THREAD_PHASE0_BRIEF.md` (v1.0 ACTIVE). M11 OPENED; concept Joe-LOCKED (Node-side never-federated self-DM, reuses the user's existing keypair); Phase-0 scope locked. Status flipped at the M11-open doc-bridge.

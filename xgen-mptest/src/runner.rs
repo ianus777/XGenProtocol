@@ -121,6 +121,23 @@ pub struct ScenarioOutcome {
     /// MP-R3-D4b — the during-chaos liveness report, when the dial requested the
     /// probe (`dial.liveness_probe`); `None` otherwise (R1/R2).
     pub liveness: Option<LivenessReport>,
+    /// MP-C-16 / M10.5-D1 — per-node hosted-Space ids (each node's
+    /// `space list-hosted`, i.e. `home_node == that node`). Lets a migration
+    /// witness assert **home_node-flip-on-both** (the D3 / J-370 shape): after an
+    /// A→B migration the Space appears in B's list (home flipped to B) and is
+    /// absent from A's (home flipped away from A). Best-effort — a node that
+    /// answers no `space list-hosted` contributes an empty list.
+    pub hosted_by_node: Vec<(String, Vec<String>)>,
+}
+
+impl ScenarioOutcome {
+    /// MP-C-16 (M10.5-D1) — does `node_label` home `space_id`, per its
+    /// `space list-hosted` (`home_node == node_label`)?
+    pub fn node_hosts_space(&self, node_label: &str, space_id: &str) -> bool {
+        self.hosted_by_node
+            .iter()
+            .any(|(l, spaces)| l == node_label && spaces.iter().any(|s| s == space_id))
+    }
 }
 
 /// A live node: its process, control connection, address, and observer.
@@ -548,6 +565,31 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         )),
     };
 
+    // MP-C-16 (M10.5-D1) — per-node hosted-Space query for the flip-on-both
+    // witness. `space list-hosted` returns the Spaces a node homes
+    // (`home_node == self`, admin_ops.rs); a migration cutover flips a Space's
+    // `home_node`, so it appears in the destination's list and leaves the
+    // source's. Best-effort: a node that errors / answers nothing contributes an
+    // empty list. Mirrors the `members` query pattern above.
+    let mut hosted_by_node: Vec<(String, Vec<String>)> = Vec::with_capacity(nodes.len());
+    for n in nodes.iter_mut() {
+        let mut hosted: Vec<String> = Vec::new();
+        if let Ok(reply) = n.ctl.send(&Command::new("space list-hosted")).await {
+            if let Some(arr) = reply
+                .data()
+                .and_then(|d| d.get("spaces"))
+                .and_then(|v| v.as_array())
+            {
+                for s in arr {
+                    if let Some(id) = s.get("space_id").and_then(|v| v.as_str()) {
+                        hosted.push(id.to_string());
+                    }
+                }
+            }
+        }
+        hosted_by_node.push((n.label.clone(), hosted));
+    }
+
     // MP-R3-D5b — did any spawned process exit unexpectedly (OOM / non-zero)?
     // Checked before the immutable resource sample (it needs `&mut`).
     let process_died = any_process_died(&mut nodes, &mut actors);
@@ -565,6 +607,7 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         aggregate_rss_bytes,
         process_died,
         liveness,
+        hosted_by_node,
     })
 }
 

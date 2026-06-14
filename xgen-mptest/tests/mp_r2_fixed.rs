@@ -316,9 +316,27 @@ async fn mp_c_16_live_migration_space_rehomes() {
         "migrated Space {space} not present on destination B: {:?}",
         tb.events
     );
+    // M10.5-D1 (C1a) — home_node-flip-on-both (the D3 / J-370 witness shape; the
+    // box-gated RUN enrichment the prior doc-comment flagged). The cutover flips
+    // the Space's home_node to the destination, so post-migration B homes it
+    // (appears in B's `space list-hosted`) and A no longer does (absent from A's
+    // — its home_node flipped to B). This is the per-Space home query that
+    // upgrades the Space-present-on-B stand-in to the full D3 assertion.
+    assert!(
+        outcome.node_hosts_space("b", &space),
+        "flip-on-both: destination B does not home migrated Space {space} \
+         (home_node did not flip to B): hosted={:?}",
+        outcome.hosted_by_node
+    );
+    assert!(
+        !outcome.node_hosts_space("a", &space),
+        "flip-on-both: source A still homes migrated Space {space} \
+         (home_node did not flip away from A): hosted={:?}",
+        outcome.hosted_by_node
+    );
     eprintln!(
-        "C6c MP-C-16 PASS: migration initiate accepted + Space {space} present on destination B \
-         (home_node-flip-on-both is the box-gated RUN enrichment — needs a per-Space home query)"
+        "C6c MP-C-16 PASS: migration initiate accepted + home_node flipped on both \
+         (B homes Space {space}, A no longer does)"
     );
 }
 

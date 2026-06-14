@@ -1,11 +1,31 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
 > **Last updated:** 2026-06-14  
-> (latest: J-376 — M11 (`self` thread, D-021) OPENED; concept Joe-LOCKED [Node-side never-federated self-DM, reuses the user's existing keypair]; Phase-0 scope locked)  
+> (latest: J-377 — M11 design Joe-LOCKED; shape B self-DM; D1 guard-at-construction + D5 `self` verb; next-active = Clair runbook)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-377 — M11 (`self` thread, D-021) design Joe-LOCKED: shape B self-DM; D1 guard-at-construction (the entire applier delta) + D2–D5; next-active = Clair runbook
+
+**What happened.** Phase-0 audit (`tasks/M11_SELF_THREAD_PHASE0_AUDIT.md` v1.0, read-only, grounded @ `345a461`) returned the verdict **B admissible — C not needed**. Chat authored `tasks/M11_SELF_THREAD_DESIGN.md` (v1.0 ACTIVE); Joe locked M11-D1..D5 by-recomms. Doc-only; no code; no DECISIONS change (M11-D# arc-local, D-069).
+
+**Phase-0 verdict (audit-grounded).** `from_dm_space_create` (state.rs:342) + `from_dm_space_create_node` (state.rs:487) both admit `invitee == creator` — no guard, no error, no break. The creator is sole Owner + dm-Room member the instant the create chain lands (`apply_room_create` auto-inserts the sender, state.rs:792); **no `membership.join` is ever needed.** The only artifact is a vestigial `pending_invites[self]`, inert (`apply_join` short-circuits `AlreadyMember`, state.rs:1000-1001). The creator passes every step-11 gate (registered 629 / Space member 672 / Room member 676) → posts + reads. `create-dm-space --invitee <own-id>` works on current `main` (app.rs:543); the auto-invite's swallowed reject is every DM's accept-either behaviour (ops.rs:786-787, 740-742) — self introduces no new failure. Reach = member-gated `collect_sync_history` (fanout.rs:457). Non-federation doubly contained (`DmFederationNotAllowed` state.rs:660-661 + degenerate `{this_node}` party set runtime.rs:2101). Identity reuse, zero new registration (ops.rs:670-677).
+
+**Decisions Joe-LOCKED (M11-D1..D5, arc-local D-069).** **D1** vestigial self-invite = **guard at construction** — skip the auto-invite when `invitee == creator` in both constructors; creator still seated via `apply_room_create`; **constructor-only, no `apply_join` belt-and-suspenders** (the `AlreadyMember` short-circuit already neutralizes a stray self-invite). **This is the entire applier/protocol delta for M11** — a few lines, two sites, no wire/event/reject change. **D2** reach wording locked precisely: "any client authenticated as the user (their own devices)," Node-resident not device-local (D-065 honesty; no code). **D3** client surface = a thin `xgen-client` convenience + "self"/"Saved Messages" label over existing `create-dm-space` + `Send`/`History`; no new wire, no applier change beyond D1. **D4** the ch6 descriptive note = the close deliverable (reuses-existing-identity anchor + attachments-inherited-M12 + "not an account / no new protocol surface"); NOT a ch3 normative edit. **D5** self-target UX = **(a) a `self` convenience verb** (create-if-absent → open; auto-resolves the session identity, no typed id); the raw `--invitee <own-id>` form stays the documented floor.
+
+**Witness set (RED-on-revert).** W1 no `pending_invites[self]` on self-DM create (revert the guard → vestigial entry returns) · W2 creator Owner + dm-Room member + can post/read · W3 never-federates · W4 a second client authenticated as the same user sees the thread.
+
+**Why B (faithfulness, recorded).** Reuse the convergence-proven primitive (zero protocol/applier delta) · `self` = the user's real registered identity on both endpoints (no-anonymity pillar) · the **hard** `DmFederationNotAllowed` wall (privacy as a structural property, not a default). C (single-member regular Space) would need a new creation path + has only a default non-federation posture; its lone conceptual edge is satisfied by the keypair-reuse + the D1 guard.
+
+**Out.** Attachments → M12 (inherited). Operator-confidentiality → moot for B (audit §7). Renaming the internal DM primitive for the one-party case → named-not-fixed (D-069). Any new wire/event/reject/ch3 edit → none.
+
+**Canonical (D-074).** design doc NEW (`tasks/M11_SELF_THREAD_DESIGN.md` v1.0 ACTIVE); `CLAUDE.md` PLAY head; `docs/ROADMAP.md` v3.65→v3.66 (M11 design-lock marker); this JOURNAL J-377. No DECISIONS change. (The Phase-0 audit is already on `main`, pushed at its own commit.)
+
+**Next-active.** Clair authors `tasks/M11_SELF_THREAD_IMPL.md` — the D1 guard (two sites) + the D5 `self` verb + W1–W4 witnesses + the ch6 note as the close deliverable → implement → Chat doc-bridge → close. No code until the runbook lands. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-377 → `tasks/M11_SELF_THREAD_DESIGN.md` → `tasks/M11_SELF_THREAD_PHASE0_AUDIT.md`.** Not pushed — Joe pushes.
 
 ---
 

@@ -1318,6 +1318,50 @@ mod tests {
         let _ = space_a_id;
     }
 
+    #[tokio::test]
+    async fn collect_sync_history_serves_self_dm_to_the_user() {
+        // M11 (D-021) W4: a self-DM (invitee == creator) is reachable by any
+        // client authenticated as the user, via member-gated sync — proving
+        // M11-D2's "Node-resident, not device-local" reach. A second device is
+        // modeled as a second same-identity sync_request.
+        use crate::space::state::{build_dm_space_create_event, SpaceState};
+        let node_key = keypair::generate();
+        let mut rt = NodeRuntime::new(node_key);
+        let alice = keypair::generate();
+        let alice_id = pubkey_uri(&alice);
+        rt.register_identity(make_identity_record(&alice_id)).unwrap();
+
+        // Ingest the self-DM create chain (root → auto-room), invitee = alice.
+        let dm_ev = sign_event(build_dm_space_create_event(&alice, &alice_id, HOME), &alice);
+        let dm_space_id: String = event_id_str(&dm_ev);
+        rt.ingest_event(dm_ev.clone());
+        let (_state, room_ev, _invite) =
+            SpaceState::from_dm_space_create(&dm_ev, &alice).unwrap();
+        rt.ingest_event(room_ev);
+
+        let runtime = Arc::new(Mutex::new(rt));
+        let alice_typed = idx(&alice_id);
+
+        // First client (the user) syncs → the self-DM is served (alice is its Owner).
+        let (events, _cursor) = collect_sync_history(&runtime, &alice_typed, "", 1000).await;
+        assert!(
+            events
+                .iter()
+                .any(|e| e.event_id.as_ref().map(|x| x.as_str()) == Some(dm_space_id.as_str())),
+            "the self-DM create event must be reachable via the user's own sync"
+        );
+
+        // A second client authenticated as the same user (a second device) sees
+        // the same thread — Node-resident, not device-local (M11-D2).
+        let (events2, _c2) = collect_sync_history(&runtime, &alice_typed, "", 1000).await;
+        assert!(
+            events2
+                .iter()
+                .any(|e| e.event_id.as_ref().map(|x| x.as_str()) == Some(dm_space_id.as_str())),
+            "a second client authenticated as the user sees the same self-DM (M11-D2)"
+        );
+    }
+
     // ── M8.5-B (INV-D1/D6) — scoped invite-bootstrap fetch ─────────────────
     //
     // Build a Space (alice owner) with a Room, a message (content, must NOT be

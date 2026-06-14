@@ -1,5 +1,5 @@
 # M10.5 — The M10-Routed Carve-Outs (MP-C-16 re-run · MP-F6 fold · MP-C-06 re-home) — Design
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-14 (J-374 amendment: D4 emit dropped — see §4)  

@@ -1,6 +1,6 @@
 # Multiparty-tests — Findings
 > **Status**: ACTIVE  
-> Version: 1.22  
+> Version: 1.23  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-14  
 > Language: English  
@@ -421,6 +421,20 @@ message emission to the event stream). Both are protocol/binary work, outside Mu
 - **Route (Joe-LOCKED J-374):** a **future migration-depth arc** (named-followon, not a numbered milestone yet; ROADMAP horizon bullet) — scope: destination admission keyed on **home-ownership** (`home_node == self`) mirroring the source side, **+** `verify_transfer` robust to a pre-existing federated replica (replica→home promotion). Own D-071 Phase-0 when scheduled. Gives Opt-1's realistic case a genuine home.
 - **Code anchors:** `handle_migration_propose` presence-test (`xgen-node` state_machine.rs:289, `existing_space_ids.contains` over `rt.spaces.keys()`); the source-side home-ownership check (`require_hosted_home_space`, `home_node == self`); `verify_transfer` (the pre-existing-replica robustness surface).
 - **Status:** ROUTED → future migration-depth arc (named-followon, J-374). Not resolved. Not a carve-out.
+
+---
+
+## MP-F16 — `federation_initiate` advertises `config.node.listen` raw, not the `--port`-corrected `effective_endpoint` (D-068-family endpoint inconsistency)
+
+- **Surfaced:** the M10.5 C1c convergence-witness loop-on-fault (`mp_c06_rehome`), pinned by Clair from kept node logs (J-375). Status: **ROUTED → a future identity-replication / federation-endpoint arc (Joe-LOCKED J-375). Low production severity; NOT a suite failure** (the C1c witness is GREEN — the harness fix below cleared it).
+- **Symptom (empirical, pinned):** in the full-mesh re-home witness, after alice re-homes A→C, node C fires `push_identity_to_peers` to both its peers (A and B), but **neither re-pointed** — C's recorded peer URL for both was `ws://127.0.0.1:8080/xgen` (the default `config.node.listen`) → `connect failed ... refused (10061)`. Federation *establish* was unaffected (the initiator dials the harness-provided `add-peer` URL); `push_identity_to_peers` is the **first mechanism that dials the self-advertised endpoint**, so it is where the mismatch first bit.
+- **Mechanism (grounded, Clair):** `federation_initiate` sources the node's advertised / dial-back endpoint from **`config.node.listen` raw** (`xgen-node` admin_ops.rs:1784, `.map(|c| c.node.listen.clone())`) — **not** the `--port`-corrected `effective_endpoint` that `run_node` computes (`app.rs:704`) and *does* thread into the reconnect path. So when a node is launched with `--port` (which drives the bind, D-068) without also rewriting `[node].listen`, **the same node advertises different endpoints via the admin-initiate path vs the reconnect path** — an internal inconsistency in the D-068 port-override family.
+- **Severity:** LOW (production). `config.node.listen` is the *intended* advertised / public endpoint; `--port` is a dev/harness convenience, so in a normal deployment (where `[node].listen` is the real public address) the two agree and nothing bites. The inconsistency only manifests under `--port`-without-matching-`listen`. A genuine internal inconsistency worth a finding, not a correctness defect on a configured node.
+- **A7 is sound (not implicated):** the push *fired correctly* to both peers — the re-point machinery (`push_identity_to_peers` on the re-registration `re_home` path) works; the only fault was the unreachable advertised URL. No re-lock of the M10.5 close.
+- **Harness fix (test-crate only, shipped in `fd630fa`):** `set_node_listen_in_config` aligns `[node].listen` with `--port` at spawn (mirroring `set_client_node_in_config`) — a real node configures its reachable address; the harness now does too. This cleared the C1c witness to GREEN; it does **not** touch the production inconsistency.
+- **Route (Joe-LOCKED J-375):** a **future identity-replication / federation-endpoint arc** (named-followon, not a numbered milestone) — scope: `federation_initiate` (and any other advertise/dial-back site) should source `effective_endpoint`, not `config.node.listen` raw, so a `--port`-launched node advertises one consistent reachable endpoint everywhere. Out of M10.5's C1b-only production footprint. Own D-071 Phase-0 when scheduled.
+- **Code anchors:** `federation_initiate` endpoint source (`xgen-node` admin_ops.rs:1784, `config.node.listen` raw); `effective_endpoint` computation (`xgen-node` app.rs:704, `--port`-corrected, threaded into the reconnect path); the harness fix `set_node_listen_in_config` (`xgen-mptest` process.rs).
+- **Status:** ROUTED → future identity-replication/federation-endpoint arc (named-followon, J-375). Not resolved (production); harness-cleared for the M10.5 witness.
 
 ---
 

@@ -1,9 +1,9 @@
 # HANDOFF — Multiparty-tests MP-R3 (capstone) + at-completion ledger deliverable
 
 > **Status**: COMPLETED  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-12  
+> **Last updated**: 2026-06-14  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -151,6 +151,13 @@ floor (R1) + the spawn-scale floor and every drivable protocol property under re
 MP-C-05 to 64 clients) + the box-measured process wall (~1384) under sustained stacked chaos +
 multi-node-adversary properties (R3) — NOT multiplexed logical scale (R3-D1, routed), NOT the
 transport-level reconnect-deadlock half (R3-D2, routed), NOT identity→home-node discovery (M10).
+
+**ADDENDUM (J-375, M10.5+M10 close) — the 2 ⏸️-M10 rows discharged → 37/37 ✅, 0 deferred.** The ledger above was delivered at the MP-R3 close (J-356) with **MP-C-06** and **MP-C-16** as the two `⏸️ DEFERRED → M10` rows. **M10.5 closed exactly those two:**
+- **MP-C-16 → ✅** at M10.5 C1a (`55a308e`, J-374): the M10.4 `AuthOk.node_id` namespace fix proven end-to-end on real binaries (home_node-flip-on-both + state-equality, stable 3/3); **MP-F13 → RESOLVED**.
+- **MP-C-06 → ✅** at M10.5 C1c (`fd630fa`, J-375): full-mesh A↔B↔C replicate-convergence re-home witness (stable 3/3); the deferred `home_changed` broadcast proved a version-stale-by-construction no-op (CP-4 re-lock, J-374) — MP-C-06 converges via the existing re-registration `push_identity_to_peers`, so the broadcast was dropped, not built.
+- **MP-F6 → RESOLVED** at M10.5 C1b (`7a2ff89`, J-374): the dispatch-level `banned` pre-check (the `MP-F6 → routed M10` row above is now closed).
+
+**Net at full close: 37 scenarios — 37 ✅, 0 deferred** (the prior "35 ✅, 2 ⏸️-M10" tally is fully discharged). **Findings: MP-F6 + MP-F13 now RESOLVED** (were routed-open → M10); **new finding MP-F16** (federation_initiate advertises `config.node.listen` raw, not `--port`-corrected `effective_endpoint`; low-sev, routed to a future identity-replication/federation-endpoint arc) surfaced + routed during the M10.5 C1c loop-on-fault. Still routed-open: MP-F12 (departed-signer, own home); MP-F2-followon (7 unmapped wire-codes, M10-era). **M10 (Auth Module Reference Set) CLOSED at J-375.** This HANDOFF stays COMPLETED; the addendum records the downstream discharge for ledger fidelity.
 
 ### 3.1 Breadcrumb sweep at the close (final dispositions — nothing closed silently)
 

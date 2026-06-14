@@ -1,11 +1,31 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
 > **Last updated:** 2026-06-14  
-> (latest: J-374 — M10.5 progress: C1b+C1a+C1c-rails shipped, CP-4 re-locked, MP-F6+MP-F13 RESOLVED)  
+> (latest: J-375 — M10.5 + M10 CLOSED; MP-C-06 GREEN; full multiparty suite 37/37)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-375 — M10.5 + M10 CLOSED: MP-C-06 GREEN (the last carve-out); M10 (Auth Module Reference Set) DONE; the full multiparty suite is 37/37; next-active = Round-2 whole-codebase audit (UI gate)
+
+**What happened.** Clair shipped the C1c replicate-convergence witness (`fd630fa`) — **MP-C-06 GREEN, stable 3/3** — the last open carve-out. With all three M10.5 carve-outs discharged (C1a MP-C-16 ✅ J-374 / C1b MP-F6 ✅ J-374 / C1c MP-C-06 ✅ here), the close criterion **all-green, no carve-out** is met → **M10.5 closes → M10 (Auth Module Reference Set) closes** (sub-arcs M10.1–M10.5 all ✅). This is the Chat close bridge; doc-only; no DECISIONS change (M10.5-D# arc-local, D-069).
+
+**The C1c witness (per the J-374 CP-4 re-lock — no `home_changed` emit).** Full-mesh A↔B↔C re-home on the C1c harness rails (`ee9cbbf`: keypair relocation + per-phase node retarget). Four asserts, none inferred: (1) **re-point** — B's stored `home_node` for alice == C's node_id, read directly via `identity show` on B (RED-on-revert genuine: neuter the push → B stays home=A); (2) **identity continuity** — same `identity_id` across the re-home; (3) **membership preserved** — B's resolved Space owner still alice; (4) **functional** — alice's post from C reached the Space on B. **A7 confirmed** — replicate-convergence (the re-registration `push_identity_to_peers`) carries the DoD; no re-lock. Clair pinned one fault along the way (loop-on-fault) — a **harness config artifact**, not a DoD problem (see MP-F16), fixed test-crate-side; the witness then went green and stable 3/3.
+
+**Honest record-correction (D-065).** My J-372/373/374 scope flag — "the consolidated R1+R2+R3 ledger still waits on MP-R3's MP-F14 close, not M10.5" — was **inherited from stale memory and wrong**. The matrix shows **MP-R3 CLOSED at J-356** (before M10.5 even opened), with the consolidated ledger **already delivered** at `HANDOFF_MP_R3.md` §3 as **37 scenarios — 35 ✅, 2 ⏸️-M10**, the two deferred rows being exactly **MP-C-16 + MP-C-06**. M10.5 discharged both (MP-C-16 → ✅ at C1a / MP-F13 RESOLVED, J-374; MP-C-06 → ✅ at C1c, this close). So the real outcome is larger than the flag implied: **the full multiparty suite is now 37/37 ✅, 0 deferred** — the ledger tally updates from "35 ✅, 2 ⏸️-M10" to **37 ✅** (addendum recorded at `HANDOFF_MP_R3.md` §3). The corrected standing flag: the consolidated ledger is delivered and complete; nothing of the multiparty effort remains open.
+
+**New finding MP-F16 (Clair-pinned, ratified + numbered J-375).** `federation_initiate` advertises the node's dial-back endpoint from `config.node.listen` **raw** (`xgen-node` admin_ops.rs:1784), not the `--port`-corrected `effective_endpoint` that `run_node` computes (app.rs:704) and threads into the reconnect path — so a `--port`-launched node (without a matching `[node].listen`) advertises **different endpoints via admin-initiate vs reconnect**, a D-068-family internal inconsistency. It bit in the C1c witness because `push_identity_to_peers` is the first mechanism to dial the self-advertised endpoint (the recorded peer URL was the unreachable default `:8080`). **LOW production severity** (`config.node.listen` is the intended advertised endpoint; `--port` is a dev/harness convenience — a configured node's two paths agree). **A7 itself sound** (the push fired correctly to both peers; the only fault was the unreachable URL). Harness-cleared by `set_node_listen_in_config` (test-crate, in `fd630fa`); **routed to a future identity-replication/federation-endpoint arc** (named-followon, not a numbered milestone) — out of M10.5's C1b-only production footprint.
+
+**Canonical (D-074).** `docs/tests/MULTIPARTY_TEST_MATRIX.md` v1.22→v1.23 (MP-C-06 🚧→✅ + the 37/37 completion roll-up); `tasks/MP_findings.md` v1.22→v1.23 (MP-F16 added, ROUTED); `tasks/HANDOFF_MP_R3.md` v1.2→v1.3 (§3 J-375 addendum, 37/37 — stays COMPLETED, addendum records downstream discharge); `tasks/M10_5_CARVEOUTS_{PHASE0_BRIEF,AUDIT,DESIGN,IMPL}.md` ACTIVE→COMPLETED; `CLAUDE.md` PLAY head; `docs/ROADMAP.md` (M10 🟢→✅ + close bracket + version bump); this JOURNAL J-375. No DECISIONS change.
+
+**What M10 + the multiparty campaign certifies (honest).** M10 (Auth Module Reference Set) shipped: the wire-band/AI-D8 descriptor (M10.1), the T1 reference binary (M10.2), the parameterized T2–T4 mock + dormant-tier activation (M10.3), the production identity→home-node namespace fix (M10.4), and the three test-routed carve-outs come home (M10.5). The full multiparty suite (R1 deterministic floor + R2 scale/real-clock + R3 capstone chaos) is 37/37 with every finding resolved or routed to a named home.
+
+**Still routed-open across the project (named homes, none blocking):** MP-F12 (departed-signer re-dispatch, own home); MP-F2-followon (7 unmapped wire-codes, M10-era hygiene); MP-F15 (migration admission home-ownership / replica→home promotion, future migration-depth arc); MP-F16 (federation-endpoint advertise consistency, future identity-replication/federation-endpoint arc).
+
+**Next-active.** Per the ROADMAP horizon: the **Round-2 whole-codebase audit** — the UI gate (which sat alongside M10; M10 now satisfied) → **UI** → then the **M11** (`self` account, D-021) / **M12** (attachments, pre-UI per J-357) milestone track. (Note the M11/M12-vs-UI ordering on the ROADMAP is the standing horizon, not re-decided here — Joe's call when the next milestone opens.) **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-375 → `docs/tests/MULTIPARTY_TEST_MATRIX.md` → `tasks/MP_findings.md` (MP-F16) → `docs/ROADMAP.md` (M10 ✅).** Not pushed — Joe pushes.
 
 ---
 

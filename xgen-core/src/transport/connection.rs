@@ -119,6 +119,18 @@ pub enum EventConfirm {
     TimedOut,
 }
 
+/// Result of `client_authenticate` (M10.4 / MP-F13, Shape B). Carries the
+/// echoed `identity_id` (the client's own, as before) plus the Node's `node_id`
+/// when the Node advertised it on `AuthOk`. `node_id` is `None` against an older
+/// Node that predates the additive echo — the client must NOT fall back to
+/// writing a transport URL as a Space `home_node` in that case (see
+/// `ops::create_space`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthOutcome {
+    pub identity_id: String,
+    pub node_id: Option<String>,
+}
+
 // ── Connection ────────────────────────────────────────────────────────────────
 
 pub struct Connection<S> {
@@ -405,11 +417,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
 
     /// **Client-side** authentication (spec 3.3.4 Phase 2).
     /// Receive challenge → sign nonce → send auth → receive auth_ok.
-    /// Returns the `identity_id` echoed by the server on success.
+    /// Returns the `identity_id` echoed by the server plus the Node's `node_id`
+    /// (M10.4 / MP-F13, Shape B — `None` against a pre-echo Node).
     pub async fn client_authenticate(
         &mut self,
         signing_key: &SigningKey,
-    ) -> Result<String, TransportError> {
+    ) -> Result<AuthOutcome, TransportError> {
         // Receive challenge.
         let nonce = match self.recv().await? {
             Inbound::Transport(TransportMessage::Challenge { nonce, .. }) => nonce,
@@ -427,7 +440,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
 
         // Receive auth_ok or auth_fail.
         match self.recv().await? {
-            Inbound::Transport(TransportMessage::AuthOk { identity_id, .. }) => Ok(identity_id),
+            Inbound::Transport(TransportMessage::AuthOk {
+                identity_id, node_id, ..
+            }) => Ok(AuthOutcome { identity_id, node_id }),
             Inbound::Transport(TransportMessage::AuthFail {
                 error_code,
                 error_string,

@@ -445,15 +445,30 @@ pub async fn create_space(
         (id.signing_key.clone(), id.identity_id.as_str().to_string())
     };
 
-    let home_node = ctx
+    // The client's own dial-endpoint record stays a transport URL.
+    let home_node_url = ctx
         .node_override
         .map(|s| s.to_string())
         .unwrap_or_else(|| ctx.session.home_node.clone());
 
+    // M10.4 (MP-F13, Shape B): connect first so the AuthOk node_id echo is
+    // captured, then write the Node's pubkey node_id — NOT the transport URL —
+    // into the Space's signed content["home_node"] (every consumer + both
+    // migration gates expect the pubkey). Connect-before-build is required:
+    // the value depends on the connection actually used (honours
+    // --node-override). Refuse rather than silently writing a URL.
+    ctx.session.ensure_connected(ctx.node_override).await?;
+    let home_node_id = ctx.session.node_id.clone().ok_or_else(|| {
+        anyhow::anyhow!(
+            "home Node did not advertise its node_id (older protocol?); refusing to \
+             create a Space with a transport URL as home_node"
+        )
+    })?;
+
     // Build + sign the space_create event locally so the assigned IDs are
     // available before any network work.
     let space_ev = sign_event(
-        build_space_create_event(&signing_key, &args.name, None, args.auth_tier, &home_node, None, false),
+        build_space_create_event(&signing_key, &args.name, None, args.auth_tier, &home_node_id, None, false),
         &signing_key,
     );
     // Event.event_id is Option<EventXgid> (Pass 1-3). Project to String here so the
@@ -496,11 +511,11 @@ pub async fn create_space(
     // variant was deleted in commit 12 — every state-writing path now
     // uses load_or_default_state, which takes the already-cached
     // identity_id rather than re-loading the keypair).
-    let mut state = load_or_default_state(ctx.data_dir, &identity_id, &home_node);
+    let mut state = load_or_default_state(ctx.data_dir, &identity_id, &home_node_url);
     state.spaces.push(xgen_common::state::KnownSpace {
         space_id: space_id.clone(),
         name: args.name.clone(),
-        node_endpoint: home_node.clone(),
+        node_endpoint: home_node_url.clone(),
         role: "owner".to_string(),
         rooms: vec![],
     });
@@ -661,14 +676,26 @@ pub async fn create_dm_space(
         (id.signing_key.clone(), id.identity_id.as_str().to_string())
     };
 
-    let home_node = ctx
+    // The client's own dial-endpoint record stays a transport URL.
+    let home_node_url = ctx
         .node_override
         .map(|s| s.to_string())
         .unwrap_or_else(|| ctx.session.home_node.clone());
 
+    // M10.4 (MP-F13, Shape B): connect first to capture the AuthOk node_id echo,
+    // then write the Node's pubkey node_id (not the transport URL) into the DM
+    // Space's signed content["home_node"]. Refuse rather than write a URL.
+    ctx.session.ensure_connected(ctx.node_override).await?;
+    let home_node_id = ctx.session.node_id.clone().ok_or_else(|| {
+        anyhow::anyhow!(
+            "home Node did not advertise its node_id (older protocol?); refusing to \
+             create a DM Space with a transport URL as home_node"
+        )
+    })?;
+
     // 1) Root: state.dm_space_create — its event_id IS the space_id.
     let dm_ev = sign_event(
-        build_dm_space_create_event(&signing_key, &args.invitee, &home_node),
+        build_dm_space_create_event(&signing_key, &args.invitee, &home_node_id),
         &signing_key,
     );
     let space_id = dm_ev
@@ -777,11 +804,11 @@ pub async fn create_dm_space(
     }
 
     // Record the DM Space in client state (creator is owner; the DM Room is known).
-    let mut state = load_or_default_state(ctx.data_dir, &identity_id, &home_node);
+    let mut state = load_or_default_state(ctx.data_dir, &identity_id, &home_node_url);
     state.spaces.push(xgen_common::state::KnownSpace {
         space_id: space_id.clone(),
         name: format!("DM with {}", args.invitee),
-        node_endpoint: home_node.clone(),
+        node_endpoint: home_node_url.clone(),
         role: "owner".to_string(),
         rooms: vec![xgen_common::state::KnownRoom {
             room_id: room_id.clone(),

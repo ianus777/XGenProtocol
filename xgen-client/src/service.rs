@@ -105,7 +105,7 @@ async fn run_ws_loop(data_dir: PathBuf) -> Result<()> {
     };
 
     let identity_id = match conn.client_authenticate(&signing_key).await {
-        Ok(id) => id,
+        Ok(out) => out.identity_id,
         Err(e) => anyhow::bail!("WS authentication failed: {e}"),
     };
     tracing::info!(identity_id = %identity_id, "service: authenticated");

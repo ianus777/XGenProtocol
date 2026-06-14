@@ -55,7 +55,8 @@ impl WireActor {
         let identity_id = conn
             .client_authenticate(&key)
             .await
-            .with_context(|| format!("WireActor authenticate {node_url}"))?;
+            .with_context(|| format!("WireActor authenticate {node_url}"))?
+            .identity_id;
         Ok(WireActor {
             conn,
             key,

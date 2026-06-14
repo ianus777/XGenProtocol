@@ -47,7 +47,7 @@ mod tests {
 
         // Client connects and authenticates.
         let mut client_conn = client::connect(server_addr).await.unwrap();
-        let returned_id = client_conn.client_authenticate(&client_key).await.unwrap();
+        let returned_id = client_conn.client_authenticate(&client_key).await.unwrap().identity_id;
 
         // Server task completes.
         let (server_identity_id, mut server_conn) = server_task.await.unwrap();

@@ -224,7 +224,8 @@ async fn run_ai_loop(
     let auth_id = conn
         .client_authenticate(&signing_key)
         .await
-        .context("WS authentication failed")?;
+        .context("WS authentication failed")?
+        .identity_id;
     tracing::info!(identity_id = %auth_id, "ai-service: authenticated");
 
     // Request the history of every Space this AI is a member of.

@@ -262,7 +262,8 @@ pub async fn inject_event(
     let authed_as = conn
         .client_authenticate(auth_key)
         .await
-        .with_context(|| format!("injector authenticate to {node_url}"))?;
+        .with_context(|| format!("injector authenticate to {node_url}"))?
+        .identity_id;
 
     conn.send_event(event)
         .await

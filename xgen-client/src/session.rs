@@ -71,6 +71,13 @@ pub struct SessionState {
     pub conn: Option<ClientConnection>,
     pub identity: Option<ClientIdentity>,
     pub home_node: String,
+    /// The connected Node's pubkey `node_id` (`xgen://pubkey/ed25519:…`),
+    /// captured from the `AuthOk` echo during `ensure_connected` (M10.4 /
+    /// MP-F13, Shape B). Distinct from `home_node` (a `ws://` transport URL):
+    /// this is what `create_space` / `create_dm_space` write into a Space's
+    /// signed `content["home_node"]`. `None` until connected, or against a
+    /// pre-echo Node.
+    pub node_id: Option<String>,
     pub data_dir: PathBuf,
 
     pub bindings: HashMap<String, String>,
@@ -84,6 +91,7 @@ impl SessionState {
             conn: None,
             identity: None,
             home_node,
+            node_id: None,
             data_dir,
             bindings: HashMap::new(),
             spaces: HashMap::new(),
@@ -130,10 +138,16 @@ impl SessionState {
             let mut conn = connect_url(node)
                 .await
                 .context("failed to connect to Node")?;
-            let auth_id = conn
+            let auth = conn
                 .client_authenticate(&signing_key)
                 .await
                 .context("authentication failed")?;
+            let auth_id = auth.identity_id;
+            // M10.4 (MP-F13, Shape B): capture the Node's pubkey node_id from
+            // the AuthOk echo so create_space/create_dm_space can write it as a
+            // Space's home_node. Tied to the connection actually used, so a
+            // --node-override is honoured automatically.
+            self.node_id = auth.node_id;
             // Greppable diagnostic lines preserved verbatim from the
             // pre-M5 cmd_* implementations so log-parsing tooling
             // (smoke/stress tests, multiparty findings parsers) keeps

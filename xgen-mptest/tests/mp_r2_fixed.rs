@@ -315,10 +315,11 @@ async fn mp_c_16_live_migration_space_rehomes() {
     // per Guard 1) feeding B's `.events` observer; the migration transfer path
     // (`handle_migration_incoming` → raw `store.append` + rehydrate, no
     // `apply_fanout`) never emits to the observer, so a migrated Space is absent
-    // from B's transcript by construction. MP-C-16's spec oracle is the home_node
-    // flip-on-both (matrix: "home_node + state equality post-cutover"), asserted
-    // below — and it transitively proves the transfer landed, since rehydrate
-    // flips B's home only after the full transferred log + cutover are in B's store.
+    // from B's transcript by construction. MP-C-16's spec oracle is "home_node +
+    // state equality post-cutover" (matrix:150) — and BOTH halves are asserted
+    // below, directly (not inferred): the home_node flip-on-both, then the
+    // resolved-state equality (B's migrated-Space member_count == A's resolved
+    // member-set size + B carries the Room state).
     // M10.5-D1 (C1a) — home_node-flip-on-both (the D3 / J-370 witness shape; the
     // box-gated RUN enrichment the prior doc-comment flagged). The cutover flips
     // the Space's home_node to the destination, so post-migration B homes it
@@ -337,9 +338,38 @@ async fn mp_c_16_live_migration_space_rehomes() {
          (home_node did not flip away from A): hosted={:?}",
         outcome.hosted_by_node
     );
+
+    // M10.5-D1 (C1a) — state-equality half of the oracle (matrix:150), asserted
+    // directly (J-374). A RETAINS the migrated Space post-cutover (AF-D5), so
+    // alice's projection (read on node "a") is A's resolved member-set; B's
+    // `space list-hosted` summary is B's resolved state. Migration preserves
+    // state ⇒ B's member_count equals A's member-set size, and B carries the
+    // Room state. (Counts, not the full member-set: the node exposes no per-Space
+    // member-set query and this arc adds none — the honest available witness.)
+    let a_member_set_size = outcome
+        .projections
+        .iter()
+        .find(|p| p.space_id == space && p.node_label.as_deref() == Some("a"))
+        .map(|p| p.members.len())
+        .expect("alice projects A's resolved member-set for the migrated Space");
+    let (b_member_count, b_room_count) = outcome
+        .node_space_counts("b", &space)
+        .expect("B homes the migrated Space with resolved-state counts");
+    assert_eq!(
+        b_member_count, a_member_set_size,
+        "state equality: B's resolved member_count ({b_member_count}) != A's \
+         resolved member-set size ({a_member_set_size}) for migrated Space {space}"
+    );
+    assert!(
+        b_room_count >= 1,
+        "state equality: B's migrated Space {space} carries no Room state \
+         (room_count {b_room_count})"
+    );
+
     eprintln!(
-        "C6c MP-C-16 PASS: migration initiate accepted + home_node flipped on both \
-         (B homes Space {space}, A no longer does)"
+        "C6c MP-C-16 PASS: home_node flipped on both + state equality \
+         (B homes Space {space}: member_count={b_member_count} == A's member-set \
+         size {a_member_set_size}, room_count={b_room_count})"
     );
 }
 

@@ -128,6 +128,24 @@ pub struct ScenarioOutcome {
     /// absent from A's (home flipped away from A). Best-effort — a node that
     /// answers no `space list-hosted` contributes an empty list.
     pub hosted_by_node: Vec<(String, Vec<String>)>,
+    /// MP-C-16 / J-374 — per-node resolved-state counts (`member_count`,
+    /// `room_count`) for each homed Space, from the same `space list-hosted`
+    /// reply. This is the **state-equality** half of the oracle (matrix:150),
+    /// asserted alongside the `home_node` flip: a migrated Space lands on the
+    /// destination with its member-set + Room state, not an empty husk. Parallel
+    /// to `hosted_by_node`. Counts (not the full member-set) because the node
+    /// exposes no per-Space member-set query and this arc adds none.
+    pub hosted_state: Vec<(String, Vec<HostedSpaceCounts>)>,
+}
+
+/// MP-C-16 / J-374 — a node's resolved-state counts for one homed Space, read
+/// from its `space list-hosted` (`HostedSpaceSummary`). The state-equality
+/// witness for migration: `member_count` + `room_count` of the migrated Space.
+#[derive(Debug, Clone)]
+pub struct HostedSpaceCounts {
+    pub space_id: String,
+    pub member_count: usize,
+    pub room_count: usize,
 }
 
 impl ScenarioOutcome {
@@ -137,6 +155,17 @@ impl ScenarioOutcome {
         self.hosted_by_node
             .iter()
             .any(|(l, spaces)| l == node_label && spaces.iter().any(|s| s == space_id))
+    }
+
+    /// MP-C-16 (J-374) — `(member_count, room_count)` of `space_id` as
+    /// `node_label` resolves it (from `space list-hosted`), if that node homes
+    /// it. The state-equality half of the migration oracle.
+    pub fn node_space_counts(&self, node_label: &str, space_id: &str) -> Option<(usize, usize)> {
+        self.hosted_state
+            .iter()
+            .find(|(l, _)| l == node_label)
+            .and_then(|(_, v)| v.iter().find(|c| c.space_id == space_id))
+            .map(|c| (c.member_count, c.room_count))
     }
 }
 
@@ -628,8 +657,10 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
     // source's. Best-effort: a node that errors / answers nothing contributes an
     // empty list. Mirrors the `members` query pattern above.
     let mut hosted_by_node: Vec<(String, Vec<String>)> = Vec::with_capacity(nodes.len());
+    let mut hosted_state: Vec<(String, Vec<HostedSpaceCounts>)> = Vec::with_capacity(nodes.len());
     for n in nodes.iter_mut() {
         let mut hosted: Vec<String> = Vec::new();
+        let mut counts: Vec<HostedSpaceCounts> = Vec::new();
         if let Ok(reply) = n.ctl.send(&Command::new("space list-hosted")).await {
             if let Some(arr) = reply
                 .data()
@@ -639,11 +670,23 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
                 for s in arr {
                     if let Some(id) = s.get("space_id").and_then(|v| v.as_str()) {
                         hosted.push(id.to_string());
+                        counts.push(HostedSpaceCounts {
+                            space_id: id.to_string(),
+                            member_count: s
+                                .get("member_count")
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(0) as usize,
+                            room_count: s
+                                .get("room_count")
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(0) as usize,
+                        });
                     }
                 }
             }
         }
         hosted_by_node.push((n.label.clone(), hosted));
+        hosted_state.push((n.label.clone(), counts));
     }
 
     // MP-R3-D5b — did any spawned process exit unexpectedly (OOM / non-zero)?
@@ -664,6 +707,7 @@ pub async fn run_scenario(scenario: &Scenario, dial: &RoundDial) -> Result<Scena
         process_died,
         liveness,
         hosted_by_node,
+        hosted_state,
     })
 }
 

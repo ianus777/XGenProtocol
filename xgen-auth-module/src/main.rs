@@ -16,7 +16,8 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use chrono::{Duration, SecondsFormat, Utc};
 use clap::{Parser, Subcommand};
-use xgen_auth_module::{issue_tier1, module_xgid};
+use xgen_auth_module::{issue, module_xgid};
+use xgen_core::auth::tiers::AuthTier;
 use xgen_core::identity::keypair;
 
 #[derive(Parser)]
@@ -37,7 +38,10 @@ enum Command {
         #[arg(long, default_value = "")]
         passphrase: String,
     },
-    /// Issue a signed Tier-1 Trust Assertion for an Identity.
+    /// Issue a signed Trust Assertion for an Identity. `--tier 1` (default) issues
+    /// a reference assertion (unchanged); `--tier 2|3|4` issues a parameterized
+    /// MOCK assertion (self-labels `module_kind: mock`) with the grounded per-tier
+    /// TTL + erasability (T4 retained).
     Issue {
         /// The module keypair file to sign with.
         #[arg(long)]
@@ -48,9 +52,13 @@ enum Command {
         /// The Identity this assertion is for (its `xgen://pubkey/ed25519:` URI).
         #[arg(long)]
         identity: String,
-        /// Validity window in days from now.
-        #[arg(long, default_value_t = 365)]
-        valid_days: u32,
+        /// Tier to attest: 1 = reference; 2|3|4 = mock demonstrator.
+        #[arg(long, default_value_t = 1)]
+        tier: u32,
+        /// Validity window in days from now. Default = the grounded per-tier TTL
+        /// (T2=365 / T3=180 / T4=90; T1=365).
+        #[arg(long)]
+        valid_days: Option<u32>,
         /// Write the assertion JSON here (default: stdout).
         #[arg(long)]
         out: Option<PathBuf>,
@@ -70,14 +78,23 @@ fn main() -> Result<()> {
             keypair: kp_path,
             passphrase,
             identity,
+            tier,
             valid_days,
             out,
         } => {
             let key = keypair::load(&kp_path, &passphrase)
                 .map_err(|e| anyhow::anyhow!("load keypair: {e}"))?;
-            let valid_until = (Utc::now() + Duration::days(valid_days as i64))
+            let auth_tier = AuthTier::from_u32(tier)
+                .ok_or_else(|| anyhow::anyhow!("--tier must be 1, 2, 3, or 4 (got {tier})"))?;
+            // Default validity = the grounded per-tier TTL (tightens as tier rises);
+            // an explicit --valid-days overrides; T1 falls back to 365.
+            let days = valid_days
+                .map(u64::from)
+                .or_else(|| auth_tier.ttl_days())
+                .unwrap_or(365);
+            let valid_until = (Utc::now() + Duration::days(days as i64))
                 .to_rfc3339_opts(SecondsFormat::Millis, true);
-            let assertion = issue_tier1(&key, &identity, &valid_until);
+            let assertion = issue(&key, &identity, auth_tier, &valid_until);
             let json =
                 serde_json::to_string_pretty(&assertion).context("serialise assertion")?;
             match out {

@@ -29,6 +29,7 @@ use ed25519_dalek::SigningKey;
 use xgen_common::{
     AuthModuleXgid, Erasability, ModuleKind, ModulePolicy, Retention, TrustAssertion, TrustClaims,
 };
+use xgen_core::auth::tiers::AuthTier;
 
 /// The module's principal identity — its [`AuthModuleXgid`], derived from its
 /// signing key. Its `to_string()` is the `xgen://pubkey/ed25519:` URI that names
@@ -49,8 +50,42 @@ pub fn module_xgid(module_key: &SigningKey) -> AuthModuleXgid {
 /// max-erasable endpoint, Arc-I AI-D4). Both ride `claims.extra` and are set
 /// **before** signing, so they are covered by the assertion signature.
 pub fn issue_tier1(module_key: &SigningKey, identity_id: &str, valid_until: &str) -> TrustAssertion {
+    issue(module_key, identity_id, AuthTier::Tier1, valid_until)
+}
+
+/// Issue a signed Trust Assertion for `identity_id` at `tier` (M10.3-D4/D5). The
+/// reference (`Tier1`) and the parameterized mock (`Tier2..Tier4`) are **the same
+/// code** — only the descriptor + tier differ:
+/// - `module_kind`: `reference` for Tier-1 (the honest default, unchanged), `mock`
+///   for Tier 2–4 (the parameterized demonstrator an institution forks for real KYC).
+/// - `module_policy.erasability.retention`: `erasable` for T1–T3, **`retained` for
+///   T4** (the issuance-side D-088 tier-gate; T4 = legal-hold). Witnessed, not
+///   enforced — no node refuses erasure (D3-gated).
+/// - `tier` = the tier integer (what `assertion_tier_of` reads → the live tier-gates).
+///
+/// `valid_until` (RFC 3339 UTC) is caller-supplied; the CLI derives it from the
+/// per-tier grounded TTL (`AuthTier::ttl_days`: T2=365 / T3=180 / T4=90). The
+/// richer per-tier claim schemas (`Tier2/3/4Claims`) are **not** populated — they
+/// have no production reader, so populating them would be theatre (M10.3-A4).
+pub fn issue(
+    module_key: &SigningKey,
+    identity_id: &str,
+    tier: AuthTier,
+    valid_until: &str,
+) -> TrustAssertion {
+    let module_kind = if tier == AuthTier::Tier1 {
+        ModuleKind::Reference
+    } else {
+        ModuleKind::Mock
+    };
+    let retention = if tier == AuthTier::Tier4 {
+        Retention::Retained
+    } else {
+        Retention::Erasable
+    };
+
     let mut claims = TrustClaims {
-        // Tier-1 = proof-of-key-possession; the module certifies the tier only.
+        // Proof-of-key-possession; the module certifies the tier only.
         tier_verified: true,
         email_verified: None,
         phone_verified: None,
@@ -59,10 +94,10 @@ pub fn issue_tier1(module_key: &SigningKey, identity_id: &str, valid_until: &str
         extra: BTreeMap::new(),
     };
     // M10.1 descriptor (set before sign — joins the canonical bytes).
-    claims.set_module_kind(ModuleKind::Reference);
+    claims.set_module_kind(module_kind);
     claims.set_module_policy(&ModulePolicy {
         erasability: Some(Erasability {
-            retention: Some(Retention::Erasable),
+            retention: Some(retention),
             extra: BTreeMap::new(),
         }),
         extra: BTreeMap::new(),
@@ -70,7 +105,7 @@ pub fn issue_tier1(module_key: &SigningKey, identity_id: &str, valid_until: &str
 
     TrustAssertion {
         kind: "trust_assertion".to_string(),
-        tier: 1,
+        tier: tier.as_u32(),
         issuer: module_xgid(module_key).to_string(),
         identity_id: identity_id.to_string(),
         issued_at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
@@ -125,5 +160,45 @@ mod tests {
         let mut ta = issue_tier1(&key, "xgen://pubkey/ed25519:CLIENT", FUTURE);
         ta.claims.set_module_kind(ModuleKind::Mock);
         assert!(ta.verify().is_err(), "tampered module_kind must break the signature");
+    }
+
+    /// Witness 5 + mock issuance shape (M10.3-D4): a `--tier <N>` mock self-labels
+    /// `module_kind: mock`, carries the tier integer, and sets tier-appropriate
+    /// erasability — T2/T3 `erasable`, **T4 `retained`**.
+    #[test]
+    fn issue_mock_tiers_label_mock_and_set_tier_erasability() {
+        let key = module_key(0xA3);
+        let id = "xgen://pubkey/ed25519:CLIENT";
+        for (tier, expect_retention) in [
+            (AuthTier::Tier2, Retention::Erasable),
+            (AuthTier::Tier3, Retention::Erasable),
+            (AuthTier::Tier4, Retention::Retained),
+        ] {
+            let ta = issue(&key, id, tier, FUTURE);
+            ta.verify().expect("mock assertion verifies");
+            assert_eq!(ta.tier, tier.as_u32());
+            assert_eq!(ta.claims.module_kind(), ModuleKind::Mock, "tier {:?} self-labels mock", tier);
+            let retention = ta
+                .claims
+                .module_policy()
+                .and_then(|p| p.erasability)
+                .and_then(|e| e.retention);
+            assert_eq!(retention, Some(expect_retention), "tier {:?} erasability", tier);
+        }
+    }
+
+    /// D5 — `--tier 1` stays today's reference behaviour exactly (the M10.2
+    /// regression lock): `issue(Tier1)` == `issue_tier1` shape (reference, erasable).
+    #[test]
+    fn issue_tier1_stays_reference() {
+        let key = module_key(0xA4);
+        let id = "xgen://pubkey/ed25519:CLIENT";
+        let ta = issue(&key, id, AuthTier::Tier1, FUTURE);
+        assert_eq!(ta.tier, 1);
+        assert_eq!(ta.claims.module_kind(), ModuleKind::Reference);
+        assert_eq!(
+            ta.claims.module_policy().and_then(|p| p.erasability).and_then(|e| e.retention),
+            Some(Retention::Erasable)
+        );
     }
 }

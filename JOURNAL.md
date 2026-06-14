@@ -8,6 +8,20 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-367 — M10.3 close HELD: D-065 catch — reject code 3012 collides with ch3 `watchlist_match`; renumber pending Joe-lock; session handoff written
+
+**What happened.** Clair shipped the M10.3 implementation (6 commits `a355ed2`..`80902ba`, pushed; 1390/0, clippy clean, all 5 witnesses RED-on-revert; D1–D5 honored). On the Chat cross-file verification ahead of the J-368 close bridge, **a spec↔code collision surfaced and the close is HELD** (this entry is the contemporaneous record; the resume plan lives in `tasks/HANDOFF_M10_3_CLOSE_HELD.md`). No close bridge this turn; no DECISIONS change.
+
+**The catch (D-065).** The M10.3 reject code **3012 double-defines**: code `registration.rs:125` = `(3012, "assertion_tier_unauthorized")`, but ch3 §3.11.7 **L3858 already assigns `3012 = watchlist_match`** (a Tier-3/4 dormant reservation), and the L3854 note states "Codes 3012–3016 cover higher-tier Auth Module errors." The audit/design "3012 free" was grounded on *no code emitter* but missed the *spec assignment* — the same class of wire-code double-definition (RC-F-01) that M10.1 existed to eliminate. Closing as-is would overwrite `watchlist_match` or duplicate the row. **`watchlist_match` keeps 3012; the M10.3 code must move.**
+
+**Pending (one Joe-lock, then one tiny Clair fix, then the Chat close).** Free slots in the 3000–3099 identity band: 3017–3019, 3024–3029, 3032+. **Chat recommendation: 3032** (adjacent to the tier-gating sub-band 3030 `tier_mismatch` / 3031 `kyc_verification_pending` — the right semantic home; alt 3017). **Awaiting Joe's lock of the slot.** Then: (a) Clair renumbers `3012 → <slot>` in `registration.rs` (the `#[error]` string + variant + `to_registration_code` map + the comment + the §7 witness `assert_eq!`) + sweeps harness/wire tests + re-verifies (1390/0 holds); (b) Chat runs the **J-368 close bridge** — ch3 activates `<slot>` `assertion_tier_unauthorized` in the tier-gating sub-band + updates the L3854 note + ch3 version bump; design → COMPLETED (v1.1, slot-correction stamp); M10.3 audit → COMPLETED (v1.1, A1/A2 RESOLVED, **A3 RESOLVED-with-correction**, A4 boundary, A5 no-action); M10.2 audit **M10.2-A1 → RESOLVED** (v1.2); M10 audit **M10-A-04 → fully RESOLVED** (v1.3); Appendix F new §F.12 + log renumber → §F.13 (v1.8); ROADMAP v3.57 (M10.3 DONE markers); CLAUDE PLAY + JOURNAL J-368.
+
+**Next-active after M10.3 closes:** M10.4 (MP-F13, production identity→home-node discovery; its own mini-Phase-0, depth decided there) → M10.5 (fold MP-F6 + re-run MP-C-06/MP-C-16).
+
+**Session handoff.** New session opens to this held state. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-367 → `tasks/HANDOFF_M10_3_CLOSE_HELD.md` → `tasks/M10_3_MOCK_TIER_DESIGN.md`.** Do NOT close M10.3 until the renumber lands (§3 of the handoff). Canonical flips this turn: `tasks/HANDOFF_M10_3_CLOSE_HELD.md` NEW (ACTIVE v1.0); `CLAUDE.md` PLAY head; this JOURNAL J-367. Not pushed — Joe pushes.
+
+---
+
 ## Entry J-366 — M10.3 design Joe-LOCKED: live-read accepted_tiers (C2) + 3012 reject + mock --tier issuance; dormant claim schemas stay unwired; next-active = Clair runbook
 
 **What happened.** Clair's M10.3 Phase-0 audit landed (`325afec`, `tasks/M10_3_MOCK_TIER_AUDIT.md` v1.0, grounded vs `main` @`52897e5`, 5 findings). Chat verified it, framed the five shape calls the audit surfaced, and Joe locked them (by-recomms). Chat authored the design doc `tasks/M10_3_MOCK_TIER_DESIGN.md` (v1.0 ACTIVE). Doc-only; no code; no DECISIONS change (M10.3-D# arc-local, D-069). The four framing calls (C1–C4, J-365) hold.

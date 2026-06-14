@@ -2,7 +2,7 @@
 > **Status**: ACTIVE  
 > Version: 1.0  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-14  
+> **Last updated**: 2026-06-14 (J-374 amendment: D4 emit dropped — see §4)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -120,7 +120,9 @@ so in MP-C-06's full-mesh topology the re-homed record reaches the space-member 
 replication. The `home_changed` emit is the spec-faithful **single-hop delta-notification**, not the
 convergence mechanism — **thin, not a broadcast arc.**
 
-**M10.5-D4 (LOCKED) — the thin emit.** Build the client `home_changed` emit: on a re-home,
+**M10.5-D4 (AMENDED J-374 — emit DROPPED; MP-C-06 closes on replicate-convergence).** CP-4-condition-2 grounding (Clair) showed the `home_changed` emit is a **structural no-op** in MP-C-06's topology: it is single-hop to the new home C (D4), C already set its record `home_node = C` + bumped `update_version` during the registration it just processed (`registration.rs:543`, app.rs:2928-2940) **before** RegisterOk returns, so the client's later emit arrives `update_version <= existing` → `VersionStale` no-op (`replication.rs:173`); C is the only recipient (no re-forward, A7), while B — the node that needs to learn the home moved — is re-pointed by `push_identity_to_peers` regardless. The emit reaches only the node that already knows; shipping it would be decorative (D-065). **Re-locked (Joe, J-374): drop the production emit from M10.5.** MP-C-06 closes on **replicate-convergence** (A7): the C1c witness asserts B re-points alice's replica to C via `push_identity_to_peers` + identity/membership continuity (alice posts from C → reaches the Space; same `identity_id`; membership preserved) — the real mechanism, not a `home_changed`-observability assertion. The versioned + replica-holder-fanned-out `home_changed` (the form that is **not** a no-op — it needs **both** the RegisterOk version-echo **and** the fan-out to reach B; the echo alone wouldn't reach B) is the named escape (option i), **routed forward**, its own arc. **C1c = harness rails (3a) + replicate-convergence witness (3c); no 3b emit.** M10.5's production footprint is therefore **C1b alone**.
+
+*(superseded — original D4 below, retained for the record:)* **M10.5-D4 (LOCKED) — the thin emit.** Build the client `home_changed` emit: on a re-home,
 `build_home_changed` + `sign_home_changed` + `send_identity` (single-hop) to the **new** home node,
 sourcing `new_home_node_id` from `SessionState.node_id` (the connection actually used — `--node`-honoured).
 No new broadcast/fan-out machinery. The emit's `old_home_node_id` = the client's own

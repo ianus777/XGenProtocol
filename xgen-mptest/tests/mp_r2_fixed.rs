@@ -310,12 +310,15 @@ async fn mp_c_16_live_migration_space_rehomes() {
         .expect("run_scenario(MP-C-16) — node built --features harness-control?");
 
     let space = outcome.space_id.clone().expect("alice exported a space_id");
-    let tb = outcome.transcripts.iter().find(|t| t.node == "b").expect("b transcript");
-    assert!(
-        !tb.event_ids_for_space(&space).is_empty(),
-        "migrated Space {space} not present on destination B: {:?}",
-        tb.events
-    );
+    // NOTE (J-374, Opt 2): the pre-C1a "Space present on B's transcript" stand-in
+    // was DROPPED. It only ever passed via the federation scaffolding (now removed
+    // per Guard 1) feeding B's `.events` observer; the migration transfer path
+    // (`handle_migration_incoming` → raw `store.append` + rehydrate, no
+    // `apply_fanout`) never emits to the observer, so a migrated Space is absent
+    // from B's transcript by construction. MP-C-16's spec oracle is the home_node
+    // flip-on-both (matrix: "home_node + state equality post-cutover"), asserted
+    // below — and it transitively proves the transfer landed, since rehydrate
+    // flips B's home only after the full transferred log + cutover are in B's store.
     // M10.5-D1 (C1a) — home_node-flip-on-both (the D3 / J-370 witness shape; the
     // box-gated RUN enrichment the prior doc-comment flagged). The cutover flips
     // the Space's home_node to the destination, so post-migration B homes it
@@ -354,9 +357,12 @@ port = 8521
 label = "b"
 port = 8522
 
-[[federation]]
-from = "a"
-to = "b"
+# Opt 2 (J-374, Joe-LOCKED): NO [[federation]] a->b. MP-C-16's spec oracle is the
+# home_node flip-on-both post-cutover (admin migration: operator names both
+# nodes). The migration transfer itself delivers the Space to the bare
+# destination B — a pre-existing federated replica on B trips Arc-F's
+# `already_hosting` admission (the pinned C1a stall; recorded as a flagged
+# finding). Migrating to a bare B exercises the admin-migration model under test.
 
 [[actors]]
 name = "alice"

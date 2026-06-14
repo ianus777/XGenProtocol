@@ -11,4 +11,5 @@ pub mod events_pipe_integration;
 pub mod home_node_echo_integration;
 pub mod invite_bootstrap_integration;
 pub mod reregistration_integration;
+pub mod self_thread_integration;
 pub mod send_confirm_integration;

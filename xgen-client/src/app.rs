@@ -350,6 +350,13 @@ pub enum ClientCommand {
     /// an auto-Room and auto-invite are sent alongside. Requires --node or config.
     CreateDmSpace(CreateDmSpaceArgs),
 
+    /// Open your personal `self` thread ("Saved Messages"), creating it if absent.
+    /// A single-member thread reusing your existing identity — never federated.
+    /// Reachable from any client authenticated as you (your own devices); the
+    /// thread is Node-resident, not device-local. Requires --node or config.
+    #[command(name = "self")]
+    SelfThread(SelfThreadArgs),
+
     /// Create a new Room within a Space.
     CreateRoom(CreateRoomArgs),
 
@@ -542,6 +549,11 @@ pub struct CreateDmSpaceArgs {
     #[arg(long)]
     pub invitee: String,
 }
+
+/// `self` (M11, D-021) takes no positional id — it auto-resolves the session
+/// identity as the sole party (M11-D5).
+#[derive(Args)]
+pub struct SelfThreadArgs {}
 
 #[derive(Args)]
 pub struct CreateRoomArgs {
@@ -960,6 +972,11 @@ pub async fn run_batch_file(
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
                 cmd_create_dm_space(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
+            }
+            Some(ClientCommand::SelfThread(args)) => {
+                let node = resolve_node(sub_cli.node.as_deref(), config_path);
+                let kp = resolve_keypair_path(config_path);
+                cmd_self_thread(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::CreateRoom(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
@@ -2333,6 +2350,40 @@ pub async fn cmd_create_dm_space(
     println!("  Room ID:  {}", r.room_id);
     println!("  Invitee:  {}", r.invitee);
     println!("  Owner:    {}", r.owner_identity_id);
+    Ok(())
+}
+
+// ── self (M11) ───────────────────────────────────────────────────────────────
+
+/// CLI dispatcher shim for `self` (M11, D-021). Opens the user's personal `self`
+/// thread, creating it if absent. Auto-resolves the session identity (no typed id).
+pub async fn cmd_self_thread(
+    _args: &SelfThreadArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+    quiet: bool,
+) -> Result<()> {
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
+
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
+    };
+    let r = crate::ops::self_open(&mut ctx).await?;
+
+    if !quiet {
+        if r.created {
+            println!("self thread created (\"Saved Messages\"):");
+        } else {
+            println!("self thread (\"Saved Messages\"):");
+        }
+        println!("  Space ID: {}", r.space_id);
+        println!("  Room ID:  {}", r.room_id);
+    }
     Ok(())
 }
 

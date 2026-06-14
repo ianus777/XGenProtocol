@@ -614,6 +614,11 @@ pub async fn create_room(
     })
 }
 
+/// The stable client-state label + create-if-absent key for the user's `self`
+/// thread (M11, D-021). One source of truth shared by `create_dm_space` (which
+/// applies it when invitee == creator) and `self_open` (which scans for it).
+pub(crate) const SELF_THREAD_LABEL: &str = "self";
+
 // ── create-dm-space ─────────────────────────────────────────────────────────
 
 /// Result of `ops::create_dm_space` (M7C-D4, A3). Carries the new DM Space's
@@ -805,9 +810,17 @@ pub async fn create_dm_space(
 
     // Record the DM Space in client state (creator is owner; the DM Room is known).
     let mut state = load_or_default_state(ctx.data_dir, &identity_id, &home_node_url);
+    // M11 (D-021): a self-DM (invitee == creator) is labelled "self" so the raw
+    // `--invitee <own-id>` floor and the `self` verb converge on one stable label
+    // (M11-C4). The label is the offline create-if-absent key for `ops::self_open`.
+    let space_name = if args.invitee == identity_id {
+        SELF_THREAD_LABEL.to_string()
+    } else {
+        format!("DM with {}", args.invitee)
+    };
     state.spaces.push(xgen_common::state::KnownSpace {
         space_id: space_id.clone(),
-        name: format!("DM with {}", args.invitee),
+        name: space_name,
         node_endpoint: home_node_url.clone(),
         role: "owner".to_string(),
         rooms: vec![xgen_common::state::KnownRoom {
@@ -827,6 +840,71 @@ pub async fn create_dm_space(
         invitee: IdentityXgid::from_xgid(Xgid::new(args.invitee.clone())),
         owner_identity_id: IdentityXgid::from_xgid(Xgid::new(identity_id)),
     })
+}
+
+// ── self (M11) ──────────────────────────────────────────────────────────────
+
+/// Result of `ops::self_open` (M11, D-021). The user's `self` thread Space + its
+/// dm Room, and whether this call created it (vs opened an existing one).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SelfThreadResult {
+    pub space_id: SpaceXgid,
+    pub room_id: RoomXgid,
+    pub created: bool,
+}
+
+/// Open the user's `self` thread (M11, D-021), creating it if absent.
+///
+/// `self` is a single-member personal thread — a DM to the user's own identity
+/// (shape B), reusing the existing keypair (not a second account). It
+/// auto-resolves the session identity as the sole party (no typed id, M11-D5)
+/// and is idempotent: an existing `self` thread (the owned KnownSpace labelled
+/// [`SELF_THREAD_LABEL`]) is returned offline, with no network round-trip;
+/// otherwise the DM create chain runs (invitee = self) and `create_dm_space`
+/// records it with the `"self"` label.
+///
+/// Reach (M11-D2): the thread is **Node-resident, not device-local** — reachable
+/// from any client authenticated as the user (their own devices), which see it by
+/// syncing the user's member-Spaces from the home Node. Never federated
+/// (`DmFederationNotAllowed`).
+pub async fn self_open(ctx: &mut OpContext<'_>) -> Result<SelfThreadResult> {
+    // Auto-resolve the session identity = the self party (no typed id, M11-D5).
+    let identity_id = {
+        let id = ctx.session.identity.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "identity not loaded; dispatcher must call SessionState::ensure_identity first"
+            )
+        })?;
+        id.identity_id.as_str().to_string()
+    };
+    let home_node_url = ctx
+        .node_override
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| ctx.session.home_node.clone());
+
+    // Create-if-absent (M11-D5): the self thread is the owned KnownSpace labelled
+    // "self". Found → open it offline (no connection). The raw floor and this verb
+    // share the label, so a thread made via `create-dm-space --invitee <own-id>`
+    // is recognised here too.
+    let state = load_or_default_state(ctx.data_dir, &identity_id, &home_node_url);
+    if let Some(known) = state
+        .spaces
+        .iter()
+        .find(|s| s.role == "owner" && s.name == SELF_THREAD_LABEL)
+    {
+        let room_id = known.rooms.first().map(|r| r.room_id.clone()).unwrap_or_default();
+        return Ok(SelfThreadResult {
+            space_id: SpaceXgid::from_xgid(Xgid::new(known.space_id.clone())),
+            room_id: RoomXgid::from_xgid(Xgid::new(room_id)),
+            created: false,
+        });
+    }
+
+    // Absent → create the self-DM (invitee = self). `create_dm_space` labels the
+    // KnownSpace "self" when invitee == creator (one core, no drift, M11-C2).
+    let args = crate::app::CreateDmSpaceArgs { invitee: identity_id };
+    let r = create_dm_space(ctx, &args).await?;
+    Ok(SelfThreadResult { space_id: r.space_id, room_id: r.room_id, created: true })
 }
 
 // ── invite ────────────────────────────────────────────────────────────────────

@@ -36,7 +36,7 @@ use crate::session::{ClientIdentity, SessionState};
 
 /// Per-event stub action, applied in event arrival order.
 #[derive(Clone)]
-enum Act {
+pub(crate) enum Act {
     /// Reply `EventAccepted` for the event's id.
     Ack,
     /// Reply `Error` for the event's id.
@@ -54,7 +54,7 @@ fn id_uri(key: &ed25519_dalek::SigningKey) -> String {
 
 /// A stub home Node: authenticate, then apply `actions[i]` to the i-th inbound
 /// Event (Silent beyond the list). Stays open until the client closes.
-async fn spawn_confirm_stub(actions: Vec<Act>) -> SocketAddr {
+pub(crate) async fn spawn_confirm_stub(actions: Vec<Act>) -> SocketAddr {
     let (addr_tx, addr_rx) = oneshot::channel::<SocketAddr>();
     tokio::spawn(async move {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -113,7 +113,7 @@ async fn spawn_confirm_stub(actions: Vec<Act>) -> SocketAddr {
 /// A minimal client config with a 1s sync-completion timeout so the TimedOut
 /// path tests are fast (the default is 5s). `ClientConfig` requires the
 /// `client`/`paths`/`logging` sections, so the doc is full, not `[sync]`-only.
-fn write_fast_config(dir: &Path) {
+pub(crate) fn write_fast_config(dir: &Path) {
     let toml = "[client]\n\
                 node = \"ws://127.0.0.1:0/xgen\"\n\
                 \n\
@@ -128,13 +128,13 @@ fn write_fast_config(dir: &Path) {
     std::fs::write(dir.join("xgen-client_config.toml"), toml).unwrap();
 }
 
-fn state_path(dir: &Path) -> std::path::PathBuf {
+pub(crate) fn state_path(dir: &Path) -> std::path::PathBuf {
     dir.join("xgen-client_state.json")
 }
 
 /// Build a session with an injected identity (the dispatcher does this via
 /// `ensure_identity` in production), targeting `url`.
-fn session_for(url: String, key: &ed25519_dalek::SigningKey, dir: &Path) -> SessionState {
+pub(crate) fn session_for(url: String, key: &ed25519_dalek::SigningKey, dir: &Path) -> SessionState {
     let mut session = SessionState::new(url, dir.to_path_buf());
     session.identity = Some(ClientIdentity {
         signing_key: key.clone(),

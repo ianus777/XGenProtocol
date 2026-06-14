@@ -152,7 +152,7 @@ fn verb_tier(cmd: &str) -> TimeoutTier {
 /// — over-locking would needlessly serialise concurrent network reads. Revisit
 /// if `ops::*` grows a new state-file writer.
 fn mutates_state_file(cmd: &str) -> bool {
-    matches!(cmd, "register" | "create-space" | "create-room" | "create-dm-space")
+    matches!(cmd, "register" | "create-space" | "create-room" | "create-dm-space" | "self")
 }
 
 /// The result field a `bind` names as the bare-`$name` primary value (§5/§6).
@@ -162,6 +162,7 @@ fn primary_field(cmd: &str) -> Option<&'static str> {
         "register" => Some("identity_id"),
         "create-space" => Some("space_id"),
         "create-dm-space" => Some("space_id"),
+        "self" => Some("space_id"),
         "create-room" => Some("room_id"),
         "send" => Some("event_id"),
         "invite" | "join" => Some("space_id"),
@@ -430,6 +431,12 @@ async fn run_cli_command(
             session.ensure_identity(&keypair_path)?;
             let mut ctx = OpContext { session: &mut session, data_dir: &dd, node_override: None };
             Ok(serde_json::to_value(crate::ops::create_dm_space(&mut ctx, &a).await?)?)
+        }),
+        ClientCommand::SelfThread(_a) => Box::pin(async move {
+            let mut session = SessionState::new(node, dd.clone());
+            session.ensure_identity(&keypair_path)?;
+            let mut ctx = OpContext { session: &mut session, data_dir: &dd, node_override: None };
+            Ok(serde_json::to_value(crate::ops::self_open(&mut ctx).await?)?)
         }),
         ClientCommand::CreateRoom(a) => Box::pin(async move {
             let mut session = SessionState::new(node, dd.clone());

@@ -2672,6 +2672,57 @@ mod tests {
     }
 
     #[test]
+    fn space_migrate_url_home_node_stalls_authority_gate() {
+        // M10.4 (MP-F13) — Site 2 namespace reconciliation (D2). The cutover
+        // authority gate compares the source-signed migrate's sender (a pubkey)
+        // against the Space's home_node. The pre-M10.4 real-binary value — a
+        // ws:// URL — can never equal the source pubkey, so the gate stalls; a
+        // pubkey home_node clears it and the anchor flips. This is the applier
+        // twin of validate_event's 6009 gate (the SAME `sender == home_node`
+        // equality, exchange.rs:717, which apply_space_migrate re-checks
+        // defensively, state.rs:1158). The validate_event-level + end-to-end
+        // re-home is the M10.5 box-gated MP-C-16 (D3).
+        use crate::migration::state_machine::build_space_migrate_event;
+        let alice = alice_key();
+        let source = keypair::generate();
+        let dst = "xgen://pubkey/ed25519:DEST1";
+
+        // URL home_node (the bug value) → source-signed cutover stalls.
+        let url_home = "ws://127.0.0.1:8521/xgen";
+        let url_ev = sign_event(
+            build_space_create_event(&alice, "Hosted", None, 1, url_home, None, false),
+            &alice,
+        );
+        let url_space_id = event_id_str(&url_ev);
+        let mut url_state = SpaceState::from_space_create(&url_ev).unwrap();
+        let migrate_url = build_space_migrate_event(
+            &source, &url_space_id, dst, "wss://dst/x", vec![url_space_id.clone()],
+            "2026-06-14T00:00:00.000Z",
+        );
+        let err = url_state.apply_event(&migrate_url, "").unwrap_err();
+        assert!(
+            matches!(err, SpaceError::PermissionDenied(_)),
+            "URL home_node must stall the cutover authority gate"
+        );
+        assert_eq!(url_state.home_node.as_str(), url_home, "rejected migrate leaves home_node unchanged");
+
+        // Pubkey home_node (== source pubkey, the reconciled value) → clears + flips.
+        let pubkey_home = sender_id(&source);
+        let ok_ev = sign_event(
+            build_space_create_event(&alice, "Hosted", None, 1, &pubkey_home, None, false),
+            &alice,
+        );
+        let ok_space_id = event_id_str(&ok_ev);
+        let mut ok_state = SpaceState::from_space_create(&ok_ev).unwrap();
+        let migrate_ok = build_space_migrate_event(
+            &source, &ok_space_id, dst, "wss://dst/x", vec![ok_space_id.clone()],
+            "2026-06-14T00:00:00.000Z",
+        );
+        ok_state.apply_event(&migrate_ok, "").unwrap();
+        assert_eq!(ok_state.home_node.as_str(), dst, "pubkey home_node clears the gate and flips to dest");
+    }
+
+    #[test]
     fn ban_blocks_rejoin() {
         let alice = alice_key();
         let bob = bob_key();

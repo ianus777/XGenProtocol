@@ -6546,4 +6546,71 @@ mod tests {
         assert_eq!(endpoint_host_port("ftp://host.example/x"), None);
         assert_eq!(endpoint_host_port(""), None);
     }
+
+    // ── M10.4 (MP-F13) — Site 1 namespace reconciliation (D2; test-only) ─────────
+    // `migration initiate`'s homed-here precondition (MIG_6010, admin_ops.rs:2096)
+    // clears once `SpaceState.home_node` carries the Node's pubkey node_id (what
+    // the C2 client now writes) and fires on the pre-M10.4 ws:// URL value. No
+    // node-gate change — the value becoming correct is the whole fix.
+
+    /// Build a runtime + a Space, then run `migration initiate`. `home_node ==
+    /// None` homes the Space at the runtime's OWN node_id (the reconciled pubkey
+    /// case); `Some(url)` homes it at that URL (the pre-M10.4 bug value).
+    async fn migration_initiate_with_home(
+        home_node: Option<&str>,
+        dir: &std::path::Path,
+    ) -> Result<MigrationInitiateResult, AdminError> {
+        use xgen_common::xgid::{SpaceXgid, Xgid};
+        use xgen_core::space::state::{build_space_create_event, sign_event, SpaceState};
+
+        let cfg = dir.join("xgen-node_config.toml");
+        let node_kp = xgen_core::identity::keypair::generate();
+        let rt = Arc::new(Mutex::new(NodeRuntime::new(node_kp)));
+        let home = match home_node {
+            Some(url) => url.to_string(),
+            None => rt.lock().await.node_id.as_str().to_string(),
+        };
+        let alice = xgen_core::identity::keypair::generate();
+        let ev = sign_event(
+            build_space_create_event(&alice, "MigSrc", None, 1, &home, None, false),
+            &alice,
+        );
+        let space_id = ev.event_id.as_ref().unwrap().as_str().to_string();
+        let st = SpaceState::from_space_create(&ev).unwrap();
+        {
+            let mut g = rt.lock().await;
+            g.spaces
+                .insert(SpaceXgid::from_xgid(Xgid::new(space_id.clone())), st);
+        }
+        let mut ctx = AdminContext::batch_with_runtime(dir, &cfg, "admin", Arc::clone(&rt));
+        migration_initiate(
+            &mut ctx,
+            MigrationInitiateArgs {
+                space_id,
+                destination_id: "xgen://pubkey/ed25519:DEST".into(),
+                // Bogus destination — the source-migration task is detached; the
+                // witness only exercises the homed-here gate.
+                destination_url: "ws://127.0.0.1:1/xgen".into(),
+            },
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn migration_initiate_clears_homed_here_with_pubkey_home_node() {
+        let dir = tempdir().unwrap();
+        let res = migration_initiate_with_home(None, dir.path()).await;
+        assert!(
+            res.is_ok(),
+            "pubkey home_node (== rt.node_id) clears the homed-here precondition (no MIG_6010): {res:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn migration_initiate_url_home_node_fires_mig_6010() {
+        let dir = tempdir().unwrap();
+        let res = migration_initiate_with_home(Some("ws://127.0.0.1:8521/xgen"), dir.path()).await;
+        let err = res.expect_err("URL home_node must stall at the homed-here precondition");
+        assert_eq!(err.code, "MIG_6010", "URL home_node ≠ rt.node_id → MIG_6010");
+    }
 }

@@ -2896,7 +2896,14 @@ async fn handle_identity_msg<S>(
             // briefly to derive a small `HashSet`). A `revoke` is reflected
             // immediately. None ⇒ empty trust set ⇒ today's empty-config posture.
             if let Some(registry) = &auth_module_registry {
-                policy.trusted_issuers = registry.lock().await.trusted_issuers();
+                let reg = registry.lock().await;
+                policy.trusted_issuers = reg.trusted_issuers();
+                // M10.3 (M10.3-D1) — also derive the per-issuer accepted-tier scope
+                // live, so the C2 check (`assertion.tier ∈ accepted_tiers[issuer]`)
+                // is enforcement-bearing. Restrictive-only: an issuer with empty
+                // `accepted_tiers` (every M10.2 install-base issuer) is unrestricted,
+                // so this is invisible until an operator sets a tier scope.
+                policy.accepted_tiers_by_issuer = reg.accepted_tiers_by_issuer();
             }
             let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
             match accept_registration(
@@ -4684,6 +4691,27 @@ mod tests {
         assert_eq!(seed_trusted_auth_modules(&mut reg, &[], "2026-06-13T12:00:00.000Z"), 0);
         assert!(reg.is_empty());
         assert!(reg.trusted_issuers().is_empty());
+    }
+
+    /// M10.3 empty-baseline (C2 invisible): config-seeded issuers (M10.2) carry
+    /// **empty** `accepted_tiers`, so the gate's live derivation maps them to an
+    /// empty tier scope ⇒ unrestricted (restrictive-only). The entire M10.2
+    /// install base stays invisible to the new C2 per-issuer tier check. RED if
+    /// the seed or the derivation made a seeded issuer tier-scoped.
+    #[test]
+    fn seeded_issuers_have_empty_tier_scope_so_c2_stays_invisible() {
+        use ed25519_dalek::SigningKey;
+        let uri =
+            AuthModuleXgid::from_pubkey(&SigningKey::from_bytes(&[0x11; 32]).verifying_key())
+                .to_string();
+        let mut reg = AuthModuleRegistry::new();
+        seed_trusted_auth_modules(&mut reg, std::slice::from_ref(&uri), "2026-06-14T00:00:00.000Z");
+        // The gate derives this map live (app.rs:~2899); an empty Vec ⇒ unrestricted.
+        assert_eq!(
+            reg.accepted_tiers_by_issuer().get(&uri),
+            Some(&Vec::new()),
+            "a seeded issuer is tier-unrestricted (the empty-baseline invariant)"
+        );
     }
 
     // ── BC-D1/BC-D2 [bootstrap] config section (bootstrap-client C1) ────────────

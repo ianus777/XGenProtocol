@@ -21,10 +21,11 @@ content-addressed blob store (`blobs_dir` sibling) + a `Descriptor` + `build_mes
 + a chunked-base64 byte transfer + per-blob encryption + `--attach` into the **`self` thread** as
 the headline witness. Intra-home, multi-device, **never federation** → M11/D-021 intact.
 
-D-071 arc discipline: **this runbook → Joe-lock → implement → Chat doc-bridge → M12.1 close.**
-**No code precedes Joe's lock of this runbook.** Two findings (§3) re-ground two locked-decision
-framings against `main` and need Joe's confirm before the build sequence (§5) is final; the
-runbook-level values (§4) need Joe's lock too. Decisions are arc-local (D-069).
+D-071 arc discipline: this runbook → Joe-lock [**✅ DONE 2026-06-15, by-recomms**] → implement
+(C1→C5) → Chat doc-bridge → M12.1 close. **R-1 + R-2 + V1–V4 + the §5 C1–C5 sequence are
+LOCKED** (Joe, 2026-06-15; Chat independently re-grounded both findings on `main` first, D-065 —
+they hold). Implementation is underway; the lock is recorded canonically in the J-382 doc-bridge.
+Decisions are arc-local (D-069).
 
 **Grounded against `main` @ `5e96ad7`** (tree clean). Every seam below was re-confirmed to
 file:line by reading production code this session (D-078 — anchors re-confirmed, not trusted
@@ -59,7 +60,7 @@ blind; the audit's line numbers all held except where noted).
 
 ---
 
-## §3 Findings requiring Joe's lock (D-065 — surfaced, not papered over)
+## §3 Findings — ✅ LOCKED 2026-06-15 (Joe, by-recomms; D-065 — surfaced, not papered over)
 
 Two grounding findings. **Neither overturns a locked M12-D# *decision*; each corrects an
 imprecise *grounding/framing* and sharpens exactly what M12.1 builds + witnesses.** Both are
@@ -139,7 +140,7 @@ at lock.)
 
 ---
 
-## §4 Runbook-level values for Joe-lock
+## §4 Runbook-level values — ✅ LOCKED 2026-06-15 (Joe, by-recomms)
 
 | Value | Recommendation | Grounding |
 |---|---|---|

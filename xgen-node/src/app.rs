@@ -136,6 +136,14 @@ pub struct NodeSection {
 pub struct PathsSection {
     pub keypair_path: String,
     pub spaces_dir: Option<String>,
+    /// M12.1 (M12-D4) — content-addressed blob store root. Sibling of
+    /// `spaces_dir`; default `<data_dir>/blobs`, so events + their referenced
+    /// blobs back up as one unit. `#[serde(default)]` keeps pre-M12 configs
+    /// (which carry no `blobs_dir`) parsing — additive-optional (Ch3 §3.0.3).
+    /// The full F9 default-outside-install posture shift lands at M12.2 (M12-D7);
+    /// M12.1 stays under today's `data_dir`.
+    #[serde(default)]
+    pub blobs_dir: Option<String>,
 }
 
 #[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -328,6 +336,7 @@ impl Default for NodeConfig {
                     .to_string_lossy()
                     .to_string(),
                 spaces_dir: Some(dir.join("spaces").to_string_lossy().to_string()),
+                blobs_dir: Some(dir.join("blobs").to_string_lossy().to_string()),
             },
             logging: LoggingSection {
                 level: "debug".to_string(),

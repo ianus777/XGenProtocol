@@ -271,6 +271,7 @@ mod tests {
             paths: PathsSection {
                 keypair_path: "kp.enc".to_string(),
                 spaces_dir: Some("spaces".to_string()),
+                blobs_dir: Some("blobs".to_string()),
             },
             logging: LoggingSection {
                 level: "debug".to_string(),

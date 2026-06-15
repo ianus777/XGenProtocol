@@ -6,6 +6,7 @@
 pub mod crypto;
 pub mod wire;
 pub mod dag;
+pub mod blob_store;
 pub mod transport;
 pub mod node;
 pub mod federation;

@@ -1,8 +1,8 @@
 # M12 — Attachments: Phase-0 Framing Brief (J-357 lock)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-14  
+> **Last updated**: 2026-06-15  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -162,6 +162,49 @@ vault.
 - Carry-over (pre-existing, non-blocking): client UX for federation-derived held-pending /
   unavailable signals (a lazy-fetch miss surfaces here — F3); federation-under-load stress
   measurement (no scheduled home).
+
+## Design input — blob encryption = same Arc-H envelope as text (added J-380, post-audit)
+
+Captured in discussion after the audit (a design input, **not** an audit finding). **Blob bytes
+should be E2E-encrypted the same way message text is.** The text path: the client encrypts
+content client-side, the content becomes an opaque `enc:`-prefixed string in the free-form
+content field, and the node stores/forwards it **content-blind** ("plaintext never in transit");
+`client_mls.rs` already carries the **per-message random content-key (CK) envelope**
+(`encrypt_message_envelope` — a fresh random CK encrypts the plaintext, CK wrapped for the group).
+
+The blob maps onto that one level out (the standard E2E-attachment shape): the client generates a
+**fresh per-blob key**, encrypts the bytes, uploads the **ciphertext** to the node's blob store
+(node content-blind; content-addresses by the **ciphertext** hash); the per-blob key + the
+plaintext hash travel **in the descriptor**, which itself rides inside the `enc:` E2E message
+content. The same MLS group (or, for the `self` thread, the user's own devices) that can read the
+text can read the blob — no new key distribution.
+
+Two payoffs: (a) **no privacy regression** — keeps the node content-blind for attachments too
+(otherwise the blob store is the soft underbelly, the most sensitive payloads least protected);
+(b) it puts the bytes on the **crypto-shred** substrate (D-088) — erasure = **destroy the per-blob
+key** → every replica, including unreachable federated homes, becomes permanently unreadable.
+That turns F2's federated right-to-be-forgotten from request-not-guarantee into a real guarantee
+for the content (ciphertext lingers as noise, but is unreadable).
+
+**Two flags ride with this input:**
+
+1. **Inherits the text path's crypto maturity.** Arc-H's per-message-CK envelope + crypto-shred
+   are **demonstration-grade** today; real RFC 9420 HPKE wrapping + the destroy-to-erase storage
+   op are **D3-fenced** (`client_mls.rs` is explicit), production openmls is the M8.7 S+L arc.
+   M12 builds blob-encryption in the *same Arc-H shape*, inheriting that maturity — interface
+   now, production crypto when the text path's D3 work lands. Not stronger than the text path it
+   mirrors.
+2. **Crypto-shred vs T4 legal-hold/WORM = a philosophy fork (Joe-lock, above the design-seat
+   bar).** Crypto-shred (erasability) and T4 retention / WORM / legal-hold (F7/F8) are
+   **opposites** — a content-blind node holding only ciphertext + a destroyable key **cannot
+   legally produce a retained record**, and crypto-shred makes it permanently unproducible.
+   Resolving it is the no-anonymity / institutional-independence axis in storage form: is E2E
+   **universal**, or **tier-conditioned** (e.g. the accountable T4 authority holds an **escrow
+   key** to retain + produce, while T1–T3 stay crypto-shreddable)? Must reconcile with Arc-H's
+   text-E2E posture (universal vs tier-gated). Route to a Joe-lock at design.
+
+*Disposition:* adopt **same-as-text** as the default; the design carries the two flags — flag 1
+as an inherited-maturity note, flag 2 as a Joe-lock the design must surface, not decide.
 
 ## Sequence
 

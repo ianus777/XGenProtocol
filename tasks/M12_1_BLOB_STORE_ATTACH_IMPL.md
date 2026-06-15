@@ -1,5 +1,5 @@
 # M12.1 — Blob store + attachments: Implementation runbook
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-15  

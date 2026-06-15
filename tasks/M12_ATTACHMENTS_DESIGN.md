@@ -1,6 +1,6 @@
 # M12 — Attachments: Design (Joe-LOCKED)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-15  
 > Language: English  
@@ -26,13 +26,23 @@ candidate (M12-D6 is).
 
 ## §2 Locked decisions (M12-D1..D10)
 
-### M12-D1 — Pipe byte-transfer = chunked base64 (the gate; M12-A-01)
+### M12-D1 — Byte-transfer = chunked base64 over WS (the gate; M12-A-01; channel corrected J-382/R-2)
 
-The pipe is line-delimited UTF-8 text on both surfaces (`__BATCH__` + aicontrol JSONL); raw
-file bytes can't ride it. **Locked: chunked base64** — a net-new transfer sub-protocol *inside*
-the existing text-line model: the byte stream (ciphertext, per M12-D5) is base64-chunked into
-bounded lines framed by a begin/size header + sentinel, reassembled on the far side. Symmetric
-for upload (client→home) and fetch (home→client).
+The client↔node channel is **WebSocket** (`home_node` is a `ws://` URL; sends ride
+`Connection::send_event_confirmed`); WS frames carry JSON/text, so raw file bytes can't ride
+them. **Locked: chunked base64** — a net-new transfer sub-protocol carried as **WS
+`TransportMessage` variants** (begin/chunk/end + fetch, routed at the node WS message loop): the
+byte stream (ciphertext, per M12-D5) is base64-chunked into bounded frames, reassembled on the
+far side. Symmetric for upload (client→home) and fetch (home→client).
+
+**Channel correction (J-382, R-2).** The audit (M12-A-01) and the original lock framed transfer
+as "over the pipe / inside the text-line model." Grounding on `main` (Chat-verified) showed the
+client reaches the node **only over WebSocket** — there is no client→node pipe; the named pipe is
+the control-mode↔resident **driver** channel (the `--attach` CLI invocation path, not the byte
+path). **The chunked-base64 *encoding* lock is unchanged** (WS frames are JSON/text too — raw
+bytes still can't ride without base64); only the framing surface moved from pipe text-lines to WS
+variants. The binary-frame rejection still holds (transfer stays inside the uniform JSON
+`TransportMessage` model, not a parallel binary frame type).
 
 - Rejected: **length-prefixed binary frame** — breaks the UTF-8-line invariant both pipe
   surfaces depend on (`read_line`→String); too invasive on a previously clean channel.
@@ -56,7 +66,9 @@ change). A `message.file` event rides the DAG + fanout exactly as `message.text`
 ### M12-D3 — `Descriptor` schema (net-new)
 
 A net-new struct carried in `message.file` content, **inside** the `enc:` E2E envelope (so all
-of it is encrypted at rest/in transit):
+of it is encrypted at rest/in transit) — **end-state**; in M12.1 the descriptor rides as
+**plaintext** `message.file` content (matching `message.text` today), the `enc:`-wrap activating
+at the shared D3 cutover per M12-D5's maturity boundary (J-382/R-1):
 
 - `blob_ref` — the **ciphertext** hash = the content-address / blob-store key (the node sees
   and addresses only ciphertext, M12-D5/D6).
@@ -91,6 +103,18 @@ today; real RFC 9420 HPKE wrapping + the destroy-to-erase storage op are D3-fenc
 production-openmls arc). M12 builds blob encryption in the **same Arc-H shape**: interface now,
 production crypto when the text path's D3 work lands. Not stronger, not weaker, than the text
 path it mirrors.
+
+**M12.1 maturity boundary (J-382, R-1).** Grounding on `main` (Chat-verified): the text send
+path (`ops::send`) ships **plaintext** content today — client-side `enc:` live-encryption is
+D3-fenced (the client holds no epoch key). So wrapping the blob `Descriptor` in `enc:` *now*
+would make attachments **stronger than text**, violating this decision. Therefore in M12.1
+per-blob **byte encryption is real** (ciphertext at rest), but the `Descriptor` — **including the
+per-blob key** — rides as **plaintext `message.file` content**, exactly matching `message.text`.
+The `enc:`-wrap of the descriptor activates for text *and* blob descriptors **together** at the
+shared D3/M8.7 cutover (zero blob-store rework then). The honest **W2** claim is therefore
+*"ciphertext-at-rest + store content-blind-by-construction"* — **not** *"the node can't get the
+key"* (today the key is in the plaintext descriptor, exactly as text content is plaintext); both
+go node-blind together at D3.
 
 ### M12-D6 — E2E philosophy = universal at the protocol layer; T4 retain-and-produce reserved to operator/module (input 4b) — **DECISIONS.md PROMOTION CANDIDATE**
 

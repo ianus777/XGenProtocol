@@ -849,6 +849,7 @@ async fn spawn_in_process_node_inner(require_approval: bool) -> InProcessNode {
                             let home = accept_home_node_id.clone();
                             let ids = accept_identities_path.clone();
                             let sdir = accept_spaces_dir.clone();
+                            let bdir = accept_spaces_dir.join("blobs");
                             let req_appr = accept_require_approval;
                             let fed_queue = Arc::clone(&accept_federation_queue);
                             let fed_policy = Arc::clone(&accept_federation_policy);
@@ -857,7 +858,7 @@ async fn spawn_in_process_node_inner(require_approval: bool) -> InProcessNode {
                                 handle_connection(
                                     conn, rt, conns, senders, fed_senders, fed_reg,
                                     fed_reg_path, kp, ndx(&home), local_mode, ids, sdir,
-                                    sync_batch_size, req_appr, fed_queue, fed_queue_path,
+                                    bdir, sync_batch_size, req_appr, fed_queue, fed_queue_path,
                                     fed_policy,
                                 ).await;
                             });
@@ -1033,6 +1034,7 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
                             let home = accept_home_node_id.clone();
                             let ids = accept_identities_path.clone();
                             let sdir = accept_spaces_dir.clone();
+                            let bdir = accept_spaces_dir.join("blobs");
                             let fed_queue = Arc::clone(&accept_federation_queue);
                             let fed_policy = Arc::clone(&accept_federation_policy);
                             let fed_queue_path = accept_federation_queue_path.clone();
@@ -1040,7 +1042,7 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
                                 handle_connection(
                                     conn, rt, conns, senders, fed_senders, fed_reg,
                                     fed_reg_path, kp, ndx(&home), local_mode, ids, sdir,
-                                    sync_batch_size, false, fed_queue, fed_queue_path,
+                                    bdir, sync_batch_size, false, fed_queue, fed_queue_path,
                                     fed_policy,
                                 ).await;
                             });

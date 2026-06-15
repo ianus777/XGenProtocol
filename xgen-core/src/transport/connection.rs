@@ -247,6 +247,122 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
         }
     }
 
+    /// M12.1 (M12-D1, R-2) — upload a **ciphertext** blob to the node's
+    /// content-blind blob store over WS as chunked base64. Sends `BlobUploadBegin`
+    /// → `BlobChunk`* (≤ `BLOB_CHUNK_BYTES` raw per chunk, base64-encoded) →
+    /// `BlobUploadEnd`, then drains `recv()` until `BlobUploadOk` (returns the
+    /// node-confirmed `blob_ref`) / `Error` (a blob reject, e.g. 10001) / timeout.
+    /// `ciphertext` is already encrypted (M12-D5); the store never sees plaintext.
+    pub async fn upload_blob(
+        &mut self,
+        blob_ref: &str,
+        ciphertext: &[u8],
+        timeout: std::time::Duration,
+    ) -> Result<String, TransportError> {
+        self.send_transport(&TransportMessage::BlobUploadBegin {
+            protocol_version: "0.1".to_string(),
+            blob_ref: blob_ref.to_string(),
+            size: ciphertext.len() as u64,
+        })
+        .await?;
+        for (seq, chunk) in ciphertext.chunks(crate::wire::types::BLOB_CHUNK_BYTES).enumerate() {
+            self.send_transport(&TransportMessage::BlobChunk {
+                protocol_version: "0.1".to_string(),
+                seq: seq as u32,
+                data: crate::crypto::encoding::encode(chunk),
+            })
+            .await?;
+        }
+        self.send_transport(&TransportMessage::BlobUploadEnd {
+            protocol_version: "0.1".to_string(),
+            blob_ref: blob_ref.to_string(),
+        })
+        .await?;
+
+        let drain = async {
+            loop {
+                match self.recv().await? {
+                    Inbound::Transport(TransportMessage::BlobUploadOk { blob_ref, .. }) => {
+                        return Ok(blob_ref);
+                    }
+                    Inbound::Transport(TransportMessage::Error {
+                        error_code,
+                        error_string,
+                        ..
+                    }) => {
+                        return Err(TransportError::UnexpectedMessage(
+                            "upload_blob",
+                            format!("blob reject {error_code}: {error_string}"),
+                        ));
+                    }
+                    Inbound::Closed => return Err(TransportError::Closed),
+                    _ => continue,
+                }
+            }
+        };
+        match tokio::time::timeout(timeout, drain).await {
+            Ok(result) => result,
+            Err(_) => Err(TransportError::UnexpectedMessage(
+                "upload_blob",
+                "timed out awaiting BlobUploadOk".to_string(),
+            )),
+        }
+    }
+
+    /// M12.1 (M12-D1, R-2) — fetch a blob's **ciphertext** by content-address over
+    /// WS. Sends `BlobFetchRequest`, then reassembles the streamed `BlobChunk`* in
+    /// arrival order (a single WS stream preserves order) until `BlobFetchEnd`.
+    /// `Error` (miss / mismatch) or timeout surfaces as `TransportError`. The
+    /// caller decrypts + verifies `plaintext_hash` (M12-D5 / the C4 W3 check).
+    pub async fn fetch_blob(
+        &mut self,
+        blob_ref: &str,
+        timeout: std::time::Duration,
+    ) -> Result<Vec<u8>, TransportError> {
+        self.send_transport(&TransportMessage::BlobFetchRequest {
+            protocol_version: "0.1".to_string(),
+            blob_ref: blob_ref.to_string(),
+        })
+        .await?;
+
+        let drain = async {
+            let mut buf: Vec<u8> = Vec::new();
+            loop {
+                match self.recv().await? {
+                    Inbound::Transport(TransportMessage::BlobChunk { data, .. }) => {
+                        let bytes = crate::crypto::encoding::decode(&data).map_err(|_| {
+                            TransportError::UnexpectedMessage(
+                                "fetch_blob",
+                                "malformed base64 chunk".to_string(),
+                            )
+                        })?;
+                        buf.extend_from_slice(&bytes);
+                    }
+                    Inbound::Transport(TransportMessage::BlobFetchEnd { .. }) => return Ok(buf),
+                    Inbound::Transport(TransportMessage::Error {
+                        error_code,
+                        error_string,
+                        ..
+                    }) => {
+                        return Err(TransportError::UnexpectedMessage(
+                            "fetch_blob",
+                            format!("blob reject {error_code}: {error_string}"),
+                        ));
+                    }
+                    Inbound::Closed => return Err(TransportError::Closed),
+                    _ => continue,
+                }
+            }
+        };
+        match tokio::time::timeout(timeout, drain).await {
+            Ok(result) => result,
+            Err(_) => Err(TransportError::UnexpectedMessage(
+                "fetch_blob",
+                "timed out awaiting blob".to_string(),
+            )),
+        }
+    }
+
     /// Send a federation handshake message.
     pub async fn send_federation(&mut self, msg: &FederationMessage) -> Result<(), TransportError> {
         let json = serde_json::to_vec(msg)?;
@@ -631,6 +747,124 @@ mod send_confirm_tests {
             .send_event_confirmed(&ev, Duration::from_secs(2))
             .await;
         assert!(matches!(r, Err(TransportError::Closed) | Err(TransportError::WebSocket(_))));
+        let _ = srv.await;
+    }
+
+    // ── M12.1 blob transfer (upload_blob / fetch_blob) ──────────────────────────
+    #[tokio::test]
+    async fn blob_upload_chunks_reassemble_on_the_far_side() {
+        // W4 spine: a multi-chunk ciphertext uploads + reassembles byte-identical
+        // on the far side. RED-on-revert: dropping / mis-ordering chunk reassembly
+        // (or breaking the base64 round-trip) corrupts the far-side buffer.
+        let (mut client, mut server) = ws_pair().await;
+        let payload = vec![0xABu8; crate::wire::types::BLOB_CHUNK_BYTES * 2 + 7];
+        let blob_ref = crate::crypto::hashing::hash_uri(&payload);
+        let expected = payload.clone();
+        let bref = blob_ref.clone();
+        let srv = tokio::spawn(async move {
+            let mut buf = Vec::new();
+            loop {
+                match server.recv().await.unwrap() {
+                    Inbound::Transport(TransportMessage::BlobUploadBegin { .. }) => {}
+                    Inbound::Transport(TransportMessage::BlobChunk { data, .. }) => {
+                        buf.extend_from_slice(&crate::crypto::encoding::decode(&data).unwrap());
+                    }
+                    Inbound::Transport(TransportMessage::BlobUploadEnd { blob_ref, .. }) => {
+                        server
+                            .send_transport(&TransportMessage::BlobUploadOk {
+                                protocol_version: "0.1".into(),
+                                blob_ref,
+                            })
+                            .await
+                            .unwrap();
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+            buf
+        });
+        let ok_ref = client
+            .upload_blob(&blob_ref, &payload, Duration::from_secs(5))
+            .await
+            .unwrap();
+        let reassembled = srv.await.unwrap();
+        assert_eq!(ok_ref, bref);
+        assert_eq!(reassembled, expected);
+        assert!(expected.len() > crate::wire::types::BLOB_CHUNK_BYTES); // genuinely multi-chunk
+    }
+
+    #[tokio::test]
+    async fn blob_fetch_reassembles_streamed_chunks() {
+        let (mut client, mut server) = ws_pair().await;
+        let payload = vec![0xCDu8; crate::wire::types::BLOB_CHUNK_BYTES + 100];
+        let blob_ref = crate::crypto::hashing::hash_uri(&payload);
+        let expected = payload.clone();
+        let srv = tokio::spawn(async move {
+            match server.recv().await.unwrap() {
+                Inbound::Transport(TransportMessage::BlobFetchRequest { blob_ref, .. }) => {
+                    for (seq, chunk) in
+                        payload.chunks(crate::wire::types::BLOB_CHUNK_BYTES).enumerate()
+                    {
+                        server
+                            .send_transport(&TransportMessage::BlobChunk {
+                                protocol_version: "0.1".into(),
+                                seq: seq as u32,
+                                data: crate::crypto::encoding::encode(chunk),
+                            })
+                            .await
+                            .unwrap();
+                    }
+                    server
+                        .send_transport(&TransportMessage::BlobFetchEnd {
+                            protocol_version: "0.1".into(),
+                            blob_ref,
+                        })
+                        .await
+                        .unwrap();
+                }
+                _ => panic!("expected a BlobFetchRequest"),
+            }
+        });
+        let got = client
+            .fetch_blob(&blob_ref, Duration::from_secs(5))
+            .await
+            .unwrap();
+        srv.await.unwrap();
+        assert_eq!(got, expected);
+    }
+
+    #[tokio::test]
+    async fn blob_upload_surfaces_node_reject() {
+        // A node Error during upload surfaces as a TransportError (no hang).
+        let (mut client, mut server) = ws_pair().await;
+        let payload = b"small".to_vec();
+        let blob_ref = crate::crypto::hashing::hash_uri(&payload);
+        let srv = tokio::spawn(async move {
+            loop {
+                match server.recv().await.unwrap() {
+                    Inbound::Transport(TransportMessage::BlobUploadEnd { .. }) => {
+                        server
+                            .send_transport(&TransportMessage::Error {
+                                protocol_version: "0.1".into(),
+                                error_code: 10001,
+                                error_string: "blob_hash_mismatch".into(),
+                                timestamp: "2026-06-15T00:00:00.000Z".into(),
+                                event_id: None,
+                            })
+                            .await
+                            .unwrap();
+                        break;
+                    }
+                    Inbound::Closed => break,
+                    _ => {}
+                }
+            }
+        });
+        let r = client
+            .upload_blob(&blob_ref, &payload, Duration::from_secs(5))
+            .await;
+        assert!(r.is_err());
         let _ = srv.await;
     }
 }

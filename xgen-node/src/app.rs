@@ -34,6 +34,7 @@ use xgen_common::{
     xgid::{AuthModuleXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid},
 };
 use xgen_core::auth::module_registry::{AuthModuleRecord, AuthModuleRegistry};
+use xgen_core::blob_store::BlobStore;
 use xgen_core::bootstrap::registration_store::BootstrapRegistrationStore;
 use xgen_core::space::node_policy::NodePolicyStore;
 use crate::{
@@ -743,6 +744,15 @@ pub async fn run_node(
         .unwrap_or_else(|| data_dir.join("spaces"));
     let _ = std::fs::create_dir_all(&spaces_dir);
 
+    // Blobs directory — M12.1 (M12-D4): content-addressed blob store, sibling of
+    // spaces_dir (default <data_dir>/blobs; M12-D7 — under today's data_dir, no
+    // F9 posture shift). Created up front so the WS blob handlers can put/get.
+    let blobs_dir = config.paths.blobs_dir
+        .as_deref()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| data_dir.join("blobs"));
+    let _ = std::fs::create_dir_all(&blobs_dir);
+
     // Load identity registry
     let identities_path = data_dir.join("xgen-node_identities.db");
     let mut runtime = NodeRuntime::new(signing_key.clone());
@@ -1360,13 +1370,14 @@ pub async fn run_node(
                         let ids = identities_path.clone();
                         let kp = Arc::clone(&node_keypair);
                         let sdir = spaces_dir.clone();
+                        let bdir = blobs_dir.clone();
                         let sbs = sync_batch_size;
                         let req_appr = require_approval;
                         let fed_queue = Arc::clone(&federation_queue);
                         let fed_queue_path = federation_queue_path.clone();
                         let fed_policy = Arc::clone(&federation_policy);
                         tokio::spawn(async move {
-                            handle_connection(conn, rt, conns, senders, fed_senders, fed_reg, fed_reg_path, kp, home, lm, ids, sdir, sbs, req_appr, fed_queue, fed_queue_path, fed_policy).await;
+                            handle_connection(conn, rt, conns, senders, fed_senders, fed_reg, fed_reg_path, kp, home, lm, ids, sdir, bdir, sbs, req_appr, fed_queue, fed_queue_path, fed_policy).await;
                         });
                     }
                     Err(e) => {
@@ -1460,6 +1471,7 @@ pub(crate) async fn handle_connection(
     local_mode: bool,
     identities_path: PathBuf,
     spaces_dir: PathBuf,
+    blobs_dir: PathBuf,
     sync_batch_size: usize,
     require_approval: bool,
     federation_queue: Arc<tokio::sync::Mutex<PendingFederationQueue>>,
@@ -1602,6 +1614,21 @@ pub(crate) async fn handle_connection(
             // out_tx in scope).
             let mut deferred_first: Option<Inbound> = Some(first_msg);
 
+            // M12.1 (M12-D1, R-2) — per-connection blob upload accumulator
+            // (claimed blob_ref, reassembled ciphertext). Begin → Chunk* →
+            // UploadEnd; the bytes are ciphertext (M12-D5), the store is
+            // content-blind. A transport.error reply for a blob reject (M12-D9)
+            // carries event_id = None (a blob reject is not tied to a signed Event).
+            let mut blob_upload: Option<(String, Vec<u8>)> = None;
+            let blob_err = |code: u32, name: &str| TransportMessage::Error {
+                protocol_version: "0.1".to_string(),
+                error_code: code,
+                error_string: name.to_string(),
+                timestamp: chrono::Utc::now()
+                    .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                event_id: None,
+            };
+
             // Main loop: select between inbound recv and outbound drain.
             loop {
                 // Drain the deferred first message first, otherwise call recv.
@@ -1743,6 +1770,115 @@ pub(crate) async fn handle_connection(
                                     event_id: None,
                                 };
                                 if conn.send_transport(&refusal).await.is_err() {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    // M12.1 (M12-D1, R-2) — chunked-base64 blob transfer over WS.
+                    // The bytes are ciphertext (M12-D5); the store is content-blind.
+                    Ok(Inbound::Transport(TransportMessage::BlobUploadBegin {
+                        blob_ref,
+                        ..
+                    })) => {
+                        // F6 blob-size gating is M12.2; M12.1 grows the buffer from
+                        // the streamed chunks (no claimed-size allocation).
+                        blob_upload = Some((blob_ref, Vec::new()));
+                    }
+                    Ok(Inbound::Transport(TransportMessage::BlobChunk { data, .. })) => {
+                        if let Some((_, ref mut buf)) = blob_upload {
+                            match xgen_core::crypto::encoding::decode(&data) {
+                                Ok(bytes) => buf.extend_from_slice(&bytes),
+                                // A malformed chunk abandons the in-flight upload;
+                                // UploadEnd then hash-mismatches and rejects (10001).
+                                Err(_) => blob_upload = None,
+                            }
+                        }
+                    }
+                    Ok(Inbound::Transport(TransportMessage::BlobUploadEnd {
+                        blob_ref,
+                        ..
+                    })) => {
+                        let reply = match blob_upload.take() {
+                            Some((claimed, buf)) if claimed == blob_ref => {
+                                let store = BlobStore::new(&blobs_dir);
+                                match store.put(&buf) {
+                                    // Content-address integrity (W3, ingest side):
+                                    // the stored ref must equal the claimed ref.
+                                    Ok(stored) if stored == blob_ref => {
+                                        TransportMessage::BlobUploadOk {
+                                            protocol_version: "0.1".to_string(),
+                                            blob_ref: stored,
+                                        }
+                                    }
+                                    Ok(_) => blob_err(10001, "blob_hash_mismatch"),
+                                    Err(e) => {
+                                        let (code, name) = e
+                                            .to_wire_code()
+                                            .unwrap_or((10001, "blob_hash_mismatch"));
+                                        blob_err(code, name)
+                                    }
+                                }
+                            }
+                            // No in-flight upload, or the claimed ref changed
+                            // (or a malformed chunk dropped it) — content-address
+                            // mismatch.
+                            _ => blob_err(10001, "blob_hash_mismatch"),
+                        };
+                        if conn.send_transport(&reply).await.is_err() {
+                            break;
+                        }
+                    }
+                    Ok(Inbound::Transport(TransportMessage::BlobFetchRequest {
+                        blob_ref,
+                        ..
+                    })) => {
+                        let store = BlobStore::new(&blobs_dir);
+                        match store.get(&blob_ref) {
+                            Ok(Some(bytes)) => {
+                                let mut sent_ok = true;
+                                for (seq, chunk) in bytes
+                                    .chunks(xgen_core::wire::types::BLOB_CHUNK_BYTES)
+                                    .enumerate()
+                                {
+                                    let m = TransportMessage::BlobChunk {
+                                        protocol_version: "0.1".to_string(),
+                                        seq: seq as u32,
+                                        data: xgen_core::crypto::encoding::encode(chunk),
+                                    };
+                                    if conn.send_transport(&m).await.is_err() {
+                                        sent_ok = false;
+                                        break;
+                                    }
+                                }
+                                if !sent_ok {
+                                    break;
+                                }
+                                let end = TransportMessage::BlobFetchEnd {
+                                    protocol_version: "0.1".to_string(),
+                                    blob_ref,
+                                };
+                                if conn.send_transport(&end).await.is_err() {
+                                    break;
+                                }
+                            }
+                            // M12.1's self-thread never misses; the typed
+                            // BlobError::Unavailable + lazy fetch-by-hash land at
+                            // M12.3 (M12-D8). Defensive reply uses the reserved
+                            // 10003 so the client errors rather than hangs.
+                            Ok(None) => {
+                                if conn
+                                    .send_transport(&blob_err(10003, "blob_unavailable"))
+                                    .await
+                                    .is_err()
+                                {
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                let (code, name) =
+                                    e.to_wire_code().unwrap_or((10001, "blob_hash_mismatch"));
+                                if conn.send_transport(&blob_err(code, name)).await.is_err() {
                                     break;
                                 }
                             }

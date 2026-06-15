@@ -184,7 +184,64 @@ pub enum TransportMessage {
         /// any timing-sensitive logic.
         accepted_at: String,
     },
+
+    // ── M12.1 blob transfer (chunked base64 over WS; M12-D1, R-2) ──────────────
+    // The byte transfer rides WS (the client↔node channel, R-2), not the named
+    // pipe. Encoding is chunked base64 (M12-D1, unchanged) — WS frames are JSON
+    // too, so raw bytes can't ride a field without base64; the framing is these
+    // begin/chunk/end + fetch variants instead of pipe lines. The bytes are
+    // already ciphertext (M12-D5).
+    /// Begin a chunked-base64 blob upload (client→node). `blob_ref` =
+    /// `hash_uri(ciphertext)` the client claims; `size` = ciphertext bytes.
+    /// Followed by `BlobChunk`* then `BlobUploadEnd`.
+    #[serde(rename = "transport.blob_upload_begin")]
+    BlobUploadBegin {
+        protocol_version: String,
+        blob_ref: String,
+        size: u64,
+    },
+    /// One base64 chunk of a blob's ciphertext (≤ `BLOB_CHUNK_BYTES` raw bytes).
+    /// Used both ways: upload (client→node) and fetch (node→client). `seq` is the
+    /// 0-based order index (informational — a single WS stream preserves order).
+    #[serde(rename = "transport.blob_chunk")]
+    BlobChunk {
+        protocol_version: String,
+        seq: u32,
+        data: String,
+    },
+    /// End of a chunked blob upload; the node reassembles, verifies
+    /// `hash_uri(bytes) == blob_ref`, stores content-blind, and replies
+    /// `BlobUploadOk` (or `Error` 10001 on hash mismatch).
+    #[serde(rename = "transport.blob_upload_end")]
+    BlobUploadEnd {
+        protocol_version: String,
+        blob_ref: String,
+    },
+    /// Node→client acknowledgement that a blob upload was stored.
+    #[serde(rename = "transport.blob_upload_ok")]
+    BlobUploadOk {
+        protocol_version: String,
+        blob_ref: String,
+    },
+    /// Client→node request to fetch a blob by content-address. The node replies
+    /// `BlobChunk`* then `BlobFetchEnd` (or `Error` on miss / mismatch).
+    #[serde(rename = "transport.blob_fetch_request")]
+    BlobFetchRequest {
+        protocol_version: String,
+        blob_ref: String,
+    },
+    /// Node→client end-of-fetch marker (after the last `BlobChunk`).
+    #[serde(rename = "transport.blob_fetch_end")]
+    BlobFetchEnd {
+        protocol_version: String,
+        blob_ref: String,
+    },
 }
+
+/// M12.1 (M12-D1, V1) — raw ciphertext bytes per `BlobChunk` before base64.
+/// 128 KiB → base64 ≈ 174 KB, comfortably under the `MAX_PAYLOAD_BYTES` (256 KB)
+/// frame ceiling (`wire::framing`) even with the JSON envelope.
+pub const BLOB_CHUNK_BYTES: usize = 128 * 1024;
 
 impl TransportMessage {
     /// The hash URI of the protocol event this transport message pertains to, if

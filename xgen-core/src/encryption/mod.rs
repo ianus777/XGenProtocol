@@ -22,6 +22,7 @@
 //   - delivery_service — Node Delivery Service: routing, epoch management
 //   - client_mls       — Client-side MLS interface (Phase 2: epoch-key scheme)
 
+pub mod blob;
 pub mod client_mls;
 pub mod delivery_service;
 pub mod group;

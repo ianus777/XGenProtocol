@@ -915,6 +915,61 @@ fn check_permission(event: &Event, space: &SpaceState) -> Result<(), ExchangeErr
     }
 }
 
+// ── Attachment descriptor + message.file builder (M12.1) ────────────────────────
+
+/// A single attachment descriptor carried in `message.file` content (M12-D3).
+///
+/// Rides inside the message content as one element of `attachments: [Descriptor]`
+/// (F1 plural list). In M12.1 the content is **plaintext** (R-1 — matching
+/// `message.text`'s plaintext body today; the `enc:` wrap activates for text +
+/// file together at the shared D3/M8.7 cutover, no blob-store rework then).
+///
+/// - `blob_ref` — `hash_uri(ciphertext)`: the content-address / blob-store key
+///   (the node sees + addresses only ciphertext, M12-D4/D5).
+/// - `plaintext_hash` — `hash_uri(plaintext)`: post-decrypt integrity (the
+///   client-side W3 check after fetch + decrypt).
+/// - `key` — base64 of the 32-byte per-blob ChaCha20Poly1305 key (M12-D5);
+///   meaningful only to whoever can read the enclosing message content.
+/// - `filename` / `mime` / `size` — by-value metadata (`size` = plaintext bytes).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Descriptor {
+    pub blob_ref: String,
+    pub plaintext_hash: String,
+    pub key: String,
+    pub filename: String,
+    pub mime: String,
+    pub size: u64,
+}
+
+/// Build an unsigned `message.file` Event carrying `attachments: [Descriptor]`
+/// (M12-D2). Twin of [`build_message_text_event`]; reuses the validation-wired
+/// `EventType::MessageFile` (no new event kind, F5) and rides the DAG + fanout
+/// identically (no `SpaceState` apply arm — M12-A-02). Call
+/// `space::state::sign_event` to compute event_id + signature.
+pub fn build_message_file_event(
+    key: &SigningKey,
+    space_id: &str,
+    room_id: &str,
+    prev_events: Vec<String>,
+    attachments: &[Descriptor],
+) -> Event {
+    Event::new(
+        EventType::MessageFile,
+        IdentityXgid::from_xgid(Xgid::new(format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(key.verifying_key().as_bytes())
+        ))),
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events
+            .into_iter()
+            .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+            .collect(),
+        Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+        json!({ "attachments": attachments }),
+    )
+}
+
 // ── Event builder ─────────────────────────────────────────────────────────────
 
 /// Build an unsigned `message.text` Event.
@@ -2590,5 +2645,77 @@ mod tests {
             check_permission(&owner_resolve, &space).is_ok(),
             "the Owner may resolve a thread"
         );
+    }
+}
+
+// ── M12.1 message.file builder + Descriptor tests ───────────────────────────────
+#[cfg(test)]
+mod m12_file_builder_tests {
+    use super::{build_message_file_event, Descriptor};
+    use crate::wire::types::EventType;
+    use ed25519_dalek::SigningKey;
+
+    fn key() -> SigningKey {
+        SigningKey::from_bytes(&[9u8; 32])
+    }
+
+    fn sample_descriptor() -> Descriptor {
+        Descriptor {
+            blob_ref: "xgen://hash/sha256:aa".to_string(),
+            plaintext_hash: "xgen://hash/sha256:bb".to_string(),
+            key: "Zm9v".to_string(),
+            filename: "note.txt".to_string(),
+            mime: "text/plain".to_string(),
+            size: 42,
+        }
+    }
+
+    #[test]
+    fn descriptor_serde_roundtrip() {
+        let d = sample_descriptor();
+        let json = serde_json::to_string(&d).unwrap();
+        let back: Descriptor = serde_json::from_str(&json).unwrap();
+        assert_eq!(d, back);
+    }
+
+    #[test]
+    fn builds_message_file_event_with_attachments() {
+        let d = sample_descriptor();
+        let ev = build_message_file_event(
+            &key(),
+            "xgen://space/s",
+            "xgen://room/r",
+            vec!["xgen://space/s".to_string()],
+            std::slice::from_ref(&d),
+        );
+        assert_eq!(ev.event_type, EventType::MessageFile);
+        let atts = ev
+            .content
+            .get("attachments")
+            .and_then(|v| v.as_array())
+            .expect("content carries an attachments array");
+        assert_eq!(atts.len(), 1);
+        let back: Descriptor = serde_json::from_value(atts[0].clone()).unwrap();
+        assert_eq!(back, d);
+    }
+
+    #[test]
+    fn multi_file_attachments_listed() {
+        let d1 = sample_descriptor();
+        let mut d2 = sample_descriptor();
+        d2.filename = "second.bin".to_string();
+        let ev = build_message_file_event(
+            &key(),
+            "xgen://space/s",
+            "xgen://room/r",
+            vec![],
+            &[d1, d2],
+        );
+        let atts = ev
+            .content
+            .get("attachments")
+            .and_then(|v| v.as_array())
+            .unwrap();
+        assert_eq!(atts.len(), 2);
     }
 }

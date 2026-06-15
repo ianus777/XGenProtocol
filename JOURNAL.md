@@ -1,11 +1,31 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-14  
-> (latest: J-379 — M12 (attachments) OPENED; concept + Phase-0 scope + forks F1–F9 Joe-LOCKED; brief authored; next-active = Clair D-071 Phase-0 audit)  
+> **Last updated:** 2026-06-15  
+> (latest: J-380 — M12 Phase-0 audit ✅ DONE (Clair, GO); forks F1–F9 grounded, M12-A-01..09; Chat doc-bridge records audit-done; next-active = design)  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-380 — M12 Phase-0 audit ✅ DONE (Clair, GO): forks F1–F9 grounded; Chat doc-bridge records audit-done; next-active = design
+
+**What happened.** Clair shipped the M12 D-071 Phase-0 audit `tasks/M12_ATTACHMENTS_PHASE0_AUDIT.md` (v1.0 ACTIVE, findings M12-A-01..09), committed audit-only at `504a808` (pushed; `main` @ `fdbaa8d` at audit time, clean tree). This is the Chat doc-bridge recording audit-done in the canonical records (CLAUDE PLAY / JOURNAL / ROADMAP) — the two-seat separation (Clair commits the audit, Chat records it), the M10 J-359 precedent. Doc-only; no DECISIONS change.
+
+**Verdict: GO.** Every fork F1–F9 grounded to file:line against `main`. The minimal **M12.1 self-thread slice** = four small, self-contained, net-new pieces (A-01/02/03/08) and **never touches federation** → M11/D-021 intact; shovel-ready once the one load-bearing fork is decided.
+
+**Independently re-grounded (D-065, J-352 precedent).** Chat re-verified the three material claims before recording: (A-01) pipe = 22 `read_line` text reads, **0** binary reads in the pipe layer; (A-02) `MessageFile` / `"message.file"` present (4 wire.rs hits), `file.upload` / `message.attachment-meta` / `build_message_file_event` = **0** code hits; (A-03) `resolve_data_dir` → `exe_dir()`, no data-root override flag (only `--instance` segregating *under* `exe_dir`). All confirmed.
+
+**Load-bearing finding (M12-A-01, agenda item 3).** The pipe is **line-delimited UTF-8 text** (`read_line`→String + `write_all(as_bytes())`) on both surfaces (`pipe.rs` `__BATCH__` + `aicontrol.rs` JSONL). No binary / length-prefix / chunked transfer exists → **raw file bytes cannot ride it** (contain `\n`, not UTF-8). Gates **even the federation-free M12.1 slice** (bytes still move client→home over this pipe). Three design candidates: base64-in-JSONL / length-prefixed binary frame / chunked base64. **The design's first decision and the M12.1 long pole.**
+
+**Two brief-refinements + one (D-065, routed to design).** (1) Attachment kind = **`message.file`** (validation-wired but unbuilt — no `build_message_file_event`; the descriptor attaches as `attachments: [Descriptor]` content); the brief's `file.upload` / `message.attachment-meta` are doc-only. Also the **F5 answer: reuse `message.file`, no new kind**; `stream.*` / `media.*` are doc-only → clean reservation. (2) **F9 "default outside the install folder" is a genuine new convention** — today `data_dir = exe_dir()` (the install folder), no override flag; a deliberate posture shift to adopt, not an extension. (3) Blob rejects → a **new parallel error type**, not `ExchangeError` (fold the RC-F-01 / M10.1 wire-code-collision discipline into the band choice). None contradicts a locked fork.
+
+**Everything else net-new, as F1–F9 anticipated.** Erasure: `message.redact` validation-wired but **no applier** (F2 builds it); zero production readers of `Retention` / `module_policy` → **F2b would be the first** (M12-A-05). GC/TTL: append-only store, **no lifecycle** → F7/F8 net-new (M12-A-07). Blob store: `EventStore` event-only → net-new, a clean `PathsSection` / `blobs_dir` sibling under `data_dir` (M12-A-03). Federation: push **eager**, no fetch-by-hash → F3 lazy net-new; `HeldPending` / `PendingBuffer` is the lazy-miss UX seam (M12-A-06). Size: flat 256 KB frame ceiling only; §3.1.1 tier-table + `max_event_size` **unwired** → the blob gate is a parallel transfer/ingest gate (M12-A-04).
+
+**Canonical (D-074).** audit doc NEW (Clair, `504a808`, already pushed); this JOURNAL J-380; `CLAUDE.md` PLAY head (audit-done); `docs/ROADMAP.md` v3.68→v3.69 (M12 audit-done annotation at tree / chain / horizon). No DECISIONS change.
+
+**Next-active: design (Chat/Joe).** The three load-bearing decisions the audit teed up — (1) the pipe byte-transfer shape (M12-A-01, the long pole), (2) adopt `message.file` + the `Descriptor` schema (M12-A-02), (3) the F9 data-root posture shift (M12-A-03) — plus the F3 federation lean (confirmed at the M12.3 grounding). → Joe-lock → Clair runbook → implement (sub-arc'd M12.1–M12.4) → Chat doc-bridge per arc → close. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-380 → the audit → the brief → `docs/ROADMAP.md` (M12).** Not pushed — Joe pushes.
 
 ---
 

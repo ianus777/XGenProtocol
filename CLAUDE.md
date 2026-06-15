@@ -2,12 +2,18 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-14  
+> **Last updated:** 2026-06-15  
 > Author: JozefN  
-> (PLAY head: M12 (attachments) OPENED J-379 — concept + Phase-0 scope + forks F1–F9 Joe-LOCKED, brief authored; next-active = Clair D-071 Phase-0 audit)  
+> (PLAY head: M12 (attachments) — Phase-0 audit ✅ DONE J-380 (Clair, GO; M12-A-01..09); next-active = design (Chat/Joe))  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 ---
+
+## 🟢 M12 (attachments) — Phase-0 audit ✅ DONE (J-380, GO); next-active = design (Chat/Joe)
+
+**M12 Phase-0 audit ✅ DONE (J-380, GO; Clair `504a808`, pushed).** Clair's D-071 audit `tasks/M12_ATTACHMENTS_PHASE0_AUDIT.md` (v1.0 ACTIVE, findings M12-A-01..09) grounded all nine forks to file:line on `main`; Chat independently re-grounded the three material claims (D-065) + landed this doc-bridge. **Minimal M12.1 self-thread slice = four small net-new pieces (A-01/02/03/08), never federation → M11/D-021 intact; shovel-ready once the pipe fork is decided.** **Load-bearing (M12-A-01):** the pipe is line-delimited UTF-8 text (22 `read_line`, 0 binary reads) → raw file bytes can't ride it; gates **even the federation-free slice**; 3 candidates (base64-in-JSONL / length-prefixed binary frame / chunked base64) = the M12.1 long pole + the design's first decision. **Brief-refinements (route to design):** (1) attachment kind = **`message.file`** (validation-wired but unbuilt; the brief's `file.upload`/`message.attachment-meta` are doc-only → reuse `message.file`, no new kind = the **F5 answer**; `stream.*`/`media.*` doc-only → clean reservation); (2) **F9 "default outside install folder" = a genuine new convention** (today `data_dir = exe_dir()`, no override flag); (3) blob rejects = a new **parallel error type**, not `ExchangeError` (RC-F-01/M10.1 collision discipline). **All else net-new as anticipated:** `message.redact` has no applier + zero retention readers (F2b would be first) · append-only store, no GC/TTL (F7/F8) · `EventStore` event-only (blob store net-new, `blobs_dir` sibling under `data_dir`) · eager push, no fetch-by-hash (F3 lazy net-new; `HeldPending` = the miss-UX seam) · flat 256 KB frame ceiling, §3.1.1 tier-table + `max_event_size` unwired (blob gate is parallel). **Canonical (D-074):** audit `504a808` (pushed); JOURNAL J-380; this PLAY; `docs/ROADMAP.md` v3.68→v3.69 (M12 audit-done at tree/chain/horizon). No DECISIONS change. **Next-active: design (Chat/Joe)** — the three teed-up decisions (pipe transfer shape M12-A-01 / adopt `message.file`+`Descriptor` M12-A-02 / F9 data-root posture M12-A-03) + the F3 federation lean → Joe-lock → Clair runbook → implement (sub-arc'd M12.1–M12.4). **Entry (Rule 0): this PLAY → JOURNAL J-380 → the audit → the brief → `docs/ROADMAP.md` (M12).** Not pushed — Joe pushes.
+
+**(M12-OPENED block (J-379) below — the standing F1–F9 forks reference; this audit-done block is the live head.)**
 
 ## 🟢 M12 (attachments) OPENED (J-379) — concept + Phase-0 scope + forks F1–F9 Joe-LOCKED; brief authored; next-active = Clair D-071 Phase-0 audit
 

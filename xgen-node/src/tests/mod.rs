@@ -80,3 +80,7 @@ pub mod phase_arcf_migration_e2e;
 
 // Arc H (PG-05) — content-blindness proof (AH-D5).
 pub mod arc_h_content_blindness;
+
+// M12.1 — blob attachment witnesses (W1–W5) against the real node via a real WS
+// client: round-trip / content-blindness / hash-integrity / multi-chunk / no-federation.
+pub mod m12_blob_roundtrip;

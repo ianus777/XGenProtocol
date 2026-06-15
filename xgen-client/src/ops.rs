@@ -1622,7 +1622,9 @@ pub async fn send(
         trace_event, EventDirection, SessionContext, SpaceRole,
     };
     use xgen_core::{
-        message::exchange::build_message_text_event,
+        crypto::{encoding, hashing::hash_uri},
+        encryption::blob::encrypt_blob,
+        message::exchange::{build_message_file_event, build_message_text_event, Descriptor},
         space::state::sign_event,
     };
 
@@ -1644,16 +1646,66 @@ pub async fn send(
         let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
             .await
             .unwrap_or_else(|_| vec![args.space.clone()]);
-        let msg_ev = sign_event(
-            build_message_text_event(
+        let msg_ev = if let Some(path) = &args.attach {
+            // M12.1 file send (message.file). Read → encrypt under a fresh
+            // per-blob key (M12-D5) → upload the ciphertext to the home node's
+            // content-blind blob store over WS (M12-D1/R-2) → reference it by a
+            // Descriptor in the event content. Per R-1 the Descriptor (incl. the
+            // per-blob key) is plaintext content, matching message.text today.
+            if !args.text.is_empty() {
+                tracing::warn!(
+                    "--text is ignored when --attach is given in M12.1 \
+                     (combined text + attachment lands at M12.2)"
+                );
+            }
+            let plaintext = std::fs::read(path)
+                .with_context(|| format!("failed to read --attach file {path}"))?;
+            let (blob_key, ciphertext) = encrypt_blob(&plaintext);
+            let blob_ref = hash_uri(&ciphertext);
+            let plaintext_hash = hash_uri(&plaintext);
+            let confirmed = conn
+                .upload_blob(&blob_ref, &ciphertext, sync_timeout)
+                .await
+                .context("blob upload failed")?;
+            if confirmed != blob_ref {
+                anyhow::bail!("node confirmed a different blob_ref than uploaded");
+            }
+            let filename = std::path::Path::new(path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("attachment")
+                .to_string();
+            let descriptor = Descriptor {
+                blob_ref,
+                plaintext_hash,
+                key: encoding::encode(&blob_key),
+                filename,
+                // mime detection is M12.2 surface polish.
+                mime: "application/octet-stream".to_string(),
+                size: plaintext.len() as u64,
+            };
+            sign_event(
+                build_message_file_event(
+                    &signing_key,
+                    &args.space,
+                    &args.room,
+                    prev_events,
+                    std::slice::from_ref(&descriptor),
+                ),
                 &signing_key,
-                &args.space,
-                &args.room,
-                prev_events,
-                &args.text,
-            ),
-            &signing_key,
-        );
+            )
+        } else {
+            sign_event(
+                build_message_text_event(
+                    &signing_key,
+                    &args.space,
+                    &args.room,
+                    prev_events,
+                    &args.text,
+                ),
+                &signing_key,
+            )
+        };
         let id_for_result = msg_ev
             .event_id
             .as_ref()
@@ -1802,6 +1854,148 @@ pub async fn history(
         space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
         room_id: RoomXgid::from_xgid(Xgid::new(args.room.clone())),
         messages,
+    })
+}
+
+// ── fetch_attachments (M12.1) ───────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct FetchAttachmentsArgs {
+    pub space: String,
+    pub room: String,
+    /// Directory to write decrypted attachment files into.
+    pub out_dir: std::path::PathBuf,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FetchedAttachment {
+    pub filename: String,
+    pub blob_ref: String,
+    pub size: u64,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FetchAttachmentsResult {
+    pub space_id: SpaceXgid,
+    pub room_id: RoomXgid,
+    pub files: Vec<FetchedAttachment>,
+}
+
+/// M12.1 — fetch every attachment in a Room: sync the `message.file` events,
+/// extract each `Descriptor`, fetch the ciphertext by `blob_ref` over WS, decrypt
+/// under the per-blob key, verify `plaintext_hash` (the client-side W3 integrity
+/// check), and write the plaintext to `out_dir/<filename>`. **Errors** on a
+/// `plaintext_hash` mismatch (integrity reject) rather than writing bad bytes.
+/// The self-thread witness's read side; a CLI verb is M12.2 surface polish.
+pub async fn fetch_attachments(
+    ctx: &mut OpContext<'_>,
+    args: &FetchAttachmentsArgs,
+) -> Result<FetchAttachmentsResult> {
+    use xgen_core::{
+        crypto::{encoding, hashing::hash_uri},
+        encryption::blob::decrypt_blob,
+        message::exchange::Descriptor,
+        transport::connection::Inbound,
+        wire::types::{EventType, TransportMessage},
+    };
+
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
+    std::fs::create_dir_all(&args.out_dir)
+        .with_context(|| format!("failed to create out_dir {:?}", args.out_dir))?;
+
+    let mut files: Vec<FetchedAttachment> = Vec::new();
+    {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+
+        // 1) Sync the room; collect message.file descriptors (paginated like history).
+        let mut descriptors: Vec<Descriptor> = Vec::new();
+        let mut since = String::new();
+        let deadline = tokio::time::Instant::now() + sync_timeout;
+        'pages: loop {
+            let sync_req = TransportMessage::SyncRequest {
+                protocol_version: "0.1".to_string(),
+                since: since.clone(),
+                limit: None,
+            };
+            conn.send_transport(&sync_req)
+                .await
+                .context("failed to send sync_request")?;
+            let continue_from = loop {
+                match tokio::time::timeout_at(deadline, conn.recv()).await {
+                    Ok(Ok(Inbound::Event(ev))) => {
+                        if ev.space_id.as_str() == args.space.as_str()
+                            && ev.room_id.as_str() == args.room.as_str()
+                            && matches!(ev.event_type, EventType::MessageFile)
+                        {
+                            if let Some(atts) =
+                                ev.content.get("attachments").and_then(|v| v.as_array())
+                            {
+                                for a in atts {
+                                    if let Ok(d) = serde_json::from_value::<Descriptor>(a.clone()) {
+                                        descriptors.push(d);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Ok(Ok(Inbound::Transport(TransportMessage::SyncComplete {
+                        continue_from,
+                        ..
+                    }))) => break continue_from,
+                    Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
+                    | Ok(Ok(Inbound::Closed)) => break 'pages,
+                    Ok(Ok(_)) => {}
+                    Ok(Err(_)) => break 'pages,
+                    Err(_) => anyhow::bail!(
+                        "sync_request safety-net timeout — peer never sent sync_complete"
+                    ),
+                }
+            };
+            match continue_from {
+                Some(cursor) => since = cursor,
+                None => break 'pages,
+            }
+        }
+
+        // 2) Fetch + decrypt + verify + write each attachment over the same conn.
+        for d in &descriptors {
+            let ciphertext = conn
+                .fetch_blob(&d.blob_ref, sync_timeout)
+                .await
+                .with_context(|| format!("fetch_blob failed for {}", d.blob_ref))?;
+            let key_bytes = encoding::decode(&d.key)
+                .map_err(|_| anyhow::anyhow!("malformed per-blob key in descriptor"))?;
+            let key: [u8; 32] = key_bytes
+                .as_slice()
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("per-blob key is not 32 bytes"))?;
+            let plaintext = decrypt_blob(&key, &ciphertext)
+                .map_err(|e| anyhow::anyhow!("blob decrypt failed: {e}"))?;
+            // W3 (client-side): post-decrypt integrity.
+            if hash_uri(&plaintext) != d.plaintext_hash {
+                anyhow::bail!(
+                    "attachment {} failed plaintext_hash integrity check",
+                    d.filename
+                );
+            }
+            let path = args.out_dir.join(&d.filename);
+            std::fs::write(&path, &plaintext)
+                .with_context(|| format!("failed to write {:?}", path))?;
+            files.push(FetchedAttachment {
+                filename: d.filename.clone(),
+                blob_ref: d.blob_ref.clone(),
+                size: plaintext.len() as u64,
+                path: path.to_string_lossy().to_string(),
+            });
+        }
+        let _ = conn.goodbye("client_disconnect").await;
+    }
+
+    Ok(FetchAttachmentsResult {
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+        room_id: RoomXgid::from_xgid(Xgid::new(args.room.clone())),
+        files,
     })
 }
 

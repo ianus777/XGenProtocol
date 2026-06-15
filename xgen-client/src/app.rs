@@ -650,9 +650,16 @@ pub struct SendArgs {
     /// Room ID
     #[arg(long)]
     pub room: String,
-    /// Message text (quoted string).
+    /// Message text (quoted string). With `--attach`, pass `--text ""` in M12.1
+    /// (combined text + attachment in one message is M12.2 surface polish).
     #[arg(long)]
     pub text: String,
+    /// M12.1 — path to a local file to attach. Sends a `message.file` event:
+    /// the bytes are encrypted client-side under a fresh per-blob key, uploaded
+    /// to the home node's content-blind blob store, and referenced by a
+    /// `Descriptor` carried in the event content.
+    #[arg(long)]
+    pub attach: Option<String>,
 }
 
 #[derive(Args)]
@@ -5832,6 +5839,35 @@ mod pass_4_commit_1_tests {
         // Dispatcher-arm projection to a typed flavour:
         let projected = SpaceXgid::from_xgid(Xgid::new(args.space.clone()));
         assert_eq!(projected.as_str(), "xgen://hash/sha256:S");
+    }
+
+    /// M12.1 (C4) — `send --attach <path>` parses through clap into
+    /// `SendArgs.attach = Some`, so it inherits all four D-092 dispatch arms
+    /// (CLI / run-path / batch / aicontrol all parse `Send` via clap). Absent
+    /// `--attach` parses to `None` (the message.text path).
+    #[test]
+    fn send_attach_flag_parses_through_clap() {
+        let cli = Cli::try_parse_from([
+            "xgen-client", "send", "--space", "s", "--room", "r", "--text", "", "--attach",
+            "photo.png",
+        ])
+        .expect("send --attach parses");
+        match cli.command {
+            Some(ClientCommand::Send(a)) => {
+                assert_eq!(a.attach.as_deref(), Some("photo.png"));
+                assert_eq!(a.text, "");
+            }
+            _ => panic!("expected Send"),
+        }
+
+        let cli2 = Cli::try_parse_from([
+            "xgen-client", "send", "--space", "s", "--room", "r", "--text", "hi",
+        ])
+        .expect("send without --attach parses");
+        match cli2.command {
+            Some(ClientCommand::Send(a)) => assert!(a.attach.is_none()),
+            _ => panic!("expected Send"),
+        }
     }
 
     /// T5 — format-path sites consume the `Display` impl on typed XGIDs

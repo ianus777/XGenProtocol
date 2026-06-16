@@ -1606,6 +1606,20 @@ pub struct SendResult {
     pub room_id: RoomXgid,
 }
 
+/// M12.2a (D3/VC) — pure send-argument validation. A send must carry at least
+/// one of `--text` / `--attach`; combining them is an ERROR (lock change,
+/// D-065 — silently dropping the user's typed text is quiet data-loss). Pure
+/// (no I/O) so it is unit-testable without a node or keypair.
+pub(crate) fn validate_send_args(args: &crate::app::SendArgs) -> Result<()> {
+    if args.attach.is_empty() && args.text.is_none() {
+        anyhow::bail!("a send must carry --text or --attach");
+    }
+    if !args.attach.is_empty() && args.text.is_some() {
+        anyhow::bail!("cannot combine --text and --attach yet");
+    }
+    Ok(())
+}
+
 /// Send a text message to a Room.
 ///
 /// The headline M5 migration: `send` is the verb whose duplicated
@@ -1638,6 +1652,10 @@ pub async fn send(
     };
 
     let sync_timeout = sync_completion_timeout(ctx.data_dir);
+
+    // M12.2a (D3/VC) — require-one + combined guards, fail-fast before connecting.
+    validate_send_args(args)?;
+
     let event_id = {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
         // Tip discovery via the canonical (single-source) implementation
@@ -1646,62 +1664,63 @@ pub async fn send(
         let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
             .await
             .unwrap_or_else(|_| vec![args.space.clone()]);
-        let msg_ev = if let Some(path) = &args.attach {
-            // M12.1 file send (message.file). Read → encrypt under a fresh
-            // per-blob key (M12-D5) → upload the ciphertext to the home node's
-            // content-blind blob store over WS (M12-D1/R-2) → reference it by a
-            // Descriptor in the event content. Per R-1 the Descriptor (incl. the
-            // per-blob key) is plaintext content, matching message.text today.
-            if !args.text.is_empty() {
-                tracing::warn!(
-                    "--text is ignored when --attach is given in M12.1 \
-                     (combined text + attachment lands at M12.2)"
-                );
+        let msg_ev = if !args.attach.is_empty() {
+            // M12.2a (D3/VD) — multi-file message.file send. For each file: read
+            // → encrypt under a fresh per-blob key (M12-D5) → upload the
+            // ciphertext to the home node's content-blind blob store over WS
+            // (M12-D1/R-2) → a Descriptor. All descriptors ride one message.file
+            // event (the builder is already plural). Per R-1 the Descriptor
+            // (incl. the per-blob key) is plaintext content, matching
+            // message.text today. (Combined --text guarded out above, VC.)
+            let mut descriptors: Vec<Descriptor> = Vec::with_capacity(args.attach.len());
+            for path in &args.attach {
+                let plaintext = std::fs::read(path)
+                    .with_context(|| format!("failed to read --attach file {path}"))?;
+                let (blob_key, ciphertext) = encrypt_blob(&plaintext);
+                let blob_ref = hash_uri(&ciphertext);
+                let plaintext_hash = hash_uri(&plaintext);
+                let confirmed = conn
+                    .upload_blob(&blob_ref, &ciphertext, sync_timeout)
+                    .await
+                    .context("blob upload failed")?;
+                if confirmed != blob_ref {
+                    anyhow::bail!("node confirmed a different blob_ref than uploaded");
+                }
+                let filename = std::path::Path::new(path)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("attachment")
+                    .to_string();
+                descriptors.push(Descriptor {
+                    blob_ref,
+                    plaintext_hash,
+                    key: encoding::encode(&blob_key),
+                    filename,
+                    // mime detection is a future polish item (S-1 — not in the D3 lock).
+                    mime: "application/octet-stream".to_string(),
+                    size: plaintext.len() as u64,
+                });
             }
-            let plaintext = std::fs::read(path)
-                .with_context(|| format!("failed to read --attach file {path}"))?;
-            let (blob_key, ciphertext) = encrypt_blob(&plaintext);
-            let blob_ref = hash_uri(&ciphertext);
-            let plaintext_hash = hash_uri(&plaintext);
-            let confirmed = conn
-                .upload_blob(&blob_ref, &ciphertext, sync_timeout)
-                .await
-                .context("blob upload failed")?;
-            if confirmed != blob_ref {
-                anyhow::bail!("node confirmed a different blob_ref than uploaded");
-            }
-            let filename = std::path::Path::new(path)
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("attachment")
-                .to_string();
-            let descriptor = Descriptor {
-                blob_ref,
-                plaintext_hash,
-                key: encoding::encode(&blob_key),
-                filename,
-                // mime detection is M12.2 surface polish.
-                mime: "application/octet-stream".to_string(),
-                size: plaintext.len() as u64,
-            };
             sign_event(
                 build_message_file_event(
                     &signing_key,
                     &args.space,
                     &args.room,
                     prev_events,
-                    std::slice::from_ref(&descriptor),
+                    &descriptors,
                 ),
                 &signing_key,
             )
         } else {
+            // Text-only path — the require-one guard above guarantees text is Some.
+            let text = args.text.as_deref().unwrap_or_default();
             sign_event(
                 build_message_text_event(
                     &signing_key,
                     &args.space,
                     &args.room,
                     prev_events,
-                    &args.text,
+                    text,
                 ),
                 &signing_key,
             )
@@ -3024,5 +3043,48 @@ mod pass_4_commit_1_tests {
             !node_state.members.contains_key(&ix(&bob_id)),
             "node winner: Bob is not a member"
         );
+    }
+}
+
+#[cfg(test)]
+mod m12_2a_send_validation_tests {
+    //! M12.2a C2 (D3/VC) — the pure require-one + combined send-arg guards.
+    use super::validate_send_args;
+    use crate::app::SendArgs;
+
+    fn args(text: Option<&str>, attach: Vec<&str>) -> SendArgs {
+        SendArgs {
+            space: "s".to_string(),
+            room: "r".to_string(),
+            text: text.map(str::to_string),
+            attach: attach.into_iter().map(str::to_string).collect(),
+        }
+    }
+
+    #[test]
+    fn text_only_ok() {
+        assert!(validate_send_args(&args(Some("hi"), vec![])).is_ok());
+    }
+
+    #[test]
+    fn attach_only_ok() {
+        assert!(validate_send_args(&args(None, vec!["a.png"])).is_ok());
+    }
+
+    #[test]
+    fn multi_attach_only_ok() {
+        assert!(validate_send_args(&args(None, vec!["a.png", "b.png"])).is_ok());
+    }
+
+    #[test]
+    fn neither_text_nor_attach_errors() {
+        // VC require-one.
+        assert!(validate_send_args(&args(None, vec![])).is_err());
+    }
+
+    #[test]
+    fn combined_text_and_attach_errors() {
+        // VC lock change (D-065): combined is an error, not warn-and-ignore.
+        assert!(validate_send_args(&args(Some("hi"), vec!["a.png"])).is_err());
     }
 }

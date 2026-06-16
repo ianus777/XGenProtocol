@@ -190,6 +190,18 @@ pub fn reconstruct_argv(cmd: &str, args: &Map<String, Value>) -> Vec<String> {
                 argv.push(flag);
                 argv.push(s.clone());
             }
+            // M12.2a (S-2) — a JSON array repeats the flag per element so a
+            // repeatable arg (e.g. multi-file --attach) round-trips through the
+            // aicontrol arm. String elements pass bare; others use compact form.
+            Value::Array(items) => {
+                for item in items {
+                    argv.push(flag.clone());
+                    match item {
+                        Value::String(s) => argv.push(s.clone()),
+                        other => argv.push(other.to_string()),
+                    }
+                }
+            }
             other => {
                 argv.push(flag);
                 argv.push(other.to_string());
@@ -774,6 +786,27 @@ mod tests {
             cli.command,
             Some(crate::app::ClientCommand::Fetch(_))
         ));
+    }
+
+    #[test]
+    fn argv_reconstruction_array_repeats_flag_per_element() {
+        // M12.2a (S-2): a JSON array repeats the flag so multi-file --attach
+        // round-trips through the aicontrol arm (was one bogus --attach before).
+        let mut args = Map::new();
+        args.insert("space".into(), json!("S"));
+        args.insert("room".into(), json!("R"));
+        args.insert("attach".into(), json!(["a.png", "b.png"]));
+        let argv = reconstruct_argv("send", &args);
+        // Exactly two --attach flags, each followed by its filename.
+        let attach_idxs: Vec<usize> = argv
+            .iter()
+            .enumerate()
+            .filter(|(_, a)| *a == "--attach")
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(attach_idxs.len(), 2, "two --attach flags");
+        assert_eq!(argv[attach_idxs[0] + 1], "a.png");
+        assert_eq!(argv[attach_idxs[1] + 1], "b.png");
     }
 
     #[tokio::test]

@@ -58,17 +58,24 @@ pub enum BlobError {
     /// `Clone + PartialEq + Eq`.
     #[error("blob store I/O error: {0}")]
     Io(String),
+
+    /// F6 (M12.2a) — the claimed/accumulated blob ciphertext exceeds the operator
+    /// ceiling (`[node].max_blob_bytes`). Wire code **10002**; the node rejects at
+    /// `BlobUploadBegin` before buffering (and re-checks the accumulator per chunk).
+    #[error("blob too large: {size} bytes exceeds the {limit}-byte ceiling")]
+    TooLarge { size: u64, limit: u64 },
 }
 
 impl BlobError {
-    /// Map to the protocol wire `(code, name)` tuple. Only `HashMismatch` is a
-    /// protocol reject the peer correlates; `MalformedRef`/`Io` are internal.
+    /// Map to the protocol wire `(code, name)` tuple. `HashMismatch` (10001) and
+    /// `TooLarge` (10002, F6) are protocol rejects the peer correlates;
+    /// `MalformedRef`/`Io` are internal.
     ///
-    /// Reserved (added with their producers): `10002 blob_too_large` (F6,
-    /// M12.2), `10003 blob_unavailable` (F3, M12.3).
+    /// Reserved (added with its producer): `10003 blob_unavailable` (F3, M12.3).
     pub fn to_wire_code(&self) -> Option<(u32, &'static str)> {
         match self {
             Self::HashMismatch => Some((10001, "blob_hash_mismatch")),
+            Self::TooLarge { .. } => Some((10002, "blob_too_large")),
             Self::MalformedRef | Self::Io(_) => None,
         }
     }

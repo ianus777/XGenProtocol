@@ -243,6 +243,15 @@ pub enum TransportMessage {
 /// frame ceiling (`wire::framing`) even with the JSON envelope.
 pub const BLOB_CHUNK_BYTES: usize = 128 * 1024;
 
+/// M12.2a (D4/VB) — default F6 ceiling on a single blob's **ciphertext** bytes.
+/// 16 MiB: clearly multi-MB, but modest — the node reassembles the whole
+/// ciphertext into one in-memory buffer, so this bounds the per-upload memory a
+/// single client can force (the DoS surface F6 exists to close). Operator-
+/// overridable via `[node].max_blob_bytes`; the client pre-check uses this
+/// default (it cannot know the operator's live ceiling — the node-at-Begin gate
+/// is authoritative).
+pub const DEFAULT_MAX_BLOB_BYTES: u64 = 16 * 1024 * 1024;
+
 impl TransportMessage {
     /// The hash URI of the protocol event this transport message pertains to, if
     /// any. The correlation primitive (M6 §3.1 / D-070): an originator with

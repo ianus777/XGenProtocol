@@ -1640,6 +1640,7 @@ pub async fn send(
         encryption::blob::encrypt_blob,
         message::exchange::{build_message_file_event, build_message_text_event, Descriptor},
         space::state::sign_event,
+        wire::types::DEFAULT_MAX_BLOB_BYTES,
     };
 
     let (signing_key, identity_id) = {
@@ -1677,6 +1678,17 @@ pub async fn send(
                 let plaintext = std::fs::read(path)
                     .with_context(|| format!("failed to read --attach file {path}"))?;
                 let (blob_key, ciphertext) = encrypt_blob(&plaintext);
+                // M12.2a (D4/S-3) — client F6 pre-check (UX courtesy): reject
+                // before uploading. Uses the shared default ceiling — the node's
+                // BlobUploadBegin gate is the authoritative boundary (it knows
+                // the operator's live ceiling; this is conservative).
+                if ciphertext.len() as u64 > DEFAULT_MAX_BLOB_BYTES {
+                    anyhow::bail!(
+                        "attachment {path} is too large ({} bytes ciphertext exceeds the \
+                         {DEFAULT_MAX_BLOB_BYTES}-byte ceiling)",
+                        ciphertext.len()
+                    );
+                }
                 let blob_ref = hash_uri(&ciphertext);
                 let plaintext_hash = hash_uri(&plaintext);
                 let confirmed = conn

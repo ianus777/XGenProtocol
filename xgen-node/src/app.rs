@@ -34,7 +34,7 @@ use xgen_common::{
     xgid::{AuthModuleXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid},
 };
 use xgen_core::auth::module_registry::{AuthModuleRecord, AuthModuleRegistry};
-use xgen_core::blob_store::BlobStore;
+use xgen_core::blob_store::{BlobError, BlobStore};
 use xgen_core::bootstrap::registration_store::BootstrapRegistrationStore;
 use xgen_core::space::node_policy::NodePolicyStore;
 use crate::{
@@ -131,6 +131,13 @@ pub struct NodeSection {
     /// at §3.8.5 step 1. Local Node mode bypasses assertion validation entirely.
     #[serde(default)]
     pub trusted_auth_modules: Vec<String>,
+
+    /// M12.2a (D4/VB) — F6 ceiling on a single blob's **ciphertext** bytes. The
+    /// node rejects an upload whose claimed/accumulated size exceeds this (wire
+    /// 10002, at `BlobUploadBegin`). Defaults to `DEFAULT_MAX_BLOB_BYTES`
+    /// (16 MiB); operator-raisable.
+    #[serde(default = "default_max_blob_bytes")]
+    pub max_blob_bytes: u64,
 }
 
 #[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -186,6 +193,10 @@ fn default_completion_timeout_seconds() -> u64 {
 
 fn default_sync_batch_size() -> u32 {
     1000
+}
+
+fn default_max_blob_bytes() -> u64 {
+    xgen_core::wire::types::DEFAULT_MAX_BLOB_BYTES
 }
 
 fn default_federation_relationship_timeout_seconds() -> u64 {
@@ -330,6 +341,7 @@ impl Default for NodeConfig {
                 local_mode: true,
                 asserts_tier: None,
                 trusted_auth_modules: Vec::new(),
+                max_blob_bytes: default_max_blob_bytes(),
             },
             paths: PathsSection {
                 keypair_path: dir
@@ -555,6 +567,9 @@ pub async fn run_node(
     // here. If a future `--sync-batch-size` flag lands it slots in via the
     // canonical helper, matching `--port` / `--log-level`.
     let sync_batch_size: usize = config.sync.batch_size as usize;
+    // M12.2a (D4) — F6 per-blob ceiling, resolved at startup; threaded to each
+    // connection handler's blob-upload gate.
+    let max_blob_bytes: u64 = config.node.max_blob_bytes;
 
     // SE-D4 — storage-engine tier gate. Loud refuse-to-start if the selected
     // engine under-delivers the durability tier this Node asserts. Floor =
@@ -1372,12 +1387,13 @@ pub async fn run_node(
                         let sdir = spaces_dir.clone();
                         let bdir = blobs_dir.clone();
                         let sbs = sync_batch_size;
+                        let mbb = max_blob_bytes;
                         let req_appr = require_approval;
                         let fed_queue = Arc::clone(&federation_queue);
                         let fed_queue_path = federation_queue_path.clone();
                         let fed_policy = Arc::clone(&federation_policy);
                         tokio::spawn(async move {
-                            handle_connection(conn, rt, conns, senders, fed_senders, fed_reg, fed_reg_path, kp, home, lm, ids, sdir, bdir, sbs, req_appr, fed_queue, fed_queue_path, fed_policy).await;
+                            handle_connection(conn, rt, conns, senders, fed_senders, fed_reg, fed_reg_path, kp, home, lm, ids, sdir, bdir, sbs, mbb, req_appr, fed_queue, fed_queue_path, fed_policy).await;
                         });
                     }
                     Err(e) => {
@@ -1473,6 +1489,7 @@ pub(crate) async fn handle_connection(
     spaces_dir: PathBuf,
     blobs_dir: PathBuf,
     sync_batch_size: usize,
+    max_blob_bytes: u64,
     require_approval: bool,
     federation_queue: Arc<tokio::sync::Mutex<PendingFederationQueue>>,
     federation_queue_path: PathBuf,
@@ -1620,6 +1637,10 @@ pub(crate) async fn handle_connection(
             // content-blind. A transport.error reply for a blob reject (M12-D9)
             // carries event_id = None (a blob reject is not tied to a signed Event).
             let mut blob_upload: Option<(String, Vec<u8>)> = None;
+            // M12.2a (D4) — F6: set when an upload is rejected over the ceiling so
+            // the single terminal reply at BlobUploadEnd is 10002 (not 10001). One
+            // reply per upload keeps the connection clean for reuse.
+            let mut blob_oversized = false;
             let blob_err = |code: u32, name: &str| TransportMessage::Error {
                 protocol_version: "0.1".to_string(),
                 error_code: code,
@@ -1779,11 +1800,21 @@ pub(crate) async fn handle_connection(
                     // The bytes are ciphertext (M12-D5); the store is content-blind.
                     Ok(Inbound::Transport(TransportMessage::BlobUploadBegin {
                         blob_ref,
+                        size,
                         ..
                     })) => {
-                        // F6 blob-size gating is M12.2; M12.1 grows the buffer from
-                        // the streamed chunks (no claimed-size allocation).
-                        blob_upload = Some((blob_ref, Vec::new()));
+                        // F6 (M12.2a/D4) — node-authoritative size gate. Reject on
+                        // the claimed `size` WITHOUT buffering any chunks (the
+                        // memory bound F6 protects). The terminal reply is sent
+                        // once at BlobUploadEnd; the per-chunk check below defends
+                        // a lying Begin (claims small, streams big).
+                        if size > max_blob_bytes {
+                            blob_oversized = true;
+                            blob_upload = None;
+                        } else {
+                            blob_oversized = false;
+                            blob_upload = Some((blob_ref, Vec::new()));
+                        }
                     }
                     Ok(Inbound::Transport(TransportMessage::BlobChunk { data, .. })) => {
                         if let Some((_, ref mut buf)) = blob_upload {
@@ -1794,12 +1825,28 @@ pub(crate) async fn handle_connection(
                                 Err(_) => blob_upload = None,
                             }
                         }
+                        // F6 (M12.2a/D4) — accumulate-check defends a lying Begin:
+                        // drop + flag oversized once the buffer crosses the ceiling.
+                        if let Some((_, ref buf)) = blob_upload {
+                            if buf.len() as u64 > max_blob_bytes {
+                                blob_oversized = true;
+                                blob_upload = None;
+                            }
+                        }
                     }
                     Ok(Inbound::Transport(TransportMessage::BlobUploadEnd {
                         blob_ref,
                         ..
                     })) => {
-                        let reply = match blob_upload.take() {
+                        let reply = if std::mem::take(&mut blob_oversized) {
+                            // F6 (M12.2a/D4) — the single terminal reply for an
+                            // over-ceiling upload (rejected at Begin / accumulate).
+                            let (code, name) = BlobError::TooLarge { size: 0, limit: max_blob_bytes }
+                                .to_wire_code()
+                                .unwrap_or((10002, "blob_too_large"));
+                            blob_err(code, name)
+                        } else {
+                            match blob_upload.take() {
                             Some((claimed, buf)) if claimed == blob_ref => {
                                 let store = BlobStore::new(&blobs_dir);
                                 match store.put(&buf) {
@@ -1824,6 +1871,7 @@ pub(crate) async fn handle_connection(
                             // (or a malformed chunk dropped it) — content-address
                             // mismatch.
                             _ => blob_err(10001, "blob_hash_mismatch"),
+                            }
                         };
                         if conn.send_transport(&reply).await.is_err() {
                             break;

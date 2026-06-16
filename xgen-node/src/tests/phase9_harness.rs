@@ -744,7 +744,13 @@ impl InProcessNode {
 /// sweep (scenarios complete inside default-timeout windows), named-pipe
 /// server, Tauri shell, Ctrl+C handler.
 pub async fn spawn_in_process_node() -> InProcessNode {
-    spawn_in_process_node_inner(false).await
+    spawn_in_process_node_inner(false, xgen_core::wire::types::DEFAULT_MAX_BLOB_BYTES).await
+}
+
+/// M12.2a (D4) — sibling with a custom F6 per-blob ceiling so the W-toolarge
+/// witness can drive an over-ceiling upload cheaply (small blob, small ceiling).
+pub async fn spawn_in_process_node_with_max_blob_bytes(max_blob_bytes: u64) -> InProcessNode {
+    spawn_in_process_node_inner(false, max_blob_bytes).await
 }
 
 /// Sibling to [`spawn_in_process_node`] with the federation-admin-control 2a
@@ -753,10 +759,13 @@ pub async fn spawn_in_process_node() -> InProcessNode {
 /// the pending queue + answered with `Reject 2003` instead of
 /// auto-establishing. Used by the Commit 3 pause-point test.
 pub async fn spawn_in_process_node_with_approval() -> InProcessNode {
-    spawn_in_process_node_inner(true).await
+    spawn_in_process_node_inner(true, xgen_core::wire::types::DEFAULT_MAX_BLOB_BYTES).await
 }
 
-async fn spawn_in_process_node_inner(require_approval: bool) -> InProcessNode {
+async fn spawn_in_process_node_inner(
+    require_approval: bool,
+    max_blob_bytes: u64,
+) -> InProcessNode {
     let data_dir = tempfile::tempdir().expect("create per-Node tempdir");
     let spaces_dir = data_dir.path().join("spaces");
     std::fs::create_dir_all(&spaces_dir).expect("create spaces dir");
@@ -858,8 +867,8 @@ async fn spawn_in_process_node_inner(require_approval: bool) -> InProcessNode {
                                 handle_connection(
                                     conn, rt, conns, senders, fed_senders, fed_reg,
                                     fed_reg_path, kp, ndx(&home), local_mode, ids, sdir,
-                                    bdir, sync_batch_size, req_appr, fed_queue, fed_queue_path,
-                                    fed_policy,
+                                    bdir, sync_batch_size, max_blob_bytes, req_appr, fed_queue,
+                                    fed_queue_path, fed_policy,
                                 ).await;
                             });
                             // Track for shutdown_keep_data / shutdown abort
@@ -1011,6 +1020,7 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
     let accept_federation_policy = Arc::clone(&federation_policy);
     let local_mode = true;
     let sync_batch_size: usize = 1000;
+    let max_blob_bytes: u64 = xgen_core::wire::types::DEFAULT_MAX_BLOB_BYTES;
 
     let accept_handle = tokio::spawn(async move {
         loop {
@@ -1042,8 +1052,8 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
                                 handle_connection(
                                     conn, rt, conns, senders, fed_senders, fed_reg,
                                     fed_reg_path, kp, ndx(&home), local_mode, ids, sdir,
-                                    bdir, sync_batch_size, false, fed_queue, fed_queue_path,
-                                    fed_policy,
+                                    bdir, sync_batch_size, max_blob_bytes, false, fed_queue,
+                                    fed_queue_path, fed_policy,
                                 ).await;
                             });
                             accept_connection_handles.lock().await.push(h);

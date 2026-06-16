@@ -29,7 +29,7 @@ use xgen_core::identity::keypair;
 use xgen_core::transport::client::connect_url;
 use xgen_core::wire::types::BLOB_CHUNK_BYTES;
 
-use super::phase9_harness::spawn_in_process_node;
+use super::phase9_harness::{spawn_in_process_node, spawn_in_process_node_with_max_blob_bytes};
 
 const T: Duration = Duration::from_secs(5);
 
@@ -131,6 +131,46 @@ async fn w3_corrupted_blob_rejected() {
 
     let r = conn.fetch_blob(&blob_ref, T).await;
     assert!(r.is_err(), "W3: a corrupted blob is rejected, not returned");
+
+    node.shutdown().await;
+}
+
+#[tokio::test]
+async fn w_toolarge_over_ceiling_rejected_with_10002() {
+    // F6 (M12.2a/D4) — the node rejects an over-ceiling blob with wire 10002
+    // (`blob_too_large`), without buffering it; an under-ceiling blob still
+    // round-trips on the same connection (one terminal reply per upload).
+    // RED-on-revert: drop the BlobUploadBegin / accumulate size gate (the
+    // `blob_oversized` path in handle_connection) → the over-ceiling upload is
+    // buffered + stored → upload_blob returns Ok → the `is_err()` assert fails.
+    // Small ceiling + small blob keeps the witness cheap.
+    let ceiling: u64 = 1024;
+    let node = spawn_in_process_node_with_max_blob_bytes(ceiling).await;
+    let key = keypair::generate();
+    let mut conn = connect_url(&node.endpoint).await.expect("connect");
+    let _ = conn.client_authenticate(&key).await.expect("authenticate");
+
+    // Over-ceiling: 4 KiB plaintext → ciphertext well past the 1 KiB ceiling.
+    let (_k, big_ct) = encrypt_blob(&vec![0xABu8; 4096]);
+    assert!(big_ct.len() as u64 > ceiling, "blob genuinely over the ceiling");
+    let big_ref = hash_uri(&big_ct);
+    let r = conn.upload_blob(&big_ref, &big_ct, T).await;
+    assert!(r.is_err(), "F6: over-ceiling upload is rejected");
+    let msg = format!("{}", r.unwrap_err());
+    assert!(msg.contains("10002"), "F6: reject carries wire 10002 (got: {msg})");
+    // Content-blind store never received the rejected bytes.
+    assert!(
+        !blob_path(&node.spaces_dir.join("blobs"), &big_ref).exists(),
+        "F6: an over-ceiling blob is never stored"
+    );
+
+    // Under-ceiling still round-trips on the same connection (no leftover reply).
+    let (uk, small_ct) = encrypt_blob(b"tiny");
+    assert!(small_ct.len() as u64 <= ceiling, "small blob under the ceiling");
+    let small_ref = hash_uri(&small_ct);
+    conn.upload_blob(&small_ref, &small_ct, T).await.expect("under-ceiling upload ok");
+    let fetched = conn.fetch_blob(&small_ref, T).await.expect("fetch");
+    assert_eq!(decrypt_blob(&uk, &fetched).expect("decrypt"), b"tiny");
 
     node.shutdown().await;
 }

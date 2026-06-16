@@ -267,6 +267,7 @@ mod tests {
                 local_mode: true,
                 asserts_tier: None,
                 trusted_auth_modules: Vec::new(),
+                max_blob_bytes: xgen_core::wire::types::DEFAULT_MAX_BLOB_BYTES,
             },
             paths: PathsSection {
                 keypair_path: "kp.enc".to_string(),

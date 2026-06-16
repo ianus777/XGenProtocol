@@ -435,6 +435,17 @@ fn base_command(exe: &Path, worker_threads: Option<u32>) -> Command {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    // M12.2b (F9, S-3) — pin the data root to the exe dir. The binaries' new
+    // default roots data at a platform dir (outside the install folder); the
+    // harness, however, locates + tears down instances at
+    // `<exe_dir>/instances/<label>` (`instance_data_dir`). Passing `--data-dir
+    // <exe_dir>` (a global flag, valid before any subcommand) keeps the spawned
+    // binary rooted where the harness expects — `exe.parent()` == `exe_dir(bins)`
+    // for both binaries (same build dir). Single chokepoint: every spawn +
+    // restart goes through here, so the pin can't be forgotten.
+    if let Some(dir) = exe.parent() {
+        cmd.arg("--data-dir").arg(dir);
+    }
     cmd
 }
 

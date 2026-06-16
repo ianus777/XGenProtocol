@@ -10,6 +10,7 @@ pub mod build_info;
 pub mod canonical;
 pub mod clock;
 pub mod conn;
+pub mod data_dir;
 pub mod event_trace;
 pub mod module;
 pub mod precedence;

@@ -27,6 +27,9 @@ fn instance_dir_for(label: &str) -> PathBuf {
 
 fn init_client(label: &str) {
     let status = Command::new(CLIENT_EXE)
+        // M12.2b (F9, S-3) — pin the root to the exe dir so the binary's new
+        // platform default doesn't move the instance dir out from under the test.
+        .env("XGEN_DATA_DIR", Path::new(CLIENT_EXE).parent().unwrap())
         .args(["--instance", label, "init", "--passphrase="])
         .stdout(Stdio::null())
         .stderr(Stdio::null())

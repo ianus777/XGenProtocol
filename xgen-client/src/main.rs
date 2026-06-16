@@ -15,7 +15,7 @@
 //!   - `--service`                   → headless resident (stub until 2b/M3)
 //!   - otherwise                     → Tauri desktop shell via `desktop::run()`
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser};
@@ -33,7 +33,21 @@ fn validate_instance_label(label: &str) -> bool {
         && label.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
 }
 
-fn resolve_data_dir(instance: &Option<String>) -> PathBuf {
+/// M12.2b (F9, D5) — resolve the data root then rebase `--instance` under it.
+/// Root precedence: `--data-dir` flag > `XGEN_DATA_DIR` env > platform default
+/// (outside the install folder). Fails fast (no silent exe_dir fallback). Shares
+/// the resolution logic with the node via `xgen_common::data_dir` (D-067).
+fn resolve_data_dir(instance: &Option<String>, data_dir_flag: Option<&Path>) -> PathBuf {
+    let root = match xgen_common::data_dir::resolve_data_root(
+        data_dir_flag,
+        std::env::var("XGEN_DATA_DIR").ok().as_deref(),
+    ) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+    };
     match instance {
         Some(label) => {
             if !validate_instance_label(label) {
@@ -44,15 +58,15 @@ fn resolve_data_dir(instance: &Option<String>) -> PathBuf {
                 );
                 std::process::exit(1);
             }
-            app::exe_dir().join("instances").join(label)
+            xgen_common::data_dir::instance_path(&root, label)
         }
-        None => app::exe_dir(),
+        None => root,
     }
 }
 
 fn main() {
     let cli = Cli::parse();
-    let data_dir = resolve_data_dir(&cli.instance);
+    let data_dir = resolve_data_dir(&cli.instance, cli.data_dir.as_deref());
     let config_path = cli
         .config
         .clone()

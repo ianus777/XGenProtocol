@@ -17,6 +17,15 @@ use std::time::Duration;
 
 const CLIENT_EXE: &str = env!("CARGO_BIN_EXE_xgen-client");
 
+/// M12.2b (F9, S-3) — a `Command` for the client binary with the data root pinned
+/// to the exe dir (`XGEN_DATA_DIR`), so the binary's new platform default does
+/// not move `<exe_dir>/instances/<label>` out from under these tests.
+fn client_cmd() -> Command {
+    let mut c = Command::new(CLIENT_EXE);
+    c.env("XGEN_DATA_DIR", Path::new(CLIENT_EXE).parent().unwrap());
+    c
+}
+
 fn instance_dir_for(label: &str) -> PathBuf {
     Path::new(CLIENT_EXE)
         .parent()
@@ -42,7 +51,7 @@ fn init_client(label: &str, ai: bool) {
     if ai {
         args.push("--ai");
     }
-    let status = Command::new(CLIENT_EXE)
+    let status = client_cmd()
         .args(&args)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -58,7 +67,7 @@ fn cleanup(label: &str) {
 fn run_service_briefly(label: &str, extra_args: &[&str]) -> String {
     let mut args = vec!["--instance", label, "--service"];
     args.extend_from_slice(extra_args);
-    let mut child = Command::new(CLIENT_EXE)
+    let mut child = client_cmd()
         .args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -105,7 +114,7 @@ fn precedence_client_node_flag_beats_config() {
     write_client_config(&instance_dir, "ws://127.0.0.1:18080/xgen", "info", None);
 
     let with_flag = String::from_utf8(
-        Command::new(CLIENT_EXE)
+        client_cmd()
             .args([
                 "--instance",
                 label,
@@ -121,7 +130,7 @@ fn precedence_client_node_flag_beats_config() {
     )
     .unwrap();
     let no_flag = String::from_utf8(
-        Command::new(CLIENT_EXE)
+        client_cmd()
             .args(["--instance", label, "register", "--name", "X"])
             .output()
             .unwrap()
@@ -158,7 +167,7 @@ fn precedence_client_config_flag_beats_default() {
     .unwrap();
 
     let default = String::from_utf8(
-        Command::new(CLIENT_EXE)
+        client_cmd()
             .args(["--instance", label, "--print-config"])
             .output()
             .unwrap()
@@ -166,7 +175,7 @@ fn precedence_client_config_flag_beats_default() {
     )
     .unwrap();
     let flagged = String::from_utf8(
-        Command::new(CLIENT_EXE)
+        client_cmd()
             .args(["--instance", label, "--config", alt.to_str().unwrap(), "--print-config"])
             .output()
             .unwrap()
@@ -188,7 +197,7 @@ fn precedence_client_instance_flag_beats_default() {
     write_client_config(&instance_dir, "ws://127.0.0.1:18181/xgen", "info", None);
 
     let out = String::from_utf8(
-        Command::new(CLIENT_EXE)
+        client_cmd()
             .args(["--instance", label, "--print-config"])
             .output()
             .unwrap()
@@ -254,7 +263,7 @@ fn precedence_client_aimode_requires_service() {
     cleanup(label);
     init_client(label, false);
 
-    let output = Command::new(CLIENT_EXE)
+    let output = client_cmd()
         .args(["--instance", label, "--ai-mode"])
         .output()
         .unwrap();

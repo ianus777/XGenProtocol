@@ -3811,8 +3811,13 @@ pub fn cmd_init(data_dir: &Path, passphrase_arg: Option<&str>) -> Result<()> {
         println!("Config already exists: {} — not overwritten.", config_file.display());
     } else {
         let mut cfg = NodeConfig::default();
-        // Point keypair_path to this data_dir, not exe_dir
+        // M12.2b (F9, S-2) — root ALL data paths at this data_dir, not exe_dir.
+        // NodeConfig::default hard-roots keypair/spaces/blobs at exe_dir; without
+        // this, the event DAG (spaces) + attachments (blobs) would stay in the
+        // install folder under --data-dir, silently defeating F9.
         cfg.paths.keypair_path = keypair_file.to_string_lossy().to_string();
+        cfg.paths.spaces_dir = Some(data_dir.join("spaces").to_string_lossy().to_string());
+        cfg.paths.blobs_dir = Some(data_dir.join("blobs").to_string_lossy().to_string());
         let toml_str = toml::to_string_pretty(&cfg).context("failed to serialise config")?;
         std::fs::write(&config_file, toml_str).context("failed to write config")?;
         println!("Config saved:   {}", config_file.display());

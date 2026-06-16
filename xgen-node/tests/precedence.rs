@@ -22,6 +22,15 @@ use std::time::Duration;
 
 const NODE_EXE: &str = env!("CARGO_BIN_EXE_xgen-node");
 
+/// M12.2b (F9, S-3) — a `Command` for the node binary with the data root pinned
+/// to the exe dir (`XGEN_DATA_DIR`), so the binary's new platform default does
+/// not move `<exe_dir>/instances/<label>` out from under these tests.
+fn node_cmd() -> Command {
+    let mut c = Command::new(NODE_EXE);
+    c.env("XGEN_DATA_DIR", Path::new(NODE_EXE).parent().unwrap());
+    c
+}
+
 /// `app::exe_dir()` returns the directory containing the running binary —
 /// `--instance LABEL` resolves to `<exe_dir>/instances/LABEL/`, *not*
 /// relative to cwd. Mirror that resolution here so tests can locate the
@@ -44,7 +53,7 @@ fn write_node_config(dir: &Path, listen: &str, level: &str, local_mode: bool) {
 }
 
 fn init_keypair(label: &str) {
-    let status = Command::new(NODE_EXE)
+    let status = node_cmd()
         .args(["--instance", label, "init", "--passphrase="])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -64,7 +73,7 @@ fn cleanup(label: &str) {
 fn run_service_briefly(label: &str, extra_args: &[&str]) -> String {
     let mut args = vec!["--instance", label, "--service"];
     args.extend_from_slice(extra_args);
-    let mut child = Command::new(NODE_EXE)
+    let mut child = node_cmd()
         .args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -151,7 +160,7 @@ fn precedence_node_config_flag_beats_default() {
     std::fs::write(&alt, alt_content).unwrap();
 
     let default = String::from_utf8(
-        Command::new(NODE_EXE)
+        node_cmd()
             .args(["--instance", label, "--print-config"])
             .output()
             .unwrap()
@@ -159,7 +168,7 @@ fn precedence_node_config_flag_beats_default() {
     )
     .unwrap();
     let flagged = String::from_utf8(
-        Command::new(NODE_EXE)
+        node_cmd()
             .args(["--instance", label, "--config", alt.to_str().unwrap(), "--print-config"])
             .output()
             .unwrap()
@@ -182,7 +191,7 @@ fn precedence_node_instance_flag_beats_default() {
     write_node_config(&instance_dir, "ws://127.0.0.1:18181/xgen", "info", true);
 
     let out = String::from_utf8(
-        Command::new(NODE_EXE)
+        node_cmd()
             .args(["--instance", label, "--print-config"])
             .output()
             .unwrap()

@@ -59,7 +59,10 @@ the audit's `60cfd8f` anchors across the M12.2a commits; lines below are current
 
 ---
 
-## §3 D-065 surfacings / scope (surfaced, not papered over — confirm at lock)
+## §3 D-065 surfacings / scope — ✅ CONFIRMED + LOCKED 2026-06-16 (Joe; all re-grounded by Chat first, all hold)
+
+S-1 → **both binaries** (VA). S-2 + S-3 → **fold into C1** (the cmd_init spaces/blobs rooting fix
++ the mptest `--data-dir <exe_dir>` harness pin ride the same commit as the default change).
 
 ### S-1 — the scope fork (the one real fork; §4 VA): node-only vs both binaries
 
@@ -93,7 +96,7 @@ real-binary spawn (`run_init` + `init_and_spawn_node` [+ `init_and_spawn_client`
 
 ---
 
-## §4 Runbook-level values — recommend; **Joe locks at the runbook lock**
+## §4 Runbook-level values — ✅ LOCKED 2026-06-16 (Joe, by-recomms; **VE = BUILD the notice**)
 
 | Value | Recommendation | Grounding |
 |---|---|---|

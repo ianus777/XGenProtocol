@@ -19,7 +19,7 @@
 //!   - default → Tauri desktop shell via `desktop::run()` (spawns run_node
 //!     alongside Tauri internally)
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -56,11 +56,18 @@ struct Cli {
     #[arg(long)]
     service: bool,
 
-    /// Instance label — segregates data and logs under <exe_dir>/instances/<label>.
+    /// Instance label — segregates data and logs under <data root>/instances/<label>.
     /// Valid before any subcommand (e.g. `--instance n1 init`) or as a global
     /// flag after a subcommand (`init --instance n1`); clap treats it as global.
     #[arg(long, global = true)]
     instance: Option<String>,
+
+    /// M12.2b (F9, D5) — override the data root for this invocation. Wins over
+    /// the `XGEN_DATA_DIR` env var and the platform default. Must be a flag/env
+    /// (not config — the config lives under the root). `--instance` rebases
+    /// under the resolved root.
+    #[arg(long, global = true, value_name = "DIR")]
+    data_dir: Option<PathBuf>,
 
     /// Override the WS listen port for this invocation (D-068). Wins over
     /// `[node].listen` port component in config. Host and path components
@@ -170,7 +177,20 @@ enum IdentityAction {
     List,
 }
 
-fn resolve_data_dir(instance: &Option<String>) -> PathBuf {
+/// M12.2b (F9, D5) — resolve the data root then rebase `--instance` under it.
+/// Root precedence: `--data-dir` flag > `XGEN_DATA_DIR` env > platform default
+/// (outside the install folder). Fails fast (no silent exe_dir fallback).
+fn resolve_data_dir(instance: &Option<String>, data_dir_flag: Option<&Path>) -> PathBuf {
+    let root = match xgen_common::data_dir::resolve_data_root(
+        data_dir_flag,
+        std::env::var("XGEN_DATA_DIR").ok().as_deref(),
+    ) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+    };
     match instance {
         Some(label) => {
             if !validate_instance_label(label) {
@@ -181,9 +201,9 @@ fn resolve_data_dir(instance: &Option<String>) -> PathBuf {
                 );
                 std::process::exit(1);
             }
-            app::exe_dir().join("instances").join(label)
+            xgen_common::data_dir::instance_path(&root, label)
         }
-        None => app::exe_dir(),
+        None => root,
     }
 }
 
@@ -199,7 +219,7 @@ fn exit_with_result(r: Result<()>) -> ! {
 
 fn main() {
     let cli = Cli::parse();
-    let data_dir = resolve_data_dir(&cli.instance);
+    let data_dir = resolve_data_dir(&cli.instance, cli.data_dir.as_deref());
     let config_path = cli
         .config
         .clone()

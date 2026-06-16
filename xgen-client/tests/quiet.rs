@@ -15,6 +15,15 @@ use std::process::{Command, Stdio};
 
 const CLIENT_EXE: &str = env!("CARGO_BIN_EXE_xgen-client");
 
+/// M12.2b (F9, S-3) — a `Command` for the client binary with the data root pinned
+/// to the exe dir (`XGEN_DATA_DIR`), so the binary's new platform default does
+/// not move `<exe_dir>/instances/<label>` out from under these tests.
+fn client_cmd() -> Command {
+    let mut c = Command::new(CLIENT_EXE);
+    c.env("XGEN_DATA_DIR", Path::new(CLIENT_EXE).parent().unwrap());
+    c
+}
+
 fn instance_dir_for(label: &str) -> PathBuf {
     Path::new(CLIENT_EXE)
         .parent()
@@ -24,7 +33,7 @@ fn instance_dir_for(label: &str) -> PathBuf {
 }
 
 fn init_client(label: &str) {
-    let status = Command::new(CLIENT_EXE)
+    let status = client_cmd()
         .args(["--instance", label, "init", "--passphrase="])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -57,7 +66,7 @@ fn quiet_suppresses_connecting_to_line() {
     write_min_config(&instance_dir_for(label), "ws://127.0.0.1:19999/xgen");
 
     let stdout = String::from_utf8(
-        Command::new(CLIENT_EXE)
+        client_cmd()
             .args(["--instance", label, "--quiet", "register", "--name", "X"])
             .output()
             .unwrap()
@@ -84,7 +93,7 @@ fn no_quiet_emits_connecting_to_line() {
     write_min_config(&instance_dir_for(label), "ws://127.0.0.1:19999/xgen");
 
     let stdout = String::from_utf8(
-        Command::new(CLIENT_EXE)
+        client_cmd()
             .args(["--instance", label, "register", "--name", "X"])
             .output()
             .unwrap()

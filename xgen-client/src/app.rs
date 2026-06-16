@@ -218,11 +218,18 @@ pub struct Cli {
     #[arg(short, long, global = true)]
     pub config: Option<PathBuf>,
 
-    /// Instance label — segregates data and logs under <exe_dir>/instances/<label>.
+    /// Instance label — segregates data and logs under <data root>/instances/<label>.
     /// Drives the pipe name in desktop mode (D-043). Global flag — works before
     /// or after a subcommand (`init --instance c1` or `--instance c1 init`).
     #[arg(long, global = true)]
     pub instance: Option<String>,
+
+    /// M12.2b (F9, D5) — override the data root for this invocation. Wins over
+    /// the `XGEN_DATA_DIR` env var and the platform default. Must be a flag/env
+    /// (not config — the config lives under the root). `--instance` rebases
+    /// under the resolved root.
+    #[arg(long, global = true, value_name = "DIR")]
+    pub data_dir: Option<std::path::PathBuf>,
 
     /// Execute a batch command file (.xgb) sequentially and exit.
     /// Each line is a CLI subcommand. Blank lines and # comments are ignored.

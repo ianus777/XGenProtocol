@@ -1,8 +1,8 @@
 # M12.2 — Fetch verb + --attach polish + F6 gate + F9 data-root: Design (Joe-LOCKED)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-15  
+> **Last updated**: 2026-06-16  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -104,7 +104,9 @@ The new platform-dir default applies to **fresh** deployments.
 
 ---
 
-## §3 M12.2a slice (the e2e; first runbook)
+## §3 M12.2a slice (the e2e; first runbook) — ✅ SHIPPED + CLOSED (J-384)
+
+**Shipped J-384** — runbook `tasks/M12_2a_FETCH_ATTACH_F6_IMPL.md` (COMPLETED) + four commits on `main`: C1 `ea609d5` fetch verb (D2) · C2 `b73efc8` `--attach` polish (D3) · C3 `da0e7e9` F6 gate (D4, spine, RED-on-revert) · C4 `64b1e2c` box-gated real-binary e2e (W-e2e + W-multi, RUN green 2/2 — the M12.1 boundary discharged). In-suite 1440/0. Locks recorded: S-1 (mime out) / S-2 (reconstruct_argv array arm) / S-3 (client pre-check conservative) / VA (fetch shape) / VB (16 MiB ceiling) / VC (combined `--text`+`--attach` → error) / VD (multi-file). The implementable shape below was the runbook's scope.
 
 The blob-feature trio that discharges the M12.1 boundary. Implementable shape:
 

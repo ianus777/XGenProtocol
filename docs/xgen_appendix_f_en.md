@@ -1,8 +1,8 @@
 # Appendix F — CLI Reference and Usage Examples
 > **Status:** ACTIVE  
-> Version: 1.9  
+> Version: 1.10  
 > Date: May 2026  
-> **Last updated**: 2026-06-14  
+> **Last updated**: 2026-06-16  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -97,8 +97,9 @@ Binary-specific. Listed in full detail in §F.2 (Node) and §F.3 (Client).
 | `thread resolve` | Mark a Thread Resolved (Admin+; emits `thread.resolved`) |
 | `thread archive` | Mark a Thread Archived (Admin+; emits `thread.archived`) |
 | `join` | Join a Space (accept invite or join an open Space) |
-| `send` | Send a `message.text` Event to a Room |
+| `send` | Send a message to a Room — a `message.text` (`--text`) **or** one-or-more file attachments (`--attach`, repeatable; M12.2a) |
 | `history` | Fetch and display Room message history in causal order |
+| `fetch` | Fetch a Room's message attachments to a local directory (alias `fetch-attachments`; M12.2a) |
 | `self` | Open the personal "Saved Messages" self-thread (create-if-absent; M11, D-021) |
 | `spaces` | List Spaces this Identity has joined (membership view — see §F.0.5) |
 | `rooms` | List Rooms within a Space (shipped M6 Phase 1, R1) |
@@ -347,8 +348,9 @@ See §F.0 for the full fundamental/non-fundamental flag taxonomy. Tables below a
 | `thread create` | `--space <id>` `--room <id>` `[--title <t>]` `[--auth-tier-min <n>]` | Yes | Create a Thread in a Room (`thread.create`, PG-08; starts `Open`). Requires Room membership; `auth_tier_min` is narrow-not-widen (≥ the Room/Space tier) and ≤ the creator's tier. Prints the `thread_id` (an `xgen://thread/sha256:…`) used by `resolve`/`archive`. |
 | `thread resolve` / `thread archive` | `--space <id>` `--room <id>` `--thread <id>` | Yes | Mark a Thread `Resolved` / `Archived` (`thread.resolved` / `thread.archived`). Authority is Admin+ (`ChangeInfo`) — a non-admin member's resolve/archive is refused at validation. `--thread` is the id from `thread create`. |
 | `join` | `--space <id>` | Yes | Join a Space (accept invite or join an open Space). |
-| `send` | `--space <id>` `--room <id>` `--text <text>` | Yes | Send a `message.text` Event to a Room. |
+| `send` | `--space <id>` `--room <id>` `[--text <text>]` `[--attach <path>]`… | Yes | Send to a Room. Provide `--text` (a `message.text`) **or** one-or-more `--attach` (a `message.file` carrying the file attachment(s); `--attach` is repeatable for multi-file) — exactly one of the two; combining `--text` with `--attach` is rejected (M12.2a, D3). |
 | `history` | `--space <id>` `--room <id>` `[--limit <N>]` | Yes | Fetch and display Room message history in causal order. |
+| `fetch` | `--space <id>` `--room <id>` `--out-dir <dir>` | Yes | Fetch every blob attachment from a Room's messages and write each to `<out-dir>`, named from its `Descriptor` filename (overwrite on collision). Alias `fetch-attachments`. The read-side companion to `send --attach` (M12.2a, D2). |
 | `self` | — | Yes | Open the personal **"Saved Messages"** thread (M11, D-021): a *self-DM* — a DM whose creator and sole invitee are the same identity, reusing your existing registered identity (no second account, no new registration). No id argument — auto-resolves the session identity. Create-if-absent: creates the `"self"`-labelled self-DM on the first call, opens it (no network round-trip) thereafter. Never federated (`DmFederationNotAllowed`); reachable from any client authenticated as you. Post/read with `send`/`history` against the returned room. |
 | `spaces` | — | No | List Spaces this Identity has joined (see §F.0.5 collision note). |
 | `rooms` | `--space <id>` | No | List Rooms in a Space. Shipped M6 Phase 1 (R1). |
@@ -1299,3 +1301,6 @@ with the reserved `3012 watchlist_match` — see ch3 §3.11.7.)
 
 ### Session 5 — 2026-06-14 (JozefN)
 **Covered:** new `self` Client subcommand added to the command tables (F.0.4 Client-only + F.3 detailed reference) — the M11 (D-021) personal **"Saved Messages"** self-thread: a self-DM reusing the user's existing identity as both endpoints (no second account, no new registration), auto-resolving the session identity (no id argument), create-if-absent (creates the `"self"`-labelled self-DM on the first call, opens thereafter), never federated (`DmFederationNotAllowed`), reachable from any client authenticated as the user; post/read via the existing `send`/`history`. Caught at the M11 close as a missing close deliverable (the thin-verb-arc Appendix-F convention, J-334; the runbook §6 close list had omitted it). Cross-refs to ch6 §6.16 and the M11 design/close (J-377/J-378). (Note: the underlying `create-dm-space` verb remains undocumented in this appendix — a pre-existing gap, out of M11 scope.)
+
+### Session 6 — 2026-06-15 (JozefN)
+**Covered:** new `fetch` Client subcommand added to the command tables (F.0.4 Client-only + F.3 detailed reference) — the M12.2a read-side companion to `send --attach`: fetches every blob attachment from a Room's messages and writes each to `--out-dir` (required), named from its `Descriptor` filename (overwrite on collision); alias `fetch-attachments`; wired across all four dispatch arms (CLI / run-path / batch / aicontrol). The `send` rows (F.0.4 + F.3) were updated to the final M12.2a surface: `--text` is now optional and `--attach <path>` is repeatable (multi-file), with exactly-one-of-the-two enforced (combining `--text` and `--attach` is rejected — VC, D-065 no-quiet-data-loss). Part of the M12 attachments arc (M12.2a = fetch verb + `--attach` polish + the F6 blob-size gate; D2+D3+D4). The illustrative `.xgb` batch table (§F.8.3) was not re-tabulated — §F.0.4/§F.3 are the canonical command authority (D-028). Cross-refs to the M12.2 design (J-383) and the M12.2a close (J-384).

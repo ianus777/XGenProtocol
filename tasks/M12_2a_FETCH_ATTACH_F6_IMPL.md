@@ -1,6 +1,6 @@
 # M12.2a — Fetch verb + `--attach` polish + F6 size gate: Implementation runbook
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-16  

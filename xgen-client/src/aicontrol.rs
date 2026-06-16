@@ -497,6 +497,12 @@ async fn run_cli_command(
             let mut ctx = OpContext { session: &mut session, data_dir: &dd, node_override: None };
             Ok(serde_json::to_value(crate::ops::history(&mut ctx, &a).await?)?)
         }),
+        ClientCommand::Fetch(a) => Box::pin(async move {
+            let mut session = SessionState::new(node, dd.clone());
+            session.ensure_identity(&keypair_path)?;
+            let mut ctx = OpContext { session: &mut session, data_dir: &dd, node_override: None };
+            Ok(serde_json::to_value(crate::ops::fetch_attachments(&mut ctx, &a).await?)?)
+        }),
         ClientCommand::Members(a) => Box::pin(async move {
             let mut session = SessionState::new(node, dd.clone());
             session.ensure_identity(&keypair_path)?;
@@ -747,6 +753,27 @@ mod tests {
         args.insert("ai".into(), json!("A"));
         let argv = reconstruct_argv("ai delegate", &args);
         assert_eq!(&argv[1..3], &["ai".to_string(), "delegate".to_string()]);
+    }
+
+    #[test]
+    fn argv_reconstruction_fetch_verb_maps_out_dir() {
+        // M12.2a C1 (D2): the aicontrol arm routes `fetch` through
+        // reconstruct_argv → clap. snake `out_dir` → kebab `--out-dir`.
+        let mut args = Map::new();
+        args.insert("space".into(), json!("S"));
+        args.insert("room".into(), json!("R"));
+        args.insert("out_dir".into(), json!("out"));
+        let argv = reconstruct_argv("fetch", &args);
+        assert_eq!(argv[1], "fetch");
+        assert!(argv.contains(&"--out-dir".to_string()));
+        assert!(argv.contains(&"out".to_string()));
+        // The reconstructed argv parses back to the Fetch verb.
+        let cli = <crate::app::Cli as clap::Parser>::try_parse_from(&argv)
+            .expect("reconstructed fetch argv parses");
+        assert!(matches!(
+            cli.command,
+            Some(crate::app::ClientCommand::Fetch(_))
+        ));
     }
 
     #[tokio::test]

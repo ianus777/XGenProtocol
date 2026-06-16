@@ -385,6 +385,12 @@ pub enum ClientCommand {
     /// Fetch and display the message history for a Room in causal (DAG) order.
     History(HistoryArgs),
 
+    /// Fetch every attachment in a Room: sync the `message.file` events, fetch +
+    /// decrypt + integrity-verify each blob, and write them into `--out-dir`.
+    /// Requires --node or config. (M12.2a)
+    #[command(alias = "fetch-attachments")]
+    Fetch(crate::ops::FetchAttachmentsArgs),
+
     /// List the resolved membership of a Space as seen by the queried Node.
     /// Connects via WS, replays the Space's DAG history, and projects the
     /// member set (covers DM Spaces). Requires --node or config.
@@ -1034,6 +1040,11 @@ pub async fn run_batch_file(
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
                 cmd_history(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
+            }
+            Some(ClientCommand::Fetch(args)) => {
+                let node = resolve_node(sub_cli.node.as_deref(), config_path);
+                let kp = resolve_keypair_path(config_path);
+                cmd_fetch(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::Members(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
@@ -2869,6 +2880,44 @@ pub async fn cmd_history(
     }
     if r.messages.is_empty() {
         println!("  No messages found.");
+    }
+    Ok(())
+}
+
+/// M12.2a (D2) — the `fetch` CLI verb wrapper: wraps `ops::fetch_attachments`
+/// (Room-level; fetches + decrypts + integrity-verifies every attachment into
+/// `--out-dir`) with a human summary. Twin of `cmd_history`.
+pub async fn cmd_fetch(
+    args: &crate::ops::FetchAttachmentsArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+    quiet: bool,
+) -> Result<()> {
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
+    };
+    let r = crate::ops::fetch_attachments(&mut ctx, args).await?;
+
+    println!(
+        "Fetched {} attachment(s) from room {} into {}",
+        r.files.len(),
+        short_id(r.room_id.as_str()),
+        args.out_dir.display()
+    );
+    for f in &r.files {
+        println!("  {}  ({} bytes)  -> {}", f.filename, f.size, f.path);
+    }
+    if r.files.is_empty() {
+        println!("  No attachments found.");
     }
     Ok(())
 }
@@ -5883,5 +5932,46 @@ mod pass_4_commit_1_tests {
         };
         assert_eq!(format!("{}", r.space_id), "xgen://hash/sha256:S");
         assert_eq!(format!("{}", r.room_id), "xgen://hash/sha256:R");
+    }
+}
+
+#[cfg(test)]
+mod m12_2a_c1_fetch_verb_tests {
+    //! M12.2a C1 (D2) — the `fetch` CLI verb. Clap-parse coverage: the verb +
+    //! its three flags, the `fetch-attachments` alias, and the required
+    //! `--out-dir` (VA). The 4-arm routing is compiler-enforced (exhaustive
+    //! match) + exercised end-to-end by the box-gated C4 e2e.
+    use super::*;
+
+    #[test]
+    fn fetch_verb_parses_through_clap() {
+        let cli = Cli::try_parse_from([
+            "xgen-client", "fetch", "--space", "s", "--room", "r", "--out-dir", "out",
+        ])
+        .expect("fetch parses");
+        match cli.command {
+            Some(ClientCommand::Fetch(a)) => {
+                assert_eq!(a.space, "s");
+                assert_eq!(a.room, "r");
+                assert_eq!(a.out_dir, std::path::PathBuf::from("out"));
+            }
+            _ => panic!("expected Fetch"),
+        }
+    }
+
+    #[test]
+    fn fetch_attachments_alias_parses() {
+        let cli = Cli::try_parse_from([
+            "xgen-client", "fetch-attachments", "--space", "s", "--room", "r", "--out-dir", "out",
+        ])
+        .expect("fetch-attachments alias parses");
+        assert!(matches!(cli.command, Some(ClientCommand::Fetch(_))));
+    }
+
+    #[test]
+    fn fetch_requires_out_dir() {
+        // VA: --out-dir is required (no surprise writes / no default location).
+        let r = Cli::try_parse_from(["xgen-client", "fetch", "--space", "s", "--room", "r"]);
+        assert!(r.is_err(), "fetch without --out-dir must error");
     }
 }

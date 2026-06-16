@@ -81,10 +81,12 @@ audit said `:1862/.../:1878`). Re-confirmed, not trusted blind.
 
 ---
 
-## §3 D-065 surfacings (surfaced, not papered over — confirm at lock)
+## §3 D-065 surfacings — ✅ all three LOCKED 2026-06-16 (Joe, by-recomms)
 
 Three grounding findings. **None overturns a locked M12.2-D# decision; each sharpens exactly what
-M12.2a builds.** Joe's confirm gates §4/§5.
+M12.2a builds.** **All three LOCKED as recommended** (Chat re-grounded S-1 + S-2 on `main` first,
+D-065 — both hold): S-1 mime stays out; S-2 the `Value::Array` arm rides C3; S-3 the client
+pre-check uses the shared default const.
 
 ### S-1 — mime detection is NOT in the locked D3 (audit FK-2(d) was dropped from the lock)
 
@@ -120,13 +122,13 @@ the fast node-at-Begin reject — also coherent).
 
 ---
 
-## §4 Runbook-level values — recommend; **Joe locks at the runbook lock**
+## §4 Runbook-level values — ✅ LOCKED 2026-06-16 (Joe, by-recomms; **VC changed** — combined → error)
 
 | Value | Recommendation | Grounding |
 |---|---|---|
 | **VA — fetch verb shape (D2)** | Verb `fetch` with clap alias `fetch-attachments` (matches the op). **Room-level** selector `--space <id> --room <id>` (reuse the built op verbatim; FK-1(a); by-event/by-blob reserved). **`--out-dir <path>` required** (explicit, no surprise writes; FK-1). Retrofit `FetchAttachmentsArgs` with `#[derive(Args)]` (add `#[arg(long)]` to its 3 fields; `out_dir: PathBuf` parses from a string) rather than a parallel `FetchArgs` (one struct, no drift). `ClientCommand::Fetch(FetchAttachmentsArgs)`. **Filename collisions within `out_dir`:** keep the built op's `std::fs::write` = **overwrite** (simplest; matches shipped behaviour); suffix-on-collision reserved (§8). | G1/G2/FK-1 |
 | **VB — F6 ceiling source + const + default (D4)** | New `[node].max_blob_bytes: u64`, `#[serde(default = "default_max_blob_bytes")]` on `NodeSection` (mirrors `[sync].batch_size`). A shared `pub const DEFAULT_MAX_BLOB_BYTES: u64` in **xgen-core** (next to `BLOB_CHUNK_BYTES`, `wire/types.rs`) referenced by **both** the node default fn **and** the client pre-check. **Default = 16 MiB (`16 * 1024 * 1024`)** — clearly multi-MB (F6 is "MB-scale"), but modest: the node reassembles the **whole ciphertext into one in-memory `Vec`** (`app.rs:1786`), so a huge default is a memory-DoS surface — which is exactly what F6 exists to bound. Operator-raisable. **Joe locks the number** (16 MiB recommended; surface the in-memory-reassembly tradeoff). The ceiling gates **ciphertext** bytes (`BlobUploadBegin.size` = ciphertext per its doc). | G18/G20/G21/G23; CLAUDE "Error Code Convention" |
-| **VC — attach-only + require-one (D3)** | `SendArgs.text: Option<String>`. **Ops-level guard** in `ops::send`: if `attach.is_empty() && text.is_none()` → bail `"a send must carry --text or --attach"` (clap `ArgGroup` is awkward across the reconstruct-argv arm; an ops-level check is robust + covers all 4 arms). Attach-only = `attach` non-empty + `text` `None`. **Combined** (`attach` non-empty + `text` `Some`) → preserve today's **warn-and-ignore-text** (FK-2(c) combined-in-one-`message.file` is a content-schema question, **deferred** — §8). | G11/G12/FK-2 |
+| **VC — attach-only + require-one (D3)** | `SendArgs.text: Option<String>`. **Ops-level guard** in `ops::send`: if `attach.is_empty() && text.is_none()` → bail `"a send must carry --text or --attach"` (clap `ArgGroup` is awkward across the reconstruct-argv arm; an ops-level check is robust + covers all 4 arms). Attach-only = `attach` non-empty + `text` `None`. **Combined** (`attach` non-empty + `text` `Some`) → **ERROR** (e.g. `"cannot combine --text and --attach yet"`) — **LOCK CHANGE (D-065): error, not warn-and-ignore-text** (silently dropping the user's typed text is quiet data-loss; force an explicit choice). The combined-in-one-`message.file` path (FK-2(c)) stays deferred either way (§8). | G11/G12/FK-2 |
 | **VD — multi-file (D3)** | `SendArgs.attach: Vec<String>` (repeatable `--attach`; clap auto-repeats a `Vec`). `ops::send`: loop each path → read → `encrypt_blob` → client pre-check (VB/S-3) → `upload_blob` → build a `Descriptor`; collect `Vec<Descriptor>`; one `build_message_file_event(&descriptors)` (already a slice) → one `message.file` event → one `event_id`. + the S-2 `reconstruct_argv` array arm. | G11/G12/G13/G14 |
 
 ---
@@ -152,12 +154,13 @@ commit; within the trio, the **headline unblock (fetch verb) first**.
 - **C2 — `--attach` polish (D3; surface-only).**
   `SendArgs.attach: Vec<String>` + `text: Option<String>` (G11); `ops::send` loops encrypt+upload over
   the `Vec`, builds `Vec<Descriptor>`, passes the full slice to the already-plural builder (G12/G13,
-  VD); attach-only when `text` absent + the require-one guard (VC); combined → warn-and-ignore-text
-  preserved; **mime stays hardcoded** (S-1). **+ the S-2 `reconstruct_argv` `Value::Array` arm**
+  VD); attach-only when `text` absent + the require-one guard (VC); **combined (`--text` + `--attach`) →
+  ERROR** (VC lock change, D-065 — no quiet data-loss); **mime stays hardcoded** (S-1). **+ the S-2 `reconstruct_argv` `Value::Array` arm**
   (G14) so multi-file `--attach` works over the aicontrol arm. The 4 send arms inherit via `ops::send`
   (G15). **No core/wire change.**
   In-suite tests: multi-file `ops::send` builds **one** `message.file` with **N** descriptors;
-  attach-only carries no `message.text`; require-one guard rejects an empty send; `reconstruct_argv`
+  attach-only carries no `message.text`; require-one guard rejects an empty send; **combined
+  `--text` + `--attach` → error** (VC); `reconstruct_argv`
   of `{"attach":["a","b"]}` → `--attach a --attach b`.
 
 - **C3 — F6 size gate (D4; node-authoritative).**
@@ -238,7 +241,7 @@ shipped signal. Joe pushes.)*
   (hand-rolled) + startup validation + leave-as-legacy existing data. **= M12.2b, its own runbook.**
 - **mime detection** (audit FK-2(d)) — dropped from the D3 lock (S-1); stays hardcoded. Reserved.
 - **Combined text + attachment in one `message.file`** (FK-2(c)) — a content-schema question;
-  today's warn-and-ignore-text stands.
+  M12.2a **errors** on `--text` + `--attach` together (VC, D-065) rather than dropping typed text.
 - **By-event / by-`blob_ref` fetch granularity** (FK-1) — additive later if a use-case surfaces.
 - **Filename-collision suffixing in `out_dir`** — overwrite stands for M12.2a (VA).
 - **Pattern-A tier→size table + per-Space immutable override** (F6's full shape) — the named

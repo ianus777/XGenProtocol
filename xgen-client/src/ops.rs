@@ -1859,11 +1859,20 @@ pub async fn history(
 
 // ── fetch_attachments (M12.1) ───────────────────────────────────────────────────
 
-#[derive(Debug, Clone)]
+/// M12.2a (D2/VA) — clap-derived so it backs the `fetch` `ClientCommand`
+/// directly (one struct, no parallel `FetchArgs` — VA). `--out-dir` is required
+/// (VA: no surprise writes). Room-level selector (`--space`/`--room`), the
+/// built op's grain.
+#[derive(Debug, Clone, clap::Args)]
 pub struct FetchAttachmentsArgs {
+    /// Space ID
+    #[arg(long)]
     pub space: String,
+    /// Room ID
+    #[arg(long)]
     pub room: String,
     /// Directory to write decrypted attachment files into.
+    #[arg(long)]
     pub out_dir: std::path::PathBuf,
 }
 

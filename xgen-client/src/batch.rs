@@ -565,6 +565,20 @@ pub async fn dispatch_line(line: &str, data_dir: &Path) -> Result<()> {
             };
             crate::ops::history(&mut ctx, &args).await.map(|_| ())
         }
+        Some(ClientCommand::Fetch(args)) => {
+            // M12.2a (D2): pipe arm calls ops::fetch_attachments directly. The
+            // pipe protocol only needs OK/ERROR — the result is discarded here;
+            // the --aicontrol surface serialises the same result as JSONL.
+            let mut session =
+                crate::session::SessionState::new(node.clone(), data_dir.to_path_buf());
+            session.ensure_identity(&keypair_path)?;
+            let mut ctx = crate::ops::OpContext {
+                session: &mut session,
+                data_dir,
+                node_override: None,
+            };
+            crate::ops::fetch_attachments(&mut ctx, &args).await.map(|_| ())
+        }
         Some(ClientCommand::Members(args)) => {
             // M7-completion A1: pipe arm calls ops::members directly. The pipe
             // protocol only needs OK/ERROR — the MembersResult data is discarded

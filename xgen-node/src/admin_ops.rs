@@ -1825,6 +1825,16 @@ pub async fn federation_initiate(
         // a throwaway-gauge guard keeps the signature uniform (the scheduler's
         // gauge is the only one a test reads).
         crate::reconnect::AttemptGuard::untracked(),
+        // M12.3-D1 — blobs_dir resolves to the resident's store (data_dir/blobs)
+        // so this session SERVES blobs correctly. pending_fetches is a fresh
+        // throwaway here (named M12.3 boundary): a client-miss fetch routed over
+        // an *operator-initiated* session would collect into this map, not the
+        // resident's shared one, so it serves a graceful 10003 and self-heals on
+        // the next scheduler reconnect (which uses the shared map). Threading the
+        // shared registry through AdminContext (like federation_policy) is the
+        // reserved fix; out of M12.3 mechanism-first scope.
+        crate::app::resolve_blobs_dir(ctx.config_path, ctx.data_dir),
+        Arc::new(Mutex::new(std::collections::HashMap::new())),
     ));
 
     let conn = open_audit(ctx)?;

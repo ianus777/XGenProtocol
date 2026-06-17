@@ -53,7 +53,7 @@ use crate::{
     wire::types::Event,
 };
 use crate::app::{handle_connection, persist_event, replay_spaces_from_dir};
-use crate::fanout::{ClientSenders, FederationPeerSenders};
+use crate::fanout::{ClientSenders, FederationPeerSenders, PendingFederationFetches};
 use crate::federation_session::apply_federation_push;
 use crate::identity::registry::IdentityRegistry;
 use crate::reconnect::attempt_reconnect;
@@ -328,6 +328,11 @@ pub struct InProcessNode {
     pub federation_peer_senders: FederationPeerSenders,
     pub federation_registry: Arc<Mutex<FederationRegistry>>,
     pub federation_registry_path: PathBuf,
+    /// M12.3-D1/D4 — the shared in-flight federated-fetch registry (V5). The
+    /// witness drives `federation_fetch_blob` against this; `federate()` threads
+    /// it into the initiator-side `attempt_reconnect`, and the accept loop
+    /// threads it into `handle_connection` (the receiver side serves + collects).
+    pub pending_fetches: PendingFederationFetches,
     /// federation-admin-control 2a — the pending-request approval queue
     /// (FAC-D1a). Empty + gate-off by default (`spawn_in_process_node`);
     /// `spawn_in_process_node_with_approval` enables the gate so the Commit 3
@@ -804,6 +809,8 @@ async fn spawn_in_process_node_inner(
         Arc::new(Mutex::new(
             crate::federation::federation_policy::FederationPolicyStore::new(),
         ));
+    // M12.3-D1/D4 — shared in-flight federated-fetch registry (V5).
+    let pending_fetches: PendingFederationFetches = Arc::new(Mutex::new(HashMap::new()));
 
     let mut server = Server::bind("127.0.0.1:0".parse().unwrap())
         .await
@@ -829,6 +836,7 @@ async fn spawn_in_process_node_inner(
     let accept_federation_queue = Arc::clone(&federation_queue);
     let accept_federation_queue_path = federation_queue_path.clone();
     let accept_federation_policy = Arc::clone(&federation_policy);
+    let accept_pending_fetches = pending_fetches.clone();
     let accept_require_approval = require_approval;
     let local_mode = true; // tests run with local-mode semantics (signature checks active, no remote-bootstrap quirks)
     let sync_batch_size: usize = 1000; // production default per `[sync].batch_size`
@@ -862,13 +870,14 @@ async fn spawn_in_process_node_inner(
                             let req_appr = accept_require_approval;
                             let fed_queue = Arc::clone(&accept_federation_queue);
                             let fed_policy = Arc::clone(&accept_federation_policy);
+                            let pending = accept_pending_fetches.clone();
                             let fed_queue_path = accept_federation_queue_path.clone();
                             let h = tokio::spawn(async move {
                                 handle_connection(
                                     conn, rt, conns, senders, fed_senders, fed_reg,
                                     fed_reg_path, kp, ndx(&home), local_mode, ids, sdir,
                                     bdir, sync_batch_size, max_blob_bytes, req_appr, fed_queue,
-                                    fed_queue_path, fed_policy,
+                                    fed_queue_path, fed_policy, pending, 5,
                                 ).await;
                             });
                             // Track for shutdown_keep_data / shutdown abort
@@ -897,6 +906,7 @@ async fn spawn_in_process_node_inner(
         federation_peer_senders,
         federation_registry,
         federation_registry_path,
+        pending_fetches,
         federation_queue,
         federation_policy,
         spaces_dir,
@@ -994,6 +1004,8 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
         Arc::new(Mutex::new(
             crate::federation::federation_policy::FederationPolicyStore::new(),
         ));
+    // M12.3-D1/D4 — shared in-flight federated-fetch registry (V5).
+    let pending_fetches: PendingFederationFetches = Arc::new(Mutex::new(HashMap::new()));
 
     let mut server = Server::bind("127.0.0.1:0".parse().unwrap())
         .await
@@ -1018,6 +1030,7 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
     let accept_federation_queue = Arc::clone(&federation_queue);
     let accept_federation_queue_path = federation_queue_path.clone();
     let accept_federation_policy = Arc::clone(&federation_policy);
+    let accept_pending_fetches = pending_fetches.clone();
     let local_mode = true;
     let sync_batch_size: usize = 1000;
     let max_blob_bytes: u64 = xgen_core::wire::types::DEFAULT_MAX_BLOB_BYTES;
@@ -1047,13 +1060,14 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
                             let bdir = accept_spaces_dir.join("blobs");
                             let fed_queue = Arc::clone(&accept_federation_queue);
                             let fed_policy = Arc::clone(&accept_federation_policy);
+                            let pending = accept_pending_fetches.clone();
                             let fed_queue_path = accept_federation_queue_path.clone();
                             let h = tokio::spawn(async move {
                                 handle_connection(
                                     conn, rt, conns, senders, fed_senders, fed_reg,
                                     fed_reg_path, kp, ndx(&home), local_mode, ids, sdir,
                                     bdir, sync_batch_size, max_blob_bytes, false, fed_queue,
-                                    fed_queue_path, fed_policy,
+                                    fed_queue_path, fed_policy, pending, 5,
                                 ).await;
                             });
                             accept_connection_handles.lock().await.push(h);
@@ -1076,6 +1090,7 @@ pub async fn spawn_in_process_node_with_state(saved: SavedNodeState) -> InProces
         federation_peer_senders,
         federation_registry,
         federation_registry_path,
+        pending_fetches,
         federation_queue,
         federation_policy,
         spaces_dir,
@@ -1147,6 +1162,9 @@ pub async fn federate(
         Arc::clone(&initiator.federation_policy),
         // M8.6 (C4) — harness spawn outside the scheduler; throwaway-gauge guard.
         crate::reconnect::AttemptGuard::untracked(),
+        // M12.3-D1 — initiator-side session loop serves + collects blob fetches.
+        initiator.spaces_dir.join("blobs"),
+        Arc::clone(&initiator.pending_fetches),
     ));
 
     // Wait for the R12 register hook to fire on both sides.
@@ -1216,6 +1234,9 @@ pub async fn attempt_federation_no_wait(
         Arc::clone(&initiator.federation_policy),
         // M8.6 (C4) — harness spawn outside the scheduler; throwaway-gauge guard.
         crate::reconnect::AttemptGuard::untracked(),
+        // M12.3-D1 — initiator-side session loop serves + collects blob fetches.
+        initiator.spaces_dir.join("blobs"),
+        Arc::clone(&initiator.pending_fetches),
     ));
 }
 

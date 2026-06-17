@@ -295,6 +295,10 @@ mod tests {
             )),
             // M8.6 (C4) — attempt-task gauge; unread by this Phase-5 reconnect test.
             Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            // M12.3-D1 — blobs_dir + a throwaway pending-fetch registry (no blob
+            // fetch exercised by this Phase-5 reconnect test).
+            spaces_dir_init.join("blobs"),
+            Arc::new(Mutex::new(std::collections::HashMap::new())),
         )
         .await;
 

@@ -52,6 +52,16 @@ pub enum OutboundMsg {
         new_tip: String,
         continue_from: Option<String>,
     },
+    /// M12.3-D1 — inject a federated blob fetch request into a peer's live
+    /// federation session. The client↔node miss handler (a different task)
+    /// pushes this through `FederationPeerSenders[peer]`; the federation loop's
+    /// outbound arm sends it on the wire as `TransportMessage::BlobFetchRequest`.
+    /// Clone-able (no `oneshot` here — the waiter lives in
+    /// [`PendingFederationFetches`], V5) so `OutboundMsg` stays `Clone`.
+    BlobFetchRequest {
+        blob_ref: String,
+        space_id: Option<String>,
+    },
 }
 
 /// Per-connection outbound channels keyed by authenticated `identity_id`.
@@ -96,6 +106,27 @@ pub type ClientSenders =
 ///
 /// Pass 3 (Surface #4 Q4.3) — HashMap key retyped to `NodeXgid`.
 pub type FederationPeerSenders = Arc<Mutex<HashMap<NodeXgid, mpsc::Sender<OutboundMsg>>>>;
+
+/// M12.3-D1/D4 (V5/P2) — in-flight federated blob fetches, keyed by **peer**
+/// `NodeXgid` (serialize-one-fetch-per-peer, P2). The client↔node miss handler
+/// registers a [`FetchSlot`] before injecting `OutboundMsg::BlobFetchRequest`
+/// into the peer's session, then awaits `waker`. The federation loop's collect
+/// arms append inbound `BlobChunk`s to the single in-flight slot for *its* peer
+/// (`BlobChunk` carries no `blob_ref`, so serialize-per-peer makes the stream
+/// unambiguous — P2, no wire change) and fire `waker` on `BlobFetchEnd` /
+/// blob-band `Error`. Sibling Arc to [`FederationPeerSenders`]; the session-end
+/// cleanup clears the peer's slot (fails any waiter → 10003).
+pub type PendingFederationFetches = Arc<Mutex<HashMap<NodeXgid, FetchSlot>>>;
+
+/// One in-flight federated blob fetch (V5). `blob_ref` is what was requested
+/// (the `BlobFetchEnd` arm verifies the peer's end-marker matches); `buf`
+/// accumulates the streamed ciphertext; `waker` delivers the result (or `Err`
+/// on miss/timeout/session-end) back to the awaiting client↔node handler.
+pub struct FetchSlot {
+    pub blob_ref: String,
+    pub buf: Vec<u8>,
+    pub waker: tokio::sync::oneshot::Sender<Result<Vec<u8>, ()>>,
+}
 
 /// Result of processing an inbound message — describes what the fan-out path
 /// should broadcast to other connected clients. Returning a description

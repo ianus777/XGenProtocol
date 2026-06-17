@@ -943,6 +943,15 @@ pub async fn run_node(
     let federation_peer_senders: crate::fanout::FederationPeerSenders =
         Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
+    // M12.3-D1/D4 (V5) — shared in-flight federated-fetch registry, sibling to
+    // federation_peer_senders. The client↔node miss handler registers a fetch
+    // here; the federation session loop fills + fires it. Threaded into both
+    // handle_connection (the fetch driver) and the reconnect scheduler /
+    // handle_federation_incoming (the session loops that serve + collect).
+    let pending_fetches: crate::fanout::PendingFederationFetches =
+        Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+    let completion_timeout_secs: u64 = config.sync.completion_timeout_seconds;
+
     // Phase 5 (runbook §3.5.1 Lock A — A3 storage): federation registry holds
     // both `FederationRelationship` records (protocol state) and
     // `PeerOperationalRecord` records (F-1c operational state) in a single
@@ -1057,6 +1066,10 @@ pub async fn run_node(
         local_mode,
         effective_endpoint.clone(),
         Arc::clone(&federation_policy),
+        // M12.3-D1 — the initiator-side session loop serves + collects blob
+        // fetches too (both sides run the same loop).
+        blobs_dir.clone(),
+        Arc::clone(&pending_fetches),
     );
 
     // bootstrap-client (A3) — load the local bootstrap store (registrations +
@@ -1392,8 +1405,10 @@ pub async fn run_node(
                         let fed_queue = Arc::clone(&federation_queue);
                         let fed_queue_path = federation_queue_path.clone();
                         let fed_policy = Arc::clone(&federation_policy);
+                        let pending = Arc::clone(&pending_fetches);
+                        let cto = completion_timeout_secs;
                         tokio::spawn(async move {
-                            handle_connection(conn, rt, conns, senders, fed_senders, fed_reg, fed_reg_path, kp, home, lm, ids, sdir, bdir, sbs, mbb, req_appr, fed_queue, fed_queue_path, fed_policy).await;
+                            handle_connection(conn, rt, conns, senders, fed_senders, fed_reg, fed_reg_path, kp, home, lm, ids, sdir, bdir, sbs, mbb, req_appr, fed_queue, fed_queue_path, fed_policy, pending, cto).await;
                         });
                     }
                     Err(e) => {
@@ -1494,6 +1509,11 @@ pub(crate) async fn handle_connection(
     federation_queue: Arc<tokio::sync::Mutex<PendingFederationQueue>>,
     federation_queue_path: PathBuf,
     federation_policy: Arc<tokio::sync::Mutex<FederationPolicyStore>>,
+    // M12.3-D1/D4 — the shared in-flight federated-fetch registry (V5) so the
+    // client↔node blob-miss arm can drive a lazy cross-home fetch; and the
+    // inner federated-fetch timeout (P3 — [sync].completion_timeout_seconds).
+    pending_fetches: crate::fanout::PendingFederationFetches,
+    completion_timeout_secs: u64,
 ) {
     // Transport challenge-response authentication
     //
@@ -1555,6 +1575,8 @@ pub(crate) async fn handle_connection(
                 federation_queue,
                 federation_queue_path,
                 federation_policy,
+                blobs_dir,
+                pending_fetches,
             )
             .await;
         }
@@ -1693,6 +1715,16 @@ pub(crate) async fn handle_connection(
                                     if conn.send_transport(&msg).await.is_err() {
                                         break;
                                     }
+                                }
+                                // M12.3-D1 (V4) — a client↔node session never
+                                // injects a federated blob fetch into its own
+                                // out_tx (that variant is only pushed into a
+                                // FederationPeerSenders entry, drained by the
+                                // federation-session out_rx arm).
+                                OutboundMsg::BlobFetchRequest { .. } => {
+                                    unreachable!(
+                                        "BlobFetchRequest is never queued onto a client out_tx"
+                                    )
                                 }
                             }
                             continue;
@@ -1879,10 +1911,46 @@ pub(crate) async fn handle_connection(
                     }
                     Ok(Inbound::Transport(TransportMessage::BlobFetchRequest {
                         blob_ref,
+                        space_id: fetch_space_id,
                         ..
                     })) => {
                         let store = BlobStore::new(&blobs_dir);
-                        match store.get(&blob_ref) {
+                        // M12.3-D1/D4 (C2) — local hit serves unchanged (M12.1). On
+                        // a local MISS, if the fetch is Space-scoped, lazily fetch
+                        // the ciphertext across homes from a Space-federated holder
+                        // (synchronous, P3-bounded), cache it content-blind (W3
+                        // re-verified by the store), and serve it. Only a genuine
+                        // unreachable miss serves the typed 10003 (M12.3-D5).
+                        let served: Result<Option<Vec<u8>>, BlobError> =
+                            match store.get(&blob_ref) {
+                                Ok(Some(bytes)) => Ok(Some(bytes)),
+                                Ok(None) => {
+                                    let fetched = match &fetch_space_id {
+                                        Some(sid) => federation_fetch_blob(
+                                            &blob_ref,
+                                            sid,
+                                            &runtime,
+                                            &federation_peer_senders,
+                                            &pending_fetches,
+                                            std::time::Duration::from_secs(
+                                                completion_timeout_secs,
+                                            ),
+                                        )
+                                        .await
+                                        .ok(),
+                                        None => None,
+                                    };
+                                    match fetched {
+                                        Some(bytes) => {
+                                            let _ = store.put(&bytes);
+                                            Ok(Some(bytes))
+                                        }
+                                        None => Err(BlobError::Unavailable),
+                                    }
+                                }
+                                Err(e) => Err(e),
+                            };
+                        match served {
                             Ok(Some(bytes)) => {
                                 let mut sent_ok = true;
                                 for (seq, chunk) in bytes
@@ -1910,19 +1978,9 @@ pub(crate) async fn handle_connection(
                                     break;
                                 }
                             }
-                            // M12.3-D5 / C1 — typed BlobError::Unavailable replaces
-                            // the pre-M12.3 defensive literal (W2 baseline; wire tuple
-                            // byte-identical). C2 rewrites this Ok(None) arm to attempt
-                            // the lazy federation fetch first (M12.3-D1/D4) and serve
-                            // 10003 only on no-reachable-holder / all-miss / timeout.
-                            Ok(None) => {
-                                let (code, name) = BlobError::Unavailable
-                                    .to_wire_code()
-                                    .unwrap_or((10003, "blob_unavailable"));
-                                if conn.send_transport(&blob_err(code, name)).await.is_err() {
-                                    break;
-                                }
-                            }
+                            // Ok(None) is folded into Err(Unavailable) above.
+                            Ok(None) => unreachable!("Ok(None) folded into Err(Unavailable)"),
+                            // Unavailable → 10003 (M12.3-D5 typed); HashMismatch/Io → 10001.
                             Err(e) => {
                                 let (code, name) =
                                     e.to_wire_code().unwrap_or((10001, "blob_hash_mismatch"));
@@ -2045,6 +2103,10 @@ async fn handle_federation_incoming(
     federation_queue: Arc<tokio::sync::Mutex<PendingFederationQueue>>,
     federation_queue_path: PathBuf,
     federation_policy: Arc<tokio::sync::Mutex<FederationPolicyStore>>,
+    // M12.3-D1 — threaded into run_federation_session_post_handshake (serve +
+    // collect federated blob fetches over this session).
+    blobs_dir: PathBuf,
+    pending_fetches: crate::fanout::PendingFederationFetches,
 ) {
     // Verify hello signature
     if let Err(e) = verify_msg(&hello) {
@@ -2267,6 +2329,8 @@ async fn handle_federation_incoming(
         peer_tips,
         peer_url_for_registry,
         federation_policy,
+        blobs_dir,
+        pending_fetches,
     )
     .await;
 }
@@ -2328,6 +2392,11 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
     peer_tips: BTreeMap<String, String>,
     peer_url: Option<String>,
     federation_policy: Arc<tokio::sync::Mutex<FederationPolicyStore>>,
+    // M12.3-D1 — the local blob store dir (serve a peer's BlobFetchRequest from
+    // it) + the shared in-flight federated-fetch registry (collect a fetch WE
+    // issued). Both sides run this loop, so both can serve AND fetch.
+    blobs_dir: PathBuf,
+    pending_fetches: crate::fanout::PendingFederationFetches,
 ) where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 {
@@ -2558,6 +2627,115 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                     Ok(Inbound::IdentityReplicate(irm)) => {
                         handle_identity_replicate_msg(conn, irm, &runtime, &spaces_dir, false).await;
                     }
+                    // M12.3-D1 (serve) — the peer asks US for a blob. Serve it
+                    // from the local store (mirror the client↔node serve), or
+                    // reply Error 10003 on a local miss (we do NOT chain a
+                    // further federated fetch on a serve — only the requesting
+                    // home's client↔node handler drives the lazy fetch).
+                    Ok(Inbound::Transport(TransportMessage::BlobFetchRequest {
+                        blob_ref,
+                        ..
+                    })) => {
+                        let store = BlobStore::new(&blobs_dir);
+                        match store.get(&blob_ref) {
+                            Ok(Some(bytes)) => {
+                                let mut ok = true;
+                                for (seq, chunk) in
+                                    bytes.chunks(xgen_core::wire::types::BLOB_CHUNK_BYTES).enumerate()
+                                {
+                                    let m = TransportMessage::BlobChunk {
+                                        protocol_version: "0.1".to_string(),
+                                        seq: seq as u32,
+                                        data: xgen_core::crypto::encoding::encode(chunk),
+                                    };
+                                    if conn.send_transport(&m).await.is_err() {
+                                        ok = false;
+                                        break;
+                                    }
+                                }
+                                if ok {
+                                    let end = TransportMessage::BlobFetchEnd {
+                                        protocol_version: "0.1".to_string(),
+                                        blob_ref,
+                                    };
+                                    if conn.send_transport(&end).await.is_err() {
+                                        break;
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                let (code, name) = BlobError::Unavailable
+                                    .to_wire_code()
+                                    .unwrap_or((10003, "blob_unavailable"));
+                                let err = TransportMessage::Error {
+                                    protocol_version: "0.1".to_string(),
+                                    error_code: code,
+                                    error_string: name.to_string(),
+                                    timestamp: chrono::Utc::now()
+                                        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                                    event_id: None,
+                                };
+                                if conn.send_transport(&err).await.is_err() {
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                let (code, name) =
+                                    e.to_wire_code().unwrap_or((10001, "blob_hash_mismatch"));
+                                let err = TransportMessage::Error {
+                                    protocol_version: "0.1".to_string(),
+                                    error_code: code,
+                                    error_string: name.to_string(),
+                                    timestamp: chrono::Utc::now()
+                                        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                                    event_id: None,
+                                };
+                                if conn.send_transport(&err).await.is_err() {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    // M12.3-D1 (collect) — chunks of a fetch WE issued stream back
+                    // here, interleaved with steady-state events. P2 serialize-per-
+                    // peer makes BlobChunk (which carries no blob_ref) unambiguous:
+                    // append to the single in-flight slot for THIS peer.
+                    Ok(Inbound::Transport(TransportMessage::BlobChunk { data, .. })) => {
+                        if let Ok(bytes) = xgen_core::crypto::encoding::decode(&data) {
+                            let mut p = pending_fetches.lock().await;
+                            if let Some(slot) = p.get_mut(&peer_node_id) {
+                                slot.buf.extend_from_slice(&bytes);
+                            }
+                        }
+                        // A chunk with no in-flight slot (or a malformed chunk) is
+                        // dropped; the requester's timeout is the backstop.
+                    }
+                    Ok(Inbound::Transport(TransportMessage::BlobFetchEnd {
+                        blob_ref,
+                        ..
+                    })) => {
+                        let slot = { pending_fetches.lock().await.remove(&peer_node_id) };
+                        if let Some(slot) = slot {
+                            // Verify the end-marker matches what we requested
+                            // (the slot's blob_ref); deliver, or fail on mismatch.
+                            if slot.blob_ref == blob_ref {
+                                let _ = slot.waker.send(Ok(slot.buf));
+                            } else {
+                                let _ = slot.waker.send(Err(()));
+                            }
+                        }
+                    }
+                    // M12.3-D1 — the peer reported the blob unavailable (or any
+                    // blob-band error) for a fetch WE issued: fail the in-flight
+                    // slot so the requester serves 10003 without waiting out the
+                    // timeout. Non-blob Errors on a federation session are not
+                    // expected; failing the (at most one) in-flight fetch is safe.
+                    Ok(Inbound::Transport(TransportMessage::Error { .. })) => {
+                        let slot = { pending_fetches.lock().await.remove(&peer_node_id) };
+                        if let Some(slot) = slot {
+                            let _ = slot.waker.send(Err(()));
+                        }
+                    }
                     Ok(_) => {
                         // Other inbound types not expected on a federation
                         // session in Phase 4 scope. Silently ignore.
@@ -2593,8 +2771,31 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                             break;
                         }
                     }
+                    // M12.3-D1 (inject) — a client↔node miss handler asked us to
+                    // fetch a blob from this peer; send the request on the wire.
+                    // The collect arms above deliver the streamed reply.
+                    OutboundMsg::BlobFetchRequest { blob_ref, space_id } => {
+                        let msg = TransportMessage::BlobFetchRequest {
+                            protocol_version: "0.1".to_string(),
+                            blob_ref,
+                            space_id,
+                        };
+                        if conn.send_transport(&msg).await.is_err() {
+                            break;
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    // M12.3-D1 — fail any in-flight federated fetch waiting on this peer (the
+    // session is ending; the requester serves 10003 rather than wait out the
+    // timeout).
+    {
+        let slot = { pending_fetches.lock().await.remove(&peer_node_id) };
+        if let Some(slot) = slot {
+            let _ = slot.waker.send(Err(()));
         }
     }
 
@@ -2627,6 +2828,108 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
     }
 
     tracing::info!(peer_node_id = %peer_node_id.as_str(), role = ?our_role, "Federation session ended");
+}
+
+// ── M12.3 federated fetch-blob-by-hash (D1/D4) ──────────────────────────────────
+
+/// M12.3-D1/D4 (P1/P2/P3) — lazily fetch a blob's ciphertext from a Space-
+/// federated home over the established federation session(s). The node-internal
+/// spine the client↔node miss handler calls, and the in-suite spine witness
+/// drives directly.
+///
+/// Resolution (P1): the Space's federated holders = `home_node` ∪
+/// `federation_nodes` (home_node first), **intersected with B's live federation
+/// sessions** (`federation_peer_senders`) — so only Space-federated peers with an
+/// ACTIVE session are queried (W4: a non-Space home is never asked). Each is
+/// tried in turn, **serialized one-fetch-per-peer** (P2): register a [`FetchSlot`]
+/// in `pending_fetches[peer]` (skip the peer if one is already in flight), inject
+/// `OutboundMsg::BlobFetchRequest` into the peer's session, await the waker bounded
+/// by `inner_timeout` (P3). First byte-identical hit wins; all miss/timeout →
+/// `Err(())` (the caller serves the typed `10003`). The federation loop's collect
+/// arms append the streamed chunks to the slot and fire the waker.
+pub(crate) async fn federation_fetch_blob(
+    blob_ref: &str,
+    space_id: &str,
+    runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
+    federation_peer_senders: &crate::fanout::FederationPeerSenders,
+    pending_fetches: &crate::fanout::PendingFederationFetches,
+    inner_timeout: std::time::Duration,
+) -> Result<Vec<u8>, ()> {
+    use xgen_common::xgid::{SpaceXgid, Xgid};
+
+    // P1 — resolve the Space's federated holders (home_node first), or bail if
+    // the Space is unknown / has no federation set (self/single-home → W5).
+    let candidates: Vec<NodeXgid> = {
+        let rt = runtime.lock().await;
+        let sx = SpaceXgid::from_xgid(Xgid::new(space_id.to_string()));
+        match rt.spaces.get(&sx) {
+            Some(s) => {
+                let mut v = vec![s.home_node.clone()];
+                for n in &s.federation_nodes {
+                    if !v.contains(n) {
+                        v.push(n.clone());
+                    }
+                }
+                v
+            }
+            None => return Err(()),
+        }
+    };
+
+    for peer in candidates {
+        // Only peers with a live federation session are reachable (W4 — a
+        // non-Space home has no session here either).
+        let out_tx = {
+            let fed = federation_peer_senders.lock().await;
+            match fed.get(&peer) {
+                Some(tx) => tx.clone(),
+                None => continue,
+            }
+        };
+
+        // P2 — serialize one fetch per peer: skip if one is already in flight.
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<Vec<u8>, ()>>();
+        {
+            let mut p = pending_fetches.lock().await;
+            if p.contains_key(&peer) {
+                continue;
+            }
+            p.insert(
+                peer.clone(),
+                crate::fanout::FetchSlot {
+                    blob_ref: blob_ref.to_string(),
+                    buf: Vec::new(),
+                    waker: tx,
+                },
+            );
+        }
+
+        // Inject the request into the peer's session; the loop's outbound arm
+        // sends it on the wire and its collect arms fire `rx`.
+        if out_tx
+            .send(crate::fanout::OutboundMsg::BlobFetchRequest {
+                blob_ref: blob_ref.to_string(),
+                space_id: Some(space_id.to_string()),
+            })
+            .await
+            .is_err()
+        {
+            pending_fetches.lock().await.remove(&peer);
+            continue;
+        }
+
+        match tokio::time::timeout(inner_timeout, rx).await {
+            Ok(Ok(Ok(bytes))) => return Ok(bytes),
+            // timeout / waker dropped / peer reported unavailable — clean up the
+            // slot (idempotent; the loop already removed it on End/Error) and try
+            // the next candidate holder.
+            _ => {
+                pending_fetches.lock().await.remove(&peer);
+                continue;
+            }
+        }
+    }
+    Err(())
 }
 
 // ── M6 accept / reject signal builders (§3.2 / §3.3) ────────────────────────────
@@ -4195,6 +4498,17 @@ pub(crate) fn resolve_spaces_dir(config_path: &Path, data_dir: &Path) -> PathBuf
         .and_then(|c| c.paths.spaces_dir)
         .map(PathBuf::from)
         .unwrap_or_else(|| data_dir.join("spaces"))
+}
+
+/// M12.3 — resolve the blob store dir the same way `run_node` does
+/// (`[paths].blobs_dir`, default `<data_dir>/blobs`). Used by the admin
+/// `federation initiate` verb so an operator-initiated session serves blobs
+/// from the same store the resident does.
+pub(crate) fn resolve_blobs_dir(config_path: &Path, data_dir: &Path) -> PathBuf {
+    try_load_config(config_path)
+        .and_then(|c| c.paths.blobs_dir)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| data_dir.join("blobs"))
 }
 
 /// Read `[logging].level` from `xgen-node_config.toml`, returning `None` if

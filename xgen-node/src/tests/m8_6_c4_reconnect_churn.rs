@@ -115,6 +115,10 @@ mod tests {
                 Arc::clone(&self.cursor),
                 Arc::clone(&self.policy),
                 Arc::clone(&self.gauge),
+                // M12.3-D1 — blobs_dir + throwaway pending-fetch registry (no blob
+                // fetch exercised by this M8.6 C4 churn test).
+                self.spaces_dir.join("blobs"),
+                Arc::new(Mutex::new(std::collections::HashMap::new())),
             )
             .await;
         }

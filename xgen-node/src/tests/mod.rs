@@ -84,3 +84,4 @@ pub mod arc_h_content_blindness;
 // M12.1 — blob attachment witnesses (W1–W5) against the real node via a real WS
 // client: round-trip / content-blindness / hash-integrity / multi-chunk / no-federation.
 pub mod m12_blob_roundtrip;
+pub mod m12_3_federation_fetch;

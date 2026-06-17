@@ -50,7 +50,7 @@ use xgen_core::transport::client::connect_url;
 use xgen_core::wire::types::FederationCapabilities;
 
 use crate::app::{run_federation_session_post_handshake, SessionRole};
-use crate::fanout::{ClientSenders, FederationPeerSenders};
+use crate::fanout::{ClientSenders, FederationPeerSenders, PendingFederationFetches};
 use crate::federation::federation_policy::FederationPolicyStore;
 use crate::federation::registry::FederationRegistry;
 use crate::node::runtime::NodeRuntime;
@@ -150,6 +150,9 @@ pub fn spawn_reconnect_scheduler(
     local_mode: bool,
     self_url: String,
     federation_policy: Arc<Mutex<FederationPolicyStore>>,
+    // M12.3-D1 — threaded down to the session loop (serve + collect blob fetches).
+    blobs_dir: PathBuf,
+    pending_fetches: PendingFederationFetches,
 ) {
     let attempt_cursor: AttemptCursor = Arc::new(Mutex::new(HashMap::new()));
     // M8.6 (C4) — outstanding attempt-phase task gauge (test-only spawn-leak
@@ -176,6 +179,8 @@ pub fn spawn_reconnect_scheduler(
                 Arc::clone(&attempt_cursor),
                 Arc::clone(&federation_policy),
                 Arc::clone(&attempt_gauge),
+                blobs_dir.clone(),
+                pending_fetches.clone(),
             )
             .await;
         }
@@ -205,6 +210,9 @@ pub async fn scheduler_tick(
     attempt_cursor: AttemptCursor,
     federation_policy: Arc<Mutex<FederationPolicyStore>>,
     attempt_gauge: Arc<AtomicUsize>,
+    // M12.3-D1 — threaded to attempt_reconnect → the session loop.
+    blobs_dir: PathBuf,
+    pending_fetches: PendingFederationFetches,
 ) {
     // M8.6 (clock seam, design §3.2) — W-domain read pulled from the
     // NodeRuntime-resident Clock (single source of time). RealClock in
@@ -287,6 +295,8 @@ pub async fn scheduler_tick(
         let self_url = self_url.clone();
         let attempt_cursor = Arc::clone(&attempt_cursor);
         let federation_policy = Arc::clone(&federation_policy);
+        let blobs_dir = blobs_dir.clone();
+        let pending_fetches = pending_fetches.clone();
         // M8.6 (C4) — inc the attempt gauge at the spawn site (synchronous,
         // before the task is scheduled, so the count reflects the moment of
         // commitment); the guard moves into the task and decrements on every
@@ -311,6 +321,8 @@ pub async fn scheduler_tick(
                 attempt_cursor,
                 federation_policy,
                 attempt_guard,
+                blobs_dir,
+                pending_fetches,
             )
             .await;
         });
@@ -353,6 +365,9 @@ pub(crate) async fn attempt_reconnect(
     attempt_cursor: AttemptCursor,
     federation_policy: Arc<Mutex<FederationPolicyStore>>,
     attempt_guard: AttemptGuard,
+    // M12.3-D1 — threaded to the initiator-side session loop (serve + collect).
+    blobs_dir: PathBuf,
+    pending_fetches: PendingFederationFetches,
 ) {
     // 1. Open WS to peer — time-bounded (M8.6, C4 prerequisite). `connect_url`
     //    awaits `connect_async` unbounded; against a non-responsive (black-hole)
@@ -512,6 +527,8 @@ pub(crate) async fn attempt_reconnect(
         session.peer_tips,
         Some(peer_url),
         federation_policy,
+        blobs_dir,
+        pending_fetches,
     )
     .await;
 }

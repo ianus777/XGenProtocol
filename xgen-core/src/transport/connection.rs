@@ -314,14 +314,22 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
     /// arrival order (a single WS stream preserves order) until `BlobFetchEnd`.
     /// `Error` (miss / mismatch) or timeout surfaces as `TransportError`. The
     /// caller decrypts + verifies `plaintext_hash` (M12-D5 / the C4 W3 check).
+    ///
+    /// M12.3-D1/D4 (P1) — `space_id` scopes a node-side federated lazy fetch on a
+    /// local miss; `None` (self-thread / non-Space caller) → local-only. M12.3-D4
+    /// (P3): the federated round-trip is two hops, so the caller passes a wider
+    /// outer `timeout` (2× `[sync].completion_timeout_seconds`) so the node serves
+    /// the bytes or the typed `10003` before this outer timeout fires.
     pub async fn fetch_blob(
         &mut self,
         blob_ref: &str,
+        space_id: Option<&str>,
         timeout: std::time::Duration,
     ) -> Result<Vec<u8>, TransportError> {
         self.send_transport(&TransportMessage::BlobFetchRequest {
             protocol_version: "0.1".to_string(),
             blob_ref: blob_ref.to_string(),
+            space_id: space_id.map(|s| s.to_string()),
         })
         .await?;
 
@@ -827,7 +835,7 @@ mod send_confirm_tests {
             }
         });
         let got = client
-            .fetch_blob(&blob_ref, Duration::from_secs(5))
+            .fetch_blob(&blob_ref, None, Duration::from_secs(5))
             .await
             .unwrap();
         srv.await.unwrap();

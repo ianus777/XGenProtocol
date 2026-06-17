@@ -225,10 +225,18 @@ pub enum TransportMessage {
     },
     /// Client→node request to fetch a blob by content-address. The node replies
     /// `BlobChunk`* then `BlobFetchEnd` (or `Error` on miss / mismatch).
+    ///
+    /// `space_id` (M12.3-D1/P1, additive) scopes a federated lazy fetch: on a
+    /// local store miss the node resolves the Space's federated holders
+    /// (`home_node` ∪ `federation_nodes`) and fetches across homes (M12.3-D4).
+    /// Absent (M12.1 self-thread / any non-Space-scoped caller) → local-only, no
+    /// federation fetch (→ W5). Old peers omit / ignore it (Ch3 §3.0.3).
     #[serde(rename = "transport.blob_fetch_request")]
     BlobFetchRequest {
         protocol_version: String,
         blob_ref: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        space_id: Option<String>,
     },
     /// Node→client end-of-fetch marker (after the last `BlobChunk`).
     #[serde(rename = "transport.blob_fetch_end")]

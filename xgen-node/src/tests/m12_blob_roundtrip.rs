@@ -61,7 +61,7 @@ async fn w1_w2_w5_blob_roundtrip_content_blind_no_federation() {
     // a second device of the same user pulls the attachment from the home node).
     let mut conn2 = connect_url(&node.endpoint).await.expect("connect (client 2)");
     let _ = conn2.client_authenticate(&key).await.expect("authenticate (client 2)");
-    let fetched = conn2.fetch_blob(&blob_ref, T).await.expect("fetch");
+    let fetched = conn2.fetch_blob(&blob_ref, None, T).await.expect("fetch");
 
     // W1 — round-trip: ciphertext byte-identical, and decrypt → original plaintext.
     assert_eq!(fetched, ciphertext, "W1: ciphertext round-trips byte-identical");
@@ -103,7 +103,7 @@ async fn w4_multi_chunk_blob_roundtrip_exact() {
     let blob_ref = hash_uri(&ciphertext);
 
     conn.upload_blob(&blob_ref, &ciphertext, T).await.expect("upload");
-    let fetched = conn.fetch_blob(&blob_ref, T).await.expect("fetch");
+    let fetched = conn.fetch_blob(&blob_ref, None, T).await.expect("fetch");
     assert_eq!(fetched, ciphertext, "W4: multi-chunk reassembles exactly");
     assert_eq!(decrypt_blob(&blob_key, &fetched).expect("decrypt"), plaintext);
 
@@ -129,7 +129,7 @@ async fn w3_corrupted_blob_rejected() {
     std::fs::write(blob_path(&blobs_dir, &blob_ref), b"tampered-substituted-bytes")
         .expect("corrupt the stored blob");
 
-    let r = conn.fetch_blob(&blob_ref, T).await;
+    let r = conn.fetch_blob(&blob_ref, None, T).await;
     assert!(r.is_err(), "W3: a corrupted blob is rejected, not returned");
 
     node.shutdown().await;
@@ -169,7 +169,7 @@ async fn w_toolarge_over_ceiling_rejected_with_10002() {
     assert!(small_ct.len() as u64 <= ceiling, "small blob under the ceiling");
     let small_ref = hash_uri(&small_ct);
     conn.upload_blob(&small_ref, &small_ct, T).await.expect("under-ceiling upload ok");
-    let fetched = conn.fetch_blob(&small_ref, T).await.expect("fetch");
+    let fetched = conn.fetch_blob(&small_ref, None, T).await.expect("fetch");
     assert_eq!(decrypt_blob(&uk, &fetched).expect("decrypt"), b"tiny");
 
     node.shutdown().await;

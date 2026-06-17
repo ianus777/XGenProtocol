@@ -1999,9 +1999,15 @@ pub async fn fetch_attachments(
         }
 
         // 2) Fetch + decrypt + verify + write each attachment over the same conn.
+        // M12.3-D1/D4 (P1/P3) — pass the Space so the node can lazily fetch a
+        // missing blob across homes (federated read), and a 2× outer timeout so
+        // the node's inner federated round-trip (bounded by
+        // [sync].completion_timeout_seconds) serves the bytes or the typed 10003
+        // before this outer timeout fires. A self/single-home Space → local-only.
+        let fetch_timeout = sync_timeout * 2;
         for d in &descriptors {
             let ciphertext = conn
-                .fetch_blob(&d.blob_ref, sync_timeout)
+                .fetch_blob(&d.blob_ref, Some(args.space.as_str()), fetch_timeout)
                 .await
                 .with_context(|| format!("fetch_blob failed for {}", d.blob_ref))?;
             let key_bytes = encoding::decode(&d.key)

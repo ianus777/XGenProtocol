@@ -1,8 +1,8 @@
 # M12.3 — Federation fetch-blob-by-hash: Implementation runbook
-> **Status**: ACTIVE
-> Version: 1.0
-> Date: Jun 2026
-> **Last updated**: 2026-06-17
+> **Status**: COMPLETED  
+> Version: 1.1  
+> Date: Jun 2026  
+> **Last updated**: 2026-06-17  
 > Language: English
 > Author: JozefN
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.

@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-391 — Documentation-optimization phase OPENED: chain reconciled (doc-opt → F/I → mockups → UI); DO-1 CLAUDE.md split + D-094 archive-convention landed
+
+**What happened.** Opened the pre-UI documentation-optimization phase (doc-only, no code). The phase exists to discharge the documentation bloat accumulated while the backend sprinted M8→M12 and the reference/operational records were maintained reactively. Two moves landed in this opening commit: DO-1 (the CLAUDE.md split) and the D-094 archive convention.
+
+**Chain reconciliation.** The J-390 bridge recorded "next-active = UI" across PLAY / ROADMAP / JOURNAL — one step ahead of the plan locked with Joe. The true pre-UI chain is: documentation-optimization → Appendix F/I audit-against-code → mockup stock-take + reconcile-to-as-built → UI (clean-table build) → Streams (standalone, post-UI). This entry, the PLAY head, and ROADMAP (the tree node + the chain arrow) flip the record to that chain, atomically (D-074).
+
+**DO-1 — CLAUDE.md split.** CLAUDE.md had grown to ~898 KB (2,769 lines) and could no longer be read in a single call — a Rule-0 cost on every session open. The file is three zones: the live PLAY head, a ~2,200-line stack of superseded PLAY blocks (the J-389 M12-close block back through M6 / XGID-retrofit / Phase-9), and a stable briefing tail (MANDATORY Behaviour rules → Build Commands). The superseded stack was lifted verbatim into a new `CLAUDE_HISTORY.md` (Status: ARCHIVED); CLAUDE.md now holds the live head + the stable briefing + a forward pointer to the archive. No content was rewritten — a move, not an edit.
+
+**D-094 — archive convention.** Promoted the archive-with-forward-pointers discipline to a standing decision so the next bloat cycle does not re-litigate it: the four canonical operational records keep a small live head and relocate superseded content to a frozen ARCHIVED sibling with a forward pointer; archiving is a move, never a rewrite; D-074 atomicity and the append-only / no-retroactive-rewrite conventions are preserved. First exercised by DO-1.
+
+**Phase plan.** DO-1 CLAUDE split (this commit) · DO-2 tasks/ archive (~204 COMPLETED/ARCHIVED docs → `tasks/archive/`) · DO-3 ROADMAP Present-prose refresh (stale at the J-256/Arc-H era) · DO-4 DECISIONS.md R2G-F03 (D-030/D-031 duplicates + non-monotonic order — suffix, not renumber) · DO-5 JOURNAL.md windowing (range-archives + a recent live window; riskiest, scheduled last / deferrable).
+
+**Canonical (D-074).** `CLAUDE.md` (new J-391 head + the split); `CLAUDE_HISTORY.md` NEW (ARCHIVED); `DECISIONS.md` D-094 NEW; `docs/ROADMAP.md` v3.79→v3.80 (chain flip at the tree node + the chain arrow); this JOURNAL J-391. No code; no Appendix change (no CLI verb touched).
+
+**Next-active.** DO-2 (tasks/ archive). **Entry (Rule 0):** CLAUDE.md PLAY → JOURNAL J-391 → `docs/ROADMAP.md` (doc-opt chain) → `DECISIONS.md` D-094 → `CLAUDE_HISTORY.md`. Not pushed — Joe pushes.
+
+---
+
 ## Entry J-390 — Round-2 final pre-UI gate CLOSED: whole-codebase Pass-2 audit GO; M10/M11/M12 + cross-arc clean; R2G-F01..F04 routed; next-active = UI
 
 **What happened.** Clair authored the Round-2 final pre-UI gate audit (audit seat) — the single whole-codebase Pass-2 sweep that gates UI — and committed it audit-only (`145d2c8`, pushed). Chat independently cross-verified the load-bearing hinges in code on `main` (D-065), opened the triage discussion on the four new findings + the carried/routed items, recommended a routing on each; Joe locked **GO by-recomms**. Chat landed this close bridge. **The Round-2 final pre-UI gate is CLOSED COMPLETE — verdict GO. The pre-UI chain is fully discharged; next-active = UI.** HEAD `145d2c8` (audit, pushed); this bridge is the next commit.

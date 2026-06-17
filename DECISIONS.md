@@ -3783,3 +3783,14 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 | D-065 / D-069 | Honest-by-construction boundary (omit unresolvable; no production witness claimed); promoted at close per D-069 once the parties-rule held across the arc (Design Z, witness green). |
 | F1B-D5 (routed) | Production identity→home-node discovery is a separate arc; D-091 governs derivation from known parties, not stranger discovery. |
 
+---
+
+## D-094 — Canonical-record archiving: relocate superseded content to a frozen ARCHIVED sibling with a forward pointer; never rewrite history
+
+**Date:** 2026-06-17 · **Layer:** project-management discipline · **Spec ref:** none (process) · **Lineage:** D-074 (atomic canonical records) + the append-only JOURNAL and no-retroactive-rewrite conventions.
+
+**Decision.** The four canonical operational records — `CLAUDE.md`, `JOURNAL.md`, `docs/ROADMAP.md`, `DECISIONS.md` — keep a small *live working head* and relocate superseded/historical content to a frozen `*_HISTORY` / `archive` sibling marked `Status: ARCHIVED`, leaving a forward pointer from the live file. Archiving is a **move, never a rewrite**: relocated text is byte-preserved; the live file's Rule-0 read cost stays bounded as the project grows.
+
+**Constraints.** (1) No retroactive rewrite — archived content is verbatim; only its container's Status reads ARCHIVED. (2) Forward pointer mandatory — the live file names its archive sibling so a session can reach history on demand. (3) D-074 atomicity holds — an archiving move and its canonical-record updates travel in one commit. (4) The live head is the only PLAY block a fresh session must read on open; deeper history is opt-in via the pointer.
+
+**First exercised:** the documentation-optimization phase (J-391) — CLAUDE.md's ~2,200-line superseded PLAY stack lifted into `CLAUDE_HISTORY.md`. Subsequent doc-opt sub-arcs apply the same pattern to `tasks/` (DO-2) and may apply it to `JOURNAL.md` (DO-5).

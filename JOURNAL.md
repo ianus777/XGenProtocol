@@ -8,6 +8,18 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-392 — DO-2: 207 terminal task docs archived to tasks/archive/ (D-094 applied); 44 stale-ACTIVE labels surfaced → DO-2b
+
+**What happened.** DO-2 of the documentation-optimization phase: `tasks/` held 253 `.md` files (~4.86 MB) and no archive subfolder. The 207 terminal documents — 204 COMPLETED + 1 COMPLETE (spelling variant) + 2 DEPRECATED — were relocated to a new `tasks/archive/` via `git mv` (history preserved), applying the D-094 archive-with-forward-pointers convention first established in DO-1. A `tasks/archive/README.md` (ARCHIVED) is the forward pointer. Live `tasks/` now holds 46 files.
+
+**Finding surfaced (D-065) → DO-2b.** Of the 46 remaining, 44 still carry `Status: ACTIVE` and 2 `PENDING`. With the entire M8→M12 chain and the multiparty milestone all CLOSED, the 44 ACTIVE are almost certainly stale labels never flipped at arc close — a documentation-hygiene gap, not genuine in-flight work. Rather than sweep by label (which would either freeze a lie or risk archiving live work), the gap is routed as **DO-2b**: a bounded triage pass — confirm each of the 44 is terminal, flip Status to COMPLETED (header-only; no content rewrite), then archive under the same D-094 pattern. The 2 PENDING stay live.
+
+**Canonical (D-074).** `CLAUDE.md` (live head: DO-2 done, next-active DO-3); `docs/ROADMAP.md` (doc-opt node + chain arrow updated); this JOURNAL J-392; the 207 renames + `tasks/archive/README.md`. No DECISIONS change (D-094 already governs). Doc-only; no code.
+
+**Next-active.** DO-3 (ROADMAP Present-prose refresh — stale at the J-256/Arc-H era), with DO-2b (the 44-ACTIVE triage) as a near-term bounded follow-on. Not pushed — Joe pushes.
+
+---
+
 ## Entry J-391 — Documentation-optimization phase OPENED: chain reconciled (doc-opt → F/I → mockups → UI); DO-1 CLAUDE.md split + D-094 archive-convention landed
 
 **What happened.** Opened the pre-UI documentation-optimization phase (doc-only, no code). The phase exists to discharge the documentation bloat accumulated while the backend sprinted M8→M12 and the reference/operational records were maintained reactively. Two moves landed in this opening commit: DO-1 (the CLAUDE.md split) and the D-094 archive convention.

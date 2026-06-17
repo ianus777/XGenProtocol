@@ -1,6 +1,6 @@
 # M12 — Attachments: Design (Joe-LOCKED)
-> **Status**: ACTIVE  
-> Version: 1.2  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-17  
 > Language: English  

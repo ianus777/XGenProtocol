@@ -1,6 +1,6 @@
 # M12.4 — Erasure: D-071 Phase-0 audit
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-17  
 > Language: English  

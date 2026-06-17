@@ -1,11 +1,31 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-10  
+> **Last updated:** 2026-06-17  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-093 — Universal E2E at the protocol layer; "Retained (T4)" = ciphertext durability-floor + erasure-refusal (NOT protocol escrow); no shared physical blob copy across erasure-fate (promoted from M12-D6 at M12.4 design-lock)
+
+**Date**: 2026-06-17
+**Layer**: protocol (encryption / erasure / retention) + storage (attachment blobs)
+**Spec reference**: AH-D1 (per-message CK random, never epoch-derived); D-088 (erasure model: crypto-shred content, orphan identity); F2/F7/F8 (M12 attachment forks); reinforces the no-anonymity/institutional-independence stance.
+
+**Promoted from** the M12-D6 arc-local decision (carried + flagged J-381→J-387, well past the 3-recurrence bar; the D-090 promotion-on-cross-arc-reuse posture). M12.4 (erasure) is the arc that first *exercises* it — F2b is its first enforcement read, blob-delete + erasure-refusal its first mechanism — so the principle is recorded here before that build advances.
+
+**Decision (three bound clauses, one principle):**
+
+1. **Universal E2E, no protocol escrow.** Every tier is crypto-shreddable; there is **no protocol-level escrow / recovery / tier-derived key**. Grounded (D-065, J-381): the Arc-H *text* path is already universal-no-escrow (zero escrow/tier/recovery hits in `xgen-core/src/encryption/`), and the defended invariant `erasing_wrapped_key_defeats_epoch_holder` (AH-D1 constraint 2) keeps the per-message content-key random and never epoch-derived — destroying the wrapped key is permanent **even for the epoch holder**. Blobs inherit that posture; text and attachments stay symmetric and the node content-blind.
+
+2. **"Retained (T4)" is a durability floor, not producibility.** At the protocol layer, Retained = a **durability floor on the ciphertext bytes** (don't drop them) **+ an erasure refusal** — NOT a protocol key that can reproduce plaintext. The T4 retain-and-produce capability (WORM / legal-hold, F7/F8) is **reserved to the operator/module layer**: an accountable deployment that must produce retained plaintext supplies that escrow at *its* tier (forking the reference module + its accountable backend), consistent with institutional-independence and "mark + reserve the hook, don't build the vault." Crypto-shred therefore remains a *real* protocol guarantee everywhere — destroy the per-blob key → every replica, including unreachable federated homes, is permanently unreadable.
+
+3. **No shared physical blob copy across erasure-fate (M12.4 corollary).** Because retention/erasability is **per-record** (clause 2) and attachment `blob_ref` is content-addressed (`hash(bytes)`, so identical files would otherwise dedup to one physical copy), a single shared copy would let one record's policy silently override another's: a lower-tier erasure would delete bytes a T4 record holds (a durability-floor breach), or a T4 hold would block a lower-tier record's valid erasure (a right-to-erasure breach). Therefore an attachment blob's **physical copy may only be shared among references that share the same erasure-fate.** M12.4 v1 takes the strictly-safe floor: **no attachment dedup** — one physical copy per `message.file` send, each with its own deletable storage handle; the **content-hash is retained as descriptor metadata** (not as the storage key) so identical-file detection / policy-keyed dedup-within-a-shared-fate-set stays possible as a **future optimization** (not a correctness fix). A redact deletes only that reference's own copy.
+
+**Why it binds going forward:** clauses 1+2 are a protocol-wide E2E/retention invariant any future tier, module, or transport must honor; clause 3 is the storage-layer rule that keeps per-record retention coherent under content-addressing — violating it re-introduces the cross-fate override at the byte layer. The reverse-index / refcount approach is explicitly rejected as the correctness mechanism: it manages shared-copy bookkeeping but does **not** resolve the tier collision (a refcount cannot honor "A held, B erasable" on one physical blob) — it is heavy *and* insufficient.
 
 ---
 

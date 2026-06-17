@@ -1,8 +1,8 @@
 # M12 — Attachments: Design (Joe-LOCKED)
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-15  
+> **Last updated**: 2026-06-17  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -116,7 +116,7 @@ shared D3/M8.7 cutover (zero blob-store rework then). The honest **W2** claim is
 key"* (today the key is in the plaintext descriptor, exactly as text content is plaintext); both
 go node-blind together at D3.
 
-### M12-D6 — E2E philosophy = universal at the protocol layer; T4 retain-and-produce reserved to operator/module (input 4b) — **DECISIONS.md PROMOTION CANDIDATE**
+### M12-D6 — E2E philosophy = universal at the protocol layer; T4 retain-and-produce reserved to operator/module (input 4b) — **PROMOTED → DECISIONS.md D-093 (J-388)**
 
 The crypto-shred-vs-WORM fork resolved **universal E2E at the protocol layer**: every tier is
 crypto-shreddable; **there is no protocol-level escrow key**. Grounded (D-065, J-381): the

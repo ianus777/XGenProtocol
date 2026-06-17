@@ -1,6 +1,6 @@
 # Round-2 Final Pre-UI Gate — Whole-Codebase Coherence Audit (Pass 2)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-17  
 > Language: EN  
@@ -49,7 +49,7 @@ this gate's scope. The identity-orphan half of D-088 is unbuilt (see §3.2 forwa
 
 Crates: `xgen-common` · `xgen-core` · `xgen-node` · `xgen-client` · `xgen-auth-module`
 (new in M10). Plus `docs/` canonical (ch3 / ch6 / Appendix F) + `DECISIONS.md` +
-`tasks/MP_findings.md` record coherence.
+`tasks/MP_findings.md` record coherence. *(Node-side hooks cited below as `app.rs:NNNN` — the federation / redact / erasure surfaces — are `xgen-node/src/app.rs`; the `xgen-client/src/app.rs` cites are the e2e harness paths.)*
 
 Five sweep axes, each grounded against `main`:
 
@@ -340,5 +340,7 @@ locks** per-finding routing → fix-arcs (if any) or **UI proceeds**.
 
 **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-389 → `docs/ROADMAP.md` (post-M12 chain) → this
 doc → `tasks/ROUND_2_AUDIT.md` (Pass-1 baseline) → `DECISIONS.md` D-088/D-093.**
+
+**Round-2 final pre-UI gate CLOSED COMPLETE — J-390 (Joe, 2026-06-17).** Verdict **GO**, Joe-locked by-recomms. Chat cross-verified the load-bearing hinges in code on `main` (D-065): P3 (`state.rs:655` `_ => Ok(())`, no new conflict domain), P4 (`author_is_retained` reads the `module_policy().erasability.retention` chain M10 writes), P6 (`federation_fetch_blob` `xgen-node/src/app.rs:2855` injects into live sessions + never re-dials; establish/reconnect gated at `app.rs:3163/3194` before `connect_url` `:3857` — Arc-G containment transitive), R2G-F03 (D-030/D-031 duplicates), and the MP-F2-followon split. **Locked routings (by-recomms):** R2G-F01 -> carried into the UI error-surfacing pass (not a pre-UI arc); R2G-F02 -> named UI build-constraint (attachment-forward must re-encrypt); R2G-F03 + R2G-F04 -> one doc-hygiene pass, any time (D-number duplicates **suffixed, not renumbered** — preserve cross-refs); routed-open (MP-F12 / MP-F13 / MP-F16 / M12.3 `pending_fetches`) left on their named future homes. **UI build inherits explicitly** (named, not blockers): the R2-F01 residual A+thin-fetch (flagged-UNBUILT, node authoritative) + R2G-F02. **No DECISIONS change** (all S3/S4; no new principle). **No Appendix F change** (the gate touched no CLI verb). **Next-active: UI** (clean-table build) -> Streams (post-UI). Canonical (D-074, J-390): this doc ACTIVE v1.0 -> COMPLETED v1.1; `CLAUDE.md` PLAY head (gate CLOSED, next-active = UI); `docs/ROADMAP.md` v3.78 -> v3.79 (gate done at tree / chain / detail); JOURNAL J-390.
 
 Per Rule 0 + D-065 + D-069 + D-074 + the two-round audit principle (2026-06-04).

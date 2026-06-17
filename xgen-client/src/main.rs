@@ -329,6 +329,11 @@ fn main() {
                 let keypair_path = app::resolve_keypair_path(&config_path);
                 app::cmd_fetch(args, &node, &keypair_path, &data_dir, cli.quiet).await
             }
+            Some(ClientCommand::Redact(args)) => {
+                let node = app::resolve_node(cli.node.as_deref(), &config_path);
+                let keypair_path = app::resolve_keypair_path(&config_path);
+                app::cmd_redact(args, &node, &keypair_path, &data_dir, cli.quiet).await
+            }
             Some(ClientCommand::Members(args)) => {
                 let node = app::resolve_node(cli.node.as_deref(), &config_path);
                 let keypair_path = app::resolve_keypair_path(&config_path);

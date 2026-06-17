@@ -515,6 +515,12 @@ async fn run_cli_command(
             let mut ctx = OpContext { session: &mut session, data_dir: &dd, node_override: None };
             Ok(serde_json::to_value(crate::ops::fetch_attachments(&mut ctx, &a).await?)?)
         }),
+        ClientCommand::Redact(a) => Box::pin(async move {
+            let mut session = SessionState::new(node, dd.clone());
+            session.ensure_identity(&keypair_path)?;
+            let mut ctx = OpContext { session: &mut session, data_dir: &dd, node_override: None };
+            Ok(serde_json::to_value(crate::ops::redact(&mut ctx, &a).await?)?)
+        }),
         ClientCommand::Members(a) => Box::pin(async move {
             let mut session = SessionState::new(node, dd.clone());
             session.ensure_identity(&keypair_path)?;

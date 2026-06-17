@@ -1,6 +1,6 @@
 # Appendix F — CLI Reference and Usage Examples
 > **Status:** ACTIVE  
-> Version: 1.11  
+> Version: 1.12  
 > Date: May 2026  
 > **Last updated**: 2026-06-17  
 > Language: English  
@@ -101,6 +101,7 @@ Binary-specific. Listed in full detail in §F.2 (Node) and §F.3 (Client).
 | `send` | Send a message to a Room — a `message.text` (`--text`) **or** one-or-more file attachments (`--attach`, repeatable; M12.2a) |
 | `history` | Fetch and display Room message history in causal order |
 | `fetch` | Fetch a Room's message attachments to a local directory (alias `fetch-attachments`; M12.2a) |
+| `redact` | Redact a message — erase a `message.file`'s attachment bytes on the node (M12.4) |
 | `self` | Open the personal "Saved Messages" self-thread (create-if-absent; M11, D-021) |
 | `spaces` | List Spaces this Identity has joined (membership view — see §F.0.5) |
 | `rooms` | List Rooms within a Space (shipped M6 Phase 1, R1) |
@@ -353,6 +354,7 @@ See §F.0 for the full fundamental/non-fundamental flag taxonomy. Tables below a
 | `send` | `--space <id>` `--room <id>` `[--text <text>]` `[--attach <path>]`… | Yes | Send to a Room. Provide `--text` (a `message.text`) **or** one-or-more `--attach` (a `message.file` carrying the file attachment(s); `--attach` is repeatable for multi-file) — exactly one of the two; combining `--text` with `--attach` is rejected (M12.2a, D3). |
 | `history` | `--space <id>` `--room <id>` `[--limit <N>]` | Yes | Fetch and display Room message history in causal order. |
 | `fetch` | `--space <id>` `--room <id>` `--out-dir <dir>` | Yes | Fetch every blob attachment from a Room's messages and write each to `<out-dir>`, named from its `Descriptor` filename (overwrite on collision). Alias `fetch-attachments`. The read-side companion to `send --attach` (M12.2a, D2). |
+| `redact` | `--space <id>` `--room <id>` `--target <event-id>` | Yes | Redact the message `--target` in a Room (M12.4): sends a `message.redact`. When the node ingests it, it **erases the target `message.file`'s attachment blob bytes** (every reachable copy — origin + any federated cache) **unless** the target's original content author declares legal-hold retention (Retained / T4), in which case the bytes are kept (the redactor is signalled `10004 erasure_refused_retained`; the redact event still converges). A redacted attachment is not retrievable via `fetch` (client tombstone). The DAG event + descriptor residue is not crypto-shredded (that is D3). |
 | `self` | — | Yes | Open the personal **"Saved Messages"** thread (M11, D-021): a *self-DM* — a DM whose creator and sole invitee are the same identity, reusing your existing registered identity (no second account, no new registration). No id argument — auto-resolves the session identity. Create-if-absent: creates the `"self"`-labelled self-DM on the first call, opens it (no network round-trip) thereafter. Never federated (`DmFederationNotAllowed`); reachable from any client authenticated as you. Post/read with `send`/`history` against the returned room. |
 | `spaces` | — | No | List Spaces this Identity has joined (see §F.0.5 collision note). |
 | `rooms` | `--space <id>` | No | List Rooms in a Space. Shipped M6 Phase 1 (R1). |
@@ -1306,6 +1308,9 @@ with the reserved `3012 watchlist_match` — see ch3 §3.11.7.)
 
 ### Session 6 — 2026-06-15 (JozefN)
 **Covered:** new `fetch` Client subcommand added to the command tables (F.0.4 Client-only + F.3 detailed reference) — the M12.2a read-side companion to `send --attach`: fetches every blob attachment from a Room's messages and writes each to `--out-dir` (required), named from its `Descriptor` filename (overwrite on collision); alias `fetch-attachments`; wired across all four dispatch arms (CLI / run-path / batch / aicontrol). The `send` rows (F.0.4 + F.3) were updated to the final M12.2a surface: `--text` is now optional and `--attach <path>` is repeatable (multi-file), with exactly-one-of-the-two enforced (combining `--text` and `--attach` is rejected — VC, D-065 no-quiet-data-loss). Part of the M12 attachments arc (M12.2a = fetch verb + `--attach` polish + the F6 blob-size gate; D2+D3+D4). The illustrative `.xgb` batch table (§F.8.3) was not re-tabulated — §F.0.4/§F.3 are the canonical command authority (D-028). Cross-refs to the M12.2 design (J-383) and the M12.2a close (J-384).
+
+### Session 8 — 2026-06-17 (JozefN)
+**Covered:** the new `redact` Client subcommand (F.0.4 Client-only + F.3 detailed reference) — the M12.4 erasure verb. `redact --space --room --target <event-id>` sends a `message.redact`; on ingest the node erases the target `message.file`'s attachment blob bytes (every reachable copy — origin + any federated cache), **unless** the target's original content author declares legal-hold retention (Retained / T4), in which case the bytes are kept and the redactor is signalled `10004 erasure_refused_retained` (the redact event still converges — the gate is on the side-effect, not admission). A redacted attachment is not retrievable via `fetch` (the client tombstone skips it). The DAG-resident residue (the event + the plaintext descriptor key) is NOT crypto-shredded — that is D3 (the shared text-path `enc:` cutover). Wired across all four dispatch arms (CLI / run-path / batch / aicontrol; D-092). Part of the M12 attachments arc — **M12.4 closes M12** (the fourth and final sub-arc: erasure). Cross-refs to the M12.4 design (J-388, M12.4-D1..D9) and `DECISIONS.md` D-093.
 
 ### Session 7 — 2026-06-17 (JozefN)
 **Covered:** the M12.2b F9 data-root posture shift — a new `--data-dir <path>` fundamental flag (+ `XGEN_DATA_DIR` env) added to F.0.1 and the F.0.6 precedence table (resolved *before* config load, so flag/env only — no config equivalent; flag > env > platform default). The default data root **moved from the executable directory to a platform data dir outside the install folder** (`%LOCALAPPDATA%/XGenProtocol` on Windows, `$XDG_DATA_HOME` / `~/.local/share/XGenProtocol` on Unix), startup-validated (creatable / writable / not-under-temp, fail-fast); the `--instance` rows (F.0.1 + F.8.1) re-worded from `<exe dir>/instances/<label>` to `<resolved data root>/instances/<label>`. Existing install-folder deployments stay put via `--data-dir <exe dir>` (leave-as-legacy, no auto-migration) + a one-line startup notice. Both binaries (shared `xgen-common` resolution + validation). Part of the M12 attachments arc — **M12.2b closes M12.2** (M12.2a = fetch verb + `--attach` polish + F6 gate; M12.2b = this F9 shift). Cross-refs to the M12.2 design (J-383, D5/D6) and the M12.2 close (J-385).

@@ -397,6 +397,10 @@ pub enum ClientCommand {
     /// Requires --node or config. (M12.2a)
     #[command(alias = "fetch-attachments")]
     Fetch(crate::ops::FetchAttachmentsArgs),
+    /// Redact a message — erase a `message.file`'s attachment bytes (M12.4). The
+    /// node deletes the target's blob bytes (every reachable copy) unless the
+    /// original content author declares legal-hold retention.
+    Redact(RedactArgs),
 
     /// List the resolved membership of a Space as seen by the queried Node.
     /// Connects via WS, replays the Space's DAG history, and projects the
@@ -480,6 +484,21 @@ pub struct ThreadStatusArgs {
     /// Thread ID (xgen://thread/sha256:...) — from `thread create`'s output.
     #[arg(long)]
     pub thread: String,
+}
+
+/// `redact` (M12.4 / V7) — erase a `message.file`'s attachment bytes.
+#[derive(Args)]
+pub struct RedactArgs {
+    /// Space ID (xgen://hash/sha256:...)
+    #[arg(long)]
+    pub space: String,
+    /// Room ID (xgen://hash/sha256:...) the target message belongs to.
+    #[arg(long)]
+    pub room: String,
+    /// The target event id (xgen://hash/sha256:...) — the `message.file` to
+    /// redact, e.g. from `fetch`/`history` output.
+    #[arg(long)]
+    pub target: String,
 }
 
 #[derive(Subcommand)]
@@ -1053,6 +1072,11 @@ pub async fn run_batch_file(
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
                 let kp = resolve_keypair_path(config_path);
                 cmd_fetch(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
+            }
+            Some(ClientCommand::Redact(args)) => {
+                let node = resolve_node(sub_cli.node.as_deref(), config_path);
+                let kp = resolve_keypair_path(config_path);
+                cmd_redact(args, &node, &kp, data_dir, quiet || sub_cli.quiet).await
             }
             Some(ClientCommand::Members(args)) => {
                 let node = resolve_node(sub_cli.node.as_deref(), config_path);
@@ -2927,6 +2951,37 @@ pub async fn cmd_fetch(
     if r.files.is_empty() {
         println!("  No attachments found.");
     }
+    Ok(())
+}
+
+/// M12.4 (V7) — the `redact` CLI verb wrapper: wraps `ops::redact` (sends a
+/// `message.redact` targeting an event; the node erases its attachment bytes
+/// unless the original author is Retained) with a human summary. Twin of
+/// `cmd_fetch`.
+pub async fn cmd_redact(
+    args: &RedactArgs,
+    node: &str,
+    keypair_path: &Path,
+    data_dir: &Path,
+    quiet: bool,
+) -> Result<()> {
+    let mut session =
+        crate::session::SessionState::new(node.to_string(), data_dir.to_path_buf());
+    session.ensure_identity(keypair_path)?;
+    if !quiet {
+        println!("Connecting to {}...", node);
+    }
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir,
+        node_override: None,
+    };
+    let r = crate::ops::redact(&mut ctx, args).await?;
+    println!(
+        "Redacted {} (event {})",
+        short_id(&r.target_event_id),
+        short_id(r.event_id.as_str())
+    );
     Ok(())
 }
 
@@ -5957,6 +6012,30 @@ mod pass_4_commit_1_tests {
         };
         assert_eq!(format!("{}", r.space_id), "xgen://hash/sha256:S");
         assert_eq!(format!("{}", r.room_id), "xgen://hash/sha256:R");
+    }
+
+    /// M12.4 (V7) — the `redact` verb parses to `ClientCommand::Redact` with its
+    /// three required flags (in-suite wiring lock; the full path is the box-gated
+    /// e2e `m12_4_self_thread_redact_e2e`). `--target` is mandatory.
+    #[test]
+    fn cli_redact_parses_with_target() {
+        let cli = Cli::try_parse_from([
+            "xgen-client", "redact", "--space", "s", "--room", "r", "--target", "xgen://hash/sha256:E",
+        ])
+        .expect("redact parses");
+        match cli.command {
+            Some(ClientCommand::Redact(a)) => {
+                assert_eq!(a.space, "s");
+                assert_eq!(a.room, "r");
+                assert_eq!(a.target, "xgen://hash/sha256:E");
+            }
+            _ => panic!("expected Redact"),
+        }
+        // --target is required.
+        assert!(
+            Cli::try_parse_from(["xgen-client", "redact", "--space", "s", "--room", "r"]).is_err(),
+            "redact without --target is rejected"
+        );
     }
 }
 

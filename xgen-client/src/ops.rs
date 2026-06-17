@@ -1225,6 +1225,16 @@ pub struct ThreadStatusResult {
     pub room_id: RoomXgid,
 }
 
+/// Result of `ops::redact` (M12.4 / V7) — the sent `message.redact`'s id and the
+/// content event it targets.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RedactResult {
+    pub event_id: EventXgid,
+    pub target_event_id: String,
+    pub space_id: SpaceXgid,
+    pub room_id: RoomXgid,
+}
+
 /// Create a Thread in a Room — `thread.create` (thin-verb arc 4, MP-C-13 / PG-08).
 /// The Thread id is derived from the signed event id (`thread_id_from_event_id`,
 /// matching `apply_thread_create`); it is returned for `resolve`/`archive`.
@@ -1344,6 +1354,54 @@ async fn thread_status_op(
     Ok(ThreadStatusResult {
         event_id: EventXgid::from_xgid(Xgid::new(event_id)),
         thread_id: args.thread.clone(),
+        space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+        room_id: RoomXgid::from_xgid(Xgid::new(args.room.clone())),
+    })
+}
+
+/// Send a `message.redact` targeting `args.target` (M12.4 / V7). Mirrors
+/// `thread_status_op`'s single-event shape: tip-anchor → build → sign → confirm.
+/// The node-side erasure side-effect (delete the target attachment's blob bytes,
+/// subject to the original author's `Retention` — M12.4-D2/D3/D5) fires when the
+/// node ingests this event; this op only sends it. The signer is the loaded
+/// identity (the redactor); the `SendMessages` / moderation permission gate is
+/// the existing one (unchanged).
+pub async fn redact(ctx: &mut OpContext<'_>, args: &crate::app::RedactArgs) -> Result<RedactResult> {
+    use xgen_common::event_trace::{trace_event, EventDirection, SessionContext, SpaceRole};
+    use xgen_core::message::exchange::build_message_redact_event;
+    use xgen_core::space::state::sign_event;
+
+    let signing_key = thread_signing_key(ctx)?;
+    let sync_timeout = sync_completion_timeout(ctx.data_dir);
+    let event_id = {
+        let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+        let prev_events = crate::batch::get_dag_tips(conn, &args.space, sync_timeout)
+            .await
+            .unwrap_or_else(|_| vec![args.space.clone()]);
+        let unsigned =
+            build_message_redact_event(&signing_key, &args.space, &args.room, prev_events, &args.target);
+        let ev = sign_event(unsigned, &signing_key);
+        let session_ctx = SessionContext {
+            identity_id: None,
+            role: Some(SpaceRole::Member),
+            space_id: Some(args.space.clone()),
+        };
+        trace_event(&ev, EventDirection::Out, &session_ctx);
+        let id_for_result = ev
+            .event_id
+            .as_ref()
+            .map(|e| e.as_str().to_string())
+            .unwrap_or_default();
+        let outcome = conn.send_event_confirmed(&ev, sync_timeout).await;
+        let _ = conn.goodbye("client_disconnect").await;
+        apply_single_event_confirm(outcome, "redact")?;
+        tracing::info!(space_id = %args.space, target = %args.target, "redact sent");
+        id_for_result
+    };
+
+    Ok(RedactResult {
+        event_id: EventXgid::from_xgid(Xgid::new(event_id)),
+        target_event_id: args.target.clone(),
         space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
         room_id: RoomXgid::from_xgid(Xgid::new(args.room.clone())),
     })
@@ -1948,8 +2006,11 @@ pub async fn fetch_attachments(
     {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
 
-        // 1) Sync the room; collect message.file descriptors (paginated like history).
-        let mut descriptors: Vec<Descriptor> = Vec::new();
+        // 1) Sync the room; collect message.file descriptors (paginated like
+        // history), tracking each file event's id, and collect message.redact
+        // targets for the D6/V8 client tombstone.
+        let mut file_events: Vec<(String, Vec<Descriptor>)> = Vec::new();
+        let mut redacted: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut since = String::new();
         let deadline = tokio::time::Instant::now() + sync_timeout;
         'pages: loop {
@@ -1966,16 +2027,44 @@ pub async fn fetch_attachments(
                     Ok(Ok(Inbound::Event(ev))) => {
                         if ev.space_id.as_str() == args.space.as_str()
                             && ev.room_id.as_str() == args.room.as_str()
-                            && matches!(ev.event_type, EventType::MessageFile)
                         {
-                            if let Some(atts) =
-                                ev.content.get("attachments").and_then(|v| v.as_array())
-                            {
-                                for a in atts {
-                                    if let Ok(d) = serde_json::from_value::<Descriptor>(a.clone()) {
-                                        descriptors.push(d);
+                            match ev.event_type {
+                                EventType::MessageFile => {
+                                    let evid = ev
+                                        .event_id
+                                        .as_ref()
+                                        .map(|e| e.as_str().to_string())
+                                        .unwrap_or_default();
+                                    let mut descs = Vec::new();
+                                    if let Some(atts) =
+                                        ev.content.get("attachments").and_then(|v| v.as_array())
+                                    {
+                                        for a in atts {
+                                            if let Ok(d) =
+                                                serde_json::from_value::<Descriptor>(a.clone())
+                                            {
+                                                descs.push(d);
+                                            }
+                                        }
+                                    }
+                                    if !descs.is_empty() {
+                                        file_events.push((evid, descs));
                                     }
                                 }
+                                // M12.4-D6/V8 — minimal client tombstone: a
+                                // redacted message.file is not rendered / its blob
+                                // not fetched. Collect the redact targets; filter
+                                // after the full sync (order-independent).
+                                EventType::MessageRedact => {
+                                    if let Some(t) = ev
+                                        .content
+                                        .get("target_event_id")
+                                        .and_then(|v| v.as_str())
+                                    {
+                                        redacted.insert(t.to_string());
+                                    }
+                                }
+                                _ => {}
                             }
                         }
                     }
@@ -1997,6 +2086,15 @@ pub async fn fetch_attachments(
                 None => break 'pages,
             }
         }
+
+        // M12.4-D6/V8 — drop redacted message.file events: a redacted attachment
+        // is not fetched (its blob bytes are erased node-side, M12.4-D4). Flatten
+        // the surviving file events' descriptors.
+        let descriptors: Vec<Descriptor> = file_events
+            .into_iter()
+            .filter(|(evid, _)| !redacted.contains(evid))
+            .flat_map(|(_, descs)| descs)
+            .collect();
 
         // 2) Fetch + decrypt + verify + write each attachment over the same conn.
         // M12.3-D1/D4 (P1/P3) — pass the Space so the node can lazily fetch a

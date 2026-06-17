@@ -73,17 +73,29 @@ pub enum BlobError {
     /// typed arm replaces it (M12.3-D5).
     #[error("blob unavailable: not in the local store and unreachable across homes")]
     Unavailable,
+
+    /// F2b (M12.4, D7) — the erasure side-effect of a `message.redact` was
+    /// **refused** because the target's original content author declares
+    /// `Retention::Retained` (the T4 legal-hold floor, D-088 / D-093 clause 2).
+    /// Wire code **10004**; the redact event itself is still admitted, stored, and
+    /// fanned out (the gate is on the *delete*, not admission — M12.4-D3), so this
+    /// is a side-channel signal to a locally-submitted redactor that the bytes were
+    /// kept, NOT an event reject. The blob is left in place.
+    #[error("erasure refused: the content author's retention policy forbids deletion (legal hold)")]
+    ErasureRefusedRetained,
 }
 
 impl BlobError {
     /// Map to the protocol wire `(code, name)` tuple. `HashMismatch` (10001),
-    /// `TooLarge` (10002, F6) and `Unavailable` (10003, F3/M12.3) are protocol
-    /// rejects the peer correlates; `MalformedRef`/`Io` are internal.
+    /// `TooLarge` (10002, F6), `Unavailable` (10003, F3/M12.3) and
+    /// `ErasureRefusedRetained` (10004, F2b/M12.4) are protocol signals the peer
+    /// correlates; `MalformedRef`/`Io` are internal.
     pub fn to_wire_code(&self) -> Option<(u32, &'static str)> {
         match self {
             Self::HashMismatch => Some((10001, "blob_hash_mismatch")),
             Self::TooLarge { .. } => Some((10002, "blob_too_large")),
             Self::Unavailable => Some((10003, "blob_unavailable")),
+            Self::ErasureRefusedRetained => Some((10004, "erasure_refused_retained")),
             Self::MalformedRef | Self::Io(_) => None,
         }
     }
@@ -152,6 +164,38 @@ impl BlobStore {
         self.path_for(blob_ref)
             .map(|p| p.exists())
             .unwrap_or(false)
+    }
+
+    /// Delete a blob's bytes (M12.4, M12.4-D4 / V1). The load-bearing erasure
+    /// primitive: a `message.redact` resolves its target descriptor's `blob_ref`
+    /// and calls this to remove the **ciphertext at rest** — a real, complete
+    /// erasure of this node's copy of the content (blobs are NOT in the immutable
+    /// DAG, so the bytes are deletable; the DAG-resident residue is D3, WE6).
+    ///
+    /// **Idempotent (V1):** `Ok(true)` if a file was removed, `Ok(false)` if it
+    /// was already absent — erasure is a no-op on an already-gone blob (a redact
+    /// re-applied, or a blob this node never held), NEVER an error. A malformed
+    /// ref is `Err(MalformedRef)`; an fs failure other than not-found is
+    /// `Err(Io)`.
+    ///
+    /// **D8 / D-093 clause 3 (no shared physical copy across erasure-fate):** the
+    /// `blob_ref` is per-send-unique by construction — `encrypt_blob` (see
+    /// `encryption::blob`) mints a fresh per-blob key + nonce every call, so two
+    /// independent `message.file` sends of the same file produce distinct
+    /// ciphertext → distinct `blob_ref` → distinct files. So `delete(blob_ref)`
+    /// erases exactly the redacted reference's own copy (and its same-erasure-fate
+    /// federated caches, which legitimately share the `blob_ref`); no other
+    /// independent send is touched. **Forward-constraint:** a future re-attach /
+    /// forward feature MUST re-encrypt the bytes (fresh `blob_ref`), never copy an
+    /// existing descriptor's `blob_ref`, or two events would land on one physical
+    /// copy across erasure-fate. No forward exists today.
+    pub fn delete(&self, blob_ref: &str) -> Result<bool, BlobError> {
+        let path = self.path_for(blob_ref)?;
+        match fs::remove_file(&path) {
+            Ok(()) => Ok(true),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(e) => Err(BlobError::Io(e.to_string())),
+        }
     }
 }
 
@@ -240,6 +284,54 @@ mod tests {
         );
         assert_eq!(BlobError::MalformedRef.to_wire_code(), None);
         assert_eq!(BlobError::Io("x".into()).to_wire_code(), None);
+    }
+
+    #[test]
+    fn delete_removes_present_blob_idempotently() {
+        // M12.4 / V1 — delete a present blob: Ok(true), then gone; delete again:
+        // Ok(false) (idempotent — erasure is a no-op on an already-gone blob, not
+        // an error). RED-on-revert (C2 spine): skipping the redact-hook delete
+        // leaves the blob present.
+        let dir = tempdir().unwrap();
+        let store = BlobStore::new(dir.path());
+        let blob_ref = store.put(b"erase-me-ciphertext").unwrap();
+        assert!(store.contains(&blob_ref));
+        assert_eq!(store.delete(&blob_ref), Ok(true)); // removed
+        assert!(!store.contains(&blob_ref)); // gone
+        assert_eq!(store.delete(&blob_ref), Ok(false)); // idempotent no-op
+        assert_eq!(store.get(&blob_ref).unwrap(), None);
+    }
+
+    #[test]
+    fn delete_absent_is_ok_false() {
+        // V1 — deleting a never-stored blob is a no-op success, not an error
+        // (V4: a redact whose target/blob this node never held is a no-op).
+        let dir = tempdir().unwrap();
+        let store = BlobStore::new(dir.path());
+        let absent = hash_uri(b"never-stored");
+        assert_eq!(store.delete(&absent), Ok(false));
+    }
+
+    #[test]
+    fn delete_malformed_ref_errors() {
+        let dir = tempdir().unwrap();
+        let store = BlobStore::new(dir.path());
+        assert_eq!(store.delete("not-a-hash-uri"), Err(BlobError::MalformedRef));
+        assert_eq!(
+            store.delete("xgen://hash/sha256:tooshort"),
+            Err(BlobError::MalformedRef)
+        );
+    }
+
+    #[test]
+    fn erasure_refused_wire_code_is_10004() {
+        // M12.4 / D7 — the F2b legal-hold refusal signal. RC-F-01: 10004 is the
+        // next free code in domain 10 (10001/10002/10003 live). RED-on-revert:
+        // drop the arm from `to_wire_code` → fails to compile / returns None.
+        assert_eq!(
+            BlobError::ErasureRefusedRetained.to_wire_code(),
+            Some((10004, "erasure_refused_retained"))
+        );
     }
 
     #[test]

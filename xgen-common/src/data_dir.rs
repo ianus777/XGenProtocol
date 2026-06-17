@@ -37,6 +37,19 @@ pub enum DataDirError {
          and no platform base dir found. Pass --data-dir <path>."
     )]
     NoPlatformBase,
+
+    /// The resolved root could not be created (M12.2-D5/VD).
+    #[error("data directory {path:?} is not creatable: {reason}")]
+    NotCreatable { path: PathBuf, reason: String },
+
+    /// The resolved root is not writable (write-probe failed) (M12.2-D5/VD).
+    #[error("data directory {path:?} is not writable: {reason}")]
+    NotWritable { path: PathBuf, reason: String },
+
+    /// The resolved root is under the system temp dir — data there is wiped
+    /// (M12.2-D5/VD). Pass an explicit `--data-dir` outside temp.
+    #[error("data directory {path:?} is under the system temp dir (data there is not durable)")]
+    UnderTemp { path: PathBuf },
 }
 
 /// The OS-specific base directory (before [`APP_SUBDIR`] is appended), read from
@@ -91,6 +104,61 @@ pub fn instance_path(root: &Path, label: &str) -> PathBuf {
     root.join("instances").join(label)
 }
 
+/// M12.2b (F9, D5/VD) — startup validation of the resolved data dir: it must be
+/// **creatable**, **writable** (write-probe), and **not** under the system temp
+/// dir (data there is wiped). Fail fast before the runtime is built.
+pub fn validate_data_dir(path: &Path) -> Result<(), DataDirError> {
+    std::fs::create_dir_all(path).map_err(|e| DataDirError::NotCreatable {
+        path: path.to_path_buf(),
+        reason: e.to_string(),
+    })?;
+    // not-tmp — reject a root under the system temp dir. Canonicalise both (the
+    // dir now exists) so the comparison is robust (symlinks / `..` / Windows
+    // extended-length prefix).
+    if let (Ok(canon), Ok(tmp)) = (path.canonicalize(), std::env::temp_dir().canonicalize()) {
+        if canon.starts_with(&tmp) {
+            return Err(DataDirError::UnderTemp { path: path.to_path_buf() });
+        }
+    }
+    // writable — a write-probe (create/write/remove a marker).
+    let probe = path.join(".xgen-write-test");
+    std::fs::write(&probe, b"ok").map_err(|e| DataDirError::NotWritable {
+        path: path.to_path_buf(),
+        reason: e.to_string(),
+    })?;
+    let _ = std::fs::remove_file(&probe);
+    Ok(())
+}
+
+/// M12.2b (F9, D6/VE) — the leave-as-legacy notice. When the resolved root is the
+/// **fresh platform default** (no `--data-dir`/`XGEN_DATA_DIR` override) and an
+/// old `exe_dir` layout still holds data (a keypair or an `instances/` dir),
+/// return a one-line notice naming the `--data-dir=<exe_dir>` escape — so an
+/// upgrading operator is not surprised by a "fresh" node ignoring old data.
+/// `None` when there is no migration concern (override used / same dir / no old
+/// data). No auto-migration (D6).
+pub fn legacy_data_notice(
+    used_override: bool,
+    resolved_root: &Path,
+    exe_dir: &Path,
+    keypair_name: &str,
+) -> Option<String> {
+    if used_override || resolved_root == exe_dir {
+        return None;
+    }
+    let has_old = exe_dir.join(keypair_name).exists() || exe_dir.join("instances").exists();
+    if !has_old {
+        return None;
+    }
+    Some(format!(
+        "notice: existing data found at {} — the default data directory moved to {} (M12.2b/F9). \
+         Pass --data-dir {} to keep using the existing data.",
+        exe_dir.display(),
+        resolved_root.display(),
+        exe_dir.display()
+    ))
+}
+
 fn non_empty_env(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|v| !v.is_empty())
 }
@@ -136,5 +204,48 @@ mod tests {
             instance_path(&root, "n1"),
             PathBuf::from("/data/root").join("instances").join("n1")
         );
+    }
+
+    #[test]
+    fn validate_accepts_good_dir_rejects_temp() {
+        // W3 (spine) — a normal writable dir validates; a dir under the system
+        // temp dir is rejected. RED-on-revert: drop the not-tmp branch in
+        // validate_data_dir → the temp path returns Ok → this assert fails.
+        let good = tempfile::tempdir().expect("tempdir");
+        // tempfile lives under temp_dir() → must be REJECTED as UnderTemp.
+        assert!(
+            matches!(validate_data_dir(good.path()), Err(DataDirError::UnderTemp { .. })),
+            "a dir under the system temp dir must be rejected"
+        );
+        // A dir NOT under temp (a child of the manifest dir) validates.
+        let outside = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("m12_2b_validate_probe");
+        let r = validate_data_dir(&outside);
+        let _ = std::fs::remove_dir_all(&outside);
+        assert!(r.is_ok(), "a writable non-temp dir validates: {r:?}");
+    }
+
+    #[test]
+    fn legacy_notice_fires_only_on_fresh_default_with_old_data() {
+        // W5 — the D6 notice fires only when no override + an old exe_dir layout
+        // holds data + the resolved root differs.
+        let exe = tempfile::tempdir().expect("exe tempdir");
+        let platform = PathBuf::from("/platform/XGenProtocol");
+        let kp = "xgen-node_keypair.enc";
+
+        // No old data → None.
+        assert!(legacy_data_notice(false, &platform, exe.path(), kp).is_none());
+
+        // Old data present + no override + different root → Some.
+        std::fs::write(exe.path().join(kp), b"k").unwrap();
+        let n = legacy_data_notice(false, &platform, exe.path(), kp);
+        assert!(n.is_some(), "notice fires with old data + fresh default");
+        assert!(n.unwrap().contains("--data-dir"), "notice names the escape");
+
+        // Override used → None (operator chose explicitly).
+        assert!(legacy_data_notice(true, &platform, exe.path(), kp).is_none());
+        // Resolved == exe_dir → None (already using it).
+        assert!(legacy_data_notice(false, exe.path(), exe.path(), kp).is_none());
     }
 }

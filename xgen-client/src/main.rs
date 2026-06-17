@@ -48,7 +48,7 @@ fn resolve_data_dir(instance: &Option<String>, data_dir_flag: Option<&Path>) -> 
             std::process::exit(1);
         }
     };
-    match instance {
+    let dir = match instance {
         Some(label) => {
             if !validate_instance_label(label) {
                 eprintln!(
@@ -61,12 +61,35 @@ fn resolve_data_dir(instance: &Option<String>, data_dir_flag: Option<&Path>) -> 
             xgen_common::data_dir::instance_path(&root, label)
         }
         None => root,
+    };
+    // M12.2b (F9, D5/VD) — startup validation: fail fast on a non-creatable /
+    // non-writable / temp data root.
+    if let Err(e) = xgen_common::data_dir::validate_data_dir(&dir) {
+        eprintln!("error: {e}");
+        std::process::exit(1);
     }
+    dir
 }
 
 fn main() {
     let cli = Cli::parse();
     let data_dir = resolve_data_dir(&cli.instance, cli.data_dir.as_deref());
+    // M12.2b (F9, D6/VE) — leave-as-legacy notice: when the fresh platform
+    // default is used (no override) and an old exe_dir layout still holds data,
+    // name the --data-dir=<exe_dir> escape (no auto-migration).
+    {
+        let used_override = cli.data_dir.is_some() || std::env::var("XGEN_DATA_DIR").is_ok();
+        if let Some(root) = xgen_common::data_dir::platform_default_data_dir() {
+            if let Some(msg) = xgen_common::data_dir::legacy_data_notice(
+                used_override,
+                &root,
+                &app::exe_dir(),
+                "xgen-client_keypair.enc",
+            ) {
+                eprintln!("{msg}");
+            }
+        }
+    }
     let config_path = cli
         .config
         .clone()

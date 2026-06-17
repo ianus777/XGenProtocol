@@ -42,3 +42,5 @@ mock-clock = []
 # serialises them within the xgen-common test bucket so the env-var dance is
 # observable per-test.
 serial_test = "3"
+# M12.2b (F9) — data-dir validation tests (W3/W5) use temp dirs.
+tempfile = "3"

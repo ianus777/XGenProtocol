@@ -8,6 +8,20 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-394 — DO-3: ROADMAP prose refresh — completed milestones relocated to Past; Present rewritten to the doc-opt phase; tree untouched
+
+**What happened.** DO-3 of the documentation-optimization phase: refreshed the ROADMAP's prose sections, which had drifted badly out of sync with the codebase while the backend sprinted M6→M12. The tree/chain "Visual structure" section was left untouched (Joe-lock). `docs/ROADMAP.md` v3.80→v3.81, 914→752 lines.
+
+**The staleness found.** The "Present — playing now" section was a ~180-line chronological stack of ~50 already-CLOSED entries (J-180→J-357); the actual present (the doc-opt phase) was absent and the newest entry still read "next-active = M10". "Far future" was tangled with M7/M8/M9/multiparty/M10/M11/M12 all marked done-or-scheduled, and "Past — settled" had stopped being maintained at the XGID/federation era (~J-148).
+
+**The refresh (Option A — condense, not archive; the detailed record already lives in JOURNAL).** Past — settled gained terse one-liners for everything M6→M12 + multiparty + Round-2, grouped by family (M6 admin verbs, M7 family, Storage subsystem, the Round-1 D-071 arc pack, Round-2 first, M8 family, M9 + Multiparty-tests, M10–M12, the Round-2 final pre-UI gate). Present — playing now was rewritten to describe only the doc-opt phase (DO-1✅/DO-2✅/DO-2b✅/DO-3 now/DO-4–5 pending) + the pre-UI chain. Near future = the real pre-UI remainder (Appendix F/I audit → mockup stock-take) + identity→home-node discovery. Far future = UI + Streams + routed topics, stripped of completed-milestone clutter. Parallel-workstreams / Open-areas / Cross-cutting / How-to-read were current and left intact.
+
+**Canonical (D-074).** `docs/ROADMAP.md` (the rewrite + v3.81 + the doc-opt marker bumped to DO-3-done in the tree node/arrow), `CLAUDE.md` (head: DO-3 ✅, next-active DO-4), this JOURNAL J-394. No DECISIONS change. Doc-only; no code.
+
+**Next-active.** DO-4 — DECISIONS.md R2G-F03 (D-030/D-031 duplicates + non-monotonic ordering; suffix-not-renumber).
+
+---
+
 ## Entry J-393 — DO-2b: 43 stale-ACTIVE task docs triaged + archived; NODE_ADMIN_PASS2 kept live (PENDING)
 
 **What happened.** DO-2b cleared the 44 stale `Status: ACTIVE` task docs surfaced in DO-2 (J-392). All 44 mapped to CLOSED milestones — their headers were never flipped at arc close. Triage outcome: 43 archived under D-094, 1 kept live.

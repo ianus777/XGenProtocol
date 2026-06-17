@@ -55,7 +55,9 @@ use crate::{
         registry::{IdentityRecord, IdentityRegistry},
         replication::{handle_incoming_home_changed, handle_incoming_replicate},
     },
-    node::runtime::{space_id_of, topological_sort, DispatchOutcome, EventOrigin, NodeRuntime},
+    node::runtime::{
+        space_id_of, topological_sort, DispatchOutcome, EventOrigin, NodeRuntime, RedactErasure,
+    },
     transport::{
         client::connect_url,
         connection::{Connection, Inbound},
@@ -2008,6 +2010,7 @@ pub(crate) async fn handle_connection(
                             &runtime,
                             &identities_path,
                             &spaces_dir,
+                            &blobs_dir,
                             EventOrigin::LocallySubmitted,
                             &federation_policy,
                         )
@@ -2435,6 +2438,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                         &runtime,
                         &identities_path,
                         &spaces_dir,
+                        &blobs_dir,
                         EventOrigin::ReceivedViaFederation,
                         &federation_policy,
                     )
@@ -2602,6 +2606,7 @@ pub(crate) async fn run_federation_session_post_handshake<S>(
                             &runtime,
                             &identities_path,
                             &spaces_dir,
+                            &blobs_dir,
                             EventOrigin::ReceivedViaFederation,
                             &federation_policy,
                         )
@@ -2980,6 +2985,50 @@ fn reject_signal(
     }
 }
 
+/// M12.4-D5 — the node-side erasure side-effect of a `message.redact`. Runs in
+/// `process_inbound`'s `Accepted` arm: the redact event is already validated,
+/// persisted, and will be fanned out — **the gate is on the side-effect, not
+/// admission** (M12.4-D3, the convergence spine; INV-EXP / M8.6 lesson). The call
+/// site is **unconditional on origin**, so a federation-received redact reaching a
+/// peer that cached the blob (M12.3, `store.put` at the fetch-miss path) erases
+/// that cache too (WE4).
+///
+/// Resolves the decision via [`NodeRuntime::resolve_redact_erasure`] (xgen-core —
+/// the F2b retention read + target → `blob_ref` resolution) under the runtime
+/// lock, then acts on `Delete` by removing each blob's bytes from the local store
+/// (`BlobStore::delete`, best-effort + idempotent + log-and-continue) **after**
+/// dropping the lock. Returns the [`RedactErasure`] so the caller can signal
+/// `10004 erasure_refused_retained` to a locally-submitted redactor on
+/// `RefusedRetained` (M12.4-D7 / V6). The blob bytes are the only content erased;
+/// the DAG-resident residue (the event, the plaintext descriptor key) is D3 (WE6).
+pub(crate) async fn apply_redact_erasure(
+    redact: &xgen_common::wire::Event,
+    runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
+    blobs_dir: &Path,
+) -> RedactErasure {
+    let decision = { runtime.lock().await.resolve_redact_erasure(redact) };
+    if let RedactErasure::Delete(ref blob_refs) = decision {
+        let store = BlobStore::new(blobs_dir);
+        for blob_ref in blob_refs {
+            match store.delete(blob_ref) {
+                Ok(removed) => tracing::info!(
+                    event = "blob_erased",
+                    blob_ref = %blob_ref,
+                    removed,
+                    "M12.4: message.redact erased blob bytes (this node's copy)"
+                ),
+                Err(e) => tracing::error!(
+                    event = "blob_erase_failed",
+                    blob_ref = %blob_ref,
+                    error = %e,
+                    "M12.4: blob delete failed (best-effort; the redact still converged)"
+                ),
+            }
+        }
+    }
+    decision
+}
+
 // ── Inbound message processor ──────────────────────────────────────────────────
 
 /// Process an inbound message from an authenticated wire peer.
@@ -3015,6 +3064,7 @@ async fn process_inbound<S>(
     runtime: &Arc<tokio::sync::Mutex<NodeRuntime>>,
     identities_path: &Path,
     spaces_dir: &Path,
+    blobs_dir: &Path,
     origin: EventOrigin,
     policy_store: &Arc<tokio::sync::Mutex<FederationPolicyStore>>,
 ) -> FanoutRequest
@@ -3260,6 +3310,30 @@ where
                         Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
                     ) {
                         let _ = conn.send_transport(&sig).await;
+                    }
+                    // M12.4-D5 — erasure side-effect of a message.redact. The
+                    // event is already admitted + persisted + about to be fanned
+                    // out (D3 — the gate is on the side-effect, not admission, so
+                    // the redact converges on every node regardless of outcome).
+                    // Origin-agnostic (this arm runs for both LocallySubmitted and
+                    // ReceivedViaFederation), so a federated redact erases a peer's
+                    // cached copy (WE4). On RefusedRetained (the target's original
+                    // content author is Retained — the legal-hold floor, D2/D-093
+                    // c2) the bytes are kept and a locally-submitted redactor is
+                    // signalled 10004 (D7/V6); the event still converged.
+                    if event.event_type == xgen_common::wire::EventType::MessageRedact {
+                        let outcome = apply_redact_erasure(&event, runtime, blobs_dir).await;
+                        if matches!(outcome, RedactErasure::RefusedRetained) {
+                            if let Some(sig) = reject_signal(
+                                origin,
+                                &event_id,
+                                10004,
+                                "erasure_refused_retained",
+                                Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                            ) {
+                                let _ = conn.send_transport(&sig).await;
+                            }
+                        }
                     }
                     FanoutRequest {
                         event: Some(event),

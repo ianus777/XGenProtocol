@@ -85,3 +85,4 @@ pub mod arc_h_content_blindness;
 // client: round-trip / content-blindness / hash-integrity / multi-chunk / no-federation.
 pub mod m12_blob_roundtrip;
 pub mod m12_3_federation_fetch;
+pub mod m12_4_redact;

@@ -26,6 +26,7 @@ use ed25519_dalek::SigningKey;
 use xgen_common::clock::{Clock, RealClock};
 use xgen_common::space_local::SpaceLocalMetadata;
 use xgen_common::state::StorageAdvert;
+use xgen_common::trust_assertion::{Retention, TrustClaims};
 use xgen_common::xgid::{EventXgid, IdentityXgid, NodeXgid, SpaceXgid, Xgid};
 
 use crate::{
@@ -38,6 +39,7 @@ use crate::{
         },
     },
     encryption::key_package::{KeyPackageError, KeyPackageStore, StoredKeyPackage},
+    message::exchange::Descriptor,
     identity::{
         registration::AssertionPolicy,
         registry::{IdentityRecord, IdentityRegistry, RegistryError},
@@ -123,6 +125,31 @@ pub enum DispatchOutcome {
     // 1-tuple shape keeps `matches!(_, Rejected(_))` wildcards + drain arms
     // unchanged (MP-F2-D1 minimal-blast-radius lock).
     Rejected(RejectInfo),
+}
+
+/// The resolved erasure side-effect of a `message.redact` (M12.4-D2/D3 / V4/V5).
+///
+/// A pure decision over runtime state — [`NodeRuntime::resolve_redact_erasure`]
+/// reads the per-Space store (to resolve the target's `blob_ref`(s)) and the
+/// identity registry (to read the **original content author's** retention). The
+/// caller (xgen-node `process_inbound`'s redact hook, M12.4-D5) acts on it. The
+/// redact **event** is always admitted, stored, and fanned out regardless of this
+/// outcome — **the gate is on the erasure side-effect, not admission** (M12.4-D3,
+/// the convergence spine; INV-EXP / M8.6 lesson). This outcome only decides what
+/// happens to the **blob bytes**.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RedactErasure {
+    /// Erase these `blob_ref`(s) — the target `message.file`'s descriptor blobs;
+    /// the original author is erasable (D-088: T1/no-module = max-erasable).
+    Delete(Vec<String>),
+    /// The target's original content author declares `Retention::Retained` — the
+    /// T4 legal-hold floor (D-088 / D-093 clause 2). Keep the bytes; the caller
+    /// signals `10004 erasure_refused_retained` to a locally-submitted redactor.
+    RefusedRetained,
+    /// Nothing to erase node-side: the redact is malformed (no `target_event_id`),
+    /// the target is not on this node, or the target carries no attachments (a
+    /// non-file redact — its display tombstone is a client-side concern, M12-A-02).
+    NoOp,
 }
 
 /// Structured rejection metadata (MP-F2-D1) — the protocol wire code and name
@@ -519,6 +546,98 @@ impl NodeRuntime {
             self.stores.insert(space_id.clone(), store);
         }
         Ok(())
+    }
+
+    /// Resolve the erasure side-effect of a `message.redact` (M12.4-D1/D2 / V4/V5).
+    ///
+    /// A **pure decision** over runtime state — the caller (xgen-node
+    /// `process_inbound`'s redact hook) performs the fs delete / `10004` signal.
+    /// Origin-agnostic by design: it runs identically for a locally-submitted and
+    /// a federation-received redact, so a redact reaching a peer that cached the
+    /// blob (M12.3) erases that cache (WE4). Resolution:
+    ///   1. the redact's `content["target_event_id"]` (D1);
+    ///   2. the target `message.file` event from *this* node's per-Space store
+    ///      (V4) → its `attachments: [Descriptor]` → `blob_ref`s;
+    ///   3. the **original content author** (`target.sender`)'s stored Trust
+    ///      Assertion → `module_policy().erasability.retention` (D2/V5).
+    ///
+    /// Only an explicit `Retention::Retained` blocks (the legal-hold floor,
+    /// D-088/D-093 c2 → [`RedactErasure::RefusedRetained`]); absent / unparseable /
+    /// `Erasable` ⇒ erase (D-088: T1/no-module = max-erasable). A target that is
+    /// not on this node, carries no attachments, or a malformed redact ⇒
+    /// [`RedactErasure::NoOp`] (the redact event still converges, M12.4-D3).
+    ///
+    /// **D8 / D-093 c3:** each `blob_ref` is per-send-unique by construction
+    /// (`encrypt_blob` mints a fresh key per send), so the returned refs name only
+    /// the redacted reference's own copies — no shared physical copy across
+    /// erasure-fate. A future re-attach/forward must re-encrypt (fresh `blob_ref`).
+    pub fn resolve_redact_erasure(&self, redact: &Event) -> RedactErasure {
+        // D1 — the redact carries only the target event id.
+        let target_id = match redact.content.get("target_event_id").and_then(|v| v.as_str()) {
+            Some(s) if !s.is_empty() => s,
+            _ => return RedactErasure::NoOp, // malformed redact — nothing to erase
+        };
+        if redact.space_id.as_str().is_empty() {
+            return RedactErasure::NoOp;
+        }
+        // V4 — resolve the target from the redact's Space store. Target absent on
+        // this node ⇒ no-op (the blob isn't here either; the event still converges).
+        let target = match self.stores.get(&redact.space_id) {
+            Some(store) => {
+                let target_xid = EventXgid::from_xgid(Xgid::new(target_id.to_string()));
+                match store.get(&target_xid) {
+                    Ok(Some(ev)) => ev,
+                    _ => return RedactErasure::NoOp,
+                }
+            }
+            None => return RedactErasure::NoOp,
+        };
+        // The target's descriptor blob_ref(s) (V4). A non-file target (no
+        // `attachments`, or an unparseable list) has nothing to erase node-side —
+        // the display tombstone is the client's concern (M12-A-02).
+        let blob_refs: Vec<String> = match target.content.get("attachments") {
+            Some(v) => match serde_json::from_value::<Vec<Descriptor>>(v.clone()) {
+                Ok(descs) => descs.into_iter().map(|d| d.blob_ref).collect(),
+                Err(_) => return RedactErasure::NoOp,
+            },
+            None => return RedactErasure::NoOp,
+        };
+        if blob_refs.is_empty() {
+            return RedactErasure::NoOp;
+        }
+        // F2b (D2/V5) — read the ORIGINAL CONTENT AUTHOR's retention (NOT the
+        // redactor's): retention is a property of the record (D-093 c2). Only an
+        // explicit Retained blocks the erasure side-effect.
+        if self.author_is_retained(&target.sender) {
+            return RedactErasure::RefusedRetained;
+        }
+        RedactErasure::Delete(blob_refs)
+    }
+
+    /// F2b read (M12.4-D2/V5; M12's **first** production `Retention` reader): does
+    /// `author`'s stored Trust Assertion declare `Retention::Retained`? **Lenient**
+    /// — an absent record, an absent / non-object / unparseable assertion, an
+    /// absent module-policy, or an explicit `Erasable` all return `false` (erasure
+    /// is the default; D-088: T1/no-module = max-erasable). Only an explicit
+    /// module-declared `Retained` returns `true` (the legal-hold floor).
+    fn author_is_retained(&self, author: &IdentityXgid) -> bool {
+        let claims: TrustClaims = match self
+            .identity_registry
+            .get(author)
+            .and_then(|r| r.trust_assertion.as_ref())
+            .and_then(|assertion| assertion.get("claims"))
+            .and_then(|claims_val| serde_json::from_value(claims_val.clone()).ok())
+        {
+            Some(c) => c,
+            None => return false,
+        };
+        matches!(
+            claims
+                .module_policy()
+                .and_then(|p| p.erasability)
+                .and_then(|e| e.retention),
+            Some(Retention::Retained)
+        )
     }
 
     /// SE-SUB-D6 — rebuild a Space's in-memory graph + `SpaceState` from an
@@ -5647,5 +5766,205 @@ mod m8_c2_wiring_tests {
             node.spaces[&sdx(&sid)].pending_invites.contains_key(&idx(&bob_id)),
             "non-conflicting invite applied incrementally via the fast path"
         );
+    }
+}
+
+#[cfg(test)]
+mod m12_4_redact_erasure_tests {
+    //! M12.4 — the `resolve_redact_erasure` decision (the F2b retention read +
+    //! target → blob_ref resolution). The fs delete + the `10004` wire signal are
+    //! the xgen-node integration witnesses (`m12_4_redact.rs`); these lock the
+    //! pure decision (M12.4-D2 — read the ORIGINAL CONTENT AUTHOR's retention;
+    //! M12.4-D8 — per-send-unique blob_refs). RED-on-revert for D2 lives in
+    //! `we2_retained_author_refuses` (drop the Retention check → it would return
+    //! Delete → the assert fails).
+
+    use serde_json::json;
+
+    use super::{NodeRuntime, RedactErasure};
+    use crate::{
+        crypto::hashing::hash_uri,
+        identity::{
+            keypair,
+            registry::{DeviceRecord, IdentityRecord},
+        },
+        message::exchange::{build_message_file_event, build_message_redact_event, Descriptor},
+        space::state::sign_event,
+        wire::types::Event,
+    };
+    use xgen_common::xgid::{IdentityXgid, NodeXgid, SpaceXgid, Xgid};
+
+    const SID: &str = "xgen://space/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const RID: &str = "xgen://room/sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    fn descriptor(blob_ref: &str) -> Descriptor {
+        Descriptor {
+            blob_ref: blob_ref.to_string(),
+            plaintext_hash: hash_uri(b"plaintext"),
+            key: "BASE64-PER-BLOB-KEY".to_string(),
+            filename: "attachment.bin".to_string(),
+            mime: "application/octet-stream".to_string(),
+            size: 9,
+        }
+    }
+
+    /// An author record carrying `retention` (`"retained"`/`"erasable"`), or `None`
+    /// for an author with no Trust Assertion at all.
+    fn author_record(author: &IdentityXgid, retention: Option<&str>) -> IdentityRecord {
+        let trust_assertion = retention.map(|r| {
+            json!({
+                "claims": {
+                    "tier_verified": true,
+                    "module_policy": { "erasability": { "retention": r } }
+                }
+            })
+        });
+        IdentityRecord {
+            identity_id: author.clone(),
+            display_name: None,
+            is_ai: false,
+            ai_capabilities: None,
+            registered_at: "2026-06-17T00:00:00.000Z".to_string(),
+            trust_assertion,
+            devices: vec![DeviceRecord {
+                device_id: author.as_str().to_string(),
+                device_name: None,
+                authorised_at: "2026-06-17T00:00:00.000Z".to_string(),
+            }],
+            home_node: NodeXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:NODE".to_string())),
+            update_version: 0,
+            revoked: false,
+            revoked_at: None,
+            revocation_reason: None,
+        }
+    }
+
+    /// Store a signed `message.file` (with `blob_refs`) authored by a fresh key,
+    /// registering the author with `retention`. Returns the file event's id (the
+    /// redact target).
+    fn store_file_event(rt: &mut NodeRuntime, blob_refs: &[&str], retention: Option<&str>) -> String {
+        let author = keypair::generate();
+        let descs: Vec<Descriptor> = blob_refs.iter().map(|r| descriptor(r)).collect();
+        let file_ev = sign_event(
+            build_message_file_event(&author, SID, RID, vec![], &descs),
+            &author,
+        );
+        let author_id = file_ev.sender.clone();
+        let file_id = file_ev.event_id.as_ref().unwrap().as_str().to_string();
+        let space = SpaceXgid::from_xgid(Xgid::new(SID.to_string()));
+        rt.ensure_store(&space).unwrap();
+        rt.stores.get_mut(&space).unwrap().append(file_ev).unwrap();
+        // Only an author *with* an assertion is registered; None models a T1 /
+        // no-module author the registry has but with no retention declared (still
+        // reachable via the record's None trust_assertion).
+        rt.identity_registry
+            .register(author_record(&author_id, retention))
+            .unwrap();
+        file_id
+    }
+
+    /// A signed redact (by an arbitrary redactor — NOT the author, proving D2
+    /// reads the *author's* retention, not the redactor's) targeting `target_id`.
+    fn redact_targeting(target_id: &str) -> Event {
+        let redactor = keypair::generate();
+        sign_event(
+            build_message_redact_event(&redactor, SID, RID, vec![], target_id),
+            &redactor,
+        )
+    }
+
+    #[test]
+    fn we2_retained_author_refuses() {
+        // WE2 / D2 — the ORIGINAL CONTENT AUTHOR declares Retained → RefusedRetained
+        // (the legal-hold floor). RED-on-revert: drop the `author_is_retained`
+        // check in `resolve_redact_erasure` → this returns Delete → the assert fails.
+        let mut rt = NodeRuntime::new(keypair::generate());
+        let blob = hash_uri(b"retained-ciphertext");
+        let target = store_file_event(&mut rt, &[&blob], Some("retained"));
+        let redact = redact_targeting(&target);
+        assert_eq!(rt.resolve_redact_erasure(&redact), RedactErasure::RefusedRetained);
+    }
+
+    #[test]
+    fn we2_erasable_author_deletes() {
+        // WE2 — an Erasable author → Delete(its blob_ref).
+        let mut rt = NodeRuntime::new(keypair::generate());
+        let blob = hash_uri(b"erasable-ciphertext");
+        let target = store_file_event(&mut rt, &[&blob], Some("erasable"));
+        let redact = redact_targeting(&target);
+        assert_eq!(
+            rt.resolve_redact_erasure(&redact),
+            RedactErasure::Delete(vec![blob])
+        );
+    }
+
+    #[test]
+    fn d2_absent_assertion_defaults_to_erase() {
+        // D2/V5 — absent retention (T1/no-module) ⇒ erase (D-088: max-erasable);
+        // only an explicit Retained blocks.
+        let mut rt = NodeRuntime::new(keypair::generate());
+        let blob = hash_uri(b"no-assertion-ciphertext");
+        let target = store_file_event(&mut rt, &[&blob], None);
+        let redact = redact_targeting(&target);
+        assert_eq!(
+            rt.resolve_redact_erasure(&redact),
+            RedactErasure::Delete(vec![blob])
+        );
+    }
+
+    #[test]
+    fn we5_shared_fate_redact_one_leaves_the_other() {
+        // WE5 / D8 — two independent message.file sends → two DISTINCT blob_refs
+        // (per-send-unique; encrypt_blob mints a fresh key, so even identical files
+        // hash differently). Redacting file1 returns only its blob_ref; file2's is
+        // untouched. The decision names only the redacted reference's copy.
+        let mut rt = NodeRuntime::new(keypair::generate());
+        let blob1 = hash_uri(b"send-1-ciphertext");
+        let blob2 = hash_uri(b"send-2-ciphertext");
+        assert_ne!(blob1, blob2, "two sends → distinct blob_refs (per-send-unique)");
+        let target1 = store_file_event(&mut rt, &[&blob1], Some("erasable"));
+        let _target2 = store_file_event(&mut rt, &[&blob2], Some("erasable"));
+        let redact = redact_targeting(&target1);
+        assert_eq!(
+            rt.resolve_redact_erasure(&redact),
+            RedactErasure::Delete(vec![blob1]),
+            "redacting file1 names only file1's blob, never file2's"
+        );
+    }
+
+    #[test]
+    fn noop_target_absent() {
+        // V4 — the target is not on this node ⇒ NoOp (nothing to erase; the event
+        // still converges).
+        let rt = NodeRuntime::new(keypair::generate());
+        let redact = redact_targeting(
+            "xgen://hash/sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        );
+        assert_eq!(rt.resolve_redact_erasure(&redact), RedactErasure::NoOp);
+    }
+
+    #[test]
+    fn noop_target_has_no_attachments() {
+        // A redact of a target carrying no attachments ⇒ NoOp (nothing to erase
+        // node-side; the display tombstone is client-side, M12-A-02).
+        let mut rt = NodeRuntime::new(keypair::generate());
+        let target = store_file_event(&mut rt, &[], Some("erasable")); // empty attachments
+        let redact = redact_targeting(&target);
+        assert_eq!(rt.resolve_redact_erasure(&redact), RedactErasure::NoOp);
+    }
+
+    #[test]
+    fn noop_malformed_redact_no_target_field() {
+        // A redact whose content has no `target_event_id` ⇒ NoOp.
+        let redactor = keypair::generate();
+        let rt = NodeRuntime::new(keypair::generate());
+        // build_message_redact_event always sets the field; simulate a malformed
+        // one by clearing the content.
+        let mut redact = sign_event(
+            build_message_redact_event(&redactor, SID, RID, vec![], "x"),
+            &redactor,
+        );
+        redact.content = json!({});
+        assert_eq!(rt.resolve_redact_erasure(&redact), RedactErasure::NoOp);
     }
 }

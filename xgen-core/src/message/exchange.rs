@@ -970,6 +970,40 @@ pub fn build_message_file_event(
     )
 }
 
+/// Build an unsigned `message.redact` Event targeting `target_event_id` (M12.4,
+/// M12.4-D1 / V3). Twin of [`build_message_file_event`]; reuses the
+/// validation-wired `EventType::MessageRedact` (permission arm `SendMessages`,
+/// no-op validation arm — both already present). Content is **only**
+/// `{ target_event_id }` (D1): the node resolves the blob_ref(s) to erase from
+/// the target `message.file`'s own descriptor (the authoritative blob list,
+/// single source of truth — restating them here would invite drift). The redact
+/// rides the DAG + fanout like any message event (no `SpaceState` apply arm); its
+/// erasure side-effect is the node-side blob-delete hook in `process_inbound`
+/// (M12.4-D5). Call `space::state::sign_event` to compute event_id + signature.
+pub fn build_message_redact_event(
+    key: &SigningKey,
+    space_id: &str,
+    room_id: &str,
+    prev_events: Vec<String>,
+    target_event_id: &str,
+) -> Event {
+    Event::new(
+        EventType::MessageRedact,
+        IdentityXgid::from_xgid(Xgid::new(format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(key.verifying_key().as_bytes())
+        ))),
+        RoomXgid::from_xgid(Xgid::new(room_id.to_string())),
+        SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+        prev_events
+            .into_iter()
+            .map(|s| EventXgid::from_xgid(Xgid::new(s)))
+            .collect(),
+        Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+        json!({ "target_event_id": target_event_id }),
+    )
+}
+
 // ── Event builder ─────────────────────────────────────────────────────────────
 
 /// Build an unsigned `message.text` Event.

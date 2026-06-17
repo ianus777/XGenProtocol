@@ -851,7 +851,7 @@ The following are explicitly NOT in M6 and are deferred to specific named milest
 |---|---|
 | **D-035** | Convention-derived path rule; applies to audit storage location and per-instance segregation. |
 | **D-043** | Pipe naming convention with `--instance`; M6 verbs that operate against per-instance Node residents inherit this naming. |
-| **D-056** | One-binary-per-role model; M6 admin write path is a dispatch mode on existing `xgen-node`, not a new binary. |
+| **D-056b** | One-binary-per-role model; M6 admin write path is a dispatch mode on existing `xgen-node`, not a new binary. |
 | **D-063** | Library-first principle; `admin_ops::*` is the same shape as `ops::*`. |
 | **D-065** | Honest behaviour over polite behaviour; named here in §2.1, §2.2, §2.6.5. |
 | **D-066** | `--aicontrol` split from `--batch`; M7 reuses `admin_ops::*` per this design. |

@@ -1803,7 +1803,7 @@ Phase 2 extends the reference implementation in two directions simultaneously: t
 - Lifecycle state machine implementation in `xgen-client/src/lib.rs` and `xgen-node/src/lib.rs` (states defined in Appendix E)
 - Svelte skeleton UI for Client and Node admin window
 - Console overlay wiring — `Backquote` toggle, live log stream, prompt connected to real CLI
-- Node systray integration (desktop deployment model per D-037)
+- Node systray integration (desktop deployment model per D-037b)
 - First-run SETUP flow — local keypair generation, display name, passphrase (no network traffic)
 - `auto_connect_local` behaviour — silent localhost scan after `INITIALISING`
 - `--batch` flag for both binaries (`.xgb` batch file format) — low cost, high testing value
@@ -1831,7 +1831,7 @@ All nine Phase 2 protocol layers are implemented in `xgen-core` (GPL-2.0-or-late
 | 18 | End-to-End Encryption (MLS) | §3.10 | 290 | D-052 | J-053 |
 | 19 | Auth Module Tier 2–4 Interfaces | §3.11 | 300 | D-053 | J-054 |
 
-**Transport layer fix (D-056):** During integration testing a routing bug was discovered in `xgen-core/src/transport/connection.rs`. The `recv()` function dispatched incoming frames by `value["type"]` prefix, but `Event.event_type` also serialises as `"type"` on the wire. Events with types sharing a control-message prefix — such as `mls.key_package`, `bootstrap.node_announce`, `reputation.defederation_signal` — were being misrouted to the wrong `Inbound` variant, causing deserialization failures that silently dropped the connection. Fix: `value.get("sender").is_some()` is now checked first in the routing chain. Every `Event` always carries `"sender"`; no control message type ever does. See DECISIONS.md D-056.
+**Transport layer fix (D-056a):** During integration testing a routing bug was discovered in `xgen-core/src/transport/connection.rs`. The `recv()` function dispatched incoming frames by `value["type"]` prefix, but `Event.event_type` also serialises as `"type"` on the wire. Events with types sharing a control-message prefix — such as `mls.key_package`, `bootstrap.node_announce`, `reputation.defederation_signal` — were being misrouted to the wrong `Inbound` variant, causing deserialization failures that silently dropped the connection. Fix: `value.get("sender").is_some()` is now checked first in the routing chain. Every `Event` always carries `"sender"`; no control message type ever does. See DECISIONS.md D-056a.
 
 ---
 
@@ -1859,9 +1859,9 @@ xgen-client smoke-ph2 --node-a <ws://...> --node-b <ws://...>
 
 **Result: PASS — 60/60 steps — 2026-05-14 (J-058)**
 
-Environment: Node A `ws://127.0.0.1:9080/xgen`, Node B `ws://127.0.0.1:9081/xgen`, debug build, post D-056 fix. Duration: 4.0s. 300/300 unit tests confirmed passing at the time of the J-058 run; workspace test count has since grown to 387 (see §4.17).
+Environment: Node A `ws://127.0.0.1:9080/xgen`, Node B `ws://127.0.0.1:9081/xgen`, debug build, post D-056a fix. Duration: 4.0s. 300/300 unit tests confirmed passing at the time of the J-058 run; workspace test count has since grown to 387 (see §4.17).
 
-Full step-by-step output and unit test confirmation: **Appendix H §H.1**. Full run context and D-056 bug fix detail: JOURNAL.md J-058. Instruction file: `docs/tests/INTEGRATION_TEST_ph2.md`.
+Full step-by-step output and unit test confirmation: **Appendix H §H.1**. Full run context and D-056a bug fix detail: JOURNAL.md J-058. Instruction file: `docs/tests/INTEGRATION_TEST_ph2.md`.
 
 ---
 
@@ -1924,7 +1924,7 @@ Chapter 5 covers the Open Protocol milestone — two independent client implemen
 **Covered:** Phase 1 verified complete. Handoff to Chapter 5 written — all Phase 1 acceptance criteria confirmed met (smoke test + stress test programme complete, commit `8c9402b`). Phase 2 scope section added covering both protocol layer (Ch3 §3.9–3.16) and UI layer (Tauri, lifecycle state machine, skeleton UI, Console overlay, systray, first-run flow, `auto_connect_local`, `--batch` flag, `xgen-core` split). Header date updated.
 
 ### Session 4 — May 2026 (JozefN)
-**Covered:** Phase 2 implementation complete and verified. Sections 4.17 and 4.18 added. All nine Phase 2 protocol layers (11–19) documented with spec references, test counts, and decision/journal cross-references. Transport layer routing bug (D-056) documented in 4.17. Section 4.18 covers the `smoke-ph2` test structure and contains the verified run output (60/60 PASS, 2026-05-14, J-058). Section skeleton table updated to include Phase 2 sections. Header scope note and date updated.
+**Covered:** Phase 2 implementation complete and verified. Sections 4.17 and 4.18 added. All nine Phase 2 protocol layers (11–19) documented with spec references, test counts, and decision/journal cross-references. Transport layer routing bug (D-056a) documented in 4.17. Section 4.18 covers the `smoke-ph2` test structure and contains the verified run output (60/60 PASS, 2026-05-14, J-058). Section skeleton table updated to include Phase 2 sections. Header scope note and date updated.
 
 ### Session 5 — 2026-05-15 (JozefN)
 **Covered:** UI component library architecture decisions recorded (D-057, D-058 in DECISIONS.md; reflected in Ch6). Section 4.20 added as a pending row in the Phase 2 section skeleton. The CSS layer architecture (base.css → tokens.css → skin → components) and the 4px/13px design system are specified in Ch6 §6.2 CSS Layer Architecture subsection and govern all UI implementation work.

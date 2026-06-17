@@ -225,8 +225,8 @@ timestamp=2026-05-07T10:24:31Z level=INFO subsystem=lifecycle action=state_trans
 |---|---|
 | Ch2 — Application Deployment Model & Lifecycle States | Canonical summary. This appendix is the full detail. |
 | Ch6 — Client Design | Console screen specification (second pass) will reference these states for the status indicator component. |
-| D-037 | Node deployment model decision record. Desktop vs. service deployment. Architectural horizon. |
-| D-039 | Shutdown model. × button minimizes to systray — does not trigger CLOSING. CLOSING is only entered via explicit exit action (in-app button, systray menu, `--stop` flag). |
+| D-037b | Node deployment model decision record. Desktop vs. service deployment. Architectural horizon. |
+| D-039b | Shutdown model. × button minimizes to systray — does not trigger CLOSING. CLOSING is only entered via explicit exit action (in-app button, systray menu, `--stop` flag). |
 | `ui/docs/xgan-ui-debug-console-questions.md` | Design Claude's Q7 — the lifecycle proposal this document fulfils. |
 | `docs/xgen_lifecycle_states.md` | Superseded working draft. This appendix replaces it. The working draft may be deleted once Appendix E is confirmed stable. |
 | Appendix G | Log line convention used for state transition log entries. |
@@ -242,7 +242,7 @@ Appendix E written as the exhaustive lifecycle reference, superseding the workin
 `SETUP` state revised — Node discovery removed from first-run flow. `SETUP` is now purely local: display name + passphrase + keypair generation, zero network traffic. Rationale: identity exists before any server knows about it; connecting to a Node is an independent recurring activity, not an onboarding step. `INITIALISING` updated with `auto_connect_local` behaviour — silent background scan of localhost after load, non-blocking, proceeds unconnected if nothing found within timeout. Two new config fields added: `auto_connect_local` (default `true`) and `auto_connect_local_timeout_ms` (default 2000). First-run design principle locked: local setup first, network on the user's terms.
 
 ### Session 3 — May 2026 (JozefN + Documentation Claude)
-Shutdown model clarified per D-039. × button does not trigger CLOSING — it minimizes to systray. CLOSING is only entered via explicit exit action (in-app button, systray menu, or `--stop` flag). D-039 added to relationship table. Nav footer exit buttons defined: Client (Disconnect + Exit), Node (Restart + Stop Node).
+Shutdown model clarified per D-039b. × button does not trigger CLOSING — it minimizes to systray. CLOSING is only entered via explicit exit action (in-app button, systray menu, or `--stop` flag). D-039b added to relationship table. Nav footer exit buttons defined: Client (Disconnect + Exit), Node (Restart + Stop Node).
 
 ### Session 4 — May 2026 (JozefN + Chat Claude)
 Lifecycle scope clarified to match the new Ch2 framing (D-044, one-binary-per-role multi-mode dispatch). New paragraph at the top of Design Principles establishes that the states in this appendix describe **resident-mode** processes only. **Control-mode** invocations (`--batch`, `--init`, future `--stop` etc.) do not enter the lifecycle: they open a pipe to a resident instance, dispatch a command, and exit. No state transition is produced in the resident instance by a control-mode invocation — it simply processes another command through its existing command layer.

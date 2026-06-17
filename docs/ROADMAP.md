@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 3.81  
+> Version: 3.82  
 > Date: May 2026  
 > **Last updated**: 2026-06-17  
 > Language: English  
@@ -241,7 +241,7 @@ XGen Protocol
 │   ├── ✅ M11 — `self` thread (D-021; client/Space feature reusing the user's existing identity) — SHIPPED + CLOSED J-378, shape B self-DM (D1 guard-at-construction)
 │   └── ✅ M12 — attachments (full attachment functionality; pre-UI — lands before UI dev start) — OPENED J-379, forks F1–F9 Joe-LOCKED; Phase-0 audit ✅ DONE J-380 (GO); design Joe-LOCKED J-381 (M12-D1..D10); M12.1 ✅ SHIPPED + CLOSED J-382 (C1–C5, 1429/0); M12.2 ✅ SHIPPED + CLOSED J-385 (M12.2a J-384 fetch/--attach/F6 + M12.2b J-385 F9 data-root, both binaries; 1445/0, e2e 2/2); next-active = M12.3 (federation fetch-by-hash + F3 + 10003 blob_unavailable)] Phase-0 audit DONE + design Joe-LOCKED J-386 (M12.3-D1..D6: β multiplex-the-federation-session fetch, lazy-default F3, Retained-eager reserved-hook, sync miss-signal, typed 10003); next-active = Clair M12.3 runbook] M12.3 SHIPPED+CLOSED J-387; M12.4 (erasure) Phase-0 audit DONE + design Joe-LOCKED J-388 (M12.4-D1..D9; M12-D6 promoted -> D-093); next-active = Clair M12.4 runbook = M12 final sub-arc] M12.4 SHIPPED+CLOSED J-389 = M12 (attachments) CLOSED (all four sub-arcs M12.1 J-382 / M12.2 J-385 / M12.3 J-387 / M12.4 J-389; in-suite 1463/0, box e2e green); Round-2 final pre-UI gate ✅ DONE J-390 (Pass-2 whole-codebase audit, verdict GO; R2G-F01..F04 routed, all S3/S4, none UI-blocking); next-active = UI (clean-table build)
 │
-├── 🟡 Pre-UI documentation-optimization phase — OPENED J-391 (NEXT-ACTIVE; DO-1+DO-2 done J-392, DO-2b done J-393, DO-3 done J-394, DO-4 (DECISIONS) next, DO-5 follows); precedes Appendix F/I audit → mockup stock-take → UI
+├── 🟡 Pre-UI documentation-optimization phase — OPENED J-391 (NEXT-ACTIVE; DO-1+DO-2 done J-392, DO-2b done J-393, DO-3+DO-4 done (J-394/J-395), DO-5 (JOURNAL) next); precedes Appendix F/I audit → mockup stock-take → UI
 ├── UI (clean-table rebuild — the post-M10 endpoint; built fresh after pre-UI work, Round-2 GO; the J-390 final pre-UI gate ✅ DONE; pre-UI consolidation RE-OPENED J-391 — doc-opt → Appendix F/I audit → mockup stock-take precede the UI build)
 │   ├── ⬛ UI Phase 2 visual merge — DEPRECATED (J-284): element-modelling/visual-merge approach abandoned → superseded by the clean-table UI milestone
 │   ├── 🟡 Clean-table UI milestone — the live UI build (replaces the deprecated visual-merge approach)
@@ -315,7 +315,7 @@ Post-gate chain (locked 2026-06-05; M8.5 inserted J-269; M8.6/M8.7 inserted J-28
              -> INV-EXP (invite-expiry replay-gate fix; M8.6/C8 follow-on, before M8.7) [CLOSED J-298]
              -> M8.7 (D3 MLS operationalisation: real RFC 9420/openmls behind the Arc-H locked interface + concurrent-commit resolution) [Phase-0 OPENED J-299; runbook authored J-301; M8.7 = R only (concurrent-commit conflict domain); S+L = production openmls-client arc]
              -> M9 (build strategic multiparty test harness)
-             -> Multiparty tests (strategic milestone, unnumbered) [CLOSED J-356] -> Round-2 checkpoint audit [DONE J-357, GO] -> M10 (Auth Module ref set) [M10.4 DONE J-371] -> M11 (self account, D-021) [CLOSED J-378] -> M12 (attachments) [OPENED J-379, F1–F9 locked; Phase-0 audit DONE J-380, GO; design Joe-LOCKED J-381 (M12-D1..D10); M12.1 SHIPPED+CLOSED J-382; M12.2 designed J-383 (M12.2-D1..D6, split M12.2a/b); M12.2 SHIPPED+CLOSED J-385 (J-384 trio + J-385 F9 data-root); M12.3 Phase-0 audit DONE + design Joe-LOCKED J-386 (M12.3-D1..D6)] M12.3 SHIPPED+CLOSED J-387 (federation fetch-blob-by-hash); M12.4 erasure Phase-0 audit DONE + design Joe-LOCKED J-388 (M12.4-D1..D9; M12-D6 promoted -> D-093); M12.4 SHIPPED+CLOSED J-389 = M12 CLOSED (redact + blob-delete + Retained-refusal 10004; in-suite 1463/0, box e2e green)] -> Round-2 final pre-UI gate [✅ DONE J-390, Pass-2 GO] -> documentation-optimization [🟡 NEXT-ACTIVE, J-391: DO-1+DO-2 done J-392, DO-2b done J-393, DO-3 done J-394, DO-4 next, DO-5 follows] -> Appendix F/I audit-against-code -> mockup stock-take + reconcile-to-as-built -> UI [clean-table] -> Streams (standalone, post-UI plane)
+             -> Multiparty tests (strategic milestone, unnumbered) [CLOSED J-356] -> Round-2 checkpoint audit [DONE J-357, GO] -> M10 (Auth Module ref set) [M10.4 DONE J-371] -> M11 (self account, D-021) [CLOSED J-378] -> M12 (attachments) [OPENED J-379, F1–F9 locked; Phase-0 audit DONE J-380, GO; design Joe-LOCKED J-381 (M12-D1..D10); M12.1 SHIPPED+CLOSED J-382; M12.2 designed J-383 (M12.2-D1..D6, split M12.2a/b); M12.2 SHIPPED+CLOSED J-385 (J-384 trio + J-385 F9 data-root); M12.3 Phase-0 audit DONE + design Joe-LOCKED J-386 (M12.3-D1..D6)] M12.3 SHIPPED+CLOSED J-387 (federation fetch-blob-by-hash); M12.4 erasure Phase-0 audit DONE + design Joe-LOCKED J-388 (M12.4-D1..D9; M12-D6 promoted -> D-093); M12.4 SHIPPED+CLOSED J-389 = M12 CLOSED (redact + blob-delete + Retained-refusal 10004; in-suite 1463/0, box e2e green)] -> Round-2 final pre-UI gate [✅ DONE J-390, Pass-2 GO] -> documentation-optimization [🟡 NEXT-ACTIVE, J-391: DO-1+DO-2 done J-392, DO-2b done J-393, DO-3+DO-4 done (J-394/J-395), DO-5 next] -> Appendix F/I audit-against-code -> mockup stock-take + reconcile-to-as-built -> UI [clean-table] -> Streams (standalone, post-UI plane)
 ```
 
 Depth-asymmetry note: settled Past clusters (M-series M1–M5, completed Federation phases) show one line per milestone with no internal phase breakdown, mirroring the prose section's principle that detail accumulates as a track approaches and reduces when it settles. Live and Near-future clusters show full internal nesting because that detail is currently load-bearing for navigation.
@@ -332,7 +332,7 @@ The arc the project has already traversed. Detail is intentionally compact; the 
 
 ### Phase 2 — full protocol + crate split
 
-✅ **Phase 2 protocol complete** (May 2026, J-058, 300 tests). Nine additional protocol layers shipped (layers 11–19, covering Auth Modules, advanced federation, state migration wire shapes, Bootstrap discovery, MLS wire shapes, audit-log facility). `smoke-ph2` runs 60/60 against two live Nodes. The xgen-core crate split (D-022, D-044) landed at J-045, establishing the dual-licence boundary (BSL 1.1 thin shells, GPL-2.0-or-later xgen-core library). One transport-layer bug (D-056, recv() routing collision between DAG Events and control messages on shared type-prefix strings) discovered and fixed during the live run.
+✅ **Phase 2 protocol complete** (May 2026, J-058, 300 tests). Nine additional protocol layers shipped (layers 11–19, covering Auth Modules, advanced federation, state migration wire shapes, Bootstrap discovery, MLS wire shapes, audit-log facility). `smoke-ph2` runs 60/60 against two live Nodes. The xgen-core crate split (D-022, D-044) landed at J-045, establishing the dual-licence boundary (BSL 1.1 thin shells, GPL-2.0-or-later xgen-core library). One transport-layer bug (D-056a, recv() routing collision between DAG Events and control messages on shared type-prefix strings) discovered and fixed during the live run.
 
 ✅ **Full integration stress test** (J-059, 6/6 PASS, 14.6s, 300 tests). Three-node topology (A:9080, B:9081, C:9082 + Bootstrap), all six scenarios pass. Two bugs found and fixed during live run (stack overflow in large async fn, B↔C federation recv hang). Comm record archived at `docs/tests/stress_complete_events.json`.
 
@@ -664,7 +664,7 @@ The track the project is actively working on right now. Detail here is the most 
 - **DO-2 ✅ (J-392)** — `tasks/` archive: 207 terminal docs → `tasks/archive/` via `git mv` + a D-094 README. Surfaced 44 stale-ACTIVE labels.
 - **DO-2b ✅ (J-393)** — triaged the 44: 43 flipped + archived (42 COMPLETED + BATCH_FLAG DEPRECATED); NODE_ADMIN_PASS2 kept live (PENDING). Live `tasks/` = 3.
 - **DO-3 🟢 (now, J-394)** — this prose refresh; completed M6→M12 + multiparty + Round-2 relocated to Past; tree view untouched.
-- **DO-4 🟡** — DECISIONS.md R2G-F03 (D-030/D-031 dupes + non-monotonic order; suffix not renumber).
+- **DO-4 ✅ (J-395)** — DECISIONS.md R2G-F03 resolved: 7 duplicate decision IDs split a/b (earlier occurrence = a) + ~30 live refs repointed; ordering left as-is.
 - **DO-5 🟡** — JOURNAL.md windowing; riskiest, last / deferrable.
 
 **Pre-UI chain (after doc-opt):** Appendix F/I audit-against-code → mockup stock-take + reconcile-to-as-built → UI (clean-table) → Streams.

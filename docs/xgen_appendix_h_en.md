@@ -21,7 +21,7 @@ For the meaning and structure of each test, see the corresponding Chapter 4 sect
 **Reference:** Ch4 §4.18 — summary and phase structure  
 **Instruction file:** `docs/tests/INTEGRATION_TEST_ph2.md`  
 **Journal entry:** J-058 (2026-05-14)  
-**Binary version:** post D-056 fix  
+**Binary version:** post D-056a fix  
 **Environment:** Node A `ws://127.0.0.1:9080/xgen`, Node B `ws://127.0.0.1:9081/xgen`, debug build  
 
 **Result: PASS — 60/60 steps**
@@ -124,7 +124,7 @@ SMOKE-TEST-PH2 PASSED — 60/60 steps
 
 ---
 
-### H.1.2 Unit Test Confirmation (post D-056 fix)
+### H.1.2 Unit Test Confirmation (post D-056a fix)
 
 ```
 cargo test --workspace

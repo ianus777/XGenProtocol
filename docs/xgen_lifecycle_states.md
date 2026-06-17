@@ -23,7 +23,7 @@ This document defines the named lifecycle states for both XGen applications: the
 
 **Relationship to Ch6:** this document is a prerequisite for the Ch6 second pass. Section 6.7 (Protocol Implications) and the Console screen specification will reference these states directly. Nothing in this document overrides Ch6 — it extends it.
 
-**Relationship to D-037:** the Node deployment model (systray singleton, detachable admin window, headless service mode) is defined in D-037. This document defines what states the Node process moves through regardless of which deployment mode is active.
+**Relationship to D-037b:** the Node deployment model (systray singleton, detachable admin window, headless service mode) is defined in D-037b. This document defines what states the Node process moves through regardless of which deployment mode is active.
 
 ---
 

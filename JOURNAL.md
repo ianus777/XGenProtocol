@@ -8,6 +8,20 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-395 — DO-4: DECISIONS.md duplicate-ID resolution (R2G-F03) — 7 collided D-numbers split a/b; ~30 references repointed
+
+**What happened.** DO-4 resolved R2G-F03, the duplicate decision IDs in DECISIONS.md. The defect was larger than the named D-030/D-031: seven numbers (030, 031, 037, 038, 039, 055, 056) were each used for two unrelated decisions — a legacy of the file being two roughly-sorted blocks (a descending D-093→D-000 block, then an ascending D-001→D-094 block) that collided on those numbers.
+
+**Convention.** Per the established `F-10a` precedent (glued lowercase letter suffix), each collided number was split into `D-NNNa` / `D-NNNb`, earlier file occurrence = `a`. No renumbering (would break cross-references) and ordering left as-is — lookup is by ID, not reading order (suffix-not-renumber, Joe-locked).
+
+**Reference repointing.** Each live bare `D-NNN` citation across ch1–ch6, the appendices, the lifecycle/admin design docs, ROADMAP, and CLAUDE was read in context and repointed to the sense it meant. Most pairs were single-sense (e.g., every reference to the MLS decision → the `a` entry; the unreferenced Phase-1-config decision → `b`). Two pairs — D-037 (Tier-1 identity vs Node deployment) and D-056 (recv() routing fix vs one-binary-per-role) — were cited heavily in both senses and were classified per-reference. A guard (zero bare two-digit decision ref of the seven remaining in any live doc) gated the close; JOURNAL and tasks/archive are append-only history and were left untouched.
+
+**Canonical (D-074).** `DECISIONS.md` (14 headings suffixed + internal refs repointed), the cross-doc reference updates, `docs/ROADMAP.md` (DO-4 marker + v3.81→v3.82), `CLAUDE.md` (head: DO-4 ✅), this JOURNAL J-395. Doc-only; no code.
+
+**Next-active.** DO-5 — JOURNAL.md windowing (the riskiest sub-step; last / deferrable).
+
+---
+
 ## Entry J-394 — DO-3: ROADMAP prose refresh — completed milestones relocated to Past; Present rewritten to the doc-opt phase; tree untouched
 
 **What happened.** DO-3 of the documentation-optimization phase: refreshed the ROADMAP's prose sections, which had drifted badly out of sync with the codebase while the backend sprinted M6→M12. The tree/chain "Visual structure" section was left untouched (Joe-lock). `docs/ROADMAP.md` v3.80→v3.81, 914→752 lines.

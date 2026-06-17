@@ -852,7 +852,7 @@ The original draft of D-061 (replaced by this rewrite) specified a mathematical 
 
 This matches the rest of the protocol's design language:
 
-- Auth Tiers (D-037) — protocol carries the marker, Auth Module supplies the verification meaning
+- Auth Tiers (D-037a) — protocol carries the marker, Auth Module supplies the verification meaning
 - `meta_atts` (Ch3 §3.1.3) — protocol carries the bytes, applications supply the interpretation
 - Vanilla Node `capabilities` (CLAUDE.md) — protocol carries the field, Nodes supply the behaviour
 - Pacing rules (D-060) — protocol carries the cap, communities supply the culture
@@ -979,7 +979,7 @@ The AI's client cannot exceed `ai_pacing_ms` in a given room — it is a hard sp
 
 **Date:** 2026-05-15  
 **Layer:** Ch1 (philosophical); Ch3 (Identity model, registration, validation); Ch6 (UI)  
-**Spec reference:** Ch1 (Human and Agent Operation); Ch3 §3.6 (Identity registration); Layer 15 / D-049 (identity replication); D-037 (Tier 1 = persistent accountable identity)
+**Spec reference:** Ch1 (Human and Agent Operation); Ch3 §3.6 (Identity registration); Layer 15 / D-049 (identity replication); D-037a (Tier 1 = persistent accountable identity)
 
 ### Decision
 
@@ -1002,7 +1002,7 @@ The chosen model collapses these into a minimal addition: one boolean field plus
 - **Immutable after registration.** A human Identity cannot later flip to AI or vice versa
 - Replicated alongside the rest of the Identity (extends Layer 15 / D-049 identity replication)
 
-**Implication for accountability:** the same persistent-accountable-identity guarantee (D-037) applies. An AI cannot "reset" its identity to escape consequences any more than a human can. The keypair is the anchor.
+**Implication for accountability:** the same persistent-accountable-identity guarantee (D-037a) applies. An AI cannot "reset" its identity to escape consequences any more than a human can. The keypair is the anchor.
 
 ### Capabilities pattern (door closed for now, future-proofed)
 
@@ -1156,7 +1156,7 @@ D-041's statement "reset coupled to skin so a missing skin degrades to raw HTML"
 
 ---
 
-## D-056 — recv() routing: sender-field check precedes all type-prefix checks
+## D-056a — recv() routing: sender-field check precedes all type-prefix checks
 
 **Date:** 2026-05-14  
 **Layer:** Transport (xgen-core/src/transport/connection.rs)  
@@ -1170,7 +1170,7 @@ D-041's statement "reset coupled to skin so a missing skin degrades to raw HTML"
 
 ---
 
-## D-055 — Server-side Phase 2 handler wiring: peer_url propagation and identity replication push
+## D-055a — Server-side Phase 2 handler wiring: peer_url propagation and identity replication push
 
 **Date:** 2026-05-14  
 **Layer:** Integration (xgen-node/src/main.rs + supporting xgen-core changes)  
@@ -1233,7 +1233,7 @@ Module's domain — xgen-core never independently re-verifies those facts.
 
 **Date:** 2026-05-14  
 **Layer:** 18 — End-to-End Encryption (MLS)  
-**Spec reference:** Spec 3.10.1–3.10.9; DECISIONS.md D-031 (MLS selected over Megolm)
+**Spec reference:** Spec 3.10.1–3.10.9; DECISIONS.md D-031a (MLS selected over Megolm)
 
 ### Context
 
@@ -1512,7 +1512,7 @@ The bootstrap script in each skeleton page implements the fallback chain via `<l
 
 ---
 
-## D-039 — Pending buffer wiring: NodeRuntime holds PendingBuffer directly
+## D-039a — Pending buffer wiring: NodeRuntime holds PendingBuffer directly
 
 **Date:** 2026-05-06
 **Layer:** Message exchange / Federation (Phase 1 bug fix — F-001)
@@ -1544,7 +1544,7 @@ Stress test re-run post-fix: 0 ERROR lines on Node B, 0 reject_event traces, 284
 
 ---
 
-## D-038 — Client session header omits `identity_id` and `connected_node`
+## D-038a — Client session header omits `identity_id` and `connected_node`
 
 **Date:** 2026-05-06
 **Layer:** Logging — xgen-client
@@ -1568,7 +1568,7 @@ This applies to the CLI client only. The future Tauri UI client (Ch6) has a pers
 
 ---
 
-## D-037 — Tier 1 identity: precise definition of persistent accountable identity
+## D-037a — Tier 1 identity: precise definition of persistent accountable identity
 
 **Date:** 2026-05-05
 **Layer:** Philosophy / Specification
@@ -1803,7 +1803,7 @@ A system where a Tier 4 government or healthcare operator cannot prove who acces
 
 ---
 
-## D-031 — End-to-End Encryption: MLS (RFC 9420) selected over Megolm
+## D-031a — End-to-End Encryption: MLS (RFC 9420) selected over Megolm
 
 **Date:** 2026-04-29  
 **Layer:** Phase 2 specification  
@@ -1830,7 +1830,7 @@ XGen is designed as future infrastructure, not a fast-ship product. The implemen
 
 ---
 
-## D-030 — xgen-node will be packaged as a system service post-stabilisation
+## D-030a — xgen-node will be packaged as a system service post-stabilisation
 
 **Date:** 2026-04-29  
 **Layer:** operational (post-Phase 2)  
@@ -2238,7 +2238,7 @@ Both `xgen-node --help` and `xgen-client --help` (and all subcommand `--help` va
 
 ---
 
-## D-030 — Runtime file placement: GetModuleFileNameW on Windows; data_dir from config path
+## D-030b — Runtime file placement: GetModuleFileNameW on Windows; data_dir from config path
 
 **Date:** 2026-04-29
 **Layer:** 0 (deployment / binary wiring)
@@ -2282,7 +2282,7 @@ This rule is simple, explicit, and composable: operators who need multi-instance
 
 ---
 
-## D-031 — Phase 1 Node configuration reference (xgen-node_config.toml)
+## D-031b — Phase 1 Node configuration reference (xgen-node_config.toml)
 
 **Date:** 2026-04-29
 **Layer:** 0 (deployment / reference)
@@ -2357,7 +2357,7 @@ In Phase 2, D-022 (xgen-core crate) extracts the shared protocol logic from `xge
 
 ---
 
-## D-037 — Node deployment model: systray singleton with detachable admin window
+## D-037b — Node deployment model: systray singleton with detachable admin window
 
 **Date:** 2026-05-07  
 **Layer:** 6 (UI / deployment)  
@@ -2383,7 +2383,7 @@ In Phase 2, D-022 (xgen-core crate) extracts the shared protocol logic from `xge
 
 ---
 
-## D-038 — Tier badge placement: Node property, not member property
+## D-038b — Tier badge placement: Node property, not member property
 
 **Date:** 2026-05-07  
 **Layer:** 6 (UI)  
@@ -2407,11 +2407,11 @@ The `room.message.decorator` slot remains in place as the module injection point
 
 ---
 
-## D-039 — Application shutdown model: × to systray, explicit exit only
+## D-039b — Application shutdown model: × to systray, explicit exit only
 
 **Date:** 2026-05-07  
 **Layer:** 6 (UI / deployment)  
-**Spec reference:** Ch6 §6.11, Appendix E, D-037  
+**Spec reference:** Ch6 §6.11, Appendix E, D-037b  
 
 Closing the window with × does not exit either application. Both applications minimize to the system tray. Explicit exit is always a deliberate user action.
 
@@ -2419,7 +2419,7 @@ Closing the window with × does not exit either application. Both applications m
 - Hides the window, process continues running
 - Client: stays connected, session live, logs flowing
 - Node: keeps serving clients and federation peers, no change
-- Consistent with D-037 (Node window is detachable from Node process)
+- Consistent with D-037b (Node window is detachable from Node process)
 
 **Exit paths — phased implementation:**
 
@@ -2476,7 +2476,7 @@ Idle is a presence state indicating a connected member has produced no non-keepa
 - A DAG Event — presence is ephemeral, not historical protocol state
 - A log entry at INFO level — idle/wake transitions are DEBUG at most, or not logged
 - A lifecycle state in Appendix E — idle does not interrupt the client’s READY state
-- A kickout mechanism — idle clients are never disconnected for inactivity (D-039)
+- A kickout mechanism — idle clients are never disconnected for inactivity (D-039b)
 
 **Trigger — what counts as activity:**
 From the Node’s perspective, activity is any non-keepalive message received from the client — sending a message, issuing a command, joining a room. Pure Event delivery (Node pushing to client) does not reset the idle timer. The Node cannot observe client-side UI interactions.
@@ -2634,7 +2634,7 @@ Extracted all shared protocol logic from `xgen-node/src/` into a new `xgen-core`
 
 ---
 
-## D-055 — Phase 2 server-side handler wiring: node_endpoint in Hello, identity replication routing
+## D-055b — Phase 2 server-side handler wiring: node_endpoint in Hello, identity replication routing
 
 **Date:** 2026-05-14
 **Layer:** Integration (server-side protocol handler gap closure)
@@ -2725,7 +2725,7 @@ All implementations use spec-authoritative wire names. The guide will be updated
 
 ---
 
-## D-056 — Application Deployment Model: one binary per role, multi-mode dispatch
+## D-056b — Application Deployment Model: one binary per role, multi-mode dispatch
 
 **Date:** 2026-05-16
 **Layer:** Layer 6 (UI / deployment / packaging)
@@ -2766,23 +2766,23 @@ No separate CLI build. No separate Tauri build. The `*-app.exe` outputs in the c
 
 ### Implementation implications
 
-These follow from the decision. They are not part of D-056 itself; they are tasks pulling current code into compliance:
+These follow from the decision. They are not part of D-056b itself; they are tasks pulling current code into compliance:
 
 1. **Node-side `--batch` implementation.** J-037 deferred this when the Client-side `--batch` was written. The spec target is now explicit. Port BATCH_FLAG_ph2.md's pattern to the Node side using the same library-first rule, same pipe-naming convention, same clap dispatch shape, with the Node's own command set.
 2. **Collapse `*-app.exe` into the single product binaries.** Merge `xgen-{node,client}/src/main.rs` with `xgen-{node,client}/src-tauri/src/main.rs` into one entry point per role. Extract shared resident-mode logic (`run_node_server` / `start_client_session`) into the library crate so the single binary can dispatch any mode without code duplication. Eliminate the two parallel `--batch` implementations on the Client side.
 3. **Pipe server in resident mode for both binaries.** Currently only the Client's Tauri variant hosts a pipe server. The Node Tauri shell's `--service` mode emits lifecycle events but binds no WebSocket server and no pipe server. Bring it into compliance with the new model: every resident-mode invocation hosts the pipe server.
 
-These implementation tasks are tracked separately. D-056 locks the architectural target they converge on.
+These implementation tasks are tracked separately. D-056b locks the architectural target they converge on.
 
 ### Relationship to other decisions
 
 | Decision | Relationship |
 |---|---|
-| D-043 | Pipe naming convention `\\.\pipe\xgen-{node\|client}-{label}`. D-056 generalises it: every resident instance, every control-mode invocation. |
-| D-037 | Node deployment personality (now resident mode variants). Architectural horizon — protocol-native Node admin via privileged client Identity — survives unchanged. |
-| D-039 | Shutdown model. `×` minimises to tray; `CLOSING` only entered via explicit exit action or a future `--stop` control-mode flag. Consistent with D-056. |
+| D-043 | Pipe naming convention `\\.\pipe\xgen-{node\|client}-{label}`. D-056b generalises it: every resident instance, every control-mode invocation. |
+| D-037b | Node deployment personality (now resident mode variants). Architectural horizon — protocol-native Node admin via privileged client Identity — survives unchanged. |
+| D-039b | Shutdown model. `×` minimises to tray; `CLOSING` only entered via explicit exit action or a future `--stop` control-mode flag. Consistent with D-056b. |
 | J-037 | Node `--batch` design discussion. Now has an explicit spec target to point at. |
-| J-044 | Client `--batch` implementation (BATCH_FLAG_ph2.md). The principal worked example of the control-mode pattern D-056 generalises.
+| J-044 | Client `--batch` implementation (BATCH_FLAG_ph2.md). The principal worked example of the control-mode pattern D-056b generalises.
 
 ### Spec status
 
@@ -2795,11 +2795,11 @@ These implementation tasks are tracked separately. D-056 locks the architectural
 
 **Date:** 2026-05-16
 **Layer:** Layer 6 (deployment / packaging)
-**Spec reference:** D-056 (one binary per role, multi-mode dispatch). M1 task file `tasks/BINARY_CONSOLIDATION_M1.md` Phase 2.
+**Spec reference:** D-056b (one binary per role, multi-mode dispatch). M1 task file `tasks/BINARY_CONSOLIDATION_M1.md` Phase 2.
 
 ### Context
 
-D-056 named the deployment target — one binary per role, dispatched at startup. The implementation question that follows: when both binaries link in Tauri (for the desktop variant of resident mode), is the Tauri dependency a build-time variant (Cargo feature flag `tauri`) or always compiled in with runtime dispatch?
+D-056b named the deployment target — one binary per role, dispatched at startup. The implementation question that follows: when both binaries link in Tauri (for the desktop variant of resident mode), is the Tauri dependency a build-time variant (Cargo feature flag `tauri`) or always compiled in with runtime dispatch?
 
 Two options surveyed:
 
@@ -2823,7 +2823,7 @@ All accepted. The simpler operational story (one artefact per role, always works
 
 ### Implementation note
 
-This decision is the literal Rust expression of D-056's "one binary per role, multi-mode dispatch." Without D-062, D-056 has no Rust-level commitment; with D-062, the merge in M1 Phase 2 has a clean target shape:
+This decision is the literal Rust expression of D-056b's "one binary per role, multi-mode dispatch." Without D-062, D-056b has no Rust-level commitment; with D-062, the merge in M1 Phase 2 has a clean target shape:
 - `xgen-node/Cargo.toml` and `xgen-client/Cargo.toml` carry `tauri`, `tauri-plugin-process`, and `tauri-build` (build-dependency) unconditionally.
 - Each product crate's root holds `tauri.conf.json` + `build.rs` + `capabilities/` + `icons/` (formerly under `src-tauri/`).
 - The Tauri shell code moved to library modules (`xgen-node-lib::desktop`, `xgen-client-lib::desktop`) so the binary's `main.rs` stays thin.
@@ -2834,7 +2834,7 @@ The `*-app.exe` build targets are removed from the workspace. Build artefacts af
 
 | Decision | Relationship |
 |---|---|
-| D-056 | Architectural target. D-062 is the implementation-level commitment of how Tauri lives inside that target. |
+| D-056b | Architectural target. D-062 is the implementation-level commitment of how Tauri lives inside that target. |
 | D-063 | Companion decision: where the resident-mode logic lives (library crate, not `main.rs`). Required by D-062's runtime-dispatch model — the dispatch target must be a library function any entry point can call. |
 
 ---
@@ -2843,11 +2843,11 @@ The `*-app.exe` build targets are removed from the workspace. Build artefacts af
 
 **Date:** 2026-05-16
 **Layer:** Layer 6 (architecture)
-**Spec reference:** D-056 (shared command layer requirement). M1 task file `tasks/BINARY_CONSOLIDATION_M1.md` Phase 1.
+**Spec reference:** D-056b (shared command layer requirement). M1 task file `tasks/BINARY_CONSOLIDATION_M1.md` Phase 1.
 
 ### Context
 
-D-056 requires a shared command layer that every input channel (Tauri UI button clicks, Console typed commands, `--batch` piped commands, control-mode flags) dispatches through. For that requirement to be satisfied, the command layer has to live somewhere that all entry points can call — which means it cannot live in `main.rs` (only one `main.rs` exists per binary; library code, Tauri callbacks, and the binary's CLI dispatcher cannot all call into it from there).
+D-056b requires a shared command layer that every input channel (Tauri UI button clicks, Console typed commands, `--batch` piped commands, control-mode flags) dispatches through. For that requirement to be satisfied, the command layer has to live somewhere that all entry points can call — which means it cannot live in `main.rs` (only one `main.rs` exists per binary; library code, Tauri callbacks, and the binary's CLI dispatcher cannot all call into it from there).
 
 The existing layout violated this. `run_node` (the Node's resident-mode entry point), the entire CLI subcommand set (`cmd_init`, `cmd_status`, `cmd_connections`, etc.), and the Client's batch-line dispatcher all lived in `main.rs` to varying degrees. The Tauri shell duplicated functionality (lifecycle scaffold) rather than calling shared code.
 
@@ -2864,7 +2864,7 @@ The existing layout violated this. `run_node` (the Node's resident-mode entry po
 
 This is the library-first architecture rule from `CLAUDE.md`, applied consistently across the merged binary structure. The rule already existed for Layer 1–10 code (everything below `transport`); D-063 extends it to the dispatch layer that sits between input channels and command implementations.
 
-Without D-063, D-056's "shared command layer" is impossible to express in code: the desktop shell would either duplicate command implementations (drift inevitable, J-067's two-`get_dag_tips` problem multiplied) or call back into `main.rs` somehow (Rust doesn't permit that cleanly). The library extraction is the unblock.
+Without D-063, D-056b's "shared command layer" is impossible to express in code: the desktop shell would either duplicate command implementations (drift inevitable, J-067's two-`get_dag_tips` problem multiplied) or call back into `main.rs` somehow (Rust doesn't permit that cleanly). The library extraction is the unblock.
 
 ### Implementation note
 
@@ -2877,7 +2877,7 @@ The implementation pass lives in M1 Phase 1. After it ships:
 
 | Decision | Relationship |
 |---|---|
-| D-056 | Architectural target. D-063 makes the shared command layer physically possible. |
+| D-056b | Architectural target. D-063 makes the shared command layer physically possible. |
 | D-062 | Sibling decision: where Tauri lives (compiled in always). D-063 says where the protocol logic lives (library crate). Together they define the merged-binary architecture. |
 | J-067 F-003 / F-004 | The duplicate `get_dag_tips` bug was the visible symptom. D-063 is the structural fix that prevents the bug class. |
 
@@ -3012,7 +3012,7 @@ This decision also names a recurring XGen design principle that has been implici
 
 The `--ai-mode` flag is meaningful only with `--service` (clap enforces). Existing pipe naming convention `\\.\pipe\xgen-client[-<instance>]` is unchanged; AI residents bind to the same pipe space and distinguish themselves via the `mode=` field in `__HEALTH__`.
 
-**Why a mode and not a separate binary.** The Node's headless mode is `--service`, not a separate `xgen-node-service` binary. By symmetry, an AI Client is a client — same Identity registration, same Space membership, same event emission, same `[ai]` config staging — just with behaviour coming from a plugin instead of a keyboard. Consistency with the resident/control pattern wins. M1 collapsed binaries that shared identical code; xgen-client and the AI Client share the same library and dispatch through one entry point per mode. Three binaries (the rejected alternative) would have put M4 in conflict with the D-056 consolidation direction it should be following.
+**Why a mode and not a separate binary.** The Node's headless mode is `--service`, not a separate `xgen-node-service` binary. By symmetry, an AI Client is a client — same Identity registration, same Space membership, same event emission, same `[ai]` config staging — just with behaviour coming from a plugin instead of a keyboard. Consistency with the resident/control pattern wins. M1 collapsed binaries that shared identical code; xgen-client and the AI Client share the same library and dispatch through one entry point per mode. Three binaries (the rejected alternative) would have put M4 in conflict with the D-056b consolidation direction it should be following.
 
 **Plugin model.** `AiBehavior` trait in `xgen-client-lib::ai_behavior`:
 
@@ -3095,7 +3095,7 @@ The principle is not a prescription — sometimes politeness is correct (a Clien
 
 ### Why this shape rather than alternatives
 
-The hard architectural question was *binary identity* — should the AI Client be a separate `xgen-ai` binary or a mode of `xgen-client`? The v0.1 draft of this decision proposed a separate binary; the v0.1→v0.2 review pass amended it to "mode of xgen-client" with reasoning that the M2 precedent (Node's `--service` mode rather than `xgen-node-service` separate binary) and the D-056 consolidation direction (one binary per role) both point the same way. AI Client is a client; the runtime loop differs from the human Client's loop but everything around it (config loading, connection, pipe server, lifecycle) is identical scaffolding. A separate binary would have duplicated that scaffolding for no clear gain.
+The hard architectural question was *binary identity* — should the AI Client be a separate `xgen-ai` binary or a mode of `xgen-client`? The v0.1 draft of this decision proposed a separate binary; the v0.1→v0.2 review pass amended it to "mode of xgen-client" with reasoning that the M2 precedent (Node's `--service` mode rather than `xgen-node-service` separate binary) and the D-056b consolidation direction (one binary per role) both point the same way. AI Client is a client; the runtime loop differs from the human Client's loop but everything around it (config loading, connection, pipe server, lifecycle) is identical scaffolding. A separate binary would have duplicated that scaffolding for no clear gain.
 
 The plugin trait is locked now rather than deferred. The trait surface is small enough that getting it wrong now is cheap; getting it wrong after a real LLM plugin exists is expensive — the future plugin would either accept the inherited shape or force a breaking-change rework of every consumer. Locking the shape during M4, before any real plugins exist, costs nothing extra and stabilises the interface.
 
@@ -3105,7 +3105,7 @@ Manual join is locked because the trust model loses something when an AI Identit
 
 ### Why now
 
-M4 implementation began at v0.3 task-file lock (J-076) after D-056 consolidation was confirmed closed. The Client lifecycle conventions (PID file, pipe server, session header, log rotation) are stable from M1/M2; the protocol primitives the AI Client consumes are stable from M3. M4 is the first milestone that exercises all of them together in a long-running process and surfaces "what does this look like end-to-end" for the first time. The recurring honest-vs-polite principle was already implicitly operating across earlier decisions; naming it here makes future design conversations more efficient.
+M4 implementation began at v0.3 task-file lock (J-076) after D-056b consolidation was confirmed closed. The Client lifecycle conventions (PID file, pipe server, session header, log rotation) are stable from M1/M2; the protocol primitives the AI Client consumes are stable from M3. M4 is the first milestone that exercises all of them together in a long-running process and surfaces "what does this look like end-to-end" for the first time. The recurring honest-vs-polite principle was already implicitly operating across earlier decisions; naming it here makes future design conversations more efficient.
 
 ### Spec reference
 
@@ -3127,7 +3127,7 @@ M4 implementation began at v0.3 task-file lock (J-076) after D-056 consolidation
 
 | Decision | Relationship |
 |---|---|
-| D-056 | M4 is a mode of xgen-client per the locked "one binary per role" direction. D-056 closed first (J-076); M4 implementation followed. |
+| D-056b | M4 is a mode of xgen-client per the locked "one binary per role" direction. D-056b closed first (J-076); M4 implementation followed. |
 | D-059 | M4 consumes D-059's `is_ai` registration shape via the existing M3 `register` flow; no new wire shape needed. |
 | D-060 | M4 reuses D-060's `ai_pacing_ms` field via a simpler drop-on-throttle tracker (sibling of `PacingManager` rather than wrapper, because the policies differ — queue vs drop). |
 | D-061 | M4 is a passive recipient of temperature meta_atts; does not emit temperature, does not react to thresholds. |
@@ -3207,7 +3207,7 @@ Further: `--aicontrol` is the foundation for the future Claude-driven MCP server
 | D-028 | The canonical-source rule ("Rust doc comments MUST match Appendix F") applies to `--aicontrol` once it lands. The detailed protocol document is the canonical source; Appendix F summarises and links to it. |
 | D-035 | `--aicontrol` data lives under the same convention-derived directory layout as everything else — no new configurable paths. |
 | D-043 | The pipe naming convention is extended (sister pipe `\\.\pipe\xgen-client[-<label>].aicontrol` alongside the existing legacy pipe). |
-| D-056 | `--aicontrol` is a new dispatch mode on the existing `xgen-client` binary, consistent with the locked one-binary-per-role + multi-mode dispatch model. Not a new binary. |
+| D-056b | `--aicontrol` is a new dispatch mode on the existing `xgen-client` binary, consistent with the locked one-binary-per-role + multi-mode dispatch model. Not a new binary. |
 | D-063 | The shared `ops::*` layer extends library-first one level deeper than D-063 originally specified — D-063 moved dispatch out of `main.rs`, this decision moves command implementations into a single shared layer below it. |
 | D-065 | `--aicontrol` is the operator command surface that D-065 said would "layer on top in future milestones." This decision schedules it. |
 | Clair's `BATCH_FLAG_review.md` | Diagnostic; this decision is the architectural response. Detailed technical decisions are appended to that file as the Chat Claude addendum. |

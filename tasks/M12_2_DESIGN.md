@@ -1,8 +1,8 @@
 # M12.2 — Fetch verb + --attach polish + F6 gate + F9 data-root: Design (Joe-LOCKED)
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-16  
+> **Last updated**: 2026-06-17  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -123,7 +123,9 @@ retrieves it **byte-identical** by a second same-identity client. Reachable once
 is a `ClientCommand` (no new crate edge; `xgen-mptest` already spawns `xgen-node.exe` /
 `xgen-client.exe`). + W-multi (multi-file round-trip) + W-toolarge (F6 `10002` reject), RED-on-revert.
 
-## §4 M12.2b slice (F9 data-root; second runbook)
+## §4 M12.2b slice (F9 data-root; second runbook) — ✅ SHIPPED + CLOSED (J-385); M12.2 CLOSED
+
+**Shipped J-385** — runbook `tasks/M12_2b_DATAROOT_IMPL.md` (COMPLETED) + two commits on `main`: C1 `e391e22` resolution shift (D5: `xgen-common` platform default + `--data-dir`/`XGEN_DATA_DIR` on **both binaries** [VA] + instance rebase + the S-2 `cmd_init` spaces/blobs rooting fix + the S-3 mptest `base_command` `--data-dir` pin) · C2 `3dff95d` startup validation (D5/VD: creatable/writable/not-tmp fail-fast, the RED-on-revert spine) + the D6 leave-as-legacy notice (VE = built). In-suite 1445/0; box-gated e2e 2/2 (the real-binary path survives the breaking default change). Locks: VA both-binaries / VB platform chain + fail-fast-no-fallback / VC `--data-dir`+`XGEN_DATA_DIR` / VD validation spine / VE built notice / VF instance composes. **This closes M12.2** (M12.2a J-384 + M12.2b J-385). The shape below was the runbook's scope.
 
 The posture shift (D5 + D6), isolated:
 

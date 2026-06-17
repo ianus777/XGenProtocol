@@ -1,9 +1,9 @@
 # M12.2b — F9 data-root posture shift: Implementation runbook
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-16  
+> **Last updated**: 2026-06-17  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

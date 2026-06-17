@@ -1,8 +1,8 @@
 # Appendix F — CLI Reference and Usage Examples
 > **Status:** ACTIVE  
-> Version: 1.10  
+> Version: 1.11  
 > Date: May 2026  
-> **Last updated**: 2026-06-16  
+> **Last updated**: 2026-06-17  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -38,8 +38,9 @@ Present on both `xgen-node` and `xgen-client` with identical semantics. These ar
 | `--stop` | Signal the running resident to shut down gracefully via pipe. Resident terminates itself after replying `OK STOPPING`. | Both — Client functional, Node stubs |
 | `--reload-config` | Signal the running resident to reload its config via pipe. Currently returns `NOT_IMPLEMENTED` — reload semantics arrive later. | Both — Client functional, Node stubs |
 | `--service` | Force headless resident mode (no UI). On both binaries this is the equivalent of pre-M1 "just run the binary" behaviour now that the default opens the Tauri shell. | Both, functional |
-| `--instance <label>` | Segregate data and logs under `<exe dir>/instances/<label>/`. Drives the pipe name (D-043). Label rules: alphanumeric, hyphens, underscores; max 64 characters. | Both, functional |
+| `--instance <label>` | Segregate data and logs under `<resolved data root>/instances/<label>/` (the data root = `--data-dir` / `XGEN_DATA_DIR` / the platform default; M12.2b). Drives the pipe name (D-043). Label rules: alphanumeric, hyphens, underscores; max 64 characters. | Both, functional |
 | `--config <path>` | Override the config file path. Default: `./xgen-{node,client}_config.toml`. | Both, functional |
+| `--data-dir <path>` | Override the data root — where keypair, config, `spaces/`, `blobs/`, PID, and `instances/` live. Resolved **before** config load, so it is a flag/env only (no config field). Env: `XGEN_DATA_DIR` (flag wins). Default: a platform data dir **outside** the install folder (`%LOCALAPPDATA%/XGenProtocol` on Windows, `$XDG_DATA_HOME` / `~/.local/share/XGenProtocol` on Unix), startup-validated (creatable / writable / not under the temp dir; fail-fast). M12.2b. | Both, functional |
 | `--log-level <lvl>` | Override the effective tracing level for this invocation. Wins over config and `XGEN_LOG`. Values: `off`, `error`, `warn`, `info`, `debug`, `trace`. | Both, functional |
 | `--quiet` | Suppress startup banner / "Listening on..." line. Structured logs unaffected; errors still surface on stderr. | Both, functional |
 | `--help` / `-h` | Print help and exit. | Both, clap-standard |
@@ -159,6 +160,7 @@ This rule is uniform across both `xgen-node` and `xgen-client` and applies to ev
 | `--node <endpoint>` | Client | `[client].node` | Yes |
 | `--log-level <lvl>` | both | `[logging].level` and `XGEN_LOG` env | Yes (flag > env > config > default) |
 | `--instance <label>` | both | (implicit default-instance behaviour) | Yes |
+| `--data-dir <path>` | both | (none — resolved before config load) | Yes (flag > `XGEN_DATA_DIR` env > platform default) |
 | `--service` | both | (Tauri shell default) | Yes (flag forces headless) |
 | `--local` | Node | `[node].local_mode` | Yes (one-way override — flag forces `true`; flag-absent defers to config) |
 | `--port <port>` | Node | `[node].listen` (port component) | Yes |
@@ -802,7 +804,7 @@ xgen-client-app.exe --instance bob
 xgen-client-app.exe --instance bot_01
 ```
 
-Instance data is stored under `instances/<label>/` relative to the executable. With no `--instance` flag, data is stored in the executable directory (default, backward-compatible).
+Instance data is stored under `instances/<label>/` relative to the **resolved data root**. With no `--instance` flag, data is stored directly in the resolved data root. **As of M12.2b the default data root is a platform data dir outside the install folder** (`%LOCALAPPDATA%/XGenProtocol` on Windows, `$XDG_DATA_HOME` / `~/.local/share/XGenProtocol` on Unix), overridable with `--data-dir <path>` or `XGEN_DATA_DIR`; an existing install-folder layout is reached with `--data-dir <exe dir>` (leave-as-legacy, no auto-migration).
 
 `xgen-node-app.exe` supports the same flag. Node instances additionally require `--port` on first launch to avoid port conflicts:
 
@@ -1304,3 +1306,6 @@ with the reserved `3012 watchlist_match` — see ch3 §3.11.7.)
 
 ### Session 6 — 2026-06-15 (JozefN)
 **Covered:** new `fetch` Client subcommand added to the command tables (F.0.4 Client-only + F.3 detailed reference) — the M12.2a read-side companion to `send --attach`: fetches every blob attachment from a Room's messages and writes each to `--out-dir` (required), named from its `Descriptor` filename (overwrite on collision); alias `fetch-attachments`; wired across all four dispatch arms (CLI / run-path / batch / aicontrol). The `send` rows (F.0.4 + F.3) were updated to the final M12.2a surface: `--text` is now optional and `--attach <path>` is repeatable (multi-file), with exactly-one-of-the-two enforced (combining `--text` and `--attach` is rejected — VC, D-065 no-quiet-data-loss). Part of the M12 attachments arc (M12.2a = fetch verb + `--attach` polish + the F6 blob-size gate; D2+D3+D4). The illustrative `.xgb` batch table (§F.8.3) was not re-tabulated — §F.0.4/§F.3 are the canonical command authority (D-028). Cross-refs to the M12.2 design (J-383) and the M12.2a close (J-384).
+
+### Session 7 — 2026-06-17 (JozefN)
+**Covered:** the M12.2b F9 data-root posture shift — a new `--data-dir <path>` fundamental flag (+ `XGEN_DATA_DIR` env) added to F.0.1 and the F.0.6 precedence table (resolved *before* config load, so flag/env only — no config equivalent; flag > env > platform default). The default data root **moved from the executable directory to a platform data dir outside the install folder** (`%LOCALAPPDATA%/XGenProtocol` on Windows, `$XDG_DATA_HOME` / `~/.local/share/XGenProtocol` on Unix), startup-validated (creatable / writable / not-under-temp, fail-fast); the `--instance` rows (F.0.1 + F.8.1) re-worded from `<exe dir>/instances/<label>` to `<resolved data root>/instances/<label>`. Existing install-folder deployments stay put via `--data-dir <exe dir>` (leave-as-legacy, no auto-migration) + a one-line startup notice. Both binaries (shared `xgen-common` resolution + validation). Part of the M12 attachments arc — **M12.2b closes M12.2** (M12.2a = fetch verb + `--attach` polish + F6 gate; M12.2b = this F9 shift). Cross-refs to the M12.2 design (J-383, D5/D6) and the M12.2 close (J-385).

@@ -1,5 +1,5 @@
 # Node Admin Write Path — M6 Pass 2 (Verb Categories + Joe-lock Proposals)
-> **Status**: ACTIVE  
+> **Status**: PENDING  
 > Version: 1.0  
 > Date: May 2026  
 > **Last updated**: 2026-05-18 (Pass-3 input addendum on missing protocol accept signal, from J-080 carry-over)  

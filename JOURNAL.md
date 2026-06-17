@@ -8,6 +8,20 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-393 — DO-2b: 43 stale-ACTIVE task docs triaged + archived; NODE_ADMIN_PASS2 kept live (PENDING)
+
+**What happened.** DO-2b cleared the 44 stale `Status: ACTIVE` task docs surfaced in DO-2 (J-392). All 44 mapped to CLOSED milestones — their headers were never flipped at arc close. Triage outcome: 43 archived under D-094, 1 kept live.
+
+**Disposition.** 42 → `Status: COMPLETED` (header-only flip, original `Last updated` dates preserved — Option Y, honest about real work dates) then `git mv` to `tasks/archive/`. `BATCH_FLAG_review.md` → `DEPRECATED` (its subject, the `--batch` flag, was descoped) then archived. `NODE_ADMIN_PASS2_PROPOSALS.md` → `PENDING`, kept in live `tasks/` — it feeds the still-pending "M6 (new) Node admin write path". Flips were surgical (status line only; rest of each file byte-identical).
+
+**State.** Live `tasks/` now holds 3 files, all PENDING: `FEDERATION_PROPAGATION_PHASE_9_SURVEY.md`, `M6_CLIENT_MEMBERS_DESIGN.md`, `NODE_ADMIN_PASS2_PROPOSALS.md`. `tasks/archive/` holds 250 docs + the README pointer. Stale-ACTIVE count in live `tasks/` = 0.
+
+**Canonical (D-074).** `CLAUDE.md` (head: DO-2b ✅), `docs/ROADMAP.md` (doc-opt node + chain arrow), this JOURNAL J-393, the 43 renames (+1-line status edits) + the NODE_ADMIN PENDING flip. No DECISIONS change (D-094 governs). Doc-only; no code.
+
+**Next-active.** DO-3 (ROADMAP Present-prose refresh — stale at the J-256/Arc-H era).
+
+---
+
 ## Entry J-392 — DO-2: 207 terminal task docs archived to tasks/archive/ (D-094 applied); 44 stale-ACTIVE labels surfaced → DO-2b
 
 **What happened.** DO-2 of the documentation-optimization phase: `tasks/` held 253 `.md` files (~4.86 MB) and no archive subfolder. The 207 terminal documents — 204 COMPLETED + 1 COMPLETE (spelling variant) + 2 DEPRECATED — were relocated to a new `tasks/archive/` via `git mv` (history preserved), applying the D-094 archive-with-forward-pointers convention first established in DO-1. A `tasks/archive/README.md` (ARCHIVED) is the forward pointer. Live `tasks/` now holds 46 files.

@@ -1,5 +1,5 @@
 # M6 Backing-Map Audit — Verb-to-Subsystem Reality Check
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.6  
 > Date: May 2026  
 > **Last updated**: 2026-05-31  

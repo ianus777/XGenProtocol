@@ -1,6 +1,6 @@
 # MP-F8 — expose `migration initiate` over `--aicontrol` (UNFENCED) — FOLDED ARC-DOC (audit · design · runbook)
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-11  

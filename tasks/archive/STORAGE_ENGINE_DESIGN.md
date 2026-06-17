@@ -1,6 +1,6 @@
 # Storage-Engine / Plugin-Framework — Design
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.1  
 > Date: June 2026  
 > **Last updated**: 2026-06-02  

@@ -1,5 +1,5 @@
 # M10.2 — Tier-1 Reference Auth Module (`xgen-auth-module`) — Phase-0 Framing Brief
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-13  

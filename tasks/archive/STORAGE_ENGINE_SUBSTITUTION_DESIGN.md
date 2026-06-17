@@ -1,5 +1,5 @@
 # Storage-Engine Substitution — Design
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: June 2026  
 > **Last updated**: 2026-06-03  

@@ -1,5 +1,5 @@
 # MP-R3 (capstone) — Phase-0 brief (frame for Clair's grounding)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-11  

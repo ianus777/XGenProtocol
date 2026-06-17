@@ -1,5 +1,5 @@
 # Design + Runbook — MP-F5: client reject-surfacing + C6 reject-oracle reconciliation
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-10  

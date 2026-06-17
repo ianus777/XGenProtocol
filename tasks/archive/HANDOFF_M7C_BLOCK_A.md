@@ -1,5 +1,5 @@
 # M7-completion Block A — Clair handoff (start at A1)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-01  

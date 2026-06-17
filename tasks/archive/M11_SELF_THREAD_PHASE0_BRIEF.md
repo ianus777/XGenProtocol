@@ -1,5 +1,5 @@
 # M11 — `self` Thread: Phase-0 Framing Brief (D-021)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-14  

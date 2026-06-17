@@ -1,5 +1,5 @@
 # M12 — Attachments: Phase-0 Framing Brief (J-357 lock)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-15  

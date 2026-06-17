@@ -1,5 +1,5 @@
 # M12.2 — Fetch verb + `--attach` polish + F6 size gate + F9 data-root: D-071 Phase-0 Audit
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-15  

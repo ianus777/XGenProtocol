@@ -1,5 +1,5 @@
 # MP-R2 — Multiparty-tests Round 2 (scale + real-clock): Implementation Runbook
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-10  

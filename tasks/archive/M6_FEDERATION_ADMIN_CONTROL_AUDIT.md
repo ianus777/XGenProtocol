@@ -1,5 +1,5 @@
 # Federation-Admin-Control — Backing Audit (D-071 arc, audit phase)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.2  
 > Date: May 2026  
 > **Last updated**: 2026-05-30  

@@ -1,5 +1,5 @@
 # Design + Runbook — Thin-verb Arc 3: `room_update` (MP-C-08 / PG-12 per-room override)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-10  

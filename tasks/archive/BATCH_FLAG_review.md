@@ -1,5 +1,5 @@
 # `--batch` Flag — Design Review and Improvement Proposal
-> **Status**: ACTIVE  
+> **Status**: DEPRECATED  
 > Version: 1.0  
 > Date: May 2026  
 > **Last updated**: 2026-05-16  

@@ -1,5 +1,5 @@
 # M12.3 — Federation fetch-blob-by-hash: D-071 Phase-0 audit
-> **Status**: ACTIVE
+> **Status**: COMPLETED
 > Version: 1.0
 > Date: Jun 2026
 > **Last updated**: 2026-06-17

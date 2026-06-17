@@ -1,5 +1,5 @@
 # M8 — Multiparty Strong-Test — Implementation Runbook
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-05  

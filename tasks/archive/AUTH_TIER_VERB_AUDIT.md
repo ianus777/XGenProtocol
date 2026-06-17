@@ -1,5 +1,5 @@
 # Phase-0 Audit — Thin-verb Arc 1: `create-space --auth-tier` (MP-A-03 / PG-13)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-10  

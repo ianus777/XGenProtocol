@@ -1,5 +1,5 @@
 # Phase-0 Audit — Thin-verb Arc 4: `thread`×3 (MP-C-13 / PG-08)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-10  

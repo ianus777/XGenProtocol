@@ -1,5 +1,5 @@
 # MP-R3 (capstone) — Phase-0 audit (grounded vs live `main`)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-11  

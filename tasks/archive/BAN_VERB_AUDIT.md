@@ -1,5 +1,5 @@
 # Phase-0 Audit — Thin-verb Arc 2: `ban` (MP-C-09 + MP-A-14)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-10  

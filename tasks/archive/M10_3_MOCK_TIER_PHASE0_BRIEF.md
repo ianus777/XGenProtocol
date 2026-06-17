@@ -1,5 +1,5 @@
 # M10.3 — Parameterized T2–T4 Mock + Dormant-Tier-Path Activation — Phase-0 Framing Brief
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-13  

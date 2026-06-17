@@ -19,9 +19,10 @@ The Clair-authored M12.3 runbook, executing the Joe-LOCKED design
 but not its ciphertext can **fetch the blob across homes** from a home that does.
 
 D-071 arc discipline: this runbook → **Joe locks the runbook values (§3 + §4)** → implement
-spine-first (§5, per-commit, Joe pushes each) → Chat doc-bridge → M12.3 close. **No code precedes
-the Joe-lock.** Decisions are arc-local (D-069). **M12-D6 (universal-E2E protocol-layer) stays a
-flagged DECISIONS.md promotion candidate — not this arc.**
+spine-first (§5, per-commit, Joe pushes each) → Chat doc-bridge → M12.3 close. **P1/P2/P3 + V1–V5
+are ✅ LOCKED (Joe, 2026-06-17, by-recomms; Chat cross-verified the groundings on `main @ e24bef9`,
+D-065 — all held).** Decisions are arc-local (D-069). **M12-D6 (universal-E2E protocol-layer) stays
+a flagged DECISIONS.md promotion candidate — not this arc.**
 
 **Grounded against `main @ b1a6bb1`** (tree clean, in-suite 1445/0). Every seam below was
 re-confirmed to file:line by reading production code this session (D-078 — anchors re-confirmed,
@@ -58,11 +59,11 @@ box-gated real-binary two-home + in-suite in-process witnesses.
 
 ---
 
-## §3 Runbook-bound picks (recommended values — **flagged for Joe**, not design Joe-locks)
+## §3 Runbook-bound picks — ✅ LOCKED 2026-06-17 (Joe, by-recomms)
 
 The design left three grounded details to the runbook (D1 names the "which peer holds it" item
-explicitly as runbook-bound). Each is a **pick + flag** per the seat instruction — recommended
-below with the grounding; Joe confirms at the §3+§4 lock before any code.
+explicitly as runbook-bound). Each was a **pick + flag**; all three are now **LOCKED by-recomms**
+(Joe, 2026-06-17; Chat cross-verified the groundings on `main @ e24bef9`).
 
 ### P1 — "Which peer holds it" (the D1 runbook-bound open item) — **recommended pick, flagged**
 
@@ -95,10 +96,10 @@ reachable Space-federated holder, or all miss/timeout → typed `10003` (D5).
   (the node attempts no federation fetch when `space_id` is None or the Space's `federation_nodes`
   is empty) → **W5 holds** (the self Space never federates; behaviour byte-identical to today).
 
-**FLAG FOR JOE:** P1 picks the Space-federation-set resolution (home_node-first, serialized) over
-precise sender→home reverse-resolution, and adds `space_id` to the fetch wire. This is the
-runbook's call (a grounded detail like the M12.1 chunk-size), surfaced for visibility — confirm or
-redirect.
+**✅ LOCKED (Joe, 2026-06-17, by-recomms):** Space-federation-set resolution (home_node ∪
+federation_nodes ∩ live sessions, home_node-first, serialized); additive `space_id` on
+`BlobFetchRequest`; no `blob_ref → event` reverse index (correctly not built). Self/empty-federation
+→ local-only → W5.
 
 ### P2 — Fetch correlation scheme (by `blob_ref`) — **recommended pick, flagged**
 
@@ -127,8 +128,8 @@ carry it; the loop verifies).
   "add a correlation/request-id" note): add `blob_ref` to `BlobChunk` for true concurrent
   multiplexing. Mechanism-first; not built.
 
-**FLAG FOR JOE:** P2 picks serialize-per-peer (zero wire change to `BlobChunk`) over a chunk
-request-id. Confirm or redirect.
+**✅ LOCKED (Joe, 2026-06-17, by-recomms):** serialize-one-fetch-per-peer; no `BlobChunk` wire
+change; reserved scale-hook = add `blob_ref` to `BlobChunk` later.
 
 ### P3 — Synchronous fetch timeout (D4 — the bound before serving `10003`) — **recommended pick, flagged**
 
@@ -144,12 +145,12 @@ client's existing single-hop timeout would be too tight as the outer bound.
   `[node].blob_fetch_timeout_seconds` if the federated round-trip needs its own bound under load
   (mechanism-first; flat-now).
 
-**FLAG FOR JOE:** P3 picks reuse-`[sync].completion_timeout_seconds` (inner) + 2× (outer client),
-no new config. Confirm or redirect.
+**✅ LOCKED (Joe, 2026-06-17, by-recomms):** inner = `[sync].completion_timeout_seconds` (5 s
+reuse), outer client `fetch_blob` = 2×; reserved `[node].blob_fetch_timeout_seconds`.
 
 ---
 
-## §4 Runbook values (recommended; Joe-lock with §3)
+## §4 Runbook values — ✅ LOCKED 2026-06-17 (Joe, by-recomms)
 
 | Value | Recommendation | Grounding |
 |---|---|---|

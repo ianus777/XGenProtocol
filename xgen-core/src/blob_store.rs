@@ -64,18 +64,26 @@ pub enum BlobError {
     /// `BlobUploadBegin` before buffering (and re-checks the accumulator per chunk).
     #[error("blob too large: {size} bytes exceeds the {limit}-byte ceiling")]
     TooLarge { size: u64, limit: u64 },
+
+    /// F3 (M12.3) — the blob is not reachable: a fetch missed the local store and
+    /// no Space-federated home could serve it (or the federated fetch timed out).
+    /// Wire code **10003**; the node serves it on a client↔node fetch miss after
+    /// the lazy federation fetch (M12.3-D4) also fails. Before M12.3 this was a
+    /// defensive literal (`blob_err(10003, …)`) on the self-thread miss path; the
+    /// typed arm replaces it (M12.3-D5).
+    #[error("blob unavailable: not in the local store and unreachable across homes")]
+    Unavailable,
 }
 
 impl BlobError {
-    /// Map to the protocol wire `(code, name)` tuple. `HashMismatch` (10001) and
-    /// `TooLarge` (10002, F6) are protocol rejects the peer correlates;
-    /// `MalformedRef`/`Io` are internal.
-    ///
-    /// Reserved (added with its producer): `10003 blob_unavailable` (F3, M12.3).
+    /// Map to the protocol wire `(code, name)` tuple. `HashMismatch` (10001),
+    /// `TooLarge` (10002, F6) and `Unavailable` (10003, F3/M12.3) are protocol
+    /// rejects the peer correlates; `MalformedRef`/`Io` are internal.
     pub fn to_wire_code(&self) -> Option<(u32, &'static str)> {
         match self {
             Self::HashMismatch => Some((10001, "blob_hash_mismatch")),
             Self::TooLarge { .. } => Some((10002, "blob_too_large")),
+            Self::Unavailable => Some((10003, "blob_unavailable")),
             Self::MalformedRef | Self::Io(_) => None,
         }
     }
@@ -232,5 +240,18 @@ mod tests {
         );
         assert_eq!(BlobError::MalformedRef.to_wire_code(), None);
         assert_eq!(BlobError::Io("x".into()).to_wire_code(), None);
+    }
+
+    #[test]
+    fn unavailable_wire_code_is_10003() {
+        // M12.3-D5 / C1 (W2 baseline) — the typed `Unavailable` arm maps to the
+        // same wire tuple the pre-typing defensive literal emitted
+        // (`blob_err(10003, "blob_unavailable")` at app.rs:1919). RED-on-revert:
+        // drop the `Unavailable` arm from `to_wire_code` → this fails to compile /
+        // returns None. Byte-identical wire result to the literal.
+        assert_eq!(
+            BlobError::Unavailable.to_wire_code(),
+            Some((10003, "blob_unavailable"))
+        );
     }
 }

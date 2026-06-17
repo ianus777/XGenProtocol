@@ -1910,16 +1910,16 @@ pub(crate) async fn handle_connection(
                                     break;
                                 }
                             }
-                            // M12.1's self-thread never misses; the typed
-                            // BlobError::Unavailable + lazy fetch-by-hash land at
-                            // M12.3 (M12-D8). Defensive reply uses the reserved
-                            // 10003 so the client errors rather than hangs.
+                            // M12.3-D5 / C1 — typed BlobError::Unavailable replaces
+                            // the pre-M12.3 defensive literal (W2 baseline; wire tuple
+                            // byte-identical). C2 rewrites this Ok(None) arm to attempt
+                            // the lazy federation fetch first (M12.3-D1/D4) and serve
+                            // 10003 only on no-reachable-holder / all-miss / timeout.
                             Ok(None) => {
-                                if conn
-                                    .send_transport(&blob_err(10003, "blob_unavailable"))
-                                    .await
-                                    .is_err()
-                                {
+                                let (code, name) = BlobError::Unavailable
+                                    .to_wire_code()
+                                    .unwrap_or((10003, "blob_unavailable"));
+                                if conn.send_transport(&blob_err(code, name)).await.is_err() {
                                     break;
                                 }
                             }

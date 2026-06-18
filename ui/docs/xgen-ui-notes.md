@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.7  
+> Version: 0.8  
 > Date: May 2026  
 > **Last updated**: 2026-06-18  
 > Language: English  
@@ -371,6 +371,50 @@ The read-only text panel of system messages (the console's scrollback half, N-01
 **Second home for outbox/federation signals:** a `3044 invite_expired` (or any federation-derived rejection / held-pending signal) renders in **two registers** — a glanceable **badge** on the relevant Space/Room avatar (N-014), *and* a line in the **scrollback**. The badge is the at-a-glance version; the scrollback is the full honest record. Same event, two registers — fits **D-065** (surface gaps rather than paper over them).
 
 **Relation to outbox:** scrollback is a *display register*, not the outbox state itself. The outbox is the durable-pending state branch; the scrollback is one of the surfaces that renders its signals (the other being avatar badges).
+
+### N-017 — Outbox as a UI representation surface (cards awaiting resolution)
+
+**Scope fence (read first):** this is a **UI representation note**. It governs *what events the UI is allowed to draw, and how* — not the data structure, not the event stream, not the outbox's underlying state, not protocol. Events flow regardless; this note is only about representation. Same fence discipline as the "container" umbrella (N-013).
+
+**What the outbox is (UI view):** a front-stage **deck of friendly cards awaiting resolution** — the live, still-unresolved tail of the client's leveled event stream. The exception/degraded-path surface: on the happy path it is mostly empty (a normal message send confirms in milliseconds and never visibly stacks; it only surfaces here on a problem).
+
+**Two registers of the same event stream:**
+- **Scrollback console** (N-016) — CLI-honest, terse, coded (`3044 invite_expired`), opt-in (tilde). The machine register. Immutable full record.
+- **Outbox card deck** — friendly, front-stage, always in view. The human register.
+
+*Honesty without hostility:* the technical truth is never hidden (it lives in the console — D-065), but it is never forced on the user either. A normal person never has to meet a raw status code.
+
+**Card form (never a raw CLI line):**
+```
+OutboxCard (awaits resolution)
+├── icon         → kind + severity glyph (calm — no shouty words; leans on N-011 shapes)
+├── title        → plain language, human  ("Invite to XGen expired")
+├── description  → optional one line       ("Send a new one?")
+├── accent color → severity as hue, calm palette — NOT a "WARNING" text label
+└── action row   → demand only (N-014 action: acknowledge / retry / dismiss)
+```
+Severity is carried by **icon + accent color**, never a shouty word. The word "error" may not appear at all.
+
+**Two orthogonal axes:**
+- **Severity:** info · warn · error  (how it looks / how loud).
+- **Interaction:** passive · demand  (does it carry an action?).
+They are independent — a demand may be low-severity; an error may be passive.
+- *passive* → no / disabled action row, but the card is still fully friendly and legible.
+- *demand* → enabled action row → carries the N-014 context-scoped action.
+
+**Aggregation:** transient warnings aggregate **by Space, passive-band only** — a flaky connection emits **one** rolled-up card ("12 messages pending — connection degraded"), never one card per stuck message. Per-message status stays quiet *inside the thread* (grey clock); the outbox carries only the rollup. Aggregate cards may **expand inline** to list members (disclosure, not action). **Demands never aggregate** — each is its own decision.
+
+**Muting = UI representation filter ONLY:** decides which events are *allowed to be drawn as cards*. No reach into data structure, state, or protocol — events always flow, and the **scrollback always records, unmuted** (you can always go to the console and see what you silenced; D-065).
+- **Axes:** by **type** (category-wide) · by **source** (per-entity; source = stable entity ID, reuses N-011 avatars — "mute this Space" = add its avatar to a muted set).
+- **Per-type policy (three values):** forced-on (unmutable) · default-on-changeable · default-off-changeable.
+- **Compose:** a card shows iff *type-not-muted* **AND** *source-not-muted*.
+- **Gate (load-bearing):** **demands are forced-on, never mutable.** Interaction type gates mutability — a required action can never be silenced into invisibility. (This is the "some cannot be muted by type or source" rule.)
+
+**Event population deliberately deferred:** the precise list of events that land in the outbox is **discovered empirically during testing**, not designed up front. This note locks the *shape* (card, registers, axes, aggregation, muting); the *population* is open. Designing the container, not enumerating its contents — and not pretending a speculative list is complete (D-065).
+
+**Relation to neighbours:** launch via N-014 context-scoped action → fate renders as outbox card + avatar badge; scrollback (N-016) is the immutable full record of the same stream; icons lean on N-011 shape vocabulary.
+
+**Parked (CSS / test pass):** exact icon-to-event mapping; whether aggregate expand-to-members is always allowed; calm severity palette values; the modal/docked/floating presentation of demand actions (N-014, test-decided).
 
 ---
 

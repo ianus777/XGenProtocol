@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-17  
+> **Last updated:** 2026-06-18  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -3793,4 +3793,4 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 
 **Constraints.** (1) No retroactive rewrite — archived content is verbatim; only its container's Status reads ARCHIVED. (2) Forward pointer mandatory — the live file names its archive sibling so a session can reach history on demand. (3) D-074 atomicity holds — an archiving move and its canonical-record updates travel in one commit. (4) The live head is the only PLAY block a fresh session must read on open; deeper history is opt-in via the pointer.
 
-**First exercised:** the documentation-optimization phase (J-391) — CLAUDE.md's ~2,200-line superseded PLAY stack lifted into `CLAUDE_HISTORY.md`. Subsequent doc-opt sub-arcs apply the same pattern to `tasks/` (DO-2) and may apply it to `JOURNAL.md` (DO-5).
+**First exercised:** the documentation-optimization phase (J-391) — CLAUDE.md's ~2,200-line superseded PLAY stack lifted into `CLAUDE_HISTORY.md` (ARCHIVED). Subsequent doc-opt sub-arcs apply the same pattern to `tasks/` (DO-2); it was applied to `JOURNAL.md` at DO-5 (J-396) — J-375 and older (358 entries) relocated to `JOURNAL_ARCHIVE.md` (ARCHIVED), live window J-395 … J-376.

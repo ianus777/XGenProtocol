@@ -1,8 +1,8 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 3.82  
+> Version: 3.83
 > Date: May 2026  
-> **Last updated**: 2026-06-17  
+> **Last updated**: 2026-06-18  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -241,7 +241,7 @@ XGen Protocol
 │   ├── ✅ M11 — `self` thread (D-021; client/Space feature reusing the user's existing identity) — SHIPPED + CLOSED J-378, shape B self-DM (D1 guard-at-construction)
 │   └── ✅ M12 — attachments (full attachment functionality; pre-UI — lands before UI dev start) — OPENED J-379, forks F1–F9 Joe-LOCKED; Phase-0 audit ✅ DONE J-380 (GO); design Joe-LOCKED J-381 (M12-D1..D10); M12.1 ✅ SHIPPED + CLOSED J-382 (C1–C5, 1429/0); M12.2 ✅ SHIPPED + CLOSED J-385 (M12.2a J-384 fetch/--attach/F6 + M12.2b J-385 F9 data-root, both binaries; 1445/0, e2e 2/2); next-active = M12.3 (federation fetch-by-hash + F3 + 10003 blob_unavailable)] Phase-0 audit DONE + design Joe-LOCKED J-386 (M12.3-D1..D6: β multiplex-the-federation-session fetch, lazy-default F3, Retained-eager reserved-hook, sync miss-signal, typed 10003); next-active = Clair M12.3 runbook] M12.3 SHIPPED+CLOSED J-387; M12.4 (erasure) Phase-0 audit DONE + design Joe-LOCKED J-388 (M12.4-D1..D9; M12-D6 promoted -> D-093); next-active = Clair M12.4 runbook = M12 final sub-arc] M12.4 SHIPPED+CLOSED J-389 = M12 (attachments) CLOSED (all four sub-arcs M12.1 J-382 / M12.2 J-385 / M12.3 J-387 / M12.4 J-389; in-suite 1463/0, box e2e green); Round-2 final pre-UI gate ✅ DONE J-390 (Pass-2 whole-codebase audit, verdict GO; R2G-F01..F04 routed, all S3/S4, none UI-blocking); next-active = UI (clean-table build)
 │
-├── 🟡 Pre-UI documentation-optimization phase — OPENED J-391 (NEXT-ACTIVE; DO-1+DO-2 done J-392, DO-2b done J-393, DO-3+DO-4 done (J-394/J-395), DO-5 (JOURNAL) next); precedes Appendix F/I audit → mockup stock-take → UI
+├── ✅ Pre-UI documentation-optimization phase — COMPLETE (J-396; DO-1..DO-5, DO-5 = JOURNAL.md windowing); precedes Appendix F/I audit → mockup stock-take → UI
 ├── UI (clean-table rebuild — the post-M10 endpoint; built fresh after pre-UI work, Round-2 GO; the J-390 final pre-UI gate ✅ DONE; pre-UI consolidation RE-OPENED J-391 — doc-opt → Appendix F/I audit → mockup stock-take precede the UI build)
 │   ├── ⬛ UI Phase 2 visual merge — DEPRECATED (J-284): element-modelling/visual-merge approach abandoned → superseded by the clean-table UI milestone
 │   ├── 🟡 Clean-table UI milestone — the live UI build (replaces the deprecated visual-merge approach)
@@ -658,16 +658,16 @@ The arc the project has already traversed. Detail is intentionally compact; the 
 
 The track the project is actively working on right now. Detail here is the most granular in the document — what's in flight, what's blocking what, the next concrete step.
 
-🟢 **Documentation-optimization phase (pre-UI consolidation) — OPENED J-391, in progress.** Discharges the doc bloat the M8→M12 sprint left while reference/operational records lagged. Doc-only; no code. Five sub-steps, then the pre-UI chain.
+🟢 **Documentation-optimization phase (pre-UI consolidation) — COMPLETE (J-396).** Discharged the doc bloat the M8→M12 sprint left while reference/operational records lagged. Doc-only; no code. All five sub-steps done; the pre-UI chain is now active.
 
 - **DO-1 ✅ (J-391)** — CLAUDE.md split: ~2,200-line superseded PLAY stack → `CLAUDE_HISTORY.md` (ARCHIVED); live head + briefing + pointer retained. Established **D-094** (archive-with-forward-pointers).
 - **DO-2 ✅ (J-392)** — `tasks/` archive: 207 terminal docs → `tasks/archive/` via `git mv` + a D-094 README. Surfaced 44 stale-ACTIVE labels.
 - **DO-2b ✅ (J-393)** — triaged the 44: 43 flipped + archived (42 COMPLETED + BATCH_FLAG DEPRECATED); NODE_ADMIN_PASS2 kept live (PENDING). Live `tasks/` = 3.
-- **DO-3 🟢 (now, J-394)** — this prose refresh; completed M6→M12 + multiparty + Round-2 relocated to Past; tree view untouched.
+- **DO-3 ✅ (J-394)** — ROADMAP prose refresh; completed M6→M12 + multiparty + Round-2 relocated to Past; tree view untouched.
 - **DO-4 ✅ (J-395)** — DECISIONS.md R2G-F03 resolved: 7 duplicate decision IDs split a/b (earlier occurrence = a) + ~30 live refs repointed; ordering left as-is.
-- **DO-5 🟡** — JOURNAL.md windowing; riskiest, last / deferrable.
+- **DO-5 ✅ (J-396)** — JOURNAL.md windowed: live window J-395 … J-376 (20 + new J-396); J-375 and older (358) → NEW `JOURNAL_ARCHIVE.md` (ARCHIVED, D-094) + forward pointer.
 
-**Pre-UI chain (after doc-opt):** Appendix F/I audit-against-code → mockup stock-take + reconcile-to-as-built → UI (clean-table) → Streams.
+**Pre-UI chain (doc-opt COMPLETE — now active):** Appendix F/I audit-against-code → mockup stock-take + reconcile-to-as-built → UI (clean-table) → Streams.
 
 ## Near future — designed or scoped, awaiting work
 

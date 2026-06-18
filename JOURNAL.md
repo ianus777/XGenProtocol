@@ -8,6 +8,16 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-402 — Settled finding (do-not-re-research): `is_ai`/`ai_capabilities` were never deferred — omission-when-human is intentional back-compat
+
+**What happened.** During a client-UI modelling session the question resurfaced — why does the wire identity record appear to "omit" `is_ai`/`ai_capabilities`? Verified against code + Appendix I §IV.1 to settle it permanently. The AI fields are fully implemented and load-bearing: present on `IdentityMessage::Register` **and** (post-F17, J-401) `::Record`; shape-validated (3040); immutable after registration (3041); part of the **canonical signing form** (stripping `is_ai` breaks verification); federation-replicated; and they drive pacing (§3.7.12.1). The apparent "omission" is a deliberate **serialization rule**: when `is_ai = false` (human), both fields are serde-skipped from canonical form so pre-AI human signatures stay **byte-identical**. AI identities serialize *with* them. Nothing was deferred at the model level; F17 (Record-variant exposure) closed code-side at J-401 and the doc (§IV.1) was already aligned.
+
+**Why recorded.** Marks the understanding **settled** so the omission-when-human shape is not re-investigated as a gap in future sessions. UI consequence: `is_ai` reaches the client on identity-record lookups of AI identities → the AI-badge is wire-backed (D-059), not aspirational.
+
+**Canonical.** Doc-only, no code. This JOURNAL J-402; `tasks/HANDOFF_AFI_AUDIT.md` §9 annotated with the F17 post-close pointer. Next-active unchanged: mockup stock-take + reconcile-to-as-built (Chat seat).
+
+---
+
 ## Entry J-401 — F17 CLOSED code-side (Clair seat): `IdentityMessage::Record` gains `is_ai`/`ai_capabilities`, populated on `identity.get`
 
 **What happened.** Implemented the Joe-LOCKED (J-400) F17 code fix. Added `is_ai: bool` (`#[serde(default, skip_serializing_if = "is_false")]`) and `ai_capabilities: Option<AiCapabilities>` (`#[serde(default, skip_serializing_if = "Option::is_none")]`) to `IdentityMessage::Record` (`xgen-core/src/wire/types.rs`), mirroring the discipline already on `identity.register`/`IdentityRecord`. The `identity.get` responder (`xgen-node/src/app.rs`) now populates both from the stored `IdentityRecord`. Additive + backward-compatible: human-record lookups stay byte-identical (both fields serde-skipped when false/None); a peer/client lookup of an AI Identity now sees its AI status — the §3.6.10 transparency requirement. Three tests added in `wire/types.rs`: `identity_record_with_ai_round_trip` (AI carries `is_ai=true` + caps), `identity_record_human_omits_ai_fields_in_canonical_form` (human omits both), `identity_record_legacy_without_ai_fields_deserialises` (pre-F17 wire JSON still parses → human record). No Appendix I edit — §IV.1 already matched the target shape (per J-400).

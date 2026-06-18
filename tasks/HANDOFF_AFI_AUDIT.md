@@ -103,3 +103,5 @@ Backward-coherence (doc behind code) except F17. Code-as-truth (Q4); all doc-sid
 **Scope (Joe-locked):** S1 observability / event_trace value-strings → G / out · S2 aicontrol → O · S3 module descriptors → N (M10 shipped J-375) · S4 clock.rs → out (D-090) · S5 internal registries/helpers → out. Reverse cross-refs into C/L/ch3/aicontrol-impl skipped (option B) — M/N/O+I+G already establish authority.
 
 **Open item for Joe:** F17 routing — expose AI status on `identity.record` (code fix) vs. trim the two rows from §IV.1 (doc fix).
+
+> **Post-close update (2026-06-18, J-402):** F17 is **RESOLVED** — the code-fix direction was Joe-locked (J-400) and shipped by Clair (J-401): `IdentityMessage::Record` now carries `is_ai`/`ai_capabilities` (serde-skip when false/None, populated on `identity.get`, back-compat tested). Appendix I §IV.1 already matched the target shape, so no doc edit was needed. The fields were never deferred at the model level — the omission-when-`is_ai=false` is an intentional byte-identical back-compat serialization rule. Settled; do not re-research (see J-402).

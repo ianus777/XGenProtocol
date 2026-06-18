@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 3.84
+> Version: 3.85
 > Date: May 2026  
 > **Last updated**: 2026-06-18  
 > Language: English  
@@ -667,15 +667,15 @@ The track the project is actively working on right now. Detail here is the most 
 - **DO-4 ✅ (J-395)** — DECISIONS.md R2G-F03 resolved: 7 duplicate decision IDs split a/b (earlier occurrence = a) + ~30 live refs repointed; ordering left as-is.
 - **DO-5 ✅ (J-396)** — JOURNAL.md windowed: live window J-395 … J-376 (20 + new J-396); J-375 and older (358) → NEW `JOURNAL_ARCHIVE.md` (ARCHIVED, D-094) + forward pointer.
 
-**Pre-UI chain (doc-opt COMPLETE — now active):** Appendix F/I audit-against-code → mockup stock-take + reconcile-to-as-built → UI (clean-table) → Streams.
+**Pre-UI chain:** Appendix F/I audit-against-code ✅ (J-398) → mockup stock-take + reconcile-to-as-built (now active) → UI (clean-table) → Streams.
 
 ## Near future — designed or scoped, awaiting work
 
 Ready to start, in order. The pre-UI chain runs first.
 
-🟢 **Appendix F/I audit-against-code (in progress).** AF sub-pass ✅ (J-397) — Appendix F reconciled to the as-built CLI (5 findings; `federate` reframed `N/A — only node concept`; §F.2.1 node-admin cross-ref). AI sub-pass next — reconcile Appendix I (data structures) to the as-built serializable types + event catalog.
+⚫ **Appendix F/I audit-against-code — CLOSED (J-398).** AF sub-pass ✅ (J-397, Appendix F v1.13). AI sub-pass ✅ (J-398): Appendix I reconciled to the as-built serializable types + event catalog (v1.6→v1.7; AI-F01–F16 doc-side — thread model, SpaceState/RoomState/IdentityRecord/FederationRelationship fields, PendingInvite, RoomPermission/Effect, 8 transport variants, identity.home_changed, re_registration). Three fundamentals promoted to single-source-of-truth appendices — **M** (Trust Assertions), **N** (Auth-Module/Plugin descriptors), **O** (`--aicontrol` control plane); `event_trace` typed enums folded into **Appendix G** (v1.2). **AI-F17 Joe-routed** (suspected code gap: the wire `identity.record` omits `is_ai`/`ai_capabilities`).
 
-🟡 **Mockup stock-take + reconcile-to-as-built.** Inventory `ui/docs/` mockups/notes against the as-built surface — the last pre-UI step.
+🟢 **Mockup stock-take + reconcile-to-as-built (NEXT-ACTIVE).** Inventory `ui/docs/` mockups/notes against the as-built surface — the last pre-UI step.
 
 🟡 **Production identity→home-node discovery (MP-F13 / F1B-D5).** Routed from MP-F1b (J-333); the stranger-discovery path, distinct from derivation from known parties (D-091).
 

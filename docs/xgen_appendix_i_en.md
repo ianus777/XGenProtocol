@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix I: Data Structures
-> **Status:** ACTIVE  
-> Version: 1.6  
+> **Status**: ACTIVE  
+> Version: 1.7  
 > Date: May 2026  
-> **Last updated:** 2026-06-03  
+> **Last updated**: 2026-06-18  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -13,6 +13,8 @@
 ## Overview
 
 This appendix is the canonical reference for every named data structure in the XGen Protocol. It covers wire-format message types, runtime state objects, and bootstrap/reputation objects drawn from the Phase 1 and Phase 2 specification (Ch3 §3.1–§3.16) and confirmed against the reference implementation in `xgen-common` and `xgen-core`.
+
+Related data-structure appendices (each the single source of truth for its domain): **Appendix M** (Trust Assertions & Auth-Tier evidence), **Appendix N** (Auth-Module / Plugin framework descriptors), **Appendix O** (`--aicontrol` control-plane structures). Logging/tracing value vocabularies live in **Appendix G**. Out of scope here: observability state-file structs (`NodeState`, `ClientState`, etc., D-026), logging/session-trace types, and in-memory registry/manager types, which are documented in their implementation chapters.
 
 Structures are grouped by functional domain. For each structure, the field table lists:
 
@@ -116,6 +118,14 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `state.ai_operator_revoke` | Removes the operator role for an AI Identity within a Space without naming a replacement (§3.6.10.6). |
 | `state.mls_group_init` | Anchors an MLS group for a Room at genesis epoch 0 (§3.10.4, Arc H PG-05). A DAG **state** event — Node-readable, NOT E2E-encrypted (the Node needs group genesis to route DS messages); emitted by the creating client only when the Space's `e2e_encryption` is set. Non-root; carries a per-Room state key so a concurrent re-init cannot fork. |
 
+**Thread events (Arc E PG-08 — stored in DAG, applied to SpaceState)**
+
+| Wire string | Description |
+|---|---|
+| `thread.create` | Opens a flat Thread within a Room (§VI.9). Carries the title and `auth_tier_min`; the creating event becomes the Thread's `origin_event`. |
+| `thread.resolved` | Marks a Thread resolved (`ThreadStatus::Resolved`). Terminal. |
+| `thread.archived` | Archives a Thread (`ThreadStatus::Archived`). Terminal. |
+
 **Phase 2 — DM promotion control (not stored in DAG)**
 
 | Wire string | Description |
@@ -146,6 +156,7 @@ The signature covers the canonical bytes. The public key in the signature must m
 |---|---|
 | `identity.replicate` | Home Node pushes Identity record to replica Node. |
 | `identity.replicate_ack` | Replica Node acknowledges replication. |
+| `identity.home_changed` | Identity notifies the network of a new home Node after orphan recovery (§3.13.8 / §3.13.9). Delta-shaped — peers re-point the stored record's `home_node`. |
 
 **Phase 2 — Bootstrap (not stored in DAG)**
 
@@ -209,6 +220,7 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `protocol_version` | string | Req | `"0.1"` |
 | `identity_id` | string | Req | The authenticated identity's pubkey URI. |
 | `timestamp` | string | Req | RFC 3339 UTC timestamp. |
+| `node_id` | string | Opt | The Node's own pubkey `node_id`, echoed so the client can write it as a Space's `home_node` (M10.4 / MP-F13). Additive optional (§3.0.3): old nodes omit it, old clients ignore it. |
 
 **`transport.auth_fail`** — sent by Node on failed authentication, followed immediately by connection close.
 
@@ -251,6 +263,70 @@ The signature covers the canonical bytes. The public key in the signature must m
 |---|---|---|---|
 | `protocol_version` | string | Req | `"0.1"` |
 | `since` | string | Req | `event_id` URI — client requests all events after this point. |
+| `limit` | u32 / number | Opt | Max events the responder sends in one response page (F-7). Absent means the responder's `[sync].batch_size` default (1000). |
+
+**`transport.sync_complete`** — authoritative end-of-batch signal for a `sync_request` response (F-6, §3.3.6); replaces the quiet-time heuristic. Sent by the responder after the last Event of a batch.
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `protocol_version` | string | Req | `"0.1"` |
+| `since` | string | Req | Echo of the request's `since` cursor (correlation when multiple sync_requests are in flight). |
+| `new_tip` | string | Req | The requester's position after this batch — `event_id` of the last delivered event, or echoes `since` when the batch is empty. |
+| `continue_from` | string | Opt | Non-null when more events are available: the cursor to pass as `since` on the follow-up `sync_request`. Omitted when catch-up is complete. |
+
+**`transport.invite_bootstrap_request`** — a pending invitee's request to bootstrap its membership (M8.5-B, INV-D1/INV-D2). The Node serves the structural events of `space_id` (Space/Room creates + the membership chain incl. the invite naming the requester) — no message content — so the invitee can chain its `membership.join` causally after the invite. Authorised by an unexpired `pending_invite`; an absent/expired invite is refused with transport code `1011` (`invite_bootstrap_refused`). On success the Node replies with the same batch + `sync_complete` shape as a `sync_request`.
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `protocol_version` | string | Req | `"0.1"` |
+| `space_id` | string | Req | `xgen://hash/sha256:<hex>` of the Space to bootstrap. The requester is the authenticated connection Identity. |
+
+**Blob transfer (M12.1 — chunked base64 over WebSocket).** Ciphertext bytes ride the client-node WS channel as chunked base64 (WS frames are JSON, so raw bytes are base64-wrapped). The bytes are already ciphertext (M12-D5).
+
+**`transport.blob_upload_begin`** — begin a chunked-base64 blob upload (client to node).
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `protocol_version` | string | Req | `"0.1"` |
+| `blob_ref` | string | Req | `hash_uri(ciphertext)` the client claims. |
+| `size` | u64 / number | Req | Ciphertext size in bytes. Gated at begin against the operator ceiling (`[node].max_blob_bytes`, default 16 MiB). |
+
+**`transport.blob_chunk`** — one base64 chunk of a blob's ciphertext (≤ 128 KiB raw). Used both ways: upload (client to node) and fetch (node to client).
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `protocol_version` | string | Req | `"0.1"` |
+| `seq` | u32 / number | Req | 0-based order index (informational — a single WS stream preserves order). |
+| `data` | string | Req | Base64 of this ciphertext chunk. |
+
+**`transport.blob_upload_end`** — end of upload; the node reassembles, verifies `hash_uri(bytes) == blob_ref`, stores content-blind, and replies `blob_upload_ok` (or `transport.error` 10001 on hash mismatch).
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `protocol_version` | string | Req | `"0.1"` |
+| `blob_ref` | string | Req | The claimed content-address being finalised. |
+
+**`transport.blob_upload_ok`** — node-to-client acknowledgement that a blob upload was stored.
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `protocol_version` | string | Req | `"0.1"` |
+| `blob_ref` | string | Req | The stored blob's content-address. |
+
+**`transport.blob_fetch_request`** — client-to-node request to fetch a blob by content-address. The node replies `blob_chunk`* then `blob_fetch_end` (or `transport.error` on miss/mismatch).
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `protocol_version` | string | Req | `"0.1"` |
+| `blob_ref` | string | Req | The content-address to fetch. |
+| `space_id` | string | Opt | Scopes a federated lazy fetch (M12.3): on a local miss the node resolves the Space's federated holders (`home_node` ∪ `federation_nodes`) and fetches across homes. Absent → local-only, no federation fetch. |
+
+**`transport.blob_fetch_end`** — node-to-client end-of-fetch marker (after the last `blob_chunk`).
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `protocol_version` | string | Req | `"0.1"` |
+| `blob_ref` | string | Req | The fetched blob's content-address. |
 
 **`transport.rate_limit`** — Node signals the client to back off.
 
@@ -370,7 +446,8 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `display_name` | string | Opt | Human-readable name. UTF-8, max 64 characters. |
 | `is_ai` | bool | Opt | AI declaration (§3.6.10). Default `false`. Omitted from the canonical form when `false` so signatures of pre-3.6.10 human registrations are unchanged. Immutable after registration. |
 | `ai_capabilities` | object | Opt | `AiCapabilities` payload (§V.3). Required when `is_ai = true`; MUST be omitted when `is_ai = false`. Validated at step 8 of registration (§3.6.10.4). |
-| `trust_assertion` | object | Opt | Auth-Tier-specific trust evidence (§3.8). `null` forbidden — omit if not applicable. |
+| `trust_assertion` | object | Opt | Auth-Tier-specific trust evidence (§3.8). `null` forbidden — omit if not applicable. See Appendix M for the typed structure. |
+| `re_registration` | bool | Opt | Orphan-recovery re-home flag (§3.13.8). When `true`, the Node permits re-registration of an already-known `identity_id` instead of rejecting it as a duplicate. Default `false`; omitted from the canonical form when `false` so normal-registration signatures are byte-identical to pre-3.13.8 ones. |
 | `timestamp` | string | Req | RFC 3339 UTC timestamp. |
 | `signature` | string | Opt† | Identity keypair signature over canonical form. Required on wire. |
 
@@ -457,10 +534,13 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `is_ai` | `bool` | AI declaration (§3.6.10). Default `false`. Immutable after registration — enforced at apply time on `identity.update`. Skipped from the serialised JSON output when `false` so canonical forms of pre-3.6.10 human records are unchanged. |
 | `ai_capabilities` | `Option<AiCapabilities>` | Capability flag set (§V.3). Required (`Some`) when `is_ai = true`; MUST be `None` when `is_ai = false`. Skipped from the serialised JSON output when `None`. |
 | `registered_at` | `String` | RFC 3339 UTC timestamp of registration. |
-| `trust_assertion` | `Option<Value>` | Auth-Tier-specific trust evidence. Present only for Tier 2+. |
+| `trust_assertion` | `Option<Value>` | Auth-Tier-specific trust evidence. Present only for Tier 2+. Carried opaquely here; the typed structure is Appendix M. |
 | `devices` | `Vec<DeviceRecord>` | Authorised devices. See §V.2. |
 | `home_node` | `NodeXgid` | `xgen://pubkey/ed25519:<base64url>` of the home Node. |
 | `update_version` | `u64` | Monotonic counter for update propagation (§3.6.8). Starts at 0. |
+| `revoked` | `bool` | Identity revocation flag. Default `false`. Set when the Identity is revoked (key compromise / lifecycle). |
+| `revoked_at` | `Option<String>` | RFC 3339 UTC timestamp of revocation. `None` while not revoked. |
+| `revocation_reason` | `Option<String>` | Free-text revocation reason. `None` while not revoked. |
 
 ### V.2 `DeviceRecord`
 
@@ -511,7 +591,7 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `owner_id` | `IdentityXgid` | `xgen://pubkey/ed25519:<base64url>` of the Space creator. |
 | `is_dm` | `bool` | True for DM Spaces created via `state.dm_space_create`. |
 | `members` | `HashMap<IdentityXgid, SpaceMember>` | Active members, keyed by `identity_id`. |
-| `pending_invites` | `HashMap<IdentityXgid, PendingInvite>` | Invited but not yet joined, keyed by `identity_id`. Carries `role` plus `invited_by` (M3 spec 3.6.10.6) for `resolve_operator` step 2. |
+| `pending_invites` | `HashMap<IdentityXgid, PendingInvite>` | Invited but not yet joined, keyed by `identity_id`. See §VI.7 — `PendingInvite` carries `role`, `invited_by` (M3 §3.6.10.6, `resolve_operator` step 2), and `valid_until` (invite expiry, M8.5-B INV-D6). |
 | `ai_operator_delegations` | `HashMap<IdentityXgid, IdentityXgid>` | Operator delegations for AI members (spec 3.6.10.6). Key: `ai_identity_id`; value: currently-delegated operator's `identity_id`. Updated by `state.ai_operator_delegate` / `state.ai_operator_revoke`. |
 | `banned` | `HashSet<IdentityXgid>` | Identity IDs that are permanently banned from the Space. |
 | `rooms` | `HashMap<RoomXgid, RoomState>` | Rooms within the Space, keyed by `room_id`. |
@@ -522,6 +602,9 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `ai_pacing_ms` | `u64` | Minimum send interval (ms) for members with `is_ai = true` (§3.7.12.1). Default `2000` (`DEFAULT_AI_PACING_MS`) when absent from `state.space_create`. Zero is valid and disables pacing for the AI class. |
 | `member_temperature_visibility` | `String` | Visibility setting for `xgen.member_temperature` (§3.7.13.3). Open enum — standard values are `moderator` (default), `everyone`, `self_only`. Unknown values are stored verbatim but treated as `moderator` at enforcement time. |
 | `active_mutes` | `HashMap<IdentityXgid, String>` | Currently active mutes (§3.7.8). Key: target `identity_id`. Value: RFC 3339 `cooldown_until` timestamp. Members with an entry MUST NOT be permitted to post `message.*` Events until the timestamp passes. |
+| `jurisdiction` | `Option<String>` | Declared data-jurisdiction tag for the Space (Arc G PG-04). `None` when unset. |
+| `e2e_encryption` | `bool` | Whether the Space is end-to-end encrypted (Arc H PG-05). When set, message content is MLS ciphertext and the creating client emits `state.mls_group_init` per Room. |
+| `threads` | `HashMap<String, ThreadState>` | Threads in the Space (Arc E PG-08), keyed by the conceptual Thread id. See §VI.9. |
 
 ### VI.2 `RoomState`
 
@@ -536,7 +619,9 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `name` | `String` | Room display name. Set at creation; updated by `state.room_update`. |
 | `topic` | `Option<String>` | Room topic. Absent if not set. |
 | `members` | `HashSet<IdentityXgid>` | Identity IDs of members currently in this Room. |
+| `permission_overrides` | `HashMap<(Role, RoomPermission), Effect>` | Per-(Role, permission) Room overrides layered over the role defaults of §VI.4 (Arc D PM-D4 / PG-12-min). Absent key = inherit the membership default; present key forces `Allow`/`Deny`. Carried by `state.room_update` with replace semantics. Empty by default. See §VI.8. |
 | `mls_epoch` | `Option<u64>` | Current MLS group epoch (Arc H PG-05). `None` until a `state.mls_group_init` sets genesis 0; advanced by `mls.commit`. The Node-readable opaque counter only — no key material. `None` for non-E2E Rooms. |
+| `mls_commit_tip` | `Option<EventXgid>` | The `event_id` of the latest applied `mls.commit` for this Room (M8.7 CC-D5). Records *which* commit is canonical so two honest commits landing the same epoch converge on a winner. `None` until the first commit. |
 
 ### VI.3 `SpaceMember`
 
@@ -627,6 +712,66 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `DEFAULT_HUMAN_PACING_MS` | `500` | Protocol-recommended default for `human_pacing_ms` when absent from `state.space_create` (§3.7.12.2). |
 | `DEFAULT_AI_PACING_MS` | `2000` | Protocol-recommended default for `ai_pacing_ms` when absent from `state.space_create` (§3.7.12.2). |
 
+### VI.7 `PendingInvite`
+
+**Source:** `xgen-core/src/space/state.rs`  
+**Spec:** §3.6.10.6, §3.13 (M8.5-B)  
+**Description:** A pending invitation entry within `SpaceState.pending_invites`, keyed by the invited `identity_id`. Recorded by `membership.invite`; removed on `membership.join`.
+
+| Field | Type | Description |
+|---|---|---|
+| `role` | `Role` | The role the invitee will hold on joining. See §VI.4. |
+| `invited_by` | `Option<IdentityXgid>` | Identity that signed the `membership.invite`. `None` for owner / pre-M3-replay admits. Used by `resolve_operator` step 2 (§3.6.10.6). |
+| `valid_until` | `Option<String>` | RFC 3339 UTC invite expiry (M8.5-B INV-D6). `None` = no expiry. An expired pending invite is refused at `invite_bootstrap_request` and at join (`3044 invite_expired`). |
+
+### VI.8 `RoomPermission` & `Effect`
+
+**Source:** `xgen-core/src/space/membership.rs`  
+**Spec:** §3.7.8 (Arc D PM-D4 / PG-12-min)  
+**Description:** The per-Room permission-override vocabulary. `RoomState.permission_overrides` is a `HashMap<(Role, RoomPermission), Effect>` layered over the role defaults of §VI.4: an absent `(Role, RoomPermission)` key inherits the membership default; a present key forces the `Effect`. Overrides are carried by `state.room_update` with **replace semantics** (the event's array is the Room's complete override set; an empty array clears all).
+
+**`RoomPermission`** (the overridable capabilities):
+
+| Variant | Meaning |
+|---|---|
+| `SendMessages` | Post `message.*` Events in the Room. |
+| `Invite` | Invite Identities. |
+| `Kick` | Kick members. |
+| `Ban` | Ban members. |
+| `ChangeInfo` | Change Room metadata (name, topic). |
+
+**`Effect`:**
+
+| Variant | Meaning |
+|---|---|
+| `Allow` | Force-grant the permission for the `(Role, RoomPermission)` pair. |
+| `Deny` | Force-deny it. |
+
+### VI.9 `ThreadState` & `ThreadStatus`
+
+**Source:** `xgen-core/src/space/state.rs` (`ThreadState`); `xgen-common/src/wire.rs` (`ThreadStatus`)  
+**Spec:** Arc E PG-08 (AE-D7/AE-D8/AE-D9)  
+**Description:** Derived state of a Thread within a Space, held in `SpaceState.threads` keyed by the conceptual Thread id. A Thread is flat under one Room (no nesting) and is never deleted. There is no `ThreadXgid`: the id is a conceptual `xgen://thread/sha256:<hash of the create event>` (AE-D8). The event registry strings are `thread.create` / `thread.resolved` / `thread.archived` (§I.2).
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Conceptual Thread id (`xgen://thread/sha256:<hex>`); also the `threads` map key. |
+| `room_id` | `RoomXgid` | Parent Room (one Room, flat). |
+| `created_by` | `IdentityXgid` | The Identity that created the Thread. |
+| `created_at` | `String` | RFC 3339 UTC creation timestamp (the create event's timestamp). |
+| `title` | `Option<String>` | Optional thread title. |
+| `status` | `ThreadStatus` | Lifecycle status. See below. |
+| `auth_tier_min` | `u32` | Minimum Auth Tier to participate — narrow-not-widen vs the Room/Space (AE-D9). |
+| `origin_event` | `String` | The `thread.create` event id this Thread derives from. |
+
+**`ThreadStatus`** (serialises lowercase):
+
+| Variant | Wire string | Description |
+|---|---|---|
+| `Open` | `"open"` | Active Thread (set on `thread.create`). |
+| `Resolved` | `"resolved"` | Marked resolved (`thread.resolved`). Terminal. |
+| `Archived` | `"archived"` | Archived (`thread.archived`). Terminal. |
+
 ---
 
 ## Part VII — Node Objects
@@ -698,12 +843,26 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `session_id` | `String` | Req | Session-binding nonce from `federation.accept`. NOT a flavoured XGID per D-072 "what XGID is not" — session IDs are ephemeral per-connection identifiers, not protocol-object handles. |
 | `last_connected` | `String` | Req | RFC 3339 UTC timestamp of the last successful connection. |
 | `peer_url` | `Option<String>` | Opt | WebSocket endpoint URL of the peer Node, if provided in `federation.hello`. Advisory. |
+| `state` | `FederationState` | Req | Lifecycle state of the relationship. See §VIII.2. |
+
+### VIII.2 `FederationState`
+
+**Source:** `xgen-core/src/federation/registry.rs`  
+**Spec:** §3.4.5  
+**Description:** Lifecycle state of a `FederationRelationship`. Serialises lowercase; default `Active`.
+
+| Variant | Wire string | Description |
+|---|---|---|
+| `Active` | `"active"` | Live, negotiated relationship (the default). |
+| `Pending` | `"pending"` | Handshake in progress / awaiting acceptance. |
+| `Rejected` | `"rejected"` | The peer or local policy refused the relationship. |
+| `Revoked` | `"revoked"` | A previously-active relationship was defederated. |
 
 ---
 
 ## Part IX — Event Content Schemas
 
-Each `Event` carries a `content` object whose schema depends on `type`. This section defines the required and optional fields for each event type's content.
+Each `Event` carries a `content` object whose schema depends on `type`. This section defines the required and optional fields for the event types whose content is a fixed schema. A few event types build their `content` inline in their handlers and are not tabulated here yet: `message.file`, `message.reaction`, `message.redact`, and the `thread.*` family (§I.2).
 
 ### IX.1 `state.space_create` content
 
@@ -1030,6 +1189,19 @@ Removes the operator role for an AI Identity within a Space without naming a rep
 | `update_version` | u64 | Req | The version that was stored. |
 | `timestamp` | string | Req | RFC 3339 UTC timestamp. |
 | `signature` | string | Opt† | Replica Node keypair signature. |
+
+**`identity.home_changed`** — Identity notifies the network of a new home Node after orphan recovery (§3.13.8 / §3.13.9). Signed by the Identity keypair. Delta-shaped — peers re-point the stored record's `home_node`; a peer holding no prior record treats it as a no-op.
+
+| Field | Type | Req/Opt | Description |
+|---|---|---|---|
+| `protocol_version` | string | Req | `"0.1"` |
+| `identity_id` | string | Req | `xgen://pubkey/ed25519:<base64url>` of the Identity changing home. |
+| `old_home_node_id` | string | Req | `xgen://pubkey/ed25519:<base64url>` of the previous home Node. |
+| `new_home_node_id` | string | Req | `xgen://pubkey/ed25519:<base64url>` of the new home Node. |
+| `new_home_node_url` | string | Req | WebSocket endpoint URL of the new home Node. |
+| `update_version` | u64 / number | Req | Monotonic version counter of this record state. |
+| `timestamp` | string | Req | RFC 3339 UTC timestamp. |
+| `signature` | string | Opt† | Identity keypair signature. |
 
 ### X.4 `BootstrapMessage`
 

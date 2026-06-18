@@ -1,6 +1,6 @@
 # AFI Audit Handoff — Appendix F / Appendix I audit-against-code
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-18  
 > Language: EN  
@@ -46,8 +46,8 @@ Dev/test harness (Q6, segregated): smoke-test, stress-test, smoke-ph2, stress-co
 ## 6. Milestones
 - **Phase-0** ✅ (this open) — scope lock + method + as-built inventory.
 - **AF** ✅ (J-397) — verb diff done; Appendix F reconciled (AF-F01/F02/F04/F06 + AF-F03 reframe + §F.2.1 cross-ref); v1.12→v1.13.
-- **AI** — structure diff → findings → reconcile Appendix I → loop-to-green; version bump.
-- **Close** — consolidated AF+AI ledger; both appendices reconciled; D-074 canonical close (JOURNAL + ROADMAP + CLAUDE atomic). Next: mockup stock-take + reconcile-to-as-built.
+- **AI** ✅ (J-398) — Appendix I reconciled to as-built (v1.6→v1.7; AI-F01–F16 doc-side, F15 no-op, F17 Joe-routed); three fundamentals promoted to new appendices M/N/O; `event_trace` folded into Appendix G (v1.2).
+- **Close** ✅ (J-398) — consolidated AF+AI ledger (§9 below); both appendices reconciled; D-074 canonical close (JOURNAL + ROADMAP + CLAUDE atomic). Next: mockup stock-take + reconcile-to-as-built.
 
 ## 7. Operational learnings (carried forward)
 - `Filesystem:*` for E:\ reads/writes; never create_file (sandbox).
@@ -58,3 +58,48 @@ Dev/test harness (Q6, segregated): smoke-test, stress-test, smoke-ph2, stress-co
 
 ## 8. Hygiene
 - `tasks/HANDOFF_DO5_JOURNAL_WINDOWING.md` work is pushed; flip to COMPLETED + archive to `tasks/archive/` (DO-2 convention) — fold into a close commit.
+
+## 9. Close — consolidated AF + AI ledger (J-398)
+
+**Verdict:** both surfaces reconciled to as-built; AFI arc CLOSED. Doc-only, no code.
+
+### AF sub-pass — Appendix F v1.12→v1.13 (J-397)
+
+| ID | Verb / item | Drift | Disposition |
+|---|---|---|---|
+| AF-F01 | `create-dm-space` | code-present, doc-missing (F.0.4 + F.3) | rows added |
+| AF-F02 | `leave` | code-present, doc-missing | rows added |
+| AF-F03 | `federate` | stale "Deferred to M6 Phase 7" | reframed `N/A — only node concept` + ch2 node-to-node note (not removed) |
+| AF-F04 | `members` | stale "deferred / no data source" + Network=No | de-staled; Network No→Yes |
+| AF-F06 | node `whoami` | code-present (NodeCommand), doc-missing (F.2) | row added |
+| — | node-admin tree | F.2 lacked any pointer to ~35 `AdminCommand` verbs | new §F.2.1 group-summary + pointer (no duplication) |
+
+### AI sub-pass — Appendix I v1.6→v1.7 (J-398)
+
+Backward-coherence (doc behind code) except F17. Code-as-truth (Q4); all doc-side except F17.
+
+| ID | Target | Resolution |
+|---|---|---|
+| AI-F01 | §I.2 | `thread.create`/`resolved`/`archived` event rows added |
+| AI-F02 | §VI.9 | `ThreadStatus` (open/resolved/archived) documented |
+| AI-F03 | §VI.9 | `ThreadState` struct documented |
+| AI-F04 | §VI.1 | `SpaceState` +`jurisdiction`/`e2e_encryption`/`threads` |
+| AI-F05 | §VI.2 | `RoomState` +`permission_overrides`/`mls_commit_tip` |
+| AI-F06 | §VI.7 | `PendingInvite` section + `valid_until` |
+| AI-F07 | §II.1 | 8 transport variants (`sync_complete`, `invite_bootstrap_request`, 4×`blob_upload_*`, 2×`blob_fetch_*`) + `sync_request.limit` |
+| AI-F08 | §I.2 + §X.3 | `identity.home_changed` registry row + `IdentityReplicateMessage` variant table added |
+| AI-F09 | §IX | `message.file/reaction/redact` + `thread.*` content = handler-defined; Part IX honesty note added (not fabricated) |
+| AI-F10 | §V.1 | `IdentityRecord` +`revoked`/`revoked_at`/`revocation_reason` |
+| AI-F11 | §VIII.1 + §VIII.2 | `FederationRelationship` +`state`; new `FederationState` enum section |
+| AI-F12 | §VI.8 | `RoomPermission` + `Effect` documented |
+| AI-F13 | Appendix M | TrustAssertion family promoted to new Appendix M |
+| AI-F14 | §II.1 | `transport.auth_ok` +`node_id` |
+| AI-F15 | §II.1 | `transport.error.event_id` — already documented (no-op) |
+| AI-F16 | §IV.1 | `identity.register` +`re_registration` |
+| **AI-F17** | §IV.1 | **Joe-routed (suspected code gap):** wire `identity.record` omits `is_ai`/`ai_capabilities` that §IV.1 documents + §3.6.10 transparency expects. §IV.1 left intact pending a code decision. |
+
+**New appendices (single source of truth per fundamental):** **M** Trust Assertions & Auth-Tier evidence (`trust_assertion.rs`), **N** Auth-Module / Plugin framework descriptors (`module.rs`), **O** `--aicontrol` control-plane structures (`aicontrol/*`). **Appendix G** v1.1→v1.2 — `event_trace` typed enums folded as a *Source Types* section.
+
+**Scope (Joe-locked):** S1 observability / event_trace value-strings → G / out · S2 aicontrol → O · S3 module descriptors → N (M10 shipped J-375) · S4 clock.rs → out (D-090) · S5 internal registries/helpers → out. Reverse cross-refs into C/L/ch3/aicontrol-impl skipped (option B) — M/N/O+I+G already establish authority.
+
+**Open item for Joe:** F17 routing — expose AI status on `identity.record` (code fix) vs. trim the two rows from §IV.1 (doc fix).

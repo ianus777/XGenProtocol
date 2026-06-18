@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix G: Log Line Convention
-> **Status:** ACTIVE  
-> Version: 1.1  
+> **Status**: ACTIVE  
+> Version: 1.2  
 > Date: May 2026  
-> **Last updated:** 2026-05-06  
+> **Last updated**: 2026-06-18  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -304,9 +304,61 @@ For implementors writing log analyzers or AI ingestion pipelines:
 
 ---
 
+## Source Types (`event_trace.rs`)
+
+The log vocabularies above are produced by typed enums in `xgen-common/src/event_trace.rs` (D-033 / D-038). These are `Display`-only value vocabularies — emitted as log strings, never serialised as protocol wire JSON. Listed here as the canonical mapping from Rust variant to log value.
+
+**`EventDirection`** — the `direction` field:
+
+| Variant | Log value |
+|---|---|
+| `In` | `IN` |
+| `Out` | `OUT` |
+| `Local` | `LOCAL` |
+
+**`LocalAction`** — the `action` field on `LOCAL` lines:
+
+| Variant | Log value |
+|---|---|
+| `CreateEvent` | `create_event` |
+| `StoreEvent` | `store_event` |
+| `ApplyEvent` | `apply_event` |
+| `RejectEvent` | `reject_event` |
+
+The network actions `receive_event` / `send_event` are emitted by `trace_event` directly, not via `LocalAction`.
+
+**`ExitReason`** — the footer `reason` field:
+
+| Variant | Log value |
+|---|---|
+| `Shutdown` | `shutdown` |
+| `Restart` | `restart` |
+| `Error` | `error` |
+
+**`SpaceRole`** — the authenticated identity's role in the relevant Space, used by the `trace_event` role gate (debug output is emitted only for `Owner`/`Admin` sessions; D-033). Mirrors the privilege ladder of Appendix I §VI.4.
+
+| Variant | Description |
+|---|---|
+| `Owner` | Space owner. |
+| `Admin` | Space admin. |
+| `Moderator` | Space moderator. |
+| `Member` | Space member. |
+
+**`SessionContext`** — the session-level context available at the Event boundary, consulted by the role gate.
+
+| Field | Type | Description |
+|---|---|---|
+| `identity_id` | `Option<String>` | Authenticated Identity URI, if any. |
+| `role` | `Option<SpaceRole>` | Role in the relevant Space. `None` = unauthenticated / unknown. Phase 1: `Some(Owner)` for all local-mode authenticated connections. |
+| `space_id` | `Option<String>` | Space context if known at session level. |
+
+The session header/footer field schemas (`write_session_header` / `write_session_footer`) are the tables under *Session Header* and *Session Footer* above.
+
+---
+
 ## What This Appendix Does Not Cover
 
-- **Role gate** — debug output is suppressed for non-owner/admin sessions. Defined in D-033 and implemented in `event_trace.rs`. Not a format concern.
+- **Role gate** — debug output is suppressed for non-owner/admin sessions. Defined in D-033 and implemented in `event_trace.rs` (the `SpaceRole` / `SessionContext` types are tabulated under *Source Types* above). Not a format concern.
 - **Audit log** — a separate, always-on, append-only JSON Lines system. Defined in `docs/tests/LOGGING_audit_ph2.md`. Never mixed with debug log output.
 - **Log file naming and rotation** — defined in `docs/tests/LOGGING_debug_ph1.md`.
 - **Subscriber initialisation** — defined in `docs/tests/LOGGING_debug_ph1.md` and `docs/tests/LOGGING_debug_ph2.md`.

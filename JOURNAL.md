@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-398 — AFI audit AI sub-pass CLOSED: Appendix I reconciled to as-built (v1.7); new fundamentals appendices M/N/O authored + event_trace folded into Appendix G (v1.2); F17 (identity.record missing AI fields) Joe-routed as suspected code gap — AFI arc CLOSED
+
+**What happened.** Closed the AI sub-pass of the AFI audit (handoff `tasks/HANDOFF_AFI_AUDIT.md`), reconciling Appendix I (data structures) to the as-built serializable types in `xgen-common`/`xgen-core` + the protocol event catalog. Code as ground truth (Q4). Doc-only; no code. Phase-0 was a full read-only inventory diffed both directions (D-077): no forward-drift in the wire enums' variant sets; the drift was backward-coherence (the doc lagged the M8→M12+ backend) plus one forward-drift surfaced on field-level read (F17).
+
+**Appendix I reconcile (v1.6 → v1.7), AI-F01–F16, all doc-side.** Thread model added — `thread.create`/`resolved`/`archived` event rows (§I.2) + `ThreadState`/`ThreadStatus` (new §VI.9); `SpaceState` +`jurisdiction`/`e2e_encryption`/`threads`; `RoomState` +`permission_overrides`/`mls_commit_tip`; `PendingInvite` (new §VI.7, +`valid_until`); `RoomPermission`/`Effect` (new §VI.8); eight `TransportMessage` variants (`sync_complete`, `invite_bootstrap_request`, `blob_upload_begin/chunk/upload_end/upload_ok`, `blob_fetch_request/fetch_end`) + `sync_request.limit` + `auth_ok.node_id`; `identity.register` +`re_registration`; `IdentityRecord` +`revoked`/`revoked_at`/`revocation_reason`; Part IX honesty note (file/reaction/redact + thread.* content is handler-defined, not tabulated). F15 (`transport.error.event_id`) was already documented — no-op.
+
+**Three fundamentals promoted to their own appendices (single source of truth per topic).** Rather than cross-ref scattered mentions, each earned a proper data-structure article: **Appendix M** — Trust Assertions & Auth-Tier evidence (`trust_assertion.rs`: TrustAssertion/TrustClaims/ModulePolicy/Erasability/Retention/ModuleKind + reserved claims keys). **Appendix N** — Auth-Module / Plugin framework descriptors (`module.rs`: ModuleKindId/ModuleImplId/AssuranceClass/Descriptor). **Appendix O** — `--aicontrol` control-plane structures (`aicontrol/*`: Command/Reply/ErrorBody/Category/ControlCode catalogue/cmd-resolution/Filter/Bindings/IdempotencyStore/TimeoutTier/token). Appendix I's Overview now points at M/N/O and scopes out observability/registry/clock types (S1/S4/S5). aicontrol behaviour stays in `xgen_aicontrol_implementation.md` (sibling split); L/C/ch3 remain the homes for storage/primitive/normative rules.
+
+**event_trace → Appendix G (Joe-locked, option c).** The reconcile found `event_trace.rs` (EventDirection/LocalAction/ExitReason/SpaceRole/SessionContext) is the structured-logging subsystem, not control-plane — its enums emit Appendix G log values. Folded the typed enums + session-context into a new **Source Types** section in Appendix G (v1.1→v1.2), mapping each Rust variant to its log string without duplicating the existing value tables.
+
+**F17 — Joe-routed (suspected code gap, NOT a doc edit).** Field-level read showed the wire `IdentityMessage::Record` (`identity.record`) carries only `protocol_version/identity_id/display_name?/registered_at/devices/home_node` — it omits `is_ai`/`ai_capabilities` that Appendix I §IV.1 documents and that §3.6.10 AI-transparency expects (the full `IdentityRecord` and the replication path both carry them). Per Q4 this is a suspected backend gap, not a doc drift: §IV.1 left intact; routed to Joe/Clair for a code decision (expose AI status on the lookup response vs. trim the doc).
+
+**Scope calls (Joe-locked).** S1 observability + event_trace value-strings → handled (G / out). S2 aicontrol → Appendix O. S3 module descriptors → Appendix N (M10 closed J-375, so shipped surface, not deferred). S4 clock.rs → out (D-090 home). S5 internal registries/helpers → out (implementation docs). Reverse cross-refs into C/L/ch3/aicontrol-impl deliberately skipped (option B) — M/N/O+I+G already establish authority; keeps the commit focused.
+
+**Canonical (D-074, doc-only).** NEW `docs/xgen_appendix_m_en.md` / `_n_` / `_o_` (v1.0); `docs/xgen_appendix_i_en.md` v1.6→v1.7; `docs/xgen_appendix_g_en.md` v1.1→v1.2; `tasks/HANDOFF_AFI_AUDIT.md` → consolidated AF+AI ledger, COMPLETED; `docs/ROADMAP.md` (AFI CLOSED + mockup next + v3.84→v3.85); `CLAUDE.md` head (AFI CLOSED, mockup next-active); this JOURNAL J-398.
+
+**Next-active.** Mockup stock-take + reconcile-to-as-built (the last pre-UI step), then UI clean-table → Streams. Open item for Joe: F17 routing.
+
+---
+
 ## Entry J-397 — AFI audit AF sub-pass CLOSED: Appendix F reconciled to the as-built CLI (5 findings); `federate` reframed N/A-only-node-concept + ch2 node-to-node note; §F.2.1 node-admin cross-ref
 
 **What happened.** Opened the post-doc-opt pre-UI arc — the Appendix F/I audit-against-code (handoff `tasks/HANDOFF_AFI_AUDIT.md`; Phase-0 + AF + AI; code as ground truth, D-071). Phase-0 inventoried the as-built surface (client: 31 leaf verbs from `ClientCommand`/`ThreadCommand`/`AiCommand`; node foreground `NodeCommand`; node admin `AdminCommand` tree). AF sub-pass diffed Appendix F (F.0.2 / F.0.4 / F.2 / F.3) against code and reconciled. Doc-only; no code.

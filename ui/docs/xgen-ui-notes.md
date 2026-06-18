@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.2  
+> Version: 0.3  
 > Date: May 2026  
-> **Last updated**: 2026-06-02  
+> **Last updated**: 2026-06-18  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -227,6 +227,59 @@ Both apps carry both kinds:
 Not now — UI work is not unblocked. For record so the module-framework milestone + Ch6 inherit it: each module slot should be designed with "where does this show up in the UI, and how does the operator/user manage it?" as a first-class question, not an afterthought. Graduates into Ch6 + the module-framework milestone.
 
 Cross-ref: `tasks/EVENTSTORE_DESIGN.md` §8 (module-framework stance; `kind×host`); the vanilla operator-contract warning that needs a UI home.
+
+---
+
+## 2026-06-18
+
+### N-008 — Node representation in client view
+
+From the UI-concept brainstorm session (client's-eye view as the fundamental lens). How nodes appear to a user working in the client.
+
+- **Home node** — singular, personal, lives with the **avatar** (the user's own infra home; orange-adjacent). Always exactly one.
+- **Foreign nodes** — never rendered as standalone node objects. A node appears only as the **host-stamp on a Space** (blue, secondary, on the Space element). Federation is experienced as *reaching Spaces*, not *browsing a node graph*; the node is provenance, not navigation.
+- **Corollary** — blue (infra) always has a host object to attach to (avatar or Space); nothing floats.
+
+Open thread carried from the session: a Space whose host node is down is the one moment a foreign node demands visible presence — likely belongs to the temperature/liveness surface (N-005) on the Space element. Parked.
+
+### N-009 — Contact book as the `users`-axis canonical home (client-layer concept)
+
+**Layer note (important).** Contact book / circles / folders are **client-implementation** concepts built over protocol identities — **not protocol objects.** The protocol knows *identities* (verified, federated) and their *visit cards* (N-010); it does not know "contact books." Private **by construction** — purely client-local, no node holds the concept, nobody can pull or push it. May later materialise in the client liteSQL/redb cache (D-080) but remains an implementation artifact. **D-088 tiers govern the visit card (protocol), not the contact book.**
+
+- The **contact book** is the single canonical store of known members (one entry per person; identity-forward, orange). Concrete home of the `users` axis. Conceptually *yours* — your contacts have always been yours (the Gen-X intuition; privacy follows from being client-local by nature).
+- Holds **humans and AIs/bots alike** (D-059) — AI entries carry an honest identity-class badge, not a separate store/ghetto. (Badge form factor = open thread.)
+- Every member appearance in a Room/Space is a **presence-reference** into the contact book — never a copy, never a fake-primary alias. One canonical entry, many non-duplicating references. (Shortcuts-as-aliases rejected: they imply a false "primary home"; multi-membership is native to the reference/tag model.)
+- **Three-state avatar model:** (1) **Contact** — in your book, persisted, full. (2) **Unknown** — verified identity present in a shared room, no book entry; public data fetched on-demand from home node, not persisted. (3) **Self**.
+- **Known vs present:** contact book = everyone you know (persists); room roster = who's here *now* (ephemeral, a presence-filtered view). Unknowns = on-demand home-node fetches. No-anonymity holds — unknowns are *verified*, never anonymous; "verified" ≠ "in my book."
+- **Unknown → contact promotion:** the on-demand public fetch doubles as the preview the user acts on to save them (state 2 → 1).
+- **Per-contact private annotations.** Each contact entry may carry a user-authored, non-shareable KV map (cf. Google Contacts custom fields/notes: "met at X," "prefers email"). This is **your private data about them** — opposite ownership and direction from the visit card's optional tier (which is *their* self-curated public data). Never pulled, never pushed, no tier governs it; the purest client-local data in the model. Keep the two visually distinct: *their bio* vs *your note about them* have different trust properties.
+- A contact entry is therefore three clearly-owned strata: (a) a **reference** to the protocol identity, (b) a **cached visit card** (their public data; decays by their tier, N-010), (c) **your private annotations** (yours; never shared).
+- **People-only** — the `users`-axis home; Spaces live on the `localities` axis with their own store, not merged (preserves orange/blue separation).
+- **Circles** (people-groups) = saved views/filters over the contact book; client-local, never leaves the client.
+
+**Vocabulary:** "contact" = the *person* (identity/orange); "address" would lean *location* (locality/blue) — "contact" keeps the axes verbally clean. Gen-X register: owned, pre-platform contacts; quietly anti-enshittification. **"Contact book" = LOCKED permanent vocabulary** (alongside "Space").
+
+### N-010 — Visit card: two-tier model + tier-relative decay (protocol-grounded)
+
+Every identity has a **visit card** (public profile), in two tiers:
+
+- **Mandatory tier** — system-public, non-optional (verified handle, home-node, identity proof). The no-anonymity floor. **Travels inline** with the identity/envelope (it *is* the verification signature). Never decays; re-fetchable; orthogonal to retention tier.
+- **Optional tier** — identity-defined, self-curated (display name, bio, avatar image, etc.). **Pulled on-demand** from the subject's home node (the same act as unknown-resolution, N-009). Ephemeral render-cache permitted (cache ≠ store; time-boxed); never pushed-and-stored.
+
+**Retention is tier-relative, inheriting D-088** (not a separate card rule):
+- **T1** — decay-to-zero (ephemeral; the floor).
+- **T2/T3** — module-defined decay (half-life set by the Auth Module; the delegated interior, untouched).
+- **T4** — no decay; lawful-basis permanent retention (Art.17(3)).
+
+**Decay = stepped/quantized, not a continuous dial.** The gradient is *across* the tiers (zero → module → ∞), monotonic — a gearbox, not a knob. Continuous TTL rejected: it would re-take the module-delegated interior and make erasure timing undefendable.
+
+Decay applies to the **optional-tier card data only**; the mandatory/verification tier is exempt — so "decay" never means the *identity* fades (no-anonymity preserved).
+
+**UI consequence:** a Space's **tier** is a dignity-relevant infra fact ("is my participation kept here?") → render as a quiet **blue property on the Space element**, beside the host-node stamp (N-008). The console status-bar tier glyph already establishes the vocabulary.
+
+**Open doc-owe:** the optional-field set is identity-defined → the card schema needs a stable mandatory core + an open optional region (Appendix/protocol-schema territory, not UI).
+
+**Routed-to-Joe flag (not a UI note):** N-010 reframes **D-088 in the *temporal* dimension** (erasure tiers → decay/longevity classes). May warrant a D-088 amendment or derived decision in `DECISIONS.md`. Flagged for Joe to route; not absorbed silently here.
 
 ---
 

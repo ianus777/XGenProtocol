@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.5  
+> Version: 0.6  
 > Date: May 2026  
 > **Last updated**: 2026-06-18  
 > Language: English  
@@ -326,6 +326,18 @@ So Space↔Room and self↔member are the *same distinction* applied per axis: t
 **Partially resolves the parked "Room sub-shape" question (N-011):** a Room is not a new shape — it is simply an **un-accented square** (same locality shape, accent absent). Likewise a member is an un-accented circle. No third top-level shape is needed.
 
 A later accent *encoding* (e.g. Space host-provenance per N-008, or tier per N-010; self = "this is you") may attach when the outer-ring mechanic and CSS are designed — but the principle to hold is only that an accent must **distinguish/mean**, not merely decorate. Encoding choice = open.
+
+### N-013 — UI state mirrors user perception, not protocol storage
+
+Load-bearing principle for the client state tree **and** the node's derived UI (resident desktop mode, D-056). Both surfaces obey it.
+
+**Principle:** the UI state model is shaped by what the user *perceives*, not by how the protocol stores or materializes. Where the two diverge, the tree follows the felt model; the protocol mapping is a downstream materialization concern the state model hides.
+
+**Worked case (the one that surfaced it):** a user perceives themselves as both "in a Space" and "in a Room" — membership feels real at both zoom levels. So the UI presents a `members[]`-shaped view at **both** levels, even if underneath Space-membership is a derived rollup of its Rooms' members. Felt-real wins; the rollup is backstage.
+
+**Consequence — UI-scope "container" umbrella (fenced):** *within UI scope only,* Space and Room are treated as **containers** sharing one membership shape (nested: Space holds Rooms). This term is UI-local and explicitly **not** protocol vocabulary — the protocol knows only Space and Room. The shared shape is why "who's here" rendering is written once and reused; the federation-stamp (Space) vs. permission (Room) asymmetry is real but backstage. *(Connects to N-012: a Room is an un-accented Space — same shape, accent absent.)*
+
+**Kills the "localities" drift:** an earlier client-only synonym for joined Spaces — dropped. Canonical nouns (Space/Room) stay; "container" is the only sanctioned UI umbrella, and only inside this scope.
 
 ---
 

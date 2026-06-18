@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.6  
+> Version: 0.7  
 > Date: May 2026  
 > **Last updated**: 2026-06-18  
 > Language: English  
@@ -338,6 +338,39 @@ Load-bearing principle for the client state tree **and** the node's derived UI (
 **Consequence — UI-scope "container" umbrella (fenced):** *within UI scope only,* Space and Room are treated as **containers** sharing one membership shape (nested: Space holds Rooms). This term is UI-local and explicitly **not** protocol vocabulary — the protocol knows only Space and Room. The shared shape is why "who's here" rendering is written once and reused; the federation-stamp (Space) vs. permission (Room) asymmetry is real but backstage. *(Connects to N-012: a Room is an un-accented Space — same shape, accent absent.)*
 
 **Kills the "localities" drift:** an earlier client-only synonym for joined Spaces — dropped. Canonical nouns (Space/Room) stay; "container" is the only sanctioned UI umbrella, and only inside this scope.
+
+### N-014 — Context-scoped action with swappable presentation
+
+From the invite-affordance brainstorm. An **action** (invite, rename, set-tier, leave-with-confirm, edit visit-card — anything launched from an entity's context menu that needs a little input before firing) is modelled as *intent + required inputs + the event it fires*, **decoupled from how it is presented**. Presentation (modal / docked tool window / floating popover) is a host decision, not baked into the action.
+
+**Why decoupled:** modal-vs-docked-vs-floating is explicitly **a thing to test later**, not decide now (Joe). Keeping presentation swappable makes flipping invite from popover → modal a one-line host change, A/B-able during testing, not a rewrite. The pattern that survives is *context-scoped action, swappable presentation* — "tool window" is just one presentation of it.
+
+**Invite is the first instance.** Invite launches from the **context menu of a Space or Room avatar** (which level = protocol-shape call, Joe's; Space-invite is the federation-bearing, expirable front door that produces `3044 invite_expired`; Room-invite is likely an in-Space permission grant per `RoomPermission`/`Effect`). Open: whether "invite" (Space) and "add" (Room) are one mechanism or two — routed to Joe.
+
+**Launch → outbox loop:** the action surface *fires and dismisses* (optimistic); the **fate** (pending / held-pending / expired / rejected) renders as a **badge on the originating avatar** (the Space/Room it sprang from) — not as its own panel. So: context menu → action surface (collect + fire) → dismiss → outbox status badge on source avatar. (Outbox = the durable-pending state branch from the state-model thread; J-081 carry-over.)
+
+**Parked for testing:** anchored/tethered vs floating; one-at-a-time vs several open in parallel. Deferred deliberately — the swappable-presentation design exists precisely so these stay cheap to change.
+
+### N-015 — In-app console = scrollback + tilde input line (rides the D-056 command layer)
+
+Recorded so it is not forgotten (Joe). The tilde (`~`) key opens an in-app console. This is **not a new subsystem** — it is the in-app *face* of the shared command layer already locked in **D-056** (UI / Console / `--batch` all funnel through one clap parser). The console's input line is the visible mouth of the same CLI the node/client already speaks.
+
+**Architectural consequence:** UI actions should ride the shared command layer, **not bypass it**. The console proves the command layer has a human-facing surface; building UI affordances that sidestep it would fork the command path D-056 deliberately unified.
+
+**Two halves, one component:**
+```
+console
+├── scrollback   → read-only: system messages, event log, command output  (see N-016)
+└── input line   → tilde-invoked CLI → shared command layer (D-056)
+```
+
+### N-016 — System-message scrollback as the read-only event/rejection log
+
+The read-only text panel of system messages (the console's scrollback half, N-015). It is the **honest, low-level register** of what the client/node is doing — system messages, event log, command output.
+
+**Second home for outbox/federation signals:** a `3044 invite_expired` (or any federation-derived rejection / held-pending signal) renders in **two registers** — a glanceable **badge** on the relevant Space/Room avatar (N-014), *and* a line in the **scrollback**. The badge is the at-a-glance version; the scrollback is the full honest record. Same event, two registers — fits **D-065** (surface gaps rather than paper over them).
+
+**Relation to outbox:** scrollback is a *display register*, not the outbox state itself. The outbox is the durable-pending state branch; the scrollback is one of the surfaces that renders its signals (the other being avatar badges).
 
 ---
 

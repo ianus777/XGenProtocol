@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.4  
+> Version: 0.5  
 > Date: May 2026  
 > **Last updated**: 2026-06-18  
 > Language: English  
@@ -312,6 +312,20 @@ The two controls gray under **opposite** conditions — which visually teaches t
 **One component:** conceptually `<Entity kind=identity|locality image? name id>` (Svelte) — clip-shape (circle vs rounded-square via `clip-path`/`border-radius`) and axis seed-colour-family are the only per-kind differences.
 
 **Open / parked:** non-Latin initials (font + script handling — user base is not English-only); rounded-square corner-radius value; a contrast floor / nudge when custom background+initials colours are set too close; the **Room sub-shape** (Room is contained by a Space — should read as the square's child, e.g. inset/smaller square, not a third top-level shape); the **outer-ring** mechanic itself (self-ring, temperature ring) is undesigned.
+
+### N-012 — Accent distinguishes the anchor entity within each axis
+
+Semantic placeholder only. An **accent** is whatever distinguishes an entity from the plain baseline of its kind. No graphic form is assigned here — the treatment (border, ring, glow, weight, etc.) **and** the deeper meaning it may encode are deferred to the CSS / styling pass (normalized vs custom CSS). This note fixes only *which entities are accented and why*.
+
+Accent carries one unified meaning across both axes: **it marks the anchor / primary member of each axis pair.**
+- **Locality axis:** accented locality = **Space**; plain locality = **Room**.
+- **Identity axis:** accented identity = **self / me**; plain identity = **member** (another identity).
+
+So Space↔Room and self↔member are the *same distinction* applied per axis: the anchor is accented, the contained/other is plain.
+
+**Partially resolves the parked "Room sub-shape" question (N-011):** a Room is not a new shape — it is simply an **un-accented square** (same locality shape, accent absent). Likewise a member is an un-accented circle. No third top-level shape is needed.
+
+A later accent *encoding* (e.g. Space host-provenance per N-008, or tier per N-010; self = "this is you") may attach when the outer-ring mechanic and CSS are designed — but the principle to hold is only that an accent must **distinguish/mean**, not merely decorate. Encoding choice = open.
 
 ---
 

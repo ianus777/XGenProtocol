@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.3  
+> Version: 0.4  
 > Date: May 2026  
 > **Last updated**: 2026-06-18  
 > Language: English  
@@ -280,6 +280,38 @@ Decay applies to the **optional-tier card data only**; the mandatory/verificatio
 **Open doc-owe:** the optional-field set is identity-defined → the card schema needs a stable mandatory core + an open optional region (Appendix/protocol-schema territory, not UI).
 
 **Routed-to-Joe flag (not a UI note):** N-010 reframes **D-088 in the *temporal* dimension** (erasure tiers → decay/longevity classes). May warrant a D-088 amendment or derived decision in `DECISIONS.md`. Flagged for Joe to route; not absorbed silently here.
+
+### N-011 — Entity shape language + avatar model
+
+From the shape-vocabulary brainstorm. Let the entity's visual token be derived from a simple, render-cheap shape system; shape carries the two-axis semantics.
+
+**Shapes (the two axes as geometry):**
+- **Identity → circle** (person, organic; identity/orange axis).
+- **Locality → square**, rounded corners (container, structural; infra/blue axis).
+Principle: *people round, places cornered.* Distinguishable instantly at small size / peripheral vision.
+
+**Inner stack — background ↔ picture is mutually exclusive, never empty:**
+- *No picture:* background color **+** initials, **both forced on** (neither can be turned off) — no blank/bare state is possible.
+- *Picture set:* picture replaces the background; **initials become toggleable (on/off)** — the only inner-stack switch, available only when a picture exists.
+
+**Customization (separate from toggling):** background color and initials color are **user-customizable**. Defaults are **deterministic seed values from the stable ID** (axis-constrained: identity → orange-family, locality → blue-family). The seed is a stable starting point, not a lock — the user may override. Seed (color + initials source) derives from the stable ID (`identity_id` / `space_id`), **not** the display name, so the visual token stays stable across renames and never flickers per-render.
+
+**First state on account / Space creation:** seed background color + seed-color initials (1–2 letters).
+
+**Avatar-editor control surface (self-documenting via grayed states):**
+- *Picture:* upload / remove.
+- *Background-color picker:* **grayed when a picture is present** (the picture *is* the background).
+- *Initials-color picker:* available.
+- *Initials-shown checkbox:* **grayed (locked on) when no picture; enabled when a picture is present.**
+The two controls gray under **opposite** conditions — which visually teaches the background↔picture exclusivity without explanatory text. The initials on/off control and the colour customization live in the same avatar-editor cluster; each acts independently.
+
+**Transparency caveat:** when a picture replaces the background, keep a neutral under-fill beneath the clipped image so alpha-PNGs composite onto something, not onto the page behind the shape.
+
+**Decorator separation:** decorators (self-ring, AI identity-class badge per N-009/D-059, temperature/liveness) ride the shape's **outer edge/ring**, never the inner stack. The component has an *inner layer stack* (background/picture/initials) and an *outer ring* for slot decorators — keeps the base/decorator split and 7-slot model intact.
+
+**One component:** conceptually `<Entity kind=identity|locality image? name id>` (Svelte) — clip-shape (circle vs rounded-square via `clip-path`/`border-radius`) and axis seed-colour-family are the only per-kind differences.
+
+**Open / parked:** non-Latin initials (font + script handling — user base is not English-only); rounded-square corner-radius value; a contrast floor / nudge when custom background+initials colours are set too close; the **Room sub-shape** (Room is contained by a Space — should read as the square's child, e.g. inset/smaller square, not a third top-level shape); the **outer-ring** mechanic itself (self-ring, temperature ring) is undesigned.
 
 ---
 

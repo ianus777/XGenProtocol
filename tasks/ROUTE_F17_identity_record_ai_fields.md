@@ -1,12 +1,15 @@
 # Route F17 — `identity.record` omits `is_ai` / `ai_capabilities` (suspected code gap)
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-18  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+## Closed — J-401 (2026-06-18)
+Code fix shipped: `IdentityMessage::Record` gained `is_ai`/`ai_capabilities` (serde-skipped when false/None), populated on `identity.get` from the stored `IdentityRecord`. Three acceptance tests added (AI round-trip, human-omits, legacy back-compat); `cargo test --workspace` 1466/0/62. No Appendix I edit (already matched). See JOURNAL J-401.
 
 ## 0. What this is
 A Joe-routed finding from the AFI audit AI sub-pass (J-398). Per the AFI ground rule (Q4: code is truth; suspected **code** bugs are routed, not doc-patched), this was held rather than reconciled in the doc. Seat: **Clair** (code) after Joe confirms the fix direction. Chat Claude owns the doc follow-up once the code lands.

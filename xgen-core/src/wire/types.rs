@@ -460,6 +460,17 @@ pub enum IdentityMessage {
         registered_at: String,
         devices: Vec<IdentityDeviceEntry>,
         home_node: String,
+        /// AI declaration (spec 3.6.10) surfaced on the lookup response so a peer
+        /// or client doing `identity.get` can learn the Identity is an AI — the
+        /// §3.6.10 transparency requirement. Omitted from the response when
+        /// `false` so human-record lookups stay byte-identical to pre-F17 ones
+        /// (mirrors `identity.register`).
+        #[serde(default, skip_serializing_if = "is_false")]
+        is_ai: bool,
+        /// AI capability flag set (spec 3.6.10.3). Present iff `is_ai = true`;
+        /// omitted/null otherwise (mirrors `identity.register`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ai_capabilities: Option<AiCapabilities>,
     },
     /// Node responds when the requested Identity is not found (spec 3.6.7).
     #[serde(rename = "identity.not_found")]
@@ -1900,6 +1911,82 @@ mod tests {
         assert!(!obj.contains_key("is_ai"));
         assert!(!obj.contains_key("re_registration"));
         assert!(!obj.contains_key("ai_capabilities"));
+    }
+
+    #[test]
+    fn identity_record_with_ai_round_trip() {
+        // F17 — an AI Identity's identity.record response carries is_ai = true
+        // plus its capabilities; both survive a serialise → deserialise round-trip.
+        let msg = IdentityMessage::Record {
+            protocol_version: "0.1".to_string(),
+            identity_id: "xgen://pubkey/ed25519:BOT".to_string(),
+            display_name: Some("Bot".to_string()),
+            registered_at: "2026-05-15T10:00:00.000Z".to_string(),
+            devices: vec![],
+            home_node: "xgen://pubkey/ed25519:NODE".to_string(),
+            is_ai: true,
+            ai_capabilities: Some(AiCapabilities {
+                dm_initiate: true,
+                spontaneous_post: false,
+                extra: Default::default(),
+            }),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"is_ai\":true"));
+        assert!(json.contains("\"dm_initiate\":true"));
+        let parsed: IdentityMessage = serde_json::from_str(&json).unwrap();
+        match parsed {
+            IdentityMessage::Record { is_ai, ai_capabilities, .. } => {
+                assert!(is_ai);
+                let caps = ai_capabilities.expect("ai_capabilities present");
+                assert!(caps.dm_initiate);
+                assert!(!caps.spontaneous_post);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn identity_record_human_omits_ai_fields_in_canonical_form() {
+        // F17 — a human Identity's identity.record response omits both AI fields,
+        // keeping the response byte-identical to pre-F17 lookups.
+        let msg = IdentityMessage::Record {
+            protocol_version: "0.1".to_string(),
+            identity_id: "xgen://pubkey/ed25519:ALICE".to_string(),
+            display_name: Some("Alice".to_string()),
+            registered_at: "2026-05-15T10:00:00.000Z".to_string(),
+            devices: vec![],
+            home_node: "xgen://pubkey/ed25519:NODE".to_string(),
+            is_ai: false,
+            ai_capabilities: None,
+        };
+        let v: serde_json::Value = serde_json::to_value(&msg).unwrap();
+        let obj = v.as_object().unwrap();
+        assert!(!obj.contains_key("is_ai"));
+        assert!(!obj.contains_key("ai_capabilities"));
+    }
+
+    #[test]
+    fn identity_record_legacy_without_ai_fields_deserialises() {
+        // F17 back-compat — a pre-F17 identity.record (no is_ai/ai_capabilities
+        // on the wire) still deserialises, defaulting to a human record.
+        let legacy = r#"{
+            "type":"identity.record",
+            "protocol_version":"0.1",
+            "identity_id":"xgen://pubkey/ed25519:ALICE",
+            "display_name":"Alice",
+            "registered_at":"2026-05-15T10:00:00.000Z",
+            "devices":[],
+            "home_node":"xgen://pubkey/ed25519:NODE"
+        }"#;
+        let parsed: IdentityMessage = serde_json::from_str(legacy).unwrap();
+        match parsed {
+            IdentityMessage::Record { is_ai, ai_capabilities, .. } => {
+                assert!(!is_ai);
+                assert!(ai_capabilities.is_none());
+            }
+            _ => panic!("wrong variant"),
+        }
     }
 
     #[test]

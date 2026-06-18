@@ -8,6 +8,21 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-401 — F17 CLOSED code-side (Clair seat): `IdentityMessage::Record` gains `is_ai`/`ai_capabilities`, populated on `identity.get`
+
+**What happened.** Implemented the Joe-LOCKED (J-400) F17 code fix. Added `is_ai: bool` (`#[serde(default, skip_serializing_if = "is_false")]`) and `ai_capabilities: Option<AiCapabilities>` (`#[serde(default, skip_serializing_if = "Option::is_none")]`) to `IdentityMessage::Record` (`xgen-core/src/wire/types.rs`), mirroring the discipline already on `identity.register`/`IdentityRecord`. The `identity.get` responder (`xgen-node/src/app.rs`) now populates both from the stored `IdentityRecord`. Additive + backward-compatible: human-record lookups stay byte-identical (both fields serde-skipped when false/None); a peer/client lookup of an AI Identity now sees its AI status — the §3.6.10 transparency requirement. Three tests added in `wire/types.rs`: `identity_record_with_ai_round_trip` (AI carries `is_ai=true` + caps), `identity_record_human_omits_ai_fields_in_canonical_form` (human omits both), `identity_record_legacy_without_ai_fields_deserialises` (pre-F17 wire JSON still parses → human record). No Appendix I edit — §IV.1 already matched the target shape (per J-400).
+
+**Verification.** `cargo test --workspace` → `passed=1466 failed=0 ignored=62`. New F17 tests confirmed passing:
+```
+test wire::types::tests::identity_record_human_omits_ai_fields_in_canonical_form ... ok
+test wire::types::tests::identity_record_legacy_without_ai_fields_deserialises ... ok
+test wire::types::tests::identity_record_with_ai_round_trip ... ok
+```
+
+**Canonical (D-074).** `xgen-core/src/wire/types.rs` (Record fields + 3 tests); `xgen-node/src/app.rs` (responder populates the fields); `tasks/ROUTE_F17_identity_record_ai_fields.md` → COMPLETED; this JOURNAL J-401. Next-active: mockup stock-take + reconcile-to-as-built (Chat seat).
+
+---
+
 ## Entry J-400 — F17 direction Joe-LOCKED: code fix (Clair seat); ROUTE_F17 → ACTIVE; next-active flipped to F17 (then mockup stock-take)
 
 **What happened.** Joe locked the **F17** resolution direction — the **code fix** (the Chat recommendation from J-399) — to be implemented by Clair in a new session before the mockup stock-take. F17 = the wire `identity.record` (`IdentityMessage::Record`) omits `is_ai`/`ai_capabilities` that Appendix I §IV.1 documents and §3.6.10 transparency expects. The fix is additive + backward-compatible: add both fields to `IdentityMessage::Record` (serde-skip when false/none), populated from the stored `IdentityRecord` on `identity.get`; Appendix I §IV.1 already matches the target so no doc edit is needed (a one-line JOURNAL close note when the code lands). Doc-only this entry; the code is Clair's next session.

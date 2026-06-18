@@ -3559,6 +3559,10 @@ async fn handle_identity_msg<S>(
                         })
                         .collect(),
                     home_node: record.home_node.as_str().to_string(),
+                    // F17 — surface the AI declaration on the lookup response
+                    // (§3.6.10 transparency). Serde-skips when false/None.
+                    is_ai: record.is_ai,
+                    ai_capabilities: record.ai_capabilities.clone(),
                 },
                 None => IdentityMessage::NotFound {
                     protocol_version: "0.1".to_string(),

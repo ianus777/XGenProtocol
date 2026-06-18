@@ -1,5 +1,5 @@
 # DO-5 Handoff — JOURNAL.md Windowing (riskiest doc-opt sub-step)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-18  

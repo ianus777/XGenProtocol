@@ -8,6 +8,14 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-399 — Post-AFI close-up: F17 routed to Clair (`tasks/ROUTE_F17_identity_record_ai_fields.md`); DO-5 handoff flipped COMPLETED + archived
+
+**What happened.** Two close-up items after the AFI arc close (J-398), doc-only, no code. (1) **F17 routing** — authored `tasks/ROUTE_F17_identity_record_ai_fields.md` (PENDING, Clair seat): the suspected code gap where the wire `identity.record` (`IdentityMessage::Record`) omits `is_ai`/`ai_capabilities` that Appendix I §IV.1 documents and §3.6.10 transparency expects. Recommendation locked-in-doc: additive code fix — add both fields to `IdentityMessage::Record` (serde-skip when false/none, populated from the stored `IdentityRecord` on `identity.get`); no Appendix I edit needed since the doc already matches the target. Awaits Joe-lock on direction (code fix vs. trim §IV.1). (2) **§8 hygiene** — `tasks/HANDOFF_DO5_JOURNAL_WINDOWING.md` flipped ACTIVE→COMPLETED and archived to `tasks/archive/` (DO-2 convention); the deferred close-up noted in the AFI handoff §8.
+
+**Canonical (D-074).** NEW `tasks/ROUTE_F17_identity_record_ai_fields.md` (PENDING); `tasks/HANDOFF_DO5_JOURNAL_WINDOWING.md` → COMPLETED + git-mv to `tasks/archive/`; this JOURNAL J-399; `CLAUDE.md` PLAY annotation. Next-active unchanged: mockup stock-take + reconcile-to-as-built.
+
+---
+
 ## Entry J-398 — AFI audit AI sub-pass CLOSED: Appendix I reconciled to as-built (v1.7); new fundamentals appendices M/N/O authored + event_trace folded into Appendix G (v1.2); F17 (identity.record missing AI fields) Joe-routed as suspected code gap — AFI arc CLOSED
 
 **What happened.** Closed the AI sub-pass of the AFI audit (handoff `tasks/HANDOFF_AFI_AUDIT.md`), reconciling Appendix I (data structures) to the as-built serializable types in `xgen-common`/`xgen-core` + the protocol event catalog. Code as ground truth (Q4). Doc-only; no code. Phase-0 was a full read-only inventory diffed both directions (D-077): no forward-drift in the wire enums' variant sets; the drift was backward-coherence (the doc lagged the M8→M12+ backend) plus one forward-drift surfaced on field-level read (F17).

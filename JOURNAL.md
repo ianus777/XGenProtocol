@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-397 — AFI audit AF sub-pass CLOSED: Appendix F reconciled to the as-built CLI (5 findings); `federate` reframed N/A-only-node-concept + ch2 node-to-node note; §F.2.1 node-admin cross-ref
+
+**What happened.** Opened the post-doc-opt pre-UI arc — the Appendix F/I audit-against-code (handoff `tasks/HANDOFF_AFI_AUDIT.md`; Phase-0 + AF + AI; code as ground truth, D-071). Phase-0 inventoried the as-built surface (client: 31 leaf verbs from `ClientCommand`/`ThreadCommand`/`AiCommand`; node foreground `NodeCommand`; node admin `AdminCommand` tree). AF sub-pass diffed Appendix F (F.0.2 / F.0.4 / F.2 / F.3) against code and reconciled. Doc-only; no code.
+
+**AF findings (all closed, doc-side; Q4 code-as-truth).** AF-F01 `create-dm-space` and AF-F02 `leave` were in code but absent from F.0.4 + F.3 — rows added. AF-F04 `members` carried a stale "deferred / no local data source" annotation + Network=No, but the verb ships (WS DAG replay, covers DM Spaces) — de-staled + Network No→Yes. AF-F06 node `whoami` (real `NodeCommand` verb) was missing from F.2 — added. All four D-092 dispatch arms verified present for every drift verb.
+
+**`federate` (AF-F03) — reframed, not removed.** `federate` is listed client-side only for client↔node CLI vocabulary symmetry; the capability is a Node concept (federation is node-to-node, operator-governed — production verb `xgen-node federation initiate`, plus list/defederate/accept/reject/set-policy/show-policy; `add-peer` is a fenced harness seam). The stale "Deferred to M6 Phase 7" wording (a false-positive implying a pending feature) was replaced with `N/A — only node concept` + a by-design note, and the architectural boundary stated once in ch2 (Architecture): a client has no federate action by nature.
+
+**Symmetry audit.** The shared CLI vocabulary is the small fundamental core (`init`/`whoami`/`status`/`version`, already F.0.2) + `spaces` (scope-collision, F.0.5). `federate` is the single deliberate cross-concept mention; the rest of the client/node asymmetry is structural (different jobs), not a gap — symmetry stays a one-off, no systematic N/A cross-listing.
+
+**Node-admin surface (fork A).** The `AdminCommand` tree (federation / identity / space / audit / log / auth-module / bootstrap / migration / plugin) is documented authoritatively in `xgen_node_admin_ops_design.md` and was absent from F.2 with zero cross-reference. Rather than duplicate ~35 verbs (a second source of truth), F.2 gained a new §F.2.1 group-summary + pointer.
+
+**Canonical (D-074, doc-only, checkpoint).** `docs/xgen_appendix_f_en.md` v1.12→v1.13; `docs/xgen_ch2_architecture.md` v1.1→v1.2; `tasks/HANDOFF_AFI_AUDIT.md` NEW; `docs/ROADMAP.md` (AFI marker + version); `CLAUDE.md` head (AFI OPENED, AF done, AI next); this JOURNAL J-397.
+
+**Next-active.** AI sub-pass — diff Appendix I (data structures) ↔ the as-built serializable types (xgen-common, 57 structs/enums) + the protocol event catalog (D-077 both directions).
+
+---
+
 ## Entry J-396 — DO-5: JOURNAL.md windowed — J-375 and older relocated to JOURNAL_ARCHIVE.md (D-094); documentation-optimization phase COMPLETE
 
 **What happened.** DO-5, the final and riskiest documentation-optimization sub-step, windowed this development journal. The file had grown to 17,761 lines / 2.38 MB / 378 entries. The recent arc (M11 → M12 → Round-2 pre-UI gate → doc-opt; entries J-395 … J-376, 20 entries) was kept live here; entries J-375 and older (358 entries) were relocated verbatim to a new `JOURNAL_ARCHIVE.md` (ARCHIVED), with a forward pointer at the cut here and a back-pointer at the archive top (D-094 convention).

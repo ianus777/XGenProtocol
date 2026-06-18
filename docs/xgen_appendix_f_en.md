@@ -1,8 +1,8 @@
 # Appendix F — CLI Reference and Usage Examples
 > **Status:** ACTIVE  
-> Version: 1.12  
+> Version: 1.13
 > Date: May 2026  
-> **Last updated**: 2026-06-17  
+> **Last updated**: 2026-06-18  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -90,6 +90,7 @@ Binary-specific. Listed in full detail in §F.2 (Node) and §F.3 (Client).
 |---|---|
 | `register` | Register this Identity on the Node |
 | `create-space` | Create a new Space; caller becomes Owner |
+| `create-dm-space` | Create a DM Space with a single invitee; caller becomes Owner (auto-Room + auto-invite; auto-invite skipped when invitee == caller; never federated) |
 | `create-room` | Create a Room in a Space |
 | `invite` | Invite an Identity to a Space |
 | `ban` | Ban a member from a Space (Admin+; cascades across all Rooms) |
@@ -98,6 +99,7 @@ Binary-specific. Listed in full detail in §F.2 (Node) and §F.3 (Client).
 | `thread resolve` | Mark a Thread Resolved (Admin+; emits `thread.resolved`) |
 | `thread archive` | Mark a Thread Archived (Admin+; emits `thread.archived`) |
 | `join` | Join a Space (accept invite or join an open Space) |
+| `leave` | Leave a Space, or a specific Room within it (member-initiated `membership.leave`) |
 | `send` | Send a message to a Room — a `message.text` (`--text`) **or** one-or-more file attachments (`--attach`, repeatable; M12.2a) |
 | `history` | Fetch and display Room message history in causal order |
 | `fetch` | Fetch a Room's message attachments to a local directory (alias `fetch-attachments`; M12.2a) |
@@ -105,8 +107,8 @@ Binary-specific. Listed in full detail in §F.2 (Node) and §F.3 (Client).
 | `self` | Open the personal "Saved Messages" self-thread (create-if-absent; M11, D-021) |
 | `spaces` | List Spaces this Identity has joined (membership view — see §F.0.5) |
 | `rooms` | List Rooms within a Space (shipped M6 Phase 1, R1) |
-| `members` | List members of a Space (**deferred** — not a zero-network local read; `xgen-client_state.json` persists no per-member data. Needs either a Node query or a state-schema expansion; re-enters as its own scoped piece. M6 Phase 1 decision, 2026-05-29) |
-| `federate` | Initiate federation for a Space with a peer Node (**deferred to M6 Phase 7** — co-designed with Node-side federation management; A1/R2) |
+| `members` | List the resolved membership of a Space as seen by the queried Node (WS DAG replay; covers DM Spaces) |
+| `federate` | N/A — only node concept. Not a client action by design; federation is established Node-to-Node by operators (`xgen-node federation initiate`). Listed for client/node CLI vocabulary symmetry — see ch2 (Architecture) |
 | `ai delegate` | Transfer the operator role for an AI Identity within a Space (M3) |
 | `ai revoke` | Clear an explicit operator delegation (M3) |
 | `ai status` | Query the currently resolved operator for an (AI, Space) pair (M3) |
@@ -290,11 +292,30 @@ When invoked with no subcommand, starts the Node in foreground mode.
 |---|---|
 | `init` | Generate keypair and default config in current directory |
 | `status` | Print current Node status from state file |
+| `whoami` | Print this Node's node_id (`xgen://pubkey/...`). Reads the local keypair; does not require the resident running. |
 | `connections` | List all connected clients and federated peers |
 | `spaces` | List all hosted Spaces with Rooms and event counts |
 | `peers` | List all known federated peer Nodes |
 | `identity list` | List all registered Identities |
 | `version` | Print version and build metadata |
+
+### F.2.1 Administration / control commands
+
+Beyond the foreground reads above, the Node exposes an operator **administration / control** command surface (control-mode, dispatched to the resident). It is documented authoritatively — per verb, with arguments and audit semantics — in `xgen_node_admin_ops_design.md`; summarised here by group to avoid a second source of truth:
+
+| Group | Verbs |
+|---|---|
+| `federation *` | `list`, `defederate`, `accept`, `reject`, `initiate`, `set-policy`, `show-policy` |
+| `identity *` | `show`, `revoke`, `set-trust-expiry`, `manage-replica` (plus read-only `identity list` above) |
+| `space *` | `list-hosted`, `audit-events`, `force-eject`, `unban`, `set-node-policy`, `show-node-policy` |
+| `audit *` | `query`, `export`, `archive` |
+| `log *` | `set-level`, `show-level` |
+| `auth-module *` | `list`, `register`, `revoke`, `set-tiers`, `test` |
+| `bootstrap *` | `show`, `register`, `deregister`, `set-info`, `set-tiers` |
+| `migration *` | Space Migration administration (PG-11) |
+| `plugin *` | plugin management (read verbs) |
+
+Harness-only seams (`federation add-peer`, `clock *`) exist solely under the `harness-control` build feature and are absent from any release binary. The authoritative per-verb reference is `xgen_node_admin_ops_design.md`.
 
 ---
 
@@ -344,6 +365,7 @@ See §F.0 for the full fundamental/non-fundamental flag taxonomy. Tables below a
 | `status` | — | No | Print client state summary: identity, space count. |
 | `register` | `--name <name>` | Yes | Register this Identity on the Node. For an AI-staged Client, sends `is_ai = true` and the capability map. Writes state file. |
 | `create-space` | `--name <name>` | Yes | Create a new Space. Caller becomes owner. Updates state file. |
+| `create-dm-space` | `--invitee <id>` | Yes | Create a DM Space with a single invitee; caller becomes owner. An auto-Room and auto-invite are created alongside (the auto-invite is skipped when invitee == caller). DM Spaces never federate (`DmFederationNotAllowed`). |
 | `create-room` | `--space <id>` `--name <name>` | Yes | Create a Room in a Space. Updates state file. |
 | `invite` | `--space <id>` `--identity <id>` `--role <role>` | Yes | Invite an Identity to a Space. |
 | `ban` | `--space <id>` `--identity <id>` | Yes | Ban a member from a Space (member-initiated `membership.ban`; authority is Admin+ via the `can_ban` gate — a non-admin ban is refused at validation). Space-level: `apply_ban` cascades the removal across every Room. A banned Identity cannot rejoin (the ban dominates at resolution); a banned member's subsequent posts are rejected (non-member). |
@@ -351,6 +373,7 @@ See §F.0 for the full fundamental/non-fundamental flag taxonomy. Tables below a
 | `thread create` | `--space <id>` `--room <id>` `[--title <t>]` `[--auth-tier-min <n>]` | Yes | Create a Thread in a Room (`thread.create`, PG-08; starts `Open`). Requires Room membership; `auth_tier_min` is narrow-not-widen (≥ the Room/Space tier) and ≤ the creator's tier. Prints the `thread_id` (an `xgen://thread/sha256:…`) used by `resolve`/`archive`. |
 | `thread resolve` / `thread archive` | `--space <id>` `--room <id>` `--thread <id>` | Yes | Mark a Thread `Resolved` / `Archived` (`thread.resolved` / `thread.archived`). Authority is Admin+ (`ChangeInfo`) — a non-admin member's resolve/archive is refused at validation. `--thread` is the id from `thread create`. |
 | `join` | `--space <id>` | Yes | Join a Space (accept invite or join an open Space). |
+| `leave` | `--space <id>` `[--room <id>]` | Yes | Leave a Space (member-initiated `membership.leave`). Omit `--room` to leave the whole Space and every Room in it; supply `--room` to leave just that Room. |
 | `send` | `--space <id>` `--room <id>` `[--text <text>]` `[--attach <path>]`… | Yes | Send to a Room. Provide `--text` (a `message.text`) **or** one-or-more `--attach` (a `message.file` carrying the file attachment(s); `--attach` is repeatable for multi-file) — exactly one of the two; combining `--text` with `--attach` is rejected (M12.2a, D3). |
 | `history` | `--space <id>` `--room <id>` `[--limit <N>]` | Yes | Fetch and display Room message history in causal order. |
 | `fetch` | `--space <id>` `--room <id>` `--out-dir <dir>` | Yes | Fetch every blob attachment from a Room's messages and write each to `<out-dir>`, named from its `Descriptor` filename (overwrite on collision). Alias `fetch-attachments`. The read-side companion to `send --attach` (M12.2a, D2). |
@@ -358,8 +381,8 @@ See §F.0 for the full fundamental/non-fundamental flag taxonomy. Tables below a
 | `self` | — | Yes | Open the personal **"Saved Messages"** thread (M11, D-021): a *self-DM* — a DM whose creator and sole invitee are the same identity, reusing your existing registered identity (no second account, no new registration). No id argument — auto-resolves the session identity. Create-if-absent: creates the `"self"`-labelled self-DM on the first call, opens it (no network round-trip) thereafter. Never federated (`DmFederationNotAllowed`); reachable from any client authenticated as you. Post/read with `send`/`history` against the returned room. |
 | `spaces` | — | No | List Spaces this Identity has joined (see §F.0.5 collision note). |
 | `rooms` | `--space <id>` | No | List Rooms in a Space. Shipped M6 Phase 1 (R1). |
-| `members` | `--space <id>` | No | List members of a Space. **Deferred** (M6 Phase 1, 2026-05-29) — no local data source today; see the §F.3 §F.10 command-table note above. |
-| `federate` | `--space <id>` `--peer <endpoint>` | Yes | Initiate federation for a Space with a peer Node. **Deferred to M6 Phase 7** (federation management). |
+| `members` | `--space <id>` | Yes | List the resolved membership of a Space as seen by the queried Node. Connects via WS, replays the Space's DAG history, and projects the member set (covers DM Spaces). |
+| `federate` | — | N/A — only node concept | **Not a client action, by design.** Federation is established and governed Node-to-Node by operators (`xgen-node federation initiate`); a client has no federate function by nature. Listed only for client/node CLI vocabulary symmetry — see ch2 (Architecture) and §F.2.1. |
 | `ai delegate` | `--space <id>` `--ai <id>` `--to <member-id>` | Yes | Transfer the operator role for an AI Identity in a Space (M3, D-064). Signer must be Space owner or admin. Emits `state.ai_operator_delegate`. |
 | `ai revoke` | `--space <id>` `--ai <id>` | Yes | Clear an explicit operator delegation for an AI Identity in a Space (M3). Resolution falls through to the AI's inviter, then to the Space owner. Signer must be owner or admin. Emits `state.ai_operator_revoke`. |
 | `ai status` | `--space <id>` `--ai <id>` | Yes | Print the currently resolved operator for an (AI, Space) pair as seen by the queried Node. Connects via WS, replays the Space's DAG locally, applies the fall-upward resolution function, prints the result with provenance (stored delegation / inviter fallback / owner fallback). |

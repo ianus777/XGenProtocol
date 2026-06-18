@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 3.83
+> Version: 3.84
 > Date: May 2026  
 > **Last updated**: 2026-06-18  
 > Language: English  
@@ -673,7 +673,7 @@ The track the project is actively working on right now. Detail here is the most 
 
 Ready to start, in order. The pre-UI chain runs first.
 
-🟡 **Appendix F/I audit-against-code.** Reconcile Appendix F (client CLI verbs) + Appendix I (state/event reference) to the as-built code before UI couples to them.
+🟢 **Appendix F/I audit-against-code (in progress).** AF sub-pass ✅ (J-397) — Appendix F reconciled to the as-built CLI (5 findings; `federate` reframed `N/A — only node concept`; §F.2.1 node-admin cross-ref). AI sub-pass next — reconcile Appendix I (data structures) to the as-built serializable types + event catalog.
 
 🟡 **Mockup stock-take + reconcile-to-as-built.** Inventory `ui/docs/` mockups/notes against the as-built surface — the last pre-UI step.
 

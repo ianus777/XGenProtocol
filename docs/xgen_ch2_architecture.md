@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 2: Architecture
 > **Status:** ACTIVE  
-> Version: 1.1  
+> Version: 1.2
 > Date: April 2026  
-> **Last updated**: 2026-06-03  
+> **Last updated**: 2026-06-18  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -129,6 +129,8 @@ Machine (hardware / VPS / Raspberry Pi)
 **The isolation boundary is the Node, not the machine.** Two Nodes on the same machine are as isolated from each other as two Nodes on opposite sides of the world. They do not know each other exists unless they federate explicitly, using the same XGen federation protocol they would use across the network. Physical co-location is an infrastructure detail. The protocol does not model it.
 
 This has an important consequence: a hosting provider can run dozens of fully independent Node instances on one powerful machine. Each Node is its own protocol participant. The machine is irrelevant to the network.
+
+**Federation is node-to-node.** A federation relationship is established and governed between Nodes by their operators (an audited `xgen-node federation initiate`) — never by a client. A client has no federate action by nature: it speaks only to its own Node; federation, if any, happens beneath it, Node to Node. Pairwise only, no transitive relay (F-5, D-089).
 
 ---
 

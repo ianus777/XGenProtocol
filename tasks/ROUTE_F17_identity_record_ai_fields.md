@@ -1,6 +1,6 @@
 # Route F17 — `identity.record` omits `is_ai` / `ai_capabilities` (suspected code gap)
-> **Status**: PENDING  
-> Version: 1.0  
+> **Status**: ACTIVE  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-18  
 > Language: EN  
@@ -23,13 +23,15 @@ It **omits `is_ai` and `ai_capabilities`** — yet:
 
 So a peer/client doing an `identity.get` lookup cannot learn whether the Identity is an AI from the `identity.record` response. Appendix I §IV.1 documents `is_ai`/`ai_capabilities` on `identity.record` — i.e. the **doc currently describes the intended shape, the wire message lags it**.
 
-## 2. Recommended direction (Chat Claude's recommendation; awaits Joe-lock)
+## 2. Direction — Joe-LOCKED: code fix (J-400)
+Joe locked the **code fix** at J-400. The doc-fix alternative (§2.1) is retained for context only — NOT the chosen path.
+
 **Code fix** — add `is_ai` and `ai_capabilities` to `IdentityMessage::Record`, populated from the stored `IdentityRecord` when the Node answers `identity.get`. Mirror the established serde discipline already used on `identity.register` / `IdentityRecord`:
 - `is_ai: bool` with `#[serde(default, skip_serializing_if = "is_false")]` (omitted when `false` — keeps human-record responses byte-identical to today).
 - `ai_capabilities: Option<AiCapabilities>` with `#[serde(default, skip_serializing_if = "Option::is_none")]` (present iff `is_ai`).
 This is additive + backward-compatible (Ch3 §3.0.3): old nodes omit, old clients ignore. Appendix I §IV.1 then needs **no change** — it already documents the target shape.
 
-**Alternative (doc fix)** — if Joe decides the lookup response is deliberately minimal, trim the `is_ai`/`ai_capabilities` rows from Appendix I §IV.1 instead. (Not recommended — conflicts with §3.6.10 transparency.)
+**Alternative (doc fix) — NOT chosen (J-400).** If the lookup response were deliberately minimal, trim the `is_ai`/`ai_capabilities` rows from Appendix I §IV.1 instead. Rejected — conflicts with §3.6.10 transparency.
 
 ## 3. Acceptance criteria (if code fix)
 - `IdentityMessage::Record` gains `is_ai` + `ai_capabilities` with the serde attrs above.

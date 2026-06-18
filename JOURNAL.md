@@ -8,6 +8,16 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-400 — F17 direction Joe-LOCKED: code fix (Clair seat); ROUTE_F17 → ACTIVE; next-active flipped to F17 (then mockup stock-take)
+
+**What happened.** Joe locked the **F17** resolution direction — the **code fix** (the Chat recommendation from J-399) — to be implemented by Clair in a new session before the mockup stock-take. F17 = the wire `identity.record` (`IdentityMessage::Record`) omits `is_ai`/`ai_capabilities` that Appendix I §IV.1 documents and §3.6.10 transparency expects. The fix is additive + backward-compatible: add both fields to `IdentityMessage::Record` (serde-skip when false/none), populated from the stored `IdentityRecord` on `identity.get`; Appendix I §IV.1 already matches the target so no doc edit is needed (a one-line JOURNAL close note when the code lands). Doc-only this entry; the code is Clair's next session.
+
+**Bridges prepared for the new session.** `tasks/ROUTE_F17_identity_record_ai_fields.md` flipped PENDING→ACTIVE (v1.0→v1.1), §2 marked Joe-LOCKED code fix (the doc-fix alternative retained as NOT-chosen context). CLAUDE PLAY next-active flipped to F17 (Clair seat) → then Chat resumes the mockup stock-take. Clair's Rule-0 reads on open: CLAUDE PLAY → this J-400 → `tasks/ROUTE_F17_identity_record_ai_fields.md` (the spec + acceptance criteria).
+
+**Canonical (D-074).** `tasks/ROUTE_F17_identity_record_ai_fields.md` (ACTIVE, v1.1); `CLAUDE.md` PLAY (F17 next-active); this JOURNAL J-400. Next-active: F17 code fix (Clair), then mockup stock-take + reconcile-to-as-built.
+
+---
+
 ## Entry J-399 — Post-AFI close-up: F17 routed to Clair (`tasks/ROUTE_F17_identity_record_ai_fields.md`); DO-5 handoff flipped COMPLETED + archived
 
 **What happened.** Two close-up items after the AFI arc close (J-398), doc-only, no code. (1) **F17 routing** — authored `tasks/ROUTE_F17_identity_record_ai_fields.md` (PENDING, Clair seat): the suspected code gap where the wire `identity.record` (`IdentityMessage::Record`) omits `is_ai`/`ai_capabilities` that Appendix I §IV.1 documents and §3.6.10 transparency expects. Recommendation locked-in-doc: additive code fix — add both fields to `IdentityMessage::Record` (serde-skip when false/none, populated from the stored `IdentityRecord` on `identity.get`); no Appendix I edit needed since the doc already matches the target. Awaits Joe-lock on direction (code fix vs. trim §IV.1). (2) **§8 hygiene** — `tasks/HANDOFF_DO5_JOURNAL_WINDOWING.md` flipped ACTIVE→COMPLETED and archived to `tasks/archive/` (DO-2 convention); the deferred close-up noted in the AFI handoff §8.

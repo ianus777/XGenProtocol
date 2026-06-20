@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.8  
+> Version: 0.9  
 > Date: May 2026  
 > **Last updated**: 2026-06-18  
 > Language: English  
@@ -415,6 +415,61 @@ They are independent — a demand may be low-severity; an error may be passive.
 **Relation to neighbours:** launch via N-014 context-scoped action → fate renders as outbox card + avatar badge; scrollback (N-016) is the immutable full record of the same stream; icons lean on N-011 shape vocabulary.
 
 **Parked (CSS / test pass):** exact icon-to-event mapping; whether aggregate expand-to-members is always allowed; calm severity palette values; the modal/docked/floating presentation of demand actions (N-014, test-decided).
+
+### N-018 — Dynamic components (`<svelte:component>`) as default composition strategy
+
+We will lean **extensively** on Svelte's dynamic-component feature (`<svelte:component this={...}>`) as the primary way the UI is composed. It is the implementation realization of the *write-once, parameterize-by-kind* instinct that recurs across these notes:
+- **N-014** — swappable action presentation (modal / docked / floating) is a host that swaps the presentation component dynamically; the action stays the same, the chrome is a `this={...}` swap. This is *why* presentation stays test-decided and cheap to flip.
+- **Entity control panel** — self-panel and home-node panel share one shape (avatar + scoped settings + context menu + badges); one component, dynamic by entity kind.
+- **Container list (N-013)** — Spaces and Rooms share one list-item shape; one component, dynamic by container kind / zoom level.
+- **Outbox card (N-017)** — one card; the action-row (passive vs demand) is a dynamic slot/component.
+
+**Consequence:** the default answer to "these two things are the same shape with different content" is *one component selected dynamically*, not duplicated components. Keeps surface count low and makes the no-drift discipline (one authoritative shape per surface) enforceable in code, not just docs.
+
+*UI-implementation note; no protocol/data implication.*
+
+### N-019 — Components live in the UI library and are reused, never rebuilt from scratch
+
+**Standing implementation rule (all UI authoring — Clair, Ms Design, any session).**
+
+Every UI element is a **component in the UI library** with a defined structure, imported and reused — **never re-implemented inline or rebuilt from scratch**. Re-creating an element that already exists is a defect, even when it "works."
+
+**Why state it explicitly:** the known AI failure mode is rebuilding a component from scratch *despite* an instruction not to — because it could not reliably *locate* the existing one. A prohibition without a lookup path cannot be followed. The fix is discoverability, not a sterner "don't."
+
+**Our advantage (Rust + Tauri + Svelte):** single-file components (one `.svelte` = one component, greppable `lib/components/` tree, filename = component name); `$lib` alias gives each component one canonical import path; typed Rust/Tauri data boundary discourages divergent rebuilds; dynamic composition (N-018) shrinks the surface that *could* be rebuilt.
+
+**Enforceable discipline:**
+1. Maintain a **component index** under `ui/` — one authoritative list: component name · path · props/shape · purpose. (Same no-drift, one-authoritative-source discipline as doc surfaces, D-067/D-070/D-075, applied to components.) Index is populated when the library is laid down (no components yet to index at brainstorm stage).
+2. **Before authoring any UI element:** consult the index — exists → import and reuse; genuinely absent → create in the library **and** register in the index, same step.
+3. Re-implementing an indexed component inline is a defect to correct.
+
+*UI-implementation rule; no protocol/data implication. Likely graduates to DECISIONS.md once the library/index location is fixed.*
+
+### N-020 — Component envelope: root `<div class="type">`, one identity in three places
+
+Every component's root is a `<div>` (or the appropriate element) carrying a single **type class** = the component's name in **kebab-case** (`OutboxCard` → `class="outbox-card"`). No prefix (`xg-` etc.) — every CSS element in the project is XGen by definition, so a namespace prefix is redundant.
+
+**One identity in three places:** component name = file name = root type class, all agreeing. Given any one, the other two are mechanically derivable — which keeps the N-019 index honest.
+
+**CSS ownership:** a component styles only what is under its own root type class; rules never reach up or sideways. This is the "CSS file responsibility audit" point carried over from the deprecated brainstorm, now with a concrete mechanism. Reinforced by Svelte's default **style-scoping** (styles in a `.svelte` file apply only to that component) — the type-class convention is the human-readable contract; Svelte's scoping is the machine-enforced boundary. Belt and suspenders.
+
+*UI-implementation rule; no protocol/data implication.*
+
+### N-021 — CSS layering: `normalize.css` as adapted layer-zero baseline
+
+Styling applies in an explicit, ordered cascade:
+```
+layer 0  normalize.css        → cross-browser/webview baseline (the known-zero floor)
+layer 1  component envelopes   → root .type-class structure (N-020), Svelte-scoped
+layer 2  skin / theme          → XGen visual identity on top
+```
+`normalize.css` is the deliberate **point zero** — flatten inconsistency to a known baseline *before* any skin lands. Naming the order is itself the anti-drift move: everyone knows what is foundation and what is skin.
+
+**Status:** not yet vendored in the repo (no `normalize.css` present as of this note). To be brought in **under `ui/`** when the CSS foundation is laid; moving/copying it into place is authorized.
+
+**Adapted, not pristine (expect updates):** a vanilla `normalize.css` predates our situation. We ship into **Tauri webviews** (WebKitGTK / WKWebView / WebView2), not the open browser population — so part of the work is *trimming* defensive rules we don't need and *adding* webview-specific quirks; part is aligning its zero-point with the N-020 envelope + skin needs. Because it becomes a **maintained, modified** baseline, its deviations from upstream must be **recorded where the file lives** (header note or an "XGen deviations from upstream" comment block) — or a future reader assumes it is pristine and a drift trap is born.
+
+*UI-implementation rule; no protocol/data implication.*
 
 ---
 

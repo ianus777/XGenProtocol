@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.9  
+> Version: 0.10  
 > Date: May 2026  
-> **Last updated**: 2026-06-18  
+> **Last updated**: 2026-06-20  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -470,6 +470,28 @@ layer 2  skin / theme          → XGen visual identity on top
 **Adapted, not pristine (expect updates):** a vanilla `normalize.css` predates our situation. We ship into **Tauri webviews** (WebKitGTK / WKWebView / WebView2), not the open browser population — so part of the work is *trimming* defensive rules we don't need and *adding* webview-specific quirks; part is aligning its zero-point with the N-020 envelope + skin needs. Because it becomes a **maintained, modified** baseline, its deviations from upstream must be **recorded where the file lives** (header note or an "XGen deviations from upstream" comment block) — or a future reader assumes it is pristine and a drift trap is born.
 
 *UI-implementation rule; no protocol/data implication.*
+
+---
+
+## 2026-06-20
+
+### N-022 — Component taxonomy by data relation: data-independent / data-derived
+
+Components are classified on one axis — relationship to data structures. The `data-` prefix names that axis explicitly (kills "derived" read as *computed state*, and "independent — of what?").
+
+**data-independent** — an articulated control point wrapping a native HTML control. Keyed to an *interaction semantic* (boolean-toggle, single-select, free-text, numeric, action-trigger), not to any data structure. One semantic admits many shapes: a boolean-toggle renders as a classic checkbox *or* an on/off switch. Indexed by semantic so a builder picks an existing shape rather than reinventing one (serves N-019).
+
+**data-derived** — a UI representation (materialization) of a defined data structure. Binding spans **Appendix I / G / O / none** — broader than I alone (console → O+G via D-056; outbox-card → event catalog §I.2). Some data-derived components are **ungrounded**: pure UI constructs with no data implementation (binding = none), recorded as such rather than forced onto a structure.
+
+**Composition is an orthogonal property of data-derived, not a third class** (locked: option a). Folding assembly-depth into the class axis would mix two unrelated axes in one list. Each data-derived row carries a **composed-of** field:
+- atomic — `identity-avatar ← IdentityRecord`
+- composite — `spaces-panel ← [SpaceState]`, composed-of `container-list-item × N + section-header`
+
+A composite is a **UI-purpose assembly that defines a compact form.**
+
+**composed-of is membership only, never position.** The index answers *what a component is made of*; the component's own Svelte-scoped `.css` (layer 1, N-020/N-021) answers *where the parts go*, defined pre-skin. Keeping layout out of the index keeps the form compact and preserves one-source-per-fact (no-drift).
+
+*Shapes the forthcoming UI component index (N-019); UI-implementation model, no protocol/data implication.*
 
 ---
 

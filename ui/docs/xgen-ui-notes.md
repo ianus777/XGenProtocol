@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.10  
+> Version: 0.11  
 > Date: May 2026  
 > **Last updated**: 2026-06-20  
 > Language: English  
@@ -492,6 +492,28 @@ A composite is a **UI-purpose assembly that defines a compact form.**
 **composed-of is membership only, never position.** The index answers *what a component is made of*; the component's own Svelte-scoped `.css` (layer 1, N-020/N-021) answers *where the parts go*, defined pre-skin. Keeping layout out of the index keeps the form compact and preserves one-source-per-fact (no-drift).
 
 *Shapes the forthcoming UI component index (N-019); UI-implementation model, no protocol/data implication.*
+
+### N-023 — Component base: shared logic module + thin envelope (composition, not subclassing)
+
+Every component repeats the same envelope mechanics — root element, kebab type-class (N-020), class-merge for pass-through classes, the scoping contract. DRY-ing that is normally inheritance; Svelte has none. So the base is **composition, not subclassing** — two artifacts, both data-relation-agnostic (they serve data-independent *and* data-derived components alike):
+
+**1. Shared logic module** (pure `.ts`, no DOM) — the mutual functions:
+- `kebab(name)` — derives the N-020 type-class from the component name; mechanizes the "one identity in three places" derivation once.
+- `mergeClasses(typeClass, passthrough)` — the root carries its own type-class **plus** any caller-supplied classes, never overwriting. This is the **"supplies the type-class, never erases it"** guarantee.
+- any shared prop/lifecycle helper that genuinely recurs — kept minimal, nothing kind-specific.
+
+**2. Thin envelope** — a Svelte **`use:` action** (`use:envelope={name}`) applied to the component's own root element. Chosen over a `<Base>` wrapper component because:
+- thinnest — adds **no** extra DOM node, so it cannot fight Svelte's style-scoping (N-021 layer 1);
+- it *augments* an existing element rather than owning one → structurally cannot erase the component's root identity;
+- the component still writes its own root (`<div use:envelope={"outbox-card"}>`), keeping the N-020 name=file=class agreement visible at the call site.
+
+**Out of base (explicitly):** layout (each component's own Svelte-scoped `.css`, N-020/N-021), the N-011 outer-ring/decorator slot (entity-specific, undesigned), anything keyed to data relation or kind. Base is envelope mechanics only.
+
+**Alternative noted, not chosen:** a `<Base>` wrapper component — rejected for now (extra DOM node + class-ownership ambiguity). Revisit only if shared *structure*, not just behaviour, emerges.
+
+**Index placement:** lives at `lib/components/base/` and registers in the component index (N-019) as **foundation/substrate** — not a data-independent or data-derived row, since it is neither; it is the substrate both classes sit on.
+
+*UI-implementation rule; no protocol/data implication. Likely graduates to DECISIONS.md alongside the N-019/N-020 cluster once the library location is fixed.*
 
 ---
 

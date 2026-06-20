@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 0: Content
 > **Status:** ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: April 2026  
-> **Last updated**: 2026-06-03    
+> **Last updated**: 2026-06-20  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -60,5 +60,8 @@ Chapter 6 — Client Design
 | Appendix J | XGID: First-Class Identifiers | `xgen_appendix_j_en.md` | done |
 | Appendix K | M6 Node Admin Verb + Schema Reference | `xgen_appendix_k_en.md` | done |
 | Appendix L | EventStore: Node Durable Storage | `xgen_appendix_l_en.md` | done |
+| Appendix M | Trust Assertions & Auth-Tier Evidence | `xgen_appendix_m_en.md` | done |
+| Appendix N | Auth-Module / Plugin Framework Descriptors | `xgen_appendix_n_en.md` | done |
+| Appendix O | `--aicontrol` Control-Plane Data Structures | `xgen_appendix_o_en.md` | done |
 
 ---

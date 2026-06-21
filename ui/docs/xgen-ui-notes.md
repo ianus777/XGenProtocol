@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.16  
+> Version: 0.17  
 > Date: May 2026  
 > **Last updated**: 2026-06-21  
 > Language: English  
@@ -642,6 +642,27 @@ The UI tier structure is now grounded in DECISIONS.md as **D-095**: the `ui/` su
 Physical folder moves + build-wiring repoint land in the restructure commit following this grounding; `dev_core_ui` is retired (the CLI tests it gated are complete). The Ch3 module-architecture OQ that names "Phase 2 client UI structure" is a *different* sense (module-to-UI extensibility) and is **not** resolved by D-095.
 
 *UI-implementation grounding; pointer to D-095. No protocol/data implication.*
+
+### N-027 — Substrate proof: first `core` component built + live CDP registry verified (both apps)
+
+The base substrate (N-023/N-024) and the D-095 tier wiring are now proven end-to-end, not just type-clean. M-RP2.3 built the first real `core` component and drove the full `tauri dev` + CDP loop in **both** apps.
+
+**Built.** `toggle` — `ui/core/lib/components/data-independent/toggle.svelte` (N-022 boolean-toggle; N-020 atomic, root native `<input type="checkbox">`; type-class supplied by `use:envelope`, not hardcoded). Opt-in debug getter `() => $state.snapshot({ checked })` (N-024). First row in the new **Built components** registry of `xgen-ui-components.md` (Status flipped PENDING→ACTIVE).
+
+**Wired + proven.** A throwaway `<Toggle id="demo">` demo instance mounted in both shells via `$core` (`app_client.svelte`, `app_node.svelte`); the Quit / Shut-Down buttons (still the pre-N-020 throwaway `Button.svelte`) kept, since the windows are `decorations:false` and would otherwise lose their only close affordance. Verified live:
+- aliases `$common` / `$core` resolve in real Vite builds;
+- DOM carries `class="toggle"` + `data-debug-id="toggle#demo"` (the envelope stamp);
+- `window.__XGEN_DEBUG__.snapshot()` returns real `{"toggle#demo":{"type":"toggle","state":{"checked":false}}}`;
+- flip → re-dump → `{checked:true}` — confirms the getter reads **live reactive scope**, the core N-024 claim;
+- client (9222 / :5173) and node (9322 / :5174) both green.
+
+**Tooling fixes shipped alongside (arc-local, not promoted):**
+- `run-client.ps1` / `run-node.ps1` — both pointed `$TauriDir` at a non-existent `…/src-tauri`; the Tauri crate is the `xgen-client` / `xgen-node` root itself. Fixed. Added a dev-only `-Debug` switch injecting `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=<9222|9322>` (client uses a clean param block; node reads `$args` to preserve `--service` forwarding).
+- `cdp-debug.ps1` `state` mode evaluated the pre-v1.1 bare `JSON.stringify(window.__XGEN_DEBUG__)`, which stringifies the singleton's methods to `{}` once the registry exists. Corrected to `…snapshot()` (the harness doc was already v1.1-correct; only the script had drifted). The harness DoD's last UI-gated box is now ticked for both apps (real-registry path); the release-inert box stays open — no release build was run.
+
+**Deferred (next step, not this arc):** retire the throwaway `Button.svelte` in both shells when the first `core` button lands and replaces the close affordance. Reuse-not-rebuild (N-019) already demonstrated — one `toggle` consumed unchanged by both apps.
+
+*UI-implementation record. No protocol/data implication. The base cluster (N-019/N-020/N-021/N-023/N-024/N-025) remains a candidate to graduate to DECISIONS.md; the `-Debug` / harness specifics stay arc-local (below the D-069 promotion bar).*
 
 ---
 

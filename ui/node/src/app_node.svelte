@@ -1,11 +1,17 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import Button from './lib/Button.svelte';
+  import Toggle from '$core/components/data-independent/toggle.svelte';
   import AppLogo from './assets/logo_node_64.png';
 
   // Initial state before the first Tauri event arrives.
   let currentState = $state({ state: 'INITIALISING', label: 'Initialising', active_degraded: [] });
   let unlisten;
+
+  // M-RP2.3 substrate proof (node side): same throwaway demo instance of the first
+  // `core` component as the client. Flip it, re-dump via `cdp-debug.ps1 -App node`
+  // (port 9322), observe the {checked:true} delta. Not a real node affordance.
+  let demoChecked = $state(false);
 
   onMount(async () => {
     try {
@@ -67,6 +73,8 @@
     ></span>
     <span class="state-label">{currentState.label}</span>
   </div>
+
+  <Toggle bind:checked={demoChecked} id="demo" />
 
   <Button text="Shut Down" app="node" onAction={handleShutDown} />
 </main>

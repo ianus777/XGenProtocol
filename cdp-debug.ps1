@@ -130,7 +130,7 @@ try {
             } catch { }  # cancellation ends the tail
         }
         'state' {
-            $expr = 'JSON.stringify(window.__XGEN_DEBUG__ ?? null)'
+            $expr = 'window.__XGEN_DEBUG__ ? JSON.stringify(window.__XGEN_DEBUG__.snapshot()) : null'
             Send-Cdp $ws $cts.Token ('{"id":1,"method":"Runtime.evaluate","params":{"expression":' + (ConvertTo-Json $expr) + ',"returnByValue":true}}')
             for ($i = 0; $i -lt 20; $i++) {
                 $obj = (Receive-CdpMessage $ws $cts.Token) | ConvertFrom-Json

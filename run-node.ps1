@@ -1,12 +1,18 @@
 # XGen Node - dev and release launcher.
 # Usage:
 #   .\run-node.ps1            - dev mode (hot-reload, no install needed)
+#   .\run-node.ps1 -Debug     - dev mode + WebView2 remote-debug port 9322 (CDP harness, dev-only)
 #   .\run-node.ps1 release    - build standalone .exe
 #   .\run-node.ps1 --service  - headless service mode (no window, no systray)
+#
+# NB: -Debug is read from $args (not a param block) to preserve --service arg
+# forwarding (--instance/--port). Mirrors run-client.ps1's -Debug intent; that script
+# has no --service, so it uses a clean param block instead.
 
 $Root        = $PSScriptRoot
 $FrontendDir = "$Root\ui\node"
-$TauriDir    = "$Root\xgen-node\src-tauri"
+$TauriDir    = "$Root\xgen-node"
+$WantDebug   = $args -contains "-Debug"
 $env:CARGO_TARGET_DIR = "C:/cargo-targets/XGenProtocol"
 
 # One-time npm install if node_modules is missing
@@ -58,6 +64,10 @@ if ($args[0] -eq "release") {
 
     Write-Host "Vite ready. Starting XGen Node (dev)..."
     $env:TAURI_SKIP_DEVSERVER_CHECK = "true"
+    if ($WantDebug) {
+        $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9322"
+        Write-Host "[-Debug] WebView2 remote-debugging port 9322 enabled (dev-only)."
+    }
     cargo tauri dev
 
     $vite | Stop-Process -Force -ErrorAction SilentlyContinue

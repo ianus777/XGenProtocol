@@ -1,10 +1,29 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-18  
+> **Last updated:** 2026-06-21  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-403 — M-RP2.3 CLOSED: substrate proof — first `core` component (`toggle`) built + live CDP registry verified in BOTH apps
+
+**What happened.** Closed the substrate proof. Built the first real `core` component and drove the full `tauri dev` + CDP debug loop end-to-end in **both** UI apps — establishing that the N-023/N-024 base substrate and the D-095 tier wiring work in a real Vite build, not just under `tsc --noEmit`.
+
+**Built + wired.** NEW `ui/core/lib/components/data-independent/toggle.svelte` — Svelte-5 runes, N-022 boolean-toggle, N-020 atomic (root native `<input type="checkbox">`), type-class supplied by `use:envelope` from `$common` (not hardcoded), N-024 opt-in debug getter `() => $state.snapshot({ checked })`. Mounted as a throwaway `<Toggle id="demo">` demo instance in both shells via `$core` (`app_client.svelte`, `app_node.svelte`). The pre-N-020 throwaway `Button.svelte` (Quit / Shut-Down) was kept — both windows are `decorations:false`, so retiring the only close affordance waits for the first `core` button (next step).
+
+**Live verification (real-registry path, not transport-only).** `run-{client,node}.ps1 -Debug` (Vite + `tauri dev` + remote-debug port) → `cdp-debug.ps1 -App {client,node} -Mode state` (attach):
+- client (9222 / :5173) and node (9322 / :5174) both attached over the WS;
+- `$common`/`$core` aliases resolved in real builds; DOM carried `class="toggle"` + `data-debug-id="toggle#demo"`;
+- `window.__XGEN_DEBUG__.snapshot()` returned real `{"toggle#demo":{"type":"toggle","state":{"checked":false}}}`; flipping the toggle then re-dumping returned `{checked:true}` — confirming the getter reads **live reactive scope** (the N-024 claim), not a mount-time snapshot.
+
+**Tooling fixes (arc-local, not promoted).** `run-client.ps1` + `run-node.ps1` both pointed `$TauriDir` at a non-existent `…/src-tauri` (the Tauri crate is the `xgen-client` / `xgen-node` root) — fixed; added a dev-only `-Debug` switch injecting `--remote-debugging-port=<9222|9322>` (client = clean param block; node = `$args` read, to preserve `--service` arg-forwarding). `cdp-debug.ps1` `state` mode brought from the bare `JSON.stringify(window.__XGEN_DEBUG__)` (which stringifies the singleton's methods to `{}`) to `…snapshot()` — the script had drifted from harness-doc v1.1. Harness DoD's last UI-gated (state-dump) box ticked for both apps; the release-inert box left open (no release build was run — honest, not claimed).
+
+**No Rust, no protocol/data change.** Test baseline unchanged from J-401 (~1466/0) — pure UI-layer + dev-tooling work; `cargo test` not re-run (Rule 5: not claimed beyond the J-401 baseline).
+
+**Canonical (D-074).** NEW `ui/core/lib/components/data-independent/toggle.svelte`; `ui/client/src/app_client.svelte` + `ui/node/src/app_node.svelte` (Toggle demo via `$core`); `run-client.ps1` + `run-node.ps1` (TauriDir + `-Debug`); `cdp-debug.ps1` (`.snapshot()` fix); `ui/docs/xgen-ui-components.md` (NEW Built-components registry + Status PENDING→ACTIVE, v0.4→v0.5); `ui/docs/xgen-ui-notes.md` (N-027, v0.16→v0.17); `tasks/CDP_DEBUG_HARNESS.md` (DoD tick + §Mechanism two-path note + script-fix note, v1.1→v1.2); this JOURNAL J-403. Next-active (UI/RP track): first `core` button + retire throwaway `Button.svelte`; then continue data-independent component authoring. Not pushed — Joe pushes.
 
 ---
 

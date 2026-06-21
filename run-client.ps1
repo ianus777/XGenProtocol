@@ -1,11 +1,17 @@
 # XGen Client - dev and release launcher.
 # Usage:
-#   .\run-client.ps1         - dev mode (hot-reload, no install needed)
-#   .\run-client.ps1 release - build standalone .exe
+#   .\run-client.ps1            - dev mode (hot-reload, no install needed)
+#   .\run-client.ps1 -Debug     - dev mode + WebView2 remote-debug port 9222 (CDP harness, dev-only)
+#   .\run-client.ps1 release    - build standalone .exe
+
+param(
+    [string]$Mode = "",
+    [switch]$Debug
+)
 
 $Root        = $PSScriptRoot
 $FrontendDir = "$Root\ui\client"
-$TauriDir    = "$Root\xgen-client\src-tauri"
+$TauriDir    = "$Root\xgen-client"
 $env:CARGO_TARGET_DIR = "C:/cargo-targets/XGenProtocol"
 
 # One-time npm install if node_modules is missing
@@ -18,7 +24,7 @@ if (-not (Test-Path "$FrontendDir\node_modules")) {
 
 Set-Location $TauriDir
 
-if ($args[0] -eq "release") {
+if ($Mode -eq "release") {
     Write-Host "Building release .exe..."
     cargo tauri build
     $exe = "C:\cargo-targets\XGenProtocol\release\xgen-client-app.exe"
@@ -51,6 +57,10 @@ if ($args[0] -eq "release") {
 
     Write-Host "Vite ready. Starting XGen Client (dev)..."
     $env:TAURI_SKIP_DEVSERVER_CHECK = "true"
+    if ($Debug) {
+        $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
+        Write-Host "[-Debug] WebView2 remote-debugging port 9222 enabled (dev-only)."
+    }
     cargo tauri dev
 
     $vite | Stop-Process -Force -ErrorAction SilentlyContinue

@@ -1,6 +1,6 @@
 # XGen UI — CDP Debug Harness (WebView2 remote-debug read loop)
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-21  
 > Language: English  
@@ -16,6 +16,7 @@ An automated way to inspect the running XGen UI — read its console output and 
 
 1. **Port enablement** — set `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=<port>` in the launching process's environment. Dev-only by convention; no code change required. Formalize a launch flag only if the harness later needs it.
 2. **WebView content** — debug runs happen under `tauri dev` (Vite serving the Svelte app on `localhost:5173`), so the real UI and registry are loaded. A production-bundled build loads its own assets; either way the CDP target exists.
+   - **Two launch paths (keep distinct):** `cdp-debug.ps1 -Launch` spawns the *bare* `bin\xgen-*.exe` (dev-wired to `:5173`/`:5174` but no Vite) — this proves **transport** only (endpoint/attach/evaluate/console), page is blank. The **real-registry** path is `run-client.ps1 -Debug` / `run-node.ps1 -Debug` (which set the port env-var, start Vite, and run `tauri dev`) **then** `cdp-debug.ps1 -App <app> -Mode state` in *attach* mode (no `-Launch`). The latter is what verifies actual `window.__XGEN_DEBUG__` content.
 3. **Multi-app / multi-instance** — `port = base + instance_ordinal`, with base 9222 (client) / 9322 (node) selected by `-App`, so client and node never collide and each instance gets a unique port (`-Port` / `-Exe` override). The harness discovers the page target via the HTTP `/json` list, then attaches to its `webSocketDebuggerUrl`.
 4. **What is read** — two capabilities: (a) **console-tail** via `Runtime.consoleAPICalled` — usable now, pre-UI; (b) **state dump** via `Runtime.evaluate` on `window.__XGEN_DEBUG__.snapshot()` (registry verbs `snapshot()` / `get(id)` / `ids()`, per the **N-024** producer contract) — once the registry exists. Console-tail ships first.
 5. **Carrier** — PowerShell v1 (`System.Net.WebSockets.ClientWebSocket`). Proven end-to-end, in-session, zero dependencies. Revisit only if it becomes unwieldy (small Rust/Node helper is the fallback carrier).
@@ -32,6 +33,19 @@ Against `bin\xgen-client.exe` (bare launch opens a Tauri window titled "XGen Cli
 - **Console capture** — `Runtime.enable` then an injected `console.log('XGEN_PROBE_MARKER', 42, {a:1})` arrived as a `Runtime.consoleAPICalled` event with **structured args** (string, number, and object with a property preview `{a:1}`) — typed data, not flattened text.
 
 **Honest scope of the proof:** the page was blank (no Vite), so these results prove the **transport** (endpoint, attach, evaluate, console-event delivery) — not real app logs or real registry content. Those require the UI served under `tauri dev`.
+
+## Real-registry proof (2026-06-21, M-RP2.3)
+
+The UI-gated remainder is now closed for the **state-dump** path, in **both** apps, via the real-registry launch path (`run-*  -Debug` + attach). With the first instrumented `core` component (`toggle`, N-024 debug getter) mounted as a demo instance in each shell:
+
+- Client (port 9222, page `http://localhost:5173/`) and node (port 9322, page `http://localhost:5174/`) each attached over the WS.
+- `Runtime.evaluate` on `window.__XGEN_DEBUG__.snapshot()` returned real content: `{"toggle#demo":{"type":"toggle","state":{"checked":false}}}`.
+- After flipping the toggle (DOM `change`), a re-dump returned `{checked:true}` — proving the registry reads **live reactive scope**, not a mount-time snapshot.
+- DOM carried the envelope stamp `class="toggle"` + `data-debug-id="toggle#demo"`; the `get('<id>')` path keys on that same string.
+
+**Script fix applied this session:** the `state` mode evaluated the pre-v1.1 bare `JSON.stringify(window.__XGEN_DEBUG__)` (which stringifies the singleton's *methods* to `{}` once the registry exists). Corrected to the guarded `…snapshot()` form this doc already specified at v1.1 — only the script had drifted.
+
+**Still transport-only:** real *app* `console.log` capture (vs the injected-marker probe) was not exercised this session; the console-tail path remains proven by transport, not by a real app log line.
 
 ## Harness specification
 
@@ -61,9 +75,9 @@ A single dev-only script. Responsibilities, in order:
 
 - [x] Harness resolves a target by `-App` + ordinal and attaches via `/json` — verified 2026-06-20 for **both** client (9222) and node (9322) bin builds (eval `2`; resolve via TCP probe). Against `tauri dev` specifically: pending a UI run.
 - [x] `Runtime.enable` + console-tail loop runs and exits cleanly — verified. Capturing a **real app** `console.log` line is deferred until the UI emits logs (the transport is already proven via the injected-marker probe).
-- [x] State-dump path verified — guarded `….snapshot()` read returns `null` gracefully today; real `window.__XGEN_DEBUG__` content pending the registry (N-024 implementation).
+- [x] State-dump path verified — guarded `….snapshot()` read returns `null` gracefully pre-registry, and returns **real content in both apps** with the registry present (M-RP2.3, 2026-06-21): `{"toggle#demo":{"type":"toggle","state":{"checked":false}}}`, flip → `{checked:true}`. Script brought in line with the v1.1 `…snapshot()` spec.
 - [x] Cleanup leaves no orphan process and no lingering env-var — verified (`taskkill /T` + env-var removal in `finally`).
 - [ ] Confirmed inert against a release build (no port, no devtools) — pending a release build.
 - [x] Dev-only gating documented where the harness lives — header comment in `cdp-debug.ps1`.
 
-**UI-gated remainder:** real console logs and real registry dumps verify when the Svelte UI + `window.__XGEN_DEBUG__` exist (RP-1/RP-2 territory).
+**UI-gated remainder:** the **state-dump** path is now verified against the real registry in both apps (M-RP2.3). Real *app* `console.log` capture (beyond the injected-marker probe) remains outstanding — exercised when a shell emits real log lines.

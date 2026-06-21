@@ -1,6 +1,6 @@
 # XGen UI — Component Index
-> **Status**: PENDING  
-> Version: 0.4  
+> **Status**: ACTIVE  
+> Version: 0.5  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-21  
 > Language: English  
@@ -9,6 +9,19 @@
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 This file records the data-independent **catalogue** (the intended control vocabulary) and a **seed** of the data-derived spine (concept-locked rows that extend during stock-take + testing); both become the live registry of built components as the library is laid down.
+
+---
+
+## Built components (live registry)
+
+The live registry of components actually authored in the tree (N-019). **Tier** marks the home crate-mirror (N-026): `common` = shared substrate, `core` = the reference component library. The catalogue/seed tables below remain the *intended* vocabulary; a row graduates here once built.
+
+| Component | Tier | Class · semantic | Root | Path | Debug | Ref |
+|---|---|---|---|---|---|---|
+| base (substrate) | `common` | foundation | — | `ui/common/lib/components/base/{logic,envelope,debug}.ts` | provides `use:envelope` + `window.__XGEN_DEBUG__` registry | N-023/N-024 |
+| toggle | `core` | data-independent · boolean-toggle | `<input type="checkbox">` | `ui/core/lib/components/data-independent/toggle.svelte` | `() => $state.snapshot({ checked })` | N-022/N-024 |
+
+First built `core` component, authored at M-RP2.3 as the substrate proof: verified live in **both** apps (client 9222 / node 9322) — `snapshot()` returned real `{checked:false}`, flip → `{checked:true}` confirmed live reactive reads.
 
 ---
 
@@ -91,4 +104,4 @@ One row per component. Root tag discriminates atomic (no sub-components) vs comp
 - Data-independent rows are keyed to an interaction semantic; one semantic admits several shape variants.
 - Data-derived rows (seeded 2026-06-21) carry a data-structure binding (Appendix I / G / O / none) and, for composites, a composed-of membership list (N-022). Layout: structural (function-critical, appearance-neutral) CSS lives with the component; all appearance lives in the one skin file, keyed by type-class — never here (N-025). The dd table is a thin spine of fixed columns; deeper per-component detail goes to a titled paragraph under **Component detail**, pointed to from the Purpose cell — the table is never widened.
 - Reading a component schema: text up to `→` is name + annotations; the `<tag class>` after `→` is the root. A native tag (`<button>`/`<input>`/`<select>`/`<textarea>`) ⇒ single-element (atomic); a `<div class="type">` ⇒ composite, with `├──` child lines as composed-of members (N-022). Same semantic can be either kind — the root tag is the discriminator (plain `checkbox` = `<input>` atomic; `checkbox-group` = `<div>` composite).
-- Status PENDING: the CDP-over-WebView2 debug gate is now cleared (CDP harness built + verified), so component authoring is unblocked; Status stays PENDING until authoring is formally opened.
+- Status ACTIVE: component authoring is formally open as of M-RP2.3 — the first `core` component (`toggle`) is built and registry-verified live in both apps. New components register in **Built components** (above) when authored (N-019).

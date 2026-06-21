@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.15  
+> Version: 0.16  
 > Date: May 2026  
 > **Last updated**: 2026-06-21  
 > Language: English  
@@ -578,6 +578,7 @@ export function unregister(id: string) { registry.delete(id); }
 
 ```ts
 // lib/components/base/envelope.ts (extended)
+import { register, unregister } from './debug';   // static — referenced only inside the DEV guard, so it tree-shakes out of prod
 let ordinal = 0;
 type Param = string | { name: string; id?: string; debug?: () => unknown };
 
@@ -588,7 +589,6 @@ export function envelope(node: HTMLElement, param: Param) {
   node.className = mergeClasses(typeClass, node.className);   // supplies, never erases (N-023)
 
   if (import.meta.env.DEV && getState) {
-    const { register, unregister } = await import('./debug'); // dev-only
     const debugId = `${typeClass}#${id ?? ++ordinal}`;        // N-011 stable id, else ordinal
     node.setAttribute('data-debug-id', debugId);
     register(debugId, typeClass, getState);
@@ -618,7 +618,7 @@ A component with no state passes the string form (`use:envelope={'icon-button'}`
 **Cross-file owe (discharged with this note).** `tasks/CDP_DEBUG_HARNESS.md` had the state read as `JSON.stringify(window.__XGEN_DEBUG__)`; (a′) makes it `…__XGEN_DEBUG__.snapshot()` plus the `get(id)` / `ids()` verbs — amended in harness v1.1 (companion edit, same arc).
 
 **Open / parked:**
-- Static vs dynamic import of `debug.ts` inside the guard — both prod-drop; dynamic shown for explicitness, settle at implementation (Clair).
+- ~~Static vs dynamic import of `debug.ts` inside the guard~~ — **settled static (2026-06-21, Commit C).** A Svelte `use:` action is not async, so the originally-shown `await import('./debug')` could not compile; the **static** import is referenced only inside the `import.meta.env.DEV` guard and tree-shakes out of production builds. Shipped at `ui/common/lib/components/base/` per D-095.
 - Whether non-entity components want a stable id (e.g. slot name) rather than an ordinal — revisit if ordinal churn makes harness reads flaky in practice.
 - Deep-object render policy for `snapshot()` (shallow + expand) — already parked in the harness doc; a presentation choice, not a contract change.
 

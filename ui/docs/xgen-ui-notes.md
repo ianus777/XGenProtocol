@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.11  
+> Version: 0.12  
 > Date: May 2026  
 > **Last updated**: 2026-06-20  
 > Language: English  
@@ -492,6 +492,8 @@ A composite is a **UI-purpose assembly that defines a compact form.**
 **composed-of is membership only, never position.** The index answers *what a component is made of*; the component's own Svelte-scoped `.css` (layer 1, N-020/N-021) answers *where the parts go*, defined pre-skin. Keeping layout out of the index keeps the form compact and preserves one-source-per-fact (no-drift).
 
 *Shapes the forthcoming UI component index (N-019); UI-implementation model, no protocol/data implication.*
+
+**Amendment (2026-06-20) — composition applies to both classes.** N-022 originally scoped composition as a property of *data-derived* only. Correction: composition is orthogonal to the data-relation axis and applies to **both** classes. A **data-independent composite** is several native controls assembled into one control point still keyed to a *single* interaction semantic, with **no** data binding. Worked case: a **combobox** is data-independent, keyed to *single-select*, composed-of (free-text input + single-select list + toggle), binding = none. (Same pattern: tag-select → multi-select; star-rating → single-select; password show/hide → secret.) The original "option a" stands — composition is never a third class, it remains a composed-of property — only its reach widens from data-derived-only to both classes.
 
 ### N-023 — Component base: shared logic module + thin envelope (composition, not subclassing)
 

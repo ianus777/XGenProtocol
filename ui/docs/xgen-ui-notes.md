@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.14  
+> Version: 0.15  
 > Date: May 2026  
 > **Last updated**: 2026-06-21  
 > Language: English  
@@ -623,6 +623,25 @@ A component with no state passes the string form (`use:envelope={'icon-button'}`
 - Deep-object render policy for `snapshot()` (shallow + expand) — already parked in the harness doc; a presentation choice, not a contract change.
 
 *UI-implementation rule; no protocol/data implication. Likely graduates to DECISIONS.md alongside the N-019/N-020/N-023 base cluster once the library location is fixed.*
+
+### N-026 — UI source-tree tiers grounded → D-095 (common / core / client / node / assets)
+
+The UI tier structure is now grounded in DECISIONS.md as **D-095**: the `ui/` subtree mirrors the four core crates 1:1.
+
+- `ui/common/` ≈ `xgen-common` — shared **code** substrate (envelope mechanics, helpers); alias `$common`. The N-023 base (`logic.ts` / `envelope.ts` / `debug.ts`) lives here.
+- `ui/core/` ≈ `xgen-core` — the **reference component library** (the di / dd components, N-022); built on `common`; alias `$core`.
+- `ui/client/`, `ui/node/` ≈ `xgen-client` / `xgen-node` — thin shells composing `core` (rename of `dev_core_ui/{client_ui,node}`).
+- `ui/assets/` — shared **static** files (fonts, logos); a distinct axis from `common` (code vs files). "shared" dropped from the name since everything under `ui/` is shared by definition.
+
+**Resolves a recurring drift:** the substrate's home mutated across proposals (inside `dev_core_ui` → hoisted peer → sibling) precisely because the tier structure was never written. D-095 fixes it; the component index (N-019) gains a tier marker (`common` / `core`) so each entry's home is unambiguous.
+
+**Consequence for the base substrate (N-023):** `base/` lands at `ui/common/lib/components/base/`; the N-024 envelope debug-branch ships there. Components built on it live under `ui/core/lib/components/`.
+
+**`common` vs `core` (load-bearing):** a component never lives in `common`; a bare helper never lives in `core`. `common` = shared behaviour both apps depend on; `core` = the sample components built on it.
+
+Physical folder moves + build-wiring repoint land in the restructure commit following this grounding; `dev_core_ui` is retired (the CLI tests it gated are complete). The Ch3 module-architecture OQ that names "Phase 2 client UI structure" is a *different* sense (module-to-UI extensibility) and is **not** resolved by D-095.
+
+*UI-implementation grounding; pointer to D-095. No protocol/data implication.*
 
 ---
 

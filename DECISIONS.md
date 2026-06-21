@@ -1,11 +1,40 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-18  
+> **Last updated:** 2026-06-21  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-095 — UI source-tree tiers mirror the crate workspace: `common` (shared code) / `core` (reference component library) / `client`·`node` (thin shells) / `assets` (static)
+
+**Date**: 2026-06-21
+**Layer**: UI / frontend source structure (reference implementation, not protocol).
+**Spec reference**: mirrors the Rust crate split (Ch4 §4.3: `xgen-core` = protocol library / reference implementation, binaries are thin wrappers; `xgen-common` = shared elements). Grounds the UI-layer instance of a split that was agreed in conversation but never written — deliberately left ungrounded while the real UI did not yet exist (Ch3's module-architecture open question named "Phase 2 client UI structure" as a downstream item; note that OQ is about module-to-UI extensibility, a different sense of "UI structure" than this source-tree grounding — D-095 does not resolve it). UI-notes cluster N-019/N-020/N-022/N-023/N-025; recorded via N-026.
+
+### Decision
+
+The `ui/` subtree is structured as a 1:1 mirror of the four core crates:
+
+| crate (repo root) | UI tier (`ui/`) | role |
+|---|---|---|
+| `xgen-common` | `ui/common/` | **shared code** — substrate both apps import + execute (envelope mechanics, helpers); no visible components. Alias `$common`. |
+| `xgen-core` | `ui/core/` | **reference component library** — the preprogrammed components presented as implementation samples; built on `common`. Alias `$core`. |
+| `xgen-client` | `ui/client/` | thin shell composing `core` (rename of `ui/dev_core_ui/client_ui`). |
+| `xgen-node` | `ui/node/` | thin shell composing `core` (rename of `ui/dev_core_ui/node`). |
+
+Plus `ui/assets/` = shared **static** files (fonts, logos) — a distinct axis from `common`: `common` is shared *code* (module graph, aliased, tree-shaken, type-checked); `assets` is shared *static files* (referenced by URL, copied/served). The word "shared" is dropped from the asset folder (everything under `ui/` is shared by definition). Final siblings: `ui/{client,node,common,core,assets,docs,templates,backup}`.
+
+**`common` vs `core` boundary (load-bearing):** a component never lives in `common`; a bare helper never lives in `core`. `common` = behaviour both apps depend on; `core` = the sample components built on that behaviour. The component index (N-019) records which tier each entry belongs to.
+
+**Naming retirement:** `ui/dev_core_ui/` is a vestigial name from the era when CLI and UI builds sat side by side; retired now that the CLI tests it gated are complete. The physical folder moves (`client_ui`→`client`, `node`→`node`, both `*/shared_assets`→`ui/assets`) + build-wiring repoint (the two `tauri.conf.json` `beforeBuildCommand`s, `run-*.ps1`, `cdp-debug.ps1`) + the `$common`/`$core` Vite aliases land in the restructure commit that follows this grounding.
+
+### Why
+
+The crate workspace already encodes exactly the distinction needed — `xgen-core` as the reference/sample library, `xgen-common` as shared elements, the binaries as thin wrappers (Ch4 §4.3). Mirroring it in `ui/` makes the frontend tree self-explaining (`ui/client` ↔ `xgen-client`), keeps the distinction between *shared code* and *sample component* explicit in the path, and stops the placement drift that recurred while the structure was ungrounded. The mirror inverts one detail by nature: in Rust `core` is the heavy library and the binaries are thin; in the UI `core` is the component library and the app shells are thin — same thin-shell relationship, the library on the `core` side either way.
 
 ---
 

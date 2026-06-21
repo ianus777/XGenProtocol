@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: PENDING  
-> Version: 0.1  
+> Version: 0.2  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-20  
 > Language: English  
@@ -32,7 +32,30 @@ The authoritative component list (N-019): consult before authoring any UI elemen
 | color | `<input type="color">` | `bind:value` | swatch picker |
 | file-select | `<input type="file">` | `bind:files` | file button |
 
-*Not yet classified (deferred):* read-only display primitives (`<progress>`, `<meter>`, `<output>`) — likely data-derived; composite controls keyed to one semantic but assembled from several (combobox, tag/chip select, star rating, password show/hide) — pending the N-022 composition amendment.
+### Composites
+
+Data-independent composites (N-022 amendment): several native controls assembled into one control point, still keyed to a single semantic, binding = none. Schema: the header line carries name · annotations · `→ <root tag class>`; a `<div class="type">` root means composite and the `├──` child lines are its composed-of members (N-020/N-022). Children are named bare — each child's own catalogue entry defines its root.
+
+```
+combobox         keyed: single-select · binding: none → <div class="combobox">
+├── textfield     free-text constituent (filter / value)
+├── icon-button   list toggle (tabindex -1)
+└── select-list   single-select constituent (filtered set)
+
+tag-select       keyed: multi-select · binding: none → <div class="tag-select">
+├── chip × N      selected items  (chip = sub-composite; schema TBD)
+├── textfield     free-text entry / filter
+└── select-list   multi-select constituent (suggestions)
+
+star-rating      keyed: single-select · binding: none → <div class="star-rating">
+└── icon-button × N   ordinal stars; value = highest lit
+
+password-field   keyed: secret · binding: none → <div class="password-field">
+├── secret-field  <input type="password"> (value-bearing)
+└── icon-button   show / hide toggle (presentational only — not a second semantic)
+```
+
+*Not yet classified (deferred):* read-only display primitives (`<progress>`, `<meter>`, `<output>`) — likely data-derived.
 
 ---
 
@@ -48,4 +71,5 @@ The authoritative component list (N-019): consult before authoring any UI elemen
 - Component identity is one string in three places (N-020): component name = file name = root type-class (kebab-case).
 - Data-independent rows are keyed to an interaction semantic; one semantic admits several shape variants.
 - Data-derived rows (future) carry a data-structure binding (Appendix I / G / O / none) and, for composites, a composed-of membership list (N-022). Layout lives in the component's own `.css`, never here.
-- Status PENDING: component authoring is parked until the CDP-over-WebView2 debug mechanism is resolved.
+- Reading a component schema: text up to `→` is name + annotations; the `<tag class>` after `→` is the root. A native tag (`<button>`/`<input>`/`<select>`/`<textarea>`) ⇒ single-element (atomic); a `<div class="type">` ⇒ composite, with `├──` child lines as composed-of members (N-022). Same semantic can be either kind — the root tag is the discriminator (plain `checkbox` = `<input>` atomic; `checkbox-group` = `<div>` composite).
+- Status PENDING: the CDP-over-WebView2 debug gate is now cleared (CDP harness built + verified), so component authoring is unblocked; Status stays PENDING until authoring is formally opened.

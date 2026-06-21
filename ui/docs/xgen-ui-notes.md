@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.13  
+> Version: 0.14  
 > Date: May 2026  
-> **Last updated**: 2026-06-20  
+> **Last updated**: 2026-06-21  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -533,6 +533,96 @@ CSS splits by purpose, and the purpose decides where it may live. **Three source
 **Supersedes** the earlier "layout lives in the component's own `.css`" wording (N-020/N-021/N-022/N-023): "layout" is not one unit — its load-bearing part is structural (local-ok), its visual part is skin (must externalise).
 
 *UI-implementation rule; no protocol/data implication. Likely graduates to DECISIONS.md with the N-019/N-020/N-021 CSS cluster.*
+
+---
+
+## 2026-06-21
+
+### N-024 — Debug field-accessibility: dev-only registry riding the envelope
+
+Fills the reserved **N-024** slot (authored 2026-06-21; the number was reserved because the CDP harness + component index already forward-referenced it). The harness (`tasks/CDP_DEBUG_HARNESS.md`) reads two producers that did not yet exist: `window.__XGEN_DEBUG__` (whole-state dump) and per-component `data-debug-id`. N-024 is the **UI-side contract that produces both — dev-only.** Gate cleared: harness built + verified (client 9222 / node 9322; modes eval/state/console).
+
+**Core move — ride the N-023 envelope, never add a second wire.** Every component root already calls `use:envelope`. A **dev-gated branch** in that same action (a) stamps `data-debug-id`, (b) registers the component's live state-getter into `window.__XGEN_DEBUG__`. One root wire; the N-020 type-class feeds the debug-id; production tree-shakes the whole branch (`import.meta.env.DEV`), honouring the harness's non-negotiable release-safety.
+
+**State exposure = explicit getter (decision (a′), LOCKED).** A Svelte `use:` action receives the DOM node, **not** the component's reactive `$state`. So a stateful component hands the envelope a getter; the action never reaches into reactive scope itself. Chosen over: a registry the component pushes to directly (forks the one-wire win), and DOM-only reads (thin — "DOM-accessibility", not "field-accessibility"). The getter is `$state.snapshot(...)`-wrapped so CDP `returnByValue` receives de-proxied JSON.
+
+**Registry is a singleton with methods + per-component isolation — not a bare object.** A bare object of getters would not survive `JSON.stringify` (getters are not invoked) and one throwing component would abort the whole dump and blind the harness. Instead:
+
+```ts
+// lib/components/base/debug.ts — installed lazily; no app-entry edit
+type Entry = { type: string; get: () => unknown };
+const registry = new Map<string, Entry>();
+
+function readOne(id: string) {
+  const e = registry.get(id);
+  if (!e) return null;
+  try { return { type: e.type, state: e.get() }; }
+  catch (err) { return { type: e.type, error: String(err) }; } // isolation
+}
+function ensureInstalled() {
+  const w = window as any;
+  if (w.__XGEN_DEBUG__) return;
+  w.__XGEN_DEBUG__ = {
+    ids:      () => [...registry.keys()],
+    get:      (id: string) => readOne(id),
+    snapshot: () => Object.fromEntries([...registry.keys()].map(id => [id, readOne(id)])),
+  };
+}
+export function register(id: string, type: string, get: () => unknown) { ensureInstalled(); registry.set(id, { type, get }); }
+export function unregister(id: string) { registry.delete(id); }
+```
+
+**Three read shapes** map to the harness's capabilities: `snapshot()` (whole dump) · `get(id)` (single component — pairs with the `data-debug-id` the harness finds in DOM) · `ids()` (enumeration).
+
+**Envelope branch (dev-gated; the `debug` import is referenced only inside the guard, so it drops in prod):**
+
+```ts
+// lib/components/base/envelope.ts (extended)
+let ordinal = 0;
+type Param = string | { name: string; id?: string; debug?: () => unknown };
+
+export function envelope(node: HTMLElement, param: Param) {
+  const { name, id, debug: getState } =
+    typeof param === 'string' ? { name: param, id: undefined, debug: undefined } : param;
+  const typeClass = kebab(name);
+  node.className = mergeClasses(typeClass, node.className);   // supplies, never erases (N-023)
+
+  if (import.meta.env.DEV && getState) {
+    const { register, unregister } = await import('./debug'); // dev-only
+    const debugId = `${typeClass}#${id ?? ++ordinal}`;        // N-011 stable id, else ordinal
+    node.setAttribute('data-debug-id', debugId);
+    register(debugId, typeClass, getState);
+    return { destroy() { unregister(debugId); } };
+  }
+  return {};
+}
+```
+
+**`data-debug-id` value = `type-class#<id>`** — N-011 stable ID (`identity_id` / `space_id`) where the component is an entity, else a per-type ordinal. One string locates the node in DOM **and** keys the registry — the harness's two read paths converge on it.
+
+**Component opt-in is one greppable line** (N-019 honesty — state exposure is visible at the call site, never hidden):
+
+```svelte
+<script lang="ts">
+  let { space }: { space: SpaceState } = $props();
+  let expanded = $state(false);
+  const dbg = () => $state.snapshot({ space, expanded });
+</script>
+<div use:envelope={{ name: 'spaces-panel', id: space.space_id, debug: dbg }}> … </div>
+```
+
+A component with no state passes the string form (`use:envelope={'icon-button'}`) and never appears in the registry — correct: nothing to read.
+
+**Index placement.** This is envelope/substrate behaviour (N-023), not a component — it registers in the component index against the **base/substrate** row as the dev-debug responsibility, never a data-independent/data-derived row.
+
+**Cross-file owe (discharged with this note).** `tasks/CDP_DEBUG_HARNESS.md` had the state read as `JSON.stringify(window.__XGEN_DEBUG__)`; (a′) makes it `…__XGEN_DEBUG__.snapshot()` plus the `get(id)` / `ids()` verbs — amended in harness v1.1 (companion edit, same arc).
+
+**Open / parked:**
+- Static vs dynamic import of `debug.ts` inside the guard — both prod-drop; dynamic shown for explicitness, settle at implementation (Clair).
+- Whether non-entity components want a stable id (e.g. slot name) rather than an ordinal — revisit if ordinal churn makes harness reads flaky in practice.
+- Deep-object render policy for `snapshot()` (shallow + expand) — already parked in the harness doc; a presentation choice, not a contract change.
+
+*UI-implementation rule; no protocol/data implication. Likely graduates to DECISIONS.md alongside the N-019/N-020/N-023 base cluster once the library location is fixed.*
 
 ---
 

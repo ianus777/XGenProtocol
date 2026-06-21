@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.12  
+> Version: 0.13  
 > Date: May 2026  
 > **Last updated**: 2026-06-20  
 > Language: English  
@@ -460,7 +460,7 @@ Every component's root is a `<div>` (or the appropriate element) carrying a sing
 Styling applies in an explicit, ordered cascade:
 ```
 layer 0  normalize.css        → cross-browser/webview baseline (the known-zero floor)
-layer 1  component envelopes   → root .type-class structure (N-020), Svelte-scoped
+layer 1  component structural → function-critical, appearance-neutral CSS only (N-020/N-025), Svelte-scoped
 layer 2  skin / theme          → XGen visual identity on top
 ```
 `normalize.css` is the deliberate **point zero** — flatten inconsistency to a known baseline *before* any skin lands. Naming the order is itself the anti-drift move: everyone knows what is foundation and what is skin.
@@ -489,7 +489,7 @@ Components are classified on one axis — relationship to data structures. The `
 
 A composite is a **UI-purpose assembly that defines a compact form.**
 
-**composed-of is membership only, never position.** The index answers *what a component is made of*; the component's own Svelte-scoped `.css` (layer 1, N-020/N-021) answers *where the parts go*, defined pre-skin. Keeping layout out of the index keeps the form compact and preserves one-source-per-fact (no-drift).
+**composed-of is membership only, never position.** The index answers *what a component is made of*; the component's **structural** CSS (layer 1, N-020/N-025) answers only *function-critical positioning*, all visual layout being skin (layer 2). Keeping layout out of the index keeps the form compact and preserves one-source-per-fact (no-drift).
 
 *Shapes the forthcoming UI component index (N-019); UI-implementation model, no protocol/data implication.*
 
@@ -509,13 +509,30 @@ Every component repeats the same envelope mechanics — root element, kebab type
 - it *augments* an existing element rather than owning one → structurally cannot erase the component's root identity;
 - the component still writes its own root (`<div use:envelope={"outbox-card"}>`), keeping the N-020 name=file=class agreement visible at the call site.
 
-**Out of base (explicitly):** layout (each component's own Svelte-scoped `.css`, N-020/N-021), the N-011 outer-ring/decorator slot (entity-specific, undesigned), anything keyed to data relation or kind. Base is envelope mechanics only.
+**Out of base (explicitly):** CSS (structural lives with each component, appearance-neutral; all appearance is skin — N-025), the N-011 outer-ring/decorator slot (entity-specific, undesigned), anything keyed to data relation or kind. Base is envelope mechanics only.
 
 **Alternative noted, not chosen:** a `<Base>` wrapper component — rejected for now (extra DOM node + class-ownership ambiguity). Revisit only if shared *structure*, not just behaviour, emerges.
 
 **Index placement:** lives at `lib/components/base/` and registers in the component index (N-019) as **foundation/substrate** — not a data-independent or data-derived row, since it is neither; it is the substrate both classes sit on.
 
 *UI-implementation rule; no protocol/data implication. Likely graduates to DECISIONS.md alongside the N-019/N-020 cluster once the library location is fixed.*
+
+### N-025 — CSS: structural vs skin (skinability requires no local appearance)
+
+CSS splits by purpose, and the purpose decides where it may live. **Three sources only:**
+- **layer 0 — `normalize.css`** — cross-webview baseline (N-021).
+- **component-local structural CSS** — the constrained exception (below).
+- **layer 2 — one skin file** — all appearance, keyed by type-class, legally overrides.
+
+**Structural CSS** — rules *without which the component does not function* (a dropdown list must overlay, not displace; a toggle must sit within its field). May live with the component, and must be **appearance-neutral**: positioning / overlay / flow only — never colour, spacing-as-taste, borders, typography.
+
+**Skin CSS** — all appearance. Lives only in the skin file, keyed by type-class (`.combobox { … }`). Never local.
+
+**The test:** *if the skin tried to override this rule, would it break the component?* Yes → structural, may stay local. No → it is appearance → skin, never local. Anything appearance baked locally is a **skinability obstacle** — the skin cannot override what the component hardcoded.
+
+**Supersedes** the earlier "layout lives in the component's own `.css`" wording (N-020/N-021/N-022/N-023): "layout" is not one unit — its load-bearing part is structural (local-ok), its visual part is skin (must externalise).
+
+*UI-implementation rule; no protocol/data implication. Likely graduates to DECISIONS.md with the N-019/N-020/N-021 CSS cluster.*
 
 ---
 

@@ -5,7 +5,7 @@
   "build": {
     "frontendDist": "C:/cargo-targets/XGenProtocol/node-dist",
     "devUrl": "http://localhost:5174",
-    "beforeBuildCommand": "npm --prefix ../ui/dev_core_ui/node run build"
+    "beforeBuildCommand": "npm --prefix ../ui/node run build"
   },
   "app": {
     "windows": [

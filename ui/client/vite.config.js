@@ -1,11 +1,18 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { fileURLToPath } from 'node:url';
 
 // When running via `tauri dev`, TAURI_DEV_HOST is set.
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
   plugins: [svelte()],
+  resolve: {
+    alias: {
+      $common: fileURLToPath(new URL('../common/lib', import.meta.url)),
+      $core: fileURLToPath(new URL('../core/lib', import.meta.url)),
+    },
+  },
   clearScreen: false,
   build: {
     // Output outside Google Drive — same pattern as CARGO_TARGET_DIR.

@@ -4,7 +4,7 @@
 #   .\run-client.ps1 release - build standalone .exe
 
 $Root        = $PSScriptRoot
-$FrontendDir = "$Root\ui\dev_core_ui\client_ui"
+$FrontendDir = "$Root\ui\client"
 $TauriDir    = "$Root\xgen-client\src-tauri"
 $env:CARGO_TARGET_DIR = "C:/cargo-targets/XGenProtocol"
 

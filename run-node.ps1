@@ -5,7 +5,7 @@
 #   .\run-node.ps1 --service  - headless service mode (no window, no systray)
 
 $Root        = $PSScriptRoot
-$FrontendDir = "$Root\ui\dev_core_ui\node"
+$FrontendDir = "$Root\ui\node"
 $TauriDir    = "$Root\xgen-node\src-tauri"
 $env:CARGO_TARGET_DIR = "C:/cargo-targets/XGenProtocol"
 

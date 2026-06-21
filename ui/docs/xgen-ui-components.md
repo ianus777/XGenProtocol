@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: PENDING  
-> Version: 0.2  
+> Version: 0.3  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-20  
 > Language: English  
@@ -70,6 +70,6 @@ password-field   keyed: secret · binding: none → <div class="password-field">
 - Consult before authoring any UI element (N-019): exists → import and reuse; genuinely absent → create in the library and register here, same step.
 - Component identity is one string in three places (N-020): component name = file name = root type-class (kebab-case).
 - Data-independent rows are keyed to an interaction semantic; one semantic admits several shape variants.
-- Data-derived rows (future) carry a data-structure binding (Appendix I / G / O / none) and, for composites, a composed-of membership list (N-022). Layout lives in the component's own `.css`, never here.
+- Data-derived rows (future) carry a data-structure binding (Appendix I / G / O / none) and, for composites, a composed-of membership list (N-022). Layout: structural (function-critical, appearance-neutral) CSS lives with the component; all appearance lives in the one skin file, keyed by type-class — never here (N-025).
 - Reading a component schema: text up to `→` is name + annotations; the `<tag class>` after `→` is the root. A native tag (`<button>`/`<input>`/`<select>`/`<textarea>`) ⇒ single-element (atomic); a `<div class="type">` ⇒ composite, with `├──` child lines as composed-of members (N-022). Same semantic can be either kind — the root tag is the discriminator (plain `checkbox` = `<input>` atomic; `checkbox-group` = `<div>` composite).
 - Status PENDING: the CDP-over-WebView2 debug gate is now cleared (CDP harness built + verified), so component authoring is unblocked; Status stays PENDING until authoring is formally opened.

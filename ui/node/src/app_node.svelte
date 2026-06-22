@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import Button from '$core/components/data-independent/button.svelte';
   import Toggle from '$core/components/data-independent/toggle.svelte';
+  import Textfield from '$core/components/data-independent/textfield.svelte';
   import AppLogo from './assets/logo_node_64.png';
 
   // Initial state before the first Tauri event arrives.
@@ -12,6 +13,11 @@
   // `core` component as the client. Flip it, re-dump via `cdp-debug.ps1 -App node`
   // (port 9322), observe the {checked:true} delta. Not a real node affordance.
   let demoChecked = $state(false);
+
+  // M-RP2.5 (node side): throwaway demo of the third `core` component (textfield).
+  // Type into it, re-dump via `cdp-debug.ps1 -App node` (port 9322), observe the
+  // {value} delta — the bind-in live-read proof. Not a real node affordance.
+  let demoText = $state('');
 
   onMount(async () => {
     try {
@@ -75,6 +81,8 @@
   </div>
 
   <Toggle bind:checked={demoChecked} id="demo" />
+
+  <Textfield bind:value={demoText} id="demo" />
 
   <Button label="Shut Down" onclick={handleShutDown} id="shutdown" />
 </main>

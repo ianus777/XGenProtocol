@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.6  
+> Version: 0.7  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-22  
 > Language: English  
@@ -21,10 +21,13 @@ The live registry of components actually authored in the tree (N-019). **Tier** 
 | base (substrate) | `common` | — | foundation | — | `ui/common/lib/components/base/{logic,envelope,debug}.ts` | provides `use:envelope` + `window.__XGEN_DEBUG__` registry | N-023/N-024 |
 | toggle | `core` | A | data-independent · boolean-toggle | `<input type="checkbox">` | `ui/core/lib/components/data-independent/toggle.svelte` | `() => $state.snapshot({ checked })` | N-022/N-024 |
 | button | `core` | A | data-independent · action-trigger | `<button>` | `ui/core/lib/components/data-independent/button.svelte` | `() => $state.snapshot({ clicks, disabled })` | N-022/N-024/N-028 |
+| textfield | `core` | A | data-independent · free-text (single-line) | `<input type="text">` | `ui/core/lib/components/data-independent/textfield.svelte` | `() => $state.snapshot({ value })` | N-022/N-024/N-029 |
 
 First built `core` component, authored at M-RP2.3 as the substrate proof: verified live in **both** apps (client 9222 / node 9322) — `snapshot()` returned real `{checked:false}`, flip → `{checked:true}` confirmed live reactive reads.
 
 `button` (M-RP2.4, J-405) is the second `core` component and a pipeline-tuning pass — action-trigger (event-out `onclick`, no `bind`) over the same N-023/N-024 envelope substrate, proving it generalizes beyond the toggle's bind-in path. Registry-verified live in both apps: `snapshot()` returned `button#quit` → `{clicks:0,disabled:false}` (client 9222) and `button#shutdown` → `{clicks:0,disabled:false}` (node 9322); both buttons function as the window close affordance, retiring the throwaway `Button.svelte` in both shells (N-019 reuse, second instance). Terminal-action note (N-028): clicking Quit/Shut-Down exits the app, so the `clicks` 0→1 delta cannot be self-redumped — the live-reactive-read proof is inherited from `toggle`; `clicks` here is registration-and-baseline observable. Pre-skin the button is **not** bare — it inherits a global `button {}` rule already in each shell (an N-025 wrinkle for the skin pass), not the normalize-only baseline.
+
+`textfield` (M-RP2.5, J-407) is the third `core` component and the **string bind-in** path (`bind:value`) — completing the three envelope binding shapes (toggle boolean-in, button event-out, textfield string-in). Atomic native `<input type="text">`; `type` is fixed, not a prop (email/url/tel/password/number are separate semantics; search is a shape variant). Native-state surface only: `value`/`placeholder`/`disabled`/`readonly`/`id`/`pattern`/`name`; template matching via native `pattern`→`:invalid` (consumer owns the rule, skin owns the look); processor-**ready** (open to a future `common` `use:` text-processor action shared with `<textarea>`, not built here). Registry-verified live in both apps — baseline `{value:""}`, then a dispatched `input` event drove `textfield#demo` → `{value:"hello"}` (client) / `{value:"world"}` (node), **re-landing the live-reactive-read delta on the bind-in path** that the terminal button could not self-redump (N-028). Verify subtlety (N-029): driving `bind:value` over CDP needs a real dispatched `input` event, not a bare `el.value=` assignment.
 
 ---
 
@@ -107,4 +110,4 @@ One row per component. Root tag discriminates atomic (no sub-components) vs comp
 - Data-independent rows are keyed to an interaction semantic; one semantic admits several shape variants.
 - Data-derived rows (seeded 2026-06-21) carry a data-structure binding (Appendix I / G / O / none) and, for composites, a composed-of membership list (N-022). Layout: structural (function-critical, appearance-neutral) CSS lives with the component; all appearance lives in the one skin file, keyed by type-class — never here (N-025). The dd table is a thin spine of fixed columns; deeper per-component detail goes to a titled paragraph under **Component detail**, pointed to from the Purpose cell — the table is never widened.
 - Reading a component schema: text up to `→` is name + annotations; the `<tag class>` after `→` is the root. A native tag (`<button>`/`<input>`/`<select>`/`<textarea>`) ⇒ single-element (atomic); a `<div class="type">` ⇒ composite, with `├──` child lines as composed-of members (N-022). Same semantic can be either kind — the root tag is the discriminator (plain `checkbox` = `<input>` atomic; `checkbox-group` = `<div>` composite).
-- Status ACTIVE: component authoring is open since M-RP2.3 (`toggle`); M-RP2.4 added the second `core` component (`button`, action-trigger), registry-verified live in both apps and retiring the throwaway `Button.svelte`. New components register in **Built components** (above) when authored, carrying their Tier + Phase (N-019/N-026/N-028).
+- Status ACTIVE: component authoring is open since M-RP2.3 (`toggle`); M-RP2.4 added the second `core` component (`button`, action-trigger), registry-verified live in both apps and retiring the throwaway `Button.svelte`; M-RP2.5 added the third (`textfield`, free-text single-line), completing the three envelope binding shapes. New components register in **Built components** (above) when authored, carrying their Tier + Phase (N-019/N-026/N-028).

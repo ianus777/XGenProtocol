@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.19  
+> Version: 0.20  
 > Date: May 2026  
 > **Last updated**: 2026-06-22  
 > Language: English  
@@ -715,6 +715,25 @@ Phase is a property of the component (its binding), not a schedule. Recorded as 
 **Working-mode implication.** The CDP harness + run scripts + the N-024 registry are drivable by Chat directly (Windows-MCP), so the per-component loop **author → wire → self-verify live in both apps → record** can run end-to-end without Joe relaying dumps — Joe reviews and pushes. A real shift in the three-agent split for the component-buildout arc: Chat's scope on active UI arcs now includes *running* the live CDP verification, not only authoring records from Joe-supplied output. (Joe-locked working preference, not a protocol decision.)
 
 *UI-implementation record. No protocol/data implication. The sampler design likely graduates to its own design doc once it grows past a note; the A/B/C phase taxonomy + the chat-preview practice are candidates for the base-cluster DECISIONS.md graduation alongside N-019/N-020/N-021/N-023/N-024/N-025. The `Chrome_WidgetWin` + run-script ergonomics stay arc-local.*
+
+### N-029 — Third `core` component (`textfield`): string bind-in path proven; CDP input-dispatch verify subtlety
+
+M-RP2.5 closed (J-407). The third `core` component, `textfield` — the **string bind-in** binding shape, completing the trio the substrate now demonstrably generalizes across: toggle (boolean bind-in), button (event-out), textfield (string bind-in).
+
+**Built.** `textfield` — `ui/core/lib/components/data-independent/textfield.svelte` (N-022 free-text single-line; N-020 atomic, root native `<input type="text">`; type-class via `use:envelope`, not hardcoded; no local CSS). `type` is **fixed, not a prop** — the deliberate boundary that keeps one-semantic-per-component (N-022): email/url/tel are constrained-text, password is secret, number is numeric, each its own component; search is a *shape* of free-text, deferred as a variant. Native-state surface only — `value` (`$bindable`, `bind:value`), `placeholder`, `disabled` (inert + skin-greyed), `readonly` (shown/selectable, not editable — distinct from disabled, not greyed), `id`, `pattern` (native `:invalid` for template-mismatch — consumer owns the rule, skin owns the look; no bespoke validation engine), `name`. N-024 getter `() => $state.snapshot({ value })`.
+
+**Processor-ready, not processor-bearing.** A text processor (emoji-combo, pattern formatting) is designed to live **once** in `common` as a `use:` action and layer onto *any* text-bearing tag (`<input>` and `<textarea>` alike) via `use:processor={pairs}` — the field neither contains nor blocks it. The DRY requirement (same processor on textarea, exchangeable pairs) is satisfied by composition, not duplication. Built separately, later. The same logic keeps the clear/copy-button version out of this atomic: that is a `<div class="textfield-group">` composite (textfield + icon-button ×1–2), a future row — a root-tag boundary (the legitimate split), as opposed to the rejected "simple vs stateful twin" split (which would be two rows for one semantic).
+
+**Verified live, both apps** (real Vite + `tauri dev` + CDP; Chat self-drove the loop per the N-028 working mode):
+- client (9222): baseline `{"toggle#demo":…,"textfield#demo":{"type":"textfield","state":{"value":""}},"button#quit":…}`; after dispatch → `textfield#demo` `{value:"hello"}`.
+- node (9322): baseline `…"textfield#demo":{…"value":""}…"button#shutdown":…`; after dispatch → `{value:"world"}`.
+- The registry now holds **three** components across **three** binding shapes side by side. The `value` 0→delta **re-lands the live-reactive-read proof on the bind-in path** — the proof the terminal-action button could not self-redump (N-028 finding 1).
+
+**Finding — CDP input-dispatch subtlety.** Driving `bind:value` from CDP requires a **real dispatched `input` event** (`el.value="…"; el.dispatchEvent(new Event("input",{bubbles:true}))`), not a bare `el.value=` assignment — Svelte's `bind:value` updates the rune from the `input` handler, so a silent property set leaves the rune (and the registry) stale. Sibling-shape to the N-028 poll-race: a correctness detail in the *verify procedure*, not the component. The self-drive orchestration also reconfirmed the N-028 race fix (retry `snapshot()` until `__XGEN_DEBUG__` is non-null — client needed 2 retries, node 1) and cleaned up with zero orphan ports (9222/9322/5173/5174 all closed).
+
+**Expected pre-skin wrinkle (note).** Like the button, the shells likely carry global `input {}` rules, so pre-skin the field is not the bare normalize baseline — reconcile at the first skin pass (N-025).
+
+*UI-implementation record. No protocol/data implication. `textfield` joins the di·A built set; the `use:processor` action + the `textfield-group` composite are queued follow-ons.*
 
 ---
 

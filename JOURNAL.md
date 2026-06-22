@@ -8,6 +8,33 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-407 — M-RP2.5 CLOSED: third `core` component (`textfield`) built + live CDP-verified in BOTH apps — string bind-in path, three binding shapes complete
+
+**What happened.** Authored the third real `core` component, `textfield` (the Joe-locked M-RP2.5 next move), wired a throwaway demo into both shells, and Chat self-drove the full `tauri dev` + CDP loop in both apps. `textfield` is the **string bind-in** path (`bind:value`), completing the three envelope binding shapes the substrate now demonstrably generalizes across: toggle (boolean bind-in), button (event-out), textfield (string bind-in).
+
+**Built + wired.** NEW `ui/core/lib/components/data-independent/textfield.svelte` — Svelte-5 runes, N-022 free-text single-line, N-020 atomic (root native `<input type="text">`), type-class via `use:envelope` (not hardcoded), no local CSS. `type` is **fixed, not a prop** (one-semantic-per-component — email/url/tel/password/number are separate components; search is a deferred shape variant). Native-state surface: `value` (`$bindable`, `bind:value`), `placeholder`, `disabled`, `readonly` (distinct from disabled — shown/selectable, not greyed), `id`, `pattern` (native `:invalid`; consumer's rule + skin's look, no bespoke validator), `name`. Debug getter `() => $state.snapshot({ value })`. Both shells (`app_client.svelte`, `app_node.svelte`) import `Textfield` via `$core` and mount a throwaway `<Textfield bind:value={demoText} id="demo" />` alongside the existing `toggle#demo` and the real Quit / Shut-Down buttons.
+
+**Live verification (real-registry path, both apps; Chat self-drove the loop per N-028 working mode).** `run-{client,node}.ps1 -Debug` launched detached → poll CDP port → retry `snapshot()` until non-null (N-028 race fix) → dispatch a real `input` event via `cdp-debug.ps1 -Mode eval` → re-dump:
+```
+client (9222): BASELINE {"toggle#demo":{...checked:false},"textfield#demo":{"type":"textfield","state":{"value":""}},"button#quit":{...clicks:0,disabled:false}}
+               EVAL RESULT: hello
+               AFTER    {...,"textfield#demo":{"type":"textfield","state":{"value":"hello"}},...}
+node   (9322): BASELINE {...,"textfield#demo":{"type":"textfield","state":{"value":""}},"button#shutdown":{...}}
+               EVAL RESULT: world
+               AFTER    {...,"textfield#demo":{"type":"textfield","state":{"value":"world"}},...}
+```
+The registry holds **three** components across **three** binding shapes side by side. The `value` ""→"hello"/"world" delta **re-lands the live-reactive-read proof on the bind-in path** — the proof the terminal-action button could not self-redump (N-028 finding 1). Cleanup clean: ports 9222/9322/5173/5174 all closed, zero orphans. Race-fix reconfirmed (client retry=2, node retry=1).
+
+**Finding (N-029) — CDP input-dispatch subtlety.** Driving `bind:value` from CDP needs a **real dispatched `input` event** (`el.value="…"; el.dispatchEvent(new Event("input",{bubbles:true}))`), not a bare `el.value=` assignment — Svelte reads the value in the `input` handler, so a silent property set leaves the rune (and registry) stale. A correctness detail in the verify *procedure*, not the component (sibling-shape to the N-028 poll-race).
+
+**Design boundaries recorded (N-029).** `type` fixed (not a prop); processor-**ready**, not processor-bearing (a text processor lives once in `common` as a `use:` action shared with `<textarea>` — DRY by composition, not duplication; deferred); the clear/copy-button version is a future `<div class="textfield-group">` composite (root-tag boundary, the legitimate split), not a "stateful twin" of this atomic. Pre-skin wrinkle noted: shells likely carry a global `input {}` rule, reconcile at the skin pass (N-025).
+
+**No Rust, no protocol/data change.** Pure UI-layer + canonical-record work; test baseline unchanged from J-401 (~1466/0) — `cargo test` not re-run (Rule 5).
+
+**Canonical (D-074).** NEW `ui/core/lib/components/data-independent/textfield.svelte`; `ui/client/src/app_client.svelte` + `ui/node/src/app_node.svelte` ($core Textfield demo); `ui/docs/xgen-ui-components.md` (textfield row + prose + Status line, v0.6→0.7); `ui/docs/xgen-ui-notes.md` (N-029, v0.19→0.20); `CLAUDE.md` (PLAY head → M-RP2.5, entry pointer J-406→J-407); `docs/ROADMAP.md` (RP node + M-RP2.5 + chain tail + Present + sampler reclass, v3.87→3.88); this JOURNAL J-407. Next-active (UI/RP track): Joe's call — `select` / `textfield-group` composite / `use:processor` action / sampler. Not pushed — Joe pushes.
+
+---
+
 ## Entry J-406 — Closed the two N-028-routed items: D-095 dev-tooling-exemption footnote landed + GPL-overview question resolved (no decision); M-RP2.5 locked = `textfield`
 
 **What happened.** Records-only follow-up to J-405. Joe locked the two items N-028 had routed to him, plus the next UI/RP move. No code, no protocol/data change; test baseline unchanged (~1466/0, not re-run — Rule 5).

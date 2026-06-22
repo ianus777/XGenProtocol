@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import Button from './lib/Button.svelte';
+  import Button from '$core/components/data-independent/button.svelte';
   import Toggle from '$core/components/data-independent/toggle.svelte';
   import AppLogo from './assets/logo_client_64.png';
 
@@ -80,5 +80,5 @@
 
   <Toggle bind:checked={demoChecked} id="demo" />
 
-  <Button text="Quit" app="client" onAction={handleQuit} />
+  <Button label="Quit" onclick={handleQuit} id="quit" />
 </main>

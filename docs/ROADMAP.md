@@ -1,8 +1,8 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 3.86
+> Version: 3.87
 > Date: May 2026  
-> **Last updated**: 2026-06-21  
+> **Last updated**: 2026-06-22  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -247,7 +247,8 @@ XGen Protocol
 ├── UI (clean-table rebuild — the post-M10 endpoint; built fresh after pre-UI work, Round-2 GO; the J-390 final pre-UI gate ✅ DONE)
 │   ├── ⬛ UI Phase 2 visual merge — DEPRECATED (J-284): element-modelling/visual-merge approach abandoned → superseded by the clean-table UI milestone
 │   ├── ⬛ Mockup stock-take + reconcile-to-as-built — DEPRECATED: the May-era mockup-reconciliation plan (ui/docs concept + run briefings) superseded by the component-library-first build
-│   ├── 🟢 UI component-library / substrate (RP track) — D-095 `ui/{client,node,common,core,assets}` mirrors the crate workspace; base substrate (logic/envelope/debug, N-023/N-024) + first `core` component `toggle` registry-verified live in both apps (M-RP2.3, J-403); component index ACTIVE
+│   ├── 🟢 UI component-library / substrate (RP track) — D-095 `ui/{client,node,common,core,assets}` mirrors the crate workspace; base substrate (logic/envelope/debug, N-023/N-024) + first `core` component `toggle` registry-verified live in both apps (M-RP2.3, J-403); component index ACTIVE + second `core` component `button` (event-out; M-RP2.4, J-405) — throwaway Button.svelte retired
+│   │   └── 🟡 Component sampler — dev exhibit app (M-RP2.5+; design-of-record N-028): `ui/sampler/` (D-095-mirror-exempt), build-phases A/B/C, class×phase matrix, live skin-swap
 │   ├── 🟡 Clean-table UI milestone — the live UI build (replaces the deprecated visual-merge approach)
 │   └── 🟡 Multi-device arc (R2-F09 — D3-gated; surfaces when the UI prototype exercises device add/remove)
 │
@@ -321,7 +322,7 @@ Post-gate chain (locked 2026-06-05; M8.5 inserted J-269; M8.6/M8.7 inserted J-28
              -> INV-EXP (invite-expiry replay-gate fix; M8.6/C8 follow-on, before M8.7) [CLOSED J-298]
              -> M8.7 (D3 MLS operationalisation: real RFC 9420/openmls behind the Arc-H locked interface + concurrent-commit resolution) [Phase-0 OPENED J-299; runbook authored J-301; M8.7 = R only (concurrent-commit conflict domain); S+L = production openmls-client arc]
              -> M9 (build strategic multiparty test harness)
-             -> Multiparty tests (strategic milestone, unnumbered) [CLOSED J-356] -> Round-2 checkpoint audit [DONE J-357, GO] -> M10 (Auth Module ref set) [M10.4 DONE J-371] -> M11 (self account, D-021) [CLOSED J-378] -> M12 (attachments) [OPENED J-379, F1–F9 locked; Phase-0 audit DONE J-380, GO; design Joe-LOCKED J-381 (M12-D1..D10); M12.1 SHIPPED+CLOSED J-382; M12.2 designed J-383 (M12.2-D1..D6, split M12.2a/b); M12.2 SHIPPED+CLOSED J-385 (J-384 trio + J-385 F9 data-root); M12.3 Phase-0 audit DONE + design Joe-LOCKED J-386 (M12.3-D1..D6)] M12.3 SHIPPED+CLOSED J-387 (federation fetch-blob-by-hash); M12.4 erasure Phase-0 audit DONE + design Joe-LOCKED J-388 (M12.4-D1..D9; M12-D6 promoted -> D-093); M12.4 SHIPPED+CLOSED J-389 = M12 CLOSED (redact + blob-delete + Retained-refusal 10004; in-suite 1463/0, box e2e green)] -> Round-2 final pre-UI gate [✅ DONE J-390, Pass-2 GO] -> documentation-optimization [✅ COMPLETE J-396; DO-1..DO-5] -> Appendix F/I audit-against-code [✅ CLOSED J-398; AI-F17 J-401] -> mockup stock-take [⬛ DEPRECATED — superseded by component-library-first build] -> UI component-library / substrate [🟢 ACTIVE, RP track; M-RP2.3 J-403] -> clean-table UI build [🟡] -> Streams (standalone, post-UI plane)
+             -> Multiparty tests (strategic milestone, unnumbered) [CLOSED J-356] -> Round-2 checkpoint audit [DONE J-357, GO] -> M10 (Auth Module ref set) [M10.4 DONE J-371] -> M11 (self account, D-021) [CLOSED J-378] -> M12 (attachments) [OPENED J-379, F1–F9 locked; Phase-0 audit DONE J-380, GO; design Joe-LOCKED J-381 (M12-D1..D10); M12.1 SHIPPED+CLOSED J-382; M12.2 designed J-383 (M12.2-D1..D6, split M12.2a/b); M12.2 SHIPPED+CLOSED J-385 (J-384 trio + J-385 F9 data-root); M12.3 Phase-0 audit DONE + design Joe-LOCKED J-386 (M12.3-D1..D6)] M12.3 SHIPPED+CLOSED J-387 (federation fetch-blob-by-hash); M12.4 erasure Phase-0 audit DONE + design Joe-LOCKED J-388 (M12.4-D1..D9; M12-D6 promoted -> D-093); M12.4 SHIPPED+CLOSED J-389 = M12 CLOSED (redact + blob-delete + Retained-refusal 10004; in-suite 1463/0, box e2e green)] -> Round-2 final pre-UI gate [✅ DONE J-390, Pass-2 GO] -> documentation-optimization [✅ COMPLETE J-396; DO-1..DO-5] -> Appendix F/I audit-against-code [✅ CLOSED J-398; AI-F17 J-401] -> mockup stock-take [⬛ DEPRECATED — superseded by component-library-first build] -> UI component-library / substrate [🟢 ACTIVE, RP track; M-RP2.3 J-403, M-RP2.4 J-405; sampler 🟡 M-RP2.5+] -> clean-table UI build [🟡] -> Streams (standalone, post-UI plane)
 ```
 
 Depth-asymmetry note: settled Past clusters (M-series M1–M5, completed Federation phases) show one line per milestone with no internal phase breakdown, mirroring the prose section's principle that detail accumulates as a track approaches and reduces when it settles. Live and Near-future clusters show full internal nesting because that detail is currently load-bearing for navigation.
@@ -664,7 +665,7 @@ The arc the project has already traversed. Detail is intentionally compact; the 
 
 The track the project is actively working on right now. Detail here is the most granular in the document — what's in flight, what's blocking what, the next concrete step.
 
-🟢 **UI component-library / substrate track (RP) — ACTIVE.** Building the reference component library on the D-095 tier split (`ui/{client,node,common,core,assets}` mirrors the crate workspace). Shipped: the base substrate (`common/lib/components/base/` — `logic`/`envelope`/`debug`, N-023/N-024) + the first `core` component (`toggle`, data-independent/boolean-toggle), registry-verified live in **both** apps via the CDP harness (M-RP2.3, J-403). Records: `ui/docs/xgen-ui-notes.md` (N-027) + `ui/docs/xgen-ui-components.md` (Built-components registry, Status ACTIVE). Next: first `core` button → retire the throwaway `Button.svelte` → continue data-independent authoring; the full clean-table UI build remains the milestone ahead.
+🟢 **UI component-library / substrate track (RP) — ACTIVE.** Building the reference component library on the D-095 tier split (`ui/{client,node,common,core,assets}` mirrors the crate workspace). Shipped: the base substrate (`common/lib/components/base/` — `logic`/`envelope`/`debug`, N-023/N-024) + the first `core` component (`toggle`, data-independent/boolean-toggle, M-RP2.3 J-403) + the second (`button`, data-independent/action-trigger, event-out `onclick`, M-RP2.4 J-405 — restored the window close affordance, retired the throwaway `Button.svelte` in both shells), each registry-verified live in **both** apps via the CDP harness; the substrate generalizes across both binding directions. Records: `ui/docs/xgen-ui-notes.md` (N-027 substrate proof, N-028 button + sampler design + A/B/C phase taxonomy) + `ui/docs/xgen-ui-components.md` (Built-components registry + Phase column, Status ACTIVE). Next: continue data-independent component authoring, or the component **sampler** (a dev exhibit app, M-RP2.5+, design-of-record N-028); the full clean-table UI build remains the milestone ahead.
 
 ✅ **Documentation-optimization phase (pre-UI consolidation) — COMPLETE (J-396).** Discharged the doc bloat the M8→M12 sprint left while reference/operational records lagged. Doc-only; no code. All five sub-steps done.
 

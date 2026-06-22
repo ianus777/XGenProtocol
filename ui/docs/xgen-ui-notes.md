@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.17  
+> Version: 0.18  
 > Date: May 2026  
-> **Last updated**: 2026-06-21  
+> **Last updated**: 2026-06-22  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -663,6 +663,56 @@ The base substrate (N-023/N-024) and the D-095 tier wiring are now proven end-to
 **Deferred (next step, not this arc):** retire the throwaway `Button.svelte` in both shells when the first `core` button lands and replaces the close affordance. Reuse-not-rebuild (N-019) already demonstrated — one `toggle` consumed unchanged by both apps.
 
 *UI-implementation record. No protocol/data implication. The base cluster (N-019/N-020/N-021/N-023/N-024/N-025) remains a candidate to graduate to DECISIONS.md; the `-Debug` / harness specifics stay arc-local (below the D-069 promotion bar).*
+
+---
+
+## 2026-06-22
+
+### N-028 — Second `core` component (`button`) + sampler design-of-record + component layer-phase taxonomy
+
+M-RP2.4 closed (J-405). A deliberate **pipeline-tuning pass** — one component, not a feature sprint — to shake out the repeatable authoring loop (author → wire via `$core` → live-verify in both apps → record) and surface friction while it is cheap.
+
+**Built.** `button` — `ui/core/lib/components/data-independent/button.svelte` (N-022 action-trigger; N-020 atomic, root native `<button>`; type-class supplied by `use:envelope`, not hardcoded; no local CSS). Event-**out** (`onclick`, no `bind`) — the complementary envelope path to the toggle's event-in `bind:checked`. Props: `label` / `onclick` / `disabled` / `id`. N-024 opt-in debug getter `() => $state.snapshot({ clicks, disabled })`.
+
+**Verified live, both apps** (real Vite + `tauri dev` + CDP, not just `tsc`):
+- client (9222): `snapshot()` → `{"toggle#demo":{"type":"toggle","state":{"checked":false}},"button#quit":{"type":"button","state":{"clicks":0,"disabled":false}}}`
+- node (9322): `{"toggle#demo":{"type":"toggle","state":{"checked":false}},"button#shutdown":{"type":"button","state":{"clicks":0,"disabled":false}}}`
+- DOM carries `class="button"` + `data-debug-id="button#{quit,shutdown}"`; clicking Quit / Shut-Down closes the window — the restored close affordance. The registry now holds **two** components from **two** semantics (bind-in + event-out) cleanly side by side — the N-023/N-024 substrate **generalizes**, which was the real question behind the pass.
+
+**Retired.** Both throwaway `ui/{client,node}/src/lib/Button.svelte` (Svelte-4, pre-N-020) deleted; both shells consume the one `core` button via `$core` (N-019 reuse, second instance after `toggle`). The `demo` toggle stays in the shells for now — its retirement is sampler-bound (below).
+
+**Findings (the pipeline-tuning payoff):**
+1. **Terminal-action can't self-redump.** The real button's `onclick` exits the app, so the `clicks` 0→1 delta cannot be re-dumped on the same instance — firing it ends the session. The counter still honestly proves event-out registration + that the getter reads `$state` (baseline-observable); the *live-reactive-read* proof is inherited from `toggle` (same envelope path). A non-terminal demo button would show the delta but was declined to avoid re-adding shell cruft we are routing to the sampler.
+2. **Pre-skin ≠ bare.** The button renders dark/rounded/padded, not the bare normalize/native control the chat-preview suggested, because each shell already carries a global `button {}` rule that the type-class-less `<button>` inherits. An N-025 wrinkle (appearance living in a global rule rather than the one skin file) for the skin pass to reconcile; not a defect.
+3. **Dev-exit WebView2 warning.** Node `-Debug` close prints `[ERROR …window_impl.cc:172] Failed to unregister class Chrome_WidgetWin_0. Error = 1412` — a known-benign WebView2/Chromium teardown log on the dev-only remote-debug path. Watch-item; confirm `-Debug`-generic (not a leak) by running once without `-Debug` if it recurs. Not gating.
+4. **Run-script ergonomic.** `run-{client,node}.ps1 -Debug` blocks the terminal (it *is* `tauri dev`); `cdp-debug.ps1` must run in a **separate** terminal. Pasting the dump after a blocking `run-*` in the same block queues it until the app exits (in a subdir) → spurious "not recognized". For future sessions: dump in its own terminal.
+
+**Component layer-phase taxonomy (A/B/C) — new, orthogonal to di/dd.** A component's *phase* is the build-layer its binding demands, decided the moment its binding is filled:
+- **A — pure Svelte:** self-contained in the webview, state in runes, nothing crosses out (`toggle`, `button`, most di).
+- **B — Svelte + Tauri:** reaches the Tauri IPC boundary but needs **no new Rust logic** — calls existing commands / listens to existing events (color picker → native dialog; temperature → `xgen-temperature-update` + `get_pacing_state`, the unused N-006 surfaces).
+- **C — all three layers:** requires **new Rust behaviour in a crate**, not just an IPC call (auth / EventStore *system*-module management UI — anything where Rust does real work the UI merely surfaces). Deferred.
+
+Phase is a property of the component (its binding), not a schedule. Recorded as a **Phase column** in the Built-components registry, beside the `common`/`core` Tier marker (N-026). A component carries *both* coordinates: di/dd class **and** A/B/C phase (`toggle`/`button` = di · A).
+
+**Standing practice — bare chat-preview per component.** During discuss/author, a disposable `all: revert` chat-side preview (structure + interaction + the debug payload it would emit) is a standing authoring aid — the *appearance* register that cannot show skin. Complemented by the in-app sampler (below), the *truth* register where skin actually lives.
+
+**Sampler (settled this session; design-of-record — implementation deferred, M-RP2.5+).** A dedicated dev app whose whole job is exhibiting `core`/`common` components against skins — the proper successor to the retired `dev_core_ui`. Keeps the real shells clean (only real affordances); the `demo` toggle migrates here.
+- **Home:** `ui/sampler/` — an explicit **dev-tool dir, exempt from the D-095 1:1 crate-mirror**. *Owe (routed to Joe): a one-line D-095 footnote stating dev-tooling dirs under `ui/` are mirror-exempt, so the tier map stays clean.*
+- **Build-phases A/B/C, trigger-driven (not dated):** Phase-A sampler = Vite-only (instant HMR; skin-swap + size/text override). Phase-B = thin Tauri wrap, unlocked by the **first Phase-B component** (color-picker native dialog, or a temperature **synthetic-feed harness** injecting `xgen-temperature-update` so the thermometer is exercisable with no live federation). Phase-C deferred with its components. The sampler's own build-phase gates which component-phases it can host.
+- **Two jobs, both designed-for:** the *read* side (N-024 registry — snapshot state out) **and** the *write/inject* side (synthetic feed — push fake state in). Same instinct, opposite direction; design for both now so the temperature case is not a retrofit.
+- **IA — matrix-of-record, tabbed-by-phase presentation (N-014 swappable):** the logical IA is the **class × phase** matrix + a Combined/other section. Leading presentation: **phase = the tab axis** (the load-bearing one — it gates sampler-build reachability; gated phases render as **locked/disabled tabs**, cleaner than greyed bands); **di/dd = an in-pane segmented `[All|di|dd]` filter** (default All, so within-phase skin-swap shows both classes; **sub-tabs reserved as a volume-triggered per-pane upgrade**, never a blanket second tab level — di/dd is a label, not a gate, so it does not earn a tab level by default). **Combined tab** = the skinned all-at-once together-gallery (where cross-component skin comparison lives, since per-phase tabs would otherwise hide it) + composites (N-022 combobox / tag-select) + real assemblies (spaces-panel). **Skin + size = global chrome above the tab bar**, persisting across tabs — one skin re-renders every visible component, the single thing the sampler does that the chat-preview cannot.
+- **Index-driven (no drift):** the sampler materializes the Built-components registry — a cell renders its chips from the index; an unpopulated cell says "none yet," an unreachable band says "requires sampler Phase B." No pre-built empty panes (D-065).
+- **Killer feature:** live skin A↔B swap against one component tree is the only surface that actually *exercises* the N-021/N-025 layered-CSS model (prove skinability + that appearance is fully externalized).
+
+**GPL-overview flag (routed to Joe — not absorbed).** `ui/core/` ≈ `xgen-core` (GPL-2.0-or-later, D-044), so the `core` reference components are **GPL code**. That makes the Built-components registry (`xgen-ui-components.md`) the *licensed-corpus overview catalogue* of record, and the sampler its live visual face (index-driven, so one derives from the other — D-065 no-drift). Possible `DECISIONS.md` touch tying the `ui/core/` = GPL boundary to a catalogue-completeness duty (the lens that owns D-044). Flagged for Joe to route; not silently recorded as settled.
+
+**Addendum (same session) — Chat self-drove the CDP loop; one automation race found.** After the records above were written, Chat ran the *entire* verification procedure itself via Windows-MCP PowerShell (no Joe relay): launch each app detached (`Start-Process … run-{client,node}.ps1 -Debug -WindowStyle Minimized`) → poll the CDP port via a `TcpClient` loop → `cdp-debug.ps1 -App {client,node} -Mode state` → read the registry → clean up (`Stop-Process xgen-client/xgen-node` + the Vite port owners + the spawned consoles; ports 9222/9322/5173/5174 all confirmed closed afterward, no orphans). **Both dumps reproduced identically** to Joe's hand-runs (`button#quit` / `button#shutdown` → `{clicks:0,disabled:false}` + `toggle#demo`) — independent corroboration of the M-RP2.4 proof, not a new claim.
+
+**Finding — poll-too-early race (CDP port opens before the registry populates).** Node's *first* automated dump returned `null` (`window.__XGEN_DEBUG__ … no registry yet`); a 3-second re-dump returned the correct `button#shutdown`. Cause: the harness waits for the CDP **port** (9322) to open, but WebView2 opens that port *before* the Svelte app has mounted and registered its components. A human running by hand never sees this (typing latency covers the gap); an automated poll fires the dump in the window between port-open and app-mount. **Not a defect — a timing gap in the *procedure*.** Rule for any self-drive harness: poll the port, **then retry the `snapshot()` dump until `__XGEN_DEBUG__` is non-null** (bounded retries), rather than treating port-up as ready. Candidate hardening for `cdp-debug.ps1` itself: a built-in retry-until-non-null with a timeout, so the recipe is correct regardless of who drives it.
+
+**Working-mode implication.** The CDP harness + run scripts + the N-024 registry are drivable by Chat directly (Windows-MCP), so the per-component loop **author → wire → self-verify live in both apps → record** can run end-to-end without Joe relaying dumps — Joe reviews and pushes. A real shift in the three-agent split for the component-buildout arc: Chat's scope on active UI arcs now includes *running* the live CDP verification, not only authoring records from Joe-supplied output. (Joe-locked working preference, not a protocol decision.)
+
+*UI-implementation record. No protocol/data implication. The sampler design likely graduates to its own design doc once it grows past a note; the A/B/C phase taxonomy + the chat-preview practice are candidates for the base-cluster DECISIONS.md graduation alongside N-019/N-020/N-021/N-023/N-024/N-025. The `Chrome_WidgetWin` + run-script ergonomics stay arc-local.*
 
 ---
 

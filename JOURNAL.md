@@ -1,10 +1,35 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-21  
+> **Last updated:** 2026-06-22  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-405 — M-RP2.4 CLOSED: second `core` component (`button`) built + live CDP-verified in BOTH apps; throwaway `Button.svelte` retired; CLAUDE PLAY caught up to UI/RP frontier (D-094); sampler design recorded (N-028)
+
+**What happened.** Closed the button pipeline-tuning pass — authored the second real `core` component, swapped both shells onto it via `$core`, retired the pre-N-020 throwaway `Button.svelte`, and drove the full `tauri dev` + CDP loop in **both** apps. Also caught `CLAUDE.md`'s PLAY head up to the UI/RP frontier (it had drifted a full arc behind) and recorded the session's sampler design.
+
+**Built + wired.** NEW `ui/core/lib/components/data-independent/button.svelte` — Svelte-5 runes, N-022 action-trigger, N-020 atomic (root native `<button>`), type-class supplied by `use:envelope` from `$common` (not hardcoded), event-**OUT** (`onclick`, no `bind`) — the complementary envelope path to the toggle's event-in `bind:checked`. Props `label`/`onclick`/`disabled`/`id`; honest internal `clicks` `$state` so the N-024 registry has a live observable; debug getter `() => $state.snapshot({ clicks, disabled })`. Both shells (`app_client.svelte`, `app_node.svelte`) swap `import Button` to `$core/components/data-independent/button.svelte` and replace `<Button text=.. app=.. onAction=..>` with `<Button label=.. onclick=.. id=..>`; `handleQuit`/`handleShutDown` untouched. Both throwaway `ui/{client,node}/src/lib/Button.svelte` (Svelte-4, pre-N-020) deleted.
+
+**Live verification (real-registry path, both apps).** `run-{client,node}.ps1 -Debug` → `cdp-debug.ps1 -App {client,node} -Mode state` (separate terminal):
+```
+client (9222/:5173): {"toggle#demo":{"type":"toggle","state":{"checked":false}},"button#quit":{"type":"button","state":{"clicks":0,"disabled":false}}}
+node   (9322/:5174): {"toggle#demo":{"type":"toggle","state":{"checked":false}},"button#shutdown":{"type":"button","state":{"clicks":0,"disabled":false}}}
+```
+DOM carried `class="button"` + `data-debug-id="button#{quit,shutdown}"`; clicking Quit / Shut-Down closed each window — the close affordance restored via the `core` button. The registry holding two components across two semantics (bind-in toggle + event-out button) confirms the N-023/N-024 substrate **generalizes**.
+
+**Findings (recorded in N-028):** (1) terminal-action button can't self-redump a `clicks` delta — firing it exits the app; the live-reactive-read proof is inherited from `toggle` (same envelope path). (2) Pre-skin the button is not bare — it inherits a global `button {}` rule in each shell (N-025 wrinkle). (3) Node `-Debug` close prints a benign WebView2 teardown log `Failed to unregister class Chrome_WidgetWin_0. Error = 1412` (watch-item). (4) `run-* -Debug` blocks the terminal — run `cdp-debug.ps1` in a separate one.
+
+**Sampler design-of-record + phase taxonomy (N-028).** Settled this session, implementation deferred (M-RP2.5+): a separate dev app at `ui/sampler/` (dev-tool dir, D-095-mirror-exempt — one-line footnote owed, routed to Joe); three build-phases A/B/C, trigger-driven; both the read (N-024) and write/synthetic-feed sides designed-for; IA = class×phase matrix-of-record, tabbed-by-phase (gated phases = locked tabs), di/dd = in-pane `[All|di|dd]` segmented filter (sub-tabs a volume-triggered per-pane upgrade), Combined tab = skinned together-gallery; skin+size global chrome; index-driven; live skin-swap the killer feature. New component **layer-phase taxonomy (A/B/C)**, orthogonal to di/dd, recorded as a Phase column in the components registry. **GPL-overview flag routed to Joe** (`ui/core/` = GPL → the registry is the licensed-corpus catalogue; candidate `DECISIONS.md` touch).
+
+**CLAUDE.md PLAY catch-up (D-094).** The PLAY head had drifted a full arc behind — still reading the AFI/F17 frontier (last touched 2026-06-18); the J-399→J-404 UI/RP arc updated JOURNAL + ROADMAP + ui-docs but never flipped the PLAY head (the named ROADMAP-vs-CLAUDE drift). Caught up here: the stale AFI/F17 PLAY block lifted **verbatim** to `CLAUDE_HISTORY.md` (D-094, a move not a rewrite), and a fresh UI/RP PLAY head written (M-RP2.3 ✅ J-403 → M-RP2.4 ✅ this entry → sampler horizon).
+
+**No Rust, no protocol/data change.** Pure UI-layer + canonical-record work; test baseline unchanged from J-401 (~1466/0) — `cargo test` not re-run (Rule 5: not claimed beyond baseline).
+
+**Canonical (D-074).** NEW `ui/core/lib/components/data-independent/button.svelte`; `ui/client/src/app_client.svelte` + `ui/node/src/app_node.svelte` ($core button swap); DELETED `ui/client/src/lib/Button.svelte` + `ui/node/src/lib/Button.svelte`; `ui/docs/xgen-ui-components.md` (button row + Phase column, v0.5→0.6); `ui/docs/xgen-ui-notes.md` (N-028, v0.17→0.18); `CLAUDE.md` (PLAY head AFI/F17 → fresh UI/RP head + pointer line); `CLAUDE_HISTORY.md` (AFI/F17 block archived, v1.0→1.1); `docs/ROADMAP.md` (RP node + M-RP2.4 + sampler rows + chain tail + Present, v3.86→3.87); this JOURNAL J-405. Next-active (UI/RP track): sampler Phase-A (M-RP2.5) or continue data-independent component authoring — Joe's call. Not pushed — Joe pushes.
 
 ---
 

@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import Button from './lib/Button.svelte';
+  import Button from '$core/components/data-independent/button.svelte';
   import Toggle from '$core/components/data-independent/toggle.svelte';
   import AppLogo from './assets/logo_node_64.png';
 
@@ -76,5 +76,5 @@
 
   <Toggle bind:checked={demoChecked} id="demo" />
 
-  <Button text="Shut Down" app="node" onAction={handleShutDown} />
+  <Button label="Shut Down" onclick={handleShutDown} id="shutdown" />
 </main>

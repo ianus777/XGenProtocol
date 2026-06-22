@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-21  
+> **Last updated:** 2026-06-22  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -31,6 +31,8 @@ Plus `ui/assets/` = shared **static** files (fonts, logos) — a distinct axis f
 **`common` vs `core` boundary (load-bearing):** a component never lives in `common`; a bare helper never lives in `core`. `common` = behaviour both apps depend on; `core` = the sample components built on that behaviour. The component index (N-019) records which tier each entry belongs to.
 
 **Naming retirement:** `ui/dev_core_ui/` is a vestigial name from the era when CLI and UI builds sat side by side; retired now that the CLI tests it gated are complete. The physical folder moves (`client_ui`→`client`, `node`→`node`, both `*/shared_assets`→`ui/assets`) + build-wiring repoint (the two `tauri.conf.json` `beforeBuildCommand`s, `run-*.ps1`, `cdp-debug.ps1`) + the `$common`/`$core` Vite aliases land in the restructure commit that follows this grounding.
+
+**Dev-tooling exemption:** dev-only tool dirs under `ui/` (e.g. `ui/sampler/`, the component-exhibition app — N-028) are **not** part of the 1:1 crate-mirror; they sit alongside the mirrored tiers with no crate counterpart. The mirror governs the shipped substrate / library / shell tiers, not dev scaffolding.
 
 ### Why
 

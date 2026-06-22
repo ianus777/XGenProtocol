@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.18  
+> Version: 0.19  
 > Date: May 2026  
 > **Last updated**: 2026-06-22  
 > Language: English  
@@ -705,6 +705,8 @@ Phase is a property of the component (its binding), not a schedule. Recorded as 
 - **Killer feature:** live skin A↔B swap against one component tree is the only surface that actually *exercises* the N-021/N-025 layered-CSS model (prove skinability + that appearance is fully externalized).
 
 **GPL-overview flag (routed to Joe — not absorbed).** `ui/core/` ≈ `xgen-core` (GPL-2.0-or-later, D-044), so the `core` reference components are **GPL code**. That makes the Built-components registry (`xgen-ui-components.md`) the *licensed-corpus overview catalogue* of record, and the sampler its live visual face (index-driven, so one derives from the other — D-065 no-drift). Possible `DECISIONS.md` touch tying the `ui/core/` = GPL boundary to a catalogue-completeness duty (the lens that owns D-044). Flagged for Joe to route; not silently recorded as settled.
+
+**→ Resolved (Joe, 2026-06-22) — no decision needed.** No GPL question arises during development: created code is locked under the single development license (BSL 1.1, per every file header), and GPL-2.0-or-later becomes effective on project handover per the fundamental records (the BSL→GPL conversion). The `ui/core/` = GPL boundary is therefore a *future-state* property, not a present catalogue-duty trigger — no `DECISIONS.md` touch. The registry-as-catalogue / sampler-as-visual-face framing (D-065 no-drift) stands on its own, independent of licensing.
 
 **Addendum (same session) — Chat self-drove the CDP loop; one automation race found.** After the records above were written, Chat ran the *entire* verification procedure itself via Windows-MCP PowerShell (no Joe relay): launch each app detached (`Start-Process … run-{client,node}.ps1 -Debug -WindowStyle Minimized`) → poll the CDP port via a `TcpClient` loop → `cdp-debug.ps1 -App {client,node} -Mode state` → read the registry → clean up (`Stop-Process xgen-client/xgen-node` + the Vite port owners + the spawned consoles; ports 9222/9322/5173/5174 all confirmed closed afterward, no orphans). **Both dumps reproduced identically** to Joe's hand-runs (`button#quit` / `button#shutdown` → `{clicks:0,disabled:false}` + `toggle#demo`) — independent corroboration of the M-RP2.4 proof, not a new claim.
 

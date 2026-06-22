@@ -8,6 +8,20 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-406 — Closed the two N-028-routed items: D-095 dev-tooling-exemption footnote landed + GPL-overview question resolved (no decision); M-RP2.5 locked = `textfield`
+
+**What happened.** Records-only follow-up to J-405. Joe locked the two items N-028 had routed to him, plus the next UI/RP move. No code, no protocol/data change; test baseline unchanged (~1466/0, not re-run — Rule 5).
+
+**(1) D-095 footnote — landed.** Added a one-line **Dev-tooling exemption** to `DECISIONS.md` D-095: dev-only tool dirs under `ui/` (e.g. `ui/sampler/`, the component-exhibition app) are **not** part of the 1:1 crate-mirror — they sit alongside the mirrored tiers with no crate counterpart; the mirror governs the shipped substrate / library / shell tiers, not dev scaffolding. Keeps the tier map clean when the sampler dir lands.
+
+**(2) GPL-overview question — resolved, no decision needed (Joe).** No GPL question arises during development: created code is locked under the single development license (BSL 1.1, per every file header), and GPL-2.0-or-later becomes effective on project handover per the fundamental records (the BSL→GPL conversion). The `ui/core/` = GPL boundary is a *future-state* property, not a present catalogue-duty trigger → no `DECISIONS.md` touch. The N-028 flag is marked **→ Resolved** in place (notes are append-only); the registry-as-catalogue / sampler-as-visual-face framing stands on its own (D-065). The CLAUDE PLAY "Owed to Joe" line flipped to CLOSED.
+
+**(3) Next move locked — M-RP2.5 = `textfield`.** Joe took the recommended path (b): continue data-independent component authoring rather than stand up the sampler now. Next component = `textfield` (di · A, string-value `bind:value`) — the third binding shape after the toggle's boolean-in and the button's event-out, and the highest-reuse composite constituent (combobox / tag-select / password-field all compose it). Sampler Phase-A deferred behind catalogue growth + the first skin file. **Authoring not yet started — discuss-first; design vision surfaced, awaiting Joe's "go".**
+
+**Canonical (D-074).** `DECISIONS.md` (D-095 dev-tooling-exemption footnote + Last updated 2026-06-22); `ui/docs/xgen-ui-notes.md` (N-028 GPL flag → Resolved, v0.18→0.19); `CLAUDE.md` (PLAY: Owed→CLOSED, Next-active→`textfield` lock, entry pointer J-405→J-406); this JOURNAL J-406. Not pushed — Joe pushes.
+
+---
+
 ## Entry J-405 — M-RP2.4 CLOSED: second `core` component (`button`) built + live CDP-verified in BOTH apps; throwaway `Button.svelte` retired; CLAUDE PLAY caught up to UI/RP frontier (D-094); sampler design recorded (N-028)
 
 **What happened.** Closed the button pipeline-tuning pass — authored the second real `core` component, swapped both shells onto it via `$core`, retired the pre-N-020 throwaway `Button.svelte`, and drove the full `tauri dev` + CDP loop in **both** apps. Also caught `CLAUDE.md`'s PLAY head up to the UI/RP frontier (it had drifted a full arc behind) and recorded the session's sampler design.

@@ -1,7 +1,7 @@
 # XGen UI — Designer's Overview
 
-> **Status:** ACTIVE  
-> **Last updated:** 2026-05-16  
+> **Status:** DEPRECATED — superseded by the component-library-first UI build (RP track; ROADMAP J-403)  
+> **Last updated:** 2026-06-21  
 > Author: Claude (design-side instance, "imagine" / artifact)  
 > Date: 2026-05-04  
 > Audience: JozefN; the Chat instance reviewing this and preparing concrete UI guidelines.  

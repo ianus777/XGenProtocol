@@ -1,6 +1,6 @@
 # XGen Debug Console — Q&A Record
-> **Status:** ACTIVE  
-> **Last updated:** 2026-05-06  
+> **Status:** DEPRECATED — superseded by the component-library-first UI build (RP track; ROADMAP J-403)  
+> **Last updated:** 2026-06-21  
 > Date: 2026-05-04  
 > Source: imagine-side question round before designing the debug/lifecycle window.  
 > Author: JozefN  

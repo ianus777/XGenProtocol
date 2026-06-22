@@ -1,9 +1,9 @@
 # XGen UI — Chat Instance Briefing for Design Claude
 
-> **Status**: ACTIVE  
+> **Status**: DEPRECATED — superseded by the component-library-first UI build (RP track; ROADMAP J-403)  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-07  
+> **Last updated**: 2026-06-21  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

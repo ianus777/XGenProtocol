@@ -8,6 +8,21 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-404 — ROADMAP reconciliation (drift sweep, 3 altitudes) + 4 May-era UI-mockup docs DEPRECATED
+
+**What happened.** Reconciled `docs/ROADMAP.md` against actual state before opening UI-component work — it had drifted since 2026-06-18 (≈J-398-era; everything J-399→J-403 was unrepresented), at three altitudes:
+- **Road tree:** added `✅ Appendix F/I audit` (J-397/J-398) + `✅ AI-F17` (J-401) nodes (the tree jumped doc-opt→UI, missing both — a tree/prose drift the doc itself calls a discipline failure); restructured the UI subtree — `⬛ mockup stock-take` + `🟢 UI component-library/substrate (RP)` + `🟡 clean-table UI`.
+- **"How to use this view":** the "playing now"/"live frontier" narrative bullets were frozen at ~J-256/J-258 (pre-dating M8.5→M12, multiparty, M10/M11/M12, doc-opt, AFI) and contradicted the J-390 ASCII diagrams beside them. Added a reconciliation note marking the narrative historical; reframed both bullet leads to the real frontier (close-ledger kept as labeled history); fixed diagram markers `M8.7 [NEXT-ACTIVE]→[CLOSED J-302]`, `M9 [pending]→[CLOSED J-307]`, and the post-gate chain tail.
+- **Present/Near/Far:** Present now leads with the RP/UI track ACTIVE (doc-opt → ✅ COMPLETE); Pre-UI chain line rebuilt; Near mockup stock-take `🟢 NEXT-ACTIVE → ⬛ DEPRECATED`; Far/UI RP-groundwork note. Header v3.85→v3.86, Last updated 2026-06-21.
+
+**Mockup stock-take retired (Joe's call).** The planned "reconcile the May-era `ui/docs/` mockups to as-built" step is **superseded** (not performed) by the component-library-first build — recorded ⬛ DEPRECATED throughout ROADMAP. The four still-`ACTIVE` mockup docs flipped to DEPRECATED (replacement named): `xgan-ui-overview.md`, `xgen-ui-chat-briefing.md`, `xgen-ui-run-2_BRIEFING.md`, `xgan-ui-debug-console-questions.md` (`xgen-ui-design-brainstorm.md` was already DEPRECATED; `xgan-ui-run-1_SUMMARY.md` stays COMPLETED — a frozen session record).
+
+**No code, no protocol/data change.** Doc-hygiene only; test baseline unchanged (~1466/0). Sibling-shape to DO-3 (J-394 ROADMAP refresh).
+
+**Canonical.** `docs/ROADMAP.md` (v3.86) shipped as a prior standalone reconciliation commit (already pushed); this JOURNAL J-404 + the four UI-mockup doc deprecations travel in this commit. Next-active (UI/RP track): first `core` button + retire throwaway `Button.svelte`.
+
+---
+
 ## Entry J-403 — M-RP2.3 CLOSED: substrate proof — first `core` component (`toggle`) built + live CDP registry verified in BOTH apps
 
 **What happened.** Closed the substrate proof. Built the first real `core` component and drove the full `tauri dev` + CDP debug loop end-to-end in **both** UI apps — establishing that the N-023/N-024 base substrate and the D-095 tier wiring work in a real Vite build, not just under `tsc --noEmit`.

@@ -14,6 +14,12 @@
   // `.button` in the one skin file, and overridable per-instance via a pass-through
   // class on the same root (N-025 / N-021 layer 2). Pre-skin it renders as the bare
   // normalize.css/native control.
+  //
+  // M-RP2.6 retrofit (additive, N-030): optional `ariaLabel` (→ aria-label, makes the
+  // icon skin-shape accessible) + a `mode` of 'momentary' (default) / 'toggle'. One
+  // inner `pressed` bool is the single source of truth: momentary leaves it false and
+  // delegates its down-state to CSS :active (M-RP2.7 skin); toggle latches it as a
+  // bind-out ($bindable). `aria-pressed` is reflected from `pressed` in toggle-mode only.
   import { envelope } from '$common/components/base/envelope';
 
   let {
@@ -21,11 +27,17 @@
     onclick,
     disabled = false,
     id,
+    ariaLabel,
+    mode = 'momentary',
+    pressed = $bindable(false),
   }: {
     label?: string;
     onclick?: () => void;
     disabled?: boolean;
     id?: string;
+    ariaLabel?: string;
+    mode?: 'momentary' | 'toggle';
+    pressed?: boolean;
   } = $props();
 
   // Honest internal state: how many times this button has fired. Event-out has no
@@ -34,16 +46,19 @@
 
   function handleClick() {
     clicks += 1;
+    if (mode === 'toggle') pressed = !pressed;
     onclick?.();
   }
 
   // N-024 opt-in is one greppable line. $state.snapshot de-proxies so CDP's
   // returnByValue receives plain JSON rather than a reactive proxy.
-  const debug = () => $state.snapshot({ clicks, disabled });
+  const debug = () => $state.snapshot({ clicks, disabled, pressed });
 </script>
 
 <button
   {disabled}
+  aria-label={ariaLabel || undefined}
+  aria-pressed={mode === 'toggle' ? pressed : undefined}
   onclick={handleClick}
   use:envelope={{ name: 'button', id, debug }}
 >{label}</button>

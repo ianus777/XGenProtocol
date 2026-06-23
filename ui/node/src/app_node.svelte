@@ -19,6 +19,11 @@
   // {value} delta — the bind-in live-read proof. Not a real node affordance.
   let demoText = $state('');
 
+  // M-RP2.6 (node side): throwaway demo of the button toggle-mode retrofit. Click it,
+  // re-dump via `cdp-debug.ps1 -App node` (port 9322), observe the {pressed} latch
+  // delta — the event-driven self-redump the terminal Shut Down button could not give.
+  let demoPressed = $state(false);
+
   onMount(async () => {
     try {
       const { listen } = await import('@tauri-apps/api/event');
@@ -80,9 +85,11 @@
     <span class="state-label">{currentState.label}</span>
   </div>
 
-  <Toggle bind:checked={demoChecked} id="demo" />
+  <Toggle bind:checked={demoChecked} id="demo" shape="switch" />
 
   <Textfield bind:value={demoText} id="demo" />
+
+  <Button mode="toggle" bind:pressed={demoPressed} label="toggle" id="demo-toggle" />
 
   <Button label="Shut Down" onclick={handleShutDown} id="shutdown" />
 </main>

@@ -19,6 +19,11 @@
   // the terminal button could not give. Not a real client affordance.
   let demoText = $state('');
 
+  // M-RP2.6: throwaway demo of the button toggle-mode retrofit. Click it, re-dump via
+  // cdp-debug.ps1, observe the {pressed} latch delta — the event-driven self-redump the
+  // terminal Quit button could not give. Not a real client affordance.
+  let demoPressed = $state(false);
+
   onMount(async () => {
     try {
       const { listen } = await import('@tauri-apps/api/event');
@@ -84,9 +89,11 @@
     <span class="state-label">{currentState.label}</span>
   </div>
 
-  <Toggle bind:checked={demoChecked} id="demo" />
+  <Toggle bind:checked={demoChecked} id="demo" shape="switch" />
 
   <Textfield bind:value={demoText} id="demo" />
+
+  <Button mode="toggle" bind:pressed={demoPressed} label="toggle" id="demo-toggle" />
 
   <Button label="Quit" onclick={handleQuit} id="quit" />
 </main>

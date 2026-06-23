@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-408 — Design-capture (N-030) + reprioritization: shape families on the built components; `button` retrofit + first skin file now lead the queue
+
+**What happened.** Records-only. A design conversation after J-407 (ahead of `select`) settled several component-model questions and surfaced that two **shipped** components gain additive surface. No code, no protocol/data change; test baseline unchanged (~1466/0, not re-run — Rule 5). Captured as N-030; registry + PLAY updated to match. All conclusions driven by the root-tag lens (N-020) + shape-is-skin (N-019/N-025).
+
+**Conclusions recorded (N-030):**
+- **Boolean family splits by root tag.** `<input type=checkbox>` → `toggle` (shapes: checkbox / switch = skin). `<button>` → `button` toggle-mode. A button-style boolean toggle is **not** a shape of `toggle` (different tag) — it lives on `button`. UX-identical; the cut is form-semantics (form value → checkbox; in-app pressed action → button toggle-mode).
+- **`button` retrofit (additive, on a shipped component):** optional `ariaLabel` (→ `aria-label`; makes the **icon shape** — a skin variant, not a new component — accessible) + `pressed`/toggle-mode (one inner "is-down" bool; momentary pulses it as today, toggle latches it as bind-out `pressed`; `aria-pressed` only in toggle-mode). Existing Quit / Shut-Down stay momentary, untouched.
+- **`toggle`** gains no structural change — its checkbox / switch shapes are named for the catalogue, land as skin with the first skin file.
+- **Read/drive model:** one inner bool = single source of truth; `bind:` (app) / `__XGEN_DEBUG__` (tooling) / `aria-*` (assistive tech) / skin (eye) are all projections, never copies. ARIA is reflected from the bool, never hand-managed.
+- **`label` & `image` are display-kind di components** (correcting an earlier miscategorisation): they carry a value (`text` / `src`) + universal props but are read-only (no event-out). Data-independent → di family, not a separate "no-value" bucket. `image` = Phase-A primitive; a local-path / blob source pulls a usage to Phase B (Tauri).
+- **Combobox = `textfield` + `datalist` composite** (di·A), not `textfield` + `select`. `select` = pick-only atomic; list-box = a `select` shape; rich list-view = a later `<div>` data-derived composite.
+
+**Reprioritization (Joe's reframe — "address changes to done components before opening the next one").** Next-active reordered: the **`button` retrofit + first skin file** now lead, ahead of `select`. Rationale — the retrofit's shapes (icon / switch / pressed) only render once a skin file exists, and the first skin file also reconciles the global `input{}`/`button{}` pre-skin wrinkle (N-028/N-029), so the retrofit and the skin pass are naturally one arc. `select`, then `label`/`image`, then the first composites follow. Still Joe's call to lock the actual arc.
+
+**Canonical (D-074).** `ui/docs/xgen-ui-notes.md` (N-030, v0.20→0.21); `ui/docs/xgen-ui-components.md` (N-030 pointers on the toggle/button rows + shape-family prose, v0.7→0.8); `CLAUDE.md` (PLAY Next-active reframed → button retrofit + first skin file; entry pointer J-407→J-408); this JOURNAL J-408. No ROADMAP change — the frontier milestone is unchanged (M-RP2.5 ✅); the reorder is within the open RP queue. Not pushed — Joe pushes.
+
+---
+
 ## Entry J-407 — M-RP2.5 CLOSED: third `core` component (`textfield`) built + live CDP-verified in BOTH apps — string bind-in path, three binding shapes complete
 
 **What happened.** Authored the third real `core` component, `textfield` (the Joe-locked M-RP2.5 next move), wired a throwaway demo into both shells, and Chat self-drove the full `tauri dev` + CDP loop in both apps. `textfield` is the **string bind-in** path (`bind:value`), completing the three envelope binding shapes the substrate now demonstrably generalizes across: toggle (boolean bind-in), button (event-out), textfield (string bind-in).

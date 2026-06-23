@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.20  
+> Version: 0.21  
 > Date: May 2026  
 > **Last updated**: 2026-06-22  
 > Language: English  
@@ -734,6 +734,42 @@ M-RP2.5 closed (J-407). The third `core` component, `textfield` — the **string
 **Expected pre-skin wrinkle (note).** Like the button, the shells likely carry global `input {}` rules, so pre-skin the field is not the bare normalize baseline — reconcile at the first skin pass (N-025).
 
 *UI-implementation record. No protocol/data implication. `textfield` joins the di·A built set; the `use:processor` action + the `textfield-group` composite are queued follow-ons.*
+
+### N-030 — Shape families on the built components (`button` toggle-mode + icon shape; `toggle` checkbox/switch); `label` & `image` as display-di; combobox decomposition
+
+Design conversation following J-407, ahead of `select`. No code yet — records the decisions so they are not re-litigated, and flags that two **already-built** components (`button`, `toggle`) gain additive surface (a retrofit, not new components). Driven throughout by the root-tag lens (N-020) and shape-is-skin (N-019/N-025).
+
+**1. The boolean family splits by root tag, not by look.** One boolean ("is-down/checked") can be materialized several ways; the **root tag** decides which *component* owns each:
+- `<input type="checkbox">` → **`toggle`**. Shapes: classic **checkbox**, **switch** (sliding pill), and a checkbox *styled* as a pressable box — all the same `toggle` component, differing only by **skin** (N-019/N-025); the switch additionally carries `role="switch"` so the accessibility tree says "switch" when the skin does.
+- `<button>` → **`button` in toggle-mode** (§2). A true button-style toggle (`<button aria-pressed>`) is **not** a shape of `toggle` — different root tag → it belongs to `button`. Tag lens: same tag + same semantic = same component; different tag = different component.
+
+So "the third boolean form" (button-toggle) lives with `button`, not `toggle`. UX-identical to a styled checkbox; the choice between them is *form semantics* — submits a value in a form → checkbox (`toggle`); in-app pressed action → `button` toggle-mode.
+
+**2. `button` retrofit (additive, on a shipped component).** When next touched, `button` (M-RP2.4) gains:
+- **`ariaLabel`** (optional) → `aria-label` when set. Required-in-practice for the **icon shape** (an icon-only button has no text name; without a label it is an unnamed control). Icon-button is therefore a **skin shape of `button`**, not a new component — same `<button>` root, same action-trigger semantic.
+- **`pressed` / toggle-mode** — one inner boolean ("is down") whose *lifetime* a mode flag governs: **momentary** (default) = true only while pressed, click emits `onclick` (today's behaviour, unchanged); **toggle** = click *latches* the bool (stays until the next click), exposed bind-out as `pressed`. `aria-pressed` is reflected **only in toggle-mode** (it would be a lie on a momentary button). So `button` spans both binding shapes by mode: event-out (momentary) and boolean bind-out (toggle).
+- The pressed/down *look* is **skin**, keyed on `[aria-pressed="true"]`; the component exposes state, the skin draws it.
+- All three (`ariaLabel`, `pressed`, shape variants) are **additive** — the existing Quit / Shut-Down stay momentary and untouched.
+
+**3. `toggle` retrofit (catalogue only).** No structural change; its shape family (checkbox / switch) is named for the registry and lands as skin variants with the first skin file.
+
+**4. One source, many projections (the read/drive model).** A control's inner boolean is the single source of truth; everything else is a *projection*, never a second copy: the `bind:` prop → the production program reads/writes; `__XGEN_DEBUG__` (N-024) → tooling/harness reads; `aria-*` → assistive tech reads; the skin → the eye reads. ARIA is **output to the accessibility layer**, not the value the app consumes and not a state to maintain independently — reflect it from the bool, never hand-manage it (drift is exactly what ARIA exists to prevent). This is why every component is machine-readable/drivable by design (binding for the app, registry for tooling) — the reason the envelope/debug substrate (N-023/N-024) was built first.
+
+**5. `label` and `image` are display-kind di components (correcting an earlier miscategorisation).** "Has a value" and "is interactive" are different axes. Label and image **carry a value** (label: `text`; image: `src`) plus the universal props (size → skin, `disabled`, `id`) — full components, just **read/display** (value in, no user-driven event-out) rather than input. They are **data-independent** (plain string/path, no protocol schema behind them), so they sit in the **di family** alongside toggle/button/textfield — not a separate "no-value"/structural bucket. Both are first-class near-term basics. (Delphi/JavaFX analogues: `TLabel.Caption`, `ImageView` — value property + universal props.)
+- `label` — value `text` + `for` (the `for`/`id` association is the contract it owns); atomic `<label>`. A labelled-field is a *later composite* (label + textfield), after the atomic.
+- `image` — value `src` + `alt`; atomic `<img>`. **Phase A** as a primitive (bundled / URL src); the *source* can pull a usage to **Phase B** — a user-picked local path or a node blob needs Tauri (`convertFileSrc` / asset protocol). Same shape as the file dialog: A primitive, B when the source demands it.
+
+**6. Combobox = composite of `textfield` + `datalist`, not `textfield` + `select`.** Three tiers under "choose from options", separated by root tag:
+- **`select`** — native `<select>`, the collapsed **dropdown / pick-only** combo box (no typing). Atomic, di·A. The locked next basic.
+- **list-box** — expanded `<select size=N>` / `<select multiple>` — a *shape* of `select` (skin), basically free once `select` exists.
+- **`combobox`** (type-or-pick) — native basis is **`<input list>` + `<datalist>`**, *not* `<select>` (you cannot nest a `<select>`'s own popup as an input's suggestion list; `<datalist>` is the element built for that). A **di·A composite** (per the N-022 amendment): keyed to single-select, composed-of textfield + datalist, binding = none. A natural early composite — composes `textfield` (built) + a `datalist`, needs nothing new.
+- **rich list-view / editable combobox** (custom rows, filtering, columns) — a `<div>`/`<ul>` **data-derived composite**, far later. Native `<select>`/`<option>` hold plain text only; structured rows force the `<div>` root.
+
+**Meta-principle reaffirmed.** Native HTML is starting material, not master: follow it where it gives a clean, accessible primitive; depart where it is limiting (rich combobox → `<div>`; file dialog → Tauri). The root-tag discriminator records *when* we departed (native = atomic, `<div>` = composite); A/B/C records *how far* (Svelte/Tauri/Rust). Phase is honest cost, never a UX cap (Joe: look + intuitive function first; if a basic needs B/C, build it there — the named exception to basics-first).
+
+**Build-order consequence.** `select` remains a queued basic (atomic, di·A). The **`button` retrofit** (`ariaLabel` + `pressed`/toggle-mode) is a near-term pass on a shipped component — best paired with the **first skin file**, where icon / switch / pressed shapes actually render. `label` and `image` join the di basics queue (display-kind). `combobox` + `textfield-group` are the first composites. (Joe's reframe: address the changes to done components before opening the next one — so the `button` retrofit + first skin file now lead the queue, ahead of `select`.)
+
+*UI-implementation record. No protocol/data implication. The `button` retrofit is the first reopen of a shipped component — recorded so it is not lost. Registry candidates when each lands: button shape/mode note, toggle shape note, label/image display-di rows, combobox composite row.*
 
 ---
 

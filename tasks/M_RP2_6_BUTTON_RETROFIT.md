@@ -1,6 +1,6 @@
 # XGen UI — M-RP2.6 Runbook: `button` retrofit + `toggle` semantic shape
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-23  
 > Language: English  
@@ -75,15 +75,15 @@ Stand up the CSS source stack (N-031): `xgen-normalize.css` + the first `skin.cs
 
 ## Definition of Done
 
-- [ ] `button.svelte`: `ariaLabel`, `mode`, `pressed` ($bindable) added; `handleClick` toggle-branch; getter = `{clicks,disabled,pressed}`; `aria-label` + `aria-pressed` (toggle-mode-only) on root.
-- [ ] `toggle.svelte`: `shape` added; `role="switch"` + `aria-checked` (switch-shape-only) on root; getter unchanged.
-- [ ] Both shells: existing `toggle#demo` set to `shape="switch"`; one throwaway `button#demo-toggle` (mode toggle, `bind:pressed`) added; real Quit/Shut-Down untouched.
-- [ ] `tsc`/Svelte check clean in both shells.
-- [ ] CDP baseline dump reproduced in BOTH apps (actual output quoted).
-- [ ] Pressed-latch delta proven on `button#demo-toggle` (click → `pressed:true`; actual output quoted).
-- [ ] Switch proof: `toggle#demo` DOM `role="switch"` + `aria-checked` reflects `checked` (actual output quoted).
-- [ ] Momentary regression: Quit/Shut-Down still close windows, no `aria-pressed`.
-- [ ] Ports cleaned (9222/9322/5173/5174), zero orphans.
-- [ ] Canonical close (D-074): JOURNAL J-410, CLAUDE PLAY (M-RP2.6 ✅ → M-RP2.7 next), `xgen-ui-components.md` (button/toggle rows: mode/shape + Ref N-030), ROADMAP RP node; this runbook flipped to COMPLETED.
+- [x] `button.svelte`: `ariaLabel`, `mode`, `pressed` ($bindable) added; `handleClick` toggle-branch; getter = `{clicks,disabled,pressed}`; `aria-label` + `aria-pressed` (toggle-mode-only) on root.
+- [x] `toggle.svelte`: `shape` added; `role="switch"` + `aria-checked` (switch-shape-only) on root; getter unchanged.
+- [x] Both shells: existing `toggle#demo` set to `shape="switch"`; one throwaway `button#demo-toggle` (mode toggle, `bind:pressed`) added; real Quit/Shut-Down untouched.
+- [x] Static gate clean in both shells — no `svelte-check`/`tsc` in this toolchain (plain-JS shells), ran as `vite build` (Svelte compiler over every module): 119 modules each, 0 errors / 0 warnings.
+- [x] CDP baseline dump reproduced in BOTH apps (J-410: all four components incl. `button#demo-toggle` with `pressed`).
+- [x] Pressed-latch delta proven on `button#demo-toggle` (client `clicks 4→5→6` / `pressed false→true→false`; node `2→3→4` same flip — actual output in J-410).
+- [x] Switch proof: `toggle#demo` DOM `role="switch"` persists; `aria-checked` reflects `checked` (false→true, matches registry) — both apps, actual output in J-410.
+- [x] Momentary regression: Quit/Shut-Down carry no `aria-pressed` (DOM-verified both apps: `ariaPressed:null, hasAttr:false`); close-on-click path untouched by the retrofit (proven M-RP2.4/J-405; not re-clicked — terminal).
+- [x] Ports cleaned (9222/9322/5173/5174 = closed), zero `xgen-client`/`xgen-node` orphans.
+- [x] Canonical close (D-074): JOURNAL J-410; CLAUDE PLAY (M-RP2.6 ✅ → M-RP2.7 next); `xgen-ui-components.md` (button getter `{clicks,disabled,pressed}`, shape-family prose → built, v0.10); `docs/ROADMAP.md` RP node (v3.90); this runbook → COMPLETED.
 
 > **Note:** "commit pushed" is intentionally NOT a DoD item — it is unflippable inside the commit that performs it (Joe pushes). `Status: COMPLETED` in the header is the real completion signal.

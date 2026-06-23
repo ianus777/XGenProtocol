@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.9  
+> Version: 0.10  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-23  
 > Language: English  
@@ -20,7 +20,7 @@ The live registry of components actually authored in the tree (N-019). **Tier** 
 |---|---|---|---|---|---|---|---|
 | base (substrate) | `common` | — | foundation | — | `ui/common/lib/components/base/{logic,envelope,debug}.ts` | provides `use:envelope` + `window.__XGEN_DEBUG__` registry | N-023/N-024 |
 | toggle | `core` | A | data-independent · boolean-toggle | `<input type="checkbox">` | `ui/core/lib/components/data-independent/toggle.svelte` | `() => $state.snapshot({ checked })` | N-022/N-024/N-030 |
-| button | `core` | A | data-independent · action-trigger | `<button>` | `ui/core/lib/components/data-independent/button.svelte` | `() => $state.snapshot({ clicks, disabled })` | N-022/N-024/N-028/N-030 |
+| button | `core` | A | data-independent · action-trigger | `<button>` | `ui/core/lib/components/data-independent/button.svelte` | `() => $state.snapshot({ clicks, disabled, pressed })` | N-022/N-024/N-028/N-030 |
 | textfield | `core` | A | data-independent · free-text (single-line) | `<input type="text">` | `ui/core/lib/components/data-independent/textfield.svelte` | `() => $state.snapshot({ value })` | N-022/N-024/N-029 |
 
 First built `core` component, authored at M-RP2.3 as the substrate proof: verified live in **both** apps (client 9222 / node 9322) — `snapshot()` returned real `{checked:false}`, flip → `{checked:true}` confirmed live reactive reads.
@@ -29,7 +29,7 @@ First built `core` component, authored at M-RP2.3 as the substrate proof: verifi
 
 `textfield` (M-RP2.5, J-407) is the third `core` component and the **string bind-in** path (`bind:value`) — completing the three envelope binding shapes (toggle boolean-in, button event-out, textfield string-in). Atomic native `<input type="text">`; `type` is fixed, not a prop (email/url/tel/password/number are separate semantics; search is a shape variant). Native-state surface only: `value`/`placeholder`/`disabled`/`readonly`/`id`/`pattern`/`name`; template matching via native `pattern`→`:invalid` (consumer owns the rule, skin owns the look); processor-**ready** (open to a future `common` `use:` text-processor action shared with `<textarea>`, not built here). Registry-verified live in both apps — baseline `{value:""}`, then a dispatched `input` event drove `textfield#demo` → `{value:"hello"}` (client) / `{value:"world"}` (node), **re-landing the live-reactive-read delta on the bind-in path** that the terminal button could not self-redump (N-028). Verify subtlety (N-029): driving `bind:value` over CDP needs a real dispatched `input` event, not a bare `el.value=` assignment.
 
-**Shape families & a designed retrofit (N-030, design-only — not yet built).** `toggle` admits **checkbox / switch** shapes (skin, same component); `button` gains additive **`ariaLabel`** + a **`pressed` / toggle-mode** (icon-button = a button *skin shape*; the button-style boolean toggle = button toggle-mode — neither is a new component), both pending the first skin file. Queued-but-unbuilt: `label` / `image` (display-kind di — value-carrying, read-only), and `combobox` (a di composite of `textfield` + `datalist`, *not* `textfield` + `select`).
+**Shape families & the M-RP2.6 retrofit (N-030 design; semantics built M-RP2.6 / J-410, visuals = M-RP2.7 skin).** `toggle` admits **checkbox / switch** shapes (skin, same component) — switch-shape now reflects `role="switch"` + `aria-checked` (built); `button` gained additive **`ariaLabel`** (→ `aria-label`) + **`mode`** (`momentary` default / `toggle`) with bind-out **`pressed`** and toggle-mode-only `aria-pressed`, getter now `{clicks,disabled,pressed}` (icon-button = a button *skin shape*; the button-style boolean toggle = button toggle-mode — neither is a new component). The *semantics* shipped M-RP2.6 (CDP-verified both apps: pressed-latch self-redump; `role="switch"` persists, `aria-checked` reflects `checked`; momentary Quit/Shut-Down carry no `aria-pressed`); the *visual* shapes (icon, switch pill, pressed bevel `[aria-pressed]`) render with the first skin file (M-RP2.7). Queued-but-unbuilt: `label` / `image` (display-kind di — value-carrying, read-only), and `combobox` (a di composite of `textfield` + `datalist`, *not* `textfield` + `select`).
 
 **CSS source stack (N-031, locked 2026-06-23).** Components draw from a 4-source ordered cascade: **L0** `modern-normalize.css` (pristine upstream cleaner, per-tag) → **L0** `xgen-normalize.css` (our adapted element-generic floor, per-tag, deviations in-file) → **L1** scoped `<style>` in each `.svelte` (construction/structural, per-component, as-needed, appearance-neutral — frequently empty) → **L2** one `skin.css` (all appearance, keyed by type-class, the single removable layer + live-swap target). Litmus: remove a rule — breaks function → baseline (L0/L1); only goes plain → skin. The first skin pass (M-RP2.7) founds the L2 token+treatment vocabulary; thereafter new components mostly *assemble* skin from defined vocabulary (N-019 reuse applied to styling).
 

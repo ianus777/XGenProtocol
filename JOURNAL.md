@@ -8,6 +8,45 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-410 — M-RP2.6 CLOSED: `button` retrofit (`ariaLabel` + `pressed`/toggle-mode) + `toggle` `shape` (switch `role`) — additive, skin-free, CDP-verified in BOTH apps
+
+**What happened.** Clair implemented the M-RP2.6 runbook (`tasks/M_RP2_6_BUTTON_RETROFIT.md`); Chat self-drove the full `tauri dev` + CDP verification in both apps. Purely **additive** retrofit of two shipped `core` components — the first reopen of shipped components (N-030) — and **skin-free** (all shapes/looks remain M-RP2.7). No `$common` change, no protocol/data change; Rust test baseline unchanged (~1466/0, not re-run — Rule 5). Code landed in `c1e2f44`; this is the records-only close.
+
+**Built (Clair, additive).** `button.svelte`: +`ariaLabel` (→ `aria-label`), +`mode` (`'momentary'` default / `'toggle'`), +`pressed` (`$bindable(false)`); `handleClick` flips `pressed` in toggle-mode then fires `onclick`; getter → `$state.snapshot({ clicks, disabled, pressed })`; root gains `aria-label={ariaLabel||undefined}` + `aria-pressed={mode==='toggle' ? pressed : undefined}`. `toggle.svelte`: +`shape` (`'checkbox'` default / `'switch'`); root gains `role={shape==='switch'?'switch':undefined}` + `aria-checked={shape==='switch'?checked:undefined}`; getter unchanged (`{checked}` — shape is a static prop). Both shells: existing `toggle#demo` set `shape="switch"`; one throwaway `button#demo-toggle` (`mode="toggle"`, `bind:pressed`) added; real Quit/Shut-Down untouched. Static gate: no `svelte-check`/`tsc` in this toolchain (shells are plain JS) — Clair ran `vite build` (the Svelte compiler over every module) clean in both shells, 119 modules each, 0 errors/0 warnings.
+
+**Live verification (real Vite + `tauri dev` + CDP; Chat self-drove per the N-028 working mode).** Launched both detached (`run-{client,node}.ps1 -Debug`), polled ports (client 9222 / node 9322), dumped registry, drove real events, cleaned up. Baseline registry held all four components incl. the new `button#demo-toggle` carrying `pressed`.
+
+*Pressed-latch (headline — the event-driven self-redump the terminal Quit/Shut-Down could not do, N-028 finding 1):* one `b.click()` then another, registry re-read each time —
+```
+client: {"clicks":4,"disabled":false,"pressed":false} || {"clicks":5,"disabled":false,"pressed":true} || {"clicks":6,"disabled":false,"pressed":false}
+node:   {"clicks":2,"disabled":false,"pressed":false} || {"clicks":3,"disabled":false,"pressed":true} || {"clicks":4,"disabled":false,"pressed":false}
+```
+Each click: `clicks` +1 AND `pressed` latches true→false on alternate clicks — self-redumped live on the same instance. (Honest note, Rule 1: the non-zero baselines — client 4, node 2 — are stray clicks on the live window during the ~150 s first-build/poll wait; the per-click **delta** is the proof, and it is clean.)
+
+*Switch role/aria (`toggle#demo`):*
+```
+client/node BEFORE: {"role":"switch","ariaChecked":"false","checked":false}
+client/node AFTER : {"role":"switch","ariaChecked":"true","checked":true,"reg":{"checked":true}}
+```
+`role="switch"` persists across the state change; `aria-checked` correctly **reflects** the `checked` bool (false→true), matching the registry — N-030 §4 one-source/many-projections.
+
+*Momentary regression (DOM read — not clicked, since Quit/Shut-Down are terminal):*
+```
+client: {"id":"button#quit","ariaPressed":null,"hasAttr":false}
+node:   {"id":"button#shutdown","ariaPressed":null,"hasAttr":false}
+```
+Momentary buttons carry **no** `aria-pressed` — correct (it would be a lie on a non-latching button).
+
+*Cleanup:* ports 9222/9322/5173/5174 all closed afterward; 0 `xgen-client`/`xgen-node` orphans.
+
+**Working-tree note (Rule 3).** A benign `xgen-node/Cargo.toml` modification surfaced post-build — `git diff` shows **no content delta**, only an `LF→CRLF` normalization warning (a line-ending churn artifact of `tauri dev`/cargo touching the file). Not staged, not part of this close; Joe can `git checkout` it or ignore.
+
+**Canonical (D-074), records-only.** `CLAUDE.md` (PLAY head → M-RP2.6 ✅ CLOSED, Next-active → M-RP2.7 first skin pass, entry pointer J-409→J-410); `ui/docs/xgen-ui-components.md` (button getter → `{clicks,disabled,pressed}` + mode note, toggle shape/role note, shape-family prose → built; v0.9→0.10); `docs/ROADMAP.md` (RP node Shipped + M-RP2.6 ✅, Next → M-RP2.7; v3.89→3.90); `tasks/M_RP2_6_BUTTON_RETROFIT.md` (Status ACTIVE→COMPLETED, DoD checked); this JOURNAL J-410. Frontier advances M-RP2.5→M-RP2.6. Code in `c1e2f44`; records not pushed — Joe pushes.
+
+**Next-active (UI/RP track):** M-RP2.7 — first skin pass (N-031 CSS source stack). Needs a design walk (skin.css home/path, accent gold/blue one-skin-vs-two, normalize wiring) → runbook before code.
+
+---
+
 ## Entry J-409 — Records-only: CSS source stack locked (N-031) + leading arc locked (M-RP2.6 `button` retrofit → M-RP2.7 first skin pass)
 
 **What happened.** Records-only. A design conversation following J-408/N-030 settled the CSS architecture ahead of the first skin pass, and locked the leading UI/RP arc. No code, no protocol/data change; test baseline unchanged (~1466/0, not re-run — Rule 5). Captured as N-031; PLAY + ROADMAP + registry updated to match.

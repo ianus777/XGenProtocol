@@ -1,0 +1,9 @@
+# XGen Protocol — git line-ending policy.
+#
+# core.autocrlf=true otherwise wants CRLF in the working tree, so cargo/tauri
+# rewriting the workspace manifests as LF on every build re-flags them as
+# modified in `git status` (no content change — pure line-ending churn).
+# Pinning Cargo manifests to LF overrides autocrlf for just these files and
+# stops the churn. (J-410 follow-up; manifests are already LF, so no
+# renormalization.) The basename pattern matches Cargo.toml in every crate.
+Cargo.toml text eol=lf

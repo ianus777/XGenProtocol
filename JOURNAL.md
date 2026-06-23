@@ -1,10 +1,24 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-22  
+> **Last updated:** 2026-06-23  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-409 — Records-only: CSS source stack locked (N-031) + leading arc locked (M-RP2.6 `button` retrofit → M-RP2.7 first skin pass)
+
+**What happened.** Records-only. A design conversation following J-408/N-030 settled the CSS architecture ahead of the first skin pass, and locked the leading UI/RP arc. No code, no protocol/data change; test baseline unchanged (~1466/0, not re-run — Rule 5). Captured as N-031; PLAY + ROADMAP + registry updated to match.
+
+**CSS source stack locked (N-031).** Four-source ordered cascade — three global files + one per-component channel: **L0 `modern-normalize.css`** (pristine upstream cleaner, per-tag, never edited, version-bumpable) → **L0 `xgen-normalize.css`** (our adapted element-generic floor, per-tag, deviations recorded in-file) → **L1 scoped `<style>` in each `.svelte`** (construction/structural, per-component, as-needed, appearance-neutral, frequently empty) → **L2 one `skin.css`** (all appearance, keyed by type-class, the single removable layer + live-swap target). This **refines N-021** (its single "normalize.css" becomes the two-file split — pristine import + adapted deltas; "trim" becomes "override," never deletion) and **operationalises N-025** (structural-vs-skin restated as the remove-the-rule litmus + the baseline generic→L0 / specific→L1 second cut). Saturation (Joe): L0 saturates by tag-count (~15 native tags), L1 barely grows (mostly empty; reuse not re-rule), L2 saturates by **vocabulary** (tokens + shared treatments defined once, then assembled) — N-019 write-once applied to styling. Consequence: the first skin pass is a **vocabulary-founding** pass and reconciles the N-028/N-029 global `input{}`/`button{}` wrinkle (generic reset → xgen-normalize; `:root` tokens + appearance → skin.css; `app.css` gutted to shell chrome).
+
+**Leading arc locked.** Per Joe's J-408 reframe (shipped components before the next basic), the arc is **M-RP2.6 `button` retrofit** (additive `ariaLabel`→`aria-label`; `pressed`/toggle-mode — one inner bool, momentary default / toggle latches bind-out `pressed`, `aria-pressed` toggle-mode-only; debug getter → `{clicks,disabled,pressed}`; `toggle` gains a conditional `role="switch"`; Quit/Shut-Down stay momentary) **→ M-RP2.7 first skin pass** (stand up the N-031 stack, reconcile the wrinkle, render the icon/switch/pressed shapes, found the L2 vocabulary). Then `select` (di·A) → `label`/`image` (display-di) → first composites (`combobox` = `textfield` + `datalist`; `textfield-group`). Sequenced retrofit→skin: the skin keys on attributes the retrofit introduces, and the retrofit is independently CDP-verifiable (a toggle-mode button self-redumps its `pressed` delta — the event-driven self-redump the terminal buttons could not, N-028 finding 1).
+
+**Open for the M-RP2.6/2.7 design walk / runbook:** `toggle` `role="switch"` needs a component signal (a `shape`/`variant` prop — role is semantic, not skin-drivable); `skin.css` home/path (candidate `ui/assets/`, per the `skin-*.css`+`tokens.css` precedent in `ui/templates/skeleton/` + `ui/backup/run_1.0/`); whether `modern-normalize.css` is wired today (the shells' `app.css` hand-rolled reset currently does the L0 job); accent gold/blue as one skin + shell-set token vs two skins. No code before a Joe-approved runbook (D-071).
+
+**Canonical (D-074).** `ui/docs/xgen-ui-notes.md` (N-031 + in-place pointers on N-021/N-025, v0.21→0.22); `ui/docs/xgen-ui-components.md` (CSS-source-stack pointer on the shape-family prose, v0.8→0.9); `docs/ROADMAP.md` (RP node Next → locked arc + N-030/N-031 in records, v3.88→3.89); `CLAUDE.md` (PLAY Next-active → arc locked, entry pointer J-408→J-409); this JOURNAL J-409. No ROADMAP frontier change (M-RP2.5 ✅ unchanged; the lock is within the open RP queue). Not pushed — Joe pushes.
 
 ---
 

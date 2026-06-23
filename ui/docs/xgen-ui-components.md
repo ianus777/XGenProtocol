@@ -1,8 +1,8 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.8  
+> Version: 0.9  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-22  
+> **Last updated**: 2026-06-23  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -30,6 +30,8 @@ First built `core` component, authored at M-RP2.3 as the substrate proof: verifi
 `textfield` (M-RP2.5, J-407) is the third `core` component and the **string bind-in** path (`bind:value`) — completing the three envelope binding shapes (toggle boolean-in, button event-out, textfield string-in). Atomic native `<input type="text">`; `type` is fixed, not a prop (email/url/tel/password/number are separate semantics; search is a shape variant). Native-state surface only: `value`/`placeholder`/`disabled`/`readonly`/`id`/`pattern`/`name`; template matching via native `pattern`→`:invalid` (consumer owns the rule, skin owns the look); processor-**ready** (open to a future `common` `use:` text-processor action shared with `<textarea>`, not built here). Registry-verified live in both apps — baseline `{value:""}`, then a dispatched `input` event drove `textfield#demo` → `{value:"hello"}` (client) / `{value:"world"}` (node), **re-landing the live-reactive-read delta on the bind-in path** that the terminal button could not self-redump (N-028). Verify subtlety (N-029): driving `bind:value` over CDP needs a real dispatched `input` event, not a bare `el.value=` assignment.
 
 **Shape families & a designed retrofit (N-030, design-only — not yet built).** `toggle` admits **checkbox / switch** shapes (skin, same component); `button` gains additive **`ariaLabel`** + a **`pressed` / toggle-mode** (icon-button = a button *skin shape*; the button-style boolean toggle = button toggle-mode — neither is a new component), both pending the first skin file. Queued-but-unbuilt: `label` / `image` (display-kind di — value-carrying, read-only), and `combobox` (a di composite of `textfield` + `datalist`, *not* `textfield` + `select`).
+
+**CSS source stack (N-031, locked 2026-06-23).** Components draw from a 4-source ordered cascade: **L0** `modern-normalize.css` (pristine upstream cleaner, per-tag) → **L0** `xgen-normalize.css` (our adapted element-generic floor, per-tag, deviations in-file) → **L1** scoped `<style>` in each `.svelte` (construction/structural, per-component, as-needed, appearance-neutral — frequently empty) → **L2** one `skin.css` (all appearance, keyed by type-class, the single removable layer + live-swap target). Litmus: remove a rule — breaks function → baseline (L0/L1); only goes plain → skin. The first skin pass (M-RP2.7) founds the L2 token+treatment vocabulary; thereafter new components mostly *assemble* skin from defined vocabulary (N-019 reuse applied to styling).
 
 ---
 

@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-22  
+> **Last updated:** 2026-06-23  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -16,9 +16,9 @@
 
 **Owed to Joe — both routed items CLOSED (J-406, 2026-06-22):** (1) the D-095 dev-tooling-exemption footnote landed (`ui/sampler/` and peers are mirror-exempt); (2) the GPL-overview question is resolved — no decision needed: one development license locks created code, GPL converts on handover per the fundamental records, so no `DECISIONS.md` touch.
 
-**Next-active (UI/RP track):** M-RP2.5 ✅. Per Joe's reframe (J-408) — address the **changes to shipped components before opening the next basic** (N-030). Leading: (a) the **`button` retrofit** (additive `ariaLabel` + `pressed`/toggle-mode; icon = a button skin shape, button-toggle = button toggle-mode — neither a new component) paired with the **first skin file** (N-021/N-025 — where icon / switch / pressed shapes first render and the global `input{}`/`button{}` wrinkles reconcile); then (b) `select` (di·A) + the other basics (`label`/`image`, display-di); (c) first composites (`textfield-group` = textfield + icon-skinned button; `combobox` = textfield + datalist); (d) sampler. Joe's call to lock. **Entry (Rule 0): this PLAY → JOURNAL J-408 → `ui/docs/xgen-ui-notes.md` (N-027 substrate proof, N-028 button + sampler, N-029 textfield, N-030 shape families + button retrofit) → `ui/docs/xgen-ui-components.md` (Built-components registry) → `docs/ROADMAP.md` (UI subtree + RP node).** UI sessions additionally read both `ui/docs/` files at open. Not pushed — Joe pushes.
+**Next-active (UI/RP track):** M-RP2.5 ✅. Per Joe's reframe (J-408) — address the **changes to shipped components before opening the next basic** (N-030). Leading: (a) the **`button` retrofit** (additive `ariaLabel` + `pressed`/toggle-mode; icon = a button skin shape, button-toggle = button toggle-mode — neither a new component) paired with the **first skin file** (N-021/N-025 — where icon / switch / pressed shapes first render and the global `input{}`/`button{}` wrinkles reconcile); then (b) `select` (di·A) + the other basics (`label`/`image`, display-di); (c) first composites (`textfield-group` = textfield + icon-skinned button; `combobox` = textfield + datalist); (d) sampler. Locked (J-409): the arc is **M-RP2.6 `button` retrofit → M-RP2.7 first skin pass**, the latter standing up the locked CSS source stack (N-031: pristine `modern-normalize.css` → adapted `xgen-normalize.css` → per-component scoped `<style>` → one `skin.css`; remove-the-rule litmus; L2 token+treatment vocabulary), ahead of `select`. **Entry (Rule 0): this PLAY → JOURNAL J-409 → `ui/docs/xgen-ui-notes.md` (N-027 substrate proof, N-028 button + sampler, N-029 textfield, N-030 shape families + button retrofit, N-031 CSS source stack) → `ui/docs/xgen-ui-components.md` (Built-components registry) → `docs/ROADMAP.md` (UI subtree + RP node).** UI sessions additionally read both `ui/docs/` files at open. Not pushed — Joe pushes.
 
-> (Prior PLAY blocks: the AFI/F17 audit-against-code head J-398/J-400 ← doc-opt J-391…J-396 ← J-390 ← … ← M6 / XGID-retrofit — archived to `CLAUDE_HISTORY.md` per D-094, latest at J-408.)  
+> (Prior PLAY blocks: the AFI/F17 audit-against-code head J-398/J-400 ← doc-opt J-391…J-396 ← J-390 ← … ← M6 / XGID-retrofit — archived to `CLAUDE_HISTORY.md` per D-094, latest at J-409.)  
 
 ---
 

@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.21  
+> Version: 0.22  
 > Date: May 2026  
-> **Last updated**: 2026-06-22  
+> **Last updated**: 2026-06-23  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -469,6 +469,8 @@ layer 2  skin / theme          → XGen visual identity on top
 
 **Adapted, not pristine (expect updates):** a vanilla `normalize.css` predates our situation. We ship into **Tauri webviews** (WebKitGTK / WKWebView / WebView2), not the open browser population — so part of the work is *trimming* defensive rules we don't need and *adding* webview-specific quirks; part is aligning its zero-point with the N-020 envelope + skin needs. Because it becomes a **maintained, modified** baseline, its deviations from upstream must be **recorded where the file lives** (header note or an "XGen deviations from upstream" comment block) — or a future reader assumes it is pristine and a drift trap is born.
 
+**→ Refined by N-031 (2026-06-23):** the single `normalize.css` is realised as a two-file split — pristine `modern-normalize.css` (never edited, version-bumpable) + `xgen-normalize.css` (the adapted deltas, deviations recorded there). "Trim" becomes "override," not deletion.
+
 *UI-implementation rule; no protocol/data implication.*
 
 ---
@@ -533,6 +535,8 @@ CSS splits by purpose, and the purpose decides where it may live. **Three source
 **Supersedes** the earlier "layout lives in the component's own `.css`" wording (N-020/N-021/N-022/N-023): "layout" is not one unit — its load-bearing part is structural (local-ok), its visual part is skin (must externalise).
 
 *UI-implementation rule; no protocol/data implication. Likely graduates to DECISIONS.md with the N-019/N-020/N-021 CSS cluster.*
+
+**→ Operationalised by N-031 (2026-06-23):** the structural-vs-skin test is restated as the remove-the-rule litmus, with the baseline second cut (element-generic → normalize L0 / component-specific → local L1).
 
 ---
 
@@ -770,6 +774,40 @@ So "the third boolean form" (button-toggle) lives with `button`, not `toggle`. U
 **Build-order consequence.** `select` remains a queued basic (atomic, di·A). The **`button` retrofit** (`ariaLabel` + `pressed`/toggle-mode) is a near-term pass on a shipped component — best paired with the **first skin file**, where icon / switch / pressed shapes actually render. `label` and `image` join the di basics queue (display-kind). `combobox` + `textfield-group` are the first composites. (Joe's reframe: address the changes to done components before opening the next one — so the `button` retrofit + first skin file now lead the queue, ahead of `select`.)
 
 *UI-implementation record. No protocol/data implication. The `button` retrofit is the first reopen of a shipped component — recorded so it is not lost. Registry candidates when each lands: button shape/mode note, toggle shape note, label/image display-di rows, combobox composite row.*
+
+## 2026-06-23
+
+### N-031 — CSS source stack locked: two-file normalize + per-component construction + one skin; the remove-the-rule litmus; vocabulary saturation
+
+Design conversation following N-030, settling the CSS architecture before the first skin pass. No code yet — locks the model so M-RP2.7 has a fixed target. **Refines N-021** (its single "normalize.css" becomes a two-file split) and **operationalises N-025** (the structural-vs-skin test). Same layering instinct as N-021/N-025.
+
+**The source stack — three global files + one per-component channel (4 sources, ordered cascade):**
+```
+L0  modern-normalize.css   pristine upstream cleaner          per-tag, global, shared, NEVER edited (stays version-bumpable)
+L0  xgen-normalize.css     our adapted element-generic floor  per-tag, global, shared, deviations recorded in-file
+L1  <style> in each .svelte   construction / structural       per-component, as-needed, Svelte-scoped, appearance-neutral
+L2  skin.css               all appearance                     one file, keyed by type-class, the single removable layer + live-swap target
+```
+The two L0 files together are the "adapted, maintained baseline" N-021 named; the pristine-import + adapted-deltas split is its upstream-bumpable realisation. **"Trim" becomes "override":** xgen-normalize cannot delete an upstream rule, only re-set the property to neutralise it — genuine deletion would mean forking modern-normalize, which we do not do.
+
+**The process — two questions, in order, for any rule a component needs:**
+1. **Remove-the-rule litmus (baseline vs skin).** Delete the rule: does the component break / stop making sense, or just go plain? Breaks → baseline (L0/L1). Only plain → skin (L2). Appearance-as-taste (colour, spacing-as-taste, borders, the look) is always L2.
+2. **If baseline — generic vs specific.** Is it the sane floor for a *bare tag*, true of every use of that element regardless of which XGen component wraps it? → normalize (L0), keyed per-tag, shared. Is it about *this* component's internal structure (its parts' positioning / overlay / flow)? → component-local (L1), keyed to the type-class, scoped in the `.svelte`.
+
+L0 + L1 together = the functional skinless app (works and makes sense with zero skin loaded — the design floor); L2 is the only layer removable while leaving a working app. **Construction CSS is the L1 `<style>` block inside the single-file component (N-019), not a separate per-component file, and is frequently empty** — toggle/button/textfield carry none today; it appears only when a component has internal parts needing positioning.
+
+**Normalize is per-tag, not per-component.** Many components on one tag share one floor: `button` + the icon-button shape + a toggle-mode button are all `<button>` → one `button{}` rule in xgen-normalize serves all three. There is no normalize entry per component.
+
+**Saturation (Joe's observation) — the stack converges to "pick from already-defined," each layer by a different mechanism:**
+- **L0** saturates fastest/hardest — only ~15 native interactive tags (the di catalogue); once each has its floor, L0 is essentially done; new components rarely add a tag.
+- **L1** barely grows — most components have none; a genuinely new internal structure adds a pattern once, and the next component of that shape reuses it (N-019), not a new rule.
+- **L2** saturates by **vocabulary, not files** — early skin work *defines* the primitives (token scale, accent tokens, pressed / focus / disabled treatments); afterwards a new component's skin is mostly assembled from existing skin vocabulary. The file grows in *coverage* (more type-classes addressed); its *vocabulary* (tokens + shared treatments) plateaus. N-019 write-once/reuse applied to styling.
+
+**Consequence — the first skin pass (M-RP2.7) is a vocabulary-founding pass, not a quick three-component skin.** Getting the L2 primitives right early makes later components cheap. The duplicated `:root` token block currently in both shells' `app.css` promotes into the skin layer as the named vocabulary; the generic reset bits (`*{box-sizing}`, `button{appearance:none}`, `img`, `p`) consolidate into `xgen-normalize.css` (the adapted baseline, deduped from both shells); appearance (`button{background…}`, `.primary-*`) moves to `skin.css`; `app.css` is gutted to shell chrome only. That closes the N-028/N-029 global `input{}`/`button{}` wrinkle in one pass.
+
+**Open (for the M-RP2.7 design walk / runbook):** `skin.css` home/path (candidate `ui/assets/`, following the `skin-*.css` + `tokens.css` precedent in `ui/templates/skeleton/` and `ui/backup/run_1.0/`); whether `modern-normalize.css` is wired at all today (the shells' hand-rolled `app.css` reset currently does the L0 job); accent gold/blue as one skin + shell-set token vs two skins (ties to N-030 §2).
+
+*UI-implementation record. No protocol/data implication. Refines N-021 (two-file normalize split) and operationalises N-025 (the litmus). Candidate to graduate to DECISIONS.md with the N-019/N-020/N-021/N-025 CSS cluster.*
 
 ---
 

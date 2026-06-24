@@ -8,6 +8,25 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-411 — Records-only (conceptual): display-di identities locked — `label` / `paragraph` / `image` + the edit-vs-render processor axis (N-032)
+
+**What happened.** Records-only design-capture, conceptual — **none built**, no code, no protocol/data change, arc order unchanged (M-RP2.7 still next). A design conversation settled the **display half** of the di model and some naming. Captured as N-032.
+
+**Display-di trio (identity by root tag, N-030).** The three built components are *interactive* (input/event, live getter state); these three are **display-kind di** — value-carrying but **read-only**:
+- **`label`** — root `<label>` — short caption naming another control. Over `<span>` (inline, semantically empty) and `<p>` (a different component). Association (`for`/nesting) is a **composite** concern, not the atom — lean implicit nesting at `textfield-group`; standalone-without-control is a tolerated inert edge case; block-level = skin, not tag.
+- **`paragraph`** — root `<p>` — a **single** paragraph of prose (not multi-paragraph). Named over `text` (too generic) / `textblock` ("block" oversells it). Scalar string value; renders through an **inline-mark formatter seam reserved but pass-through today** (WordStar/markdown-lineage `_x_`/`*x*`; delimiter map + escape char TBD; inline whitelist only → trivial sanitisation; links the one risky add).
+- **`image`** — root `<img>` — value = `src`, with **required `alt`**. `<img>` for content images; decorative imagery = CSS `background-image` (skin, not a component).
+
+**Two text processors on the EDIT-vs-RENDER axis** (not "dynamic/static"): edit-side (live, bound, `textarea`/`textfield` — the earmarked `use:processor`) vs render-side (read-only, `paragraph`). Both reusable `common` actions, thin seams now.
+
+**Parked (explicitly not these):** multi-paragraph `textblock`/`richtext` (root `<div>` + sanitiser); the edit-side `textarea` processor. Naming `paragraph` frees `textblock` for the parked richtext.
+
+**Earlier in-thread (no record needed):** reaffirmed the 0/1 switch = `toggle` switch-shape (root `<input type=checkbox>`, not its own component); a multi-position selector = a **`select`** segmented-shape (root `<select>`), not `combobox` (which is `textfield` + `datalist`, free-text-with-suggestions).
+
+**Canonical (D-074), records-only.** `ui/docs/xgen-ui-notes.md` (N-032, v0.22→0.23); `ui/docs/xgen-ui-components.md` (queued display-di prose named with roots, v0.10→0.11); `docs/ROADMAP.md` (RP node display-di mention); CLAUDE PLAY entry pointer J-410→J-411; this JOURNAL J-411. No frontier/arc change. Not pushed — Joe pushes.
+
+---
+
 ## Entry J-410 — M-RP2.6 CLOSED: `button` retrofit (`ariaLabel` + `pressed`/toggle-mode) + `toggle` `shape` (switch `role`) — additive, skin-free, CDP-verified in BOTH apps
 
 **What happened.** Clair implemented the M-RP2.6 runbook (`tasks/M_RP2_6_BUTTON_RETROFIT.md`); Chat self-drove the full `tauri dev` + CDP verification in both apps. Purely **additive** retrofit of two shipped `core` components — the first reopen of shipped components (N-030) — and **skin-free** (all shapes/looks remain M-RP2.7). No `$common` change, no protocol/data change; Rust test baseline unchanged (~1466/0, not re-run — Rule 5). Code landed in `c1e2f44`; this is the records-only close.

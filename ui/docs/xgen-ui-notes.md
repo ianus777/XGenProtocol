@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.22  
+> Version: 0.23  
 > Date: May 2026  
 > **Last updated**: 2026-06-23  
 > Language: English  
@@ -808,6 +808,27 @@ L0 + L1 together = the functional skinless app (works and makes sense with zero 
 **Open (for the M-RP2.7 design walk / runbook):** `skin.css` home/path (candidate `ui/assets/`, following the `skin-*.css` + `tokens.css` precedent in `ui/templates/skeleton/` and `ui/backup/run_1.0/`); whether `modern-normalize.css` is wired at all today (the shells' hand-rolled `app.css` reset currently does the L0 job); accent gold/blue as one skin + shell-set token vs two skins (ties to N-030 §2).
 
 *UI-implementation record. No protocol/data implication. Refines N-021 (two-file normalize split) and operationalises N-025 (the litmus). Candidate to graduate to DECISIONS.md with the N-019/N-020/N-021/N-025 CSS cluster.*
+
+### N-032 — Display-di component identities locked (conceptual): `label` / `paragraph` / `image`; the edit-vs-render processor axis; parked richtext
+
+Design conversation (conceptual only — none built; all sit behind M-RP2.7 and `select`). Settles the **display half** of the di model: the three built components (`toggle`/`textfield`/`button`) are all *interactive* (input/event, live getter state); these three are **display-kind di** — value-carrying but **read-only** (no event-out, no bind-in of user action; getter exposes the value, nothing live). Identity by root tag stands (N-030); all three are atomics (native root tag).
+
+**`label` — root `<label>`.** A short caption that *names another control*. Chosen over `<span>` (inline, semantically empty — "marks nothing standalone") and over `<p>` (that is a different component, below). **Association (`for=`/nesting) is a COMPOSITE concern, not the atom** — the atom is association-agnostic; the pairing is wired by the group (`textfield-group`), leaning **implicit nesting** (`<label><Control/></label>`, no id generation) over explicit `for`/`id`. A standalone `<label>` with no control is valid-but-inert — a tolerated edge case, since `label` almost always sits beside a control. Block-level is a **skin** concern (`display:block` in L2), not a tag concern.
+
+**`paragraph` — root `<p>`.** A **single paragraph** of prose (NOT multi-paragraph / rich document). Named `paragraph` (1:1 with the tag) over `text` (too generic, reads as a primitive) and `textblock` ("block" oversells single-paragraph). Scalar string value. **Inline-mark formatter SEAM reserved, not built:** the component renders through a transform hook that is the identity/pass-through today; a future limited inline formatter (WordStar/markdown-lineage delimiters — `_x_`, `*x*`, `/x/`) drops into that one hook. Reserve now, decide later: **the delimiter→mark map and an escape char** (literal `_`/`*` in text, e.g. `my_file_name`). Whitelist is **inline only** (`<strong>`/`<em>`/`<br>`-class) — legal inside `<p>`, so no block-tag tension, and sanitization stays trivial. Links (`<a>`) are the one mark that re-introduces risk (href sanitisation) — decide deliberately if added.
+
+**`image` — root `<img>`.** Value = `src` (string — same value-shape as the other string-valued di); `alt` is a **required a11y prop**, not optional (the image equivalent of `label`'s caption). `<img>` is for **content** images (the picture *is* the data); **decorative** imagery is CSS `background-image` = an L2 **skin** concern, not a component. Skin's job on `<img>` is sizing/fit (`object-fit`, dimensions, radius); `src`/`alt` are value/props, not skin.
+
+**Two text processors on the EDIT-vs-RENDER axis** (not "dynamic/static" — that names *when* it runs, not *what side*; edit-vs-render matches the interactive-di / display-di fault line):
+- **edit-side** — a live formatter on a bound, editable value (`textarea`/`textfield`), input-side, re-runs as the user types. (Ties to the earmarked `textfield` `use:processor`.)
+- **render-side** — a read-only transform that renders a fixed value once for display (`paragraph`).
+Both are reusable `common` actions, thin seams now, formatter logic deferred.
+
+**Parked (explicitly NOT these components):** a multi-paragraph **`textblock`/`richtext`** (root `<div>`, multi-block structured content + sanitiser) — a heavier composite-style renderer, only if ever wanted; and the **edit-side processor** for `textarea` (the live counterpart to `paragraph`'s render-side one). Naming `paragraph` for the single-paragraph case deliberately frees `textblock` for this parked richtext.
+
+**Display-di trio (conceptual queue):** `label` (`<label>`, caption) · `paragraph` (`<p>`, single-paragraph prose, formatter seam) · `image` (`<img>`, `src`+`alt`). Opens after M-RP2.7 (first skin pass) and `select` (di·A), per the locked order.
+
+*UI-implementation record. No protocol/data implication. Conceptual only — none built. Candidate entries for the di catalogue; the `paragraph` formatter axis ties to the `select` segmented-shape and `textfield` `use:processor` threads.*
 
 ---
 

@@ -1,69 +1,27 @@
-/* Global Reset */
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-main { display: block; }
-
-p {
-  font-size: inherit;
-  font-weight: inherit;
-  line-height: inherit;
-}
-
-img {
-  max-width: 100%;
-  display: block;
-  background-color: transparent;
-}
-
-button {
-  background: transparent;
-  border: none;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  text-align: inherit;
-  appearance: none;
-  -webkit-appearance: none;
-}
-
-/* Token set */
+/* app.css — shell chrome ONLY (N-031)
+ *
+ * Reset      -> xgen-normalize.css (L0)
+ * Tokens +
+ * appearance -> skin.css (L2)
+ * This file holds only the shell-frame chrome + the per-app accent alias.
+ *
+ * Per-app accent (Q2): CLIENT = gold. skin.css consumes --accent*; this is the
+ * single per-app knob. The semantic palette (--s, --t, --pr, --inf, --ok, --err)
+ * is defined canonically in skin.css and referenced here. */
 
 :root {
-  --s:  #16181c;  --s2: #1c1f24;  --s3: #22262d;  --s4: #2a2f38;  --s5: #343b47;
-  --t4: #585c64;  --t3: #8a8880;  --t2: #c8c4bc;  --t:  #ece9e1;
-
-  --pr-soft: #2a2010;  --pr:  #9a6a30;  --pr2: #c28840;  --pr-ink: #f5efe0;
-  --inf-soft: #0e2030; --inf: #2a6090;  --inf2: #3a7ab0; --inf-ink: #d0e8f8;
-
-  --ok:  #2d7a3a;
-  --err: #8a2a2a;
-
-  --rad: 6px;  --rad2: 10px;
+  --accent:     var(--pr);
+  --accent2:    var(--pr2);
+  --accent-ink: var(--pr-ink);
 }
 
-@font-face {
-  font-family: "XGen UI Sans";
-  src: url("./assets/Inter-Regular.woff2") format("woff2");
-}
-
-html, body {
-  font-family: "XGen UI Sans", sans-serif;
-  background-color: var(--s);
-  height: 100%;
-}
-
+/* Shell frame — centre the pane in the window. */
+html, body { height: 100%; }
 body {
   display: flex;
   align-items: center;
   justify-content: center;
 }
-
-/* Core UI pane */
 
 #core-ui-pane {
   display: flex;
@@ -84,8 +42,8 @@ img#app-logo {
   margin: 4px auto 8px;
 }
 
-/* State indicator */
-
+/* State indicator (shell chrome; uses SEMANTIC tokens via dotColor(), not accent —
+ * a degraded state is amber regardless of brand). */
 .state-indicator {
   display: flex;
   align-items: center;
@@ -111,41 +69,11 @@ img#app-logo {
 
 @keyframes dot-pulse {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.35; }
+  50%      { opacity: 0.35; }
 }
 
 .state-dot.pulse {
   animation: dot-pulse 1.4s ease-in-out infinite;
-}
-
-/* Buttons */
-
-button {
-  display: inline-block;
-  background: var(--s4);
-  border: 1px solid var(--s5);
-  border-radius: var(--rad);
-  padding: 4px 20px;
-  margin: 4px 8px;
-  color: var(--t2);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-button:hover {
-  background: var(--t3);
-  color: var(--s);
-}
-
-button.primary-client-button {
-  background: var(--pr);
-  border-color: var(--pr2);
-  color: var(--pr-ink);
-}
-
-button.primary-client-button:hover {
-  background: var(--pr2);
-  border-color: var(--pr-ink);
 }
 
 .button-pane {

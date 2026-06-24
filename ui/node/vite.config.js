@@ -11,6 +11,7 @@ export default defineConfig({
     alias: {
       $common: fileURLToPath(new URL('../common/lib', import.meta.url)),
       $core: fileURLToPath(new URL('../core/lib', import.meta.url)),
+      $assets: fileURLToPath(new URL('../assets', import.meta.url)),
     },
   },
   clearScreen: false,

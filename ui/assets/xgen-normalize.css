@@ -1,0 +1,55 @@
+/* xgen-normalize.css — L0 adapted element-generic floor (N-031)
+ *
+ * Sits ON TOP of modern-normalize.css (pristine upstream cleaner, never edited).
+ * This file holds XGen's project-owned deviations from / additions to the upstream
+ * baseline. Per N-031: "trim" is "override" (re-set a property to neutralise it),
+ * never deletion — genuine deletion would mean forking modern-normalize, which we
+ * do not do.
+ *
+ * Scope: per-tag, global, shared, appearance-NEUTRAL. Remove-the-rule litmus —
+ * everything here is the sane floor for a BARE tag (breaks/loses sense if removed),
+ * true of every use of that element regardless of which XGen component wraps it.
+ * All taste/appearance lives in skin.css (L2), keyed by type-class.
+ */
+
+/* Deviation from upstream: full box-sizing + zero default margin/padding.
+ * modern-normalize sets box-sizing on *,::before,::after but keeps UA margins;
+ * XGen zeroes margins/padding for a predictable layout floor. */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Floor: <main> as block (legacy-safe; harmless on modern engines). */
+main { display: block; }
+
+/* Floor: paragraph inherits flow typography (size/weight set by skin). */
+p {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+/* Floor: images block-level, fluid-capped, transparent ground. */
+img {
+  max-width: 100%;
+  display: block;
+  background-color: transparent;
+}
+
+/* Floor: flatten native <button> chrome so the skin owns ALL button appearance.
+ * Native-flattening is structural — every XGen button starts from a clean slate
+ * here; the skinned look is keyed by `.button` in skin.css, NEVER on bare <button>
+ * (the N-028/N-029 wrinkle fix lives in that re-keying, not here). A classless
+ * <button> therefore renders flat/native-neutral, which is the correct floor. */
+button {
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+}

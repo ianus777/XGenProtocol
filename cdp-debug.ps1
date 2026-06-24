@@ -7,6 +7,7 @@
 #   .\cdp-debug.ps1 -App client -Launch -Mode eval -Expression "1+1"  # launch, eval, clean up
 #   .\cdp-debug.ps1 -App node   -Launch -Mode console -Seconds 8       # launch node, tail console 8 s
 #   .\cdp-debug.ps1 -App node -Mode state                              # attach to a RUNNING node, dump registry
+#   .\cdp-debug.ps1 -App client -Mode screenshot                       # attach to a RUNNING client, save PNG to temp\
 #   .\cdp-debug.ps1 -App client -Ordinal 1 -Mode eval -Expression "location.href"
 #
 # Port = base + Ordinal; base is 9222 (client) or 9322 (node), so client and node
@@ -17,7 +18,7 @@
 param(
     [ValidateSet('client','node')] [string]$App = 'client',
     [int]$Ordinal = 0,
-    [ValidateSet('console','state','eval')] [string]$Mode = 'state',
+    [ValidateSet('console','state','eval','screenshot')] [string]$Mode = 'state',
     [string]$Expression = '',
     [int]$Seconds = 8,
     [switch]$Launch,
@@ -152,6 +153,25 @@ try {
                 if ($obj.id -eq 1) {
                     if ($obj.result.exceptionDetails) { Write-Host "EVAL ERROR: $($obj.result.exceptionDetails.text)" }
                     else { Write-Host "EVAL RESULT: $($obj.result.result.value)" }
+                    break
+                }
+            }
+        }
+        'screenshot' {
+            # Page.captureScreenshot -> base64 PNG in result.data. The app window must be
+            # rendered (do NOT minimise when capturing). CDP doesn't 'see CSS' semantically,
+            # but the screenshot is the rendered cascade — the eye-check surface for a skin pass.
+            $shot = if ($OutFile -like '*.png') { $OutFile } else { "$PSScriptRoot\temp\cdp-shot-$App.png" }
+            New-Item -ItemType Directory -Force -Path (Split-Path $shot) | Out-Null
+            Send-Cdp $ws $cts.Token '{"id":1,"method":"Page.captureScreenshot","params":{"format":"png"}}'
+            for ($i = 0; $i -lt 40; $i++) {
+                $obj = (Receive-CdpMessage $ws $cts.Token) | ConvertFrom-Json
+                if ($obj.id -eq 1) {
+                    if ($obj.result.exceptionDetails) { Write-Host "SHOT ERROR: $($obj.result.exceptionDetails.text)"; break }
+                    $data = $obj.result.data
+                    if ([string]::IsNullOrEmpty($data)) { Write-Host 'No screenshot data returned.'; break }
+                    [System.IO.File]::WriteAllBytes($shot, [System.Convert]::FromBase64String($data))
+                    Write-Host "Screenshot -> $shot ($((Get-Item $shot).Length) bytes)"
                     break
                 }
             }

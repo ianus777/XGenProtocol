@@ -1,0 +1,219 @@
+/* skin.css — L2, the single appearance layer (N-031)
+ *
+ * ALL appearance lives here, keyed by type-class. This is the one REMOVABLE layer
+ * (remove it -> the app still works and makes sense, just renders plain) and the
+ * live-swap target. ONE shared skin for BOTH shells (Q2-locked); per-app identity
+ * is the --accent* alias each shell sets in its own app.css. The semantic palette
+ * is canonical HERE; --accent* is CONSUMED here, SET per-shell.
+ *
+ * Vocabulary-founding pass (M-RP2.7): the tokens + treatments below are defined
+ * ONCE; later components assemble their look from this vocabulary (N-031 L2
+ * saturates by vocabulary, not files).
+ */
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Vocabulary — tokens
+ * ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Surfaces (dark ramp, low -> high) */
+  --s:  #16181c;  --s2: #1c1f24;  --s3: #22262d;  --s4: #2a2f38;  --s5: #343b47;
+  /* Text ramp (dim -> bright) */
+  --t4: #585c64;  --t3: #8a8880;  --t2: #c8c4bc;  --t:  #ece9e1;
+  /* Gold primary (client brand SOURCE) */
+  --pr-soft: #2a2010;  --pr:  #9a6a30;  --pr2: #c28840;  --pr-ink: #f5efe0;
+  /* Blue info (node brand SOURCE) */
+  --inf-soft: #0e2030; --inf: #2a6090;  --inf2: #3a7ab0; --inf-ink: #d0e8f8;
+  /* Semantic state — NOT brand: shared across shells, used by the state-dot */
+  --ok:  #2d7a3a;
+  --err: #8a2a2a;
+
+  /* Radius scale */
+  --rad: 6px;  --rad2: 10px;
+  /* Spacing scale */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;  --sp-4: 20px;
+  /* Interactive control height */
+  --ctl-h: 28px;
+
+  /* Focus ring — accent-tinted (Q5 focus policy: accent). --accent2 is set
+   * per-shell in app.css; --t3 is the neutral fallback if no shell accent. */
+  --focus-ring: 0 0 0 2px var(--s2), 0 0 0 4px var(--accent2, var(--t3));
+  --motion: 120ms ease;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Typography / surface
+ *   Shared font lives at ui/assets/fonts/ — skin.css references it directly,
+ *   dropping the reliance on the per-shell src/assets/ font copies.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+@font-face {
+  font-family: "XGen UI Sans";
+  src: url("./fonts/Inter-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+html, body {
+  font-family: "XGen UI Sans", system-ui, sans-serif;
+  background-color: var(--s);
+  color: var(--t2);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * button (.button)
+ *   Re-keyed OFF bare <button> (the N-028/N-029 wrinkle fix): a classless
+ *   <button> stays normalize-flat; only `.button` is skinned. Pressed/accent
+ *   reuse the accent vocabulary.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+.button {
+  display: inline-block;
+  min-height: var(--ctl-h);
+  padding: var(--sp-1) var(--sp-4);
+  margin: var(--sp-1) var(--sp-2);
+  background: var(--s4);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  color: var(--t2);
+  font-size: 12px;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: background var(--motion), border-color var(--motion), color var(--motion);
+}
+
+.button:hover {
+  background: var(--t3);
+  color: var(--s);
+}
+
+.button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.button:disabled {
+  background: var(--s3);
+  border-color: var(--s4);
+  color: var(--t4);
+  cursor: not-allowed;
+}
+
+/* Accent / primary fill — the per-app brand surface (--accent set per-shell).
+ * Replaces the retired primary-*-button rules. Applied via a pass-through
+ * `.accent` class on the button root (per-instance override, N-025). */
+.button.accent {
+  background: var(--accent, var(--pr));
+  border-color: var(--accent2, var(--pr2));
+  color: var(--accent-ink, var(--pr-ink));
+}
+.button.accent:hover {
+  background: var(--accent2, var(--pr2));
+  border-color: var(--accent-ink, var(--pr-ink));
+}
+
+/* Pressed feedback.
+ *   toggle-mode latch: [aria-pressed="true"] -> accent fill + inset bevel ("on").
+ *   momentary press:   :active             -> inset bevel only (transient). */
+.button[aria-pressed="true"] {
+  background: var(--accent, var(--pr));
+  border-color: var(--accent2, var(--pr2));
+  color: var(--accent-ink, var(--pr-ink));
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.button:active {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * toggle (.toggle)
+ *   Root IS <input type="checkbox"> (N-020 atomic). checkbox shape = native
+ *   control accent-tinted; switch shape (Q5, skin-only) = appearance:none +
+ *   ::before thumb, keyed on [role="switch"]. Single-engine WebView2/Chromium
+ *   target makes the ::before-on-checkbox approach safe.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+.toggle {
+  cursor: pointer;
+  accent-color: var(--accent, var(--pr));
+}
+.toggle:focus-visible {
+  outline: none;
+  border-radius: var(--rad);
+  box-shadow: var(--focus-ring);
+}
+.toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Switch shape — Q5 PROVISIONAL (Joe eye-checks; L1 stays empty unless this fails) */
+.toggle[role="switch"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--s5);
+  border: 1px solid var(--s5);
+  vertical-align: middle;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.toggle[role="switch"]::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--t2);
+  transition: transform 140ms ease, background 140ms ease;
+}
+.toggle[role="switch"]:checked {
+  background: var(--accent, var(--pr));
+  border-color: var(--accent2, var(--pr2));
+}
+.toggle[role="switch"]:checked::before {
+  transform: translateX(18px);
+  background: var(--accent-ink, var(--pr-ink));
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * textfield (.textfield)
+ *   Root IS <input type="text"> (N-020 atomic). disabled greys; readonly is
+ *   shown/selectable and NOT greyed (distinct, N-029); :invalid is the
+ *   consumer's `pattern` rule wearing the skin's red look.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+.textfield {
+  min-height: var(--ctl-h);
+  padding: var(--sp-1) var(--sp-2);
+  margin: var(--sp-1) var(--sp-2);
+  background: var(--s);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  color: var(--t);
+  font-size: 12px;
+  line-height: 1.5;
+  transition: border-color var(--motion), box-shadow var(--motion);
+}
+.textfield::placeholder { color: var(--t4); }
+.textfield:focus-visible {
+  outline: none;
+  border-color: var(--accent2, var(--t3));
+  box-shadow: var(--focus-ring);
+}
+.textfield:disabled {
+  background: var(--s2);
+  color: var(--t4);
+  cursor: not-allowed;
+}
+.textfield:read-only {
+  background: var(--s2);
+  border-color: var(--s4);
+}
+.textfield:invalid {
+  border-color: var(--err);
+}

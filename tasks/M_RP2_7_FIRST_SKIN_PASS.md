@@ -1,6 +1,6 @@
 # M-RP2.7 — First skin pass (N-031 CSS source stack + L2 vocabulary founding)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-24  
 > Language: English  
@@ -22,7 +22,7 @@ This is a **vocabulary-founding pass**, not a quick three-component skin (N-031 
 - **Q2** ✅ one shared `skin.css` for BOTH apps; per-shell `--accent*` alias set in each `app.css`.
 - **Q3** ✅ wire the local pristine `modern-normalize.css` as L0 (first import, both shells); drop the hand-rolled `app.css` reset.
 - **Q4** ✅ chrome-boundary allocation per the table below; `#core-ui-pane` look stays chrome for pass 1.
-- **Q5** ⚠️ PROVISIONAL — switch shape skin-only first (`appearance:none` + `::before` thumb, `:checked` drives `translateX`), L1 stays empty. **Joe eye-checks before this is final**; a scoped `<style>` lands in `toggle.svelte` ONLY if the pseudo-thumb fails the eye-check.
+- **Q5** ✅ LOCKED skin-only (J-412 eye-check) — switch via `appearance:none` + `::before` thumb, `:checked` drives `translateX`; renders cleanly as a pill+thumb in both apps; `toggle.svelte` stays `<style>`-free, L1 empty.
 - Focus ring ✅ accent-tinted · Seat ✅ Ms Design leads (mechanical wiring rides along) · ✅ `-Mode screenshot` added to `cdp-debug.ps1`.
 
 ## Phase-0 audit findings (state at open, 2026-06-24)
@@ -87,10 +87,10 @@ In `skin.css`, define-once then assemble:
 
 ## Definition of Done
 
-- [ ] N-031 stack wired: modern-normalize (L0, relocated) → xgen-normalize (L0) → skin.css (L2) → app.css (chrome), both shells, correct import order.
-- [ ] `$assets` alias added to both vite configs.
-- [ ] Wrinkle closed: bare `<button>` normalize-flat vs `.button` skinned, verified by computed-style probe.
-- [ ] Three components + shell chrome skinned coherently; one shared skin, per-shell `--accent*`.
-- [ ] Switch shape eye-verified (Q5 final verdict recorded); L1 still empty OR minimal scaffold justified.
-- [ ] Both apps visually eye-verified (Joe) + screenshots captured.
-- [ ] J-412 records landed (N-033, components registry, ROADMAP, PLAY, this file COMPLETED).
+- [x] N-031 stack wired: modern-normalize (L0, relocated) → xgen-normalize (L0) → skin.css (L2) → app.css (chrome), both shells, correct import order.
+- [x] `$assets` alias added to both vite configs.
+- [x] Wrinkle closed: bare `<button>` normalize-flat vs `.button` skinned, verified by computed-style probe.
+- [x] Three components + shell chrome skinned coherently; one shared skin, per-shell `--accent*`.
+- [x] Switch shape eye-verified (Q5 final verdict recorded); L1 still empty OR minimal scaffold justified.
+- [x] Both apps visually eye-verified (Joe) + screenshots captured.
+- [x] J-412 records landed (N-033, components registry, ROADMAP, PLAY, this file COMPLETED).

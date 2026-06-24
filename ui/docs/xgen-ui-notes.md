@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.23  
+> Version: 0.24  
 > Date: May 2026  
-> **Last updated**: 2026-06-23  
+> **Last updated**: 2026-06-24  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -829,6 +829,26 @@ Both are reusable `common` actions, thin seams now, formatter logic deferred.
 **Display-di trio (conceptual queue):** `label` (`<label>`, caption) · `paragraph` (`<p>`, single-paragraph prose, formatter seam) · `image` (`<img>`, `src`+`alt`). Opens after M-RP2.7 (first skin pass) and `select` (di·A), per the locked order.
 
 *UI-implementation record. No protocol/data implication. Conceptual only — none built. Candidate entries for the di catalogue; the `paragraph` formatter axis ties to the `select` segmented-shape and `textfield` `use:processor` threads.*
+
+## 2026-06-24
+
+### N-033 — First skin pass shipped: L2 vocabulary founded (M-RP2.7); the `*/`-in-comment parser trap; switch skin-only confirmed
+
+M-RP2.7 closed (J-412) — the first skin pass, implemented + verified live in both apps (Ms Design seat; Chat self-drove the CDP loop). Stands up the N-031 stack and **founds** the L2 token+treatment vocabulary; closes the N-028/N-029 `button{}` wrinkle. No code on the three components (zero-`<style>` invariant held); all work in the three CSS sources + shell wiring.
+
+**Stack stood up (N-031 operationalised).** `modern-normalize.css` relocated to `ui/assets/` (pristine L0 — the npm-package import in the retired `dev_core_ui` template was never the live path; the shells' hand-rolled `app.css` reset was doing L0, now retired). New `xgen-normalize.css` (L0 floor) + one `skin.css` (L2). Both shells: `$assets` Vite alias, `main.js` chain `modern-normalize → xgen-normalize → skin → app.css`, `app.css` gutted to shell chrome + a per-shell `--accent*` alias. `@font-face` now pulls the shared `ui/assets/fonts/` copy (the per-shell `src/assets/` font duplication is no longer load-bearing).
+
+**L2 vocabulary founded (the reusable primitives later components assemble from).** Tokens: semantic palette (canonical here now), radius (`--rad`/`--rad2`) + spacing (`--sp-1..4`) scales, `--ctl-h`, accent-tinted `--focus-ring`, `--motion`. Treatments: `:focus-visible` ring, `:disabled` grey, `:invalid`→`--err`, pressed = `[aria-pressed="true"]` accent fill + `:active` inset bevel, switch = `.toggle[role="switch"]` `appearance:none` + `::before` thumb with `:checked` `translateX`. Component keys `.button`/`.toggle`/`.textfield`. **One shared `skin.css`, per-shell `--accent*`** (Q2): client gold/`--pr`, node blue/`--inf` — the single per-app knob; the semantic state palette (state-dot) stays shared, never accent.
+
+**Wrinkle closed (N-028 finding 2 / N-029).** The generic `button{…appearance…}` rule re-keys off bare `<button>` onto `.button`; a classless `<button>` now renders the normalize-flat floor (verified: `bg rgba(0,0,0,0)`, 0 border/radius/pad), `.button` renders skinned. The dead `primary-*-button` rules retire into the `--accent` treatment.
+
+**Finding — the `*/`-in-comment parser trap.** Both `app.css` header comments listed the palette as `(--s*/--t*/--pr*/--inf*/--ok/--err)`. The `--s*/` substring contains `*/`, which **closes a C-style comment early**; the trailing comment text + the immediately-following `:root{--accent…}` rule were consumed as malformed CSS and dropped (parser recovered at the next rule). Symptom: `--accent` undefined at runtime, while the skin's `var(--accent, var(--pr))` fallbacks masked it as plausible-looking colour. Caught by the CDP verify (the stylesheet map showed app.css starting at `html,body` not `:root`; a `var(--accent, rgb(1,2,3))` sentinel returned the sentinel). Lesson: **never put a `*` adjacent to a `/` inside a CSS `/* */` comment** (token lists, glob-like notation). The skin pass being *verified rather than assumed* is what surfaced it.
+
+**Q5 verdict — switch skin-only (locked).** `appearance:none` + `::before` thumb renders a clean pill+thumb in both apps; the single-engine WebView2/Chromium target removes the historical pseudo-element-on-form-control risk. No L1 construction scaffold needed — `toggle.svelte` stays `<style>`-free, and all three built components remain zero-L1 (the N-031 prediction that L1 stays near-empty, confirmed).
+
+**Tooling.** `cdp-debug.ps1` gained `-Mode screenshot` (`Page.captureScreenshot` → PNG in `temp/`), so a skin pass is self-verifiable visually by Chat (the rendered cascade), complementing the `getComputedStyle` probe (the resolved cascade) — neither is the N-024 registry, which does not see CSS.
+
+*UI-implementation record. No protocol/data implication. L2 vocabulary now founded; `select` and later components assemble skin from it. Candidate to graduate with the N-019/N-020/N-021/N-025/N-031 CSS cluster to DECISIONS.md.*
 
 ---
 

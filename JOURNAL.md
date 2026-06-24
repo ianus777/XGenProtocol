@@ -1,10 +1,34 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-23  
+> **Last updated:** 2026-06-24  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-412 — M-RP2.7 CLOSED: first skin pass — N-031 CSS stack stood up + L2 vocabulary founded; `button{}` wrinkle closed; per-shell accent; switch skin-only — eye- + CDP-verified BOTH apps
+
+**What happened.** Chat self-drove the full M-RP2.7 implementation (Ms Design seat) + the live verification loop in both apps per the runbook `tasks/M_RP2_7_FIRST_SKIN_PASS.md`. The first skin pass stood up the N-031 CSS source stack and founded the L2 token+treatment vocabulary; the N-028/N-029 global `button{}` wrinkle is closed. No protocol/data change; Rust test baseline unchanged (~1466/0, not re-run — Rule 5). Implementation landed in its own commit (skin stack + `cdp-debug.ps1` screenshot mode + the accent bug fix); this is the records-only close.
+
+**Built (Ms Design, Phase 1–2).** Relocated `ui/modern-normalize.css` → `ui/assets/modern-normalize.css` (pristine L0, never edited). New `ui/assets/xgen-normalize.css` (L0 adapted floor: `*`/`main`/`p`/`img` floor + the native-`button`-flattening reset, migrated out of `app.css`). New `ui/assets/skin.css` (L2: semantic palette canonical here, `@font-face` from shared `ui/assets/fonts/`, radius/spacing scale, accent-tinted focus ring, `.button`/`.toggle`/`.textfield` keyed appearance, `[aria-pressed="true"]` accent + `:active` bevel, switch via `.toggle[role="switch"]` `appearance:none` + `::before` thumb). Added `$assets` Vite alias to both shells; rewired both `main.js` import chains (modern-normalize → xgen-normalize → skin → app.css). Gutted both `app.css` to shell chrome + per-shell `--accent*` alias (client gold/`--pr`, node blue/`--inf`). All zero-`<style>` invariant on the three components preserved (Q5 **skin-only**, locked).
+
+**Verification (Chat self-drove real Vite + `tauri dev` + CDP, both apps; added `-Mode screenshot` to `cdp-debug.ps1`).** Wrinkle-clearance computed-style probe (client):
+```
+bareButton:    {bg:rgba(0,0,0,0), bw:0px,   rad:0px, pad:0px,  app:none}   <- normalize-flat
+skinnedButton(.button #quit): {bg:rgb(42,47,56)=--s4, rad:6px, pad:20px}   <- skinned
+tabSize:"4"  (UA default 8 -> modern-normalize loaded)   sheetCount:4
+```
+Accent resolves per-shell (forced-substitution probe): client `var(--accent)` → `rgb(154,106,48)`=`--pr` gold; node → `rgb(42,96,144)`=`--inf` blue; `rootRules:2` (skin + app.css `:root` both in cascade). `[aria-pressed="true"]` shows accent fill (node demo-toggle latched → blue, screenshot-confirmed); `.toggle[role="switch"]` → `appearance:none`, 40px track, visible pill+thumb in both apps. Both apps eye-checked via captured PNGs — coherent render (logo, state dot, switch, accent focus ring, accent-latched toggle, base-grey terminal button). Clean teardown: ports 9222/9322/5173/5174 all free, 0 orphans.
+
+**Finding (Rule 1/3 — caught in verify, fixed before close).** Both `app.css` header comments contained `(--s*/--t*/--pr*/--inf*/--ok/--err)`; the `--s*/` substring forms `*/`, **closing the C-style comment early** and dropping the leading `:root{--accent…}` rule (parser recovered at `html,body`). Result: `--accent` undefined at runtime — the client's initial "gold" was actually the skin's `var(--accent, var(--pr))` *fallback*, not real accent. Diagnosed via the stylesheet map (app.css sheet started at `html,body`, not `:root`) + a `var(--accent, rgb(1,2,3))` sentinel returning the sentinel. Comment corrected in both shells; re-verified resolving (gold/blue). A real bug surfaced only because the skin pass was verified rather than assumed.
+
+**Q5 locked — switch skin-only.** The `appearance:none` + `::before`-thumb switch renders cleanly as a pill+thumb in both apps (single-engine WebView2/Chromium target removes the historical pseudo-on-form-control risk). No L1 scaffold needed; `toggle.svelte` stays `<style>`-free — all three built components remain zero-L1.
+
+**Canonical (D-074), records-only.** `ui/docs/xgen-ui-notes.md` (N-033 skin vocabulary founded + the `*/`-comment finding, v0.23→0.24); `ui/docs/xgen-ui-components.md` (skin-shipped note on the three components, v0.11→0.12); `docs/ROADMAP.md` (RP node M-RP2.7 ✅, frontier advance, v3.91→3.92); `CLAUDE.md` (PLAY head → M-RP2.7 ✅ CLOSED, Next → `select`, entry pointer J-411→J-412); `tasks/M_RP2_7_FIRST_SKIN_PASS.md` (Status ACTIVE→COMPLETED, DoD checked); this JOURNAL J-412. Frontier advances M-RP2.6→M-RP2.7. Implementation in its own commit; records not pushed — Joe pushes.
+
+**Next-active (UI/RP track):** `select` (di·A, atomic `<select>`, pick-only) — the next basic; assembles its skin from the now-founded L2 vocabulary. Then display-di `label`/`paragraph`/`image` (N-032) → first composites (`combobox` = `textfield` + `datalist`; `textfield-group`).
 
 ---
 

@@ -257,3 +257,17 @@ html, body {
 .select:invalid {
   border-color: var(--err);
 }
+
+/* ───────────────────────────────────────────────────
+ * label (.label)
+ *   Root IS <label> (N-020 atomic). DISPLAY-kind di (read-only caption, N-032).
+ *   Color from the text ramp; size follows the established control 12px — the
+ *   --fs-* type scale is deferred to `paragraph` (M-RP2.10), where two text
+ *   components justify founding it. Inline default; block = a skin variant.
+ * ─────────────────────────────────────────────────── */
+
+.label {
+  color: var(--t2);
+  font-size: 12px;
+  line-height: 1.5;
+}

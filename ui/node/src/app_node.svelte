@@ -4,6 +4,7 @@
   import Toggle from '$core/components/data-independent/toggle.svelte';
   import Textfield from '$core/components/data-independent/textfield.svelte';
   import Select from '$core/components/data-independent/select.svelte';
+  import Label from '$core/components/data-independent/label.svelte';
   import AppLogo from './assets/logo_node_64.png';
 
   // Initial state before the first Tauri event arrives.
@@ -96,6 +97,10 @@
   <Textfield bind:value={demoText} id="demo" />
 
   <Select bind:value={demoSelect} id="demo" placeholder="Pick one" options={['alpha', 'beta', 'gamma']} />
+
+  <!-- M-RP2.9 (node side): throwaway demo of the first display-di (label, read-only).
+       Snapshot via cdp-debug.ps1 -App node -> {text}; no bind. Not a real affordance. -->
+  <Label text="Demo label" id="demo" />
 
   <Button mode="toggle" bind:pressed={demoPressed} label="toggle" id="demo-toggle" />
 

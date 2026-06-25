@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-415 — M-RP2.10 CLOSED: `paragraph` — sixth `core` component (second display-di, atomic `<p>` prose); the `--fs-*` type scale founded; render-side formatter seam reserved
+
+**What happened.** Authored the sixth `core` component `paragraph` and skinned it in the same pass, AND founded the `--fs-*` type-size scale (deferred here from M-RP2.9). Second of the display-di trio (after `label`) — reuses the read-only display-di pattern verbatim. Implementation in its own commit (`paragraph.svelte` + both shells + `skin.css` tokens/retro-key/skin); this is the records-only close. No protocol/data change; Rust baseline untouched (Rule 5).
+
+**Built.** `ui/core/lib/components/data-independent/paragraph.svelte`: atomic `<p use:envelope>` (N-020); value prop **`text`** (plain, the display-di semantic name shared with label); `id`; getter `() => $state.snapshot({ text })`; body the **text node** `{text}`; zero `<style>`. Identical shape to `label` — the read-only pattern generalizes unchanged to a second tag. Demo wired both shells (no `$state` var, read-only).
+
+**Formatter seam (reserved, not built — the design point).** Body is a plain text node today (`{text}`), never `{@html}` — safe by default. The future inline-mark formatter (`_x_`/`*x*`, whitelist `<strong>`/`<em>`/`<br>`, escape char) lands as a `common` `use:render` action — the render-side counterpart to the edit-side `use:processor` (EDIT-vs-RENDER axis, N-032); that action owns the delimiter map + whitelist + sanitisation and rewrites node content only when applied. Not built now (D-065); documented insertion point.
+
+**`--fs-*` type scale founded.** Until now every component hardcoded `font-size: 12px`. Founded in `skin.css`: `--fs-1: 12px` (control/caption) + `--fs-2: 14px` (body prose) + `--lh: 1.5`. **Pair only, no `--fs-3`/`--fs-4` seed** (D-065). The four shipped skins retro-keyed in the same pass (`12px`→`var(--fs-1)`, `1.5`→`var(--lh)`, 8 substitutions); all stay zero-`<style>`. `.paragraph` = `font-size: var(--fs-2)`, `color: var(--t)` (brightest — prose is content, vs label's caption `--t2`), `line-height: var(--lh)`, `margin-block-end: var(--sp-3)`.
+
+**Verification (Chat self-drove both apps, real `tauri dev` + CDP).** Registry: `paragraph#demo` → `{"type":"paragraph","state":{"text":"Demo paragraph of prose."}}` (client 9222 / node 9322). Computed-style (both): `.paragraph 14px/21px rgb(236, 233, 225)` (=`--fs-2` / `--t`). **Retro-key re-verified non-regressive** — all four at 12px/18px: `.button` rgb(200,196,188), `.textfield` rgb(236,233,225), `.select` rgb(236,233,225), `.label` rgb(200,196,188). Screenshots both apps eye-checked — the paragraph renders visibly larger + brighter than the label caption above it. Clean teardown (ports 9222/9322/5173/5174 free, 0 orphans).
+
+**Canonical (D-074), records-only.** `ui/docs/xgen-ui-notes.md` N-036 (v0.27); `ui/docs/xgen-ui-components.md` Built row + detail (v0.15); `docs/ROADMAP.md` RP node M-RP2.10 ✅ + frontier (v3.95); `CLAUDE.md` PLAY → M-RP2.10 ✅ CLOSED, Next → `image`, pointer J-414→J-415; `tasks/M_RP2_10_PARAGRAPH.md` → COMPLETED; this JOURNAL J-415. Frontier M-RP2.9→M-RP2.10. Implementation in its own commit; records not pushed — Joe pushes.
+
+**Next-active (UI/RP track):** `image` (root `<img>`, `src` + required `alt`, Phase A — N-032) — completes the display-di trio — then the first composites (`textfield-group` = label + textfield; `combobox` = `textfield` + `datalist`).
+
+---
+
 ## Entry J-414 — M-RP2.9 CLOSED: `label` — fifth `core` component, the first DISPLAY-kind di (atomic `<label>`, read-only caption), authored + skinned in one pass
 
 **What happened.** Authored the fifth `core` component `label` and skinned it in the same pass — the **first display-kind di**. The four built so far (toggle/button/textfield/select) are *interactive* (input/event, live getter delta); `label` is **value-carrying but read-only**, the display half of the di model (N-032). Founds the read-only display-di pattern `paragraph`/`image` inherit. Implementation in its own commit (`label.svelte` + both shells + `skin.css`); this is the records-only close. No protocol/data change; Rust baseline untouched (Rule 5).

@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.26  
+> Version: 0.27  
 > Date: May 2026  
 > **Last updated**: 2026-06-25  
 > Language: English  
@@ -882,6 +882,22 @@ M-RP2.9 closed (J-414) — `label` (di·A, display-kind, atomic `<label>`, read-
 **Finding — computed `display:block` is flex-item blockification, not a skin rule.** The probe returned `display:block` on the rendered `.label`; investigation showed both `<body>` (flex-row) and `<main#core-ui-pane>` (flex-column) are flex containers, so the label is a **flex item** — CSS blockifies a flex item's computed `display` to `block` regardless of its own value (a bare `<label>` appended to the flex `<body>` reported `block` too). The `.label` skin sets **no `display`**; the UA inline default and the N-032 "inline default; block = a skin variant" framing both stand — the block is **environmental** (the shell's layout), not the component forcing it. Recorded so the computed value is not misread as a skin rule when `paragraph`/`image` are verified the same way.
 
 *UI-implementation record. No protocol/data implication. `label` is the fifth built `core` component and the first display-kind di; the `text`-prop + render-then-computed-style verify are the display-di precedents. Next: `paragraph` (root `<p>`, N-032) — founds the `--fs-*` type scale.*
+
+### N-036 — `paragraph` built + skinned (M-RP2.10): the `--fs-*` type scale founded; the render-side formatter seam reserved as a `common` action
+
+M-RP2.10 closed (J-415) — `paragraph` (di·A, display-kind, atomic `<p>`, single paragraph of prose) authored + skinned in one pass, AND the `--fs-*` type-size scale founded (deferred here from M-RP2.9/N-035). Second of the display-di trio (after `label`); reuses the read-only pattern verbatim.
+
+**Component.** `ui/core/lib/components/data-independent/paragraph.svelte`. Root `<p use:envelope>` (N-020); value prop **`text`** (plain, the display-di semantic name, shared with label — image takes `src`); `id`; getter `() => $state.snapshot({ text })`; body the **text node** `{text}`; zero `<style>`. Identical shape to `label` — the read-only display-di pattern (N-035) generalizes unchanged to a second tag.
+
+**Formatter seam (reserved, NOT built — the design point).** N-032 reserved an inline-mark formatter for `paragraph`; locked shape (Joe, design walk): the body is a plain **text node** today (`{text}`), never `{@html}` — safe by default. The future limited inline formatter (`_x_`/`*x*`, whitelist `<strong>`/`<em>`/`<br>`, escape char; links the one risky add) lands as a **`common` `use:render` action** — the render-side counterpart to the edit-side `use:processor` earmarked for textfield/textarea (the EDIT-vs-RENDER axis, N-032). That action owns the delimiter map + whitelist + sanitisation and rewrites the node's content only when applied; the component never opens `{@html}` itself. **Not built now** (D-065 — no empty machinery); the seam is a documented insertion point. This is the precedent for read-only render-side processing across the display-di.
+
+**The `--fs-*` type scale founded (the milestone's second half).** Until now every component hardcoded `font-size: 12px` (four shipped: button/textfield/select/label) — no type vocabulary. Founded in `skin.css` `:root`: **`--fs-1: 12px`** (control/caption) + **`--fs-2: 14px`** (body prose) + **`--lh: 1.5`** (shared line-height). Numeric ascending=larger, matching `--sp-*`/`--rad`; avoids the `--t*` colour-ramp collision. **Pair only — no `--fs-3`/`--fs-4` seed** (D-065: no current consumer; grow the scale when a heading/lead component needs it). The four shipped skins **retro-keyed** in the same pass: `font-size: 12px` → `var(--fs-1)`, `line-height: 1.5` → `var(--lh)` (8 substitutions); components stay zero-`<style>`. This is N-031's "L2 saturates by vocabulary" in action — the type primitive founded once, future text components assemble from it.
+
+**Skin.** `.paragraph` = `font-size: var(--fs-2)` (14px), `color: var(--t)` (the **brightest** text ramp — prose is the *content*, vs label's caption `--t2`), `line-height: var(--lh)`, `margin-block-end: var(--sp-3)` (block rhythm; xgen-normalize zeroes the UA `<p>` margins so all spacing is skin-owned).
+
+**Verify (both apps, real `tauri dev` + CDP; Chat self-drove).** Registry: `paragraph#demo` → `{"type":"paragraph","state":{"text":"Demo paragraph of prose."}}` (client 9222 / node 9322). Computed-style (both): `.paragraph 14px/21px rgb(236, 233, 225)` (=`--fs-2` / `--t`). **Retro-key re-verified non-regressive** — all four still resolve 12px/18px: `.button 12px/18px rgb(200,196,188)` (`--t2`), `.textfield 12px/18px rgb(236,233,225)` (`--t`), `.select 12px/18px rgb(236,233,225)`, `.label 12px/18px rgb(200,196,188)`. Screenshots both apps eye-checked — the paragraph renders visibly larger + brighter than the label caption above it (the content/caption distinction). Clean teardown (0 orphans).
+
+*UI-implementation record. No protocol/data implication. `paragraph` is the sixth built `core` component (second display-di); the `--fs-*` scale + the render-side `use:render` seam are the precedents going forward. Next: `image` (root `<img>`, `src`+required `alt`, N-032) — completes the display-di trio.*
 
 ---
 

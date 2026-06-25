@@ -6,7 +6,9 @@
   import Select from '$core/components/data-independent/select.svelte';
   import Label from '$core/components/data-independent/label.svelte';
   import Paragraph from '$core/components/data-independent/paragraph.svelte';
+  import Image from '$core/components/data-independent/image.svelte';
   import AppLogo from './assets/logo_node_64.png';
+  import Placeholder from '$assets/img-placeholder.svg';
 
   // Initial state before the first Tauri event arrives.
   let currentState = $state({ state: 'INITIALISING', label: 'Initialising', active_degraded: [] });
@@ -105,6 +107,10 @@
 
   <!-- M-RP2.10 (node side): throwaway demo of the second display-di (paragraph, read-only prose). -->
   <Paragraph text="Demo paragraph of prose." id="demo" />
+
+  <!-- M-RP2.11 (node side): throwaway demo of the third display-di (image, read-only).
+       Bundled neutral placeholder asset; src lands as a resolved URL, alt is required. -->
+  <Image src={Placeholder} alt="Image placeholder" id="demo" />
 
   <Button mode="toggle" bind:pressed={demoPressed} label="toggle" id="demo-toggle" />
 

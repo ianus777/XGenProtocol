@@ -293,3 +293,15 @@ html, body {
   line-height: var(--lh);
   margin-block-end: var(--sp-3);
 }
+
+/* ───────────────────────────────────────────────────
+ * image (.image)
+ *   Root IS <img> (N-020 atomic). DISPLAY-kind di (read-only). xgen-normalize floors
+ *   it block + max-width:100% + transparent; the skin's only job is framing — here just
+ *   the corner radius, matching the rounded control language. No new token. Sizing
+ *   (width/height) is a consumer/layout concern, not the atomic's skin.
+ * ─────────────────────────────────────────────────── */
+
+.image {
+  border-radius: var(--rad);
+}

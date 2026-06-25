@@ -5,6 +5,7 @@
   import Textfield from '$core/components/data-independent/textfield.svelte';
   import Select from '$core/components/data-independent/select.svelte';
   import Label from '$core/components/data-independent/label.svelte';
+  import Paragraph from '$core/components/data-independent/paragraph.svelte';
   import AppLogo from './assets/logo_client_64.png';
 
   // Initial state before the first Tauri event arrives.
@@ -104,6 +105,9 @@
   <!-- M-RP2.9: throwaway demo of the first display-di (label, read-only). Snapshot via
        cdp-debug.ps1 -> {text}; no bind (read-only, no user delta). Not a real affordance. -->
   <Label text="Demo label" id="demo" />
+
+  <!-- M-RP2.10: throwaway demo of the second display-di (paragraph, read-only prose). -->
+  <Paragraph text="Demo paragraph of prose." id="demo" />
 
   <Button mode="toggle" bind:pressed={demoPressed} label="toggle" id="demo-toggle" />
 

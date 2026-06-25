@@ -35,6 +35,13 @@
   /* Interactive control height */
   --ctl-h: 28px;
 
+  /* Type scale (font-size; numeric, ascending = larger; --t* is the colour ramp, not this).
+   * --fs-1 = control/caption (the shipped 12px); --fs-2 = body prose (paragraph).
+   * Founded at M-RP2.10; grow with steps when a heading/lead component needs them (D-065). */
+  --fs-1: 12px;  --fs-2: 14px;
+  /* Line-height (shared by controls + prose) */
+  --lh: 1.5;
+
   /* Focus ring — accent-tinted (Q5 focus policy: accent). --accent2 is set
    * per-shell in app.css; --t3 is the neutral fallback if no shell accent. */
   --focus-ring: 0 0 0 2px var(--s2), 0 0 0 4px var(--accent2, var(--t3));
@@ -76,8 +83,8 @@ html, body {
   border: 1px solid var(--s5);
   border-radius: var(--rad);
   color: var(--t2);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--fs-1);
+  line-height: var(--lh);
   cursor: pointer;
   transition: background var(--motion), border-color var(--motion), color var(--motion);
 }
@@ -195,8 +202,8 @@ html, body {
   border: 1px solid var(--s5);
   border-radius: var(--rad);
   color: var(--t);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--fs-1);
+  line-height: var(--lh);
   transition: border-color var(--motion), box-shadow var(--motion);
 }
 .textfield::placeholder { color: var(--t4); }
@@ -234,8 +241,8 @@ html, body {
   border: 1px solid var(--s5);
   border-radius: var(--rad);
   color: var(--t);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--fs-1);
+  line-height: var(--lh);
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
@@ -268,6 +275,21 @@ html, body {
 
 .label {
   color: var(--t2);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--fs-1);
+  line-height: var(--lh);
+}
+
+/* ───────────────────────────────────────────────────
+ * paragraph (.paragraph)
+ *   Root IS <p> (N-020 atomic). DISPLAY-kind di (read-only prose, N-032). Body size
+ *   --fs-2 (founded here); colour --t (brighter than label's caption --t2 — prose is
+ *   the content); --lh line-height; --sp-3 block rhythm. xgen-normalize zeroes the UA
+ *   <p> margins, so all spacing is owned here.
+ * ─────────────────────────────────────────────────── */
+
+.paragraph {
+  color: var(--t);
+  font-size: var(--fs-2);
+  line-height: var(--lh);
+  margin-block-end: var(--sp-3);
 }

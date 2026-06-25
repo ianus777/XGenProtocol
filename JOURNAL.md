@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-414 — M-RP2.9 CLOSED: `label` — fifth `core` component, the first DISPLAY-kind di (atomic `<label>`, read-only caption), authored + skinned in one pass
+
+**What happened.** Authored the fifth `core` component `label` and skinned it in the same pass — the **first display-kind di**. The four built so far (toggle/button/textfield/select) are *interactive* (input/event, live getter delta); `label` is **value-carrying but read-only**, the display half of the di model (N-032). Founds the read-only display-di pattern `paragraph`/`image` inherit. Implementation in its own commit (`label.svelte` + both shells + `skin.css`); this is the records-only close. No protocol/data change; Rust baseline untouched (Rule 5).
+
+**Built.** `ui/core/lib/components/data-independent/label.svelte`: atomic `<label use:envelope>` (N-020); value prop **`text`** (plain, **not** `$bindable`); `id`; debug getter `() => $state.snapshot({ text })`; body `{text}`; zero `<style>`. Demo `label` wired into both shells (beside demo toggle/textfield/select/button) — no `$state` var (read-only). `.label` skinned in `skin.css` from L2 (`color: var(--t2)`, `font-size: 12px`, `line-height: 1.5`) — **no new token**; all five built components remain zero-`<style>`.
+
+**The five walk locks (Joe, design walk this session).** (1) value prop **`text`** not `value` — `value` is the editable/`$bindable` marker; display-di take a *semantic* value-name (label/paragraph = `text`, image = `src`). (2) **No `for`** — association is a composite concern (N-032), wired by `textfield-group`; standalone label valid-but-inert. (3) **getter registered anyway** — registry stays uniform (N-030 §4); founds the display-di **verify pattern**: no event to dispatch, verify = snapshot returns the value + computed-style probe. (4) **skin assembles, no new token** — the `--fs-*` type scale deferred to `paragraph` (M-RP2.10), where two text components justify founding it + retro-keying the shipped skins. (5) **`use:envelope` unchanged** — content-agnostic substrate reused verbatim; the substrate generalizes across the interactive/display fault line.
+
+**Verification (Chat self-drove both apps, real `tauri dev` + CDP).** Registry: `label#demo` → `{"type":"label","state":{"text":"Demo label"}}` (client 9222 / node 9322) — the first display-di registered cleanly beside the four interactive di + the demo-toggle button. Computed-style probe (both apps): `color: rgb(200, 196, 188)` (=`--t2` #c8c4bc), `font-size: 12px`, `line-height: 18px`. Screenshots both apps eye-checked — the dim caption renders between the select and the toggle button. Clean teardown (ports 9222/9322/5173/5174 free, 0 orphans).
+
+**Finding (Rule 1 — surfaced in verify).** The probe returned `display:block` on `.label`; investigation showed both `<body>` (flex-row) and `<main#core-ui-pane>` (flex-column) are flex containers, so the label is a **flex item** — CSS blockifies a flex item's computed `display` to `block` regardless of its own value (a bare `<label>` appended to the flex `<body>` reported `block` too). The `.label` skin sets **no `display`**; the UA inline default and the N-032 "inline default" framing both stand — the block is **environmental** (the shell's flex layout), not the component. Recorded so it is not misread when `paragraph`/`image` are verified the same way.
+
+**Canonical (D-074), records-only.** `ui/docs/xgen-ui-notes.md` N-035 (v0.26); `ui/docs/xgen-ui-components.md` Built row + detail (v0.14); `docs/ROADMAP.md` RP node M-RP2.9 ✅ + frontier advance (v3.94); `CLAUDE.md` PLAY → M-RP2.9 ✅ CLOSED, Next → `paragraph`, pointer J-413→J-414; `tasks/M_RP2_9_LABEL.md` → COMPLETED; this JOURNAL J-414. Frontier M-RP2.8→M-RP2.9. Implementation in its own commit; records not pushed — Joe pushes.
+
+**Next-active (UI/RP track):** `paragraph` (root `<p>`, single-paragraph prose, inline-mark formatter seam reserved — N-032; founds the `--fs-*` type scale), then `image` (root `<img>`, `src`+`alt`) — completing the display-di trio — then the first composites (`textfield-group` = label + textfield; `combobox` = `textfield` + `datalist`).
+
+---
+
 ## Entry J-413 — M-RP2.8 CLOSED: `select` — fourth `core` component (di·A, single-select, atomic `<select>`), authored + skinned in one pass; first content-carrying di
 
 **What happened.** Authored the fourth `core` component `select` and **skinned it in the same pass** — the first author-and-skin-in-one-pass milestone (the L2 vocabulary founded at M-RP2.7/N-033 made it possible) and the first **content-carrying** di component. Implementation in its own commit (`select.svelte` + both shells + `skin.css`); this is the records-only close. No protocol/data change; Rust baseline untouched (Rule 5).

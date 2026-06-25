@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.25  
+> Version: 0.26  
 > Date: May 2026  
 > **Last updated**: 2026-06-25  
 > Language: English  
@@ -865,6 +865,23 @@ M-RP2.8 closed (J-413) — `select` (di·A, single-select, atomic `<select>`, pi
 **Verify (N-029 restated for `change`).** Driving `bind:value` over CDP needs a dispatched **`change`** event (`new Event('change',{bubbles:true})`), not a bare `el.value=` — the same lesson as textfield's `input`. CDP-verified both apps: `{value:""}` → `change` → `{value:"beta"}` (client) / `{value:"gamma"}` (node); `appearance:none`, arrow present, eye-checked.
 
 *UI-implementation record. No protocol/data implication. `select` is the fourth built `core` component; the `options`-prop precedent governs content-carrying components going forward. Next: display-di `label` (N-032).*
+
+### N-035 — `label` built + skinned (M-RP2.9): the first DISPLAY-kind di; the read-only component pattern + the render-then-computed-style verify
+
+M-RP2.9 closed (J-414) — `label` (di·A, display-kind, atomic `<label>`, read-only caption) authored and skinned in one pass. The **first display-kind di** — where the four built so far (toggle/button/textfield/select) are *interactive* (input/event, live getter delta), `label` is **value-carrying but read-only**: the display half of the di model (N-032). Founds the pattern `paragraph`/`image` inherit.
+
+**Component.** `ui/core/lib/components/data-independent/label.svelte`. Root `<label use:envelope>` (N-020); value prop **`text`** (plain, **not** `$bindable`); `id`; getter `() => $state.snapshot({ text })`; body is `{text}`; zero `<style>`. The five walk locks (Joe, 2026-06-25):
+- **`text`, not `value`** — `value` is the editable/`$bindable` marker everywhere; display-di take a *semantic* value-name (label & paragraph = `text`, image = `src`). Not one shared prop name — a semantic one per component.
+- **No `for` on the atomic** — association (`for=`/nesting) is a composite concern (N-032), wired by the group (`textfield-group`, implicit nesting). `id` kept (debug + future nest target). Standalone label = valid-but-inert.
+- **Getter registered anyway** — read-only has no user-driven delta, but the registry stays uniform (N-030 §4: the registry is one projection of the value). This *founds the display-di verify pattern*: no event to dispatch — **verify = snapshot returns the passed value + a computed-style probe**, vs the interactive set's dispatch-then-delta.
+- **Skin assembles, no new token** — `.label` = `color: var(--t2)` + `font-size: 12px` + `line-height: 1.5`, all existing vocabulary (N-019 reuse). The **`--fs-*` type-size scale is deferred to `paragraph`** (M-RP2.10): a caption alone doesn't justify founding a scale + retro-keying the four shipped skins; `paragraph` (needs body size + line-height) with two text components in hand is the honest trigger. Keeps `select`'s zero-new-token discipline (N-034).
+- **`use:envelope` unchanged** — content-agnostic substrate reused verbatim. The only deltas from interactive di: plain prop (no `$bindable`), no handler, render-not-dispatch verify. Confirms the substrate generalizes across the **interactive/display fault line** — the read-only extension of the boolean-in/event-out/string-in/content-carrying generalizations the prior passes each proved.
+
+**Verify (both apps, real `tauri dev` + CDP; Chat self-drove).** Registry: `label#demo` → `{"type":"label","state":{"text":"Demo label"}}` (client 9222 / node 9322), the first display-di registered cleanly beside the four interactive di. Computed-style probe (both): `color: rgb(200, 196, 188)` (=`--t2` #c8c4bc), `font-size: 12px`, `line-height: 18px`. Screenshots both apps eye-checked — the dim caption renders between the select and the toggle button. Clean teardown (9222/9322/5173/5174 free, 0 orphans).
+
+**Finding — computed `display:block` is flex-item blockification, not a skin rule.** The probe returned `display:block` on the rendered `.label`; investigation showed both `<body>` (flex-row) and `<main#core-ui-pane>` (flex-column) are flex containers, so the label is a **flex item** — CSS blockifies a flex item's computed `display` to `block` regardless of its own value (a bare `<label>` appended to the flex `<body>` reported `block` too). The `.label` skin sets **no `display`**; the UA inline default and the N-032 "inline default; block = a skin variant" framing both stand — the block is **environmental** (the shell's layout), not the component forcing it. Recorded so the computed value is not misread as a skin rule when `paragraph`/`image` are verified the same way.
+
+*UI-implementation record. No protocol/data implication. `label` is the fifth built `core` component and the first display-kind di; the `text`-prop + render-then-computed-style verify are the display-di precedents. Next: `paragraph` (root `<p>`, N-032) — founds the `--fs-*` type scale.*
 
 ---
 

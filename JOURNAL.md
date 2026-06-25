@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-416 — M-RP2.11 CLOSED: `image` — seventh `core` component, the third/final display-di (atomic `<img>`, `src` + required `alt`); **display-di trio complete**
+
+**What happened.** Authored the seventh `core` component `image` and skinned it in the same pass — the **third and final display-di**. The trio (label/paragraph/image) is now complete. Implementation in its own commit (new asset `img-placeholder.svg` + `image.svelte` + both shells + `skin.css`); this is the records-only close. No protocol/data change; Rust baseline untouched (Rule 5).
+
+**Built.** `ui/core/lib/components/data-independent/image.svelte`: atomic `<img use:envelope>` (N-020); props `src: string` + `alt: string` (**both required, no default**) + `id`; getter `() => $state.snapshot({ src, alt })`; zero `<style>`. **Structural novelty:** `<img>` is a **void element** — the first display-di whose value lives in an **attribute** (`src`), not a text-node body (label/paragraph put the value in their content). The read-only pattern otherwise carries over verbatim.
+
+**Required `alt` (the design point).** `alt: string` typed non-optional, no default — the consumer must consciously pass it, including `alt=""` for a deliberately decorative image (valid + conscious). The requirement forces the a11y decision, not forbid empty. A DEV-only `console.warn` fires if `alt === undefined`; no prod throw. `src` likewise required. Getter carries `{src, alt}` (two fields — `alt` is part of the contract; precedent: a display-di getter carries what the semantic demands, not always one).
+
+**Skin.** `.image { border-radius: var(--rad); }` — an image's look is intrinsic, the skin just frames; **no new token**; sizing is a consumer concern. New bundled asset `ui/assets/img-placeholder.svg` (Joe-approved neutral grey placeholder: grey square + light frame/sun/two-peaks glyph), imported via `$assets` in both shells — the first asset-backed demo; Vite inlined the sub-threshold SVG as a data-URI.
+
+**Verification (Chat self-drove both apps, real `tauri dev` + CDP).** Registry: `image#demo` → `{"type":"image","state":{"src":"data:image/svg+xml,%3csvg…","alt":"Image placeholder"}}` (client 9222 / node 9322). Computed-style (both): `tag IMG`, `border-radius 6px` (=`--rad`), `display block`, `complete true`, `alt "Image placeholder"`. Screenshots both apps eye-checked — the placeholder renders (grey square, light glyph, rounded corners; stretched to column width — no width constraint, sizing deferred). Clean teardown (ports 9222/9322/5173/5174 free, 0 orphans).
+
+**Canonical (D-074), records-only.** `ui/docs/xgen-ui-notes.md` N-037 (v0.28); `ui/docs/xgen-ui-components.md` Built row + detail (v0.16); `docs/ROADMAP.md` RP node M-RP2.11 ✅ + frontier (v3.96) — display-di trio complete; `CLAUDE.md` PLAY → M-RP2.11 ✅ CLOSED, Next → first composites, pointer J-415→J-416; `tasks/M_RP2_11_IMAGE.md` → COMPLETED; this JOURNAL J-416. Frontier M-RP2.10→M-RP2.11. Implementation in its own commit; records not pushed — Joe pushes.
+
+**Next-active (UI/RP track):** the **first composites** — `textfield-group` (label + textfield, where `for`/association lands) and `combobox` (`textfield` + `datalist`) — the di→composite transition. The seven atomic `core` components (toggle/button/textfield/select/label/paragraph/image) are the building blocks the composites assemble.
+
+---
+
 ## Entry J-415 — M-RP2.10 CLOSED: `paragraph` — sixth `core` component (second display-di, atomic `<p>` prose); the `--fs-*` type scale founded; render-side formatter seam reserved
 
 **What happened.** Authored the sixth `core` component `paragraph` and skinned it in the same pass, AND founded the `--fs-*` type-size scale (deferred here from M-RP2.9). Second of the display-di trio (after `label`) — reuses the read-only display-di pattern verbatim. Implementation in its own commit (`paragraph.svelte` + both shells + `skin.css` tokens/retro-key/skin); this is the records-only close. No protocol/data change; Rust baseline untouched (Rule 5).

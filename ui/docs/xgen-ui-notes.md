@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.27  
+> Version: 0.28  
 > Date: May 2026  
 > **Last updated**: 2026-06-25  
 > Language: English  
@@ -898,6 +898,24 @@ M-RP2.10 closed (J-415) — `paragraph` (di·A, display-kind, atomic `<p>`, sing
 **Verify (both apps, real `tauri dev` + CDP; Chat self-drove).** Registry: `paragraph#demo` → `{"type":"paragraph","state":{"text":"Demo paragraph of prose."}}` (client 9222 / node 9322). Computed-style (both): `.paragraph 14px/21px rgb(236, 233, 225)` (=`--fs-2` / `--t`). **Retro-key re-verified non-regressive** — all four still resolve 12px/18px: `.button 12px/18px rgb(200,196,188)` (`--t2`), `.textfield 12px/18px rgb(236,233,225)` (`--t`), `.select 12px/18px rgb(236,233,225)`, `.label 12px/18px rgb(200,196,188)`. Screenshots both apps eye-checked — the paragraph renders visibly larger + brighter than the label caption above it (the content/caption distinction). Clean teardown (0 orphans).
 
 *UI-implementation record. No protocol/data implication. `paragraph` is the sixth built `core` component (second display-di); the `--fs-*` scale + the render-side `use:render` seam are the precedents going forward. Next: `image` (root `<img>`, `src`+required `alt`, N-032) — completes the display-di trio.*
+
+### N-037 — `image` built + skinned (M-RP2.11): the display-di trio complete; first attribute-valued di + first bundled-asset demo
+
+M-RP2.11 closed (J-416) — `image` (di·A, display-kind, atomic `<img>`, `src` + required `alt`) authored + skinned in one pass. **Third and final display-di** — the trio (label/paragraph/image) is now complete.
+
+**Component.** `ui/core/lib/components/data-independent/image.svelte`. Root `<img use:envelope>` (N-020); props `src: string` + `alt: string` (**both required, no default**) + `id`; getter `() => $state.snapshot({ src, alt })`; zero `<style>`. **Structural novelty:** `<img>` is a **void element** — the first display-di whose value lives in an **attribute** (`src`), not a text-node body (label/paragraph put the value in their content). The read-only pattern otherwise carries over verbatim (same envelope, plain props, render + computed-style verify).
+
+**Required `alt` (the design point).** N-032 locks `alt` required; locked shape (Joe): `alt: string` typed non-optional with **no default**, so the consumer must consciously pass something — including `alt=""` for a deliberately decorative image (valid + conscious). The requirement forces the a11y **decision**, it does not forbid empty. A **DEV-only `console.warn`** fires if `alt === undefined` (omitted entirely); no prod throw — an image with a missing alt should still render. `src` likewise required.
+
+**Getter carries two fields.** Unlike label/paragraph's single `{text}`, image registers `{src, alt}` — `alt` being required makes it part of the component's meaningful state, and snapshotting it lets verify confirm the required-alt landed. Precedent: a display-di getter carries the fields the semantic demands, not always one.
+
+**Skin.** `.image { border-radius: var(--rad); }` — an image has no typography; its appearance is intrinsic, so the skin's only job is framing (here the corner radius, matching the rounded control language). **No new token.** Sizing (width/height) is a consumer/layout concern, not the atomic's skin. xgen-normalize already floors `<img>` block + `max-width:100%` + transparent.
+
+**Demo = bundled placeholder asset (first of its kind).** New asset `ui/assets/img-placeholder.svg` (Joe-approved: neutral grey square `#c6c6c6` + light-grey `#e6e6e6` frame/sun/two-peaks glyph — a reusable neutral missing-image placeholder, not just demo throwaway). Imported via the `$assets` alias in both shells (`import Placeholder from '$assets/img-placeholder.svg'`) — the **first component demo backed by a project asset import** rather than an inline literal (label/paragraph used string literals). Vite **inlined** the sub-threshold SVG as a `data:image/svg+xml,…` URI, so the resolved `src` is the data-URI itself (not a file path) — expected for small assets.
+
+**Verify (both apps, real `tauri dev` + CDP; Chat self-drove).** Registry: `image#demo` → `{"type":"image","state":{"src":"data:image/svg+xml,%3csvg…","alt":"Image placeholder"}}` (client 9222 / node 9322). Computed-style (both): `tag IMG`, `border-radius 6px` (=`--rad`), `display block`, `complete true`, `alt "Image placeholder"`. Screenshots both apps eye-checked — the placeholder renders (grey square, light glyph, rounded corners); it stretches to the column width (max-width:100% + flex stretch, no width constraint — expected, sizing deferred). Clean teardown (0 orphans).
+
+*UI-implementation record. No protocol/data implication. `image` is the seventh built `core` component and the third/final display-di — **the display-di trio is complete**. The first attribute-valued di + first asset-backed demo. Next: the **first composites** (`textfield-group` = label + textfield, where `for`/association lands; `combobox` = textfield + datalist) — the di→composite transition.*
 
 ---
 

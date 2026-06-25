@@ -3,6 +3,7 @@
   import Button from '$core/components/data-independent/button.svelte';
   import Toggle from '$core/components/data-independent/toggle.svelte';
   import Textfield from '$core/components/data-independent/textfield.svelte';
+  import Select from '$core/components/data-independent/select.svelte';
   import AppLogo from './assets/logo_client_64.png';
 
   // Initial state before the first Tauri event arrives.
@@ -23,6 +24,10 @@
   // cdp-debug.ps1, observe the {pressed} latch delta — the event-driven self-redump the
   // terminal Quit button could not give. Not a real client affordance.
   let demoPressed = $state(false);
+
+  // M-RP2.8: throwaway demo of the fourth `core` component (select). Pick an option,
+  // re-dump via cdp-debug.ps1, observe the {value} delta. Not a real client affordance.
+  let demoSelect = $state('');
 
   onMount(async () => {
     try {
@@ -92,6 +97,8 @@
   <Toggle bind:checked={demoChecked} id="demo" shape="switch" />
 
   <Textfield bind:value={demoText} id="demo" />
+
+  <Select bind:value={demoSelect} id="demo" placeholder="Pick one" options={['alpha', 'beta', 'gamma']} />
 
   <Button mode="toggle" bind:pressed={demoPressed} label="toggle" id="demo-toggle" />
 

@@ -217,3 +217,43 @@ html, body {
 .textfield:invalid {
   border-color: var(--err);
 }
+
+/* ───────────────────────────────────────────────────
+ * select (.select)
+ *   Root IS <select> (N-020 atomic). Closed control assembled from L2 tokens;
+ *   appearance:none + inline-SVG arrow (root stays <select>, no wrapper, L1 empty).
+ *   The open option-list popup is engine-rendered — not styled here (Q3).
+ * ─────────────────────────────────────────────────── */
+
+.select {
+  min-height: var(--ctl-h);
+  /* extra right padding clears the arrow */
+  padding: var(--sp-1) calc(var(--sp-4) + var(--sp-1)) var(--sp-1) var(--sp-2);
+  margin: var(--sp-1) var(--sp-2);
+  background-color: var(--s);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  color: var(--t);
+  font-size: 12px;
+  line-height: 1.5;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' fill='none' stroke='%238a8880' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right var(--sp-2) center;
+  transition: border-color var(--motion), box-shadow var(--motion);
+}
+.select:focus-visible {
+  outline: none;
+  border-color: var(--accent2, var(--t3));
+  box-shadow: var(--focus-ring);
+}
+.select:disabled {
+  background-color: var(--s2);
+  color: var(--t4);
+  cursor: not-allowed;
+}
+.select:invalid {
+  border-color: var(--err);
+}

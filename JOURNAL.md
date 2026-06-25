@@ -1,10 +1,26 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-24  
+> **Last updated:** 2026-06-25  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-413 — M-RP2.8 CLOSED: `select` — fourth `core` component (di·A, single-select, atomic `<select>`), authored + skinned in one pass; first content-carrying di
+
+**What happened.** Authored the fourth `core` component `select` and **skinned it in the same pass** — the first author-and-skin-in-one-pass milestone (the L2 vocabulary founded at M-RP2.7/N-033 made it possible) and the first **content-carrying** di component. Implementation in its own commit (`select.svelte` + both shells + `skin.css`); this is the records-only close. No protocol/data change; Rust baseline untouched (Rule 5).
+
+**Built.** `ui/core/lib/components/data-independent/select.svelte`: atomic `<select use:envelope>` (N-020); `options` prop accepting `string[]` **or** `{value,label,disabled?}[]` normalized internally to one shape; optional `placeholder` → leading disabled `<option value="">`; `bind:value` (string); native-state `disabled`/`id`/`name`/`required`; debug getter `() => $state.snapshot({ value })`; zero `<style>`. Demo `select` wired into both shells (beside demo toggle/textfield/button). `.select` skinned in `skin.css` from L2 tokens (`--s`/`--s5` box, `--rad`, `--ctl-h`, `--sp-*` padding, accent-tinted focus ring, disabled grey, `:invalid`→`--err`) + `appearance:none` + inline-SVG `background-image` arrow (root stays `<select>`, L1 empty — all four built components remain zero-`<style>`). The open option-list popup is left native (Q3).
+
+**The content-carrying precedent.** Where toggle/button/textfield are pure native-state, `select` is the first di component carrying *list content*. Locked shape: a normalized `options` prop (not slotted children) — keeps the root atomic and the component data-independent, and is the same surface the dd layer will later feed. This is the pattern future content-carrying di (and dd) components follow.
+
+**Verification (Chat self-drove both apps, real `tauri dev` + CDP).** `select#demo` baseline `{value:""}` → set value + dispatched a real `change` event → `{value:"beta"}` (client 9222) / `{value:"gamma"}` (node 9322): the bind-in live-reactive read on a content-carrying control. `optionCount:4` (placeholder + alpha/beta/gamma); computed style `appearance:none`, radius `6px` (`--rad`), inline-SVG arrow present; both apps eye-checked (chevron, box matches the textfield, per-shell chrome). Clean teardown (ports 9222/9322/5173/5174 free, 0 orphans). N-029 finding restated for `change`: driving `bind:value` over CDP needs a dispatched `change` event, not a bare `el.value=`.
+
+**Canonical (D-074), records-only.** `ui/docs/xgen-ui-notes.md` N-034 (v0.25); `ui/docs/xgen-ui-components.md` Built row + detail (v0.13); `docs/ROADMAP.md` RP node M-RP2.8 ✅ + frontier advance (v3.93); `CLAUDE.md` PLAY → M-RP2.8 ✅ CLOSED, Next → display-di `label`, pointer J-412→J-413; `tasks/M_RP2_8_SELECT.md` → COMPLETED; this JOURNAL J-413. Frontier M-RP2.7→M-RP2.8. Implementation in its own commit; records not pushed — Joe pushes.
+
+**Next-active (UI/RP track):** display-di `label` (root `<label>`, caption — first of the display-di trio, identities locked N-032), then `paragraph`/`image`, then first composites (`combobox` = `textfield` + `datalist`; `textfield-group`).
 
 ---
 

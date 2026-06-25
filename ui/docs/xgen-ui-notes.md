@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.24  
+> Version: 0.25  
 > Date: May 2026  
-> **Last updated**: 2026-06-24  
+> **Last updated**: 2026-06-25  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -849,6 +849,22 @@ M-RP2.7 closed (J-412) — the first skin pass, implemented + verified live in b
 **Tooling.** `cdp-debug.ps1` gained `-Mode screenshot` (`Page.captureScreenshot` → PNG in `temp/`), so a skin pass is self-verifiable visually by Chat (the rendered cascade), complementing the `getComputedStyle` probe (the resolved cascade) — neither is the N-024 registry, which does not see CSS.
 
 *UI-implementation record. No protocol/data implication. L2 vocabulary now founded; `select` and later components assemble skin from it. Candidate to graduate with the N-019/N-020/N-021/N-025/N-031 CSS cluster to DECISIONS.md.*
+
+## 2026-06-25
+
+### N-034 — `select` built + skinned (M-RP2.8): the first content-carrying di component; the `options`-prop precedent
+
+M-RP2.8 closed (J-413) — `select` (di·A, single-select, atomic `<select>`, pick-only) authored and skinned in one pass. First component built *after* the skin stack existed (N-033), so author-and-skin land together; and the first **content-carrying** di component.
+
+**Component.** `ui/core/lib/components/data-independent/select.svelte`. Root `<select use:envelope>` (N-020); `bind:value` string (the bind-in path, after toggle/textfield); native-state `disabled`/`id`/`name`/`required`; getter `() => $state.snapshot({ value })`; zero `<style>`. No `multiple` (separate semantic/shape).
+
+**The `options` precedent (the design point).** toggle/button/textfield carry only native state; `select` is the first di component that carries *content* (its `<option>` list). Locked shape: a single **`options` prop**, accepting `string[]` or `{value,label,disabled?}[]`, normalized internally to `{value,label,disabled}[]` and rendered with `{#each}`. Chosen over slotted children because it (a) keeps the root atomic — no wrapper, N-020; (b) keeps the component data-*independent* (consumer passes a small static set, like a radio group's items); (c) is the same surface the data-derived layer will feed later. Optional `placeholder` → a leading disabled `<option value="">`. **This is the pattern every later content-carrying component (di composites, dd materializations) follows: a normalized data prop in, native markup rendered internally — never markup handed in by the consumer.**
+
+**Skin (assembled, not founded).** `.select` is the first component skinned purely by *assembling* the M-RP2.7 L2 vocabulary (N-019 reuse applied to styling) — `--s`/`--s5` box, `--rad`, `--ctl-h`, `--sp-*` padding, accent-tinted focus ring, disabled grey, `:invalid`→`--err`. The only new asset is the dropdown arrow: `appearance:none` + an inline-SVG `background-image` chevron (right-aligned). A wrapper-and-`::after` arrow was rejected — it would move the root off `<select>` (N-020), and `::after` on a `<select>` is unreliable; background-image keeps the root native and L1 empty (all four built components stay zero-`<style>`). The closed control is skinned; the **open option-list popup is engine-rendered and left native** (Q3) — a classic-CSS limit; `appearance:base-select` / `::picker(select)` (Chromium 135+) is the future full-style path once the pinned WebView2 version is confirmed.
+
+**Verify (N-029 restated for `change`).** Driving `bind:value` over CDP needs a dispatched **`change`** event (`new Event('change',{bubbles:true})`), not a bare `el.value=` — the same lesson as textfield's `input`. CDP-verified both apps: `{value:""}` → `change` → `{value:"beta"}` (client) / `{value:"gamma"}` (node); `appearance:none`, arrow present, eye-checked.
+
+*UI-implementation record. No protocol/data implication. `select` is the fourth built `core` component; the `options`-prop precedent governs content-carrying components going forward. Next: display-di `label` (N-032).*
 
 ---
 

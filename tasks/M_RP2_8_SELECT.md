@@ -1,8 +1,8 @@
 # M-RP2.8 — select (di·A, single-select, atomic `<select>`)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-24  
+> **Last updated**: 2026-06-25  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -58,10 +58,10 @@ Add `<Select id="demo" bind:value={…} options={[…]} placeholder="…" />` to
 
 ## Definition of Done
 
-- [ ] `select.svelte` authored: atomic `<select>`, `options` prop (string[] | object[] normalized), `placeholder`, `bind:value`, native-state (`disabled`/`id`/`name`/`required`), debug getter `{ value }`, zero-`<style>`.
-- [ ] Demo `select` wired into both shells, imported from `$core`.
-- [ ] `.select` skinned in `skin.css` from L2 vocabulary + inline-SVG arrow; L1 still empty.
-- [ ] Both apps CDP-verified: baseline \u2192 dispatched `change` \u2192 `{value}` delta read live (both 9222/9322).
-- [ ] Both apps eye-verified + screenshots captured; computed-style confirms `.select` skinned.
-- [ ] Registry row landed in `xgen-ui-components.md`.
-- [ ] J-413 records landed (N-034, components registry, ROADMAP, PLAY, this file COMPLETED).
+- [x] `select.svelte` authored: atomic `<select>`, `options` prop (string[] | object[] normalized), `placeholder`, `bind:value`, native-state (`disabled`/`id`/`name`/`required`), debug getter `{ value }`, zero-`<style>`.
+- [x] Demo `select` wired into both shells, imported from `$core`.
+- [x] `.select` skinned in `skin.css` from L2 vocabulary + inline-SVG arrow; L1 still empty.
+- [x] Both apps CDP-verified: baseline \u2192 dispatched `change` \u2192 `{value}` delta read live (both 9222/9322).
+- [x] Both apps eye-verified + screenshots captured; computed-style confirms `.select` skinned.
+- [x] Registry row landed in `xgen-ui-components.md`.
+- [x] J-413 records landed (N-034, components registry, ROADMAP, PLAY, this file COMPLETED).

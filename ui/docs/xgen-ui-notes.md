@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.28  
+> Version: 0.29  
 > Date: May 2026  
 > **Last updated**: 2026-06-25  
 > Language: English  
@@ -916,6 +916,22 @@ M-RP2.11 closed (J-416) — `image` (di·A, display-kind, atomic `<img>`, `src` 
 **Verify (both apps, real `tauri dev` + CDP; Chat self-drove).** Registry: `image#demo` → `{"type":"image","state":{"src":"data:image/svg+xml,%3csvg…","alt":"Image placeholder"}}` (client 9222 / node 9322). Computed-style (both): `tag IMG`, `border-radius 6px` (=`--rad`), `display block`, `complete true`, `alt "Image placeholder"`. Screenshots both apps eye-checked — the placeholder renders (grey square, light glyph, rounded corners); it stretches to the column width (max-width:100% + flex stretch, no width constraint — expected, sizing deferred). Clean teardown (0 orphans).
 
 *UI-implementation record. No protocol/data implication. `image` is the seventh built `core` component and the third/final display-di — **the display-di trio is complete**. The first attribute-valued di + first asset-backed demo. Next: the **first composites** (`textfield-group` = label + textfield, where `for`/association lands; `combobox` = textfield + datalist) — the di→composite transition.*
+
+### N-038 — di catalogue scoping: textfield `type`-family fold-in, `number` boundary, the processor engine deferred, and the di→processor→dd sequence
+
+Conversation-derived scoping pass (2026-06-25), recording decisions reached before resuming atomic-di builds. No code.
+
+**Atomic / shape / composite boundary (the discriminator restated).** The catalogue row is keyed to a semantic; what makes a *new atomic component* is a distinct root structure or value-type — not a distinct `type` literal. So: string-valued, structurally-identical `<input>` types **fold into one component**; value-type-changing or chrome-adding types are **own atomics**; custom-chromed versions are **composites**.
+
+**`textfield` gains a constrained `type` prop.** Whitelist `text` (default) | `search` | `email` | `url` | `tel` | `password` — all share `<input>` root, string `bind:value`, `.textfield` skin; they differ only in browser-supplied validation/keyboard/masking. One file, one type-class. The `password-field` composite embeds `<textfield type="password">` + an eye toggle. **This reverses N-029** ("type is fixed, separate semantics") — a conscious re-lock; the DECISIONS.md D-entry is promoted when the prop is actually built (decision lands with code). Caveat to verify at build: per-type native quirks (e.g. `maxlength` interaction) — whitelist + a CDP check per type.
+
+**`number` stays its own atomic.** `<input type="number">` is a single element (atomic) — the up/down spinner is a UA pseudo-element, not authored buttons. It's separate from `textfield` because its `bind:value` is **numeric, not string** (type-unstable to fold in). Prop surface: `value`/`min`/`max`/`step` + native passthrough. `step` governs increment + permitted decimals but is validation, not display formatting; **trailing zeros (`3.00`), thousands separators, and currency are NOT native** (a number has no trailing zeros) — they're formatter concerns, out of the atomic. A custom `− [input] +` stepper is a **composite** (own buttons), the atomic/composite split mirroring native `<select>` vs custom dropdown.
+
+**The text-processor engine (sharpened spec, REMAINS DEFERRED — N-029/N-032).** Not random replacement files: one thin `use:processor` seam (mechanism) + per-instance **config** (the rule-set) — reactive, so rules and e.g. decimal places can change on demand. One seam serves three consumers: text morphs/emoji (`textarea`), numeric formatting incl. trailing zeros (`number`), inline marks (`paragraph`, render-side `use:render`). Security shape is non-negotiable when built: the text/number sink writes to `.value` (text, safe by construction); the markup path (`paragraph`) goes through allowlist + a real sanitizer, never `{@html}`, **never regex as the safety boundary** (allowlist > blocklist); externally-supplied patterns get a ReDoS/complexity guard; sensitive configs are **named, reviewed `common` configs** (trusted-vs-arbitrary by provenance). Built only when a consumer needs it (D-065) — earliest natural trigger is `textarea`/`number`.
+
+**Build sequence (vision, not a locked roadmap — per-milestone walks still happen on open).** Finish all atomic di → the text-processor engine (own arc, consumers in hand) → dd-components (on a complete, settled di + processor foundation). Remaining atomic di after `textfield`-`type`: `textarea`, `number`, `range`, `date`/`time`, `color`, `file` (new `bind:files` shape), `select multiple`. Shapes (fold into built): search→textfield, tri-state→toggle, segmented→button/radio. Composites (the composite milestone, not atomic): radio-group, checkbox-group, combobox, tag-select, star-rating, password-field, custom stepper.
+
+*Scoping record. No protocol/data implication, no code. Reverses N-029 (textfield `type` fixed → constrained prop) pending its build-time DECISIONS entry; sharpens + keeps deferred the N-029/N-032 processor seam. Sets the di→processor→dd track order.*
 
 ---
 

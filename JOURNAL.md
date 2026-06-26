@@ -1,10 +1,28 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-25  
+> **Last updated:** 2026-06-26  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-418 — M-RP2.13 CLOSED: `textarea` — eighth `core` component, a stand-alone atomic `<textarea>` (multi-line free-text); the processor seam kept DEFERRED
+
+**What happened.** Authored the eighth `core` component `textarea` and skinned it in the same pass — the next atomic di per the locked N-038 track order. Root tag is `<textarea>`, not `<input>`, so by the N-020 root-tag discriminator this is a **new atomic component, not a `textfield` fold**. It is the **edit-side** multi-line counterpart to `paragraph`'s render-side single prose string (N-032 EDIT-vs-RENDER axis): `paragraph` wraps one read-only string visually; `textarea` holds literal `\n`-bearing editable free text. The walk's load-bearing decision: the milestone **keeps the text-processor seam deferred** — `textarea` ships processor-**ready**, it is **not** the processor's trigger. Implementation (`textarea.svelte` + `skin.css` + both shells) is its own commit; this is the records-only close. No protocol/data change; Rust baseline untouched (Rule 5).
+
+**Built.** `ui/core/lib/components/data-independent/textarea.svelte`: root `<textarea use:envelope>` (N-020); string `bind:value`; getter `() => $state.snapshot({ value })`; zero `<style>`. Prop surface = the `textfield` string-input vocabulary **minus** what `<textarea>` can't carry, **plus** `rows`: keeps `value`($bindable string)/`placeholder`/`disabled`/`readonly`/`id`/`name`; **drops `type`** (no such attribute) and **`pattern`** (`<input>`-only — no `:invalid`-via-pattern path); **adds `rows`** (numeric, default `3` — initial visible height, the one textarea-specific prop). Getter is **value-only** — `rows` is static config, not user-mutable state (`textfield` didn't snapshot `placeholder`). `maxlength` deliberately omitted (mirrors `textfield`).
+
+**Processor seam — DEFERRED, the design decision.** N-038 named `textarea`/`number` as the processor's "earliest natural trigger"; the walk resolved that to **defer** on two locked grounds: (1) the N-038 sequence is locked — *finish ALL atomic di → engine (own arc, all consumers in hand) → dd* — and `textarea` is not the last atomic (`number`/`range`/`date`/`color`/`file`/`select multiple` follow), so building here would over-fit the seam to one of the three named consumers; (2) D-065 — the *atomic* is function-complete without it, exactly as `textfield` shipped processor-ready. The header reserves the **edit-side `use:processor`** insertion point (the counterpart to `paragraph`'s render-side `use:render`); nothing built. **auto-grow** (`field-sizing: content`) is reserved as a future skin shape (like `select`'s `appearance:base-select`), not authored (D-065).
+
+**Skin (N-040).** Own `.textarea` key in `skin.css`, **assembled** from the M-RP2.7 L2 vocabulary like `.textfield` (per-class clarity > DRY, the `.select` precedent — not a shared `.textfield, .textarea` group). Same box (`--s`/`--s5`/`--rad`/`--t`/`--fs-1`/`--lh`/padding/`:focus-visible`/`:disabled`/`:read-only`); differs in **no `min-height: --ctl-h`** (rows drives height), **`resize: vertical`** (horizontal would break the flex-column width), **no per-type icons**, **no `:invalid`**. No new `:root` token. Demo: one `<Textarea bind:value={demoTextarea} id="demo" placeholder="Multi-line text">` added to both shells.
+
+**Verification (Chat self-drove both apps, real `tauri dev` + CDP).** Registry baseline both apps: `textarea#demo` → `{"type":"textarea","state":{"value":""}}`. Dispatched a real `input` event (textarea fires `input`, not `change` — N-029) with a newline-bearing string → client `{"type":"textarea","state":{"value":"line one\nline two"}}` (`hasNewline=True lineCount=2`), node `{"type":"textarea","state":{"value":"node line A\nnode line B"}}` (`lineCount=2`) — the literal `\n` survives the bind rune to the registry snapshot, the proof that distinguishes it from `textfield`. Computed-style both apps: `{"tag":"TEXTAREA","fontSize":"12px","color":"rgb(236, 233, 225)","resize":"vertical","radius":"6px","bg":"rgb(22, 24, 28)","border":"rgb(52, 59, 71)"}` (= `--fs-1`/`--t`/`resize:vertical`/`--rad`/`--s`/`--s5`). Screenshots both apps eye-checked — multi-line box renders with the second line visible + the vertical resize grabber present + per-shell chrome. Clean teardown: `9222=False 9322=False 5173=False 5174=False`, `0 xgen-* remaining`.
+
+**Canonical (D-074), records-only.** `ui/docs/xgen-ui-notes.md` N-040 (v0.31); `ui/docs/xgen-ui-components.md` Built `textarea` row (`{value}`, ref N-022/N-024/N-038/N-040) + detail paragraph + di-catalogue build-note (v0.18); `docs/ROADMAP.md` RP node M-RP2.13 ✅ + both chains + Present clause + frontier (v3.98); `CLAUDE.md` PLAY → M-RP2.13 ✅ CLOSED, pointer J-417→J-418; `tasks/M_RP2_13_TEXTAREA.md` → COMPLETED. **No `DECISIONS.md` touch** — the processor-defer is the *application* of the existing N-038 sequence + D-065, not a new principle (if the defer-per-consumer pattern recurs to the four-recurrence bar it graduates then, D-069). Frontier M-RP2.12→M-RP2.13. Implementation in its own commit; records not pushed — Joe pushes.
+
+**Next-active (UI/RP track), per N-038 track order:** the **remaining atomic di** — `number` (own atomic, numeric `bind:value`) next, then `range` / `date` / `color` / `file` / `select multiple` — then the text-processor engine (own arc, all consumers in hand), then dd-components. Composites (incl. `password-field` reveal) are the later composite track. `textarea` is the eighth built `core` component.
 
 ---
 

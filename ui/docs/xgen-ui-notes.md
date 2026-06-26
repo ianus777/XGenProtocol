@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.30  
+> Version: 0.31  
 > Date: May 2026  
-> **Last updated**: 2026-06-25  
+> **Last updated**: 2026-06-26  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -948,6 +948,24 @@ M-RP2.12 closed (J-417) — `textfield` gains a constrained `type` prop, folding
 **Verify finding (method, worth keeping).** You cannot probe per-`type` native behaviour by mutating `el.type` on a Svelte `bind:value`-owned `<input>` and reading across an event flush — reconciliation + the bind round-trip fight the manual DOM mutation, and one `getComputedStyle(:invalid)` read returned the base border mid-flush (the rendered screenshot + a detached-element test both showed the correct red). Probe per-type via a **detached element** (or an instance authored with that type) + the screenshot; synchronous `el.type`/computed reads with **no event dispatched** are safe (the sweep above).
 
 *UI-implementation record. No protocol/data implication. `textfield` is still the seventh built component (a fold, not a new one) but now covers six input types; the N-029 reversal is recorded as D-096. Next: remaining atomic di (`textarea`/`number`/… per N-038) and, on the composites track, `password-field` with the reveal toggle.*
+
+## 2026-06-26
+
+### N-040 — `textarea` built (M-RP2.13): the eighth `core` component; stand-alone atomic (not a textfield fold); the edit-side `use:processor` seam reserved + processor kept deferred
+
+M-RP2.13 closed (J-418) — `textarea` (di·A, atomic `<textarea>`, multi-line free-text, string `bind:value`) authored + skinned in one pass. The **eighth** `core` component and the next atomic di per the N-038 track order. Root tag is `<textarea>`, not `<input>` → by the N-020 root-tag discriminator a **new atomic component, NOT a `textfield` fold**. The edit-side multi-line counterpart to `paragraph`'s render-side single prose string (N-032 EDIT-vs-RENDER axis): `paragraph` wraps one read-only string visually, `textarea` holds literal `\n`-bearing editable free text.
+
+**Component.** `ui/core/lib/components/data-independent/textarea.svelte`. Root `<textarea use:envelope>` (N-020); string `bind:value` (the bind-in path again, after toggle/textfield/select); getter `() => $state.snapshot({ value })`; zero `<style>`. Prop surface = the `textfield` string-input vocabulary **minus** what `<textarea>` can't carry, **plus** `rows`: keep `value`/`placeholder`/`disabled`/`readonly`/`id`/`name`; **drop `type`** (no such attribute) and **`pattern`** (`<input>`-only — so no `:invalid`-via-pattern path here); **add `rows`** (numeric, default `3` — the one textarea-specific prop, initial visible height). `maxlength` deliberately omitted (mirrors textfield). Getter is **value-only** — `rows` is static config, not user-mutable state (textfield didn't snapshot `placeholder`).
+
+**Processor seam — reserved, NOT built; `textarea` is processor-READY, not the trigger (the milestone's design decision).** N-038 named `textarea`/`number` as the processor's "earliest natural trigger"; the walk resolved that to **defer**, on two locked grounds: (1) the N-038 sequence is locked — *finish ALL atomic di → engine (own arc, all consumers in hand) → dd* — and `textarea` is not the last atomic (`number`/`range`/`date`/`color`/`file`/`select multiple` follow), so building here over-fits the seam to one of the three named consumers; (2) D-065 — the *atomic* is function-complete without it, exactly as `textfield` shipped processor-ready. The header reserves the **edit-side `use:processor`** insertion point (the counterpart to `paragraph`'s render-side `use:render`); nothing built. The "earliest natural trigger" line is a candidacy note, not a commitment — the locked trigger is "all atoms done."
+
+**auto-grow — future skin shape, not built.** The single-engine WebView2/Chromium target affords a pure-CSS path (`field-sizing: content`), reserved as a skin shape (like `select`'s `appearance:base-select`), not authored now (D-065). The atomic ships native fixed-`rows` height + vertical resize.
+
+**Skin (assembled).** Own `.textarea` key, assembled from the M-RP2.7 L2 vocabulary like `.textfield` (per-class clarity > DRY, the `.select` precedent — not a shared `.textfield, .textarea` group). Same box (`--s`/`--s5`/`--rad`/`--t`/`--fs-1`/`--lh`/padding/`:focus-visible`/`:disabled`/`:read-only`); differs in **no `min-height: --ctl-h`** (rows drives height), **`resize: vertical`** (horizontal would break the flex-column width), **no per-type icon machinery**, **no `:invalid`** (no native `pattern`). No new `:root` token.
+
+**Verify (both apps, real `tauri dev` + CDP; Chat self-drove).** Registry baseline both apps: `textarea#demo` → `{value:""}`. Dispatched `input` (textarea fires `input`, not `change` — N-029) with a newline-bearing string → registry `{value:"line one\nline two"}` (client) / `{value:"node line A\nnode line B"}` (node), `lineCount=2` both — the **literal `\n` survives the bind rune to the registry snapshot**, the thing distinguishing it from `textfield`. Computed-style both: tag `TEXTAREA`, `font-size 12px` (=`--fs-1`), `color rgb(236,233,225)` (=`--t`), `resize vertical`, `border-radius 6px` (=`--rad`), bg `rgb(22,24,28)` (=`--s`), border `rgb(52,59,71)` (=`--s5`). Screenshots both apps eye-checked — multi-line box + the vertical resize grabber render, per-shell chrome. Clean teardown (ports 9222/9322/5173/5174 free, 0 orphans).
+
+*UI-implementation record. No protocol/data implication. `textarea` is the eighth built `core` component; the processor stays deferred (N-038 sequence + D-065), `textarea` ships processor-ready. No `DECISIONS.md` touch — the defer is the application of an existing principle, not a new one. Next: remaining atomic di — `number` (own atomic, numeric `bind:value`) per N-038.*
 
 ---
 

@@ -225,6 +225,41 @@ html, body {
   border-color: var(--err);
 }
 
+/* Per-type inset icon (M-RP2.12, N-039) — a very-weak-grey (#e6e6e6, the
+ * img-placeholder light grey) look-distinguisher, right-inset in the text cell.
+ * Same mechanism as the select arrow: inline-SVG background-image keyed by the
+ * native `type` attribute. `text` carries no icon (keeps default padding). The
+ * colour literal lives inside each SVG (%23e6e6e6), not a :root token. */
+.textfield[type="search"],
+.textfield[type="email"],
+.textfield[type="url"],
+.textfield[type="tel"],
+.textfield[type="password"] {
+  padding-right: calc(var(--sp-4) + var(--sp-1));
+  background-repeat: no-repeat;
+  background-position: right var(--sp-2) center;
+}
+.textfield[type="search"] {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><circle cx='5' cy='5' r='3.2' fill='none' stroke='%23e6e6e6' stroke-width='1.2'/><line x1='7.5' y1='7.5' x2='10.2' y2='10.2' stroke='%23e6e6e6' stroke-width='1.2' stroke-linecap='round'/></svg>");
+}
+.textfield[type="email"] {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='13' height='12' viewBox='0 0 13 12'><rect x='1' y='2.5' width='11' height='7' rx='1' fill='none' stroke='%23e6e6e6' stroke-width='1.1'/><path d='M1.5 3.2 6.5 6.6 11.5 3.2' fill='none' stroke='%23e6e6e6' stroke-width='1.1' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+}
+.textfield[type="url"] {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='12' viewBox='0 0 14 12'><rect x='1.3' y='4' width='7' height='4' rx='2' fill='none' stroke='%23e6e6e6' stroke-width='1.1' transform='rotate(-30 7 6)'/><rect x='5.7' y='4' width='7' height='4' rx='2' fill='none' stroke='%23e6e6e6' stroke-width='1.1' transform='rotate(-30 7 6)'/></svg>");
+}
+.textfield[type="tel"] {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><circle cx='6' cy='4.7' r='3' fill='none' stroke='%23e6e6e6' stroke-width='1'/><circle cx='6' cy='4.7' r='0.9' fill='%23e6e6e6'/><path d='M2.5 10 3.4 8.2h5.2l0.9 1.8z' fill='%23e6e6e6'/></svg>");
+}
+.textfield[type="password"] {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='12' viewBox='0 0 16 12'><text x='8' y='9' font-size='9' font-family='sans-serif' fill='%23e6e6e6' text-anchor='middle'>***</text></svg>");
+}
+/* Suppress the native search clear-"x" so it doesn't collide with the magnifier. */
+.textfield[type="search"]::-webkit-search-cancel-button {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
 /* ───────────────────────────────────────────────────
  * select (.select)
  *   Root IS <select> (N-020 atomic). Closed control assembled from L2 tokens;

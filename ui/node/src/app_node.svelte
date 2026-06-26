@@ -34,6 +34,11 @@
   // Not a real node affordance.
   let demoSelect = $state('');
 
+  // M-RP2.12 (node side): throwaway demo of the textfield `type` fold (search variant).
+  // Proves the `type` prop reaches the <input> + the string bind:value still works on a
+  // non-text type; the inset magnifier icon renders. Not a real node affordance.
+  let demoSearch = $state('');
+
   onMount(async () => {
     try {
       const { listen } = await import('@tauri-apps/api/event');
@@ -98,6 +103,8 @@
   <Toggle bind:checked={demoChecked} id="demo" shape="switch" />
 
   <Textfield bind:value={demoText} id="demo" />
+
+  <Textfield type="search" bind:value={demoSearch} id="demo-search" placeholder="Search" />
 
   <Select bind:value={demoSelect} id="demo" placeholder="Pick one" options={['alpha', 'beta', 'gamma']} />
 

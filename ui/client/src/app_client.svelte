@@ -8,6 +8,7 @@
   import Paragraph from '$core/components/data-independent/paragraph.svelte';
   import Image from '$core/components/data-independent/image.svelte';
   import Textarea from '$core/components/data-independent/textarea.svelte';
+  import NumberField from '$core/components/data-independent/number.svelte';
   import AppLogo from './assets/logo_client_64.png';
   import Placeholder from '$assets/img-placeholder.svg';
 
@@ -43,6 +44,11 @@
   // text, re-dump via cdp-debug.ps1, observe the {value} delta carry a literal newline.
   // Not a real client affordance.
   let demoTextarea = $state('');
+
+  // M-RP2.14: throwaway demo of the ninth `core` component (number). Spin/type a value,
+  // re-dump via cdp-debug.ps1, observe the {value} delta carry a JSON number (not a
+  // string). Imported as NumberField to avoid shadowing the global `Number`.
+  let demoNumber = $state(null);
 
   onMount(async () => {
     try {
@@ -118,6 +124,8 @@
   <Select bind:value={demoSelect} id="demo" placeholder="Pick one" options={['alpha', 'beta', 'gamma']} />
 
   <Textarea bind:value={demoTextarea} id="demo" placeholder="Multi-line text" />
+
+  <NumberField bind:value={demoNumber} id="demo" placeholder="0" min={0} max={100} step={1} />
 
   <!-- M-RP2.9: throwaway demo of the first display-di (label, read-only). Snapshot via
        cdp-debug.ps1 -> {text}; no bind (read-only, no user delta). Not a real affordance. -->

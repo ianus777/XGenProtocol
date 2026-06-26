@@ -299,6 +299,48 @@ html, body {
   border-color: var(--s4);
 }
 
+/* ---------------------------------------------------
+ * number (.number)
+ *   Root IS <input type="number"> (N-020 atomic). Numeric free-entry (N-022). SAME root
+ *   as .textfield but a distinct component (value-type discriminator, D-096). Own key,
+ *   ASSEMBLED from the same L2 vocabulary as .textfield — single-line control, so it
+ *   KEEPS min-height:--ctl-h (unlike .textarea) and KEEPS :invalid (native numeric
+ *   constraint validation: out-of-min/max, bad step). No icons, no resize. The native
+ *   spinner is the atomic's affordance — NOT suppressed (the custom stepper is a
+ *   separate composite).
+ * --------------------------------------------------- */
+
+.number {
+  min-height: var(--ctl-h);
+  padding: var(--sp-1) var(--sp-2);
+  margin: var(--sp-1) var(--sp-2);
+  background: var(--s);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  color: var(--t);
+  font-size: var(--fs-1);
+  line-height: var(--lh);
+  transition: border-color var(--motion), box-shadow var(--motion);
+}
+.number::placeholder { color: var(--t4); }
+.number:focus-visible {
+  outline: none;
+  border-color: var(--accent2, var(--t3));
+  box-shadow: var(--focus-ring);
+}
+.number:disabled {
+  background: var(--s2);
+  color: var(--t4);
+  cursor: not-allowed;
+}
+.number:read-only {
+  background: var(--s2);
+  border-color: var(--s4);
+}
+.number:invalid {
+  border-color: var(--err);
+}
+
 /* ───────────────────────────────────────────────────
  * select (.select)
  *   Root IS <select> (N-020 atomic). Closed control assembled from L2 tokens;

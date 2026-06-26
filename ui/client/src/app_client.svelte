@@ -7,6 +7,7 @@
   import Label from '$core/components/data-independent/label.svelte';
   import Paragraph from '$core/components/data-independent/paragraph.svelte';
   import Image from '$core/components/data-independent/image.svelte';
+  import Textarea from '$core/components/data-independent/textarea.svelte';
   import AppLogo from './assets/logo_client_64.png';
   import Placeholder from '$assets/img-placeholder.svg';
 
@@ -37,6 +38,11 @@
   // `type` prop reaches the <input> + the string bind:value still works on a non-text
   // type; the inset magnifier icon renders. Not a real client affordance.
   let demoSearch = $state('');
+
+  // M-RP2.13: throwaway demo of the eighth `core` component (textarea). Type multi-line
+  // text, re-dump via cdp-debug.ps1, observe the {value} delta carry a literal newline.
+  // Not a real client affordance.
+  let demoTextarea = $state('');
 
   onMount(async () => {
     try {
@@ -110,6 +116,8 @@
   <Textfield type="search" bind:value={demoSearch} id="demo-search" placeholder="Search" />
 
   <Select bind:value={demoSelect} id="demo" placeholder="Pick one" options={['alpha', 'beta', 'gamma']} />
+
+  <Textarea bind:value={demoTextarea} id="demo" placeholder="Multi-line text" />
 
   <!-- M-RP2.9: throwaway demo of the first display-di (label, read-only). Snapshot via
        cdp-debug.ps1 -> {text}; no bind (read-only, no user delta). Not a real affordance. -->

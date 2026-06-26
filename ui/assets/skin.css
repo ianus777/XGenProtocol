@@ -260,6 +260,45 @@ html, body {
   -webkit-appearance: none;
 }
 
+/* ---------------------------------------------------
+ * textarea (.textarea)
+ *   Root IS <textarea> (N-020 atomic). EDIT-side multi-line free-text (N-022) — the
+ *   editable counterpart to paragraph's read-only prose. Own key, ASSEMBLED from the
+ *   same L2 vocabulary as .textfield (per-class clarity > DRY, the .select precedent),
+ *   differing in: no --ctl-h single-control height (rows drives height); resize:vertical
+ *   (horizontal would break the flex-column width); no per-type icons; no :invalid
+ *   (<textarea> has no native `pattern`). Auto-grow (`field-sizing: content`) is a future
+ *   skin shape, not set here.
+ * --------------------------------------------------- */
+
+.textarea {
+  padding: var(--sp-1) var(--sp-2);
+  margin: var(--sp-1) var(--sp-2);
+  background: var(--s);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  color: var(--t);
+  font-size: var(--fs-1);
+  line-height: var(--lh);
+  resize: vertical;
+  transition: border-color var(--motion), box-shadow var(--motion);
+}
+.textarea::placeholder { color: var(--t4); }
+.textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent2, var(--t3));
+  box-shadow: var(--focus-ring);
+}
+.textarea:disabled {
+  background: var(--s2);
+  color: var(--t4);
+  cursor: not-allowed;
+}
+.textarea:read-only {
+  background: var(--s2);
+  border-color: var(--s4);
+}
+
 /* ───────────────────────────────────────────────────
  * select (.select)
  *   Root IS <select> (N-020 atomic). Closed control assembled from L2 tokens;

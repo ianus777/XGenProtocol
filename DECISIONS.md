@@ -1,11 +1,35 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-22  
+> **Last updated:** 2026-06-25  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
 Every decision that goes beyond spec prescription is recorded here before advancing to the next layer.
 Format: title, date, layer, spec reference, decision narrative.
+
+---
+
+## D-096 — `textfield` `type` folds the string-input family into one component (reverses N-029)
+
+**Date**: 2026-06-25
+**Layer**: UI / component model (reference implementation, not protocol).
+**Spec reference**: N-038 scoping (di→processor→dd track, atomic/shape/composite line); reverses N-029 ("type is fixed, separate semantics"). Verified M-RP2.12 (J-417); recorded via N-039 (which also carries the per-type icon treatment — a skin concern, not part of this decision).
+
+### Decision
+
+The atomic discriminator for an input component is **root structure + value-type, not the `type` literal**. The string-valued `<input>` types that share the `<input>` root, a string `bind:value`, and the `.textfield` skin fold into the one `textfield` component via a constrained `type` prop:
+
+```
+type: 'text' | 'search' | 'email' | 'url' | 'tel' | 'password'   // default 'text'
+```
+
+They differ only in UA-supplied validation / soft-keyboard / masking — not in root tag, value type, or skin. Enforcement is the **TS union alone** (no runtime guard, no DEV-warn): the consumer is a TS codebase, and an out-of-whitelist value degrades safely (the browser normalizes an unknown `type` to `text`), so a guard would be empty machinery (D-065). The getter carries `type` (`{ type, value }`) so the configured type is verifiable through the N-024 registry.
+
+**Excluded — own atomics** (value-type or structure differs): `number`/`range` (numeric `bind:value`), `date`/`color`/`file` (structured value / native chrome). **Excluded — composites** (custom interactive chrome on top of the field): the `password-field` reveal toggle, a custom stepper. Neither folds into `textfield`.
+
+### Why
+
+One file and one skin for a family that is structurally one control; the prop is a native attribute passthrough that degrades safely. N-029 fixed `type` early — before the di catalogue had a principled atomic/shape/composite boundary. N-038 supplied that boundary, so the reversal is now grounded rather than ad hoc: the line is drawn at root-structure + value-type, and `type` (within the string-input family) sits below it.
 
 ---
 

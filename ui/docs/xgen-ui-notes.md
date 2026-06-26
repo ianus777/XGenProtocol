@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.29  
+> Version: 0.30  
 > Date: May 2026  
 > **Last updated**: 2026-06-25  
 > Language: English  
@@ -931,7 +931,23 @@ Conversation-derived scoping pass (2026-06-25), recording decisions reached befo
 
 **Build sequence (vision, not a locked roadmap — per-milestone walks still happen on open).** Finish all atomic di → the text-processor engine (own arc, consumers in hand) → dd-components (on a complete, settled di + processor foundation). Remaining atomic di after `textfield`-`type`: `textarea`, `number`, `range`, `date`/`time`, `color`, `file` (new `bind:files` shape), `select multiple`. Shapes (fold into built): search→textfield, tri-state→toggle, segmented→button/radio. Composites (the composite milestone, not atomic): radio-group, checkbox-group, combobox, tag-select, star-rating, password-field, custom stepper.
 
-*Scoping record. No protocol/data implication, no code. Reverses N-029 (textfield `type` fixed → constrained prop) pending its build-time DECISIONS entry; sharpens + keeps deferred the N-029/N-032 processor seam. Sets the di→processor→dd track order.*
+*Scoping record. No protocol/data implication, no code. Reverses N-029 (textfield `type` fixed → constrained prop) → D-096 (landed M-RP2.12); sharpens + keeps deferred the N-029/N-032 processor seam. Sets the di→processor→dd track order.*
+
+### N-039 — `textfield` `type` fold built (M-RP2.12): the N-029 reversal lands with code (→ D-096); per-type inset icons; a Svelte-bind verify subtlety
+
+M-RP2.12 closed (J-417) — `textfield` gains a constrained `type` prop, folding the string-input family into one component. N-038's pre-authorised reversal of N-029 now lands with code **→ D-096** (the fold decision; this note carries the icon treatment + the verify finding, which are skin/method, not the decision).
+
+**Component.** `type?: 'text'|'search'|'email'|'url'|'tel'|'password'` (default `'text'`), **TS union only** — no runtime guard, no DEV-warn: an out-of-whitelist value degrades safely (browser → `text`), so a guard would be empty machinery (D-065), and unlike image's required `alt` the type system has a safe native fallback here. Root `<input {type}>`; getter now `{ type, value }` (carries `type` so the configured type is registry-verifiable — the image-`alt` precedent). `textfield.svelte` stays zero-`<style>`. `maxlength` deliberately NOT added — orthogonal to the fold.
+
+**Per-type inset icon (skin, not behaviour).** A very-weak-grey `#e6e6e6` (the `img-placeholder` light grey — lighter than `--t3`/`--t4`, reads as a faint hint) inline-SVG, right-inset in the text cell, keyed by `.textfield[type="…"]` — same mechanism as the `select` arrow; the colour literal lives inside each SVG (`%23e6e6e6`), not a `:root` token. Glyphs: `text` none · `search` magnifier · `email` envelope · `url` link · `tel` rotary-ish phone · `password` `***`. Iconed types carry a right-padding bump (`calc(--sp-4 + --sp-1)`); `text` keeps default padding. The native `search` clear-"x" is suppressed (`::-webkit-search-cancel-button { appearance:none }`) so it doesn't collide with the magnifier.
+
+**Password reveal is NOT here.** The atomic `type="password"` stays pure (masks + static `***` icon). A readable/reveal toggle is interactive chrome → breaks atomicity → ships as the `password-field` composite (D-096, deferred to the composites track).
+
+**Verify (both apps, real `tauri dev` + CDP; Chat self-drove).** Registry: `textfield#demo` → `{type:"text",value:""}` (default holds), `textfield#demo-search` → `{type:"search",value:""}`. `el.type` sweep across all six whitelist values round-trips exactly (browser accepts each). Per-type computed `background-image`: `text` → `none`, the other five → an image present. `bind:value` delta on `type=search` → `{type:"search",value:"find me"/"node find"}` (the string bind path holds on a non-text type). `.textfield:invalid` applies `--err` (rgb 138,42,42) for **both** native email-type-validation and `pattern` — confirmed on clean detached elements; valid email + plain text stay `--s5`. Screenshots both apps: plain field iconless, search field shows the right-inset magnifier (clear-x gone), email field renders red border + envelope. Clean teardown (0 orphans).
+
+**Verify finding (method, worth keeping).** You cannot probe per-`type` native behaviour by mutating `el.type` on a Svelte `bind:value`-owned `<input>` and reading across an event flush — reconciliation + the bind round-trip fight the manual DOM mutation, and one `getComputedStyle(:invalid)` read returned the base border mid-flush (the rendered screenshot + a detached-element test both showed the correct red). Probe per-type via a **detached element** (or an instance authored with that type) + the screenshot; synchronous `el.type`/computed reads with **no event dispatched** are safe (the sweep above).
+
+*UI-implementation record. No protocol/data implication. `textfield` is still the seventh built component (a fold, not a new one) but now covers six input types; the N-029 reversal is recorded as D-096. Next: remaining atomic di (`textarea`/`number`/… per N-038) and, on the composites track, `password-field` with the reveal toggle.*
 
 ---
 

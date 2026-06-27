@@ -9,6 +9,32 @@ Format: title, date, layer, spec reference, decision narrative.
 
 ---
 
+## D-098 — Sampler runtime = full Tauri/WebView2 sibling (minimal host), not a Vite-only page
+
+**Date:** 2026-06-27 · **Layer:** UI infra (M-RP3.0) · **Ref:** N-044, D-095, D-097
+
+The component sampler runs in **WebView2** via its own **minimal** Tauri host (`xgen-sampler/`), identical runtime to the real shells, driven by the same CDP self-drive harness. The host crate pulls **only** `tauri` + `tauri-build` — **no** protocol crates (it does NOT mirror `xgen-client`, which carries `xgen-common`/`xgen-core`/tokio/websockets/crypto/CLI with Tauri bolted on); `src/main.rs` is the bare `tauri::Builder::default().run(generate_context!())`. Ports: Vite **5175** / CDP **9422** (client 5173/9222, node 5174/9322).
+
+**Why not Vite-in-Chrome (the lighter option):** the whole skin rests on the single-engine WebView2/Chromium assumption (vendor-prefixed pseudo-elements, `color-scheme`, the hover-only spinner paint). Tuning in a *different* engine, on a *divergent* toolchain, reintroduces exactly the false confidence the sampler exists to remove. The minimal-host cost (one boilerplate crate, tauri deps already compiled in the shared target dir) is paid once and keeps one runtime + one harness.
+
+**Mirror-exemption:** the sampler is **D-095-mirror-exempt** — it does not mirror the client/node source-tree shape, and it deliberately diverges on skin *load mechanism* (the real apps bundle `skin.css` via Vite; the sampler edits the **canonical** `ui/assets/skin.css` live via Vite HMR in dev — the killer feature: tune in the sampler, the change *is* the shipping skin). A standalone-exe live-reload (fs-plugin + refresh button) is a future follow-on, unneeded while dev HMR covers the intent.
+
+---
+
+## D-097 — Test-bed split: build/tune components in the sampler; run the two real apps together for interaction/integration
+
+**Date:** 2026-06-27 · **Layer:** UI process (M-RP3.0) · **Ref:** N-044, D-098
+
+The component track is **paused** (the remaining atomic di — `date`/`color`/`file`/`select multiple` — is resumable, not cancelled) while the sampler is built. Henceforth the test-bed is split three ways:
+
+- **Component appearance / state / per-shell theming → the sampler.** The runtime client↔node skin-swap covers gold-vs-blue, **fully replacing** the prior practice of wiring throwaway demos into both real shells. From `date` onward, components are built, tuned, and CDP-verified in the sampler.
+- **A component inside a real composed feature → the real app, at integration.**
+- **The two shells running *with each other* (federation/protocol plane, handshakes, the MP-R scenarios) → both real apps run together.** This is the sampler's **structural blind spot** — one window, one runtime — so it stays the job of the real apps at interaction/integration milestones (MP-R3, Tier-1 auth rebuild, streams).
+
+Consequence: the real shells are **frozen as-is** (no revert, no new component wiring) and are **not run for component reasons**. The revert of the demo blocks from the real shells is deferred to a future cleanup (not a prerequisite for the sampler).
+
+---
+
 ## D-096 — `textfield` `type` folds the string-input family into one component (reverses N-029)
 
 **Date**: 2026-06-25

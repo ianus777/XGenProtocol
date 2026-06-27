@@ -341,6 +341,58 @@ html, body {
   border-color: var(--err);
 }
 
+/* ---------------------------------------------------
+ * range (.range)
+ *   Root IS <input type="range"> (N-020 atomic). Bounded numeric slider (N-022). SAME
+ *   root + value-type as .number, but a DISTINCT component on the sharpened fold
+ *   criterion (root + value-type + shared skin/surface — D-096 clause, N-042): the skin
+ *   shares NOTHING with .number. First pseudo-element-heavy skin — appearance:none +
+ *   ::-webkit-slider-runnable-track (the groove) + ::-webkit-slider-thumb (the handle).
+ *   Vendor-prefixed is fine (single-engine WebView2/Chromium — the toggle-switch ::before
+ *   / select-arrow precedent). Thumb = per-shell accent so it reads as the live control.
+ *   The accent FILL (tinted track left of the thumb) is DEFERRED — a future value-driven
+ *   linear-gradient skin shape (D-065). No :invalid (clamped), no --ctl-h, no new token.
+ *   PROVISIONAL dims (Joe eye-checks, like the Q5 switch shape).
+ * --------------------------------------------------- */
+
+.range {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 160px;
+  margin: var(--sp-1) var(--sp-2);
+  background: transparent;
+  cursor: pointer;
+}
+.range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--s5);
+}
+.range::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--accent, var(--pr));
+  border: 1px solid var(--accent2, var(--pr2));
+}
+.range:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.range:disabled {
+  cursor: not-allowed;
+}
+.range:disabled::-webkit-slider-runnable-track {
+  background: var(--s3);
+}
+.range:disabled::-webkit-slider-thumb {
+  background: var(--s4);
+  border-color: var(--s5);
+}
+
 /* ───────────────────────────────────────────────────
  * select (.select)
  *   Root IS <select> (N-020 atomic). Closed control assembled from L2 tokens;

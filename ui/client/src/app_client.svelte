@@ -9,6 +9,7 @@
   import Image from '$core/components/data-independent/image.svelte';
   import Textarea from '$core/components/data-independent/textarea.svelte';
   import NumberField from '$core/components/data-independent/number.svelte';
+  import Range from '$core/components/data-independent/range.svelte';
   import AppLogo from './assets/logo_client_64.png';
   import Placeholder from '$assets/img-placeholder.svg';
 
@@ -49,6 +50,11 @@
   // re-dump via cdp-debug.ps1, observe the {value} delta carry a JSON number (not a
   // string). Imported as NumberField to avoid shadowing the global `Number`.
   let demoNumber = $state(null);
+
+  // M-RP2.15: throwaway demo of the tenth `core` component (range). Drag the slider,
+  // re-dump via cdp-debug.ps1, observe the {value} delta carry a JSON number. A range is
+  // always valued (default 0; demo seeds 50), no null state. Not a real client affordance.
+  let demoRange = $state(50);
 
   onMount(async () => {
     try {
@@ -126,6 +132,8 @@
   <Textarea bind:value={demoTextarea} id="demo" placeholder="Multi-line text" />
 
   <NumberField bind:value={demoNumber} id="demo" placeholder="0" min={0} max={100} step={1} />
+
+  <Range bind:value={demoRange} id="demo" min={0} max={100} step={1} />
 
   <!-- M-RP2.9: throwaway demo of the first display-di (label, read-only). Snapshot via
        cdp-debug.ps1 -> {text}; no bind (read-only, no user delta). Not a real affordance. -->

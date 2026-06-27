@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-25  
+> **Last updated:** 2026-06-27  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -30,6 +30,12 @@ They differ only in UA-supplied validation / soft-keyboard / masking — not in 
 ### Why
 
 One file and one skin for a family that is structurally one control; the prop is a native attribute passthrough that degrades safely. N-029 fixed `type` early — before the di catalogue had a principled atomic/shape/composite boundary. N-038 supplied that boundary, so the reversal is now grounded rather than ad hoc: the line is drawn at root-structure + value-type, and `type` (within the string-input family) sits below it.
+
+### Amendment (2026-06-27, M-RP2.15 / N-042) — the criterion is sharpened: root + value-type + shared skin/surface
+
+`range` (M-RP2.15) is the case that tests sufficiency. It shares both halves of the criterion as originally written — root `<input>` AND value-type `number` (same as `number`) — so the *literal* criterion would fold it into `number`. It must not: `range` diverges on **skin** (track/thumb `::-webkit-slider-*` pseudo-elements — zero shared appearance with `number`'s text box + spinner), **prop surface** (no `placeholder`, no live `:invalid` — the thumb is clamped, no `readonly` — native no-op; bounds are the *defining* attribute), and **interaction/empty model** (clamped drag, always-valued vs `number`'s empty=`null`). Folding would put two disjoint skins behind one class and a prop that swaps the whole rendering — the polymorphic-contract problem this decision exists to prevent, on the *appearance* axis instead of the value axis.
+
+So the fold criterion is **necessary but not sufficient as written**; the sharpened test is **root + value-type + shared skin/surface** (genuine interchangeability — the thing that made the string-input fold good: one skin, one prop surface, a thin `type` switch). `range` stays its own atomic. This refines the criterion in place; it does not reopen the `textfield` fold (the string-input family still passes the sharpened test).
 
 ---
 

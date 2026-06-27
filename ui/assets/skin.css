@@ -46,6 +46,12 @@
    * per-shell in app.css; --t3 is the neutral fallback if no shell accent. */
   --focus-ring: 0 0 0 2px var(--s2), 0 0 0 4px var(--accent2, var(--t3));
   --motion: 120ms ease;
+
+  /* Tell the UA to paint ALL native control internals dark (N-043): the number
+   * spinner arrows, scrollbars, and the date/color/file picker chrome ahead. The
+   * skin styles each control's BOX, but UA-painted internals ignore that and render
+   * light unless the root declares its scheme. One declaration, inherits everywhere. */
+  color-scheme: dark;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -339,6 +345,12 @@ html, body {
 }
 .number:invalid {
   border-color: var(--err);
+}
+/* Native spinner ~25% smaller (N-043): the UA inner-spin-button is sized by the
+ * engine; transform:scale is the reliable lever (0.75 = 25% smaller). Not
+ * suppression — the M-RP2.14 keep-the-spinner lock holds, this only shrinks it. */
+.number::-webkit-inner-spin-button {
+  transform: scale(0.75);
 }
 
 /* ---------------------------------------------------

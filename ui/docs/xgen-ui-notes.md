@@ -1001,6 +1001,16 @@ M-RP2.15 closed (J-420) — `range` (di·A, atomic `<input type="range">`, bound
 
 *UI-implementation record. No protocol/data implication. `range` is the tenth built `core` component; the fold criterion is sharpened (→ D-096 amendment) — root + value-type + shared skin/surface. The pseudo-element skin verify pattern (stylesheet-rule + screenshot, not `getComputedStyle`) is the precedent for the remaining native-chromed atomics. Next: remaining atomic di — `date` (own atomic, structured value / native picker) per N-038.*
 
+### N-043 — `color-scheme: dark` on `:root` (post-M-RP2.15 skin fix): UA-painted native control internals now render dark
+
+Post-M-RP2.15 skin tweak (J-421), no new component. The `number` spinner arrows rendered **light** even in the dark theme: the skin styles each control's **box** (bg/border/text), but the UA paints control *internals* — spinner arrows, scrollbars, and the `date`/`color`/`file` picker chrome still ahead — from the document's **color-scheme**, which defaults to `light` and ignores our box styling. Fix: one declaration **`color-scheme: dark`** on `:root` in `skin.css` (added to the L2 token block). It inherits, so it governs every native control at once; it is the idiomatic dark-app fix and keeps the spinner (M-RP2.14 lock — no suppression). Global, not `.number`-scoped (Q chosen by Joe): the problem is "native chrome paints light in our dark app," which is document-level, so it is fixed once at the vocabulary level rather than re-tripped per native-chromed atomic. Litmus (N-031): remove it → natives go light again but the app still works → L2 skin, clean fit.
+
+**Verify (both apps, real `tauri dev` + CDP; Chat self-drove).** `getComputedStyle(document.documentElement).colorScheme === "dark"` both apps. `toggle` accent-color unaffected (client `rgb(154,106,48)`=`--pr`, node `rgb(42,96,144)`=`--inf`) — the `accent-color`-driven checkbox shape is independent of `color-scheme`. The number **spinner** is hover-only-painted by Chromium (not shown at rest, so not screenshot-capturable without a synthetic hover), but the **scrollbar** — the same UA-painted-chrome mechanism `color-scheme` governs — renders **dark** in both shells in the screenshots, the observable proof the declaration reaches native internals. Clean teardown (0 orphans).
+
+**Spinner sized down (follow-on, same change).** Joe then asked for the spinner ~25% smaller. The UA inner-spin-button is engine-sized; `transform: scale()` is the reliable lever — `.number::-webkit-inner-spin-button { transform: scale(0.75); }` (0.75 = 25% smaller). **Not** suppression — the M-RP2.14 keep-the-spinner lock holds, this only shrinks it. Verified via stylesheet-rule inspection (the rule parsed + in the cascade both apps, same method as the slider pseudos — `getComputedStyle` doesn't surface `::-webkit-inner-spin-button` either); the rendered hover-state size is Joe's eye-check (hover-only-paint, not screenshot-capturable).
+
+*UI-implementation record. No protocol/data implication, no new component, no `DECISIONS.md` touch (a skin vocabulary addition, the N-031 stack). Forward-looking: pre-empts the same light-native problem on `date`/`color`/`file` pickers ahead. Next unchanged: `date` per N-038.*
+
 ---
 
 ## How to use this file

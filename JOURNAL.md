@@ -1,10 +1,48 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-26  
+> **Last updated:** 2026-06-27  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-420 — M-RP2.15 CLOSED: `range` — tenth `core` component, a stand-alone atomic `<input type="range">` (bounded numeric slider); own atomic on the SHARPENED D-096 fold criterion (→ D-096 amendment); first pseudo-element-heavy skin
+
+**What happened.** Authored the tenth `core` component `range` and skinned it in the same pass — the next atomic di after `number` per the locked N-038 track order (catalogue row *numeric (bounded)*). Mechanically the same `<input>` root **and** the same value-type (number) as `number`, so by the *literal* D-096 criterion (root + value-type) it would fold into `number`. It does **not** — `range` is the case that proves the criterion **necessary but not sufficient**, and the milestone's load-bearing decision is the **D-096 amendment**: the fold test is sharpened to root + value-type + **shared skin/surface** (genuine interchangeability). Implementation (`range.svelte` + `skin.css` + both shells) is its own commit; this is the records-only close. No protocol/data change; Rust baseline untouched (Rule 5).
+
+**Built.** `ui/core/lib/components/data-independent/range.svelte`: root `<input type="range" use:envelope>`; `value = $bindable(0)` typed `number` (always present — the clean divergence from `number`'s `number | null`); getter `() => $state.snapshot({ value })` (always a number); zero `<style>`. Prop surface = the numeric control, slider-shaped: keep `value`/`min`/`max`/`step`/`disabled`/`id`/`name`; **drop** `placeholder` (never empty), `pattern`, `readonly` (native no-op on `type=range`), `type` (fixed). **No clamping** in the atomic — a consumer setting `min > 0` passes an in-range initial (documented consumer responsibility, exactly as `number` does not clamp). **No processor seam** — `range` is a bounded drag, not free-text/free-number entry, so there are no typed digits to reformat (the numeric-formatting consumer is `number`); this is **not** a third defer-per-consumer instance.
+
+**Why own atomic (D-096 amendment, the design point).** `range` shares both halves of D-096's criterion as originally written — root `<input>` AND value-type `number` (same as `number`) — so the *literal* criterion would fold it in. It must not, because the fold's whole value is *genuine interchangeability* (the string-input family shared one skin + one prop surface, switched by a thin `type`). `range` diverges on three axes the fold cannot absorb: (1) **skin** — track/thumb `::-webkit-slider-*` pseudo-elements, **zero** shared appearance with `number`'s text box + spinner; (2) **prop surface** — no `placeholder`, no live `:invalid` (the thumb is clamped, can't go out of range), no `readonly`; bounds are the *defining* attribute; (3) **interaction/empty model** — clamped drag, **always-valued** vs `number`'s empty=`null`. Folding would put two disjoint skins behind one class and a prop that swaps the whole rendering — the polymorphic-contract problem D-096 prevents, on the *appearance* axis. So D-096 gains an amendment clause (criterion = root + value-type + shared skin/surface); the string-input fold still passes the sharpened test, so it is **not** reopened.
+
+**Skin (N-042, first pseudo-element-heavy skin — PROVISIONAL).** Own `.range` key in `skin.css` (after `.number`, before `.select`): `appearance:none` + `-webkit-appearance:none` on the input, then `::-webkit-slider-runnable-track` (a 4px `--s5` groove, pill radius) + `::-webkit-slider-thumb` (16px circle, `margin-top:-6px` to centre on the 4px track, `background: var(--accent, var(--pr))` → per-shell gold/blue, `border: var(--accent2, var(--pr2))`). Vendor-prefixed is fine (single-engine WebView2/Chromium — the toggle-switch `::before` / select-arrow precedent). `:focus-visible` → `--focus-ring`; `:disabled` greys thumb (`--s4`) + track (`--s3`). **No `:invalid`** (clamped), **no `--ctl-h`**, **no new `:root` token**. The **accent fill** (tinted track left of the thumb) is **deferred** — WebKit gives no free fill; a future value-driven `linear-gradient` skin shape (D-065). Demo: one `<Range bind:value={demoRange} id="demo" min={0} max={100} step={1}>` added to both shells (`let demoRange = $state(50)` bare — plain-JS shells, the N-041 gotcha); imported as `Range` (no global shadowing, unlike `number`→`NumberField`).
+
+**Verification (Chat self-drove both apps, real `tauri dev` + CDP).** Registry both apps — `ids()` includes `range#demo`:
+```
+CLIENT ids: ["toggle#demo","textfield#demo","textfield#demo-search","select#demo","textarea#demo","number#demo","range#demo","label#demo","paragraph#demo","image#demo","button#demo-toggle","button#quit"]
+CLIENT range#demo: {"type":"range","state":{"value":56}}   (typeof value === "number")
+NODE   range#demo: {"type":"range","state":{"value":50}}
+```
+Baseline is **always-valued, never `null`** (node read the demo seed `50`; client read `56` — a stray hover/drag landed on the minimized window during the long mount-poll, still a number in range — re-driven cleanly below). Dispatched a real **`input`** event (N-029; range fires `input` on drag) → the registry carried a **JSON number** (not a string):
+```
+CLIENT readback: {"value":75,"t":"number"}
+NODE   readback: {"value":25,"t":"number"}
+```
+The number-distinguishing proof on the slider bind path (the analogue of `number`'s 42/7). Element computed-style both apps:
+```
+CLIENT: {"tag":"INPUT","type":"range","appearance":"none","webkitAppearance":"none","width":"160px","cursor":"pointer"}
+NODE:   {"tag":"INPUT","type":"range","appearance":"none","webkitAppearance":"none","width":"160px","cursor":"pointer"}
+```
+Screenshots both apps eye-checked: the slider renders — track groove + **per-shell accent thumb** (gold/`--pr` client at ~75%, blue/`--inf` node at ~25%, matching the dispatched values) + per-shell chrome. Clean teardown: `9222=False 9322=False 5173=False 5174=False`, `xgen=0`.
+
+**Verify finding (N-042 — method, the first slider exposes it; Rule 1/3 recorded honestly).** The planned pseudo-element computed-style probe **did not work**: `getComputedStyle(el, '::-webkit-slider-thumb')` / `'::-webkit-slider-runnable-track'` returned UA defaults, not the authored styles — `{"thumbBg":"rgba(0, 0, 0, 0)","thumbW":"160px","thumbH":"4px","thumbRadius":"0px","trackBg":"rgba(0, 0, 0, 0)","trackH":"4px"}` (thumb width `160px` = the *element* box, not the 16px thumb; bg transparent). These are UA shadow-DOM pseudo-elements; Chromium does not surface author styles on them via `getComputedStyle` (a shadow-pseudo limitation, **not** a timing issue like N-039/N-041). The skin was verified instead by **stylesheet-rule inspection** (walk `document.styleSheets` → `cssRules`, read `.style.cssText` for each `.range…` selector) — all **7** `.range` rules confirmed parsed + in the cascade in both apps (base + track + thumb + focus + disabled + 2 disabled-pseudo, thumb carrying `background: var(--accent, var(--pr))`) — **plus the screenshot** (the accent thumb renders). Going forward, pseudo-element skins are verified via stylesheet-rule presence + screenshot, not `getComputedStyle`.
+
+**Canonical (D-074), records-only.** `DECISIONS.md` D-096 **amendment** (the sharpened criterion: root + value-type + shared skin/surface; Last-updated → 2026-06-27); `ui/docs/xgen-ui-notes.md` N-042 (v0.33); `ui/docs/xgen-ui-components.md` Built `range` row (`{value}`, ref N-022/N-024/N-038/N-042) + detail paragraph + di-catalogue build-note (v0.20); `docs/ROADMAP.md` RP node M-RP2.15 ✅ + both chains + Present clause + frontier (v4.00); `CLAUDE.md` PLAY → M-RP2.15 ✅ CLOSED, pointer J-419→J-420; `tasks/M_RP2_15_RANGE.md` → COMPLETED. **DECISIONS.md IS touched this milestone** (the D-096 amendment) — unlike M-RP2.13/M-RP2.14. Frontier M-RP2.14→M-RP2.15. Implementation in its own commit; records not pushed — Joe pushes.
+
+**Records-commit note (honest record).** The first records commit (`e19ed8e`, pushed) inadvertently went out **without this J-420 entry** — the JOURNAL edit timed out (local MCP server unresponsive) after the other six record files had already been written, and the commit was made before the journal write was reconfirmed. J-420 + the JOURNAL header bump land in a **follow-up records commit**. All other M-RP2.15 records (DECISIONS/notes/components/ROADMAP/CLAUDE/task) were correct in `e19ed8e`.
+
+**Next-active (UI/RP track), per N-038 track order:** the **remaining atomic di** — `date` (own atomic, structured value / native picker) next, then `color` / `file` / `select multiple` — then the text-processor engine (own arc, all consumers in hand), then dd-components. Composites (incl. `password-field` reveal) are the later composite track. `range` is the tenth built `core` component.
 
 ---
 

@@ -16,7 +16,7 @@
 #   $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--remote-debugging-port=9222'
 
 param(
-    [ValidateSet('client','node')] [string]$App = 'client',
+    [ValidateSet('client','node','sampler')] [string]$App = 'client',
     [int]$Ordinal = 0,
     [ValidateSet('console','state','eval','screenshot')] [string]$Mode = 'state',
     [string]$Expression = '',
@@ -31,8 +31,8 @@ $ProgressPreference = 'SilentlyContinue'
 $ErrorActionPreference = 'Stop'
 
 # Resolve per-app defaults (overridable by -Exe / -Port / -OutFile).
-if (-not $Exe)     { $Exe = if ($App -eq 'node') { "$PSScriptRoot\bin\xgen-node.exe" } else { "$PSScriptRoot\bin\xgen-client.exe" } }
-$basePort = if ($App -eq 'node') { 9322 } else { 9222 }
+if (-not $Exe)     { $Exe = if ($App -eq 'node') { "$PSScriptRoot\bin\xgen-node.exe" } elseif ($App -eq 'sampler') { "$PSScriptRoot\bin\xgen-sampler.exe" } else { "$PSScriptRoot\bin\xgen-client.exe" } }
+$basePort = if ($App -eq 'node') { 9322 } elseif ($App -eq 'sampler') { 9422 } else { 9222 }
 $port = if ($Port -gt 0) { $Port } else { $basePort + $Ordinal }
 if (-not $OutFile) { $OutFile = "$PSScriptRoot\temp\cdp-debug-$App.txt" }
 

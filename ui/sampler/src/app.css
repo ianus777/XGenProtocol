@@ -1,0 +1,82 @@
+/* app.css — SAMPLER chrome ONLY (N-031, N-044)
+ *
+ * Reset      -> xgen-normalize.css (L0)
+ * Tokens +
+ * appearance -> skin.css (L2, shared canonical — the live-edit target)
+ * This file holds only the sampler's own dev-tool layout + the runtime
+ * client<->node accent SWAP (D-098, M-RP3.0).
+ *
+ * The sampler is D-095-mirror-exempt: it does NOT mirror the client/node
+ * 320px card. Its layout is its own. The one thing it shares structurally is
+ * the per-app accent knob (--accent*), which here is SWITCHABLE at runtime via
+ * the [data-shell] attribute instead of fixed per-shell — that is the killer
+ * feature (one component grid, flip accent, watch it re-theme). */
+
+/* Default = client accent (gold). [data-shell] flips it live (skin-swap). */
+:root,
+:root[data-shell="client"] {
+  --accent:     var(--pr);
+  --accent2:    var(--pr2);
+  --accent-ink: var(--pr-ink);
+}
+:root[data-shell="node"] {
+  --accent:     var(--inf);
+  --accent2:    var(--inf2);
+  --accent-ink: var(--inf-ink);
+}
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background-color: var(--s1);
+}
+
+#sampler-root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.sampler-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background-color: var(--s2);
+  border-bottom: 1px solid var(--s5);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.sampler-title {
+  color: var(--t);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.sampler-shell-tag {
+  color: var(--t2);
+  font-size: 12px;
+}
+
+.sampler-body {
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* v0 smoke cell — M-RP3.1 replaces this with the class x phase matrix. */
+.sampler-smoke {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sampler-smoke-label {
+  color: var(--t2);
+  font-size: 12px;
+  min-width: 120px;
+}

@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Jozef Nižnanský / Alchemy Dump
+# SPDX-License-Identifier: BUSL-1.1
+#
+# xgen-sampler — minimal Tauri host for the component sampler (D-098, M-RP3.0).
+# Deliberately NOT modelled on xgen-client: it pulls NO protocol crates
+# (no xgen-common/xgen-core), no tokio/websockets/crypto/CLI. Its only job is to
+# open a WebView2 window at the sampler Vite devUrl so the `core` component
+# library can be hosted, tuned, and CDP-verified in the real runtime.
+
+[package]
+name = "xgen-sampler"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[[bin]]
+name = "xgen-sampler"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

@@ -1,0 +1,30 @@
+{
+  "productName": "XGen Sampler",
+  "version": "0.1.0",
+  "identifier": "com.alchemydump.xgensampler",
+  "build": {
+    "frontendDist": "C:/cargo-targets/XGenProtocol/sampler-dist",
+    "devUrl": "http://localhost:5175",
+    "beforeBuildCommand": "npm --prefix ../ui/sampler run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "XGen Sampler",
+        "width": 960,
+        "height": 820,
+        "decorations": true,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all",
+    "icon": ["icons/icon.png"]
+  }
+}

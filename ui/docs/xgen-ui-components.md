@@ -1,8 +1,8 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.20  
+> Version: 0.21  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-27  
+> **Last updated**: 2026-06-28  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -76,7 +76,7 @@ First built `core` component, authored at M-RP2.3 as the substrate proof: verifi
 | secret | `<input type="password">` | `bind:value` | password field |
 | numeric (exact) | `<input type="number">` | `bind:value` | number field · stepper |
 | numeric (bounded) | `<input type="range">` | `bind:value` | slider |
-| date / time | `<input type="date\|time\|datetime-local">` | `bind:value` | native picker |
+| date / time | `<input type="date\|time\|datetime-local\|month\|week">` | `bind:value` | native picker |
 | color | `<input type="color">` | `bind:value` | swatch picker |
 | file-select | `<input type="file">` | `bind:files` | file button |
 
@@ -87,6 +87,8 @@ First built `core` component, authored at M-RP2.3 as the substrate proof: verifi
 > **Build note (M-RP2.14):** the *numeric (exact)* row above (`<input type="number">`) is served by the built **`number`** component (own atomic; numeric `bind:value`, `min`/`max`/`step`, native spinner kept). The *stepper* shape variant (custom +/− buttons) is deferred to the composite track.
 
 > **Build note (M-RP2.15):** the *numeric (bounded)* row above (`<input type="range">`) is served by the built **`range`** component (own atomic; numeric `bind:value` always-valued, `min`/`max`/`step`, native thumb/track). Own atomic on the *sharpened* fold criterion (root + value-type + shared skin/surface — D-096 amendment): same root + value-type as `number` but disjoint skin/surface. The accent-**fill** shape (tinted track left of the thumb) is deferred (a future value-driven `linear-gradient` skin shape).
+
+> **Build note (M-RP2.16):** the *date / time* row above is served by the built **`date`** component — the date-input **family fold**: `date|time|datetime-local|month|week` behind one constrained `type` prop (default `date`), string `bind:value`. Same `<input>` root + same value-type (string) + shared skin/surface → passes the *sharpened* D-096 criterion (the `textfield` fold again, not `range`); the getter carries `{type,value}` so the per-type format travels with the value. Built/tuned in the sampler (D-097). A custom date-picker dropdown is a later composite.
 
 ### Composites
 

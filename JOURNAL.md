@@ -1,10 +1,38 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-27  
+> **Last updated:** 2026-06-28  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-425 — M-RP2.16 CLOSED: `date` — the eleventh `core` component; the date-input family (`date`/`time`/`datetime-local`/`month`/`week`) FOLDS into one atomic (the `textfield` fold again, not `range`); the sampler-DoD becomes a standing rule
+
+**What happened.** Resumed the di-atomic component track (paused since M-RP3.0) and built `date` — the **eleventh** `core` component, an atomic `<input>` covering the whole date-input family. The five siblings — `date` / `time` / `datetime-local` / `month` / `week` — **fold into one component** via a constrained `type` prop (default `date`). Built, skinned, tuned, and CDP-verified entirely **in the sampler** (D-097); the real shells were not touched. Frontend + skin only; no protocol/data change (Rule 5).
+
+**The fold (the design decision).** This is the **`textfield` fold again, not the `range` case.** Through the *sharpened* D-096 (root + value-type + **shared skin/surface**, the N-042 amendment): (1) **root** — all five are `<input type=…>`; (2) **value-type** — plain `bind:value` binds the element's `.value` **string** for every one (`"2026-06-28"` / `"13:45"` / `"2026-06-28T13:45"` / `"2026-06"` / `"2026-W26"`), all **string** (the numeric discriminator that kept `number` separate does not bite); (3) **skin/surface** — identical authored box + prop surface, differing only in UA picker chrome (calendar/clock/both), exactly the textfield situation. Passes cleanly → fold. **Applies D-096, no amendment** (N-046). The honest counter — each type's string is a different *format* — is resolved as textfield did: the getter carries `{ type, value }`, so `type` travels with the value (the N-024 registry). D-096 already pre-named `date` among own atomics *vs* `textfield`; the **new** question resolved here is the *intra-family* one.
+
+**Component + skin.** `ui/core/lib/components/data-independent/date.svelte`: root `<input {type} bind:value use:envelope>`, `value = $bindable('')` (string, **empty=`''`** — the clean divergence from `number`'s `null`), getter `{type,value}`, zero `<style>`; prop surface keeps `value`/`disabled`/`readonly`/`id`/`name`, adds `min`/`max`/`step` (native shaping), drops `placeholder`/`pattern`; plain `bind:value` not `valueAsDate` (reserved); no processor seam. `readonly` is a native pass-through, **not sampler-exercised** (engine-variable) — a flagged build caveat. Own `.date` skin assembled from the `.number` box (keeps `--ctl-h` + `:invalid`→`--err`), `:read-only`, and a recoloured `::-webkit-calendar-picker-indicator`; the picker popup + glyph render dark via the global `color-scheme: dark` (N-043, added *for* this family — now exercised). Sampler: a `date` row + **7** cells (the five types + `#disabled` + `#invalid`), matrix **22 → 29**.
+
+**Verification (Chat self-drove, real `tauri dev` + CDP 9422, both accents via skin-swap).** `ids().length === 29` (7 `date#`). **Fold proof, registry** — every `date#…` reports component `"type":"date"` (one component) carrying its own input type, value a string each:
+```
+"date#default":{"type":"date","state":{"type":"date","value":"2026-12-31"}},"date#time":{"type":"date","state":{"type":"time","value":"13:45"}},"date#datetime":{"type":"date","state":{"type":"datetime-local","value":"2026-06-28T13:45"}},"date#month":{"type":"date","state":{"type":"month","value":"2026-06"}},"date#week":{"type":"date","state":{"type":"week","value":"2026-W26"}},"date#disabled":{"type":"date","state":{"type":"date","value":"2026-06-28"}},"date#invalid":{"type":"date","state":{"type":"date","value":"2030-01-01"}}
+```
+**Fold proof, bind path** — dispatched a real `input` (`"2026-12-31"`, N-029) on `date#default`; the bound getter went `value:"2026-06-28"` → `"2026-12-31"` (a JSON **string** round-trips through `bind:value`, the analogue of `number`'s 42/7). Element + skin (one eval):
+```
+{"elValAfterDispatch":"2026-12-31","style":{"tag":"INPUT","type":"date","minHeight":"28px","fontSize":"12px","color":"rgb(236, 233, 225)","borderRadius":"6px"},"invalid":{"invalidBorder":"rgb(138, 42, 42)","invalidMatches":true,"defaultBorder":"rgb(52, 59, 71)","defaultMatches":false},"dateRules":[".date",".date:focus-visible",".date:disabled",".date:read-only",".date:invalid",".date::-webkit-calendar-picker-indicator"],"shell":"client","accent2":"#c28840"}
+```
+Computed-style = `--ctl-h`(28px)/`--fs-1`(12px)/`--t`(rgb(236,233,225))/`--rad`(6px). `:invalid` specific — `date#invalid` border `rgb(138,42,42)` (`--err`) + matches; `date#default` stays `rgb(52,59,71)` (`--s5`), no match. All **6** `.date` rules parsed + in cascade (stylesheet-rule inspection — `getComputedStyle` doesn't surface the `::-webkit-calendar-picker-indicator` pseudo, N-042 method). **Skin-swap** — `--accent2` `#c28840` (client) → after `data-shell="node"` `{"shell":"node","accent2":"#3a7ab0"}` (blue). Screenshot (client, scrolled to the row) eye-checked: all five native pickers render (`31/12/2026`, `13:45`, `28/06/2026 13:45`, `June 2026`, `Week 26, 2026`), `#disabled` greyed, `#invalid` red-bordered, indicators dark. Clean teardown (5175/9422 free, 0 orphans).
+
+**Harness note (honest).** The first state-read loop printed “state not ready after retries” while every attempt's output was in fact the full correct registry — a `-match` scoping artifact in my retry wrapper (sibling to the J-422 false-negative), **not** a read failure. The data above is the real returned output.
+
+**Standing rule (the sampler-DoD).** From `date` onward a component milestone is **not done** until its sampler row + applicable-state cells are added and CDP-verified in the sampler — this **replaces** the dual-shell demo-wiring step entirely. Recorded as a one-line closing note on **D-097** (its canonical home) + N-046.
+
+**Canonical (two commits, D-074 UI pattern: `feat` code then `docs` records).** Commit 1 (impl): `ui/core/lib/components/data-independent/date.svelte` (new) + `ui/assets/skin.css` (`.date`) + `ui/sampler/src/app_sampler.svelte` (row). Commit 2 (records): `ui/docs/xgen-ui-notes.md` (N-046) + `docs/ROADMAP.md` (M-RP2.16 ✅, v4.03) + `CLAUDE.md` (PLAY → M-RP2.16, J-424→J-425) + `ui/docs/xgen-ui-components.md` (date row promoted, v0.21) + `DECISIONS.md` (D-097 closing note) + this JOURNAL J-425 + `tasks/M_RP2_16_DATE.md` (→ COMPLETED). Applies D-096 (no fold amendment); the only `DECISIONS.md` touch is the one-line D-097 note. Not pushed — Joe pushes.
+
+**Next-active:** the di track continues, built/tuned in the sampler (D-097) — `color` (own atomic, native chrome) / `file` (new `bind:files` shape) / `select multiple` per N-038 — then the text-processor engine, then dd-components.
 
 ---
 

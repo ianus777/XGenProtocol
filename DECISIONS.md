@@ -33,6 +33,8 @@ The component track is **paused** (the remaining atomic di — `date`/`color`/`f
 
 Consequence: the real shells are **frozen as-is** (no revert, no new component wiring) and are **not run for component reasons**. The revert of the demo blocks from the real shells is deferred to a future cleanup (not a prerequisite for the sampler).
 
+**Closing note (M-RP2.16, J-425):** the sampler-DoD is now a **standing rule** — a component milestone is not done until its sampler row + applicable-state cells are added and CDP-verified in the sampler. This *replaces* the dual-shell demo-wiring step entirely (baked into every component runbook's DoD from `date` onward; first exercised by `date` / M-RP2.16, N-046).
+
 ---
 
 ## D-096 — `textfield` `type` folds the string-input family into one component (reverses N-029)

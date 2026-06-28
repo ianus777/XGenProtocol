@@ -1025,6 +1025,24 @@ M-RP3.0 closed (J-422) — stood up **`xgen-sampler`**, a standalone Tauri/WebVi
 
 *UI-implementation record. No protocol/data implication. New arc M-RP3; component track paused (resumable). The sampler is the test-bed from `date` onward (D-097). Next: M-RP3.1 — populate the class×phase matrix with all 10 built components + the polished skin-swap control.*
 
+### N-045 — Sampler populated (M-RP3.1): the 10 `core` components live in a semantic-group×state grid; the `toggle` has no `disabled` prop (atomic gap surfaced)
+
+M-RP3.1 closed (J-423) — the scaffold's single `button#smoke` became the full tuning surface: **all 10 built `core` components mounted live**, 22 `envelope`-registered instances in a semantic-group×state grid, with a polished client↔node segmented skin-swap. Frontend-only (`ui/sampler/src/app_sampler.svelte` rewrite + `app.css` grid); the `xgen-sampler` crate untouched. No `DECISIONS.md` touch (applies D-097/D-098/N-028).
+
+**IA = semantic-group×state, not class×phase.** All 10 are di·A today (no dd, no Phase B/C), so N-028's class×phase axes are degenerate — v1 groups by **Interactive** (toggle/button/textfield/select/textarea/number/range) and **Display** (label/paragraph/image), each component a row, its **applicable** states as cells. Class/phase columns activate later when dd/B/C exist.
+
+**Ragged state-map (honest, not a forced grid):** default — all 10; disabled — interactive only; invalid — only `textfield` (bad email) + `number` (out-of-range); plus teaching variants (toggle checked/switch, button toggle-mode, textfield password, textarea `\n`). **No focus column** — focus is transient; a static focus cell would be a lie (verified live instead).
+
+**Atomic gap surfaced (the sampler doing its job).** `toggle` exposes only `checked`/`id`/`shape` — **no `disabled` prop** — so `toggle#disabled` is impossible from the sampler without component work (paused). That cell became **`toggle#switch`** (the switch shape) and the gap is logged here: when the di track resumes, `toggle` likely wants a `disabled` pass-through for parity with the other interactive atomics. This is exactly the kind of coverage hole a dedicated exhibit surfaces that demos-in-shells did not.
+
+**Skin-swap = polished segmented control, kept as TOOL CHROME.** A `client | node` segmented control in the bar (styled in the sampler's `app.css`, active segment uses live `--accent`), NOT a sampled `core` component — preserves the N-028 tool-vs-sampled line. Flips `:root[data-shell]`; with accent-prominent cells now present (toggle `accent-color`, the latched toggle-mode button), the two shell screenshots **genuinely differ** (unlike the smoke-only scaffold).
+
+**Detail confirmed:** `envelope` keys the registry by `data-debug-id = "type#id"` and does NOT stamp the raw DOM `id`, so reusing `id="default"` across component types is collision-free (22 unique `type#id` keys, e.g. `toggle#default` vs `button#default`). `image#default` uses an inline data-URI (no network fetch).
+
+**Verify (Chat self-drove, real `tauri dev` + CDP 9422).** `ids().length === 22`, full list exactly the designed matrix (`toggle#default/checked/switch`, `button#default/disabled/toggle`, `textfield#default/disabled/invalid/password`, `select#default/disabled`, `textarea#default/disabled`, `number#default/disabled/invalid`, `range#default/disabled`, `label#default`, `paragraph#default`, `image#default`). Invalid: `number#invalid` + `textfield#invalid` border = `--err` `rgb(138,42,42)`, while `number#default` stays `--s5` `rgb(52,59,71)` (invalid is specific, not blanket). Disabled: `number#disabled`/`button#disabled` `cursor:not-allowed`. Skin-swap: toggle `accent-color` `rgb(154,106,48)` (gold/`--pr`, client) → `rgb(42,96,144)` (blue/`--inf`, node), `--accent` `#9a6a30`↔`#2a6090`. Screenshots both shells render the grid correctly (states + accents) and differ in bytes. Clean teardown (5175/9422 free, 0 orphans).
+
+*UI-implementation record. No protocol/data implication. The sampler is now the live tuning surface for all 10 components. Logged gap: `toggle` lacks `disabled`. Next: resume the component di track — `date` (own atomic, structured value / native picker) per N-038, built/tuned in the sampler (D-097).*
+
 ---
 
 ## How to use this file

@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-423 — M-RP3.1 CLOSED: Sampler populated — all 10 `core` components live in a 22-cell semantic-group×state grid + polished skin-swap; surfaced an atomic gap (`toggle` has no `disabled`)
+
+**What happened.** Turned the M-RP3.0 scaffold (one `button#smoke`) into the actual tuning surface: all **10 built `core` components** mounted live, **22 `envelope`-registered instances** in a semantic-group×state grid, with a polished client↔node segmented skin-swap. Frontend-only — `ui/sampler/src/app_sampler.svelte` rewrite + `app.css` grid; the `xgen-sampler` crate untouched. No protocol/data change (Rule 5); no `DECISIONS.md` touch (applies D-097/D-098/N-028).
+
+**IA = semantic-group×state, not class×phase.** Phase-0: all 10 are di·A today (no dd, no Phase B/C), so N-028's class×phase axes are degenerate. v1 groups by **Interactive** (toggle/button/textfield/select/textarea/number/range) and **Display** (label/paragraph/image), each a row, its **applicable** states as cells. Class/phase columns activate later when dd/B/C exist.
+
+**Ragged state-map (honest).** default — all 10; disabled — interactive only; invalid — only `textfield` (bad email) + `number` (out-of-range); teaching variants (toggle checked/switch, button toggle-mode, textfield password, textarea `\n`). **No focus column** — focus is transient; a static focus cell would be a lie (verified live instead).
+
+**Atomic gap surfaced (the sampler doing its job).** `toggle` exposes only `checked`/`id`/`shape` — **no `disabled` prop** — so `toggle#disabled` is impossible from the sampler without component work (paused). That cell became **`toggle#switch`** (the switch shape) and the gap is logged (N-045) for the di resume: `toggle` likely wants a `disabled` pass-through for parity. Final matrix = **22** cells, not 23. This is exactly the coverage hole a dedicated exhibit surfaces that demos-in-shells did not.
+
+**Skin-swap = polished segmented control, TOOL CHROME.** A `client | node` segmented control in the bar (styled in `app.css`, active segment uses live `--accent`), deliberately NOT a sampled `core` component — preserves the N-028 tool-vs-sampled line. Flips `:root[data-shell]`; with accent-prominent cells now present (toggle `accent-color`, the latched toggle-mode button), the two shell screenshots **genuinely differ** (unlike the smoke-only scaffold).
+
+**Detail confirmed.** `envelope` keys the registry by `data-debug-id = "type#id"` and does NOT stamp the raw DOM `id` (read of `envelope.ts`), so reusing `id="default"` across component types is collision-free (22 unique `type#id` keys, e.g. `toggle#default` vs `button#default`). `image#default` uses an inline data-URI SVG (no network fetch).
+
+**Verification (Chat self-drove, real `tauri dev` + CDP 9422).** `ids().length === 22`, full list exactly the designed matrix:
+```
+["toggle#default","toggle#checked","toggle#switch","button#default","button#disabled","button#toggle","textfield#default","textfield#disabled","textfield#invalid","textfield#password","select#default","select#disabled","textarea#default","textarea#disabled","number#default","number#disabled","number#invalid","range#default","range#disabled","label#default","paragraph#default","image#default"]
+```
+Invalid: `number#invalid` + `textfield#invalid` border-color = `--err` `rgb(138,42,42)`, while `number#default` stays `--s5` `rgb(52,59,71)` (invalid is specific, not blanket). Disabled: `number#disabled`/`button#disabled` `cursor:not-allowed`. Skin-swap: toggle `accent-color` `rgb(154,106,48)` (gold/`--pr`, client) → `rgb(42,96,144)` (blue/`--inf`, node), `--accent` `#9a6a30`↔`#2a6090`. Screenshots both shells render the grid correctly (states + accents read right — checked toggle gold, latched toggle-button gold, invalid red borders + email icon, password dots+icon, disabled greyed, switch shape) and differ in bytes (46225 vs 46182). Clean teardown (5175/9422 free, 0 orphans).
+
+**Canonical (D-074).** `ui/docs/xgen-ui-notes.md` **N-045**; `docs/ROADMAP.md` (UI subtree + RP-node M-RP3.1 ✅, v**4.02**); `CLAUDE.md` PLAY → M-RP3.1, pointer J-422→J-423; `ui/docs/xgen-ui-components.md` test-bed note (populated); `tasks/M_RP3_1_SAMPLER_POPULATE.md` → COMPLETED. No DECISIONS touch. Implementation commit (`app_sampler.svelte` + `app.css`) then records-only. Not pushed — Joe pushes.
+
+**Next-active:** the component **di track RESUMES** — **`date`** (own atomic, structured value / native picker) per N-038, built/tuned **in the sampler** (D-097), then `color` / `file` / `select multiple`, then the text-processor engine, then dd-components.
+
+---
+
 ## Entry J-422 — M-RP3.0 CLOSED: Sampler scaffold — `xgen-sampler`, a third Tauri/WebView2 app as the component test-bed; component di track PAUSED (D-097, D-098)
 
 **What happened.** Stood up the **Sampler** — a third, standalone Tauri/WebView2 app whose sole job is to host, tune, and CDP-verify the `core` component library in isolation, with a live client↔node skin-swap. New arc **M-RP3**; this is its scaffold milestone (M-RP3.1 populates the full matrix). The di **component track is paused** (resumable — `date`/`color`/`file`/`select multiple`, then text-processor, then dd-components). Triggered by Joe's call to stop wiring throwaway component demos into both real shells and instead build a dedicated test-bed; the real shells are **frozen as-is** (revert deferred). No protocol/data change; Rust protocol baseline untouched (Rule 5) — the new crate carries no protocol deps.

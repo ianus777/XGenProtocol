@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.21  
+> Version: 0.22  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-28  
 > Language: English  
@@ -90,6 +90,8 @@ First built `core` component, authored at M-RP2.3 as the substrate proof: verifi
 
 > **Build note (M-RP2.16):** the *date / time* row above is served by the built **`date`** component — the date-input **family fold**: `date|time|datetime-local|month|week` behind one constrained `type` prop (default `date`), string `bind:value`. Same `<input>` root + same value-type (string) + shared skin/surface → passes the *sharpened* D-096 criterion (the `textfield` fold again, not `range`); the getter carries `{type,value}` so the per-type format travels with the value. Built/tuned in the sampler (D-097). A custom date-picker dropdown is a later composite.
 
+> **Build note (M-RP2.17):** the *color* row above (`<input type="color">`) is served by the built **`color`** component (own atomic; always-valued string `#rrggbb` `bind:value`, default `#000000`, getter `{value}`; the leanest prop surface — `value`/`disabled`/`id`/`name`). The `range` case — shares `<input>` root + value-type (string) with `date` but stands alone on the swatch skin (`::-webkit-color-swatch*`). Built/tuned in the sampler (D-097). The native picker dialog is OS/Chromium-painted (not skinnable); a themed custom palette is the **`color-picker` composite** below.
+
 ### Composites
 
 Data-independent composites (N-022 amendment): several native controls assembled into one control point, still keyed to a single semantic, binding = none. Schema: the header line carries name · annotations · `→ <root tag class>`; a `<div class="type">` root means composite and the `├──` child lines are its composed-of members (N-020/N-022). Children are named bare — each child's own catalogue entry defines its root.
@@ -111,6 +113,9 @@ star-rating      keyed: single-select · binding: none → <div class="star-rati
 password-field   keyed: secret · binding: none → <div class="password-field">
 ├── secret-field  <input type="password"> (value-bearing)
 └── icon-button   show / hide toggle (presentational only — not a second semantic)
+
+color-picker     keyed: colour · binding: none → <div class="color-picker">
+└── themed palette: saturation/value square + hue slider + eyedropper + hex/RGB entry + swatches (custom, schema TBD; replaces the native picker the `color` atomic exposes)
 ```
 
 *Not yet classified (deferred):* read-only display primitives (`<progress>`, `<meter>`, `<output>`) — likely data-derived.

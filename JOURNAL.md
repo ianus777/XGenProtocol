@@ -8,6 +8,36 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-426 — M-RP2.17 CLOSED: `color` — the twelfth `core` component; a SINGLETON that stands alone (the `range` case, not a fold); the native picker is OS-painted (not skinnable) → a `color-picker` composite is logged (#2)
+
+**What happened.** Built `color` — the **twelfth** `core` component, an atomic `<input type="color">` (native swatch + picker). Authored + skinned in one pass, built/tuned/verified **in the sampler** (D-097). Frontend + skin only; no protocol/data change (Rule 5).
+
+**Why own atomic (the design decision).** `color` has **no siblings** (unlike date's five), so the fold test is *sideways* — `color` vs `date`/`range`. Sharpened D-096 (root + value-type + **shared skin/surface**, N-042): it shares the `<input>` root **and** value-type (a **string**, `#rrggbb`) with `date` — root + value-type alone would pull toward a date fold, the trap the sharpened criterion exists for — but diverges on **skin/surface** (a **swatch**, `::-webkit-color-swatch*`, nothing shared with date's text box + calendar indicator) and prop surface (no min/max/step, no `:invalid`). So **own atomic: the `range` case, not the `textfield` case**. **Applies D-096, no amendment** (no `DECISIONS.md` touch).
+
+**Component + skin.** `ui/core/lib/components/data-independent/color.svelte`: root `<input type="color" bind:value use:envelope>`, `value = $bindable('#000000')` (string, **always a valid `#rrggbb`** — the native control has no empty state, never `''`/`null`: the always-valued shape, like `range`), getter `{value}` (**no `type`** — singleton), zero `<style>`. The **leanest prop surface yet**: keep `value`/`disabled`/`id`/`name`; drop `placeholder`/`pattern` (n/a), `readonly` (native no-op), min/max/step (n/a), `:invalid` (always valid). No processor seam. `alpha`/`colorspace` reserved, not built. Own `.color` swatch skin (pseudo-element-heavy like `.range`): `appearance:none` + `::-webkit-color-swatch-wrapper{padding:0}` + `::-webkit-color-swatch{border:none; border-radius:calc(--rad - 1px)}`; compact 36×24 (**no `--ctl-h`**; Joe may swap to `--ctl-h` for row parity); `:disabled` → `not-allowed` + `opacity:0.5`.
+
+**The native picker is not skinnable → composite #2 logged.** The OPEN dialog (saturation square / hue slider / eyedropper / hex+RGB fields / swatches) is OS/Chromium-painted; `.color` styles only the closed-state swatch. A themed custom palette is the deferred **`color-picker` composite** (the `password-field`-off-`textfield` shape) — logged in the components registry's Composites section + the ROADMAP, not built. (Joe confirmed the intent: the atomic is the non-programmed native version; a programmed themed palette is composite #2.)
+
+**Sampler.** A `color` row + **2** cells — `color#default` (seed `#9a6a30`) + `color#disabled` (seed `#2a6090`); no invalid/type variants exist. Matrix **29 → 31**.
+
+**Verification (Chat self-drove, real `tauri dev` + CDP 9422, both accents via skin-swap).** `ids().length === 31` (2 `color#`); both report `"type":"color"`:
+```
+"color#default":{"type":"color","state":{"value":"#123456"}},"color#disabled":{"type":"color","state":{"value":"#2a6090"}}
+```
+**Bind path:** dispatched a real `input` (`"#123456"`, N-029) on `color#default` → bound getter `{value:"#123456"}` (a string round-trips through `bind:value`). Element + skin (one eval):
+```
+{"elValAfterDispatch":"#123456","style":{"tag":"INPUT","type":"color","appearance":"none","webkitAppearance":"none","width":"36px","height":"24px","borderRadius":"6px","cursor":"pointer"},"disabled":{"isDisabled":true,"cursor":"not-allowed","opacity":"0.5"},"colorRules":[".color",".color:focus-visible",".color:disabled",".color::-webkit-color-swatch-wrapper",".color::-webkit-color-swatch"],"shell":"client","accent2":"#c28840"}
+```
+All **5** `.color` rules parsed + in cascade (stylesheet-rule inspection — `getComputedStyle` doesn't surface the swatch pseudos, N-042 method). **Skin-swap:** `--accent2` `#c28840` (client) → after `data-shell="node"` `#3a7ab0` (blue). Screenshot (client) eye-checked: both swatches render (`#disabled` dimmed) **and** incidentally caught the native Chromium picker open (saturation square / hue / eyedropper / RGB) — the real native dialog. Clean teardown (5175/9422 free, 0 orphans).
+
+**Verify finding (honest — the first interactive native-popup control exposes it).** `color#default`'s value **drifted** from its `#9a6a30` seed during the minimized-window session (read `#419584`, then the dispatched `#123456`, then a stray green at screenshot) — stray pointer events on the swatch kept opening the native picker and changing the colour. `color#disabled` (non-interactive) held its **exact** `#2a6090` seed throughout. That asymmetry **proves seeding + bind are correct** (a seeding bug would have broken disabled too); a fresh user load gets `#9a6a30`. Recorded (N-047): for interactive native-popup controls (`color`, the `date` pickers), read the non-interactive cell for the seed proof + the dispatched round-trip for the bind proof, not the post-session swatch value. (Sibling-shape to the J-422 harness false-negative — the verify *method*, not the component, is what needs the care.)
+
+**Canonical (two commits, UI pattern `feat` then `docs`).** Commit 1 (impl): `ui/core/lib/components/data-independent/color.svelte` (new) + `ui/assets/skin.css` (`.color`) + `ui/sampler/src/app_sampler.svelte` (row). Commit 2 (records): `ui/docs/xgen-ui-notes.md` (N-047) + `docs/ROADMAP.md` (M-RP2.17 ✅, v4.04, color-picker horizon) + `CLAUDE.md` (PLAY → M-RP2.17, J-425→J-426) + `ui/docs/xgen-ui-components.md` (color row promoted + color-picker composite logged, v0.22) + this JOURNAL J-426 + `tasks/M_RP2_17_COLOR.md` (→ COMPLETED). **No `DECISIONS.md` touch** (applies D-096, no amendment). Not pushed — Joe pushes.
+
+**Next-active:** the di track continues, built/tuned in the sampler (D-097) — `file` (new `bind:files` shape) / `select multiple` per N-038 — then the text-processor engine, then dd-components.
+
+---
+
 ## Entry J-425 — M-RP2.16 CLOSED: `date` — the eleventh `core` component; the date-input family (`date`/`time`/`datetime-local`/`month`/`week`) FOLDS into one atomic (the `textfield` fold again, not `range`); the sampler-DoD becomes a standing rule
 
 **What happened.** Resumed the di-atomic component track (paused since M-RP3.0) and built `date` — the **eleventh** `core` component, an atomic `<input>` covering the whole date-input family. The five siblings — `date` / `time` / `datetime-local` / `month` / `week` — **fold into one component** via a constrained `type` prop (default `date`). Built, skinned, tuned, and CDP-verified entirely **in the sampler** (D-097); the real shells were not touched. Frontend + skin only; no protocol/data change (Rule 5).

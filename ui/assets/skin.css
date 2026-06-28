@@ -455,6 +455,48 @@ html, body {
   cursor: pointer;
 }
 
+/* ---------------------------------------------------
+ * color (.color)
+ *   Root IS <input type="color"> (N-020 atomic). Colour pick, native swatch + picker (N-022).
+ *   A SINGLETON that stands ALONE (own atomic on disjoint skin/surface — the range case, not
+ *   the textfield fold; shares root + value-type STRING with date but a SWATCH, not a text box).
+ *   Own key, pseudo-element-heavy like .range: appearance:none then style the
+ *   ::-webkit-color-swatch* pseudos. The swatch is COMPACT — no --ctl-h (as .range/.textarea
+ *   dropped it; fixed 36x24, Joe may swap to --ctl-h for row-height parity). The OPEN picker
+ *   dialog is OS/Chromium-painted, NOT skinnable (a themed palette is the deferred color-picker
+ *   composite). PROVISIONAL (Joe live-tunes via HMR).
+ * --------------------------------------------------- */
+
+.color {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 2.25rem;
+  height: 1.5rem;
+  padding: 2px;
+  margin: var(--sp-1) var(--sp-2);
+  background: var(--s);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  cursor: pointer;
+  transition: border-color var(--motion), box-shadow var(--motion);
+}
+.color:focus-visible {
+  outline: none;
+  border-color: var(--accent2, var(--t3));
+  box-shadow: var(--focus-ring);
+}
+.color:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.color::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.color::-webkit-color-swatch {
+  border: none;
+  border-radius: calc(var(--rad) - 1px);
+}
+
 /* ───────────────────────────────────────────────────
  * select (.select)
  *   Root IS <select> (N-020 atomic). Closed control assembled from L2 tokens;

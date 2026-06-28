@@ -1,6 +1,6 @@
 <script>
   // app_sampler.svelte — SAMPLER matrix (M-RP3.1). Plain-JS app shell (bare $state,
-  // no TS annotations — N-041). Mounts all 11 built `core` components live in a
+  // no TS annotations — N-041). Mounts all 12 built `core` components live in a
   // semantic-group x state grid; each cell is a real `envelope`-registered instance
   // (`{type}#{state}`) so CDP `ids()` enumerates the matrix. The class x phase axes
   // (N-028) are deferred — degenerate while everything is di-A.
@@ -24,6 +24,7 @@
   import Paragraph from '$core/components/data-independent/paragraph.svelte';
   import Img from '$core/components/data-independent/image.svelte';
   import DateField from '$core/components/data-independent/date.svelte'; // not `Date` (global)
+  import ColorField from '$core/components/data-independent/color.svelte';
 
   // Runtime client<->node skin-swap (D-098): flipping [data-shell] re-aliases --accent*
   // live, so the whole grid re-themes at once. Replaces "run in both real shells".
@@ -57,6 +58,9 @@
   let dtWeek = $state('2026-W26');
   let dtDisabled = $state('2026-06-28');
   let dtInvalid = $state('2030-01-01'); // outside [2026-01-01, 2026-12-31] -> :invalid (rangeOverflow)
+  // color — always a string hex #rrggbb (never empty); seeded with the per-shell accents.
+  let colDefault = $state('#9a6a30');
+  let colDisabled = $state('#2a6090');
 
   const selOptions = [
     { value: 'one', label: 'One' },
@@ -153,6 +157,14 @@
       <div class="s-cell"><span class="s-id">date#week</span><DateField type="week" bind:value={dtWeek} id="week" /></div>
       <div class="s-cell"><span class="s-id">date#disabled</span><DateField bind:value={dtDisabled} id="disabled" disabled /></div>
       <div class="s-cell"><span class="s-id">date#invalid</span><DateField bind:value={dtInvalid} id="invalid" min="2026-01-01" max="2026-12-31" /></div>
+    </div>
+  </div>
+
+  <div class="s-row">
+    <div class="s-rowname">color</div>
+    <div class="s-cells">
+      <div class="s-cell"><span class="s-id">color#default</span><ColorField bind:value={colDefault} id="default" /></div>
+      <div class="s-cell"><span class="s-id">color#disabled</span><ColorField bind:value={colDisabled} id="disabled" disabled /></div>
     </div>
   </div>
 

@@ -1,6 +1,6 @@
 <script>
   // app_sampler.svelte — SAMPLER matrix (M-RP3.1). Plain-JS app shell (bare $state,
-  // no TS annotations — N-041). Mounts all 12 built `core` components live in a
+  // no TS annotations — N-041). Mounts all 13 built `core` components live in a
   // semantic-group x state grid; each cell is a real `envelope`-registered instance
   // (`{type}#{state}`) so CDP `ids()` enumerates the matrix. The class x phase axes
   // (N-028) are deferred — degenerate while everything is di-A.
@@ -25,6 +25,7 @@
   import Img from '$core/components/data-independent/image.svelte';
   import DateField from '$core/components/data-independent/date.svelte'; // not `Date` (global)
   import ColorField from '$core/components/data-independent/color.svelte';
+  import FileField from '$core/components/data-independent/file.svelte';
 
   // Runtime client<->node skin-swap (D-098): flipping [data-shell] re-aliases --accent*
   // live, so the whole grid re-themes at once. Replaces "run in both real shells".
@@ -61,6 +62,10 @@
   // color — always a string hex #rrggbb (never empty); seeded with the per-shell accents.
   let colDefault = $state('#9a6a30');
   let colDisabled = $state('#2a6090');
+  // file — FileList | null; unsettable from markup (browser security), so all start null.
+  let fDefault = $state(null);
+  let fMultiple = $state(null);
+  let fDisabled = $state(null);
 
   const selOptions = [
     { value: 'one', label: 'One' },
@@ -165,6 +170,15 @@
     <div class="s-cells">
       <div class="s-cell"><span class="s-id">color#default</span><ColorField bind:value={colDefault} id="default" /></div>
       <div class="s-cell"><span class="s-id">color#disabled</span><ColorField bind:value={colDisabled} id="disabled" disabled /></div>
+    </div>
+  </div>
+
+  <div class="s-row">
+    <div class="s-rowname">file</div>
+    <div class="s-cells">
+      <div class="s-cell"><span class="s-id">file#default</span><FileField bind:files={fDefault} id="default" /></div>
+      <div class="s-cell"><span class="s-id">file#multiple</span><FileField bind:files={fMultiple} id="multiple" multiple /></div>
+      <div class="s-cell"><span class="s-id">file#disabled</span><FileField bind:files={fDisabled} id="disabled" disabled /></div>
     </div>
   </div>
 

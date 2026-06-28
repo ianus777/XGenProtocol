@@ -497,6 +497,69 @@ html, body {
   border-radius: calc(var(--rad) - 1px);
 }
 
+/* ---------------------------------------------------
+ * file (.file)
+ *   Root IS <input type="file"> (N-020 atomic). File selection, native picker button (N-022).
+ *   The FIRST non-`value` binding (bind:files / FileList). Own atomic. Pseudo-element-heavy like
+ *   .color/.range: style the file-button pseudo to MATCH .button — BOTH spellings
+ *   (::file-selector-button standard + ::-webkit-file-upload-button legacy) since a selector list
+ *   with an unknown pseudo drops the whole rule, so they cannot be comma-combined. The surrounding
+ *   "No file chosen" text is UA-rendered (accepted; a custom file row is the deferred file-field
+ *   composite). PROVISIONAL (Joe live-tunes via HMR).
+ * --------------------------------------------------- */
+
+.file {
+  margin: var(--sp-1) var(--sp-2);
+  color: var(--t2);
+  font-size: var(--fs-1);
+  line-height: var(--lh);
+  cursor: pointer;
+}
+.file::file-selector-button {
+  min-height: var(--ctl-h);
+  margin-right: var(--sp-2);
+  padding: var(--sp-1) var(--sp-4);
+  background: var(--s4);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  color: var(--t2);
+  font-size: var(--fs-1);
+  line-height: var(--lh);
+  cursor: pointer;
+  transition: background var(--motion), border-color var(--motion);
+}
+.file::-webkit-file-upload-button {
+  min-height: var(--ctl-h);
+  margin-right: var(--sp-2);
+  padding: var(--sp-1) var(--sp-4);
+  background: var(--s4);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  color: var(--t2);
+  font-size: var(--fs-1);
+  line-height: var(--lh);
+  cursor: pointer;
+  transition: background var(--motion), border-color var(--motion);
+}
+.file::file-selector-button:hover {
+  background: var(--s5);
+  border-color: var(--accent2, var(--s5));
+}
+.file:focus-visible {
+  outline: none;
+}
+.file:focus-visible::file-selector-button {
+  border-color: var(--accent2, var(--t3));
+  box-shadow: var(--focus-ring);
+}
+.file:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.file:disabled::file-selector-button {
+  cursor: not-allowed;
+}
+
 /* ───────────────────────────────────────────────────
  * select (.select)
  *   Root IS <select> (N-020 atomic). Closed control assembled from L2 tokens;

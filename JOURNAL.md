@@ -8,6 +8,18 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-424 — post-M-RP3.1 tweak: sampler `image#default` shows the real placeholder artwork (inlined data-URI, no file linkage)
+
+**What happened.** A one-line cosmetic swap (Joe-noticed: the sampler's `image#default` showed my plain grey “image” box, not the real placeholder). The bundled `ui/assets/img-placeholder.svg` (the M-RP2.11/J-416 mountains+sun glyph) is now **inlined as a data-URI `src`** in `ui/sampler/src/app_sampler.svelte` — hardcoded per Joe's call (no file import/linkage; the sampler stays self-contained), with explicit `width/height='72'` added because the source SVG has a `viewBox` but no intrinsic size (a sizeless SVG as `<img src>` would default to ~300×150). Faithful usage either way — a data-URI is a normal `src` value; what it skips dogfooding is the bundled-asset path specifically, acceptable for a tuning exhibit. Not a milestone; frontend-only; no protocol/data change (Rule 5).
+
+**Verify (Chat self-drove, CDP 9422).** `image#default`: `complete:true`, `naturalWidth/Height: 72`, `src` head = the inlined `data:image/svg+xml,%3Csvg viewBox='0 0 120 120'…`. Screenshot (scrolled to the row) confirms the real placeholder glyph renders with the `.image` `--rad` corners. Clean teardown (5175/9422 free, 0 orphans).
+
+**Canonical.** `ui/sampler/src/app_sampler.svelte` (the `imgSrc` const); this JOURNAL J-424; `CLAUDE.md` prior-PLAY pointer J-423→J-424. No other records (cosmetic demo-data swap — no N/DECISIONS/ROADMAP/components touch). Its own commit; not pushed — Joe pushes.
+
+**Next-active unchanged:** the component di track resumes — `date` (own atomic, native picker) per N-038, built/tuned in the sampler (D-097).
+
+---
+
 ## Entry J-423 — M-RP3.1 CLOSED: Sampler populated — all 10 `core` components live in a 22-cell semantic-group×state grid + polished skin-swap; surfaced an atomic gap (`toggle` has no `disabled`)
 
 **What happened.** Turned the M-RP3.0 scaffold (one `button#smoke`) into the actual tuning surface: all **10 built `core` components** mounted live, **22 `envelope`-registered instances** in a semantic-group×state grid, with a polished client↔node segmented skin-swap. Frontend-only — `ui/sampler/src/app_sampler.svelte` rewrite + `app.css` grid; the `xgen-sampler` crate untouched. No protocol/data change (Rule 5); no `DECISIONS.md` touch (applies D-097/D-098/N-028).

@@ -55,9 +55,11 @@
     { value: 'three', label: 'Three' },
   ];
 
-  // Inline data-URI so image#default renders with no network fetch.
+  // Inline data-URI so image#default renders with no file linkage (Joe's call):
+  // the actual ui/assets/img-placeholder.svg artwork (mountains+sun glyph), hardcoded
+  // here with explicit 72x72 so the sizeless-viewBox SVG renders tidy in the cell.
   const imgSrc =
-    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='48'%3E%3Crect width='84' height='48' rx='4' fill='%237a8190'/%3E%3Ctext x='42' y='29' font-family='sans-serif' font-size='12' fill='white' text-anchor='middle'%3Eimage%3C/text%3E%3C/svg%3E";
+    "data:image/svg+xml,%3Csvg viewBox='0 0 120 120' width='72' height='72' xmlns='http://www.w3.org/2000/svg' role='img' aria-label='Image placeholder'%3E%3Crect width='120' height='120' fill='%23c6c6c6'/%3E%3Crect x='30' y='40' width='60' height='43' rx='4' fill='none' stroke='%23e6e6e6' stroke-width='3.6' stroke-linejoin='round'/%3E%3Ccircle cx='43' cy='54' r='6' fill='%23e6e6e6'/%3E%3Cpath d='M33 79 L49 56 L60 68 L74 50 L87 79 Z' fill='%23e6e6e6'/%3E%3C/svg%3E";
 </script>
 
 <div class="sampler-bar">

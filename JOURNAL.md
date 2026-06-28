@@ -8,6 +8,40 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-427 — M-RP2.18 CLOSED: `file` — the thirteenth `core` component; the FIRST non-`value` binding (`bind:files` / FileList), the 4th binding shape and the first value-type `$state.snapshot` can't serialise; a `file-field` composite is logged
+
+**What happened.** Built `file` — the **thirteenth** `core` component, an atomic `<input type="file">` (native picker button). Authored + skinned in one pass, built/tuned/verified **in the sampler** (D-097). Frontend + skin only; no protocol/data change (Rule 5).
+
+**The headline is the binding shape, not the fold.** Own atomic is obvious — `<input type="file">` binds a **FileList**, not a string/number/boolean; no fold candidate. Applies D-096, no amendment. The real event: `file` is the **first non-`value` binding** in the library — `bind:files`, the **4th binding shape** after boolean-in (`checked`, toggle) / event-out (`onclick`, button) / string-in (`value`, the whole input family incl. date/color). The substrate (`envelope`/`debug`, N-023/N-024) had been proven across all of those, but every prior binding rode `value`/`checked`/`onclick`. It is also the first value-type **`$state.snapshot` cannot serialise** (a FileList is a live host object, not a plain object/proxy).
+
+**Getter — de-FileList (the design point).** The getter returns a **plain** view, not the FileList: `{ count, files: [{ name, size, type }] }` (`count: files?.length ?? 0`, `files` via `Array.from`). The **bindable prop carries the live FileList** (the consumer's real value); the getter is the serialisable projection for the N-024 registry / CDP `returnByValue`. `$state.snapshot(files)` would not flatten a host FileList — the explicit map is required.
+
+**Component + skin.** `ui/core/lib/components/data-independent/file.svelte`: root `<input type="file" bind:files use:envelope>`, `files = $bindable(null)` (`FileList | null`, empty = `null`), zero `<style>`. Props: `files`/`accept`/`multiple`/`disabled`/`id`/`name`; dropped `value` (**unsettable programmatically** — browser security; consumers read via the binding, never write `.value`), `placeholder`/`pattern`/`readonly`/min/max/step (n/a), `type` (fixed). `capture` reserved. No processor seam. Selection fires **`change`**, not `input`. Own `.file` skin styles the file-button pseudo to match `.button` (`--ctl-h`/`--sp-1 --sp-4`/`--s4`/`--s5`/`--rad`/`--t2`/`--fs-1`/pointer) in **both** spellings — `::file-selector-button` (standard) + `::-webkit-file-upload-button` (legacy) — as **separate rules** (a selector list with an unknown pseudo drops the whole rule, so they can't be comma-combined). `:disabled` greyed; the UA "No file chosen" text accepted.
+
+**Composite logged.** A custom drag-drop file row (zone + selected-file list + remove + upload progress) is the deferred **`file-field` / `dropzone` composite** — logged in the registry Composites + ROADMAP, not built.
+
+**Sampler.** A `file` row + **3** cells — `file#default` (single) + `file#multiple` (`multiple`) + `file#disabled`. All start `null` (a file is unsettable from markup; honest-empty). Matrix **31 → 34**.
+
+**Verification (Chat self-drove, real `tauri dev` + CDP 9422, both accents via skin-swap).** `ids().length === 34` (3 `file#`), baselines `{count:0,files:[]}`. **Bind path (the FileList round-trip — the headline proof):** `value` is unsettable, so injected a real file via `DataTransfer` + dispatched **`change`** (file inputs fire `change`, not `input`):
+```
+const dt = new DataTransfer(); dt.items.add(new File(['x'],'test.txt',{type:'text/plain'})); el.files = dt.files; el.dispatchEvent(new Event('change',{bubbles:true}))
+```
+→ bound getter:
+```
+"file#default":{"type":"file","state":{"count":1,"files":[{"name":"test.txt","size":1,"type":"text/plain"}]}}
+```
+**A FileList round-trips through `bind:files`, de-FileLuted to plain metadata** — the substrate's first non-`value` binding, proven. `file#multiple`/`file#disabled` stayed `{count:0,files:[]}`. Element + props + skin (one eval):
+```
+{"defMultiple":false,"mulMultiple":true,"disDisabled":true,"style":{"tag":"INPUT","type":"file","fontSize":"12px","color":"rgb(200, 196, 188)","cursor":"pointer"},"disabledStyle":{"cursor":"not-allowed","opacity":"0.5"},"fileRules":[".file",".file::file-selector-button",".file::-webkit-file-upload-button",".file::file-selector-button:hover",".file:focus-visible",".file:focus-visible::file-selector-button",".file:disabled",".file:disabled::file-selector-button"],"accent2":"#c28840"}
+```
+All **8** `.file` rules parsed + in cascade (stylesheet-rule inspection, N-042 method — `getComputedStyle` won't surface `::file-selector-button`). **Skin-swap:** `--accent2` `#c28840` (client) → after `data-shell="node"` `#3a7ab0`. Screenshot (client) eye-checked: `file#default` renders the `.button`-styled "Choose File" + **"test.txt"** (the round-tripped name), `file#multiple` "Choose **Files**" (native plural), `file#disabled` greyed. (Incidental reconfirm: `color#default` showed its exact `#9a6a30` seed on this fresh load — closing N-047's churn as instance-state, not a defect.) Clean teardown (5175/9422 free, 0 orphans).
+
+**Canonical (two commits, UI pattern `feat` then `docs`).** Commit 1 (impl): `file.svelte` (new) + `ui/assets/skin.css` (`.file`) + `ui/sampler/src/app_sampler.svelte` (row). Commit 2 (records): `ui/docs/xgen-ui-notes.md` (N-048) + `docs/ROADMAP.md` (M-RP2.18 ✅, v4.05, file-field horizon) + `CLAUDE.md` (PLAY → M-RP2.18, J-426→J-427) + `ui/docs/xgen-ui-components.md` (file row promoted + file-field composite logged, v0.23) + this JOURNAL J-427 + `tasks/M_RP2_18_FILE.md` (→ COMPLETED). **No `DECISIONS.md` touch** (applies D-096, no amendment). Not pushed — Joe pushes.
+
+**Next-active:** the **last** remaining atomic di per N-038 — `select multiple` — then the text-processor engine, then dd-components.
+
+---
+
 ## Entry J-426 — M-RP2.17 CLOSED: `color` — the twelfth `core` component; a SINGLETON that stands alone (the `range` case, not a fold); the native picker is OS-painted (not skinnable) → a `color-picker` composite is logged (#2)
 
 **What happened.** Built `color` — the **twelfth** `core` component, an atomic `<input type="color">` (native swatch + picker). Authored + skinned in one pass, built/tuned/verified **in the sampler** (D-097). Frontend + skin only; no protocol/data change (Rule 5).

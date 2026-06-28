@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.22  
+> Version: 0.23  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-28  
 > Language: English  
@@ -92,6 +92,8 @@ First built `core` component, authored at M-RP2.3 as the substrate proof: verifi
 
 > **Build note (M-RP2.17):** the *color* row above (`<input type="color">`) is served by the built **`color`** component (own atomic; always-valued string `#rrggbb` `bind:value`, default `#000000`, getter `{value}`; the leanest prop surface — `value`/`disabled`/`id`/`name`). The `range` case — shares `<input>` root + value-type (string) with `date` but stands alone on the swatch skin (`::-webkit-color-swatch*`). Built/tuned in the sampler (D-097). The native picker dialog is OS/Chromium-painted (not skinnable); a themed custom palette is the **`color-picker` composite** below.
 
+> **Build note (M-RP2.18):** the *file-select* row above (`<input type="file">`) is served by the built **`file`** component (own atomic; the **first non-`value` binding** — `bind:files`, a FileList; getter de-FileLists to `{count, files:[{name,size,type}]}`, the bindable prop carries the live FileList). Props `accept`/`multiple`/`disabled`/`id`/`name`; `value` is unsettable (browser security). Built/tuned in the sampler (D-097). The native row is a button + UA "No file chosen" text; `.file` skins the file-button pseudo (`::file-selector-button` / `::-webkit-file-upload-button`) to match `.button`. A custom drag-drop file row is the **`file-field` composite** below.
+
 ### Composites
 
 Data-independent composites (N-022 amendment): several native controls assembled into one control point, still keyed to a single semantic, binding = none. Schema: the header line carries name · annotations · `→ <root tag class>`; a `<div class="type">` root means composite and the `├──` child lines are its composed-of members (N-020/N-022). Children are named bare — each child's own catalogue entry defines its root.
@@ -116,6 +118,10 @@ password-field   keyed: secret · binding: none → <div class="password-field">
 
 color-picker     keyed: colour · binding: none → <div class="color-picker">
 └── themed palette: saturation/value square + hue slider + eyedropper + hex/RGB entry + swatches (custom, schema TBD; replaces the native picker the `color` atomic exposes)
+
+file-field       keyed: file-select · binding: none → <div class="file-field">
+├── file          the atomic trigger (native button hidden/bypassed)
+└── drop-zone + file list: drag-drop surface + selected-file rows (name/size + remove) + upload progress (custom, schema TBD; replaces the native "No file chosen" row)
 ```
 
 *Not yet classified (deferred):* read-only display primitives (`<progress>`, `<meter>`, `<output>`) — likely data-derived.

@@ -1,18 +1,13 @@
-/* app.css — SAMPLER chrome ONLY (N-031, N-044)
+/* app.css — SAMPLER chrome ONLY (N-031, N-044, N-045)
  *
  * Reset      -> xgen-normalize.css (L0)
  * Tokens +
- * appearance -> skin.css (L2, shared canonical — the live-edit target)
- * This file holds only the sampler's own dev-tool layout + the runtime
- * client<->node accent SWAP (D-098, M-RP3.0).
+ * appearance -> skin.css (L2, shared canonical — the live-edit target via Vite HMR)
+ * This file holds only the sampler's own dev-tool layout (the class x state grid),
+ * the segmented skin-swap control (tool chrome — NOT a sampled component), and the
+ * runtime client<->node accent SWAP. D-095-mirror-exempt.
  *
- * The sampler is D-095-mirror-exempt: it does NOT mirror the client/node
- * 320px card. Its layout is its own. The one thing it shares structurally is
- * the per-app accent knob (--accent*), which here is SWITCHABLE at runtime via
- * the [data-shell] attribute instead of fixed per-shell — that is the killer
- * feature (one component grid, flip accent, watch it re-theme). */
-
-/* Default = client accent (gold). [data-shell] flips it live (skin-swap). */
+ * Default = client accent (gold). [data-shell] flips it live (skin-swap, D-098). */
 :root,
 :root[data-shell="client"] {
   --accent:     var(--pr);
@@ -37,6 +32,7 @@ body {
   flex-direction: column;
 }
 
+/* Sticky bar: title + segmented skin-swap. */
 .sampler-bar {
   display: flex;
   align-items: center;
@@ -49,7 +45,6 @@ body {
   top: 0;
   z-index: 10;
 }
-
 .sampler-title {
   color: var(--t);
   font-size: 14px;
@@ -57,26 +52,73 @@ body {
   letter-spacing: 0.02em;
 }
 
-.sampler-shell-tag {
+/* Segmented skin-swap (tool chrome, deliberately NOT a sampled .button / core
+ * component — preserves the N-028 tool-vs-sampled line). Active segment uses the
+ * live --accent so the control itself also re-themes on swap. */
+.sampler-seg {
+  display: inline-flex;
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  overflow: hidden;
+}
+.sampler-seg button {
+  background: var(--s3);
   color: var(--t2);
+  border: 0;
+  padding: 4px 14px;
   font-size: 12px;
+  cursor: pointer;
+}
+.sampler-seg button + button { border-left: 1px solid var(--s5); }
+.sampler-seg button.active {
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
+/* Body: stacked semantic sections, each a set of component rows. */
 .sampler-body {
-  padding: 24px 16px;
+  padding: 20px 16px 60px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 22px;
+}
+.s-section-title {
+  color: var(--t2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--s4);
+  padding-bottom: 6px;
 }
 
-/* v0 smoke cell — M-RP3.1 replaces this with the class x phase matrix. */
-.sampler-smoke {
+/* One row per component; cells = its applicable states (ragged). */
+.s-row {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-end;
+  gap: 20px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--s3);
 }
-.sampler-smoke-label {
-  color: var(--t2);
-  font-size: 12px;
-  min-width: 120px;
+.s-rowname {
+  color: var(--t);
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 86px;
+  padding-bottom: 8px;
+}
+.s-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-end;
+}
+.s-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.s-id {
+  color: var(--t3);
+  font-size: 10px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
 }

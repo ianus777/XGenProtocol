@@ -405,6 +405,56 @@ html, body {
   border-color: var(--s5);
 }
 
+/* ---------------------------------------------------
+ * date (.date)
+ *   Root IS <input type="date|time|datetime-local|month|week"> (N-020 atomic). Date/time
+ *   entry, native picker (N-022). FOLDS the five date-input siblings via a constrained `type`
+ *   prop — same <input> root + same value-type (STRING) + shared skin/surface, the sharpened
+ *   D-096 criterion (the textfield fold again, not range). Own key, ASSEMBLED from the same L2
+ *   vocabulary as .number — single-line control, so it KEEPS min-height:--ctl-h and KEEPS
+ *   :invalid (native min/max range validation). No icons, no resize. The native picker is the
+ *   affordance; the calendar-picker indicator is recoloured for the dark box (the popup itself
+ *   darkens via color-scheme:dark on :root, N-043 — added FOR this family). PROVISIONAL
+ *   (Joe live-tunes via HMR, like the Q5 switch + the range thumb).
+ * --------------------------------------------------- */
+
+.date {
+  min-height: var(--ctl-h);
+  padding: var(--sp-1) var(--sp-2);
+  margin: var(--sp-1) var(--sp-2);
+  background: var(--s);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  color: var(--t);
+  font-size: var(--fs-1);
+  line-height: var(--lh);
+  transition: border-color var(--motion), box-shadow var(--motion);
+}
+.date:focus-visible {
+  outline: none;
+  border-color: var(--accent2, var(--t3));
+  box-shadow: var(--focus-ring);
+}
+.date:disabled {
+  background: var(--s2);
+  color: var(--t4);
+  cursor: not-allowed;
+}
+.date:read-only {
+  background: var(--s2);
+  border-color: var(--s4);
+}
+.date:invalid {
+  border-color: var(--err);
+}
+/* Calendar-picker indicator — the click target that opens the native popup. color-scheme:dark
+ * (N-043) already paints the popup + glyph for dark; this only sets the cursor. If the glyph
+ * reads wrong on the --s box, a filter/opacity tweak goes here (Joe live-tunes). Pseudo-element
+ * → verified by stylesheet-rule inspection + screenshot, not getComputedStyle (N-042). */
+.date::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+
 /* ───────────────────────────────────────────────────
  * select (.select)
  *   Root IS <select> (N-020 atomic). Closed control assembled from L2 tokens;

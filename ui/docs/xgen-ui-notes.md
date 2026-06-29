@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.32  
+> Version: 0.33  
 > Date: May 2026  
 > **Last updated**: 2026-06-29  
 > Language: English  
@@ -1131,6 +1131,26 @@ A design conversation (Joe) added three components to the di catalogue. **Planni
 **Build order.** `led` (and `link`) land in the di track; sequence: after `select multiple` (the last input-family atomic), then `led` + `link`, then `status-indicator` once both `led` + `label` are in hand. Each is built/tuned/CDP-verified in the sampler (D-097) like every component since `date`.
 
 *UI-catalogue record. No protocol/data implication, nothing built. Adds `led`/`link`/`status-indicator` to the di catalogue (components registry v0.24). Next build remains `select multiple`; `led`/`link`/`status-indicator` queued after.*
+
+### N-050 — `select-multiple` built (M-RP2.19): the fourteenth `core` component and the LAST input-family atomic di; the FIRST plain-array value-type (`bind:value` → `string[]`), empty model `[]` not `null`, getter `{values,count}`; own atomic under the sharpened D-096
+
+M-RP2.19 closed (J-430) — `select-multiple` (di·A, atomic `<select multiple>`) authored + skinned in one pass, built/tuned/verified **in the sampler** (D-097). The **fourteenth** `core` component and the **last input-family atomic di** (N-038); with it the input-family atomic axis is closed.
+
+**Own atomic under the sharpened D-096 — two of three criteria fail.** It shares the `<select>` tag with `select`, so the *literal* tag test would fold it in; it does not. The sharpened criterion (root + value-type + shared skin/surface, N-042) fails on **two** clauses: value-type diverges (**`string[]`** vs `select`'s scalar `string`) **and** skin-surface diverges (a static scrolling **list-box**, not a dropdown that opens a popup). The `range`-vs-`number` logic, doubled. **Applies D-096, no amendment** (no `DECISIONS.md` touch).
+
+**The headline is the value-type: the FIRST plain array.** Every prior binding was a scalar or a host object — boolean-in (`checked`) / event-out (`onclick`) / string-in (`value`) / number / FileList (`bind:files`). `select-multiple` is the **first plain-array** value-type: `bind:value` on `<select multiple>` yields a native **`string[]`** — the **5th binding shape**. No `bind:group` (that is for checkbox/radio sets); `bind:value` is the clean native path. Unlike FileList, a plain array **is** `$state.snapshot`-serialisable (a proxy, not a host object), so the getter is trivial — the new ground is the **empty model**, not serialisation.
+
+**Empty model `[]`, not `null` (the design point).** Single `select`'s empty is `null` (scalar-absent); `select-multiple`'s empty is **`[]`** (empty *set*). An array prop is always an array, so a consumer `.length`/`.map`s with no null-guard. The divergence from the sibling is correct and deliberate — this is the N-038 array-value-type landing.
+
+**Component.** `ui/core/lib/components/data-independent/select-multiple.svelte` (`lang="ts"`). Root `<select multiple {size} bind:value use:envelope>`; `value = $bindable([])` typed `string[]` (**empty = `[]`**). Prop surface: `value`/`options`/`size`/`disabled`/`id`/`name`. **`multiple` is hardcoded** — the component's identity, not a prop. **`size?` default 4** (visible list-box rows — the one genuinely multi-specific knob). **`options` carries over UNCHANGED from `select`** (N-034): the same dual input shape (`string[]` or `{value,label?,disabled?}[]`) normalized via the same `$derived items` — the two siblings stay API-symmetric on options. **No `placeholder`** (a leading empty option is meaningless for a list-box). No processor seam (a pick, not typed entry). Getter `{ values: $state.snapshot(value), count: value.length }` — the `{count, …}` shape mirrors `file`'s for sampler-row consistency.
+
+**Skin (own `.select-multiple`).** A list-box **surface** (`--s4`/`--s5` box, `--rad`, `--fs-1`/`--lh`, `--sp-1` padding) — **no** `appearance:none`/arrow (it is not a dropdown), **no** `--ctl-h` (`size` drives height). Selected rows are accent-tinted via **`.select-multiple option:checked`** → `--accent2`/`--accent-ink`; `:focus-visible` → accent border + `--focus-ring`; `:disabled` → greyed + `not-allowed`. No new `:root` token. The skin shares **nothing** with `.select` beyond the L2 vocabulary (assembled per-class, the `.number`/`.textfield` precedent). PROVISIONAL (Joe live-tunes via HMR).
+
+**Sampler.** A `select-multiple` row + **3** cells — `select-multiple#default` (`value=[]`), `select-multiple#seeded` (`value=['a','c']`), `select-multiple#disabled` (`disabled`, `value=['b']`); all share a small `a/b/c` options array. Unlike `file`, an array **CAN** seed from markup — the `#seeded` cell is the honest array-round-trip seed. Matrix **34 → 37**.
+
+**Verify (Chat self-drove, sampler + CDP 9422, both accents via skin-swap).** `ids().length === 37` (3 `select-multiple#`). **Seed proof (the `[]` empty-model + array shape):** `#default {values:[],count:0}` (empty = `[]`, **not** `null`), `#seeded {values:["a","c"],count:2}`, `#disabled {values:["b"],count:1}`. **Bind path (the array round-trip — the headline proof):** selected rows a+b via DOM + dispatched **`change`** (`<select>` fires `change`) → bound getter `{values:["a","b"],count:2}` — **a `string[]` round-trips through `bind:value`** (the substrate's first plain-array value-type, proven). Element: `tag=SELECT`, `multiple=true`, `size=4` (the default). Pseudo/option skin verified by **stylesheet-rule inspection** (N-042 method): all **5** `.select-multiple` rules (`.select-multiple`, `option`, `option:checked`, `:focus-visible`, `:disabled`) parsed + in cascade. Disabled: `#disabled.disabled === true`. Skin-swap: `--accent2` `#c28840` (client) ↔ `#3a7ab0` (node). Screenshots (both shells eye-checked): the three list-boxes render dark-surface with **accent-tinted selected rows** (gold client / blue node), `#seeded` shows Alpha highlighted + Gamma below the 4-row fold, `#disabled` greyed. **Verify-harness note:** a fresh launch was needed — a stale HMR session first reported `#default`/`#seeded` both as `['a','b']`; teardown + relaunch gave the correct seeds, confirming the prior read was stale dev-state, not a binding defect (the `range`/`color` minimized-window finding family, N-047 shape).
+
+*UI-implementation record. No protocol/data implication. `select-multiple` is the fourteenth built `core` component; own atomic + the first `string[]` array value-type (applies sharpened D-096, no amendment). The input-family atomic axis is now closed. Next: the di catalogue additions `led` + `link` (N-049), then the `status-indicator` composite, then the text-processor engine, then dd-components.*
 
 ---
 

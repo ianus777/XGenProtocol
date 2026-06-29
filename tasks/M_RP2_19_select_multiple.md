@@ -1,6 +1,6 @@
 # M-RP2.19 — `select-multiple` (di·A, atomic `<select multiple>`, own atomic; first `string[]` array value-type)
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-29  
@@ -221,14 +221,14 @@ git push
 
 ## 9. Definition of Done
 
-- [ ] `select-multiple.svelte` authored to §3 (`bind:value` → `string[]`, `[]` empty, `{values,count}`
+- [x] `select-multiple.svelte` authored to §3 (`bind:value` → `string[]`, `[]` empty, `{values,count}`
       getter, `multiple` hardcoded, `size?` default 4, options per N-034).
-- [ ] `.select-multiple` list-box skin added to §4 (surface + `option:checked` accent + focus/disabled).
-- [ ] Sampler row + `default`/`seeded`/`disabled` cells added (§5) and live.
-- [ ] CDP verification §6 run in the sampler, both accents — actual output captured (incl. the `[]`
+- [x] `.select-multiple` list-box skin added to §4 (surface + `option:checked` accent + focus/disabled).
+- [x] Sampler row + `default`/`seeded`/`disabled` cells added (§5) and live.
+- [x] CDP verification §6 run in the sampler, both accents — actual output captured (incl. the `[]`
       empty-model proof + the `change`-dispatch array round-trip).
-- [ ] N-050 written; ROADMAP + CLAUDE updated same-commit; components registry row promoted; JOURNAL
+- [x] N-050 written; ROADMAP + CLAUDE updated same-commit; components registry row promoted; JOURNAL
       J-430 written (real CDP output).
-- [ ] Task Status → COMPLETED.
+- [x] Task Status → COMPLETED.
 
 (`Status: COMPLETED` is the real signal — no "commit pushed" checklist item.)

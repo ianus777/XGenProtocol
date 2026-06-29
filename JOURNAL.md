@@ -8,6 +8,29 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-430 — `select-multiple` built (M-RP2.19): the fourteenth `core` component and the LAST input-family atomic di; the FIRST plain-array value-type (`bind:value` → `string[]`, the 5th binding shape), empty model `[]` not `null`, getter `{values,count}`; own atomic under the sharpened D-096
+
+**What happened.** Built `select-multiple` (di·A, atomic `<select multiple>`) — authored `select-multiple.svelte`, added the `.select-multiple` skin block, wired a sampler row (3 cells), self-drove CDP verification in the sampler, recorded. The **fourteenth** `core` component and the **last input-family atomic di** (N-038); the input-family atomic axis is now closed. Joe-locked the six design decisions at the design walk (D-a..D-f); runbook `tasks/M_RP2_19_select_multiple.md` authored + pushed ahead of the build.
+
+**Own atomic under the sharpened D-096.** Shares the `<select>` tag with `select` but fails **two** of the three sharpened-criterion clauses (root + value-type + shared skin/surface, N-042): value-type diverges (**`string[]`** vs scalar `string`) **and** skin-surface diverges (scrolling list-box vs dropdown). The `range`-vs-`number` logic, doubled. Applies D-096, **no amendment** (no `DECISIONS.md` touch).
+
+**The headline — first plain-array value-type.** `bind:value` on `<select multiple>` yields a native **`string[]`** (no `bind:group`) — the **5th binding shape** after boolean-in/event-out/string-in/number/FileList. Empty model is **`[]`, not `null`** (set-absent vs the single-select's scalar-null) — the N-038 array landing. A plain array is `$state.snapshot`-serialisable, so the getter is trivial: `{ values: $state.snapshot(value), count: value.length }` (the `{count,…}` shape mirrors `file`). `options` carried over unchanged from `select` (the dual `string[]`/`{value,label?,disabled?}[]` shape + the same `$derived items`, N-034); `size?` default 4; `multiple` hardcoded; no `placeholder`; no processor seam. Own `.select-multiple` skin — list-box surface (`--s4`/`--s5`), accent-tinted `option:checked`, focus/disabled; no arrow, no `--ctl-h`.
+
+**Verify (Chat self-drove, sampler + CDP 9422, both accents via skin-swap; real output quoted, Rule 2).**
+- Registry seed (`cdp-debug.ps1 -App sampler -Mode state`, fresh launch): `n_ids=37`; `sm#default = {"values":[],"count":0}` (the `[]` empty-model proof, **not** `null`); `sm#seeded = {"values":["a","c"],"count":2}`; `sm#disabled = {"values":["b"],"count":1}`.
+- Bind round-trip (eval; select a+b on `#default` + dispatch `change`): `EVAL RESULT: {"tag":"SELECT","mult":true,"sz":4,"roundtrip":{"values":["a","b"],"count":2}}` — a `string[]` round-trips through `bind:value` (the substrate's first plain-array value-type, proven); `multiple=true`, `size=4` (default).
+- Skin / disabled / accent (eval): `EVAL RESULT: {"disabledFlag":true,"smRules":[".select-multiple",".select-multiple option",".select-multiple option:checked",".select-multiple:focus-visible",".select-multiple:disabled"],"accentClient":"#c28840","accentNode":"#3a7ab0"}` — all 5 `.select-multiple` rules in cascade (incl `option:checked`), `#disabled` inert, accent flips gold↔blue.
+- Screenshots (both shells eye-checked): three dark-surface list-boxes with **accent-tinted selected rows** (gold client / blue node); `#seeded` shows Alpha highlighted + Gamma below the 4-row fold; `#disabled` greyed.
+- Teardown: `0 orphans - ports 9422/5175 free`.
+
+**Verify-harness note.** A fresh launch was required: a **stale HMR** session first reported `#default`/`#seeded` both as `['a','b']` (neither matched its seed). Teardown + relaunch gave the correct seeds — confirming the prior read was stale dev-state, not a binding defect (the `range`/`color` minimized-window finding family, N-047 shape). Recorded so the next interactive verify expects it.
+
+**Canonical.** `ui/core/lib/components/data-independent/select-multiple.svelte` (new) + `ui/assets/skin.css` (`.select-multiple` block) + `ui/sampler/src/app_sampler.svelte` (row + 3 cells, matrix 34→37) [commit 1, feat]; `ui/docs/xgen-ui-notes.md` (N-050, v0.33) + `ui/docs/xgen-ui-components.md` (M-RP2.19 build-note, v0.25) + `docs/ROADMAP.md` (RP node + Present narrative, v4.06) + `CLAUDE.md` (PLAY → M-RP2.19, prior-PLAY pointer → J-430) + this JOURNAL J-430 + `tasks/M_RP2_19_select_multiple.md` Status → COMPLETED [commit 2, docs]. No `DECISIONS.md` touch (applies sharpened D-096). Two-commit close (feat → docs); Joe pushes.
+
+**Next-active:** `led` + `link` (di catalogue additions, locked N-049) — `led` is runbook-and-go (fully locked); then the `status-indicator` composite (once `led` + `label` are in hand), then the text-processor engine, then dd-components.
+
+---
+
 ## Entry J-429 — di catalogue extended (planning, nothing built): `led` (display-di status light, caller-supplied colour map) + `link` (navigation atomic, `<a href>`) + `status-indicator` (di composite = led + label + optional link)
 
 **What happened.** A design conversation with Joe added three components to the data-independent catalogue. **Planning/concept-lock only — no code, no build.** Recorded in `ui/docs/xgen-ui-components.md` (v0.24: a `navigation` row + a Planned note + the `status-indicator` Composites row) + `ui/docs/xgen-ui-notes.md` (**N-049**, the concept-lock the catalogue rows point to). No `DECISIONS.md` touch (arc-local di-vocabulary; D-069 threshold not met).

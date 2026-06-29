@@ -710,3 +710,33 @@ html, body {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.35; }
 }
+
+/* ───────────────────────────────────────────────────
+ * link (.link)
+ *   Root IS <a class="link"> (N-020 atomic). NAVIGATION-kind di. ACCENT-derived — colour rides
+ *   var(--accent2) so it re-themes gold/blue per shell (link returns to the accent pattern; `led`
+ *   was the caller-supplied-colour exception). Underline on hover; accent focus ring. disabled is
+ *   synthesised (the component drops href + sets aria-disabled + tabindex=-1) — the skin greys it
+ *   via [aria-disabled]. A compact/short shape and an icon shape are FUTURE skin shapes (icon needs
+ *   the future `icon` primitive). PROVISIONAL (Joe live-tunes via HMR).
+ * ─────────────────────────────────────────────────── */
+
+.link {
+  color: var(--accent2);
+  text-decoration: none;
+  cursor: pointer;
+}
+.link:hover {
+  text-decoration: underline;
+}
+.link:focus-visible {
+  outline: none;
+  border-radius: var(--rad);
+  box-shadow: var(--focus-ring);
+}
+.link[aria-disabled] {
+  color: var(--t4);
+  text-decoration: none;
+  cursor: default;
+  pointer-events: none;
+}

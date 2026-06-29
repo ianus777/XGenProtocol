@@ -2,7 +2,7 @@
   // app_sampler.svelte — SAMPLER matrix (M-RP3.1). Plain-JS app shell (bare $state,
   // no TS annotations — N-041). Mounts all 13 built `core` components live in a
   // semantic-group x state grid; each cell is a real `envelope`-registered instance
-  // (`{type}#{state}`) so CDP `ids()` enumerates the matrix. 14 built `core` components.
+  // (`{type}#{state}`) so CDP `ids()` enumerates the matrix. 15 built `core` components.
   // The class x phase axes
   // (N-028) are deferred — degenerate while everything is di-A.
   //
@@ -28,6 +28,7 @@
   import ColorField from '$core/components/data-independent/color.svelte';
   import FileField from '$core/components/data-independent/file.svelte';
   import SelectMultiple from '$core/components/data-independent/select-multiple.svelte';
+  import Led from '$core/components/data-independent/led.svelte';
 
   // Runtime client<->node skin-swap (D-098): flipping [data-shell] re-aliases --accent*
   // live, so the whole grid re-themes at once. Replaces "run in both real shells".
@@ -85,6 +86,9 @@
     { value: 'b', label: 'Beta' },
     { value: 'c', label: 'Gamma' },
   ];
+
+  // led — caller-supplied state→colour map (hex OR var(--token)); colour is data, not accent.
+  const ledStates = { ON: '#22c55e', OFF: 'var(--t4)', ERR: 'var(--err)' };
 
   // Inline data-URI so image#default renders with no file linkage (Joe's call):
   // the actual ui/assets/img-placeholder.svg artwork (mountains+sun glyph), hardcoded
@@ -224,6 +228,16 @@
     <div class="s-rowname">image</div>
     <div class="s-cells">
       <div class="s-cell"><span class="s-id">image#default</span><Img src={imgSrc} alt="sample placeholder" id="default" /></div>
+    </div>
+  </div>
+
+  <div class="s-row">
+    <div class="s-rowname">led</div>
+    <div class="s-cells">
+      <div class="s-cell"><span class="s-id">led#default</span><Led states={ledStates} state="ON" id="default" /></div>
+      <div class="s-cell"><span class="s-id">led#off</span><Led states={ledStates} state="OFF" id="off" /></div>
+      <div class="s-cell"><span class="s-id">led#pulse</span><Led states={ledStates} state="ERR" pulse id="pulse" /></div>
+      <div class="s-cell"><span class="s-id">led#unknown</span><Led states={ledStates} state="???" id="unknown" /></div>
     </div>
   </div>
 </div>

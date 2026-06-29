@@ -682,3 +682,31 @@ html, body {
 .image {
   border-radius: var(--rad);
 }
+
+/* ───────────────────────────────────────────────────
+ * led (.led)
+ *   Root IS <span class="led"> (N-020 atomic). DISPLAY-kind di (read-only status light, N-032).
+ *   The FIRST data-coloured atomic: the skin owns SHAPE only — size, round, pulse — while COLOUR
+ *   rides an inline `--led-colour` custom property the component sets from its caller-supplied
+ *   `states` map (hex or `var(--token)`). `#000000` doubles as the var fallback + the reserved
+ *   unknown/undefined sentinel. `pulse` is keyed off the reflected `data-pulse` attribute (the
+ *   `.toggle[role="switch"]` attribute-hook precedent, since `envelope` owns `class`). Non-
+ *   interactive — no hover/focus/disabled. Dot size is a skin literal (no new :root token unless a
+ *   second consumer needs it, D-069). PROVISIONAL (Joe live-tunes via HMR).
+ * ─────────────────────────────────────────────────── */
+
+.led {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--led-colour, #000000);
+  vertical-align: middle;
+}
+.led[data-pulse] {
+  animation: led-pulse 1.2s ease-in-out infinite;
+}
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}

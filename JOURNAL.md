@@ -1,10 +1,27 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-28  
+> **Last updated:** 2026-06-29  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-429 — di catalogue extended (planning, nothing built): `led` (display-di status light, caller-supplied colour map) + `link` (navigation atomic, `<a href>`) + `status-indicator` (di composite = led + label + optional link)
+
+**What happened.** A design conversation with Joe added three components to the data-independent catalogue. **Planning/concept-lock only — no code, no build.** Recorded in `ui/docs/xgen-ui-components.md` (v0.24: a `navigation` row + a Planned note + the `status-indicator` Composites row) + `ui/docs/xgen-ui-notes.md` (**N-049**, the concept-lock the catalogue rows point to). No `DECISIONS.md` touch (arc-local di-vocabulary; D-069 threshold not met).
+
+**The three.**
+- **`led`** — di·A **simple display-di** (the 4th, after label/paragraph/image), atomic inline `<span class="led">` status light. Joe's vision: **not hardcoded states/colours** but a **caller-supplied `states: Record<string,string>` map** (`{ "ON":"#ff0000", "OFF":"var(--t4)" }` — hex or `var(--token)`) + a `state` key (the `select` options-prop pattern, N-034 → fully di). `pulse?` orthogonal boolean. Unknown/undefined → **reserved full-black `#000000`** (always-visible sentinel; consumers never map a real state to black). `title = state ?? "?"` native tooltip. Getter `{state, colour}`; `role="img"`. `.led` skin = shape only, colour via inline CSS var.
+- **`link`** — di·A **navigation** atomic, root `<a href>` (surfaced by the status-indicator's optional "details →" slot). Distinct from the existing *button link-styled shape* (a `<button>` that looks like a link). Full prop surface is its own build-time design walk.
+- **`status-indicator`** — di **composite** (`<div class="status-indicator">` = led + label + optional trailing link). **Classification corrected by Joe: di, not dd** — the caller supplies the state→colour map + caption, the component binds no domain structure (a settings/overview panel = N of these rows). Generalises the shells' bespoke `.state-dot` + `dotColor`/`isPulsing`; becomes the shells' state-indicator when they move to lib components. (A future *domain-bound* health panel that derives states itself would be the dd version — separate, later.)
+
+**Context.** Prompted by Joe noticing the real shells' bespoke status light (the `.state-dot`) after the J-428 shell revert, and by the broader plan to swap the shells from bespoke chrome to lib components once the di set is complete.
+
+**Canonical.** `ui/docs/xgen-ui-components.md` (v0.24) + `ui/docs/xgen-ui-notes.md` (N-049) + this JOURNAL J-429 + a light `CLAUDE.md` PLAY Next touch (the di queue now reads `select multiple` → `led`/`link` → `status-indicator`). No `DECISIONS`/`ROADMAP` touch. Not pushed — Joe pushes.
+
+**Next-active:** unchanged build order — `select multiple` (the last input-family atomic), then `led` + `link`, then `status-indicator`.
 
 ---
 

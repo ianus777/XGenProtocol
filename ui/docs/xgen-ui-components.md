@@ -1,8 +1,8 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.23  
+> Version: 0.24  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-28  
+> **Last updated**: 2026-06-29  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -79,6 +79,7 @@ First built `core` component, authored at M-RP2.3 as the substrate proof: verifi
 | date / time | `<input type="date\|time\|datetime-local\|month\|week">` | `bind:value` | native picker |
 | color | `<input type="color">` | `bind:value` | swatch picker |
 | file-select | `<input type="file">` | `bind:files` | file button |
+| navigation | `<a href>` | `href` / optional `onclick` | text link · standalone link |
 
 > **Build note (D-096):** the string-valued input semantics above — free-text (single line), constrained text, secret, and the search-field shape — are all served by the **one built `textfield`** via its constrained `type` prop (`text|search|email|url|tel|password`). These catalogue rows remain as the *semantic vocabulary*; they are not separate components. `number`/`range`/`date`/`color`/`file` stay their own atomics (value-type / structure differ); the password reveal toggle is the `password-field` composite.
 
@@ -93,6 +94,11 @@ First built `core` component, authored at M-RP2.3 as the substrate proof: verifi
 > **Build note (M-RP2.17):** the *color* row above (`<input type="color">`) is served by the built **`color`** component (own atomic; always-valued string `#rrggbb` `bind:value`, default `#000000`, getter `{value}`; the leanest prop surface — `value`/`disabled`/`id`/`name`). The `range` case — shares `<input>` root + value-type (string) with `date` but stands alone on the swatch skin (`::-webkit-color-swatch*`). Built/tuned in the sampler (D-097). The native picker dialog is OS/Chromium-painted (not skinnable); a themed custom palette is the **`color-picker` composite** below.
 
 > **Build note (M-RP2.18):** the *file-select* row above (`<input type="file">`) is served by the built **`file`** component (own atomic; the **first non-`value` binding** — `bind:files`, a FileList; getter de-FileLists to `{count, files:[{name,size,type}]}`, the bindable prop carries the live FileList). Props `accept`/`multiple`/`disabled`/`id`/`name`; `value` is unsettable (browser security). Built/tuned in the sampler (D-097). The native row is a button + UA "No file chosen" text; `.file` skins the file-button pseudo (`::file-selector-button` / `::-webkit-file-upload-button`) to match `.button`. A custom drag-drop file row is the **`file-field` composite** below.
+
+> **Planned (di, not yet built) — `led`, `link`, `status-indicator` (locked 2026-06-29, N-049):**
+> • **`led`** — di·A, **simple display-di** (the 4th, after label/paragraph/image), atomic inline `<span class="led">` status light. Caller-supplied **`states: Record<string,string>`** map (`{ "ON":"#ff0000", "OFF":"var(--t4)" }` — hex **or** `var(--token)`) + **`state: string`** key picks the shown colour; **`pulse?: boolean`** (orthogonal animation). Resolve: `colour = states[state] ?? "#000000"` — **full black `#000000` is the reserved unknown/undefined sentinel; consumers must never map a real state to black**. `title = state ?? "?"` (native tooltip shows the live key; a set-but-unmapped key still shows in the tooltip, only truly-undefined shows `"?"`). Getter `{ state, colour }`. `role="img"` + `aria-label={title}`. The `.led` skin owns **shape only** (size, `border-radius:50%`, pulse `@keyframes`); colour rides an inline CSS var from the prop. The `select` options-prop precedent (N-034): a caller-supplied map the atomic does not interpret → fully data-independent.
+> • **`link`** — di·A, **navigation** semantic (the new catalogue row above), atomic `<a href>`. Value-carrying (the `text` label) **and** navigational (`href`), with optional `onclick` for in-app/SPA routing (e.g. a "details →" jump to a settings section). **Distinct** from the existing *button link-styled shape* (a `<button>` that *looks* like a link but acts via `onclick`, no navigation) — `link` **is** an `<a>`. Full prop surface (`href`/`text`/`target`/`rel`/external-vs-in-app/inert handling) is its own design walk at build time.
+> • **`status-indicator`** — di **composite** (binding none), `<div class="status-indicator">` = **`led` + `label` + optional trailing `link`** (a "details →" to a settings/detail section). The general **status-row**: a settings/overview panel is N of these, the panel author supplying each row's `states`/`state`/caption/link. Generalises the shells' bespoke `.state-dot` + `dotColor`/`isPulsing` — when the shells move to lib components, the state-indicator becomes one `status-indicator`. **Not dd** — it interprets no domain structure; the caller does the state→colour mapping (the `combobox`/`password-field` shape).
 
 ### Composites
 
@@ -122,6 +128,12 @@ color-picker     keyed: colour · binding: none → <div class="color-picker">
 file-field       keyed: file-select · binding: none → <div class="file-field">
 ├── file          the atomic trigger (native button hidden/bypassed)
 └── drop-zone + file list: drag-drop surface + selected-file rows (name/size + remove) + upload progress (custom, schema TBD; replaces the native "No file chosen" row)
+
+status-indicator keyed: status · binding: none → <div class="status-indicator">
+├── led            status light (caller-supplied states map + state key)        [required]
+├── label          caption, e.g. "Storage" / "Federation"                       [required]
+└── link?          optional trailing "details →" to a settings/detail section
+                   (the `link` atomic, or a link-styled button)                 [optional]
 ```
 
 *Not yet classified (deferred):* read-only display primitives (`<progress>`, `<meter>`, `<output>`) — likely data-derived.

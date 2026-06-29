@@ -1,6 +1,6 @@
 # M-RP2.20 — `led` (di·A, atomic `<span class="led">`, simple display-di; caller-supplied state→colour map)
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-29  
@@ -248,16 +248,16 @@ git push
 
 ## 9. Definition of Done
 
-- [ ] `led.svelte` authored to §3 (`states`/`state`/`pulse`/`id`; `colour`/`title` derived; `#000000`
+- [x] `led.svelte` authored to §3 (`states`/`state`/`pulse`/`id`; `colour`/`title` derived; `#000000`
       sentinel; getter `{state,colour}`; `role="img"` + `aria-label`; inline `--led-colour`; contract
       in header).
-- [ ] `.led` shape-only skin added to §4 (dot + `border-radius:50%` + `var(--led-colour)` + `.led[data-pulse]`
+- [x] `.led` shape-only skin added to §4 (dot + `border-radius:50%` + `var(--led-colour)` + `.led[data-pulse]`
       + `@keyframes led-pulse`).
-- [ ] Sampler row + `default`/`off`/`pulse`/`unknown` cells added (§5) and live (matrix 37→41).
-- [ ] CDP verification §6 run in the sampler — actual output captured (incl. the `#000000` sentinel
+- [x] Sampler row + `default`/`off`/`pulse`/`unknown` cells added (§5) and live (matrix 37→41).
+- [x] CDP verification §6 run in the sampler — actual output captured (incl. the `#000000` sentinel
       proof, the `var(--token)` computed-colour path, and the no-accent-dependency proof).
-- [ ] N-051 written; ROADMAP + CLAUDE updated same-commit; components registry `led` promoted; JOURNAL
+- [x] N-051 written; ROADMAP + CLAUDE updated same-commit; components registry `led` promoted; JOURNAL
       J-431 written (real CDP output).
-- [ ] Task Status → COMPLETED.
+- [x] Task Status → COMPLETED.
 
 (`Status: COMPLETED` is the real signal — no "commit pushed" checklist item.)

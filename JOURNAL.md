@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-431 — `led` built (M-RP2.20): the fifteenth `core` component and the FOURTH simple display-di; the FIRST caller-supplied-colour-map + the FIRST data-coloured atomic (colour rides an inline CSS var, not the accent); `#000000` unknown-sentinel contract
+
+**What happened.** Built `led` (di·A, atomic inline `<span class="led">` status light) — authored `led.svelte`, added the `.led` skin block, wired a sampler row (4 cells), self-drove CDP verification in the sampler, recorded. The **fifteenth** `core` component and the **fourth simple display-di** (after label/paragraph/image, N-032). Fully locked at N-049 (J-429), so straight to runbook + build (no design walk); runbook `tasks/M_RP2_20_led.md` authored + pushed ahead of the build, build-time micro-decisions Joe-flagged (state plain prop, inline `--led-colour` var, `data-pulse` attribute-hook, 4 cells).
+
+**Two firsts.** (1) **Caller-supplied colour map** — the `select` options-prop shape (N-034) applied to a display-di: the atomic carries a `states: Record<string,string>` map it does **not** interpret, picking a colour by the `state` key. The shells' bespoke `.state-dot` + `dotColor(state)` switch becomes this, generalised. (2) **First data-coloured atomic** — every prior component's colour came from the skin (`--accent*`/`--t*`/`--err`); `led`'s comes from the **prop**, injected as an inline `--led-colour` custom property the `.led` skin reads. The skin owns **shape only** — so `led` is the **first component whose colour is NOT accent-derived** (verified below).
+
+**Contract (lands on the caller).** `colour = states[state] ?? "#000000"` — **full black `#000000` is the reserved unknown/undefined sentinel** (always-visible solid; a transparent dot would disappear). **Consumers must never map a real state to `#000000`** (written into the `.svelte` header). `title = state ?? "?"` (native tooltip; a set-but-unmapped key still shows — diagnostic). `role="img"` + `aria-label={title}`. Values accept hex OR `var(--token)`. `pulse?` via a reflected `data-pulse` attribute (the `.toggle[role="switch"]` attribute-hook precedent). Plain props, no `$bindable` (display-di), no processor seam.
+
+**Verify (Chat self-drove, sampler + CDP 9422, fresh launch; real output quoted, Rule 2).**
+- Registry (`-Mode state`): `n_ids=41`; `led#default = {"state":"ON","colour":"#22c55e"}`; `led#off = {"state":"OFF","colour":"var(--t4)"}` (the token reference travels in the getter); `led#pulse = {"state":"ERR","colour":"var(--err)"}`; `led#unknown = {"state":"???","colour":"#000000"}` (**the black sentinel for an unmapped key — the contract proof**).
+- Computed / pulse / a11y / skin / no-accent (one eval): `{"bg":{"def":"rgb(34, 197, 94)","off":"rgb(88, 92, 100)","unk":"rgb(0, 0, 0)"},"pulse":{"pAnim":"led-pulse","dAnim":"none","pData":"true","dData":null},"a11y":{"tag":"SPAN","role":"img","aDef":"ON","aUnk":"???","title":"ON","radius":"50%","disp":"block"},"ledRules":[…,".led",".led[data-pulse]"],"kf":true,"noAccent":{"client":"rgb(34, 197, 94)","node":"rgb(34, 197, 94)"}}`. The inline `--led-colour` drives `.led` background incl. the `var(--t4)` token path (`rgb(88,92,100)`); the sentinel renders `rgb(0,0,0)`; `data-pulse` + `led-pulse` keyframes applied (`kf:true`); `.led` + `.led[data-pulse]` in cascade. **`noAccent`: `#default` bg `rgb(34,197,94)` identical client↔node** — the no-accent-dependency proof.
+- Screenshot (eye-checked): four round dots — green / grey / red (pulsing) / **black** (`#unknown` visibly renders, does not vanish).
+- Teardown: `0 orphans - ports 9422/5175 free`.
+
+**Finding (expected, not a defect).** Computed `display` is `block`, not the skin's `inline-block` — flex-item blockification from the sampler cell's flex layout (the same `label` finding, N-035).
+
+**Canonical.** `ui/core/lib/components/data-independent/led.svelte` (new) + `ui/assets/skin.css` (`.led` block) + `ui/sampler/src/app_sampler.svelte` (row + 4 cells, matrix 37→41) [commit 1, feat]; `ui/docs/xgen-ui-notes.md` (N-051, v0.34) + `ui/docs/xgen-ui-components.md` (M-RP2.20 build-note + `led` promoted from Planned, v0.26) + `docs/ROADMAP.md` (RP node + Present narrative, v4.07) + `CLAUDE.md` (PLAY → M-RP2.20, prior-PLAY → J-431) + this JOURNAL J-431 + `tasks/M_RP2_20_led.md` Status → COMPLETED [commit 2, docs]. No `DECISIONS.md` touch (new simple display-di; applies D-096, the map is the N-034 precedent). Two-commit close (feat → docs); Joe pushes.
+
+**Next-active:** `link` (navigation `<a href>` atomic — its own design walk at build time: `href`/`text`/`target`/`rel`/external-vs-in-app/inert) → the `status-indicator` di composite (led + label + optional link — both constituents now in hand) → the text-processor engine → dd-components.
+
+---
+
 ## Entry J-430 — `select-multiple` built (M-RP2.19): the fourteenth `core` component and the LAST input-family atomic di; the FIRST plain-array value-type (`bind:value` → `string[]`, the 5th binding shape), empty model `[]` not `null`, getter `{values,count}`; own atomic under the sharpened D-096
 
 **What happened.** Built `select-multiple` (di·A, atomic `<select multiple>`) — authored `select-multiple.svelte`, added the `.select-multiple` skin block, wired a sampler row (3 cells), self-drove CDP verification in the sampler, recorded. The **fourteenth** `core` component and the **last input-family atomic di** (N-038); the input-family atomic axis is now closed. Joe-locked the six design decisions at the design walk (D-a..D-f); runbook `tasks/M_RP2_19_select_multiple.md` authored + pushed ahead of the build.

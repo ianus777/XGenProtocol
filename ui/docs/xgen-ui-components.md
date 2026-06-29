@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.26  
+> Version: 0.27  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-29  
 > Language: English  
@@ -99,9 +99,11 @@ First built `core` component, authored at M-RP2.3 as the substrate proof: verifi
 
 > **Build note (M-RP2.20):** the *led* entry below is now **built** — `led` (di·A, atomic inline `<span class="led">` status light, the **fourth simple display-di**) ships with the caller-supplied `states: Record<string,string>` map (hex or `var(--token)`) + `state` key (the N-034 options-prop shape applied to a display-di), `pulse?` boolean, the `#000000` unknown-sentinel, `title = state ?? "?"`, getter `{state, colour}`, `role="img"`. The **first data-coloured atomic**: colour rides an inline `--led-colour` CSS var the `.led` skin reads (skin owns shape only), so `led` is the **first component whose colour is NOT accent-derived**. Built/tuned/CDP-verified in the sampler (D-097): led row + 4 cells (matrix 37→41), incl. the `#000000` sentinel for an unmapped key + the no-accent-dependency proof. `link` + `status-indicator` stay Planned.
 
-> **Planned (di, not yet built) — `link`, `status-indicator` (locked 2026-06-29, N-049; `led` ✅ BUILT M-RP2.20):**
+> **Build note (M-RP2.21):** the *navigation* row above (`<a href>`) is served by the built **`link`** component (di·A, the **first navigation-kind di**). Value-carrying (`text`) + navigational (`href`); props `href`/`text`/`onclick?`/`external?`/`disabled?`/`ariaLabel?`/`id`; getter `{text,href,external,disabled}`. `external` → `target="_blank"` + safe `rel="noopener noreferrer"`; `disabled` synthesised (drops `href` + `aria-disabled` + `tabindex=-1`; no native `<a>` disabled). Distinct from the button link-styled shape (`link` IS an `<a>`). `.link` skin is **accent-derived** (`var(--accent2)`, re-themes gold/blue — the `led` caller-supplied-colour exception ends). The atomic never imports Tauri/router: `shell.open`/SPA-route/modal-open are consumer wiring (**modal-open = `button`, not `link`**). Built/tuned/CDP-verified in the sampler (D-097): matrix 41→44. Icon-only needs a future `icon` primitive (`ariaLabel` is the hook).
+
+> **Planned (di, not yet built) — `status-indicator` (locked 2026-06-29, N-049; `led` ✅ BUILT M-RP2.20, `link` ✅ BUILT M-RP2.21):**
 > • **`led`** ✅ BUILT (M-RP2.20, J-431) — di·A, **simple display-di** (the 4th, after label/paragraph/image), atomic inline `<span class="led">` status light. Caller-supplied **`states: Record<string,string>`** map (`{ "ON":"#ff0000", "OFF":"var(--t4)" }` — hex **or** `var(--token)`) + **`state: string`** key picks the shown colour; **`pulse?: boolean`** (orthogonal animation). Resolve: `colour = states[state] ?? "#000000"` — **full black `#000000` is the reserved unknown/undefined sentinel; consumers must never map a real state to black**. `title = state ?? "?"` (native tooltip shows the live key; a set-but-unmapped key still shows in the tooltip, only truly-undefined shows `"?"`). Getter `{ state, colour }`. `role="img"` + `aria-label={title}`. The `.led` skin owns **shape only** (size, `border-radius:50%`, pulse `@keyframes`); colour rides an inline CSS var from the prop. The `select` options-prop precedent (N-034): a caller-supplied map the atomic does not interpret → fully data-independent.
-> • **`link`** — di·A, **navigation** semantic (the new catalogue row above), atomic `<a href>`. Value-carrying (the `text` label) **and** navigational (`href`), with optional `onclick` for in-app/SPA routing (e.g. a "details →" jump to a settings section). **Distinct** from the existing *button link-styled shape* (a `<button>` that *looks* like a link but acts via `onclick`, no navigation) — `link` **is** an `<a>`. Full prop surface (`href`/`text`/`target`/`rel`/external-vs-in-app/inert handling) is its own design walk at build time.
+> • **`link`** ✅ BUILT (M-RP2.21, J-432) — di·A, **navigation** semantic (the new catalogue row above), atomic `<a href>`. Value-carrying (the `text` label) **and** navigational (`href`), with optional `onclick` for in-app/SPA routing (e.g. a "details →" jump to a settings section). **Distinct** from the existing *button link-styled shape* (a `<button>` that *looks* like a link but acts via `onclick`, no navigation) — `link` **is** an `<a>`. Full prop surface (`href`/`text`/`target`/`rel`/external-vs-in-app/inert handling) is its own design walk at build time.
 > • **`status-indicator`** — di **composite** (binding none), `<div class="status-indicator">` = **`led` + `label` + optional trailing `link`** (a "details →" to a settings/detail section). The general **status-row**: a settings/overview panel is N of these, the panel author supplying each row's `states`/`state`/caption/link. Generalises the shells' bespoke `.state-dot` + `dotColor`/`isPulsing` — when the shells move to lib components, the state-indicator becomes one `status-indicator`. **Not dd** — it interprets no domain structure; the caller does the state→colour mapping (the `combobox`/`password-field` shape).
 
 ### Composites
@@ -140,7 +142,7 @@ status-indicator keyed: status · binding: none → <div class="status-indicator
                    (the `link` atomic, or a link-styled button)                 [optional]
 ```
 
-*Not yet classified (deferred):* read-only display primitives (`<progress>`, `<meter>`, `<output>`) — likely data-derived.
+*Not yet classified (deferred):* read-only display primitives (`<progress>`, `<meter>`, `<output>`) — likely data-derived; a **`modal`/`dialog`** surface (native `<dialog>` + `showModal()`, focus-trap / `::backdrop` / Esc-to-close) — opened by a `button` (not a `link`), logged M-RP2.21 (N-052).
 
 ---
 

@@ -1,6 +1,6 @@
 # M-RP2.21 — `link` (di·A, atomic `<a href>`, navigation kind)
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-29  
@@ -248,16 +248,16 @@ git push
 
 ## 9. Definition of Done
 
-- [ ] `link.svelte` authored to §3 (`href`/`text`/`onclick?`/`external?`/`disabled?`/`ariaLabel?`/`id`;
+- [x] `link.svelte` authored to §3 (`href`/`text`/`onclick?`/`external?`/`disabled?`/`ariaLabel?`/`id`;
       `effectiveHref`/`target`/`rel` derived; synthesised disabled; getter `{text,href,external,disabled}`;
       DEV-warn no-accessible-name; no Tauri/router import).
-- [ ] `.link` accent-derived skin added to §4 (`var(--accent2)`, hover underline, focus ring,
+- [x] `.link` accent-derived skin added to §4 (`var(--accent2)`, hover underline, focus ring,
       `[aria-disabled]` greyed).
-- [ ] Sampler row + `default`/`external`/`disabled` cells added (§5) and live (matrix 41→44).
-- [ ] CDP verification §6 run in the sampler — actual output captured (incl. the disabled-drops-href
+- [x] Sampler row + `default`/`external`/`disabled` cells added (§5) and live (matrix 41→44).
+- [x] CDP verification §6 run in the sampler — actual output captured (incl. the disabled-drops-href
       proof + the external target/rel + the accent-swap colour delta).
-- [ ] N-052 written; ROADMAP + CLAUDE updated same-commit; components registry `link` promoted +
+- [x] N-052 written; ROADMAP + CLAUDE updated same-commit; components registry `link` promoted +
       `modal`/`dialog` logged; JOURNAL J-432 written (real CDP output).
-- [ ] Task Status → COMPLETED.
+- [x] Task Status → COMPLETED.
 
 (`Status: COMPLETED` is the real signal — no "commit pushed" checklist item.)

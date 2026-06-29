@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-432 — `link` built (M-RP2.21): the sixteenth `core` component and the FIRST navigation-kind di (atomic `<a href>`); commits the `<a>`-vs-`<button>` split; synthesised `disabled`; bundled-safe `external` rel; returns to accent-derived colour
+
+**What happened.** Built `link` (di·A, atomic `<a href>`) — authored `link.svelte`, added the `.link` skin block, wired a sampler row (3 cells), self-drove CDP verification in the sampler, recorded. The **sixteenth** `core` component and the **first navigation-kind di** (a new kind alongside interactive and display). N-049 had deferred `link`'s prop surface to a build-time design walk; that walk happened this session (Joe locked all by my recommendations, plus a Q&A on icon-button / leave-app / open-modal mapping), then runbook `tasks/M_RP2_21_link.md` → build.
+
+**A new kind + the `<a>`-vs-`<button>` commit.** `link` neither binds an editable value (interactive) nor is read-only (display): it **acts** (navigates) while carrying a `text` label. The N-049 tension was navigation-`<a>` vs an action that only *looks* like a link (a `<button>` link-styled shape). `link` **is** an `<a>` with a real `href`; the look-alike stays `button`. Never conflated.
+
+**Three mechanics.** (1) **Synthesised `disabled`** — an `<a>` has no native `disabled`; `disabled` drops `href` (non-navigating), sets `aria-disabled="true"` + `tabindex=-1`, blocks `onclick`; skin greys via `[aria-disabled]`. First component to fake a native-absent state. (2) **Bundled-safe `external`** — `external` auto-sets `target="_blank"` + `rel="noopener noreferrer"` (no raw `target`/`rel` props). (3) **Returns to accent-derived colour** — `.link` `color: var(--accent2)` re-themes gold/blue, confirming `led`'s caller-supplied colour (N-051) was the one-off, not a turn.
+
+**Component.** `ui/core/lib/components/data-independent/link.svelte` (`lang="ts"`). Props `href`(req)/`text`(req, `""` for icon-only)/`onclick?`/`external?`/`disabled?`/`ariaLabel?`/`id`; derived `effectiveHref`/`target`/`rel`; getter `{text,href,external,disabled}` (carries the prop `href` even when disabled drops it from the element); DEV-warn `text===""` && no `ariaLabel`; no `$bindable`, no processor seam, **no Tauri/router import**. Consumer-wiring (notes): `shell.open` for OS-browser (a raw `_blank` in a Tauri WebView can spawn a blank in-app webview), `onclick`→router for SPA, **modal-open = `button` not `link`**.
+
+**Verify (Chat self-drove, sampler + CDP 9422, fresh launch; real output quoted, Rule 2).**
+- Registry: `n_ids=44`; `link#default {"text":"Settings","href":"#settings","external":false,"disabled":false}`; `link#external {"text":"xgen.example","href":"https://xgen.example","external":true,"disabled":false}`; `link#disabled {"text":"Unavailable","href":"#x","external":false,"disabled":true}`.
+- Attributes / skin / accent (one eval): `{"def":{"tag":"A","href":"#settings","target":null,"rel":null,"aria":null},"ext":{"href":"https://xgen.example","target":"_blank","rel":"noopener noreferrer","al":"XGen site (opens externally)"},"dis":{"href":null,"aria":"true","tab":"-1","deco":"none","col":"rgb(88, 92, 100)"},"linkRules":[".link",".link:hover",".link:focus-visible",".link[aria-disabled]"],"accent":{"client":"rgb(194, 136, 64)","node":"rgb(58, 122, 176)"}}`. **`dis.href===null`** = the synthesised-disabled proof (href dropped) + `aria-disabled`/`tabindex=-1`/greyed `--t4`/no underline; external carries `_blank` + safe `rel` + `aria-label`; all 4 `.link` rules in cascade; **accent: `#default` gold `rgb(194,136,64)` (client) ↔ blue `rgb(58,122,176)` (node)** — `link` rides the accent (the contrast to `led`).
+- Screenshot (eye-checked): three links — accent "Settings", accent "xgen.example", greyed "Unavailable".
+- Teardown: `0 orphans - ports 9422/5175 free`.
+
+**Canonical.** `ui/core/lib/components/data-independent/link.svelte` (new) + `ui/assets/skin.css` (`.link` block) + `ui/sampler/src/app_sampler.svelte` (row + 3 cells, matrix 41→44) [commit 1, feat]; `ui/docs/xgen-ui-notes.md` (N-052, v0.35) + `ui/docs/xgen-ui-components.md` (M-RP2.21 build-note + `link` promoted from Planned + `modal`/`dialog` logged, v0.27) + `docs/ROADMAP.md` (RP node + Present narrative, v4.08) + `CLAUDE.md` (PLAY → M-RP2.21, prior-PLAY → J-432) + this JOURNAL J-432 + `tasks/M_RP2_21_link.md` Status → COMPLETED [commit 2, docs]. No `DECISIONS.md` touch (a new di kind/own atomic; applies D-096). Two-commit close (feat → docs); Joe pushes.
+
+**Next-active:** the `status-indicator` di composite — `led` + `label` + optional trailing `link`, all three now in hand (its own design walk at build time) → the text-processor engine → dd-components.
+
+---
+
 ## Entry J-431 — `led` built (M-RP2.20): the fifteenth `core` component and the FOURTH simple display-di; the FIRST caller-supplied-colour-map + the FIRST data-coloured atomic (colour rides an inline CSS var, not the accent); `#000000` unknown-sentinel contract
 
 **What happened.** Built `led` (di·A, atomic inline `<span class="led">` status light) — authored `led.svelte`, added the `.led` skin block, wired a sampler row (4 cells), self-drove CDP verification in the sampler, recorded. The **fifteenth** `core` component and the **fourth simple display-di** (after label/paragraph/image, N-032). Fully locked at N-049 (J-429), so straight to runbook + build (no design walk); runbook `tasks/M_RP2_20_led.md` authored + pushed ahead of the build, build-time micro-decisions Joe-flagged (state plain prop, inline `--led-colour` var, `data-pulse` attribute-hook, 4 cells).

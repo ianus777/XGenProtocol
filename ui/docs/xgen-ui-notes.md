@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.34  
+> Version: 0.35  
 > Date: May 2026  
 > **Last updated**: 2026-06-29  
 > Language: English  
@@ -1175,6 +1175,30 @@ M-RP2.20 closed (J-431) — `led` (di·A, atomic inline `<span class="led">` sta
 **Finding (display-di, expected).** Computed `display` is `block`, not the skin's `inline-block` — **flex-item blockification** from the sampler cell's flex layout, not a skin rule (the same `label` finding, N-035). Not a defect.
 
 *UI-implementation record. No protocol/data implication. `led` is the fifteenth built `core` component, the fourth simple display-di; first caller-supplied-colour-map + first data-coloured atomic (colour-as-data via inline CSS var, no accent dependency). Applies D-096, no amendment (the map is the N-034 precedent). Next: `link` (navigation `<a href>` atomic, its own design walk) → the `status-indicator` di composite (once `led` + `label` are both in hand) → the text-processor engine → dd-components.*
+
+### N-052 — `link` built (M-RP2.21): the sixteenth `core` component and the FIRST navigation-kind di (atomic `<a href>`); commits the `<a>`-vs-`<button>` split; synthesised `disabled`; bundled-safe `external` rel; returns to accent-derived colour
+
+M-RP2.21 closed (J-432) — `link` (di·A, atomic `<a href>`) authored + skinned in one pass, built/tuned/verified **in the sampler** (D-097). The **sixteenth** `core` component and the **first navigation-kind di** — a new kind alongside interactive (toggle/button/textfield/…) and display (label/paragraph/image/led). Surfaced by the `status-indicator` composite wanting a "details →" affordance (N-049); the prop surface was deferred to a build-time design walk (this session), now locked.
+
+**A new kind, and the `<a>`-vs-`<button>` commit.** `link` neither binds an editable value (interactive) nor is purely read-only (display): it **acts** (navigates) while carrying a `text` label. The standing tension (N-049) was navigation-`<a>` vs an action that merely *looks* like a link (a `<button>` link-styled shape). `link` **is** an `<a>` with a real `href`; the look-alike stays `button`. They must never be conflated.
+
+**Three notable mechanics.** (1) **Synthesised `disabled`** — an `<a>` has no native `disabled`, so `disabled` **drops `href`** (renders a non-navigating `<a>`), sets `aria-disabled="true"` + `tabindex=-1` (non-focusable), and blocks `onclick`; the skin greys via `[aria-disabled]`. The first component to *fake* a native-absent state rather than pass one through. (2) **Bundled-safe `external`** — `external={true}` auto-sets `target="_blank"` **and** `rel="noopener noreferrer"` so the unsafe bare-`_blank` default never reaches a consumer; no raw `target`/`rel` props exposed. (3) **Returns to accent-derived colour** — `.link` `color: var(--accent2)` re-themes gold/blue per shell. This confirms `led`'s caller-supplied colour (N-051) was the deliberate one-off, not a turn.
+
+**Component.** `ui/core/lib/components/data-independent/link.svelte` (`lang="ts"`). Props: `href` (req), `text` (req; `""` allowed for icon-only), `onclick?`, `external?`, `disabled?`, `ariaLabel?`, `id`. Derived `effectiveHref = disabled ? undefined : href`, `target`/`rel` from `external`. Getter `{ text, href, external, disabled }` (carries the **prop** `href` even when `disabled` drops it from the rendered element). DEV-warn when `text===""` && no `ariaLabel` (no accessible name — the `image`-`alt` guard shape). No `$bindable`, no processor seam, **no Tauri/router import**.
+
+**Consumer-wiring (the atomic stays dumb).** Leaving to the OS browser = the consumer's `onclick` → Tauri `shell.open(href)` (a raw `target="_blank"` inside a Tauri WebView can spawn a blank in-app webview, not the system browser); the real `href` is retained for a11y/right-click. An in-app SPA route = the consumer's `onclick` → router. **Opening a modal is NOT a `link`** (no destination) — that is a `button` flipping an open state; logged a future **`modal`/`dialog`** component (native `<dialog>` + `showModal()`, focus-trap, `::backdrop`, Esc-to-close) as the modal *surface*. Icon-only / icon+text need a future **`icon` primitive** (`ariaLabel` is the atomic hook; not faked in the sampler).
+
+**Skin (own `.link`).** `color: var(--accent2)`, `text-decoration: none`, `cursor: pointer`; `:hover` underline; `:focus-visible` the accent focus ring; `[aria-disabled]` greyed (`--t4`) + no underline + default cursor + `pointer-events: none`. No new `:root` token. A compact/short shape + an icon shape are FUTURE skin shapes. PROVISIONAL.
+
+**Sampler.** A `link` row in the Display section + **3** cells: `link#default` (`#settings`, in-webview), `link#external` (`https://xgen.example`, `external`, `ariaLabel`), `link#disabled` (greyed, `href` dropped). Matrix **41 → 44**. (Navigation di — no invalid state; icon-only deferred.)
+
+**Verify (Chat self-drove, sampler + CDP 9422, fresh launch; real output quoted, Rule 2).**
+- Registry (`-Mode state`): `n_ids=44`; `link#default {"text":"Settings","href":"#settings","external":false,"disabled":false}`; `link#external {"text":"xgen.example","href":"https://xgen.example","external":true,"disabled":false}`; `link#disabled {"text":"Unavailable","href":"#x","external":false,"disabled":true}`.
+- Attributes / skin / accent (one eval): `{"def":{"tag":"A","href":"#settings","target":null,"rel":null,"aria":null},"ext":{"href":"https://xgen.example","target":"_blank","rel":"noopener noreferrer","al":"XGen site (opens externally)"},"dis":{"href":null,"aria":"true","tab":"-1","deco":"none","col":"rgb(88, 92, 100)"},"linkRules":[".link",".link:hover",".link:focus-visible",".link[aria-disabled]"],"accent":{"client":"rgb(194, 136, 64)","node":"rgb(58, 122, 176)"}}`. **`dis.href === null`** is the synthesised-disabled proof (href dropped) + `aria-disabled`/`tabindex=-1`/greyed `--t4`/no underline; external carries `_blank` + the safe `rel` + `aria-label`; all 4 `.link` rules in cascade; **`accent`: `#default` colour gold `rgb(194,136,64)` (client) ↔ blue `rgb(58,122,176)` (node)** — `link` rides the accent (the contrast to `led`).
+- Screenshot (eye-checked): three links — accent "Settings", accent "xgen.example", greyed "Unavailable".
+- Teardown: `0 orphans - ports 9422/5175 free`.
+
+*UI-implementation record. No protocol/data implication. `link` is the sixteenth built `core` component, the first navigation-kind di; commits `<a>`-vs-`<button>`, synthesises `disabled`, bundles the safe `external` rel, returns to accent-derived colour. Applies D-096, no amendment. Logged: a future `modal`/`dialog` component (modal surface; trigger = `button`) + the future `icon` primitive. Next: the `status-indicator` di composite (led + label + optional link — all three now in hand) → the text-processor engine → dd-components.*
 
 ---
 

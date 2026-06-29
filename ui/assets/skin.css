@@ -601,6 +601,48 @@ html, body {
 }
 
 /* ───────────────────────────────────────────────────
+ * select-multiple (.select-multiple)
+ *   Root IS <select multiple> (N-020 atomic). OWN atomic, NOT a `.select` fold — shares the
+ *   <select> tag but the surface is a static scrolling LIST-BOX, not a dropdown (no
+ *   appearance:none + arrow; the open-popup model does not apply). The skin shares NOTHING with
+ *   `.select` beyond the L2 vocabulary — assembled per-class (the .number/.textfield precedent).
+ *   `size` (rows) drives height, so NO --ctl-h. Selected rows are accent-tinted via option:checked
+ *   (where the engine honours author styling; UA-controlled parts verified by stylesheet-rule
+ *   inspection + screenshot, N-042). PROVISIONAL (Joe live-tunes via HMR).
+ * ─────────────────────────────────────────────────── */
+
+.select-multiple {
+  padding: var(--sp-1);
+  margin: var(--sp-1) var(--sp-2);
+  background-color: var(--s);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  color: var(--t);
+  font-size: var(--fs-1);
+  line-height: var(--lh);
+  cursor: pointer;
+  transition: border-color var(--motion), box-shadow var(--motion);
+}
+.select-multiple option {
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--rad);
+}
+.select-multiple option:checked {
+  background: var(--accent2, var(--pr2));
+  color: var(--accent-ink, var(--pr-ink));
+}
+.select-multiple:focus-visible {
+  outline: none;
+  border-color: var(--accent2, var(--t3));
+  box-shadow: var(--focus-ring);
+}
+.select-multiple:disabled {
+  background-color: var(--s2);
+  color: var(--t4);
+  cursor: not-allowed;
+}
+
+/* ───────────────────────────────────────────────────
  * label (.label)
  *   Root IS <label> (N-020 atomic). DISPLAY-kind di (read-only caption, N-032).
  *   Color from the text ramp; size follows the established control 12px — the

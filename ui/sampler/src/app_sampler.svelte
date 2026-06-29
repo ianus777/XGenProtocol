@@ -2,7 +2,8 @@
   // app_sampler.svelte — SAMPLER matrix (M-RP3.1). Plain-JS app shell (bare $state,
   // no TS annotations — N-041). Mounts all 13 built `core` components live in a
   // semantic-group x state grid; each cell is a real `envelope`-registered instance
-  // (`{type}#{state}`) so CDP `ids()` enumerates the matrix. The class x phase axes
+  // (`{type}#{state}`) so CDP `ids()` enumerates the matrix. 14 built `core` components.
+  // The class x phase axes
   // (N-028) are deferred — degenerate while everything is di-A.
   //
   // State-map is RAGGED on purpose (honest, not a forced uniform grid):
@@ -26,6 +27,7 @@
   import DateField from '$core/components/data-independent/date.svelte'; // not `Date` (global)
   import ColorField from '$core/components/data-independent/color.svelte';
   import FileField from '$core/components/data-independent/file.svelte';
+  import SelectMultiple from '$core/components/data-independent/select-multiple.svelte';
 
   // Runtime client<->node skin-swap (D-098): flipping [data-shell] re-aliases --accent*
   // live, so the whole grid re-themes at once. Replaces "run in both real shells".
@@ -66,11 +68,22 @@
   let fDefault = $state(null);
   let fMultiple = $state(null);
   let fDisabled = $state(null);
+  // select-multiple — string[]; empty = [] (NOT null). Arrays CAN seed from markup (unlike file).
+  let smDefault = $state([]);
+  let smSeeded = $state(['a', 'c']);
+  let smDisabled = $state(['b']);
 
   const selOptions = [
     { value: 'one', label: 'One' },
     { value: 'two', label: 'Two' },
     { value: 'three', label: 'Three' },
+  ];
+
+  // select-multiple shares the N-034 options-prop shape (carried over from `select`).
+  const smOptions = [
+    { value: 'a', label: 'Alpha' },
+    { value: 'b', label: 'Beta' },
+    { value: 'c', label: 'Gamma' },
   ];
 
   // Inline data-URI so image#default renders with no file linkage (Joe's call):
@@ -124,6 +137,15 @@
     <div class="s-cells">
       <div class="s-cell"><span class="s-id">select#default</span><Select bind:value={selDefault} id="default" options={selOptions} placeholder="Pick one" /></div>
       <div class="s-cell"><span class="s-id">select#disabled</span><Select bind:value={selDisabled} id="disabled" options={selOptions} disabled /></div>
+    </div>
+  </div>
+
+  <div class="s-row">
+    <div class="s-rowname">select-multiple</div>
+    <div class="s-cells">
+      <div class="s-cell"><span class="s-id">select-multiple#default</span><SelectMultiple bind:value={smDefault} id="default" options={smOptions} /></div>
+      <div class="s-cell"><span class="s-id">select-multiple#seeded</span><SelectMultiple bind:value={smSeeded} id="seeded" options={smOptions} /></div>
+      <div class="s-cell"><span class="s-id">select-multiple#disabled</span><SelectMultiple bind:value={smDisabled} id="disabled" options={smOptions} disabled /></div>
     </div>
   </div>
 

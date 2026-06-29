@@ -8,6 +8,22 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-428 — Real client + node shells reverted to original chrome: the throwaway component demos (M-RP2.3–2.15) removed from both apps; the M-RP3.0 "revert deferred" debt discharged
+
+**What happened.** Stripped the throwaway `core`-component demo stack from both real shells — `ui/client/src/app_client.svelte` and `ui/node/src/app_node.svelte` — returning each to its **original cosmetic state**: logo + state-indicator (status dot + label) + the one real window control (client `Quit` → `quit`, node `Shut Down` → `shut_down`). Cosmetic only; **no functionality touched** (Rule 5) — the Tauri state listener (`onMount`/`onDestroy`, `get_state`/`get_node_state`, the `xgen-*-state-changed` subscription), the `handleQuit`/`handleShutDown` invokers, and `dotColor`/`isPulsing` are byte-for-byte unchanged.
+
+**Why it was there / why now.** During M-RP2.3–2.15 each new `core` component was wired into **both** real shells as a live registry-verification probe (the pre-sampler "verified live in both apps" method). Every instance was explicitly tagged in-source *“throwaway demo … Not a real affordance”*. When the **sampler** became the component test-bed (M-RP3.0, D-097), those probes went redundant — but M-RP3.0 left the shells *“frozen as-is (revert deferred)”* and the revert never ran. Joe saw the leftover stack on running `run-client.ps1` / `run-node.ps1` (screenshots) and called it: cosmetic debt, fix before anything else.
+
+**Removed from each shell** (symmetric): the 11 demo instances (`Toggle`, `Textfield`, `Textfield type=search`, `Select`, `Textarea`, `NumberField`, `Range`, `Label`, `Paragraph`, `Image`, and the `demo-toggle` `Button`), their 8 `demo*` `$state` vars + the M-RP2.x comment blocks, and the now-unused imports (`Toggle`/`Textfield`/`Select`/`Label`/`Paragraph`/`Image`/`Textarea`/`NumberField`/`Range`/`Placeholder`). **Kept:** the `Button` import + the real `quit`/`shutdown` instance (the legit M-RP2.4 close-affordance, still `envelope`-registered as `button#quit` / `button#shutdown`), `onMount`/`onDestroy`, `AppLogo`.
+
+**Verification.** Pre-checked both shells' `app.css` — no demo/component selectors (chrome only: `#core-ui-pane`/`#app-logo`/`.state-indicator`/`.state-dot`/`.state-label`/button); removal leaves no dangling CSS. Post-edit grep for leftover component refs returned only case-insensitive false positives on *“label”* (`state-label`) and *“placeholder”* (the dev-preview comment); zero real references remain. Both files end cleanly at `<main>` = logo + state-indicator + the single window button, matching Joe's reference images (client gold `Quit`, node blue `Shut Down`). Not full-app-run-verified here (pure frontend revert; if a shell was open, Vite HMR hot-reloaded it live).
+
+**Canonical.** Two shell files + `CLAUDE.md` (M-RP3.0 PLAY note flipped *“frozen as-is (revert deferred)”* → *“reverted to original chrome … (J-428)”*) + this JOURNAL J-428. No `DECISIONS.md`, no ROADMAP, no `ui/docs/` touch (a chore/debt-discharge, not a milestone or a technique). Not pushed — Joe pushes.
+
+**Next-active:** unchanged — the last remaining atomic di per N-038, `select multiple`.
+
+---
+
 ## Entry J-427 — M-RP2.18 CLOSED: `file` — the thirteenth `core` component; the FIRST non-`value` binding (`bind:files` / FileList), the 4th binding shape and the first value-type `$state.snapshot` can't serialise; a `file-field` composite is logged
 
 **What happened.** Built `file` — the **thirteenth** `core` component, an atomic `<input type="file">` (native picker button). Authored + skinned in one pass, built/tuned/verified **in the sampler** (D-097). Frontend + skin only; no protocol/data change (Rule 5).

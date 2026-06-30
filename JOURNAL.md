@@ -1,10 +1,40 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-30  
+> **Last updated:** 2026-07-01  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-439 — substitution starter pack gains a sixth pair (M-RP4.2 §4d tuning), Clair: `-- ‒` (double-hyphen → figure dash) appended to `DEFAULT_SUBSTITUTIONS_SEED`; const + round-trip test updated together, suite stays green (129); still staged, NOT closed (D-065)
+
+**What happened.** Joe-directed one-pair tuning of the first-run starter pack (J-438): appended `-- ‒` (a double-hyphen `--` → figure dash `‒`, U+2012) so the seed is now six pairs. The const is the single source — `cmd_init` and the round-trip test both ride it — so the change is one literal edit plus the test's expected-pairs vec.
+
+**The seed (now six pairs, Joe-locked):**
+```
+--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒
+```
+Ordering note: `--> → ` precedes `-- ‒`, so the arrow rule wins on `-->` and only a bare `--` (not part of `-->`) becomes `‒` — the literal in-order `applyRules` pass does the right thing, no convergence risk (`‒` doesn't contain `--`).
+
+**Verify — Rust (real output, Rule 2).**
+- `m_rp4_2_substitutions_tests` (the round-trip test now asserts the six expected pairs incl. `("--","‒")`):
+  ```
+  running 6 tests
+  test app::m_rp4_2_substitutions_tests::absent_file_defaults_to_empty ... ok
+  test app::m_rp4_2_substitutions_tests::malformed_toml_defaults_to_empty ... ok
+  test app::m_rp4_2_substitutions_tests::present_section_round_trips_raw_string ... ok
+  test app::m_rp4_2_substitutions_tests::absent_section_defaults_to_empty ... ok
+  test app::m_rp4_2_substitutions_tests::seed_is_not_resurrected_after_user_clears ... ok
+  test app::m_rp4_2_substitutions_tests::first_run_config_seeds_starter_pack ... ok
+  test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 123 filtered out; finished in 1.08s
+  ```
+  Suite unchanged at 129 (same count, the round-trip test just asserts one more pair).
+
+**Records synced.** `tasks/M_RP4_2_SUBSTITUTIONS.md` §4d (the seed `toml` block + the DoD tick) updated to the six-pair string; J-438's quoted seed is left as the contemporaneous record (not rewritten). Still staged — Joe's regenerate-from-scratch verify + the canonical close (Chat: N-057/D-100/ROADMAP/components/task→COMPLETED) pending. Note (separate, still open per Joe's direction): unifying the **sampler** demo string to the canonical pack — Chat's `app_sampler.svelte` seat, not yet actioned.
+
+**Canonical (this work).** `xgen-client/src/app.rs` (const +`-- ‒`; round-trip test → six pairs) [commit, feat]; this JOURNAL J-439 + `tasks/M_RP4_2_SUBSTITUTIONS.md` (§4d seed sync) [commit, docs]. Joe pushes.
 
 ---
 

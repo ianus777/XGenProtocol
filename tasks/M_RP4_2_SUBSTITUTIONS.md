@@ -3,7 +3,7 @@
 > **Status**: ACTIVE
 > Version: 0.1
 > Date: Jun 2026
-> **Last updated**: 2026-06-30
+> **Last updated**: 2026-07-01
 > Language: English
 > Author: JozefN
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.
@@ -231,7 +231,7 @@ client ships with a working starter list instead of an empty one. The seed strin
 
 ```toml
 [substitutions]
-rules = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁"
+rules = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒"
 ```
 
 **Semantics (locked):**
@@ -323,7 +323,7 @@ file; multiple `-m` flags; `$ProgressPreference='SilentlyContinue'`; Joe pushes)
 - [x] Clair: `SubstitutionsSection` + `load_substitutions_section` (sync-precedent) + Rust unit test on the loader. *(J-437: 4 loader tests green; lib 123→127; `cargo build -p xgen-client` clean.)*
 - [~] Clair: `get_substitutions` Tauri command registered; `ui/client` boot hydration. **Code landed + statically gated (J-437; `npx vite build` ✓ 122 modules);** `Joe-verified in the real client` is the remaining gate (NOT yet run — add a `[substitutions]` line by hand; no on-disk dev config in the repo).
 - [ ] Delete `configs.ts` (orphaned once presets retired — held as reference through Clair's build; removed at the true close).
-- [x] Clair: first-run seed — config-birth writes the locked `[substitutions]` starter pack (`--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁`), seed-once; round-trip unit test (§4d). *(J-438: seed in `cmd_init`'s config-birth branch — the client has no `default_config_toml()`; `const DEFAULT_SUBSTITUTIONS_SEED`; +2 tests (round-trip-to-5-pairs + seed-not-resurrected-after-clear); lib 127→129; build clean.)*
+- [x] Clair: first-run seed — config-birth writes the locked `[substitutions]` starter pack (`--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒`), seed-once; round-trip unit test (§4d). *(J-438: seed in `cmd_init`'s config-birth branch — the client has no `default_config_toml()`; `const DEFAULT_SUBSTITUTIONS_SEED`; +2 tests (round-trip-to-pairs + seed-not-resurrected-after-clear); lib 127→129; build clean. J-439: +`-- ‒` pair, now six pairs.)*
 - [~] Records: **J-437 + this DoD written (Clair).** N-057 / D-099-vs-D-100 / ROADMAP / CLAUDE / components / task→COMPLETED are the **canonical close (Chat)**, after Joe verifies — per §0 decision 7 and the J-437 handoff.
 - [x] Presets retired as the live source; one user-owned list is the only source.
 - [ ] Task Status → COMPLETED (or honest staged state if one half lands first).

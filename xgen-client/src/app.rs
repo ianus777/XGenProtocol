@@ -66,6 +66,10 @@ struct ClientConfig {
     /// pre-F-6 configs parsing.
     #[serde(default)]
     sync: SyncSection,
+    /// M-RP4.2 user-owned text-substitution pairs. `#[serde(default)]` keeps
+    /// every existing on-disk config parsing (section absent → empty rules).
+    #[serde(default)]
+    substitutions: SubstitutionsSection,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -112,6 +116,25 @@ impl Default for SyncSection {
             batch_size: default_sync_batch_size(),
         }
     }
+}
+
+/// `[substitutions]` config section (M-RP4.2). Holds the user's ONE list of
+/// text-substitution pairs as a single raw string, mirroring the future
+/// one-textarea editor 1:1 (not a TOML array). The grammar is parsed entirely
+/// on the Svelte side (`$common` processor store) — the Rust side just carries
+/// the raw string verbatim:
+///
+/// - the whole list is one string; pairs are separated by the literal ` | `
+///   (space-pipe-space);
+/// - within a pair, split on the FIRST space → `find` (before) | `replace`
+///   (everything after); blank pairs are skipped.
+///
+/// Example: `rules = "--> → | <-- ← | :) 🙂 | brb be right back"`.
+/// Default empty.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct SubstitutionsSection {
+    #[serde(default)]
+    pub rules: String,
 }
 
 /// AI declaration section in xgen-client_config.toml (M3+M4, spec 3.6.10).
@@ -177,6 +200,7 @@ impl Default for ClientConfig {
             },
             ai: None,
             sync: SyncSection::default(),
+            substitutions: SubstitutionsSection::default(),
         }
     }
 }
@@ -193,6 +217,22 @@ pub fn load_sync_section(config_path: &Path) -> SyncSection {
     match toml::from_str::<ClientConfig>(&text) {
         Ok(cfg) => cfg.sync,
         Err(_) => SyncSection::default(),
+    }
+}
+
+/// Read the effective `[substitutions]` section from `xgen-client_config.toml`
+/// (M-RP4.2), defaulting to empty `rules` when the section, the file, or a
+/// parse step is absent/fails. Verbatim `[sync]`/`load_sync_section` precedent.
+/// The raw string is handed to the Svelte `$common` processor store via the
+/// `get_substitutions` Tauri command; all parsing of the ` | ` + first-space
+/// grammar happens there (the engine stays source-agnostic, D-099).
+pub fn load_substitutions_section(config_path: &Path) -> SubstitutionsSection {
+    let Ok(text) = std::fs::read_to_string(config_path) else {
+        return SubstitutionsSection::default();
+    };
+    match toml::from_str::<ClientConfig>(&text) {
+        Ok(cfg) => cfg.substitutions,
+        Err(_) => SubstitutionsSection::default(),
     }
 }
 
@@ -6077,5 +6117,70 @@ mod m12_2a_c1_fetch_verb_tests {
         // VA: --out-dir is required (no surprise writes / no default location).
         let r = Cli::try_parse_from(["xgen-client", "fetch", "--space", "s", "--room", "r"]);
         assert!(r.is_err(), "fetch without --out-dir must error");
+    }
+}
+
+#[cfg(test)]
+mod m_rp4_2_substitutions_tests {
+    //! M-RP4.2 — `load_substitutions_section`. The Rust side carries the raw
+    //! `[substitutions] rules` string verbatim; all grammar parsing happens in
+    //! the Svelte `$common` store. Coverage: a present section round-trips the
+    //! literal string; an absent section, an absent file, and a malformed TOML
+    //! each default to empty `rules` (verbatim `[sync]`/`load_sync_section`
+    //! precedent — never panics, never invents a value).
+    use super::*;
+
+    /// A `[substitutions] rules = "..."` line is read back verbatim — the Rust
+    /// side does no parsing of the ` | ` + first-space grammar (that's the UI).
+    #[test]
+    fn present_section_round_trips_raw_string() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-client_config.toml");
+        let rules = "--> → | <-- ← | :) 🙂 | brb be right back";
+        std::fs::write(
+            &config_path,
+            format!(
+                "[client]\nnode = \"ws://127.0.0.1:8080/xgen\"\n\
+                 [paths]\nkeypair_path = \"k.enc\"\n\
+                 [logging]\nlevel = \"debug\"\n\
+                 [substitutions]\nrules = \"{rules}\"\n"
+            ),
+        )
+        .unwrap();
+        let section = load_substitutions_section(&config_path);
+        assert_eq!(section.rules, rules);
+    }
+
+    /// Section absent (valid config without `[substitutions]`) → empty rules.
+    /// `#[serde(default)]` keeps every pre-M-RP4.2 config parsing.
+    #[test]
+    fn absent_section_defaults_to_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-client_config.toml");
+        std::fs::write(
+            &config_path,
+            "[client]\nnode = \"ws://127.0.0.1:8080/xgen\"\n\
+             [paths]\nkeypair_path = \"k.enc\"\n\
+             [logging]\nlevel = \"debug\"\n",
+        )
+        .unwrap();
+        assert_eq!(load_substitutions_section(&config_path).rules, "");
+    }
+
+    /// File absent → empty rules (no panic; mirrors `load_sync_section`).
+    #[test]
+    fn absent_file_defaults_to_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("does-not-exist.toml");
+        assert_eq!(load_substitutions_section(&config_path).rules, "");
+    }
+
+    /// Malformed TOML → empty rules (parse error falls to default).
+    #[test]
+    fn malformed_toml_defaults_to_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-client_config.toml");
+        std::fs::write(&config_path, "this is not valid toml {{{").unwrap();
+        assert_eq!(load_substitutions_section(&config_path).rules, "");
     }
 }

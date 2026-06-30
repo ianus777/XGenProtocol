@@ -37,6 +37,12 @@ struct PipeShutdown(tokio::sync::watch::Sender<bool>);
 /// current snapshot via `get_pacing_state`.
 struct Pacing(Arc<Mutex<PacingManager>>);
 
+/// Resolved path to `xgen-client_config.toml` for this instance (M-RP4.2).
+/// Held as managed state so `get_substitutions` reads the live config without
+/// re-deriving the data-dir — which depends on the `--instance` label resolved
+/// at launch. Mirrors the `CurrentState`/`Pacing` managed-state pattern.
+struct ConfigPath(PathBuf);
+
 fn emit_state(app: &AppHandle, state: ClientLifecycleState) {
     let canonical = state.as_canonical();
     tracing::info!(lifecycle_state = canonical, "lifecycle transition");
@@ -85,6 +91,15 @@ fn get_pacing_state(space_id: String, pacing: tauri::State<Pacing>) -> Vec<Pacin
 #[allow(dead_code)]
 fn emit_temperature_update(app: &AppHandle, update: &TemperatureUpdate) {
     let _ = app.emit("xgen-temperature-update", update);
+}
+
+/// Returns the raw `[substitutions] rules` string from xgen-client_config.toml
+/// (M-RP4.2). Called by the Svelte shell on boot; the `$common` processor store
+/// parses it (split on ` | `, first space per pair → find | replace) and feeds
+/// every processor-host. Empty string when the section or the file is absent.
+#[tauri::command]
+fn get_substitutions(config: tauri::State<ConfigPath>) -> String {
+    app::load_substitutions_section(&config.0).rules
 }
 
 #[tauri::command]
@@ -236,11 +251,16 @@ pub fn run(
 
     let pacing_manager = Pacing(Arc::new(Mutex::new(PacingManager::new())));
 
+    // M-RP4.2 — the config path for `get_substitutions`, derived from the same
+    // data_dir the startup sequence uses (`run_startup` line ~139).
+    let config_path = ConfigPath(data_dir.join("xgen-client_config.toml"));
+
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .manage(shared_state)
         .manage(PipeShutdown(shutdown_tx))
         .manage(pacing_manager)
+        .manage(config_path)
         .setup(move |app| {
             let handle = app.handle().clone();
             let dir = data_dir.clone();
@@ -251,7 +271,12 @@ pub fn run(
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_state, get_pacing_state, quit])
+        .invoke_handler(tauri::generate_handler![
+            get_state,
+            get_pacing_state,
+            quit,
+            get_substitutions
+        ])
         .run(tauri::generate_context!())
         .expect("error while running xgen-client desktop shell");
 

@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import Button from '$core/components/data-independent/button.svelte';
+  import { substitutions } from '$common/components/processor/store.svelte';
   import AppLogo from './assets/logo_client_64.png';
 
   // Initial state before the first Tauri event arrives.
@@ -20,6 +21,11 @@
       // Fetch the current state immediately — handles the case where the startup
       // sequence ran before this listener was registered.
       currentState = await invoke('get_state');
+
+      // M-RP4.2 — hydrate the user-owned substitution pairs from the client
+      // TOML ([substitutions] rules). The store parses + validates (Tier-2);
+      // every processor-host then sources from it.
+      substitutions.setRules(await invoke('get_substitutions'));
     } catch (_) {
       // Running outside Tauri (browser dev preview) — state stays at placeholder.
     }

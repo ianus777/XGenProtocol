@@ -151,7 +151,7 @@ pub struct SubstitutionsSection {
 /// Differs intentionally from the sampler demo string: the sampler keeps
 /// `:((( → 🙁🙁🙁` as a multi-char-replace exhibit; the shipped starter pack
 /// uses the cleaner `:( → 🙁`.
-pub const DEFAULT_SUBSTITUTIONS_SEED: &str = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁";
+pub const DEFAULT_SUBSTITUTIONS_SEED: &str = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒";
 
 /// AI declaration section in xgen-client_config.toml (M3+M4, spec 3.6.10).
 ///
@@ -6249,8 +6249,9 @@ mod m_rp4_2_substitutions_tests {
                 (":)".to_string(), "🙂".to_string()),
                 ("<3".to_string(), "❤️".to_string()),
                 (":(".to_string(), "🙁".to_string()),
+                ("--".to_string(), "‒".to_string()),
             ],
-            "the five expected starter pairs"
+            "the six expected starter pairs"
         );
     }
 

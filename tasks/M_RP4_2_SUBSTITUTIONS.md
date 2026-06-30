@@ -223,6 +223,37 @@ fn get_substitutions(/* config_path via managed state or data_dir */) -> String 
 On mount (alongside the existing `get_state` invoke), call `invoke('get_substitutions')` →
 `substitutions.setRules(result)`. Client-only; the sampler does not have this command.
 
+### 4d. First-run seed — a starter pack in the generated config (Joe's add, locked)
+
+The SETUP first-run config generator (`default_config_toml()` / `maybe_write_default_config`, the
+same path fixed for the node in J-080) writes a **seeded** `[substitutions]` section so a fresh
+client ships with a working starter list instead of an empty one. The seed string (Joe-locked):
+
+```toml
+[substitutions]
+rules = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁"
+```
+
+**Semantics (locked):**
+- **Seed-once, at config birth only.** Written solely when the generator creates the config at
+  first run. NEVER re-applied or re-seeded on a later launch — a user who deletes pairs must not
+  see them resurrected. After generation the user owns `[substitutions]` outright (the M-RP4.3
+  editor and the user are its only writers).
+- **Defaults the user owns, not locked presets.** The seed is a starting point; once written it is
+  the user's list, fully editable/deletable. Consistent with §0 decision 1 (one user-owned list,
+  no presets) — the seed is just a non-empty initial value.
+- The seed differs slightly from the sampler demo string (the sampler keeps `:(((` → `🙁🙁🙁` as a
+  multi-char-replace exhibit; the shipped starter pack uses the cleaner `:( → 🙁`).
+
+**Clair:** add the seeded block to the client's first-run `default_config_toml()` (seed-once);
+a unit test that the generated config round-trips through `load_substitutions_section` to the
+expected five pairs.
+
+**Upgrades Joe's verification gate (§5 note):** instead of hand-adding the TOML line, delete the
+dev config, let the client regenerate it at SETUP, and confirm the morph works **from the
+auto-seeded pack** — a stronger end-to-end proof (generation → load → Tauri command → store →
+morph). (Hand-adding the line still works if a from-scratch SETUP run is inconvenient.)
+
 ---
 
 ## 5. CDP verification (Chat self-drives — sampler)
@@ -292,6 +323,7 @@ file; multiple `-m` flags; `$ProgressPreference='SilentlyContinue'`; Joe pushes)
 - [x] Clair: `SubstitutionsSection` + `load_substitutions_section` (sync-precedent) + Rust unit test on the loader. *(J-437: 4 loader tests green; lib 123→127; `cargo build -p xgen-client` clean.)*
 - [~] Clair: `get_substitutions` Tauri command registered; `ui/client` boot hydration. **Code landed + statically gated (J-437; `npx vite build` ✓ 122 modules);** `Joe-verified in the real client` is the remaining gate (NOT yet run — add a `[substitutions]` line by hand; no on-disk dev config in the repo).
 - [ ] Delete `configs.ts` (orphaned once presets retired — held as reference through Clair's build; removed at the true close).
+- [x] Clair: first-run seed — config-birth writes the locked `[substitutions]` starter pack (`--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁`), seed-once; round-trip unit test (§4d). *(J-438: seed in `cmd_init`'s config-birth branch — the client has no `default_config_toml()`; `const DEFAULT_SUBSTITUTIONS_SEED`; +2 tests (round-trip-to-5-pairs + seed-not-resurrected-after-clear); lib 127→129; build clean.)*
 - [~] Records: **J-437 + this DoD written (Clair).** N-057 / D-099-vs-D-100 / ROADMAP / CLAUDE / components / task→COMPLETED are the **canonical close (Chat)**, after Joe verifies — per §0 decision 7 and the J-437 handoff.
 - [x] Presets retired as the live source; one user-owned list is the only source.
 - [ ] Task Status → COMPLETED (or honest staged state if one half lands first).

@@ -8,6 +8,43 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-438 — substitution pairs first-run seed (M-RP4.2 §4d), Clair: a fresh client config ships a locked starter pack instead of an empty `[substitutions]` — seeded once at config birth (`cmd_init`), never resurrected after the user clears it; +2 tests (lib 127→129); still staged, NOT closed (Joe's regenerate-from-scratch verify gate + Chat canonical close pending — D-065)
+
+**What happened.** Small follow-on to the M-RP4.2 arc (J-437): seeded the client's first-run config generator so a brand-new client ships with a working starter substitution list instead of an empty `[substitutions]`. This upgrades Joe's end-to-end verify gate — delete the dev config, let the client regenerate at SETUP, and confirm a processor-host morphs from the **auto-seeded** pack (generation → load → Tauri command → store → morph), strictly stronger than hand-adding the TOML line. Milestone stays staged: ROADMAP not flipped, task ACTIVE, canonical records (N-057/D-100/components/task→COMPLETED) are Chat's after Joe verifies.
+
+**The seed (Joe-locked, verbatim §4d).**
+```toml
+[substitutions]
+rules = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁"
+```
+Five pairs: `-->`→`→`, `<--`→`←`, `:)`→`🙂`, `<3`→`❤️`, `:(`→`🙁`. Intentionally differs from the sampler demo string — the sampler keeps `:((( → 🙁🙁🙁` as a multi-char-replace exhibit; the shipped starter pack uses the cleaner `:( → 🙁`.
+
+**Where it lives (a grounding correction).** The §4d brief named `default_config_toml()` / `maybe_write_default_config` (the node's J-080 path). The **client has no such function** — its first-run config generator is `cmd_init` (`app.rs`), which serialises a `ClientConfig` to TOML and writes it. `cmd_init` has exactly one config-*birth* path: the `!config_file.exists()` branch (builds from `ClientConfig::default()`, writes). The other two paths operate on an existing config — the `--ai` re-init branch reads-modifies-`[ai]`-writes (round-tripping and thus preserving the user's existing `[substitutions]`), and the non-AI "already exists" path doesn't write at all. So the seed is applied **only** in the config-birth branch.
+
+**Seed-once semantics (the load-bearing locked behaviour).** Seeded `cfg.substitutions.rules = DEFAULT_SUBSTITUTIONS_SEED` in the config-birth branch only. `ClientConfig::default()` stays **empty** and `load_substitutions_section` falls back to `SubstitutionsSection::default()` (empty) — so there is **no** code path that resurrects the seed: a user who clears their pairs (edits `rules` in the existing file) keeps them cleared, because every later launch reads the file, never the default. Deleting the *whole* config file is a legitimate fresh birth and re-seeds (that's Joe's verify gate, by design). "Clear pairs" ≠ "delete config".
+
+**Literal vs shared const (the handoff open question).** Chose a named **`pub const DEFAULT_SUBSTITUTIONS_SEED: &str`** (next to `SubstitutionsSection`) over an inline literal — one definition referenced by `cmd_init`, with the round-trip test asserting the five expected pairs *independently* (not `== const`) so a wrong const is caught, not rubber-stamped.
+
+**Verify — Rust (real output, Rule 2).**
+- New `m_rp4_2_substitutions_tests` cases (`first_run_config_seeds_starter_pack`: real `cmd_init` in a tempdir → `load_substitutions_section` → seed string round-trips AND a Rust mirror of the grammar parses it to the exact five `(find, replace)` pairs; `seed_is_not_resurrected_after_user_clears`: cmd_init seeds → blank `rules` + write-back → re-run cmd_init (config exists → not overwritten) → load returns `""`):
+  ```
+  running 6 tests
+  test app::m_rp4_2_substitutions_tests::absent_file_defaults_to_empty ... ok
+  test app::m_rp4_2_substitutions_tests::malformed_toml_defaults_to_empty ... ok
+  test app::m_rp4_2_substitutions_tests::present_section_round_trips_raw_string ... ok
+  test app::m_rp4_2_substitutions_tests::absent_section_defaults_to_empty ... ok
+  test app::m_rp4_2_substitutions_tests::first_run_config_seeds_starter_pack ... ok
+  test app::m_rp4_2_substitutions_tests::seed_is_not_resurrected_after_user_clears ... ok
+  test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 123 filtered out; finished in 1.09s
+  ```
+- Full `xgen-client` suite (lib 127 → **129**, the +2 above): `cargo build -p xgen-client` → `Finished dev profile ... in 0.32s`; `cargo test -p xgen-client` lib → `test result: ok. 129 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`, all integration binaries `0 failed`.
+
+**Pending — Joe's gate (NOT run, not fabricated — D-065/Rule 1).** Delete the dev `xgen-client_config.toml` → launch `xgen-client` (→ SETUP regenerates the config with the seeded pack) → confirm a processor-host morphs from it. Once Joe confirms, the canonical close (Chat) writes N-057 + D-100 + ROADMAP M-RP4.2 ✅ + the components note + task → COMPLETED. `configs.ts` deletion stays a separate close item (not now).
+
+**Canonical (this work).** `xgen-client/src/app.rs` (+`DEFAULT_SUBSTITUTIONS_SEED` const + seed in `cmd_init` config-birth branch + 2 seed tests) [commit, feat]; this JOURNAL J-438 + `tasks/M_RP4_2_SUBSTITUTIONS.md` (§4d DoD ticked) [commit, docs]. Joe pushes.
+
+---
+
 ## Entry J-437 — user-owned substitution pairs (M-RP4.2), Clair Rust half: the client TOML `[substitutions] rules` string → loader → `get_substitutions` Tauri command → `ui/client` boot hydration of the source-agnostic store; Rust loader landed + unit-tested (127 pass), real-client morph verification is Joe's remaining gate before the canonical close (still staged, NOT closed — D-065)
 
 **What happened.** Built the **Clair half** of M-RP4.2: fed the source-agnostic `$common` substitution store (Chat's J-436) from the real client's settings. The user's ONE list of pairs now flows from `xgen-client_config.toml [substitutions] rules` → a Rust loader → a Tauri command → the Svelte store on boot. Verbatim `[sync]` / `load_sync_section` / `get_state` precedent — no engine change, no wire change, client-only (the sampler is a minimal host with no client config, D-097, so this half is not sampler-CDP'able). The milestone stays **staged**: it does not close until Joe verifies the morph in the real client and Chat writes the canonical records (N-057 / D-100 / ROADMAP ✅ / components / task→COMPLETED).

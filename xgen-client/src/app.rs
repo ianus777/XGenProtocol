@@ -137,6 +137,22 @@ pub struct SubstitutionsSection {
     pub rules: String,
 }
 
+/// First-run starter pack for `[substitutions]` (M-RP4.2 §4d, Joe-locked).
+///
+/// Seeded **once, at config birth only** — written solely when `cmd_init`
+/// creates a fresh config (the `!config_file.exists()` branch). It is NEVER
+/// re-applied on a later launch: `load_substitutions_section` falls back to
+/// `SubstitutionsSection::default()` (empty), and `ClientConfig::default()`
+/// keeps `rules` empty too, so a user who clears their pairs does not see them
+/// resurrected. After generation the user owns the list outright (the user and
+/// the future M-RP4.3 editor are its only writers) — these are *owned
+/// defaults*, not locked presets (§0 decision 1).
+///
+/// Differs intentionally from the sampler demo string: the sampler keeps
+/// `:((( → 🙁🙁🙁` as a multi-char-replace exhibit; the shipped starter pack
+/// uses the cleaner `:( → 🙁`.
+pub const DEFAULT_SUBSTITUTIONS_SEED: &str = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁";
+
 /// AI declaration section in xgen-client_config.toml (M3+M4, spec 3.6.10).
 ///
 /// `is_ai` is the declaration itself (M3). `capabilities` carries the M3 minimum
@@ -2169,6 +2185,11 @@ pub fn cmd_init(args: &InitArgs, data_dir: &Path) -> Result<()> {
         let mut cfg = ClientConfig::default();
         cfg.paths.keypair_path = keypair_file.to_string_lossy().to_string();
         cfg.ai = ai_section.clone();
+        // M-RP4.2 §4d — seed the starter substitution pack ONCE, at config
+        // birth. This is the only write path that does so; the re-init branch
+        // above round-trips the existing config (preserving the user's list),
+        // so cleared pairs are never resurrected.
+        cfg.substitutions.rules = DEFAULT_SUBSTITUTIONS_SEED.to_string();
         let toml_str = toml::to_string_pretty(&cfg).context("failed to serialise config")?;
         std::fs::write(&config_file, toml_str).context("failed to write config")?;
         println!("Config saved:     {}", config_file.display());
@@ -6182,5 +6203,88 @@ mod m_rp4_2_substitutions_tests {
         let config_path = dir.path().join("xgen-client_config.toml");
         std::fs::write(&config_path, "this is not valid toml {{{").unwrap();
         assert_eq!(load_substitutions_section(&config_path).rules, "");
+    }
+
+    /// Parse the M-RP4.2 grammar in Rust (mirror of the Svelte `parseRules`):
+    /// pairs split on " | ", each split on the FIRST space → (find, replace).
+    /// Used only to assert the seed produces the expected pairs.
+    fn parse_pairs(rules: &str) -> Vec<(String, String)> {
+        rules
+            .split(" | ")
+            .filter_map(|pair| {
+                let i = pair.find(' ')?;
+                let find = &pair[..i];
+                if find.is_empty() {
+                    return None;
+                }
+                Some((find.to_string(), pair[i + 1..].to_string()))
+            })
+            .collect()
+    }
+
+    /// §4d — a fresh client config (config birth via `cmd_init`) ships the
+    /// seeded starter pack, and it round-trips through `load_substitutions_section`
+    /// to exactly the five expected pairs. Exercises the real generation path
+    /// (cmd_init → write → load), the strongest in-suite proof of the seed.
+    #[test]
+    fn first_run_config_seeds_starter_pack() {
+        let dir = tempfile::tempdir().unwrap();
+        // Non-interactive: an empty passphrase skips the prompt (CI shape).
+        let args = InitArgs {
+            passphrase: Some(String::new()),
+            ai: false,
+            cap: vec![],
+        };
+        cmd_init(&args, dir.path()).expect("cmd_init generates a fresh config");
+
+        let config_path = dir.path().join("xgen-client_config.toml");
+        let rules = load_substitutions_section(&config_path).rules;
+        assert_eq!(rules, DEFAULT_SUBSTITUTIONS_SEED, "seed string round-trips");
+
+        assert_eq!(
+            parse_pairs(&rules),
+            vec![
+                ("-->".to_string(), "→".to_string()),
+                ("<--".to_string(), "←".to_string()),
+                (":)".to_string(), "🙂".to_string()),
+                ("<3".to_string(), "❤️".to_string()),
+                (":(".to_string(), "🙁".to_string()),
+            ],
+            "the five expected starter pairs"
+        );
+    }
+
+    /// §4d seed-once — a user who clears their pairs must not see them
+    /// resurrected. After config birth, blanking `rules` and re-running
+    /// `cmd_init` (config already exists → not overwritten) leaves the list
+    /// empty; only `cmd_init`'s config-birth branch seeds.
+    #[test]
+    fn seed_is_not_resurrected_after_user_clears() {
+        let dir = tempfile::tempdir().unwrap();
+        let args = InitArgs {
+            passphrase: Some(String::new()),
+            ai: false,
+            cap: vec![],
+        };
+        cmd_init(&args, dir.path()).expect("first cmd_init seeds");
+        let config_path = dir.path().join("xgen-client_config.toml");
+        assert_eq!(
+            load_substitutions_section(&config_path).rules,
+            DEFAULT_SUBSTITUTIONS_SEED
+        );
+
+        // User clears the pack: parse, blank rules, write back (stands in for
+        // the user / the M-RP4.3 editor emptying the list).
+        let text = std::fs::read_to_string(&config_path).unwrap();
+        let mut cfg: ClientConfig = toml::from_str(&text).unwrap();
+        cfg.substitutions.rules = String::new();
+        std::fs::write(&config_path, toml::to_string_pretty(&cfg).unwrap()).unwrap();
+
+        // Re-run init: config exists, non-AI → "not overwritten". No re-seed.
+        cmd_init(&args, dir.path()).expect("second cmd_init is a no-op write");
+        assert_eq!(
+            load_substitutions_section(&config_path).rules, "",
+            "cleared pairs stay cleared — the seed is config-birth-only"
+        );
     }
 }

@@ -1,6 +1,6 @@
 # M-RP2.22 — `status-indicator` (di·composite; `<div class="status-indicator">` = led + label + optional link)
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-30  
@@ -259,17 +259,17 @@ git push
 
 ## 9. Definition of Done
 
-- [ ] `status-indicator.svelte` authored to §3 (`<div class="status-indicator">` root; flat props;
+- [x] `status-indicator.svelte` authored to §3 (`<div class="status-indicator">` root; flat props;
       `cid()` stable child ids; imports + composes the real `Led`/`Label`/`Link`; `{#if linkHref}` for
       the optional link; aggregate getter `{state,caption,hasLink}`; no `$bindable`/processor/Tauri import).
-- [ ] `.status-indicator` skin added to §4 (flex row, `> .link` `margin-left:auto`); no new `:root` token.
-- [ ] DI·composite panel empty-state replaced with the `status-indicator` row + 3 cells (§5); DD panels
+- [x] `.status-indicator` skin added to §4 (flex row, `> .link` `margin-left:auto`); no new `:root` token.
+- [x] DI·composite panel empty-state replaced with the `status-indicator` row + 3 cells (§5); DD panels
       keep their empty-states; matrix 44→55.
-- [ ] CDP verification §6 run in the sampler — actual output captured: `ids().length===55`, aggregate +
+- [x] CDP verification §6 run in the sampler — actual output captured: `ids().length===55`, aggregate +
       child getters, link-iff-href, DOM root composition, `.status-indicator` skin in cascade, the
       combined accent proof (link swaps, led doesn't).
-- [ ] N-054 written; components registry `status-indicator` promoted (first composite row + schema);
+- [x] N-054 written; components registry `status-indicator` promoted (first composite row + schema);
       ROADMAP + CLAUDE updated same-commit; JOURNAL J-434 written (real CDP output).
-- [ ] Task Status → COMPLETED.
+- [x] Task Status → COMPLETED.
 
 (`Status: COMPLETED` is the real signal — no "commit pushed" checklist item.)

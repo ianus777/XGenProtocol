@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.36  
+> Version: 0.37  
 > Date: May 2026  
 > **Last updated**: 2026-06-30  
 > Language: English  
@@ -1218,6 +1218,24 @@ M-RP3.2 closed (J-433) — the sampler host (`ui/sampler/`, D-098) restructured 
 **Harness finding (recorded).** Svelte 5 reactivity flushes effects **after** the current synchronous task — a same-`eval` read of `getComputedStyle`/`:not(.hidden)` right after `.click()` returns the **pre-update** DOM (the first eval-2 attempt read stale `["block","none","none","none"]` post-click — not a defect). Protocol: drive the switch in one `eval`, read panel state in a **separate** `eval` (next CDP call = next tick, effect flushed). Sibling to the N-050 stale-HMR finding, distinct cause (intra-session reactive flush, not stale dev-state).
 
 *UI-implementation record. No protocol/data implication, no component change. Sampler chrome only (D-098). Establishes the all-mounted / CSS-hidden / never-`{#if}` invariant for sampler partitioning. Next: `status-indicator` (M-RP2.22, the first di composite) into the di·composite panel → text-processor → dd.*
+
+### N-054 — `status-indicator` (M-RP2.22): the FIRST di composite — `<div class="status-indicator">` = led + label + optional link; the composite-registration model (aggregate getter + children self-register under stable ids); first cell to multiply the registry count
+
+M-RP2.22 closed (J-434). `status-indicator` is the **seventeenth** `core` component and the **first di composite**. It founds the patterns every later composite reuses.
+
+**Composite identity.** The root IS `<div class="status-indicator">` — the N-020/N-022 composite marker (a `<div class="type">` wrapper via `envelope`), structurally distinct from an atomic whose root is a native tag. It imports + composes the three real child atomics `led` (required) + `label` (required) + optional trailing `link`. **di**: the caller supplies the state→colour map, the caption, the link target; the composite interprets no domain structure (that interpretation is what a dd component does). Flat pass-through API: `states`/`state`/`pulse?`→led, `caption`→label, `linkHref?`/`linkText?`(default `"Details →"`)/`linkExternal?`/`onLinkClick?`→link.
+
+**The composite-registration model (the reusable precedent).** The composite root registers ONE aggregate getter; the **child atomics self-register** — they each pass their own `debug` getter unconditionally, so `envelope` registers them whenever mounted (keyed `id ?? ordinal`). The composite hands them composite-derived **stable ids** `<id>__led`/`<id>__label`/`<id>__link` so the registry reads cleanly, not ordinal-noisy. **Zero changes to the three closed atomics** (D-065 — don't retrofit built components for a new one's convenience). Consequence: a composite row yields **multiple** `ids()` entries (composite + each child) — the **first time one sampler cell is more than one registry entry**, so the matrix count multiplies (this milestone: 3 cells → +11 entries → 44→55). All future composite accounting must reflect this; the matrix is registry-entry count, not cell count.
+
+**Aggregate getter `{state, caption, hasLink}` — `colour` omitted.** The composite reports only what it owns; resolving `colour` would duplicate `led`'s `?? "#000000"` sentinel, so colour is verified on the `led#…__led` child entry instead (no logic duplication, no drift).
+
+**`{#if linkHref}` is NOT the N-053 case.** The optional link is rendered only when `linkHref` is set — a genuine absent sub-element (a status row may carry no detail link). N-053's never-`{#if}` rule is about keeping every COMPONENT mounted for registry completeness across tabs; an absent optional link is correctly absent and registers nothing. Different concern, same syntax — don't conflate.
+
+**Skin (`.status-indicator`, PROVISIONAL).** Flex row, `align-items:center`, `gap:var(--sp-2)`; the optional trailing `.link` is pushed to the row end via `> .link { margin-left:auto }`. No new token; the skin only lays out the composed atomics (each child carries its own skin). **Verify note (D-065):** the computed `margin-left` of the link reads `0px` in the sampler — the `auto` rule IS applied + in cascade, but a content-hugging test cell offers no free space for `auto` to absorb; the right-push manifests only when `.status-indicator` is a full-width row (its real use). Recorded as-is, not faked with a demo width.
+
+**Verify (Chat self-drove, sampler + CDP 9422; real output, Rule 2).** `ids().length===55`; the three aggregate getters (`#default {ON,Connected,hasLink:false}` / `#withlink {OFF,Disconnected,hasLink:true}` / `#pulse {ERR,Error,hasLink:true}`); the child getters present under stable ids (`led#default__led {ON,#22c55e}`, `label#default__label {Connected}`, `link#withlink__link {Status page, external:true}`); link-iff-href (`#default` root holds only `[SPAN.led, LABEL.label]`, no `link#default__link`); root `DIV.status-indicator`; `.status-indicator` + `.status-indicator > .link` in cascade; **combined accent proof** — the link colour swaps gold(`rgb(194,136,64)`)↔blue(`rgb(58,122,176)`) while the led background `rgb(34,197,94)` is identical across shells; screenshot eye-checked; 0 orphans.
+
+*UI-implementation record. No protocol/data implication. The first di composite; founds the composite build pattern (`<div class="type">` root + aggregate-getter / children-self-register / matrix-multiplies accounting). Applies D-096, no amendment. The composite-registration model is the reusable precedent for `password-field`/`color-picker`/`file-field`/`combobox`/`tag-select`/`star-rating` (D-069 promotion-watch at the second composite). Next: the text-processor engine → dd-components.*
 
 ---
 

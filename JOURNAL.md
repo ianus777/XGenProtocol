@@ -8,6 +8,41 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-437 — user-owned substitution pairs (M-RP4.2), Clair Rust half: the client TOML `[substitutions] rules` string → loader → `get_substitutions` Tauri command → `ui/client` boot hydration of the source-agnostic store; Rust loader landed + unit-tested (127 pass), real-client morph verification is Joe's remaining gate before the canonical close (still staged, NOT closed — D-065)
+
+**What happened.** Built the **Clair half** of M-RP4.2: fed the source-agnostic `$common` substitution store (Chat's J-436) from the real client's settings. The user's ONE list of pairs now flows from `xgen-client_config.toml [substitutions] rules` → a Rust loader → a Tauri command → the Svelte store on boot. Verbatim `[sync]` / `load_sync_section` / `get_state` precedent — no engine change, no wire change, client-only (the sampler is a minimal host with no client config, D-097, so this half is not sampler-CDP'able). The milestone stays **staged**: it does not close until Joe verifies the morph in the real client and Chat writes the canonical records (N-057 / D-100 / ROADMAP ✅ / components / task→COMPLETED).
+
+**The Rust landing (three files, one feat).**
+- `xgen-client/src/app.rs` — `SubstitutionsSection { #[serde(default)] rules: String }` (the one-string TOML home, mirroring the future one-textarea editor 1:1, not an array); a `#[serde(default)] substitutions` field on `ClientConfig`; the `Default for ClientConfig` arm; and `pub fn load_substitutions_section(config_path: &Path) -> SubstitutionsSection` — read file → `toml::from_str::<ClientConfig>` → `.substitutions`, defaulting to empty on absent file / absent section / parse error. The Rust side carries the raw string **verbatim** — all parsing of the ` | ` + first-space grammar happens in the Svelte store (the engine stays source-agnostic, D-099).
+- `xgen-client/src/desktop.rs` — `#[tauri::command] fn get_substitutions(config: tauri::State<ConfigPath>) -> String` returning `load_substitutions_section(&config.0).rules`, registered in `invoke_handler(tauri::generate_handler![get_state, get_pacing_state, quit, get_substitutions])`.
+- `ui/client/src/app_client.svelte` — on `onMount` (alongside the existing `get_state` invoke), `substitutions.setRules(await invoke('get_substitutions'))`, importing `substitutions` from `$common/components/processor/store.svelte`.
+
+**Config-path access decision (handoff open question).** Chose **managed Tauri state** over recompute: a `struct ConfigPath(PathBuf)` `.manage()`d in `run()` as `data_dir.join("xgen-client_config.toml")`, mirroring the existing `CurrentState`/`Pacing`/`PipeShutdown` managed-state pattern. Recompute was the worse option — the data-dir is resolved from the `--instance` label at launch, so re-deriving it inside the command would have to re-thread that resolution; the managed path is the same one `run_startup` uses (line ~139). The command reads `tauri::State<ConfigPath>` exactly as `get_state` reads `tauri::State<CurrentState>`.
+
+**Verify — Rust (real output quoted, Rule 2).**
+- New loader unit tests (`m_rp4_2_substitutions_tests`, four cases: present section round-trips the raw string incl. emoji + internal-space `replace`; absent section → empty; absent file → empty; malformed TOML → empty):
+  ```
+  running 4 tests
+  test app::m_rp4_2_substitutions_tests::absent_file_defaults_to_empty ... ok
+  test app::m_rp4_2_substitutions_tests::malformed_toml_defaults_to_empty ... ok
+  test app::m_rp4_2_substitutions_tests::present_section_round_trips_raw_string ... ok
+  test app::m_rp4_2_substitutions_tests::absent_section_defaults_to_empty ... ok
+  test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 123 filtered out; finished in 0.00s
+  ```
+- Full `xgen-client` suite (lib 123 → **127**, the +4 above; integration unchanged): `cargo build -p xgen-client` → `Finished dev profile ... in 6.98s`; `cargo test -p xgen-client` lib → `test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`, all integration binaries `0 failed`.
+- `ui/client` static gate (`npx vite build`, the project's gate — no svelte-check in the shells): `✓ 122 modules transformed.` / `✓ built in 449ms` — the `$common/components/processor/store.svelte` import resolves.
+
+**Pending — Joe's gate (NOT yet run, not fabricated — D-065/Rule 1).** The real-client morph (launch `xgen-client`, put a `[substitutions]` line in `xgen-client_config.toml`, confirm a processor-host morphs from it) is Joe's verification step and has **not** been performed. There is no on-disk dev client config in the repo (generated at first-run SETUP), so Joe adds the line by hand, e.g.:
+```toml
+[substitutions]
+rules = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :((( 🙁🙁🙁"
+```
+Once Joe confirms the morph, the canonical close (Chat) writes N-057 + D-100 + ROADMAP M-RP4.2 ✅ + the components note + task → COMPLETED.
+
+**Canonical (this work).** `xgen-client/src/app.rs` (+`SubstitutionsSection`/field/Default/`load_substitutions_section`/loader tests) + `xgen-client/src/desktop.rs` (+`ConfigPath` state/`get_substitutions`/registration) + `ui/client/src/app_client.svelte` (store import + boot hydration) [commit, feat]; this JOURNAL J-437 + `tasks/M_RP4_2_SUBSTITUTIONS.md` (Clair DoD items, honest staged state) [commit, docs]. N-057/D-100/ROADMAP/components/task→COMPLETED stay deferred to the true close after Joe verifies. Joe pushes.
+
+---
+
 ## Entry J-436 — user-owned substitution pairs (M-RP4.2), Chat half: one user list replaces the demo presets — `parseRules` + a source-agnostic `$common` store + sampler rewire, CDP-verified; Clair Rust half (config struct + Tauri command + client hydration) is the open handoff (staged, NOT closed — D-065)
 
 **What happened.** Built the **Chat half** of M-RP4.2: retired `arrowMorph`/`emojiMorph` as the *live source* and replaced them with **one user-owned list** of substitution pairs, fed through the unchanged kind-1 engine. Added `parseRules` to `transform.ts`, a new source-agnostic reactive store `processor/store.svelte.ts` in `common`, and rewired the sampler `textarea#processed` cell to read the store. Self-drove CDP verification in the sampler, recorded honestly as a **staged** milestone. The runbook is `tasks/M_RP4_2_SUBSTITUTIONS.md` (design-walked + Joe-locked this session). This resolves Joe's original "arrows worked, emoji didn't" confusion: the presets were never architecture — there is **one list**, and arrows + emoji now morph together from it.

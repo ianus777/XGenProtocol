@@ -289,10 +289,10 @@ file; multiple `-m` flags; `$ProgressPreference='SilentlyContinue'`; Joe pushes)
 - [x] `$common` reactive `substitutions` store (`setRules`, Tier-2 `assertSafeRules`, fail-safe).
 - [x] Sampler `app_sampler.svelte` rewired: `arrowMorph` retired as source; store seeded; `#processed` reads store; matrix 56.
 - [x] CDP §5 run (parser, store-sourced morph, store-update re-morph, Tier-2 guard, count 56) — actual output captured.
-- [ ] Clair: `SubstitutionsSection` + `load_substitutions_section` (sync-precedent) + Rust unit test on the loader.
-- [ ] Clair: `get_substitutions` Tauri command registered; `ui/client` boot hydration; Joe-verified in the real client.
+- [x] Clair: `SubstitutionsSection` + `load_substitutions_section` (sync-precedent) + Rust unit test on the loader. *(J-437: 4 loader tests green; lib 123→127; `cargo build -p xgen-client` clean.)*
+- [~] Clair: `get_substitutions` Tauri command registered; `ui/client` boot hydration. **Code landed + statically gated (J-437; `npx vite build` ✓ 122 modules);** `Joe-verified in the real client` is the remaining gate (NOT yet run — add a `[substitutions]` line by hand; no on-disk dev config in the repo).
 - [ ] Delete `configs.ts` (orphaned once presets retired — held as reference through Clair's build; removed at the true close).
-- [ ] Records (N-057, D-099/D-100, ROADMAP, CLAUDE, JOURNAL, components, task) written same-arc.
+- [~] Records: **J-437 + this DoD written (Clair).** N-057 / D-099-vs-D-100 / ROADMAP / CLAUDE / components / task→COMPLETED are the **canonical close (Chat)**, after Joe verifies — per §0 decision 7 and the J-437 handoff.
 - [x] Presets retired as the live source; one user-owned list is the only source.
 - [ ] Task Status → COMPLETED (or honest staged state if one half lands first).
 

@@ -38,6 +38,18 @@
   import Link from '$core/components/data-independent/link.svelte';
   import StatusIndicator from '$core/components/data-independent/status-indicator.svelte';
 
+  // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
+  // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
+  // symbol-keyed attachment that lands on the inner <textarea>. Adds NO registry entry.
+  // In the real client the store is hydrated from xgen-client_config.toml [substitutions] via the
+  // get_substitutions Tauri command; here (no client config) the sampler seeds a literal list.
+  import { processor } from '$common/components/processor/processor';
+  import { substitutions } from '$common/components/processor/store.svelte';
+
+  // One user-owned list (the only source) — demo seed for the sampler. Grammar (M-RP4.2): pairs
+  // on " | ", first space splits find|replace.
+  substitutions.setRules('--> → | <-- ← | :) 🙂 | <3 ❤️ | :((( 🙁🙁🙁');
+
   // Runtime client<->node skin-swap (D-098): flipping [data-shell] re-aliases --accent*
   // live, so the whole grid re-themes at once. Replaces "run in both real shells".
   let shell = $state('client');
@@ -67,6 +79,7 @@
   let selDisabled = $state('one');
   let taDefault = $state('line one\nline two');
   let taDisabled = $state('inert');
+  let taProcessed = $state(''); // M-RP4.0/4.2: processor-host cell; store-sourced user rules morph on input
   let numDefault = $state(42);
   let numDisabled = $state(7);
   let numInvalid = $state(50); // outside [0,10] -> :invalid (rangeOverflow)
@@ -189,6 +202,7 @@
       <div class="s-cells">
         <div class="s-cell"><span class="s-id">textarea#default</span><TextArea bind:value={taDefault} id="default" rows={3} /></div>
         <div class="s-cell"><span class="s-id">textarea#disabled</span><TextArea bind:value={taDisabled} id="disabled" rows={3} disabled /></div>
+        <div class="s-cell"><span class="s-id">textarea#processed</span><TextArea {...processor(substitutions.rules, { trusted: true })} bind:value={taProcessed} id="processed" rows={3} placeholder="type --> <-- => :) <3 to morph" /></div>
       </div>
     </div>
 

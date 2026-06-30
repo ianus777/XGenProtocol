@@ -46,9 +46,10 @@
   import { processor } from '$common/components/processor/processor';
   import { substitutions } from '$common/components/processor/store.svelte';
 
-  // One user-owned list (the only source) — demo seed for the sampler. Grammar (M-RP4.2): pairs
-  // on " | ", first space splits find|replace.
-  substitutions.setRules('--> → | <-- ← | :) 🙂 | <3 ❤️ | :((( 🙁🙁🙁');
+  // One user-owned list (the only source) — the sampler seeds the SAME canonical starter pack the
+  // client ships (DEFAULT_SUBSTITUTIONS_SEED in xgen-client/src/app.rs), so the workbench shows the
+  // real shipped behaviour. Grammar (M-RP4.2): pairs on " | ", first space splits find|replace.
+  substitutions.setRules('--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒');
 
   // Runtime client<->node skin-swap (D-098): flipping [data-shell] re-aliases --accent*
   // live, so the whole grid re-themes at once. Replaces "run in both real shells".
@@ -202,7 +203,7 @@
       <div class="s-cells">
         <div class="s-cell"><span class="s-id">textarea#default</span><TextArea bind:value={taDefault} id="default" rows={3} /></div>
         <div class="s-cell"><span class="s-id">textarea#disabled</span><TextArea bind:value={taDisabled} id="disabled" rows={3} disabled /></div>
-        <div class="s-cell"><span class="s-id">textarea#processed</span><TextArea {...processor(substitutions.rules, { trusted: true })} bind:value={taProcessed} id="processed" rows={3} placeholder="type --> <-- => :) <3 to morph" /></div>
+        <div class="s-cell"><span class="s-id">textarea#processed</span><TextArea {...processor(substitutions.rules, { trusted: true })} bind:value={taProcessed} id="processed" rows={3} placeholder="type --> <-- :) <3 :( -- to morph" /></div>
       </div>
     </div>
 

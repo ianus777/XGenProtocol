@@ -148,9 +148,10 @@ pub struct SubstitutionsSection {
 /// the future M-RP4.3 editor are its only writers) — these are *owned
 /// defaults*, not locked presets (§0 decision 1).
 ///
-/// Differs intentionally from the sampler demo string: the sampler keeps
-/// `:((( → 🙁🙁🙁` as a multi-char-replace exhibit; the shipped starter pack
-/// uses the cleaner `:( → 🙁`.
+/// The sampler (the component workbench) seeds this SAME pack from a literal in
+/// `app_sampler.svelte`, so the workbench mirrors the shipped client behaviour
+/// (D-097: the sampler is a minimal host with no client config to read, so the
+/// two seeds are kept in sync by hand — Rust const here, TS literal there).
 pub const DEFAULT_SUBSTITUTIONS_SEED: &str = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒";
 
 /// AI declaration section in xgen-client_config.toml (M3+M4, spec 3.6.10).

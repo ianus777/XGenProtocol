@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.35  
+> Version: 0.36  
 > Date: May 2026  
-> **Last updated**: 2026-06-29  
+> **Last updated**: 2026-06-30  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -1199,6 +1199,25 @@ M-RP2.21 closed (J-432) — `link` (di·A, atomic `<a href>`) authored + skinned
 - Teardown: `0 orphans - ports 9422/5175 free`.
 
 *UI-implementation record. No protocol/data implication. `link` is the sixteenth built `core` component, the first navigation-kind di; commits `<a>`-vs-`<button>`, synthesises `disabled`, bundles the safe `external` rel, returns to accent-derived colour. Applies D-096, no amendment. Logged: a future `modal`/`dialog` component (modal surface; trigger = `button`) + the future `icon` primitive. Next: the `status-indicator` di composite (led + label + optional link — all three now in hand) → the text-processor engine → dd-components.*
+
+### N-053 — sampler tabbed by class×arity (M-RP3.2): four-panel container (di/dd × atomic/composite); all panels MOUNTED + CSS-hidden, never `{#if}`; pure sampler chrome
+
+M-RP3.2 closed (J-433) — the sampler host (`ui/sampler/`, D-098) restructured from one long vertical scroll into a **four-panel tab container** keyed by the catalogue's class×arity axes. **Pure sampler chrome**: only `app_sampler.svelte` + `app.css`; **no `core`/`common` component touched, `skin.css` untouched**; matrix unchanged at **44**. Its own M-RP3.x sampler milestone (sibling to M-RP3.0/M-RP3.1) so the next component-build (`status-indicator`, M-RP2.22) drops into the already-tabbed di·composite panel.
+
+**Four panels (the class×arity taxonomy).** **DI · atomic** (the current 16 components / 44 cells) · **DI · composite** (empty; first occupant `status-indicator`) · **DD · atomic** (empty) · **DD · composite** (empty). This makes the sampler finally mirror the component-index's own structure (di-atomic / di-composite / dd subsections). Tab labels track the index's *atomic* vocabulary (not *single*). The client/node skin-swap stays **global** tool chrome above the tabs (the existing `.sampler-bar`, untouched); the tab bar sits between it and the panels. The inner kind sub-headers stay inside DI·atomic, promoted to the three di kinds **INTERACTIVE / DISPLAY / NAVIGATION** (`link` moved from under Display to its own NAVIGATION header, aligning with N-049/N-052; no cell added/removed/re-bound). Empty panels carry an explicit `No components yet` placeholder so they read as intentional, not broken.
+
+**The load-bearing decision: all panels stay MOUNTED; inactive hidden via CSS `display:none` (`class:hidden`), NEVER `{#if}`.** `envelope` registers into `window.__XGEN_DEBUG__` **only while a component is mounted** (grounded in `envelope.ts` — registration fires on the `use:` action). A `{#if}`-gated tab would **unmount** its panel and drop those ids from the registry, so `ids()` would read only the active tab and the CDP matrix-count invariant (D-097, the whole verify protocol) would silently break. CSS-hidden ≠ unmounted → the registry stays complete → self-drive is unchanged (no tab-clicking to register everything). A test-bed wants every component alive anyway. **This invariant is the reusable takeaway** — any future sampler partitioning (more tabs, accordions, lazy sections) must hide, never unmount. (Recorded arc-local; a D-069 promotion-watch only if it recurs as a cross-cutting rule.)
+
+**Verify (Chat self-drove, sampler + CDP 9422, fresh launch; real output quoted, Rule 2).**
+- Default tab (`-Mode state`): **all 44** instances enumerate with the other three panels mounted-but-hidden.
+- Eval 1 (load): `{"n":44,"panels":["block","none","none","none"],"titles":["Interactive","Display","Navigation"],"empties":3,"tabs":["DI · atomic*","DI · composite","DD · atomic","DD · composite"],"navNext":"link"}`.
+- Eval 2 (**the anti-`{#if}` proof**): after clicking DI·composite + a reactive-flush tick — `{"nAfterSwitch":44,"panels":["none","block","none","none"],"activeTab":"DI · composite","activeEmptyText":"No components yet","activeEmptyCode":"status-indicator"}`. `ids().length` **stays 44** through the switch (DI·atomic hidden but mounted).
+- Eval 3 (skin-swap re-themes the active tab): `{"tabActiveClient":"rgb(154, 106, 48)","tabActiveNode":"rgb(42, 96, 144)"}` (gold ↔ blue).
+- Screenshots eye-checked (DI·atomic grid; DI·composite placeholder). Teardown `0 orphans`.
+
+**Harness finding (recorded).** Svelte 5 reactivity flushes effects **after** the current synchronous task — a same-`eval` read of `getComputedStyle`/`:not(.hidden)` right after `.click()` returns the **pre-update** DOM (the first eval-2 attempt read stale `["block","none","none","none"]` post-click — not a defect). Protocol: drive the switch in one `eval`, read panel state in a **separate** `eval` (next CDP call = next tick, effect flushed). Sibling to the N-050 stale-HMR finding, distinct cause (intra-session reactive flush, not stale dev-state).
+
+*UI-implementation record. No protocol/data implication, no component change. Sampler chrome only (D-098). Establishes the all-mounted / CSS-hidden / never-`{#if}` invariant for sampler partitioning. Next: `status-indicator` (M-RP2.22, the first di composite) into the di·composite panel → text-processor → dd.*
 
 ---
 

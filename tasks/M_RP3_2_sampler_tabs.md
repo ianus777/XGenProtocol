@@ -1,6 +1,6 @@
 # M-RP3.2 — sampler tabs (class×arity panels; di·atomic / di·composite / dd·atomic / dd·composite)
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-30  
@@ -218,17 +218,17 @@ git push
 
 ## 7. Definition of Done
 
-- [ ] `app_sampler.svelte` restructured to §3.1: `activeTab` state + `.sampler-tabs` bar + four
+- [x] `app_sampler.svelte` restructured to §3.1: `activeTab` state + `.sampler-tabs` bar + four
       `.sampler-panel`s (`class:hidden`, not `{#if}`); DI·atomic = the existing grid with
       INTERACTIVE/DISPLAY/NAVIGATION sub-headers (link under NAVIGATION); three empty-state panels;
       skin-swap + imports + bound `$state` unchanged.
-- [ ] `app.css` gains `.sampler-tabs` / `.sampler-tabs button(.active)` / `.sampler-panel(.hidden)` /
+- [x] `app.css` gains `.sampler-tabs` / `.sampler-tabs button(.active)` / `.sampler-panel(.hidden)` /
       `.s-empty` (§3.2); `skin.css` untouched; no `:root` token added.
-- [ ] CDP verification §4 run in the sampler — actual output captured, incl. **`ids().length===44` with
+- [x] CDP verification §4 run in the sampler — actual output captured, incl. **`ids().length===44` with
       the default tab active AND held through a tab switch** (the mount-preserving proof) + inactive panels
       computed `display:none` + empty-state present + skin-swap across tabs.
-- [ ] N-053 written; components test-bed callout updated; ROADMAP + CLAUDE updated same-commit;
+- [x] N-053 written; components test-bed callout updated; ROADMAP + CLAUDE updated same-commit;
       JOURNAL J-433 written (real CDP output).
-- [ ] Task Status → COMPLETED.
+- [x] Task Status → COMPLETED.
 
 (`Status: COMPLETED` is the real signal — no "commit pushed" checklist item.)

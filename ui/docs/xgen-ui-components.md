@@ -1,8 +1,8 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.27  
+> Version: 0.28  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-29  
+> **Last updated**: 2026-06-30  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -16,7 +16,7 @@ This file records the data-independent **catalogue** (the intended control vocab
 
 The live registry of components actually authored in the tree (N-019). **Tier** marks the home crate-mirror (N-026): `common` = shared substrate, `core` = the reference component library. **Phase** marks the build-layer a component's binding demands (N-028): A = pure Svelte · B = Svelte + Tauri · C = all three layers — orthogonal to the di/dd class axis. The catalogue/seed tables below remain the *intended* vocabulary; a row graduates here once built.
 
-> **Test-bed (M-RP3.0, D-097/D-098, N-044):** from `date` onward these components are built, tuned, and CDP-verified in the **`xgen-sampler`** app (a third Tauri/WebView2 sibling, ports Vite 5175 / CDP 9422; populated M-RP3.1 with all 10 components live in a 22-cell grid, N-045), not by wiring demos into the real client/node shells. The sampler hosts the library in isolation with a live client↔node skin-swap; the real shells are reserved for integration + the two-apps-together interaction the sampler structurally cannot exercise.
+> **Test-bed (M-RP3.0, D-097/D-098, N-044):** from `date` onward these components are built, tuned, and CDP-verified in the **`xgen-sampler`** app (a third Tauri/WebView2 sibling, ports Vite 5175 / CDP 9422; populated M-RP3.1 with all 10 components live in a 22-cell grid, N-045), not by wiring demos into the real client/node shells. The sampler hosts the library in isolation with a live client↔node skin-swap; the real shells are reserved for integration + the two-apps-together interaction the sampler structurally cannot exercise. **(M-RP3.2, N-053):** the sampler is now a **four-panel tab container** keyed by class×arity — **DI · atomic** (the current 44-cell grid, INTERACTIVE/DISPLAY/NAVIGATION sub-headers) / **DI · composite** / **DD · atomic** / **DD · composite** (the latter three empty placeholders for now). All panels stay mounted (inactive hidden via CSS, never `{#if}`) so the CDP registry stays complete; the skin-swap stays global above the tabs.
 
 | Component | Tier | Phase | Class · semantic | Root | Path | Debug | Ref |
 |---|---|---|---|---|---|---|---|

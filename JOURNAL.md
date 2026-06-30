@@ -1,10 +1,32 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-29  
+> **Last updated:** 2026-06-30  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-433 — sampler tabbed by class×arity (M-RP3.2): four-panel container (DI/DD × atomic/composite); all panels MOUNTED + CSS-hidden, never `{#if}`, to preserve the CDP registry-completeness invariant; pure sampler chrome
+
+**What happened.** Restructured the sampler host (`ui/sampler/`, D-098) from one long vertical scroll into a **four-panel tab container** keyed by the catalogue's class×arity axes — edited `app_sampler.svelte` (tab state + tab bar + four panels) + `app.css` (tab/panel/empty-state chrome), self-drove CDP verification, recorded. **Pure sampler chrome** — no `core`/`common` component touched, `skin.css` untouched; matrix unchanged at **44** cells. Its own M-RP3.x sampler milestone (sibling to M-RP3.0 scaffold / M-RP3.1 populate) so the next component-build (M-RP2.22 `status-indicator`) drops cleanly into the already-tabbed di·composite panel. Joe locked the design (the tab taxonomy + the all-mounted call + refinements) ahead of the runbook; runbook `tasks/M_RP3_2_sampler_tabs.md` authored + pushed ahead of the build.
+
+**Decisions (Joe-locked).** (1) Four panels by class×arity: **DI · atomic** (all 16 components / 44 cells), **DI · composite** (empty; first occupant `status-indicator`), **DD · atomic** (empty), **DD · composite** (empty). (2) **All panels stay MOUNTED; inactive hidden via CSS `display:none` (`class:hidden`), NEVER `{#if}`** — the load-bearing call: `envelope` registers into `window.__XGEN_DEBUG__` only while mounted (grounded in `envelope.ts`), so `{#if}`-gating inactive panels would drop their ids and break the CDP matrix-count invariant (D-097). CSS-hidden ≠ unmounted → registry stays complete → self-drive unchanged. (3) Client/node skin-swap stays **global** tool chrome above the tabs. (4) In-panel kind sub-headers promoted to **INTERACTIVE / DISPLAY / NAVIGATION** (link moved from Display to its own NAVIGATION header — aligns with the three di kinds, N-049/N-052; no cell added/removed/re-bound). (5) Empty panels carry an explicit `No components yet` placeholder. (6) Canonical labels (DI/DD · atomic/composite, the index's *atomic* vocabulary).
+
+**Verify (Chat self-drove, sampler + CDP 9422, fresh launch; real output quoted, Rule 2).**
+- Registry complete on the default tab (`-Mode state`): **all 44** instances enumerate with the other three panels mounted-but-hidden.
+- Eval 1 (load): `{"n":44,"panels":["block","none","none","none"],"titles":["Interactive","Display","Navigation"],"empties":3,"tabs":["DI · atomic*","DI · composite","DD · atomic","DD · composite"],"navNext":"link"}` — DI·atomic visible, the other three `display:none`; the three kind sub-headers present; `link` sits directly under Navigation; 3 empty-states.
+- Eval 2 (**the anti-`{#if}` proof**, after clicking the DI·composite tab + a reactive-flush tick): `{"nAfterSwitch":44,"panels":["none","block","none","none"],"activeTab":"DI · composite","activeEmptyText":"No components yet","activeEmptyCode":"status-indicator"}` — **`ids().length` STILL 44** through the switch (DI·atomic now hidden but mounted) while the visible panel flips to DI·composite; empty-state renders. This is the proof `{#if}` was correctly avoided.
+- Eval 3 (skin-swap re-themes the active tab): `{"tabActiveClient":"rgb(154, 106, 48)","tabActiveNode":"rgb(42, 96, 144)"}` — active tab gold `#9a6a30` (client) ↔ blue `#2a6090` (node).
+- Screenshots (eye-checked): DI·atomic shows the skin-swap bar + the 4-tab bar (DI·atomic active/gold) + the INTERACTIVE grid; DI·composite shows the `No components yet` placeholder naming `status-indicator` (M-RP2.22).
+- Teardown: `0 orphans - ports 9422/5175 free`.
+
+**Harness finding (recorded).** Svelte 5 reactivity flushes effects **after** the current synchronous task, so a same-eval read of `getComputedStyle`/`:not(.hidden)` immediately after `.click()` returns the **pre-update** DOM (the first eval-2 attempt read `["block","none","none","none"]` post-click — stale, not a defect). Protocol: drive the tab switch in one `eval`, read panel state in a **separate** `eval` (next CDP call = next tick, effect flushed). Sibling-shape to the N-050 stale-HMR finding but distinct cause (intra-session reactive flush, not stale dev-state).
+
+**Canonical (D-074).** `ui/sampler/src/app_sampler.svelte` + `ui/sampler/src/app.css` [commit 1, feat]; `ui/docs/xgen-ui-notes.md` (N-053, v0.36) + `ui/docs/xgen-ui-components.md` (test-bed callout updated, v0.28) + `docs/ROADMAP.md` (RP node + Present narrative, v4.09) + `CLAUDE.md` (PLAY → M-RP3.2, prior-PLAY → J-433) + this JOURNAL J-433 + `tasks/M_RP3_2_sampler_tabs.md` Status → COMPLETED [commit 2, docs]. **No `DECISIONS.md` touch** — sampler chrome, arc-local (D-097/D-098); the all-mounted/never-`{#if}` invariant is recorded as N-053 (D-069 promotion-watch only if it recurs). Two-commit close (feat → docs); Joe pushes.
+
+**Next-active:** `status-indicator` (M-RP2.22, the first di composite — `led` + `label` + optional `link`, all in hand) drops into the di·composite panel → the text-processor engine → dd-components.
 
 ---
 

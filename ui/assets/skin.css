@@ -26,7 +26,7 @@
   --inf-soft: #0e2030; --inf: #2a6090;  --inf2: #3a7ab0; --inf-ink: #d0e8f8;
   /* Semantic state — NOT brand: shared across shells, used by the state-dot */
   --ok:  #2d7a3a;
-  --err: #8a2a2a;
+  --err: #8a2a2a;  --err-bright: #e64343;  /* --err-bright: focused-invalid border (brighter than --err); tune via HMR */
 
   /* Radius scale */
   --rad: 6px;  --rad2: 10px;
@@ -217,8 +217,7 @@ html, body {
 .textfield::placeholder { color: var(--t4); }
 .textfield:focus-visible {
   outline: none;
-  border-color: var(--accent2, var(--t3));
-  box-shadow: var(--focus-ring);
+  border-color: var(--t3);
 }
 .textfield:disabled {
   background: var(--s2);
@@ -231,6 +230,9 @@ html, body {
 }
 .textfield:invalid {
   border-color: var(--err);
+}
+.textfield:invalid:focus-visible {
+  border-color: var(--err-bright);
 }
 
 /* Per-type inset icon (M-RP2.12, N-039) — a very-weak-grey (#e6e6e6, the
@@ -294,8 +296,7 @@ html, body {
 .textarea::placeholder { color: var(--t4); }
 .textarea:focus-visible {
   outline: none;
-  border-color: var(--accent2, var(--t3));
-  box-shadow: var(--focus-ring);
+  border-color: var(--t3);
 }
 .textarea:disabled {
   background: var(--s2);
@@ -333,8 +334,7 @@ html, body {
 .number::placeholder { color: var(--t4); }
 .number:focus-visible {
   outline: none;
-  border-color: var(--accent2, var(--t3));
-  box-shadow: var(--focus-ring);
+  border-color: var(--t3);
 }
 .number:disabled {
   background: var(--s2);
@@ -347,6 +347,9 @@ html, body {
 }
 .number:invalid {
   border-color: var(--err);
+}
+.number:invalid:focus-visible {
+  border-color: var(--err-bright);
 }
 /* Native spinner ~25% smaller (N-043): the UA inner-spin-button is sized by the
  * engine; transform:scale is the reliable lever (0.75 = 25% smaller). Not
@@ -434,8 +437,7 @@ html, body {
 }
 .date:focus-visible {
   outline: none;
-  border-color: var(--accent2, var(--t3));
-  box-shadow: var(--focus-ring);
+  border-color: var(--t3);
 }
 .date:disabled {
   background: var(--s2);
@@ -448,6 +450,9 @@ html, body {
 }
 .date:invalid {
   border-color: var(--err);
+}
+.date:invalid:focus-visible {
+  border-color: var(--err-bright);
 }
 /* Calendar-picker indicator — the click target that opens the native popup. color-scheme:dark
  * (N-043) already paints the popup + glyph for dark; this only sets the cursor. If the glyph
@@ -484,8 +489,7 @@ html, body {
 }
 .color:focus-visible {
   outline: none;
-  border-color: var(--accent2, var(--t3));
-  box-shadow: var(--focus-ring);
+  border-color: var(--t3);
 }
 .color:disabled {
   cursor: not-allowed;
@@ -590,8 +594,7 @@ html, body {
 }
 .select:focus-visible {
   outline: none;
-  border-color: var(--accent2, var(--t3));
-  box-shadow: var(--focus-ring);
+  border-color: var(--t3);
 }
 .select:disabled {
   background-color: var(--s2);
@@ -600,6 +603,9 @@ html, body {
 }
 .select:invalid {
   border-color: var(--err);
+}
+.select:invalid:focus-visible {
+  border-color: var(--err-bright);
 }
 
 /* ───────────────────────────────────────────────────
@@ -635,8 +641,7 @@ html, body {
 }
 .select-multiple:focus-visible {
   outline: none;
-  border-color: var(--accent2, var(--t3));
-  box-shadow: var(--focus-ring);
+  border-color: var(--t3);
 }
 .select-multiple:disabled {
   background-color: var(--s2);

@@ -1,16 +1,22 @@
 <script>
-  // app_sampler.svelte — SAMPLER matrix (M-RP3.1). Plain-JS app shell (bare $state,
-  // no TS annotations — N-041). Mounts all 13 built `core` components live in a
+  // app_sampler.svelte — SAMPLER matrix. Plain-JS app shell (bare $state, no TS
+  // annotations — N-041). Mounts all built `core` components live in a
   // semantic-group x state grid; each cell is a real `envelope`-registered instance
   // (`{type}#{state}`) so CDP `ids()` enumerates the matrix. 16 built `core` components.
-  // The class x phase axes
-  // (N-028) are deferred — degenerate while everything is di-A.
+  //
+  // M-RP3.2: the matrix is now tabbed by class x arity (di/dd x atomic/composite).
+  // ALL panels stay MOUNTED; inactive panels are hidden via CSS display:none
+  // (class:hidden), NEVER {#if} — `envelope` registers only while mounted, so
+  // unmounting a panel would drop its ids from window.__XGEN_DEBUG__ and break the
+  // CDP matrix-count invariant (D-097). DI-atomic holds the current 44 cells with
+  // INTERACTIVE / DISPLAY / NAVIGATION sub-headers; the other three panels are empty
+  // placeholders (di-composite's first occupant is status-indicator, M-RP2.22).
   //
   // State-map is RAGGED on purpose (honest, not a forced uniform grid):
-  //   default  — all 10
-  //   disabled — interactive only (display-di have none); NOTE `toggle` has no
-  //              `disabled` prop (atomic gap, N-045) -> shown as `toggle#switch` instead
-  //   invalid  — only textfield (bad email) + number (out-of-range); no faked columns
+  //   default  — all
+  //   disabled — interactive only (display/navigation di have none); NOTE `toggle` has
+  //              no `disabled` prop (atomic gap, N-045) -> shown as `toggle#switch` instead
+  //   invalid  — only textfield (bad email) + number (out-of-range) + date; no faked columns
   //   variants — toggle checked/switch, button toggle-mode, textfield password, textarea \n
   // No focus column: focus is transient; a static focus cell would be a lie (verify live).
   import { onMount } from 'svelte';
@@ -36,6 +42,16 @@
   let shell = $state('client');
   function applyShell(s) { shell = s; document.documentElement.dataset.shell = s; }
   onMount(() => applyShell('client'));
+
+  // Tab container (M-RP3.2): outer class x arity axis. Inactive panels are CSS-hidden,
+  // NOT unmounted (class:hidden), so every component stays registered for CDP `ids()`.
+  let activeTab = $state('di-atomic'); // 'di-atomic' | 'di-composite' | 'dd-atomic' | 'dd-composite'
+  const tabs = [
+    { id: 'di-atomic',    label: 'DI · atomic' },
+    { id: 'di-composite', label: 'DI · composite' },
+    { id: 'dd-atomic',    label: 'DD · atomic' },
+    { id: 'dd-composite', label: 'DD · composite' },
+  ];
 
   // Bound values (bare $state — plain-JS shell). One per interactive cell.
   let tglDefault = $state(false);
@@ -106,148 +122,194 @@
   </div>
 </div>
 
-<div class="sampler-body">
-  <div class="s-section-title">Interactive</div>
+<div class="sampler-tabs" role="tablist" aria-label="component class x arity">
+  {#each tabs as t}
+    <button
+      role="tab"
+      aria-selected={activeTab === t.id}
+      class:active={activeTab === t.id}
+      onclick={() => (activeTab = t.id)}
+    >{t.label}</button>
+  {/each}
+</div>
 
-  <div class="s-row">
-    <div class="s-rowname">toggle</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">toggle#default</span><Toggle bind:checked={tglDefault} id="default" /></div>
-      <div class="s-cell"><span class="s-id">toggle#checked</span><Toggle bind:checked={tglChecked} id="checked" /></div>
-      <div class="s-cell"><span class="s-id">toggle#switch</span><Toggle bind:checked={tglSwitch} id="switch" shape="switch" /></div>
+<!-- DI · atomic — the current 44-cell grid; INTERACTIVE / DISPLAY / NAVIGATION sub-headers -->
+<div class="sampler-panel" class:hidden={activeTab !== 'di-atomic'}>
+  <div class="sampler-body">
+    <div class="s-section-title">Interactive</div>
+
+    <div class="s-row">
+      <div class="s-rowname">toggle</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">toggle#default</span><Toggle bind:checked={tglDefault} id="default" /></div>
+        <div class="s-cell"><span class="s-id">toggle#checked</span><Toggle bind:checked={tglChecked} id="checked" /></div>
+        <div class="s-cell"><span class="s-id">toggle#switch</span><Toggle bind:checked={tglSwitch} id="switch" shape="switch" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">button</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">button#default</span><Button label="Action" id="default" /></div>
+        <div class="s-cell"><span class="s-id">button#disabled</span><Button label="Action" id="disabled" disabled /></div>
+        <div class="s-cell"><span class="s-id">button#toggle</span><Button label="Toggle" id="toggle" mode="toggle" bind:pressed={btnPressed} /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">textfield</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">textfield#default</span><TextField bind:value={tfDefault} id="default" placeholder="text" /></div>
+        <div class="s-cell"><span class="s-id">textfield#disabled</span><TextField bind:value={tfDisabled} id="disabled" disabled /></div>
+        <div class="s-cell"><span class="s-id">textfield#invalid</span><TextField type="email" bind:value={tfInvalid} id="invalid" /></div>
+        <div class="s-cell"><span class="s-id">textfield#password</span><TextField type="password" bind:value={tfPassword} id="password" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">select</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">select#default</span><Select bind:value={selDefault} id="default" options={selOptions} placeholder="Pick one" /></div>
+        <div class="s-cell"><span class="s-id">select#disabled</span><Select bind:value={selDisabled} id="disabled" options={selOptions} disabled /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">select-multiple</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">select-multiple#default</span><SelectMultiple bind:value={smDefault} id="default" options={smOptions} /></div>
+        <div class="s-cell"><span class="s-id">select-multiple#seeded</span><SelectMultiple bind:value={smSeeded} id="seeded" options={smOptions} /></div>
+        <div class="s-cell"><span class="s-id">select-multiple#disabled</span><SelectMultiple bind:value={smDisabled} id="disabled" options={smOptions} disabled /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">textarea</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">textarea#default</span><TextArea bind:value={taDefault} id="default" rows={3} /></div>
+        <div class="s-cell"><span class="s-id">textarea#disabled</span><TextArea bind:value={taDisabled} id="disabled" rows={3} disabled /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">number</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">number#default</span><NumberField bind:value={numDefault} id="default" /></div>
+        <div class="s-cell"><span class="s-id">number#disabled</span><NumberField bind:value={numDisabled} id="disabled" disabled /></div>
+        <div class="s-cell"><span class="s-id">number#invalid</span><NumberField bind:value={numInvalid} id="invalid" min={0} max={10} /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">range</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">range#default</span><Range bind:value={rngDefault} id="default" min={0} max={100} step={1} /></div>
+        <div class="s-cell"><span class="s-id">range#disabled</span><Range bind:value={rngDisabled} id="disabled" min={0} max={100} step={1} disabled /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">date</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">date#default</span><DateField bind:value={dtDefault} id="default" /></div>
+        <div class="s-cell"><span class="s-id">date#time</span><DateField type="time" bind:value={dtTime} id="time" /></div>
+        <div class="s-cell"><span class="s-id">date#datetime</span><DateField type="datetime-local" bind:value={dtDatetime} id="datetime" /></div>
+        <div class="s-cell"><span class="s-id">date#month</span><DateField type="month" bind:value={dtMonth} id="month" /></div>
+        <div class="s-cell"><span class="s-id">date#week</span><DateField type="week" bind:value={dtWeek} id="week" /></div>
+        <div class="s-cell"><span class="s-id">date#disabled</span><DateField bind:value={dtDisabled} id="disabled" disabled /></div>
+        <div class="s-cell"><span class="s-id">date#invalid</span><DateField bind:value={dtInvalid} id="invalid" min="2026-01-01" max="2026-12-31" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">color</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">color#default</span><ColorField bind:value={colDefault} id="default" /></div>
+        <div class="s-cell"><span class="s-id">color#disabled</span><ColorField bind:value={colDisabled} id="disabled" disabled /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">file</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">file#default</span><FileField bind:files={fDefault} id="default" /></div>
+        <div class="s-cell"><span class="s-id">file#multiple</span><FileField bind:files={fMultiple} id="multiple" multiple /></div>
+        <div class="s-cell"><span class="s-id">file#disabled</span><FileField bind:files={fDisabled} id="disabled" disabled /></div>
+      </div>
+    </div>
+
+    <div class="s-section-title">Display</div>
+
+    <div class="s-row">
+      <div class="s-rowname">label</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">label#default</span><Label text="A field caption" id="default" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">paragraph</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">paragraph#default</span><Paragraph text="A single paragraph of prose, rendered read-only as a text node." id="default" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">image</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">image#default</span><Img src={imgSrc} alt="sample placeholder" id="default" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">led</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">led#default</span><Led states={ledStates} state="ON" id="default" /></div>
+        <div class="s-cell"><span class="s-id">led#off</span><Led states={ledStates} state="OFF" id="off" /></div>
+        <div class="s-cell"><span class="s-id">led#pulse</span><Led states={ledStates} state="ERR" pulse id="pulse" /></div>
+        <div class="s-cell"><span class="s-id">led#unknown</span><Led states={ledStates} state="???" id="unknown" /></div>
+      </div>
+    </div>
+
+    <div class="s-section-title">Navigation</div>
+
+    <div class="s-row">
+      <div class="s-rowname">link</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">link#default</span><Link href="#settings" text="Settings" id="default" /></div>
+        <div class="s-cell"><span class="s-id">link#external</span><Link href="https://xgen.example" text="xgen.example" external ariaLabel="XGen site (opens externally)" id="external" /></div>
+        <div class="s-cell"><span class="s-id">link#disabled</span><Link href="#x" text="Unavailable" disabled id="disabled" /></div>
+      </div>
     </div>
   </div>
+</div>
 
-  <div class="s-row">
-    <div class="s-rowname">button</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">button#default</span><Button label="Action" id="default" /></div>
-      <div class="s-cell"><span class="s-id">button#disabled</span><Button label="Action" id="disabled" disabled /></div>
-      <div class="s-cell"><span class="s-id">button#toggle</span><Button label="Toggle" id="toggle" mode="toggle" bind:pressed={btnPressed} /></div>
+<!-- DI · composite — first occupant: status-indicator (M-RP2.22) -->
+<div class="sampler-panel" class:hidden={activeTab !== 'di-composite'}>
+  <div class="sampler-body">
+    <div class="s-empty">
+      <strong>No components yet</strong>
+      <span>Composite data-independent components land here, starting with <code>status-indicator</code> (M-RP2.22).</span>
     </div>
   </div>
+</div>
 
-  <div class="s-row">
-    <div class="s-rowname">textfield</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">textfield#default</span><TextField bind:value={tfDefault} id="default" placeholder="text" /></div>
-      <div class="s-cell"><span class="s-id">textfield#disabled</span><TextField bind:value={tfDisabled} id="disabled" disabled /></div>
-      <div class="s-cell"><span class="s-id">textfield#invalid</span><TextField type="email" bind:value={tfInvalid} id="invalid" /></div>
-      <div class="s-cell"><span class="s-id">textfield#password</span><TextField type="password" bind:value={tfPassword} id="password" /></div>
+<!-- DD · atomic -->
+<div class="sampler-panel" class:hidden={activeTab !== 'dd-atomic'}>
+  <div class="sampler-body">
+    <div class="s-empty">
+      <strong>No components yet</strong>
+      <span>Atomic data-derived components land here (downstream of the di catalogue).</span>
     </div>
   </div>
+</div>
 
-  <div class="s-row">
-    <div class="s-rowname">select</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">select#default</span><Select bind:value={selDefault} id="default" options={selOptions} placeholder="Pick one" /></div>
-      <div class="s-cell"><span class="s-id">select#disabled</span><Select bind:value={selDisabled} id="disabled" options={selOptions} disabled /></div>
-    </div>
-  </div>
-
-  <div class="s-row">
-    <div class="s-rowname">select-multiple</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">select-multiple#default</span><SelectMultiple bind:value={smDefault} id="default" options={smOptions} /></div>
-      <div class="s-cell"><span class="s-id">select-multiple#seeded</span><SelectMultiple bind:value={smSeeded} id="seeded" options={smOptions} /></div>
-      <div class="s-cell"><span class="s-id">select-multiple#disabled</span><SelectMultiple bind:value={smDisabled} id="disabled" options={smOptions} disabled /></div>
-    </div>
-  </div>
-
-  <div class="s-row">
-    <div class="s-rowname">textarea</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">textarea#default</span><TextArea bind:value={taDefault} id="default" rows={3} /></div>
-      <div class="s-cell"><span class="s-id">textarea#disabled</span><TextArea bind:value={taDisabled} id="disabled" rows={3} disabled /></div>
-    </div>
-  </div>
-
-  <div class="s-row">
-    <div class="s-rowname">number</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">number#default</span><NumberField bind:value={numDefault} id="default" /></div>
-      <div class="s-cell"><span class="s-id">number#disabled</span><NumberField bind:value={numDisabled} id="disabled" disabled /></div>
-      <div class="s-cell"><span class="s-id">number#invalid</span><NumberField bind:value={numInvalid} id="invalid" min={0} max={10} /></div>
-    </div>
-  </div>
-
-  <div class="s-row">
-    <div class="s-rowname">range</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">range#default</span><Range bind:value={rngDefault} id="default" min={0} max={100} step={1} /></div>
-      <div class="s-cell"><span class="s-id">range#disabled</span><Range bind:value={rngDisabled} id="disabled" min={0} max={100} step={1} disabled /></div>
-    </div>
-  </div>
-
-  <div class="s-row">
-    <div class="s-rowname">date</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">date#default</span><DateField bind:value={dtDefault} id="default" /></div>
-      <div class="s-cell"><span class="s-id">date#time</span><DateField type="time" bind:value={dtTime} id="time" /></div>
-      <div class="s-cell"><span class="s-id">date#datetime</span><DateField type="datetime-local" bind:value={dtDatetime} id="datetime" /></div>
-      <div class="s-cell"><span class="s-id">date#month</span><DateField type="month" bind:value={dtMonth} id="month" /></div>
-      <div class="s-cell"><span class="s-id">date#week</span><DateField type="week" bind:value={dtWeek} id="week" /></div>
-      <div class="s-cell"><span class="s-id">date#disabled</span><DateField bind:value={dtDisabled} id="disabled" disabled /></div>
-      <div class="s-cell"><span class="s-id">date#invalid</span><DateField bind:value={dtInvalid} id="invalid" min="2026-01-01" max="2026-12-31" /></div>
-    </div>
-  </div>
-
-  <div class="s-row">
-    <div class="s-rowname">color</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">color#default</span><ColorField bind:value={colDefault} id="default" /></div>
-      <div class="s-cell"><span class="s-id">color#disabled</span><ColorField bind:value={colDisabled} id="disabled" disabled /></div>
-    </div>
-  </div>
-
-  <div class="s-row">
-    <div class="s-rowname">file</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">file#default</span><FileField bind:files={fDefault} id="default" /></div>
-      <div class="s-cell"><span class="s-id">file#multiple</span><FileField bind:files={fMultiple} id="multiple" multiple /></div>
-      <div class="s-cell"><span class="s-id">file#disabled</span><FileField bind:files={fDisabled} id="disabled" disabled /></div>
-    </div>
-  </div>
-
-  <div class="s-section-title">Display</div>
-
-  <div class="s-row">
-    <div class="s-rowname">label</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">label#default</span><Label text="A field caption" id="default" /></div>
-    </div>
-  </div>
-
-  <div class="s-row">
-    <div class="s-rowname">paragraph</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">paragraph#default</span><Paragraph text="A single paragraph of prose, rendered read-only as a text node." id="default" /></div>
-    </div>
-  </div>
-
-  <div class="s-row">
-    <div class="s-rowname">image</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">image#default</span><Img src={imgSrc} alt="sample placeholder" id="default" /></div>
-    </div>
-  </div>
-
-  <div class="s-row">
-    <div class="s-rowname">led</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">led#default</span><Led states={ledStates} state="ON" id="default" /></div>
-      <div class="s-cell"><span class="s-id">led#off</span><Led states={ledStates} state="OFF" id="off" /></div>
-      <div class="s-cell"><span class="s-id">led#pulse</span><Led states={ledStates} state="ERR" pulse id="pulse" /></div>
-      <div class="s-cell"><span class="s-id">led#unknown</span><Led states={ledStates} state="???" id="unknown" /></div>
-    </div>
-  </div>
-
-  <div class="s-row">
-    <div class="s-rowname">link</div>
-    <div class="s-cells">
-      <div class="s-cell"><span class="s-id">link#default</span><Link href="#settings" text="Settings" id="default" /></div>
-      <div class="s-cell"><span class="s-id">link#external</span><Link href="https://xgen.example" text="xgen.example" external ariaLabel="XGen site (opens externally)" id="external" /></div>
-      <div class="s-cell"><span class="s-id">link#disabled</span><Link href="#x" text="Unavailable" disabled id="disabled" /></div>
+<!-- DD · composite -->
+<div class="sampler-panel" class:hidden={activeTab !== 'dd-composite'}>
+  <div class="sampler-body">
+    <div class="s-empty">
+      <strong>No components yet</strong>
+      <span>Composite data-derived components land here (downstream of dd atomics).</span>
     </div>
   </div>
 </div>

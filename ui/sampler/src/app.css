@@ -75,6 +75,52 @@ body {
   color: var(--accent-ink);
 }
 
+/* Tab bar (M-RP3.2): outer class x arity axis. Tool chrome (NOT a sampled .button),
+ * same line as .sampler-seg. Active tab uses the live --accent so it re-themes on swap. */
+.sampler-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px 0;
+  background-color: var(--s1);
+  border-bottom: 1px solid var(--s4);
+}
+.sampler-tabs button {
+  background: var(--s2);
+  color: var(--t2);
+  border: 1px solid var(--s5);
+  border-bottom: 0;
+  border-radius: var(--rad) var(--rad) 0 0;
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sampler-tabs button.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+/* Panels: ALL mounted; inactive hidden via display:none (class:hidden), never {#if}
+ * (mount-preserving — keeps window.__XGEN_DEBUG__ complete for the CDP matrix, D-097). */
+.sampler-panel.hidden { display: none; }
+
+/* Empty-state for the not-yet-populated panels (intentional placeholder, not blank). */
+.s-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  color: var(--t3);
+  font-size: 13px;
+  padding: 12px 0;
+}
+.s-empty strong { color: var(--t2); font-weight: 600; }
+.s-empty code {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  color: var(--t2);
+}
+
 /* Body: stacked semantic sections, each a set of component rows. */
 .sampler-body {
   padding: 20px 16px 60px;

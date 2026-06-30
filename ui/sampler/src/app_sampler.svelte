@@ -36,6 +36,7 @@
   import SelectMultiple from '$core/components/data-independent/select-multiple.svelte';
   import Led from '$core/components/data-independent/led.svelte';
   import Link from '$core/components/data-independent/link.svelte';
+  import StatusIndicator from '$core/components/data-independent/status-indicator.svelte';
 
   // Runtime client<->node skin-swap (D-098): flipping [data-shell] re-aliases --accent*
   // live, so the whole grid re-themes at once. Replaces "run in both real shells".
@@ -287,9 +288,15 @@
 <!-- DI · composite — first occupant: status-indicator (M-RP2.22) -->
 <div class="sampler-panel" class:hidden={activeTab !== 'di-composite'}>
   <div class="sampler-body">
-    <div class="s-empty">
-      <strong>No components yet</strong>
-      <span>Composite data-independent components land here, starting with <code>status-indicator</code> (M-RP2.22).</span>
+    <div class="s-section-title">Composite</div>
+
+    <div class="s-row">
+      <div class="s-rowname">status-indicator</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">status-indicator#default</span><StatusIndicator states={ledStates} state="ON" caption="Connected" id="default" /></div>
+        <div class="s-cell"><span class="s-id">status-indicator#withlink</span><StatusIndicator states={ledStates} state="OFF" caption="Disconnected" linkHref="https://xgen.example/status" linkText="Status page" linkExternal id="withlink" /></div>
+        <div class="s-cell"><span class="s-id">status-indicator#pulse</span><StatusIndicator states={ledStates} state="ERR" pulse caption="Error" linkHref="#logs" linkText="View logs →" id="pulse" /></div>
+      </div>
     </div>
   </div>
 </div>

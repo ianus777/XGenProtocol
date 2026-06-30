@@ -242,8 +242,10 @@ rules = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒"
 - **Defaults the user owns, not locked presets.** The seed is a starting point; once written it is
   the user's list, fully editable/deletable. Consistent with §0 decision 1 (one user-owned list,
   no presets) — the seed is just a non-empty initial value.
-- The seed differs slightly from the sampler demo string (the sampler keeps `:(((` → `🙁🙁🙁` as a
-  multi-char-replace exhibit; the shipped starter pack uses the cleaner `:( → 🙁`).
+- **Sampler mirrors the client (Joe-directed, supersedes the original "deliberately different"
+  note).** The sampler is the canonical component workbench, so it seeds the SAME pack from a
+  literal in `app_sampler.svelte` (D-097: no client config to read). The two seeds are kept in
+  sync by hand — Rust `DEFAULT_SUBSTITUTIONS_SEED` in `app.rs`, TS literal in the sampler.
 
 **Clair:** add the seeded block to the client's first-run `default_config_toml()` (seed-once);
 a unit test that the generated config round-trips through `load_substitutions_section` to the

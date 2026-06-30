@@ -8,6 +8,22 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-440 — sampler unified to the client starter pack (M-RP4.2), Clair (Joe-directed, crosses into the sampler seat): the sampler now seeds the SAME six-pair canonical pack as the client, so the workbench mirrors shipped behaviour; supersedes §4d's "deliberately different" note; static-gated, live morph is Joe's to eye in the running sampler; still staged, NOT closed
+
+**What happened.** Joe's model: the **sampler is the canonical component workbench** where components are built, seen, and tuned in a shared view; client/node UIs are deprecated structure to be rewritten *after* components are sharp. So every component needs its sharp/definitive form **in the sampler**. Symptom that surfaced it: `:(` and `--` didn't morph in the sampler even after the client const gained them (J-438/J-439) — because the sampler holds a **separate** seed (D-097: it's a minimal host with no client config, can't read the Rust const), and that literal was still the old `:((( 🙁🙁🙁` demo. The two seeds were never wired together; nothing about the client change could reach the sampler.
+
+**The fix.** Updated the sampler's seed literal (`ui/sampler/src/app_sampler.svelte`) from the old `--> → | <-- ← | :) 🙂 | <3 ❤️ | :((( 🙁🙁🙁` to the **same canonical pack the client ships**: `--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒`. Also fixed the stale processor-cell placeholder (dropped the retired `=>` token → `type --> <-- :) <3 :( -- to morph`). The two seeds are kept in sync **by hand** (Rust `DEFAULT_SUBSTITUTIONS_SEED` in `app.rs`, TS literal in the sampler) — the alternative (wire the sampler host to read a config file) is the deprecated-UI plumbing Joe explicitly set aside.
+
+**Records reconciled (this change reverses a prior lock, so the old claims had to go).** §4d originally locked the sampler as *deliberately different* (a `:(((` multi-char exhibit); Joe superseded that — both the `app.rs` const doc-comment and the runbook §4d bullet rewritten to "sampler mirrors the client pack". The matrix is unchanged (56) — this is demo *data*, no new cell, no registry change.
+
+**Seat + verify (honest).** The sampler is **Chat's seat** (§0.7: sampler rewires are Chat's, CDP-verified there); this edit was made by Clair at Joe's direct, repeated instruction. Static-gated only — `npx vite build` (sampler) `✓ 134 modules transformed` / `✓ built in 515ms`. The **live morph** (type `--` / `:(` → `‒` / `🙁` in `textarea#processed`) was **not** CDP-driven by me; Joe is running the sampler and can eye it live (Vite HMR re-seeds on reload). A formal sampler-CDP pass remains Chat's loop if wanted.
+
+**Still staged, NOT closed (D-065).** ROADMAP not flipped, task ACTIVE; canonical close (Chat: N-057/D-100/ROADMAP/components/task→COMPLETED) pending Joe's verification.
+
+**Canonical (this work).** `ui/sampler/src/app_sampler.svelte` (seed → canonical pack + placeholder) + `xgen-client/src/app.rs` (const doc-comment: "differs from sampler" → "sampler mirrors") [commit, feat]; this JOURNAL J-440 + `tasks/M_RP4_2_SUBSTITUTIONS.md` (§4d bullet reconciled) [commit, docs]. Joe pushes.
+
+---
+
 ## Entry J-439 — substitution starter pack gains a sixth pair (M-RP4.2 §4d tuning), Clair: `-- ‒` (double-hyphen → figure dash) appended to `DEFAULT_SUBSTITUTIONS_SEED`; const + round-trip test updated together, suite stays green (129); still staged, NOT closed (D-065)
 
 **What happened.** Joe-directed one-pair tuning of the first-run starter pack (J-438): appended `-- ‒` (a double-hyphen `--` → figure dash `‒`, U+2012) so the seed is now six pairs. The const is the single source — `cmd_init` and the round-trip test both ride it — so the change is one literal edit plus the test's expected-pairs vec.

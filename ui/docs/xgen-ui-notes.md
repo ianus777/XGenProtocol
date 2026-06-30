@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.37  
+> Version: 0.38  
 > Date: May 2026  
 > **Last updated**: 2026-06-30  
 > Language: English  
@@ -1236,6 +1236,20 @@ M-RP2.22 closed (J-434). `status-indicator` is the **seventeenth** `core` compon
 **Verify (Chat self-drove, sampler + CDP 9422; real output, Rule 2).** `ids().length===55`; the three aggregate getters (`#default {ON,Connected,hasLink:false}` / `#withlink {OFF,Disconnected,hasLink:true}` / `#pulse {ERR,Error,hasLink:true}`); the child getters present under stable ids (`led#default__led {ON,#22c55e}`, `label#default__label {Connected}`, `link#withlink__link {Status page, external:true}`); link-iff-href (`#default` root holds only `[SPAN.led, LABEL.label]`, no `link#default__link`); root `DIV.status-indicator`; `.status-indicator` + `.status-indicator > .link` in cascade; **combined accent proof** — the link colour swaps gold(`rgb(194,136,64)`)↔blue(`rgb(58,122,176)`) while the led background `rgb(34,197,94)` is identical across shells; screenshot eye-checked; 0 orphans.
 
 *UI-implementation record. No protocol/data implication. The first di composite; founds the composite build pattern (`<div class="type">` root + aggregate-getter / children-self-register / matrix-multiplies accounting). Applies D-096, no amendment. The composite-registration model is the reusable precedent for `password-field`/`color-picker`/`file-field`/`combobox`/`tag-select`/`star-rating` (D-069 promotion-watch at the second composite). Next: the text-processor engine → dd-components.*
+
+### N-055 — Focus is a transient state signal, not brand identity: editable cells lift a neutral border, affordances wear the accent ring
+
+Post-J-434 skin tune (pushed ahead of this record; documented here after the fact). The `:focus-visible` treatment was split off from the brand accent on a **function litmus**.
+
+**Editable cells** — surfaces that *hold* a value the user types or picks (`textfield`, `textarea`, `number`, `date`, `color`, `select`, `select-multiple`) — take a single neutral `border-color: var(--t3)` on `:focus-visible`: one border swap, no shadow ring. The **four validating cells** (`textfield`, `number`, `date`, `select`) escalate that border to `var(--err-bright)` on `:invalid:focus-visible` (`color` + `select-multiple` are always-valued, so they carry no `:invalid` rule).
+
+**Affordances** — controls that *act* rather than hold a value (`button`, `toggle`, `range`, `file`, `link`) — keep the accent-tinted `--focus-ring` box-shadow (`0 0 0 2px var(--s2), 0 0 0 4px var(--accent2, var(--t3))`), so they still flash gold/blue on focus.
+
+**Rationale.** Focus marks *where you are* — a transient interaction state. The accent marks *whose app this is* — a persistent brand fact. Painting every focused field with the accent conflated the two and made a focused text box shout brand. A neutral border-lift reads as "active here"; the accent stays on the things you press. The validating-cell red is the one place focus *should* carry semantic colour — there it is a **state** signal (invalid), not brand.
+
+**Litmus for the next author.** A new editable cell focuses with `--t3` (and `--err-bright` if it validates); a new affordance focuses with `--focus-ring`. Do **not** re-introduce accent focus on a field. `--t3 #8a8880` is a settled neutral-ramp token (with `--t4`/`--t2`/`--t`); only `--err-bright #e64343` is still HMR-tuning (skin.css line 29).
+
+*UI-implementation record. Skin-only — no component or protocol change. PROVISIONAL only on the `--err-bright` value; the principle and the `--t3` choice are settled. Arc-local (D-069 promotion-watch only if the focus-vs-brand split needs to bind beyond skin).*
 
 ---
 

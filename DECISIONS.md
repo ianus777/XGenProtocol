@@ -3929,3 +3929,23 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 **Why a new decision, not a D-099 amendment.** The grammar is arc-local detail (it could live under D-099), but the **single-string TOML home** and the **source-agnostic store as the standing rule-delivery mechanism** are durable, cross-cutting choices every future config-backed component inherits — they earn their own decision. D-099 stays the *engine/taxonomy*; D-100 is the *first user-owned rule source and its delivery contract*.
 
 **Relationship to other decisions:** D-099 (the engine this feeds; unchanged); D-097/D-098 (the sampler seeds a literal because it is a minimal host with no client config — the source duality); D-065 (the richer Tier-2 per-pair-partition UX deferred to M-RP4.3, built when the editor needs it); N-057 (the implementing note).
+
+---
+
+## D-101 — Clean-slate-on-start config discipline (phase-scoped) + the sampler real config-load path
+
+**Date:** 2026-07-01 · **Layer:** binaries (`xgen-client`, `xgen-node`, `xgen-sampler` host) + UI reference library · **Spec ref:** `tasks/M_RP4_4_SAMPLER_CONFIG_LOAD.md`; N-057 (the two-hand-synced-seeds seam this closes). · **Lineage:** refines D-097/D-098 (the minimal host gains a subset-config read/write); **suspends** J-438 seed-once for this phase.
+
+**Decision — clean-slate-on-start (phase-scoped).** During the current UI-development phase, **every binary** (`xgen-client`, `xgen-node`, and the `xgen-sampler` host) **wipes any config file it finds at launch, before reading it, then regenerates from seed**. Config is treated as **ephemeral and deprecatable** while the settings logic is still in development. Crash-safe + self-healing: no binary inherits a stale or another binary's file, and a corrupt config never wedges a launch.
+
+**Interaction with J-438 seed-once (load-bearing — must be findable).** J-438 built `cmd_init` to seed the client's substitution starter pack **once at config-birth, never resurrected after the user clears pairs**. Clean-slate-on-start **suspends** that guarantee for the duration of this phase: because the config is deleted + regenerated from seed every launch, cleared pairs **do** reappear. This is intended now — there is no persistent user-owned settings surface yet, so nothing durable is lost. J-438 seed-once resumes at the exit condition. This interaction is stated at the delete site **in code** AND **here** — a future session finding a vanishing/resurrecting config must reach both the *why* and the *until-when*.
+
+**Exit condition (written retirement).** Clean-slate-on-start is removed when the real client/node UIs are rewritten and settings become **persistent** (a user's edits survive relaunch). At that point: delete-on-start is deleted from all three binaries, and J-438 seed-once becomes real client behaviour again.
+
+**The sampler real config-load path (the positive half).** Config-backed components run in the sampler through the **real** `generate → file → load → command → setRules` chain, not a hand-synced frontend literal — so a component drops into the rewritten client/node UIs with **zero reprogramming**. Fidelity is at the **contract shape, not code reuse** (D-098: the sampler host can't depend on `xgen-client`): the host reimplements a minimal read/write/delete of its config + a `get_substitutions` command; the stable contract is the component interface (`substitutions.setRules(string)`). A **direct-inject literal** stays the documented fallback for components where a real file is impractical.
+
+**Sampler config = subset snippets.** The sampler generates only the sections it needs (e.g. `[substitutions]`), not the whole client/node config — the needed slice of what the real `.exe`s generate.
+
+**Refines D-097/D-098.** The sampler host gains a tiny fs+toml capability for its subset config; still "minimal" (no protocol deps). Closes the two-hand-synced-seeds seam N-057 flagged (the sampler stops carrying a separate frontend literal; it loads from a generated file like the client does). The **seed const** itself remains hand-synced across the client + sampler host until a shared-const crate is justified — explicitly **out of scope** here (a third copy, documented, not resolved).
+
+**Relationship to other decisions:** D-097/D-098 (minimal host — refined, not broken); J-438 (seed-once — suspended this phase); N-057 (the seam this closes); D-100 (the substitution source this arc plumbs through the real path); D-065 (build-when-consumed — the sampler-load path is built now that a config-backed component exists to prove it).

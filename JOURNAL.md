@@ -8,6 +8,22 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-442 — M-RP4.4 design locked + runbook/D-101 authored (Chat): sampler real config-load path + clean-slate-on-start discipline; the two design tensions resolved by Joe (every-binary wipe this phase; sampler config = subset snippets); NOT built — build gated on Joe's explicit go
+
+**What happened.** Design-walked the sampler config-load arc (M-RP4.4) and authored its deliverables: the runbook (`tasks/M_RP4_4_SAMPLER_CONFIG_LOAD.md`, PENDING) + **D-101**. No code — the build is gated on Joe's explicit go.
+
+**The principle (Joe-locked).** Config-backed components run in the sampler through the **real** generate→file→load→command→setRules chain (contract-shape fidelity, not code reuse — D-098), so a component drops into the rewritten client/node UIs with zero reprogramming. First instance: substitutions — closes the N-057 two-hand-synced-seeds literal seam. Sets the precedent for every future config-backed component.
+
+**Two tensions resolved by Joe.** (1) Clean-slate-on-start applies to **every binary** (client, node, sampler) this phase — config is ephemeral/deprecatable while the settings logic is in development; this **suspends J-438 seed-once** for the phase (cleared pairs reappear on relaunch — intended now, resumes at the exit condition; D-101 carries the *why* + *until-when* at the delete site and in DECISIONS). (2) The sampler config = **subset snippets** (only the sections it needs, e.g. `[substitutions]`), not the whole client/node config.
+
+**Scope note.** The arc grew: it now touches `xgen-client` + `xgen-node` Rust (delete-on-start) — Clair's domain — alongside the sampler host (Clair) + the sampler frontend invoke swap + CDP (Chat).
+
+**Next.** Joe's go → build M-RP4.4 (then N-058 + ROADMAP ✅ at close) → M-RP4.3 (editor + write-back) → M-RP4.1 (kind-3 clamp).
+
+**Canonical (this work).** `tasks/M_RP4_4_SAMPLER_CONFIG_LOAD.md` (new, PENDING) + `DECISIONS.md` (D-101) + this JOURNAL J-442 + `CLAUDE.md` (PLAY next-active pointer) [commit, docs]. Joe pushes.
+
+---
+
 ## Entry J-441 — M-RP4.2 canonical close (Chat): user-owned substitution pairs shipped + verified; N-057 + D-100 written, ROADMAP ✅ / M-RP4.3 🟡, `configs.ts` deleted, task → COMPLETED. The belated M-RP4.0 docs residue landed first (commit 1), then feat (configs.ts delete) + docs (the records)
 
 **What happened.** Closed M-RP4.2 (user-owned substitution pairs). Both halves had already shipped and been verified: Chat's `$common` `parseRules` + source-agnostic `substitutions` store + sampler rewire (CDP-verified, J-436) and Clair's Rust `SubstitutionsSection`/`load_substitutions_section` + `get_substitutions` Tauri command + client boot hydration + six-pair first-run seed (J-437→J-440; lib 129 green; Joe-verified live). This entry is the canonical close — the records owed per §0 decision 7 / D-074.

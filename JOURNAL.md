@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-444 — M-RP4.4 Chat half + CLOSE: `app_sampler.svelte` swapped to the real `get_substitutions` load path (frontend literal retired) + the sampler CDP §5 pass (two fresh launches, real output) — M-RP4.4 CLOSED
+
+**What happened.** Completed the **Chat half** of M-RP4.4 (runbook §4a/§5/§6) and **closed the milestone**. The sampler frontend stops seeding a literal and hydrates the `substitutions` store from the sampler host's real `get_substitutions` command (Clair's J-443 Rust half) — the full generate→file→load→command→setRules chain now runs live in the workbench. CDP-verified across two fresh launches; ROADMAP flipped, task COMPLETED.
+
+**Frontend dep surfaced first (Rule 6).** The invoke swap needs `@tauri-apps/api` — the sampler frontend never called `invoke` (it seeded a literal), so it wasn't a dependency. Surfaced to Joe rather than adding silently; go given. Added `"@tauri-apps/api": "^2"` to `ui/sampler/package.json` (matching the client exactly) + `npm install` (added 1 package). The Rust host stays minimal (D-098 unaffected — this is a frontend dep).
+
+**The swap (`app_sampler.svelte`).** Removed the module-scope `substitutions.setRules('--> → | …')` literal + its comment; made `onMount` async — `applyShell('client')` then `try { const { invoke } = await import('@tauri-apps/api/core'); substitutions.setRules(await invoke('get_substitutions')); } catch (_) {}` (outside-Tauri no-op — the plain-browser Vite preview leaves the store empty; the morph's canonical home is the Tauri window, D-098). Mirrors `app_client.svelte` (J-437). The seed now lands *after* mount, so the processor-host cell starts with empty rules and re-attaches when `setRules` resolves (source-agnostic store + attachment lifecycle, D-099). Static gate: `vite build` ✓ **137 modules** (was 122; +the `@tauri-apps/api/core` dynamic chunk).
+
+**Verify — CDP §5 (Chat self-drove, sampler + CDP 9422, real output, Rule 2).** exe_dir = `C:\cargo-targets\XGenProtocol\debug`; config = `debug\xgen-sampler_config.toml`.
+- **Launch 1 (config absent → first-run generation).** The host generated the config on start — subset only: `[substitutions] rules = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒"`. `ids().length===56`. Live morph from the loaded rules: input `x --> y :) z -- w <3 q <-- r :(` → `x → y 🙂 z ‒ w ❤️ q ← r 🙁` (all six seed pairs). Registry `textarea#processed` → `{"value":"x → y 🙂 z ‒ w ❤️ q ← r 🙁"}` — the morphed value reached `bind:value`, not just the DOM. Teardown 0 orphans.
+- **Launch 2 (delete-on-start).** Pre-seeded a **sentinel** config (`rules = "zzz SENTINEL-WAS-HERE | qqq WIPED-PROOF"`); relaunched → the file was **wiped + regenerated to the seed** (sentinel gone). Live store reflected the seed, not the sentinel: input `zzz --> qqq :) end` → `zzz → qqq 🙂 end` (seed pairs morph; `zzz`/`qqq` stay literal — the sentinel's pair is absent). Teardown 0 orphans.
+
+**What this closes.** The N-057 frontend-literal seam is closed — the sampler loads, it no longer seeds (N-058). The seed const still lives in two hand-synced Rust places (client `app.rs` + sampler host `main.rs`); a shared-const crate collapsing them is out of scope (documented). D-101's clean-slate-on-start is now proven live end-to-end in the sampler (the client/node halves were Rust-tested in J-443).
+
+**State.** M-RP4.4 ✅ CLOSED. ROADMAP v4.13, ui-notes v0.41 (N-058), task COMPLETED. **Next:** M-RP4.3 (in-app TOML editor + write-back) → M-RP4.1 (kind-3 number-clamp).
+
+---
+
 ## Entry J-443 — M-RP4.4 Rust half (Clair): clean-slate-on-start wired into all three binaries (client + node + sampler host) + the sampler subset-config real load path (subset-gen + minimal loader + `get_substitutions`); +7 Rust tests (client 129→131, node 306→308, sampler +3); still staged, NOT closed — Chat's `app_sampler.svelte` invoke swap + the sampler CDP pass are the open handoff (D-065)
 
 **What happened.** Built the **Clair half** of M-RP4.4 (runbook §3/§4, Joe-locked design + D-101): the phase-scoped **clean-slate-on-start** discipline in all three binaries, plus the sampler host's **real config-load path** (the positive half of D-101). No frontend, no CDP — that's Chat's half, and the milestone stays **staged** (ROADMAP not flipped, task ACTIVE) until it + the sampler CDP pass land.

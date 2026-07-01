@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.40  
+> Version: 0.41  
 > Date: May 2026  
 > **Last updated**: 2026-07-01  
 > Language: English  
@@ -1295,6 +1295,24 @@ M-RP4.2 closed (J-441). Executes decision 9 of the M-RP4.0 runbook: the kind-1 t
 **Tier-2 richer UX deferred.** The per-pair partition + inline warnings (a bad pair drops, the rest survive, with feedback) is M-RP4.3 — the in-app editor needs it; the file-edit read path fails safe whole (D-065).
 
 *UI-implementation record. No protocol/data implication. Founds the source-agnostic rule store + the ` | `/first-space grammar; retires `configs.ts` presets as the live source. Crystallises into **D-100**. Next: M-RP4.4 (sampler real config-load path — closes the two-hand-synced-seeds seam) → M-RP4.3 (editor + write-back) → M-RP4.1 (kind-3 clamp).*
+
+### N-058 — sampler real config-load path (M-RP4.4): the sampler loads substitutions through the real generate→file→load→command chain (not a frontend literal); clean-slate-on-start; the N-057 frontend-literal seam closed
+
+M-RP4.4 closed (J-444). Executes the runbook + **D-101**. The sampler stops seeding a frontend literal and instead runs the **real config-load chain** — the same shape the client uses — so a config-backed component drops into the rewritten client/node UIs with zero reprogramming.
+
+**The chain (contract-shape parity, NOT code reuse — D-098).** On start the sampler host writes a **subset** config (`[substitutions] rules` only, from a seed const) to `xgen-sampler_config.toml` in exe_dir, exposes a `get_substitutions` Tauri command, and the frontend hydrates the `substitutions` store from it on `onMount` (mirroring `app_client.svelte` J-437: `invoke('get_substitutions') → setRules`). The host reimplements a minimal read/write of its config (Clair, J-443) — it can't depend on `xgen-client` (D-098); the stable contract is the component interface (`setRules(string)`), not the plumbing.
+
+**Clean-slate-on-start (D-101, phase-scoped).** Every binary (client, node, sampler host) wipes any found config at launch, regenerates from seed, then reads — config is ephemeral this phase; this suspends J-438 seed-once for the phase (see D-101).
+
+**What this closes, what stays open (the seed seam).** N-057 flagged two hand-synced seeds: the Rust `DEFAULT_SUBSTITUTIONS_SEED` + the **TS literal** in `app_sampler.svelte`. M-RP4.4 **removes the frontend literal** — the sampler loads, it no longer seeds. But the sampler host now carries its **own** Rust seed const (J-443), hand-synced with the client's, so the seam **moves** (frontend-literal → two Rust consts) rather than fully closing. A shared-const crate collapsing the two Rust consts is explicitly **out of scope** (a documented third-copy seam, deferred until justified).
+
+**Async hydration reactivity (verified).** The seed now lands *after* mount (`await invoke`), so the `textarea#processed` cell starts with empty rules and re-attaches when `setRules` resolves — the source-agnostic store + attachment lifecycle (D-099/J-436) carries the post-mount update. CDP-confirmed live.
+
+**Frontend dep.** `app_sampler.svelte` now calls `invoke`, so `@tauri-apps/api: ^2` was added to `ui/sampler/package.json` (matching the client). The Rust host stays minimal (D-098 unaffected).
+
+**Verify (Chat self-drove, sampler + CDP 9422, two fresh launches; real output, Rule 2).** Launch 1 (config absent): the host generated `xgen-sampler_config.toml` in exe_dir with the seed (subset — `[substitutions]` only); `ids().length===56`; live morph from the loaded rules — input `x --> y :) z -- w <3 q <-- r :(` → `x → y 🙂 z ‒ w ❤️ q ← r 🙁` (all six seed pairs), and the registry `textarea#processed` `{value}` carried the morphed string (bind:value synced, not just the DOM). Launch 2 (delete-on-start): pre-seeded a **sentinel** config (`zzz … | qqq …`), relaunched → the file was **wiped + regenerated to the seed**, and the live store reflected the seed not the sentinel — input `zzz --> qqq :) end` → `zzz → qqq 🙂 end` (seed pairs morph, sentinel tokens stay literal). Teardown 0 orphans both times.
+
+*UI-implementation record. Closes the M-RP4.2 frontend-literal seam (N-057); the real config-load path is now the sampler standard for config-backed components. The seed const is still hand-synced across client + sampler-host Rust (shared-const crate out of scope). Next: M-RP4.3 (in-app TOML editor + write-back) → M-RP4.1 (kind-3 number-clamp).*
 
 ---
 

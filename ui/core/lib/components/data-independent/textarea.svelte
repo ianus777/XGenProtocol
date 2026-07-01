@@ -21,14 +21,13 @@
   // `maxlength` is deliberately NOT added (orthogonal native-state addition, out of
   // scope — mirrors textfield).
   //
-  // PROCESSOR-READY, NOT processor-bearing. The future EDIT-side text processor (text
-  // morphs / emoji-combo / pattern formatting, re-run as the user types) lives ONCE in
-  // `common` as a `use:processor={config}` action shared with `textfield`/`number` —
-  // the edit-side counterpart to paragraph's render-side `use:render`. A consumer simply
-  // layers it on (`use:processor={config}`); this component neither contains nor blocks
-  // it. NOT built here: the atomic is function-complete without it, and the N-038 track
-  // order builds the engine in its own arc AFTER all atomic di, with every consumer in
-  // hand (D-065 — no empty machinery). This is the reserved insertion point.
+  // PROCESSOR-HOST (M-RP4.0 / N-056). The EDIT-side text processor (kind 1 transformer:
+  // text morphs / emoji-combo, re-run as the user types) ships in `common` as a forwarded
+  // Svelte 5 ATTACHMENT, NOT a `use:` action — a consumer can't forward a `use:` onto an
+  // atomic's internal element, but it CAN spread an attachment. So this atomic forwards
+  // `{...rest}` onto <textarea>; a consumer lands it via `<TextArea {...processor(rules)} … />`.
+  // The atomic carries NO processing logic — only the generic spread (ready, not containing —
+  // D-065). number is the second host (M-RP4.1); see M-RP4.0 / N-056.
   //
   // AUTO-GROW is a future SKIN shape, not built. The single-engine WebView2/Chromium
   // target affords a pure-CSS path (`field-sizing: content`) — reserved as a skin shape
@@ -50,6 +49,7 @@
     rows = 3,
     id,
     name,
+    ...rest
   }: {
     value?: string;
     placeholder?: string;
@@ -58,6 +58,9 @@
     rows?: number;
     id?: string;
     name?: string;
+    // Processor-host (M-RP4.0): a forwarded attachment (+ any extra native attrs) lands here
+    // and is spread onto <textarea>. The index signature covers the symbol-keyed attachment.
+    [key: string]: unknown;
   } = $props();
 
   // N-024 opt-in is one greppable line. $state.snapshot de-proxies the value so CDP's
@@ -67,6 +70,7 @@
 </script>
 
 <textarea
+  {...rest}
   {placeholder}
   {disabled}
   {readonly}

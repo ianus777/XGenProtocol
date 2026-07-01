@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.38  
+> Version: 0.39  
 > Date: May 2026  
 > **Last updated**: 2026-06-30  
 > Language: English  
@@ -1250,6 +1250,35 @@ Post-J-434 skin tune (pushed ahead of this record; documented here after the fac
 **Litmus for the next author.** A new editable cell focuses with `--t3` (and `--err-bright` if it validates); a new affordance focuses with `--focus-ring`. Do **not** re-introduce accent focus on a field. `--t3 #8a8880` is a settled neutral-ramp token (with `--t4`/`--t2`/`--t`); only `--err-bright #e64343` is still HMR-tuning (skin.css line 29).
 
 *UI-implementation record. Skin-only — no component or protocol change. PROVISIONAL only on the `--err-bright` value; the principle and the `--t3` choice are settled. Arc-local (D-069 promotion-watch only if the focus-vs-brand split needs to bind beyond skin).*
+
+### N-056 — text-processor engine (M-RP4.0): the forwarded-attachment edit seam; the four-kind taxonomy on two engines; kind 1 transformer built, kinds 2/3/4 codified (→ D-099)
+
+M-RP4.0 closed (J-435). Discharges the longest-standing reserved UI seam (N-029 → N-032 EDIT-vs-RENDER → N-038 → N-040 textarea reserve), exactly as D-065 intended: built when a consumer is in hand, codified so growth is bounded. The text-processor is **not one engine** — the design walk resolved it into a **four-kind taxonomy on two engines**, and set the honest scope **build kind 1, codify all four**.
+
+**The four-kind taxonomy (the codified architecture — canonical in D-099).**
+
+| # | kind | signature | model `T` | engine / side | built? | first consumer |
+|---|---|---|---|---|---|---|
+| 1 | transformer | `string → string` (live, on `input`) | none | **edit** (the M-RP4.0 attachment) | **BUILT** | `textarea` (`arrowMorph`/`emojiMorph`) |
+| 2 | converter | `string ↔ T` (`toString`/`fromString`) | number · Date · phone | **both** (the bridge: `fromString` edit, `toString` render) | reserved | number / date / phone field |
+| 3 | filter / guard | `T → T` (idempotent) | the field's own `T` | side-agnostic | reserved (M-RP4.1) | `number` min/max clamp |
+| 4 | renderer | `string → safeHTML` | none | **render** (the deferred `use:render`) | reserved | `paragraph` inline marks |
+
+Two facts travel with the table: **(a) kind ⟂ engine** — four kinds, two engines (edit attachment / render `use:render`), and **kind 2 is the bridge** (its two methods sit on opposite sides; native `type=number` can't show a `toString`, so kind 2 needs a *decoupled* text field, `toString` may delegate to `Intl`); **(b) scope** — codify four, build one (D-065).
+
+**The edit seam is a forwarded *attachment*, not a `use:` action (P-1a).** This is the first time the library forwards behaviour from a consumer onto an atomic's internal element without the atomic carrying the logic. A `use:` action only attaches to elements in the component that writes them — a consumer cannot forward one onto an atomic's inner `<textarea>`. So the engine ships as a Svelte 5 **attachment**: `processor(rules)` returns a `createAttachmentKey()`-keyed prop; the atomic spreads `{...rest}` onto its root, so `<Textarea {...processor(x)} />` lands the attachment on the inner element. The atomic carries **no** processing logic — only the generic spread (ready, not containing — D-065). Reactivity = the attachment lifecycle (new `rules` → new object → Svelte cleans up + re-attaches). This resolves the old N-029/N-040 "a consumer simply layers it on" framing, which had assumed `use:` — superseded here.
+
+**Three files (`ui/common/lib/components/processor/`).** `transform.ts` — the pure, DOM-free, framework-free core (the `logic.ts` posture): `TransformRule {find, replace, reversible?}` + `TransformConfig` + `applyRules` (sequential, literal replace-all via split/join, regex-free, total) + `assertSafeRules` + `ProcessorRuleError`. `configs.ts` — named Tier-1 configs `arrowMorph` (`-->→→`, `<--→←`, `=>→⇒`) / `emojiMorph`. `processor.ts` — the **one** framework touch (`svelte/attachments`): the attachment, the caret-preserving value sink, the re-entrancy guard, and a DEV `window.__XGEN_PROC__` pure-core hook (mirrors the envelope `import.meta.env.DEV` idiom, DCE'd in prod).
+
+**Two provenance tiers gate safety (P-3).** Tier-1 (trusted `common` code): full power, gate bypassed. Tier-2 (user/settings data): **serializable literal `{find, replace}` pairs only** — caps (count, length) + a **convergence lint** (reject a pair whose `replace` re-contains its `find`, because the engine re-runs the whole value each keystroke, so `a`→`aa` would loop). Untrusted regex is not representable (literal strings only); a regex rule-kind + its ReDoS guard are reserved for an explicit advanced opt-in. The literal-only subset is what makes runtime-editable rules safe. Settings-backed Tier-2 rules persist as a section of the app's existing global settings file (reserved, **no bespoke rules file**); the engine stays source-agnostic.
+
+**Caret-preserving value sink (P-4) — the build's hard bit.** On `input`, recompute; if changed, set `node.value`, restore the caret to the **transformed-prefix length** (`applyRules(before.slice(0, caret)).length` = old caret + net length-delta of replacements before it), then dispatch a re-entrancy-guarded synthetic `input` so Svelte's `bind:value` syncs. Holds for the dominant case (the user completes a token *at* the caret, so it sits wholly in the prefix); a token straddling the caret is the documented limitation. **CDP cannot drive `:focus`+caret**, so caret behaviour is the one item verified by eyeball/screenshot, not asserted — recorded honestly (D-065).
+
+**Forward-clean naming.** Kind 1's type is `TransformRule`; the future union `ProcessorRule = TransformRule | ConvertRule | ClampRule | RenderRule` is documented in D-099 but **only `TransformRule` exists in code**, so the namespace stays clean when kinds 2/3/4 land. `TransformRule.reversible` is **declared, not implemented** (reserved — no un-morph path built).
+
+**Verify (Chat self-drove, sampler + CDP 9422, fresh launch; real output, Rule 2).** `ids().length===56` (55→56; the attachment adds no registry entry — the host `textarea#processed` is the one id). Transform + binding-sync: set `"a --> b => c"`, dispatch `input`, tick, read — DOM `"a → b ⇒ c"` AND registry `{value:"a → b ⇒ c"}` (the synthetic input synced `bind:value`, not just the DOM). Pure core via the DEV hook: `applyRules("-->", …)==="→"`, sequential `"a --> b => c <-- d"`→`"a → b ⇒ c ← d"`, no-op `"plain text"` unchanged. Provenance guard: `assertSafeRules([{find:"x",replace:"xx"}],{trusted:false})` **throws** `ProcessorRuleError` (convergence), `{trusted:true}` **passes**, `arrowMorph {trusted:false}` **passes** (convergent literals). No-op safety: a token-free value round-trips with exactly **1** input event (no spurious synthetic dispatch). Screenshot: `#processed` renders `1 → 2 ← 3 ⇒ 4`. **Negative control (recorded honestly):** the sibling `textarea#default` — no processor attached — held externally-typed `:) -->` **un-morphed**, proving the attachment is scoped to the one cell and does not leak onto sibling textareas. Teardown `0 orphans`.
+
+*UI-implementation record. No protocol/data implication. Founds the forwarded-attachment edit seam + the two-engines/four-kinds mental model + the two-tier provenance subset. Engine is `common` infra (no catalogue row); `textarea` is the first processor-host. Crystallises into **D-099** (canonical taxonomy). Next: M-RP4.1 (kind-3 number-clamp, on `change`) → kind-2 converter field (decoupled text field; `Intl`) → kind-4 `use:render` (deferred) → dd-components.*
 
 ---
 

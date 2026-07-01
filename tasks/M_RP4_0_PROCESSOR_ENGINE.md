@@ -1,6 +1,6 @@
 # M-RP4.0 — text-processor engine: the four-kind taxonomy (codified) + kind-1 transformer built, `textarea` proving consumer
 
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.1  
 > Date: Jun 2026  
 > **Last updated**: 2026-06-30  
@@ -292,20 +292,20 @@ git push
 
 ## 9. Definition of Done
 
-- [ ] `transform.ts` — `TransformRule` (with declared-not-implemented `reversible`); `applyRules`
+- [x] `transform.ts` — `TransformRule` (with declared-not-implemented `reversible`); `applyRules`
       (sequential, literal replace-all) + `assertSafeRules` (Tier-2 caps + convergence lint); pure,
       framework-free, `applyRules` total.
-- [ ] `configs.ts` — `arrowMorph` + `emojiMorph` (Tier-1, convergent).
-- [ ] `processor.ts` — forwarded attachment (`createAttachmentKey`); caret-preserving value sink;
+- [x] `configs.ts` — `arrowMorph` + `emojiMorph` (Tier-1, convergent).
+- [x] `processor.ts` — forwarded attachment (`createAttachmentKey`); caret-preserving value sink;
       re-entrancy-guarded synthetic `input`; validates at attach; DEV `window.__XGEN_PROC__` hook.
-- [ ] `textarea.svelte` — one-line `{...rest}` spread on `<textarea>`; no processor import/logic; header note
+- [x] `textarea.svelte` — one-line `{...rest}` spread on `<textarea>`; no processor import/logic; header note
       updated; `bind:value`/`use:envelope`/explicit attrs unshadowed.
-- [ ] Sampler `textarea#processed` cell (DI·atomic) with `processor(arrowMorph,{trusted:true})`; matrix 55→56.
-- [ ] CDP §6 run in the sampler — actual output captured: count 56, transform+binding-sync, pure-core via
+- [x] Sampler `textarea#processed` cell (DI·atomic) with `processor(arrowMorph,{trusted:true})`; matrix 55→56.
+- [x] CDP §6 run in the sampler — actual output captured: count 56, transform+binding-sync, pure-core via
       DEV hook, the guard outcomes, no-op safety, screenshot caret eye-check.
-- [ ] N-056 (incl. the §0.1 four-kind table) + D-099 (the canonical taxonomy) written; ROADMAP M-RP4 arc
+- [x] N-056 (incl. the §0.1 four-kind table) + D-099 (the canonical taxonomy) written; ROADMAP M-RP4 arc
       opened (4.0 ✅) + CLAUDE same-commit; J-435 (real CDP output).
-- [ ] Codify-four / build-one honoured: kinds 2/3/4 are records-only (no runtime, no stubs); only kind 1 built.
-- [ ] Task Status → COMPLETED.
+- [x] Codify-four / build-one honoured: kinds 2/3/4 are records-only (no runtime, no stubs); only kind 1 built.
+- [x] Task Status → COMPLETED.
 
 (`Status: COMPLETED` is the real signal — no "commit pushed" checklist item.)

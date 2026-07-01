@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-27  
+> **Last updated:** 2026-06-30  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -3883,3 +3883,29 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 **Constraints.** (1) No retroactive rewrite — archived content is verbatim; only its container's Status reads ARCHIVED. (2) Forward pointer mandatory — the live file names its archive sibling so a session can reach history on demand. (3) D-074 atomicity holds — an archiving move and its canonical-record updates travel in one commit. (4) The live head is the only PLAY block a fresh session must read on open; deeper history is opt-in via the pointer.
 
 **First exercised:** the documentation-optimization phase (J-391) — CLAUDE.md's ~2,200-line superseded PLAY stack lifted into `CLAUDE_HISTORY.md` (ARCHIVED). Subsequent doc-opt sub-arcs apply the same pattern to `tasks/` (DO-2); it was applied to `JOURNAL.md` at DO-5 (J-396) — J-375 and older (358 entries) relocated to `JOURNAL_ARCHIVE.md` (ARCHIVED), live window J-395 … J-376.
+
+---
+
+## D-099 — Text-processor architecture: two engines × four rule-kinds; build kind 1, codify all four
+
+**Date:** 2026-06-30 · **Layer:** UI reference library (`$common` substrate) · **Spec ref:** `tasks/M_RP4_0_PROCESSOR_ENGINE.md` (v1.1, design-locked); N-056; consumers reserved since N-029/N-032/N-038/N-040. · **Lineage:** discharges the D-065 reserved-seam (no empty machinery); reuses the N-024 DEV-hook idiom.
+
+**Decision.** The UI text-processor is **not one engine**. It is **two engines × four rule-kinds**, orthogonal:
+
+- **Two engines (by side):** an **edit-side** engine (a forwarded Svelte 5 *attachment* on an input/textarea, with the caret/re-entrancy plumbing) and a **render-side** engine (the deferred `use:render`, with the allowlist + sanitiser). The markup/sanitiser sink is **not** built this arc.
+- **Four rule-kinds (the canonical taxonomy):** **1 transformer** `string→string` (live on `input`); **2 converter** `string↔T` (`toString`/`fromString`); **3 filter/guard** `T→T` (idempotent, on `change`/blur); **4 renderer** `string→safeHTML`. The §0.1 table in the runbook (mirrored in N-056) is the canonical reference.
+- **kind ⟂ engine; kind 2 is the bridge** — its `fromString`/mask runs edit-side, its `toString`/format render-side. Never read as "four engines."
+
+**P-1a — the edit seam is a forwarded attachment, not a `use:` action.** A `use:` action attaches only to elements in the component that writes them, so a consumer cannot forward one onto an atomic's internal element. The engine therefore ships as an attachment (`processor(rules)` → `createAttachmentKey()`-keyed prop); the atomic spreads `{...rest}` onto its root and carries **no** processing logic. The consumer lands it via `<Textarea {...processor(rules)} />`.
+
+**P-2 — pure core split from the wrapper.** `transform.ts` (`string + rules → string`, DOM-free, framework-free — the `logic.ts` posture) is the kind-1 core; the render-side engine reuses the *idea*, not this file.
+
+**P-3 — two provenance tiers.** **Tier-1** (trusted `common` code configs): full power. **Tier-2** (user/settings data): **serializable literal `{find, replace}` pairs only** — caps (count, length) + a **convergence lint** (reject a pair whose `replace` re-contains its `find`; the engine re-runs the whole value each keystroke, so it would loop). Untrusted **regex is rejected** (not representable as a literal pair); a regex rule-kind + its ReDoS guard are reserved behind an explicit advanced opt-in. Tier-2 rules persist as a section of the app's existing global settings file (reserved) — **no bespoke rules file**; the engine stays source-agnostic.
+
+**P-4 — caret-preserving value sink.** On `input`: recompute; if changed, write `node.value`, restore the caret to the transformed-prefix length (= old caret + net length-delta of replacements before it), then dispatch a re-entrancy-guarded synthetic `input` so `bind:value` syncs.
+
+**Scope (D-065 honest): build kind 1, codify all four.** Kind 1 (transformer) + the `textarea` host are **built** (M-RP4.0). Kinds 2/3/4 are **records-only** — declared in this taxonomy with named reserved consumers (kind 2 → number/date/phone field, needs a decoupled text field, `toString` may delegate to `Intl`; kind 3 → `number` min/max clamp, M-RP4.1; kind 4 → `paragraph` inline marks, the `use:render` arc) — **no runtime, no stubs**. **Forward-clean naming:** the kind-1 type is `TransformRule`; the future union `ProcessorRule = TransformRule | ConvertRule | ClampRule | RenderRule` is documented here but **not declared in code** until those kinds land. `TransformRule.reversible` is declared, not implemented.
+
+**Why.** Founds three things: (a) the edit seam is a forwarded attachment — the first time the library forwards behaviour from a consumer onto an atomic's inner element without the atomic carrying logic (the resolution of "a consumer simply layers it on", which `use:` could not satisfy); (b) the durable mental model is *two engines, four kinds, kind 2 the bridge*; (c) provenance tiers gate safety — the literal-only Tier-2 subset is what makes runtime-editable rules safe (literals can't ReDoS; the convergence lint stops the one loop a literal can cause). It discharges the longest-standing reserved UI seam (N-029) exactly as D-065 intended: built when a consumer is in hand, codified so growth is bounded.
+
+**Relationship to other decisions:** D-065 (built-when-consumed / no empty machinery — the build/codify line is D-065 applied); D-095/D-097 (`$common` substrate / sampler test-bed — the engine is `common` infra, no catalogue row; verified in the sampler); N-056 (the implementing note + the taxonomy table). Arc-local kinds-2/3/4 details stay in the task doc/N-056 until built (D-069).

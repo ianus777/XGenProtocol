@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-06-30  
+> **Last updated:** 2026-07-01  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -3909,3 +3909,23 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 **Why.** Founds three things: (a) the edit seam is a forwarded attachment — the first time the library forwards behaviour from a consumer onto an atomic's inner element without the atomic carrying logic (the resolution of "a consumer simply layers it on", which `use:` could not satisfy); (b) the durable mental model is *two engines, four kinds, kind 2 the bridge*; (c) provenance tiers gate safety — the literal-only Tier-2 subset is what makes runtime-editable rules safe (literals can't ReDoS; the convergence lint stops the one loop a literal can cause). It discharges the longest-standing reserved UI seam (N-029) exactly as D-065 intended: built when a consumer is in hand, codified so growth is bounded.
 
 **Relationship to other decisions:** D-065 (built-when-consumed / no empty machinery — the build/codify line is D-065 applied); D-095/D-097 (`$common` substrate / sampler test-bed — the engine is `common` infra, no catalogue row; verified in the sampler); N-056 (the implementing note + the taxonomy table). Arc-local kinds-2/3/4 details stay in the task doc/N-056 until built (D-069).
+
+---
+
+## D-100 — Substitution pairs: the ` | `/first-space grammar, a single-string TOML home, and a source-agnostic rule store
+
+**Date:** 2026-07-01 · **Layer:** UI reference library (`$common` substrate) + `xgen-client` config · **Spec ref:** `tasks/M_RP4_2_SUBSTITUTIONS.md` (v0.1); N-057; executes decision 9 of the M-RP4.0 runbook. · **Lineage:** extends D-099 (the kind-1 transformer engine) with its first user-owned rule source; the engine itself is unchanged.
+
+**Decision.** The kind-1 transformer's rules come from **one user-owned list of `{find, replace}` pairs**, not named code presets. Three parts:
+
+- **Grammar (locked, literal, regex-free).** The whole list is one string; pairs separated by the literal **` | `** (space-pipe-space); within a pair, split on the **first space** → `find` = before, `replace` = the rest. `find` = any run with no whitespace; `replace` = any string (multi-char, emoji, internal spaces, a lone `|`). The only forbidden token substring is ` | ` itself; blank pairs are skipped. The simplest grammar that survives the actual tokens (`-->`, `<--`, `:)`, `|`) without regex — the literal engine stays literal.
+- **TOML home = a single string.** A `[substitutions]` section in `xgen-client_config.toml` with ONE string field `rules`, so it mirrors the future one-textarea editor 1:1 (M-RP4.3). NOT a TOML array — a single string, parsed by the UI. The Rust side (`SubstitutionsSection` / `load_substitutions_section`, the `[sync]` precedent) carries the raw string **verbatim**; all grammar parsing happens in the Svelte store (the engine stays source-agnostic).
+- **Source-agnostic store (`$common`).** `parseRules(text) → TransformConfig` (pure, next to `applyRules`) + a reactive `substitutions` store whose `setRules(text)` parses, runs `assertSafeRules({trusted:false})`, and fails safe (empty + DEV warn) on rejection. The store decouples *where rules come from* (client TOML via a Tauri command / sampler literal / future editor) from *who consumes them* (every processor-host). This makes D-099 P-3 (source-agnostic engine) concrete.
+
+**Provenance = Tier-2 for config data.** Config-file rules are user data → the caps + convergence lint (D-099 P-3) actually protect the user from a self-authored looping pair (e.g. `a aa`). `configs.ts` (the `arrowMorph`/`emojiMorph` presets) is **retired as the live source and deleted** — it was sample data, never architecture (D-099/N-056).
+
+**First-run seed (J-438, Joe-locked).** A fresh client config ships a six-pair starter pack (`--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒`), seeded **once at config-birth** (`cmd_init`), never resurrected after the user clears it. The seed lives hand-synced in two places (Rust `DEFAULT_SUBSTITUTIONS_SEED` + the sampler TS literal) — a documented seam closed by **M-RP4.4** (the sampler real config-load arc).
+
+**Why a new decision, not a D-099 amendment.** The grammar is arc-local detail (it could live under D-099), but the **single-string TOML home** and the **source-agnostic store as the standing rule-delivery mechanism** are durable, cross-cutting choices every future config-backed component inherits — they earn their own decision. D-099 stays the *engine/taxonomy*; D-100 is the *first user-owned rule source and its delivery contract*.
+
+**Relationship to other decisions:** D-099 (the engine this feeds; unchanged); D-097/D-098 (the sampler seeds a literal because it is a minimal host with no client config — the source duality); D-065 (the richer Tier-2 per-pair-partition UX deferred to M-RP4.3, built when the editor needs it); N-057 (the implementing note).

@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-441 — M-RP4.2 canonical close (Chat): user-owned substitution pairs shipped + verified; N-057 + D-100 written, ROADMAP ✅ / M-RP4.3 🟡, `configs.ts` deleted, task → COMPLETED. The belated M-RP4.0 docs residue landed first (commit 1), then feat (configs.ts delete) + docs (the records)
+
+**What happened.** Closed M-RP4.2 (user-owned substitution pairs). Both halves had already shipped and been verified: Chat's `$common` `parseRules` + source-agnostic `substitutions` store + sampler rewire (CDP-verified, J-436) and Clair's Rust `SubstitutionsSection`/`load_substitutions_section` + `get_substitutions` Tauri command + client boot hydration + six-pair first-run seed (J-437→J-440; lib 129 green; Joe-verified live). This entry is the canonical close — the records owed per §0 decision 7 / D-074.
+
+**Tree reconciled first (JOB 0).** Seven uncommitted files were identified as the belated second half of the J-435 M-RP4.0 close (its feat + JOURNAL J-435 + CLAUDE committed at J-435; DECISIONS D-099, ROADMAP, N-056, components, the M_RP4_0 task, `textarea.svelte` host, and `configs.ts` never committed). Landed as a standalone **belated-M-RP4.0-docs commit** (commit 1) on the untouched tree, restoring HEAD coherence, before any 4.2 record was written — so no close commit inherited unknown edits.
+
+**The close records (commit 3, same-commit — D-074).** N-057 (the source-agnostic rule store; the ` | `/first-space grammar; presets retired as the live source; Tier-2 on config data; the Chat/Clair source duality; the two-hand-synced-seeds seam). D-100 (the grammar + single-string TOML home + source-agnostic store — a **new** decision, not a D-099 amendment: the TOML home + the store-as-delivery-contract are cross-cutting choices every config-backed component inherits). ROADMAP M-RP4.2 ✅ + M-RP4.3 🟡 (v4.12). CLAUDE PLAY → M-RP4.2 closed, next-active M-RP4.3. components: `textarea` source-note (the user list, not a preset; v0.31). task → COMPLETED.
+
+**`configs.ts` deleted (commit 2, feat).** The `arrowMorph`/`emojiMorph` presets — orphaned once the store became the source (zero importers confirmed across `ui/`) — deleted. Sample data, never architecture (D-099/N-056).
+
+**Verify (honest — no new CDP run this close).** The close rests on prior evidence, not a fresh pass: J-436 CDP (`ids().length===56`, store-sourced morph + `bind:value` sync, Tier-2 guard); J-437→J-439 Rust (lib 129 green); Joe's live real-client check (session brief); J-440 static gate on the unified sampler seed. A formal close-time sampler-CDP pass of the six-pair canonical pack was **not** run — Joe eyes the live morph in the running sampler (J-440). Flagged, not fabricated (Rule 1/2); a formal pass remains Chat's loop if wanted.
+
+**Next.** M-RP4.4 (sampler real config-load path + clean-slate-on-start discipline — Joe-locked design this session: **every binary** wipes any found config on start this phase, sampler config = the needed subset of the client/node sections; closes the two-hand-synced-seeds seam) → M-RP4.3 (editor + write-back) → M-RP4.1 (kind-3 clamp).
+
+**Canonical (this work).** Commit 1 (docs, belated M-RP4.0): `DECISIONS.md` (D-099) + `docs/ROADMAP.md` + `tasks/M_RP4_0_PROCESSOR_ENGINE.md` + `textarea.svelte` + `ui/docs/xgen-ui-components.md` + `ui/docs/xgen-ui-notes.md` (N-056) + `ui/common/lib/components/processor/configs.ts`. Commit 2 (feat): delete `configs.ts`. Commit 3 (docs): `DECISIONS.md` (D-100) + `ui/docs/xgen-ui-notes.md` (N-057) + `docs/ROADMAP.md` + this JOURNAL J-441 + `CLAUDE.md` + `ui/docs/xgen-ui-components.md` + `tasks/M_RP4_2_SUBSTITUTIONS.md` → COMPLETED. Joe pushes.
+
+---
+
 ## Entry J-440 — sampler unified to the client starter pack (M-RP4.2), Clair (Joe-directed, crosses into the sampler seat): the sampler now seeds the SAME six-pair canonical pack as the client, so the workbench mirrors shipped behaviour; supersedes §4d's "deliberately different" note; static-gated, live morph is Joe's to eye in the running sampler; still staged, NOT closed
 
 **What happened.** Joe's model: the **sampler is the canonical component workbench** where components are built, seen, and tuned in a shared view; client/node UIs are deprecated structure to be rewritten *after* components are sharp. So every component needs its sharp/definitive form **in the sampler**. Symptom that surfaced it: `:(` and `--` didn't morph in the sampler even after the client const gained them (J-438/J-439) — because the sampler holds a **separate** seed (D-097: it's a minimal host with no client config, can't read the Rust const), and that literal was still the old `:((( 🙁🙁🙁` demo. The two seeds were never wired together; nothing about the client change could reach the sampler.

@@ -1,6 +1,6 @@
 # M-RP4.2 — user-owned substitution pairs: one list in the client TOML → parse → store → processor-hosts
 
-> **Status**: ACTIVE
+> **Status**: COMPLETED
 > Version: 0.1
 > Date: Jun 2026
 > **Last updated**: 2026-07-01
@@ -323,12 +323,12 @@ file; multiple `-m` flags; `$ProgressPreference='SilentlyContinue'`; Joe pushes)
 - [x] Sampler `app_sampler.svelte` rewired: `arrowMorph` retired as source; store seeded; `#processed` reads store; matrix 56.
 - [x] CDP §5 run (parser, store-sourced morph, store-update re-morph, Tier-2 guard, count 56) — actual output captured.
 - [x] Clair: `SubstitutionsSection` + `load_substitutions_section` (sync-precedent) + Rust unit test on the loader. *(J-437: 4 loader tests green; lib 123→127; `cargo build -p xgen-client` clean.)*
-- [~] Clair: `get_substitutions` Tauri command registered; `ui/client` boot hydration. **Code landed + statically gated (J-437; `npx vite build` ✓ 122 modules);** `Joe-verified in the real client` is the remaining gate (NOT yet run — add a `[substitutions]` line by hand; no on-disk dev config in the repo).
-- [ ] Delete `configs.ts` (orphaned once presets retired — held as reference through Clair's build; removed at the true close).
+- [x] Clair: `get_substitutions` Tauri command registered; `ui/client` boot hydration. **Code landed + statically gated (J-437; `npx vite build` ✓ 122 modules); Joe-verified working live in the real client (session brief → J-441 close).**
+- [x] Delete `configs.ts` (orphaned once presets retired; zero importers confirmed across `ui/`). *(Deleted in the M-RP4.2 feat commit at the close — J-441.)*
 - [x] Clair: first-run seed — config-birth writes the locked `[substitutions]` starter pack (`--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒`), seed-once; round-trip unit test (§4d). *(J-438: seed in `cmd_init`'s config-birth branch — the client has no `default_config_toml()`; `const DEFAULT_SUBSTITUTIONS_SEED`; +2 tests (round-trip-to-pairs + seed-not-resurrected-after-clear); lib 127→129; build clean. J-439: +`-- ‒` pair, now six pairs.)*
-- [~] Records: **J-437 + this DoD written (Clair).** N-057 / D-099-vs-D-100 / ROADMAP / CLAUDE / components / task→COMPLETED are the **canonical close (Chat)**, after Joe verifies — per §0 decision 7 and the J-437 handoff.
+- [x] Records: **the canonical close (Chat, J-441)** — N-057 + D-100 + ROADMAP (M-RP4.2 ✅ / M-RP4.3 🟡) + CLAUDE + JOURNAL J-441 + components source-note + this task → COMPLETED, same-commit (D-074). *(Clair authored J-437/J-438/J-439 + the staged DoD.)*
 - [x] Presets retired as the live source; one user-owned list is the only source.
-- [ ] Task Status → COMPLETED (or honest staged state if one half lands first).
+- [x] Task Status → COMPLETED.
 
 (`Status: COMPLETED` is the real signal — no "commit pushed" checklist item. If the Chat half ships
 before Clair's, record that split honestly rather than marking the milestone closed.)

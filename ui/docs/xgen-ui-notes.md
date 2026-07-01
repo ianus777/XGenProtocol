@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.39  
+> Version: 0.40  
 > Date: May 2026  
-> **Last updated**: 2026-06-30  
+> **Last updated**: 2026-07-01  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -1279,6 +1279,22 @@ Two facts travel with the table: **(a) kind ⟂ engine** — four kinds, two eng
 **Verify (Chat self-drove, sampler + CDP 9422, fresh launch; real output, Rule 2).** `ids().length===56` (55→56; the attachment adds no registry entry — the host `textarea#processed` is the one id). Transform + binding-sync: set `"a --> b => c"`, dispatch `input`, tick, read — DOM `"a → b ⇒ c"` AND registry `{value:"a → b ⇒ c"}` (the synthetic input synced `bind:value`, not just the DOM). Pure core via the DEV hook: `applyRules("-->", …)==="→"`, sequential `"a --> b => c <-- d"`→`"a → b ⇒ c ← d"`, no-op `"plain text"` unchanged. Provenance guard: `assertSafeRules([{find:"x",replace:"xx"}],{trusted:false})` **throws** `ProcessorRuleError` (convergence), `{trusted:true}` **passes**, `arrowMorph {trusted:false}` **passes** (convergent literals). No-op safety: a token-free value round-trips with exactly **1** input event (no spurious synthetic dispatch). Screenshot: `#processed` renders `1 → 2 ← 3 ⇒ 4`. **Negative control (recorded honestly):** the sibling `textarea#default` — no processor attached — held externally-typed `:) -->` **un-morphed**, proving the attachment is scoped to the one cell and does not leak onto sibling textareas. Teardown `0 orphans`.
 
 *UI-implementation record. No protocol/data implication. Founds the forwarded-attachment edit seam + the two-engines/four-kinds mental model + the two-tier provenance subset. Engine is `common` infra (no catalogue row); `textarea` is the first processor-host. Crystallises into **D-099** (canonical taxonomy). Next: M-RP4.1 (kind-3 number-clamp, on `change`) → kind-2 converter field (decoupled text field; `Intl`) → kind-4 `use:render` (deferred) → dd-components.*
+
+### N-057 — user-owned substitution pairs (M-RP4.2): the source-agnostic rule store; the ` | ` + first-space grammar; presets retired as the live source (→ D-100)
+
+M-RP4.2 closed (J-441). Executes decision 9 of the M-RP4.0 runbook: the kind-1 transformer built at M-RP4.0 had hardcoded named configs (`arrowMorph`/`emojiMorph`); now the rules come from **one user-owned string**, and a store decouples *where the rules come from* from *who consumes them*. `configs.ts` is deleted — it was sample data, never architecture (D-099/N-056). The engine does NOT change — this arc adds the *source* (TOML) and the *plumbing* (parser + reactive store + frontend delivery).
+
+**The grammar (locked, literal, no regex).** The whole list is one string; pairs separated by the literal ` | ` (space-pipe-space); within a pair, split on the **first space** → `find` = before, `replace` = everything after. `find` = no whitespace; `replace` = any string (multi-char, emoji, internal spaces, a lone `|`). The only forbidden token substring is ` | ` itself; blank pairs skipped. The simplest entry that survives the data (`-->`, `<--`, `:)`, `|`) without regex — the literal engine stays literal.
+
+**Source-agnostic store (`$common`).** `parseRules(text) → TransformConfig` (pure, beside `applyRules`) + a reactive `substitutions` store: `setRules(text)` parses, runs `assertSafeRules({trusted:false})` (Tier-2 — config data is user data, so the caps + convergence lint protect against a self-authored loop), and on rejection fails safe (empty + DEV warn). Hosts read `substitutions.rules` and pass it to `processor(...)`; a new string re-runs the attachment lifecycle. The store takes a string from anywhere — the engine stays source-agnostic (D-099 P-3).
+
+**The source duality (Chat/Clair split; this arc crosses the boundary).** Chat owns the `$common` parser + store + sampler rewire (CDP-verifiable, J-436). Clair owns the Rust config struct + Tauri command + client boot hydration (client-only, J-437). Two sources feed the same store: the **real client** via `get_substitutions` (Rust `load_substitutions_section` reads `xgen-client_config.toml [substitutions] rules` → command → store on `onMount`); the **sampler** seeds a literal (D-097: a minimal host, no client config to read).
+
+**Two hand-synced seeds (a documented seam).** The first-run starter pack (J-438, Joe-locked, six pairs `--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒`) lives in two places kept in sync by hand: Rust `DEFAULT_SUBSTITUTIONS_SEED` (`app.rs`, seeded once at config-birth in `cmd_init`, never resurrected after the user clears it — J-438/J-439) and the TS literal in `app_sampler.svelte` (the sampler mirrors the client pack — J-440). Wiring the sampler host to read a shared config is deprecated-UI plumbing set aside for now; the seam is closed properly by **M-RP4.4** (the sampler real config-load arc).
+
+**Tier-2 richer UX deferred.** The per-pair partition + inline warnings (a bad pair drops, the rest survive, with feedback) is M-RP4.3 — the in-app editor needs it; the file-edit read path fails safe whole (D-065).
+
+*UI-implementation record. No protocol/data implication. Founds the source-agnostic rule store + the ` | `/first-space grammar; retires `configs.ts` presets as the live source. Crystallises into **D-100**. Next: M-RP4.4 (sampler real config-load path — closes the two-hand-synced-seeds seam) → M-RP4.3 (editor + write-back) → M-RP4.1 (kind-3 clamp).*
 
 ---
 

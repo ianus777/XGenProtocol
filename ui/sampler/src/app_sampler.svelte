@@ -41,21 +41,31 @@
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
   // symbol-keyed attachment that lands on the inner <textarea>. Adds NO registry entry.
-  // In the real client the store is hydrated from xgen-client_config.toml [substitutions] via the
-  // get_substitutions Tauri command; here (no client config) the sampler seeds a literal list.
+  // The store is hydrated on mount from the sampler host's get_substitutions Tauri command
+  // (xgen-sampler_config.toml [substitutions], generated from the seed on start — the REAL load
+  // path, mirroring app_client.svelte / J-437; M-RP4.4 / D-101). No literal seed.
   import { processor } from '$common/components/processor/processor';
   import { substitutions } from '$common/components/processor/store.svelte';
-
-  // One user-owned list (the only source) — the sampler seeds the SAME canonical starter pack the
-  // client ships (DEFAULT_SUBSTITUTIONS_SEED in xgen-client/src/app.rs), so the workbench shows the
-  // real shipped behaviour. Grammar (M-RP4.2): pairs on " | ", first space splits find|replace.
-  substitutions.setRules('--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒');
 
   // Runtime client<->node skin-swap (D-098): flipping [data-shell] re-aliases --accent*
   // live, so the whole grid re-themes at once. Replaces "run in both real shells".
   let shell = $state('client');
   function applyShell(s) { shell = s; document.documentElement.dataset.shell = s; }
-  onMount(() => applyShell('client'));
+
+  // Hydrate the user-owned substitution pairs from the sampler host's REAL load path (M-RP4.4):
+  // xgen-sampler_config.toml [substitutions] -> get_substitutions -> store. Mirrors
+  // app_client.svelte (J-437). Async, so the processor-host cell starts with empty rules and
+  // re-attaches when setRules lands (source-agnostic store + attachment lifecycle, D-099).
+  onMount(async () => {
+    applyShell('client');
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      substitutions.setRules(await invoke('get_substitutions'));
+    } catch (_) {
+      // Outside Tauri (plain-browser Vite preview) — store stays empty; the morph's canonical
+      // home is the Tauri window (D-098), where CDP verifies it.
+    }
+  });
 
   // Tab container (M-RP3.2): outer class x arity axis. Inactive panels are CSS-hidden,
   // NOT unmounted (class:hidden), so every component stays registered for CDP `ids()`.

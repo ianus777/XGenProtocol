@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2",
     "svelte": "^5"
   },
   "devDependencies": {

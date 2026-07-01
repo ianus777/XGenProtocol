@@ -6,6 +6,9 @@
 # (no xgen-common/xgen-core), no tokio/websockets/crypto/CLI. Its only job is to
 # open a WebView2 window at the sampler Vite devUrl so the `core` component
 # library can be hosted, tuned, and CDP-verified in the real runtime.
+#
+# M-RP4.4 (D-101) gains a tiny fs+toml capability for its subset config (the
+# real config-load path) — serde + toml only; still no protocol deps.
 
 [package]
 name = "xgen-sampler"
@@ -22,3 +25,5 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"

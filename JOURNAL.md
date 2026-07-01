@@ -8,6 +8,54 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-443 — M-RP4.4 Rust half (Clair): clean-slate-on-start wired into all three binaries (client + node + sampler host) + the sampler subset-config real load path (subset-gen + minimal loader + `get_substitutions`); +7 Rust tests (client 129→131, node 306→308, sampler +3); still staged, NOT closed — Chat's `app_sampler.svelte` invoke swap + the sampler CDP pass are the open handoff (D-065)
+
+**What happened.** Built the **Clair half** of M-RP4.4 (runbook §3/§4, Joe-locked design + D-101): the phase-scoped **clean-slate-on-start** discipline in all three binaries, plus the sampler host's **real config-load path** (the positive half of D-101). No frontend, no CDP — that's Chat's half, and the milestone stays **staged** (ROADMAP not flipped, task ACTIVE) until it + the sampler CDP pass land.
+
+**Phase-0 grounding (D-071/D-078, before authoring).** Read the actual config-read paths, not the runbook's line hints. **Client** (`desktop.rs::run_startup`): config path derived ~154, first-run SETUP detection ~158, the seed generator is `cmd_init`'s config-birth branch (`app.rs`). **Node** (Joe's explicit flag — M-RP4.2 never touched the node): desktop `run()` reads config in the order `maybe_write_default_config` (writes if absent) → `init_logging` (reads `[logging].level`) → `run_node` (real config read), so delete-on-start goes **before** `maybe_write_default_config` and reuses it as the generator — grounded, matches the runbook exactly. **Sampler host** (`xgen-sampler/src/main.rs`): confirmed truly bare — `tauri::Builder::default().run()`, no data-dir, no serde/toml. D-101 sanctions a "tiny fs+toml capability," so serde+toml added (workspace-matched: serde 1 / toml 0.8), no protocol deps.
+
+**Rule-6 decision surfaced to Joe (not decided silently).** The runbook left the **sampler instance data-dir path** open. Surfaced it; **Joe locked exe_dir** (parent of `current_exe()` — mirrors client/node default-instance, zero Tauri-path/bundle-id dependency, findable for Chat's CDP). The subset file is named **`xgen-sampler_config.toml`** (D-025 binary-prefix), NOT `xgen-client_config.toml`, so it can't collide with a real client config generated in the same exe_dir.
+
+**Client (`app.rs` + `desktop.rs`).** Extracted `cmd_init`'s config-birth generation into a shared `write_fresh_config(config, keypair, ai)` (behaviour-preserving — the two existing seed tests still pass), and added `pub fn clean_slate_config(config, keypair)`: **if the config exists**, wipe + regenerate from seed; a genuine first run (no config) is **left untouched** so `run_startup`'s `!config.exists() && !keypair.exists()` SETUP detection still fires (the load-bearing reading — regeneration is conditional on prior existence). Wired `app::clean_slate_config(&config_path, &keypair_path)` into `run_startup` before the first-run read. Delete-site doc-comment carries the D-101 *why* (config ephemeral this phase) + *until-when* (persistent settings exit condition) + the **J-438 seed-once suspension** (cleared pairs reappear on relaunch, intended now).
+
+**Node (`desktop.rs`).** Added `clean_slate_config(data_dir, port)` = wipe `xgen-node_config.toml` if present, then `maybe_write_default_config` regenerates the default from seed; wired into `run()` before `init_logging`/`run_node` read it. Node has no substitutions consumer — this keeps the discipline uniform. Same D-101 comment at the delete site.
+
+**Sampler host (`main.rs`, net-new capability).** Minimal `SamplerConfig { substitutions: { rules } }` (contract-shape parity with the client's `SubstitutionsSection`, D-098 — NOT code reuse); `write_subset_config` (generator: writes ONLY `[substitutions] rules` from seed), `clean_slate_config` (wipe+regen on start, called in `main()`), `load_substitutions` (minimal loader), and a `#[tauri::command] get_substitutions` returning the loaded string (mirrors the client command). `DEFAULT_SUBSTITUTIONS_SEED` is **hand-synced** with the client's const — the third copy of the seed; a shared-const crate is explicitly out of scope this arc (documented at the const + owed to N-058 at close).
+
+**Verify — Rust (real output, Rule 2).**
+- Client lib (`cargo test -p xgen-client --lib`) — 129 → **131** (+2 clean-slate tests):
+  ```
+  test app::m_rp4_2_substitutions_tests::clean_slate_wipes_and_reseeds_existing_config ... ok
+  test app::m_rp4_2_substitutions_tests::first_run_config_seeds_starter_pack ... ok
+  test app::m_rp4_2_substitutions_tests::seed_is_not_resurrected_after_user_clears ... ok
+  test result: ok. 131 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.72s
+  ```
+  (`clean_slate_leaves_first_run_untouched` also passed — count 131 = 129 + 2.)
+- Node lib (`cargo test -p xgen-node --lib`) — 306 → **308** (+2):
+  ```
+  running 4 tests
+  test desktop::tests::default_config_honours_port_override ... ok
+  test desktop::tests::default_config_roundtrips_through_nodeconfig ... ok
+  test desktop::tests::clean_slate_creates_config_on_first_run ... ok
+  test desktop::tests::clean_slate_wipes_and_regenerates_node_config ... ok
+  test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 304 filtered out; finished in 0.00s
+  ```
+  Full node lib: `test result: ok. 308 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 33.53s`.
+- Sampler (`cargo test -p xgen-sampler`) — **+3** (new):
+  ```
+  running 3 tests
+  test tests::load_absent_config_is_empty ... ok
+  test tests::write_then_load_round_trips_seed ... ok
+  test tests::clean_slate_regenerates_subset_config_from_seed ... ok
+  test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+  ```
+
+**Pending — Chat's half + the close (NOT run, not fabricated — Rule 1).** (1) `app_sampler.svelte` drops the literal seed and hydrates via `invoke('get_substitutions')` (mirroring `app_client.svelte`, J-437). (2) The sampler CDP pass (§5: config regenerated on start, command feeds the store, live morph from the loaded rules, delete-on-start proven, count 56). (3) The close records — N-058, ROADMAP M-RP4.4 ✅, CLAUDE PLAY, task → COMPLETED. The client/node delete-on-start is Rust-tested + Joe's live check; not sampler-CDP'able.
+
+**Canonical (this work).** `xgen-client/src/app.rs` (+`write_fresh_config`/`clean_slate_config` + `cmd_init` refactor + 2 tests) + `xgen-client/src/desktop.rs` (clean-slate call in `run_startup`) + `xgen-node/src/desktop.rs` (+`clean_slate_config` wired into `run()` + 2 tests) + `xgen-sampler/Cargo.toml` (+serde/toml) + `xgen-sampler/src/main.rs` (subset-gen + loader + `get_substitutions` + clean-slate + 3 tests) [commit, feat]; this JOURNAL J-443 + `tasks/M_RP4_4_SAMPLER_CONFIG_LOAD.md` (Rust DoD ticked, Status stays ACTIVE) [same commit — D-074]. N-058/ROADMAP ✅/CLAUDE/task→COMPLETED deferred to the true close after Chat's half + CDP. Joe pushes.
+
+---
+
 ## Entry J-442 — M-RP4.4 design locked + runbook/D-101 authored (Chat): sampler real config-load path + clean-slate-on-start discipline; the two design tensions resolved by Joe (every-binary wipe this phase; sampler config = subset snippets); NOT built — build gated on Joe's explicit go
 
 **What happened.** Design-walked the sampler config-load arc (M-RP4.4) and authored its deliverables: the runbook (`tasks/M_RP4_4_SAMPLER_CONFIG_LOAD.md`, PENDING) + **D-101**. No code — the build is gated on Joe's explicit go.

@@ -56,6 +56,25 @@ fn maybe_write_default_config(data_dir: &Path, port: u16) {
     }
 }
 
+/// D-101 clean-slate-on-start (phase-scoped). Config is treated as ephemeral
+/// while the settings logic is still in development: wipe any config found at
+/// launch, then regenerate the default from seed BEFORE it is read (`init_logging`
+/// and `run_node` both read it after this returns), so no launch inherits a
+/// stale (or another binary's) file. The node has no substitutions consumer —
+/// this keeps the discipline uniform across all three binaries.
+///
+/// **This SUSPENDS J-438 seed-once for the phase** on the client side (the node
+/// has no such seed); the discipline itself — regenerate-from-seed every launch —
+/// is retired when the client/node UIs are rewritten with persistent settings.
+/// See DECISIONS.md D-101 for the full why + exit condition.
+fn clean_slate_config(data_dir: &Path, port: u16) {
+    let config_path = data_dir.join("xgen-node_config.toml");
+    if config_path.exists() {
+        let _ = std::fs::remove_file(&config_path);
+    }
+    maybe_write_default_config(data_dir, port);
+}
+
 // ── Logging init ───────────────────────────────────────────────────────────────
 
 fn init_logging(data_dir: &Path, log_level_override: Option<&str>) {
@@ -214,7 +233,9 @@ pub fn run(
 ) {
     std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
 
-    maybe_write_default_config(&data_dir, port_override.unwrap_or(8080));
+    // D-101 clean-slate-on-start (phase-scoped) — wipe any config found, then
+    // regenerate the default from seed before it is read below. See D-101.
+    clean_slate_config(&data_dir, port_override.unwrap_or(8080));
 
     init_logging(&data_dir, log_level_override.as_deref());
 
@@ -337,5 +358,45 @@ mod tests {
         let data_dir = Path::new("/tmp/xgen-node-test-port");
         let toml_str = default_config_toml(data_dir, 18080);
         assert!(toml_str.contains("ws://127.0.0.1:18080/xgen"));
+    }
+
+    /// D-101 clean-slate-on-start — a pre-existing (stale / edited) config is
+    /// wiped + regenerated to the default seed on the startup path. The old
+    /// contents must be gone and the fresh file must parse as `NodeConfig` with
+    /// the requested port.
+    #[test]
+    fn clean_slate_wipes_and_regenerates_node_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-node_config.toml");
+
+        // A stale config the operator (or a prior launch) left behind.
+        std::fs::write(&config_path, "# stale marker\nrandom garbage not a NodeConfig\n").unwrap();
+
+        clean_slate_config(dir.path(), 9099);
+
+        let regenerated = std::fs::read_to_string(&config_path).unwrap();
+        assert!(
+            !regenerated.contains("random garbage"),
+            "the stale config is wiped, not merged"
+        );
+        let cfg: NodeConfig =
+            toml::from_str(&regenerated).expect("regenerated config parses as NodeConfig");
+        assert_eq!(cfg.node.listen, "ws://127.0.0.1:9099/xgen");
+    }
+
+    /// D-101 — on a genuine first run (no config), clean-slate still produces a
+    /// fresh default config (nothing to wipe → regenerate).
+    #[test]
+    fn clean_slate_creates_config_on_first_run() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-node_config.toml");
+        assert!(!config_path.exists());
+
+        clean_slate_config(dir.path(), 8080);
+
+        assert!(config_path.exists(), "a fresh default config is generated");
+        let cfg: NodeConfig =
+            toml::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert_eq!(cfg.node.listen, "ws://127.0.0.1:8080/xgen");
     }
 }

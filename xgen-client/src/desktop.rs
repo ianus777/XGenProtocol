@@ -154,6 +154,14 @@ async fn run_startup(
     let config_path = data_dir.join("xgen-client_config.toml");
     let keypair_path = data_dir.join("xgen-client_keypair.enc");
 
+    // D-101 — clean-slate-on-start (phase-scoped). Config is ephemeral this
+    // phase: if one exists, wipe it and regenerate from seed BEFORE the
+    // first-run read below. This SUSPENDS J-438 seed-once — cleared substitution
+    // pairs reappear on relaunch (intended now; no persistent settings surface
+    // exists yet). Retired when the client/node UIs gain persistent settings.
+    // See DECISIONS.md D-101 for the full why + exit condition.
+    app::clean_slate_config(&config_path, &keypair_path);
+
     // First-run detection: neither config nor keypair exists.
     if !config_path.exists() && !keypair_path.exists() {
         emit_state(&app, ClientLifecycleState::Setup);

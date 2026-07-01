@@ -253,6 +253,43 @@ pub fn load_substitutions_section(config_path: &Path) -> SubstitutionsSection {
     }
 }
 
+/// Serialise a fresh client config from defaults, seeded with the starter
+/// substitution pack (M-RP4.2 §4d). `keypair_path` is recorded in
+/// `[paths].keypair_path`; `ai` is the optional `[ai]` section (None on the
+/// clean-slate regeneration path, Some(..) from `cmd_init --ai`). This is the
+/// single config-birth generator, shared by `cmd_init`'s create branch and the
+/// D-101 clean-slate-on-start path so both write identical fresh configs.
+fn write_fresh_config(config_file: &Path, keypair_path: &Path, ai: Option<AiSection>) -> Result<()> {
+    let mut cfg = ClientConfig::default();
+    cfg.paths.keypair_path = keypair_path.to_string_lossy().to_string();
+    cfg.ai = ai;
+    cfg.substitutions.rules = DEFAULT_SUBSTITUTIONS_SEED.to_string();
+    let toml_str = toml::to_string_pretty(&cfg).context("failed to serialise config")?;
+    std::fs::write(config_file, toml_str).context("failed to write config")?;
+    Ok(())
+}
+
+/// D-101 clean-slate-on-start (phase-scoped). Config is treated as ephemeral
+/// while the settings logic is still in development: if a config exists at
+/// launch, wipe it and regenerate from seed BEFORE it is read, so no launch
+/// inherits a stale (or a user-edited) config. Regeneration is conditional on
+/// the file having existed — a genuine first run (no config) is left untouched
+/// so `run_startup`'s first-run SETUP detection still fires.
+///
+/// **This SUSPENDS J-438 seed-once for the phase:** because the config is
+/// deleted + regenerated from seed every launch, substitution pairs the user
+/// cleared DO reappear on relaunch. Intended now — there is no persistent
+/// user-owned settings surface yet, so nothing durable is lost. Seed-once
+/// resumes at the exit condition: when the client/node UIs are rewritten with
+/// persistent settings, delete-on-start is removed from all three binaries.
+/// See DECISIONS.md D-101 for the full why + until-when.
+pub fn clean_slate_config(config_path: &Path, keypair_path: &Path) {
+    if config_path.exists() {
+        let _ = std::fs::remove_file(config_path);
+        let _ = write_fresh_config(config_path, keypair_path, None);
+    }
+}
+
 // ── CLI ────────────────────────────────────────────────────────────────────────
 //
 // Cli / ClientCommand live in the library crate (not the binary) because the
@@ -2183,16 +2220,13 @@ pub fn cmd_init(args: &InitArgs, data_dir: &Path) -> Result<()> {
             println!("Config already exists: {} — not overwritten.", config_file.display());
         }
     } else {
-        let mut cfg = ClientConfig::default();
-        cfg.paths.keypair_path = keypair_file.to_string_lossy().to_string();
-        cfg.ai = ai_section.clone();
-        // M-RP4.2 §4d — seed the starter substitution pack ONCE, at config
-        // birth. This is the only write path that does so; the re-init branch
-        // above round-trips the existing config (preserving the user's list),
-        // so cleared pairs are never resurrected.
-        cfg.substitutions.rules = DEFAULT_SUBSTITUTIONS_SEED.to_string();
-        let toml_str = toml::to_string_pretty(&cfg).context("failed to serialise config")?;
-        std::fs::write(&config_file, toml_str).context("failed to write config")?;
+        // M-RP4.2 §4d — the config-birth generator seeds the starter
+        // substitution pack ONCE (shared with the D-101 clean-slate path via
+        // `write_fresh_config`). The re-init branch above round-trips the
+        // existing config (preserving the user's list), so under normal CLI use
+        // cleared pairs are never resurrected here. (D-101 clean-slate-on-start
+        // does re-seed on every desktop launch this phase — see that decision.)
+        write_fresh_config(&config_file, &keypair_file, ai_section.clone())?;
         println!("Config saved:     {}", config_file.display());
     }
 
@@ -6287,6 +6321,50 @@ mod m_rp4_2_substitutions_tests {
         assert_eq!(
             load_substitutions_section(&config_path).rules, "",
             "cleared pairs stay cleared — the seed is config-birth-only"
+        );
+    }
+
+    /// D-101 clean-slate-on-start — a pre-existing config with the user's pairs
+    /// cleared is wiped + regenerated to the seed on the startup path. This is
+    /// the phase-scoped suspension of seed-once: cleared pairs DO reappear on
+    /// relaunch (contrast `seed_is_not_resurrected_after_user_clears`, which is
+    /// the CLI `cmd_init` path where seed-once still holds).
+    #[test]
+    fn clean_slate_wipes_and_reseeds_existing_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-client_config.toml");
+        let keypair_path = dir.path().join("xgen-client_keypair.enc");
+
+        // A config exists with the substitution list cleared by the user.
+        let mut cfg = ClientConfig::default();
+        cfg.substitutions.rules = String::new();
+        std::fs::write(&config_path, toml::to_string_pretty(&cfg).unwrap()).unwrap();
+        assert_eq!(load_substitutions_section(&config_path).rules, "");
+
+        clean_slate_config(&config_path, &keypair_path);
+
+        assert_eq!(
+            load_substitutions_section(&config_path).rules,
+            DEFAULT_SUBSTITUTIONS_SEED,
+            "existing config is wiped + regenerated to the seed on start"
+        );
+    }
+
+    /// D-101 clean-slate-on-start — a genuine first run (no config on disk) is
+    /// left untouched, so `run_startup`'s first-run SETUP detection still fires.
+    /// Regeneration is conditional on the file having existed.
+    #[test]
+    fn clean_slate_leaves_first_run_untouched() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-client_config.toml");
+        let keypair_path = dir.path().join("xgen-client_keypair.enc");
+        assert!(!config_path.exists());
+
+        clean_slate_config(&config_path, &keypair_path);
+
+        assert!(
+            !config_path.exists(),
+            "no config is created on a genuine first run (SETUP detection preserved)"
         );
     }
 }

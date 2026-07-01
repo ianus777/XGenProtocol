@@ -1,6 +1,6 @@
 # M-RP4.4 — sampler real config-load path + clean-slate-on-start discipline (first instance: substitutions)
 
-> **Status**: PENDING  
+> **Status**: ACTIVE  
 > Version: 0.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-01  
@@ -187,15 +187,15 @@ file; multiple `-m` flags; `$ProgressPreference='SilentlyContinue'`; Joe pushes)
 
 ## 8. Definition of Done
 
-- [ ] D-101 written (clean-slate-on-start + seed-once suspension + exit condition). *(Authored with this runbook.)*
-- [ ] client: delete-on-start before config read; comment → D-101; Rust test (pre-existing config wiped + regenerated).
-- [ ] node: delete-on-start before config read; comment → D-101; Rust test.
-- [ ] sampler host: subset-config generator (`[substitutions]` only) + minimal loader + `get_substitutions` + delete-on-start; Rust test.
-- [ ] sampler frontend: `app_sampler.svelte` drops the literal; hydrates via `invoke('get_substitutions')`; matrix 56.
-- [ ] CDP §5 run in the sampler — actual output captured (regenerated config, store-fed-from-command, live morph, delete-on-start, count 56).
-- [ ] N-058 written; ROADMAP M-RP4.4 ✅ + CLAUDE same-commit; JOURNAL J-NNN (real output).
-- [ ] Seed hand-sync seam documented as still-open (shared-const crate out of scope); the N-057 literal seam closed.
-- [ ] Task Status → COMPLETED.
+- [x] D-101 written (clean-slate-on-start + seed-once suspension + exit condition). *(Authored with this runbook.)*
+- [x] client: delete-on-start before config read; comment → D-101; Rust test (pre-existing config wiped + regenerated). *(J-443 — `app::clean_slate_config` in `run_startup`; `clean_slate_wipes_and_reseeds_existing_config` + `clean_slate_leaves_first_run_untouched`; regen conditional on prior existence so SETUP detection holds.)*
+- [x] node: delete-on-start before config read; comment → D-101; Rust test. *(J-443 — `desktop::clean_slate_config` before `maybe_write_default_config` in `run()`; `clean_slate_wipes_and_regenerates_node_config` + `clean_slate_creates_config_on_first_run`.)*
+- [x] sampler host: subset-config generator (`[substitutions]` only) + minimal loader + `get_substitutions` + delete-on-start; Rust test. *(J-443 — `main.rs` subset-gen/loader/command/clean-slate into exe_dir/`xgen-sampler_config.toml` (Joe-locked exe_dir); 3 tests; serde+toml added.)*
+- [ ] sampler frontend: `app_sampler.svelte` drops the literal; hydrates via `invoke('get_substitutions')`; matrix 56. *(Chat — open handoff.)*
+- [ ] CDP §5 run in the sampler — actual output captured (regenerated config, store-fed-from-command, live morph, delete-on-start, count 56). *(Chat.)*
+- [ ] N-058 written; ROADMAP M-RP4.4 ✅ + CLAUDE same-commit; JOURNAL J-NNN (real output). *(Close — JOURNAL J-443 landed for the Rust half; N-058/ROADMAP/CLAUDE at the true close.)*
+- [ ] Seed hand-sync seam documented as still-open (shared-const crate out of scope); the N-057 literal seam closed. *(Documented in code — sampler `DEFAULT_SUBSTITUTIONS_SEED` const doc-comment; N-058 formalises at close.)*
+- [ ] Task Status → COMPLETED. *(Stays ACTIVE — staged; Chat's half + CDP pending.)*
 
 (`Status: COMPLETED` is the real signal — no "commit pushed" checklist item.)
 

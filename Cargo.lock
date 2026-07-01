@@ -5386,8 +5386,10 @@ dependencies = [
 name = "xgen-sampler"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "tauri",
  "tauri-build",
+ "toml 0.8.2",
 ]
 
 [[package]]

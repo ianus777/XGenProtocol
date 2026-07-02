@@ -19,15 +19,14 @@
   //     getter reports only a boolean `hasValue`, never the value.
   //  3. CAPS-LOCK = keyboard events bubble from the inner `<input>` to this wrapper `<div>`, so a
   //     composite-level `onkeyup`/`onkeydown` reads `getModifierState('CapsLock')` — NO textfield
-  //     touch needed. The warning is an OPTIONAL `label` child rendered `{#if capsLock}` (the
-  //     status-indicator optional-link precedent, N-054 — NOT the N-053 mount rule).
+  //     touch needed. The wrapper reflects it as `data-caps`; the skin marks the field with a red
+  //     (error-style) border rather than a text line, so the block footprint never changes.
   //
   // Confirm-password match is a DIFFERENT unit (a future `password-confirm` composite wrapping two
   // fields; equality-checking interprets values -> leans dd). Not built here.
   import { envelope } from '$common/components/base/envelope';
   import Textfield from './textfield.svelte';
   import Button from './button.svelte';
-  import Label from './label.svelte';
 
   let {
     value = $bindable(''),
@@ -64,7 +63,7 @@
   const debug = () => ({ revealed, hasValue: value.length > 0, capsLock });
 </script>
 
-<div use:envelope={{ name: 'password-field', id, debug }} onkeyup={onKey} onkeydown={onKey}>
+<div use:envelope={{ name: 'password-field', id, debug }} data-caps={capsLock} onkeyup={onKey} onkeydown={onKey}>
   <Textfield
     type={revealed ? 'text' : 'password'}
     bind:value
@@ -83,7 +82,4 @@
     ariaLabel={revealed ? 'Hide password' : 'Show password'}
     id={cid('reveal')}
   />
-  {#if capsLock}
-    <Label text="Caps Lock is on" id={cid('capswarn')} />
-  {/if}
 </div>

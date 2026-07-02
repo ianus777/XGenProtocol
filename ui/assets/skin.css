@@ -770,31 +770,61 @@ html, body {
 /* --------------------------------------------------
  * password-field (.password-field)
  *   The SECOND di COMPOSITE (M-RP2.23) + the home for the reveal toggle. Root IS
- *   <div class="password-field">. Skin only lays out the composed atomics: textfield (field) +
- *   button toggle-mode (reveal) + optional caps-lock label. Flex row; the reveal button's glyph is
- *   a ::before placeholder (Show/Hide) keyed on the reflected aria-pressed — upgrades to the real
- *   `icon` primitive when it lands (N-052). The caps-lock label wraps to its own line. Field/button
- *   focus + colour are inherited from .textfield / .button (N-055 unchanged). No new token.
- *   PROVISIONAL (Joe live-tunes via HMR).
+ *   <div class="password-field">. Skin lays out textfield (field) + a TRANSPARENT icon-only reveal
+ *   button; footprint is CONSTANT across states (no wrap, no text-length shift, no injected row).
+ *   Reveal = button toggle-mode with no chrome (no bg/border/padding) — only an eye / eye-off glyph,
+ *   a currentColor `mask-image` swapped on the reflected aria-pressed (SVG placeholder until the
+ *   `icon` primitive lands, N-052). Caps-lock is surfaced as `[data-caps="true"]` → a red
+ *   (error-style) field border, NOT a text line — so the block never reflows. The password `***`
+ *   inset icon (N-039) is suppressed here — the reveal control already signals the field kind.
+ *   5px gap; icon-data vars scoped here (no global token). PROVISIONAL (Joe live-tunes via HMR).
  * -------------------------------------------------- */
 
 .password-field {
+  --eye: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+  --eye-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24'/%3E%3Cline x1='1' y1='1' x2='23' y2='23'/%3E%3C/svg%3E");
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-2);
+  gap: 5px;
 }
 .password-field > .textfield {
   flex: 1;
+  background-image: none; /* suppress the N-039 password *** inset inside the composite */
+}
+.password-field[data-caps="true"] > .textfield {
+  border-color: var(--err-bright);
+}
+
+/* Reveal: de-chromed, icon-only. The glyph is a currentColor mask swapped on aria-pressed. */
+.password-field > .button {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--t2);
+  cursor: pointer;
+}
+.password-field > .button:hover {
+  color: var(--t);
+  background: none;
+}
+.password-field > .button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .password-field > .button::before {
-  content: "Show";
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-color: currentColor;
+  -webkit-mask: var(--eye) center / contain no-repeat;
+  mask: var(--eye) center / contain no-repeat;
 }
 .password-field > .button[aria-pressed="true"]::before {
-  content: "Hide";
-}
-.password-field > .label {
-  flex-basis: 100%;
-  color: var(--err-bright);
-  font-size: var(--fs-1);
+  -webkit-mask-image: var(--eye-off);
+  mask-image: var(--eye-off);
 }

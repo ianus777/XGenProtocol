@@ -785,14 +785,38 @@ html, body {
   --eye-off: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24'/%3E%3Cline x1='1' y1='1' x2='23' y2='23'/%3E%3C/svg%3E");
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 3px;
+  position: relative; /* anchor for the overlaid caps-lock hint (no layout element -> no reflow) */
+  --caps-hint: "Caps Lock is on!";
 }
 .password-field > .textfield {
   flex: 1;
   background-image: none; /* suppress the N-039 password *** inset inside the composite */
+  padding-right: var(--sp-2); /* and drop its reserved 24px right padding -> no width jump on toggle */
+}
+/* Kill the WebView2/Edge native password-reveal + clear controls so the field content box
+   does NOT resize between password and text state (the width-jump on toggle). */
+.password-field > .textfield::-ms-reveal,
+.password-field > .textfield::-ms-clear {
+  display: none;
 }
 .password-field[data-caps="true"] > .textfield {
   border-color: var(--err-bright);
+}
+/* Caps-lock hint: overlaid above the field ONLY while caps is active. Absolutely positioned
+   so it never affects the block footprint; text lives in a scoped var (skin-only). */
+.password-field[data-caps="true"]::after {
+  content: var(--caps-hint);
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  margin-bottom: 0px;
+  margin-left: 10px;
+  text-transform: uppercase;
+  font-size: var(--fs-0);
+  color: var(--err-bright);
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 /* Reveal: de-chromed, icon-only. The glyph is a currentColor mask swapped on aria-pressed. */
@@ -802,8 +826,8 @@ html, body {
   box-shadow: none;
   padding: 0;
   margin: 0;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   color: var(--t2);
   cursor: pointer;
 }

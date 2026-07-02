@@ -1,6 +1,6 @@
 # M-RP2.23 — `password-field` (2nd di composite) — Runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-02  
 > Language: English  
@@ -69,8 +69,16 @@ N-060 (ui-notes) + components-registry bump (18th `core` component, 2nd di compo
 
 ## 8. DoD
 
-- [ ] Step A: `redactValue` + `autocomplete` additive; existing cells non-regressive (matrix unchanged, redact off).
-- [ ] Step B: `password-field` built; reveal binds `pressed→revealed`; caps-lock at composite level; getter leaks no value.
-- [ ] Step C: `.password-field` skin; glyph swap on `aria-pressed`; focus per N-055; no new token (or noted).
-- [ ] Step D: sampler cells + CDP proofs (reveal type-flip, redact-null, caps-lock, aggregate) both accents; screenshots.
-- [ ] Step E: N-060 + registry + ROADMAP + JOURNAL + CLAUDE PLAY atomic; headers updated.
+- [x] Step A: `redactValue` + `autocomplete` additive; existing cells non-regressive (matrix unchanged, redact off).
+- [x] Step B: `password-field` built; reveal binds `pressed→revealed`; caps-lock at composite level; getter leaks no value.
+- [x] Step C: `.password-field` skin; glyph swap on `aria-pressed`; focus per N-055; no new token (or noted).
+- [x] Step D: sampler cells + CDP proofs (reveal type-flip, redact-null, caps-lock, aggregate) both accents; screenshots.
+- [x] Step E: N-060 + registry + ROADMAP + JOURNAL + CLAUDE PLAY atomic; headers updated.
+
+## 9. As-built delta (revision round, Joe cosmetic requests)
+
+The §3–§5 design was refined during build (all CDP-verified):
+- Caps-lock warning is NOT a `label __capswarn` child — the child + import were dropped; the wrapper reflects `data-caps`, skin gives the field a red `--err-bright` border **and** an overlaid `::after` "Caps Lock is on!" hint (absolute, no reflow). Matrix is a flat **+9** (65), no conditional child.
+- Reveal button is **transparent, icon-only** (no chrome): eye / eye-off via scoped `--eye`/`--eye-off` currentColor `mask-image`, swapped on `aria-pressed` (placeholder until the `icon` primitive, N-052). 18px, 3px gap.
+- The N-039 password `***` inset is suppressed inside the composite; its reserved `padding-right:24px` normalized to `--sp-2` so the field width is identical password↔text (155/155, jump 0).
+- Getter `{revealed, hasValue, capsLock}` unchanged.

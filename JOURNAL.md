@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-446 — M-RP2.23 CLOSED: `password-field`, the 2nd di composite (redact + reveal + caps-lock; transparent icon toggle, no-reflow skin lessons) — built, CDP-verified, records closed
+
+**What happened.** Built `password-field`, the **18th `core` component** and the **2nd di composite** (after `status-indicator`). Root `<div class="password-field">` = `textfield`(`__field`) + a transparent icon-only `button` toggle-mode reveal(`__reveal`); owns `revealed` + `capsLock`; getter `{revealed, hasValue, capsLock}` — boolean `hasValue`, never the value. Five steps A→E per the runbook (`tasks/M_RP2_23_PASSWORD_FIELD.md`, now COMPLETED).
+
+**Step A (own commit).** Two additive props on `textfield`, both default-absent so the 44-cell registry is behaviour-unchanged (D-065): `redactValue?` (getter returns `value:null` when true — a `password-field` child never publishes the live secret into `window.__XGEN_DEBUG__`) + `autocomplete?` (native pass-through).
+
+**Steps B–D.** Composite mirrors the N-054 registration model (composite root + children self-registering under `<childtype>#<id>__<slot>`); matrix **56→65** (flat +9). Reveal = the toggle-mode button + reflected `aria-pressed`; child `type = revealed ? 'text' : 'password'`. Caps-lock read composite-level via bubbled `getModifierState` (no textfield touch). Sampler DI·composite panel +3 cells (default/disabled/revealed); CDP self-driven both accents.
+
+**Revision round (Joe cosmetic — the lessons).** (1) Caps warning moved from an optional `label` child to a skin treatment: `data-caps` → red `--err-bright` field border + an overlaid `::after` "Caps Lock is on!" hint (absolute, no reflow); dropping the child flattens the matrix (no conditional entry) — *state feedback belongs in the skin via a reflected data-attr, not an injected element*. (2) Transparent icon-only reveal: eye/eye-off currentColor `mask-image` swapped on `aria-pressed` (scoped `--eye`/`--eye-off`, placeholder until the `icon` primitive, N-052); 18px, 3px gap. (3) **Width-jump** on toggle: root cause was **not** `::-ms-reveal` but the `textfield`'s reserved `padding-right:24px` in password mode (N-039 `***` inset space) — suppressing the glyph left the padding; normalizing to `--sp-2` gave identical width (CDP 155/155, jump 0) — *suppressing a per-type inset means dropping its reserved padding too*.
+
+**Verify (all real, Rule 2).** CDP (sampler, both accents): matrix 65 flat; `textfield#default__field` = `{type:"password", value:null}` (redact) while composite `hasValue:true`; reveal click → inner `type` text + `aria-pressed:"true"` + eye→eye-off mask; caps → `data-caps:"true"` + border `rgb(230,67,67)` + `::after` "Caps Lock is on!"; transparent button `bg rgba(0,0,0,0)`/border 0/18px; no `***`; field width 155/155 jump 0. Teardown 0 orphans each pass.
+
+**D-069 2nd-composite watch: no promotion.** The N-054 registration model held clean across a second composite — stays a note, not promoted to a decision.
+
+**Records (this close, one atomic per D-074).** N-060 (ui-notes v0.43) + components registry v0.32 (18th `core`, Build note M-RP2.23) + ROADMAP v4.15 (RP node M-RP2.23 ✅, next-active reordered) + this entry + CLAUDE PLAY (next-active flip) + runbook → COMPLETED. **Next-active (J-445/N-059 order):** the remaining di-composite backlog (`color-picker`/`file-field`/`combobox`/`tag-select`/`star-rating`, N-054, Joe's pick) → the `widget` tier definition → M-RP4.3.
+
+---
+
 ## Entry J-445 — Design discussion: the `widget` tier concept-locked (Level-2 app assembly above the di/dd × atomic/composite grid); M-RP4.3 reordered after the di-composite backlog + the widget definition — no code
 
 **What happened.** Design discussion only (no code, no build). M-RP4.3 (in-app `[substitutions]` TOML editor) is the first UI unit that is **assembly + behaviour + host I/O**; the component taxonomy stops at di/dd × atomic/composite — all passive (N-054) — with no tier for a behaviour-carrying assembly. Talked it through with Joe and locked the concept + name + home for a new tier; recorded as **N-059**. Full definition (constraint set + verify home) deferred until the di-composite backlog is built.

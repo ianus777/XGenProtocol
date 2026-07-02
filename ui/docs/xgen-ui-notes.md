@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.42  
+> Version: 0.43  
 > Date: May 2026  
 > **Last updated**: 2026-07-02  
 > Language: English  
@@ -1337,6 +1337,26 @@ Design discussion (J-445), no code. M-RP4.3 (in-app `[substitutions]` TOML edito
 **Roadmap consequence.** M-RP4.3 is the first widget, so it now waits on the widget definition. Reordered: finish the di-composite backlog as **passive** (`password-field` / `color-picker` / `file-field` / `combobox` / `tag-select` / `star-rating`, N-054) → **widget definition** (this note promoted to a spec) → **M-RP4.3** (first widget instance) → M-RP4.1 (kind-3 clamp); the kind-2 converter field + kind-4 `use:render` slot around as before.
 
 *UI-design note. No protocol/data implication, no component change. Concept + name + placement + home + one-tier-+-Phase Joe-locked (J-445); full definition (constraint set + verify home) deferred until the di-composite backlog is built. Next: a di-composite from the N-054 backlog (Joe's selection).*
+
+### N-060 — `password-field` (M-RP2.23): the 2nd di composite; redact/reveal/caps mechanics + the transparent-icon + no-reflow lessons
+
+The **second di composite** (after `status-indicator`, N-054), 18th `core` component. Root `<div class="password-field">` composes `textfield` (`__field`) + a `button` toggle-mode reveal (`__reveal`); owns `revealed` + `capsLock`; getter `{revealed, hasValue, capsLock}` — boolean `hasValue`, never the value. The N-054 registration model held clean (composite root + children self-registering under `<childtype>#<id>__<slot>`), so the matrix multiplies a flat **+9** (56→65). **D-069 2nd-composite watch: no promotion** — N-054 stays a note.
+
+**Three mechanics.**
+- **Secret safety (`redactValue`, Step A additive on `textfield`):** the child field is passed `redactValue`, so its own getter reports `{type, value: null}` — the live secret never reaches `window.__XGEN_DEBUG__`. Composite reports only boolean `hasValue`. CDP-proven: `textfield#default__field` = `{type:"password", value:null}` while composite `hasValue:true`.
+- **Reveal = two-stage icon toggle:** `button mode="toggle"`, `bind:pressed={revealed}`; child `type = revealed ? 'text' : 'password'`. The existing toggle-mode button + reflected `aria-pressed` **is** the two-picture toggle — no new component. Glyph = eye / eye-off via scoped `--eye`/`--eye-off` currentColor `mask-image`, swapped on `aria-pressed` (SVG placeholder until the `icon` primitive, N-052).
+- **Caps-lock (composite-level, no textfield touch):** keyboard events bubble from the inner `<input>` to the wrapper `<div>`; `onkeyup`/`onkeydown` read `getModifierState('CapsLock')`. Surfaced as `data-caps` on the wrapper.
+
+**Cosmetic evolution (Joe's revision round — the lessons).**
+- **Caps hint is skin, not a layout child.** First cut used an optional `label __capswarn` child; it reflowed the block and varied the matrix. Replaced by `data-caps` → (1) red `--err-bright` field border + (2) an overlaid `::after` "Caps Lock is on!" hint, absolutely positioned on the `position:relative` wrapper so it **never** affects footprint. Dropping the child also flattens the matrix (no conditional entry). *Lesson: state feedback belongs in the skin via a reflected data-attr, not an injected element — a layout child is a reflow + a matrix wobble.*
+- **Transparent icon-only reveal.** De-chromed `.password-field > .button` (no bg/border/padding/shadow), icon-only, 18px, greys on `:disabled`, keeps the inherited focus ring. Text labels ("Show"/"Hide") were the first cut — replaced by the icon mask so width doesn't track label length.
+- **The width-jump.** Toggling password↔text still jumped the field 16px after the icon work. Root cause was **not** `::-ms-reveal` (Edge/WebView2 native control, killed as belt-and-suspenders) but the `textfield`'s reserved **`padding-right:24px`** in password mode (N-039, space for the `***` inset). Suppressing the `***` glyph (`background-image:none`) left the padding; normalizing it to `--sp-2` gave identical width both states (CDP 155/155, jump 0). *Lesson: when suppressing a per-type inset icon, drop its reserved padding too — the icon and its space are two separate rules.* Gap 5px→3px.
+
+**Verify.** Sampler DI·composite panel, 3 cells (default/disabled/revealed); CDP both accents. All proofs real (Rule 2): matrix 56→65 flat, redact null-while-hasValue, reveal type-flip + `aria-pressed` + eye→eye-off mask, caps → `data-caps` + red border + `::after` hint, transparent button geometry, no `***`, no width jump.
+
+**Logged / deferred.** Confirm-password match → future `password-confirm` composite (equality-check leans dd). Strength meter → future dd. Real eye `icon` primitive (N-052) supersedes the mask placeholder when it lands.
+
+*UI-design note. Component + skin change (shipped), no protocol/data implication. → components registry (18th `core`, 2nd di composite). Next: a di-composite from the N-054 backlog (Joe's selection).*
 
 ---
 

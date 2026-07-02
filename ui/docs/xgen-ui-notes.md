@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.41  
+> Version: 0.42  
 > Date: May 2026  
-> **Last updated**: 2026-07-01  
+> **Last updated**: 2026-07-02  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -1313,6 +1313,30 @@ M-RP4.4 closed (J-444). Executes the runbook + **D-101**. The sampler stops seed
 **Verify (Chat self-drove, sampler + CDP 9422, two fresh launches; real output, Rule 2).** Launch 1 (config absent): the host generated `xgen-sampler_config.toml` in exe_dir with the seed (subset — `[substitutions]` only); `ids().length===56`; live morph from the loaded rules — input `x --> y :) z -- w <3 q <-- r :(` → `x → y 🙂 z ‒ w ❤️ q ← r 🙁` (all six seed pairs), and the registry `textarea#processed` `{value}` carried the morphed string (bind:value synced, not just the DOM). Launch 2 (delete-on-start): pre-seeded a **sentinel** config (`zzz … | qqq …`), relaunched → the file was **wiped + regenerated to the seed**, and the live store reflected the seed not the sentinel — input `zzz --> qqq :) end` → `zzz → qqq 🙂 end` (seed pairs morph, sentinel tokens stay literal). Teardown 0 orphans both times.
 
 *UI-implementation record. Closes the M-RP4.2 frontend-literal seam (N-057); the real config-load path is now the sampler standard for config-backed components. The seed const is still hand-synced across client + sampler-host Rust (shared-const crate out of scope). Next: M-RP4.3 (in-app TOML editor + write-back) → M-RP4.1 (kind-3 number-clamp).*
+
+## 2026-07-02
+
+### N-059 — the `widget` tier: a Level-2 app assembly above the di/dd × atomic/composite grid (concept + name + home Joe-locked; full definition deferred until di-composites are built)
+
+Design discussion (J-445), no code. M-RP4.3 (in-app `[substitutions]` TOML editor) is the first UI unit that is **assembly + behaviour + host I/O**, and the component taxonomy stops at di/dd × atomic/composite — all passive (N-054). There is no tier for a behaviour-carrying assembly. This note locks the *concept* + name + home for a new tier; the **full definition (constraint set + verify home) is deferred** until the di-composite backlog is built, so the boundary is drawn against real composites rather than one specimen.
+
+**The discriminator (passive vs active).** A composite (`status-indicator`, N-054) is **passive**: props in → DOM out + an inspection getter, no side effects, interprets no domain structure. A **widget** is **active**: owns its own state + lifecycle (dirty-tracking, load/save), decides (parse/validate), and may perform host I/O. Litmus: *does it only arrange values it's handed (composite), or own state and act (widget)?* Removing a composite loses a layout; removing a widget loses a behaviour.
+
+**Placement — a new *level*, not a new grid cell.** Level 0 substrate (`common/base`) → Level 1 components (`core`; di/dd × atomic/composite; ceiling = `status-indicator`) → **Level 2 widget** (assembled *from* Level 1). The widget sits a storey **above** the arity axis — atomic → composite → **widget**, not a third rung wedged between atomic and composite. This keeps di/dd/atomic/composite **pure**, the concept-purity we set out to protect.
+
+**Name = `widget`.** "ui-module" in the generic/CS sense; named `widget` to avoid collision with the project's protocol/CLI **modules** + the Tier-1 auth module work. (Honest note per D-065: the term `widget` is **new to the record** as of this session — not previously written in any canonical file; locked here, not recalled.)
+
+**One tier, not two — I/O is Phase, not a class branch.** Behaviour-only vs I/O-carrying is **not** a second tier; it maps onto the existing **Phase** axis (A pure Svelte / B +Tauri / C all three, N-028). A behaviour-only widget is Phase-A; an I/O widget is Phase-B. A single specimen doesn't justify splitting a taxonomy branch (D-069 four-recurrence bar).
+
+**Home = `ui/common` (Joe-lock).** Some widgets will be used in the node app, so the tier lives in the shared substrate mirror, not `ui/client`. (Per-widget sharing scope may still vary; the *tier's* home is `common`.)
+
+**Verify home — provisional, to be locked at full definition.** A widget's defining trait (host I/O + integration) is the sampler's declared blind spot — D-097 cedes integration + host-real behaviour to the real shells. Leaning: the widget's **effectful layer** verifies in the real shell; its **pure/presentational layer** (composed components + skin + validation, I/O stubbed) stays sampler-tunable via HMR + a DEV hook — the N-056 processor precedent (pure core via `__XGEN_PROC__`, caret behaviour eyeballed in the real focused window). The widget self-registers one aggregate getter the composite way (N-054).
+
+**Constraint sketch (input to the full definition).** Composes down only (core + substrate, never reaches to raw native tags for its logic); owns state + lifecycle; host I/O through defined seams only (Tauri commands + `$common` stores, no ad-hoc file access inside the widget); self-registers one aggregate getter; clean mount/unmount (a droppable unit, no cross-widget coupling); skin = L2 only, pure layer separable from effect layer; scoped home + a Phase; surfaces honest phase-limits (e.g. session-only write-back under D-101, D-065).
+
+**Roadmap consequence.** M-RP4.3 is the first widget, so it now waits on the widget definition. Reordered: finish the di-composite backlog as **passive** (`password-field` / `color-picker` / `file-field` / `combobox` / `tag-select` / `star-rating`, N-054) → **widget definition** (this note promoted to a spec) → **M-RP4.3** (first widget instance) → M-RP4.1 (kind-3 clamp); the kind-2 converter field + kind-4 `use:render` slot around as before.
+
+*UI-design note. No protocol/data implication, no component change. Concept + name + placement + home + one-tier-+-Phase Joe-locked (J-445); full definition (constraint set + verify home) deferred until the di-composite backlog is built. Next: a di-composite from the N-054 backlog (Joe's selection).*
 
 ---
 

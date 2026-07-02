@@ -1,10 +1,24 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-01  
+> **Last updated:** 2026-07-02  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-445 — Design discussion: the `widget` tier concept-locked (Level-2 app assembly above the di/dd × atomic/composite grid); M-RP4.3 reordered after the di-composite backlog + the widget definition — no code
+
+**What happened.** Design discussion only (no code, no build). M-RP4.3 (in-app `[substitutions]` TOML editor) is the first UI unit that is **assembly + behaviour + host I/O**; the component taxonomy stops at di/dd × atomic/composite — all passive (N-054) — with no tier for a behaviour-carrying assembly. Talked it through with Joe and locked the concept + name + home for a new tier; recorded as **N-059**. Full definition (constraint set + verify home) deferred until the di-composite backlog is built.
+
+**Locked (J-445).** (1) The unit is a **`widget`** — "ui-module" in the generic/CS sense, named to avoid the protocol/CLI-module + Tier-1-auth collision (the term is new to the record, locked not recalled — D-065). (2) It is a new **Level 2** above the di/dd × atomic/composite grid (Level 0 substrate → Level 1 components → Level 2 widget), **not** a rung wedged between atomic and composite — the grid stays pure. (3) Discriminator = **passive** (composite: props → DOM + getter, no side effects) vs **active** (widget: owns state/lifecycle, validates, host I/O). (4) **One tier, not two** — behaviour-only vs I/O-carrying is the existing **Phase** axis (A/B/C, N-028), not a class branch. (5) Home = **`ui/common`** (node apps will use some widgets).
+
+**Verify-home lean (provisional).** A widget's defining trait (host I/O + integration) is the sampler's declared blind spot (D-097). Lean: effectful layer verifies in the real shell; the pure/presentational layer (I/O stubbed) stays sampler-tunable — the N-056 processor precedent. To be locked at full definition.
+
+**Roadmap reorder.** M-RP4.3 is the first widget → it now waits on the widget definition. New order: di-composite backlog (passive, N-054) → widget definition (N-059 promoted to a spec) → **M-RP4.3** (first widget) → M-RP4.1 (kind-3 clamp); processor kinds 2/4 slot around as before.
+
+**State.** No milestone state change (design only). ui-notes v0.42 (N-059); ROADMAP v4.14 (RP-node reorder clause); CLAUDE PLAY next-active reordered. No code; working tree otherwise clean. **Next:** pick a di-composite from the N-054 backlog (Joe's selection).
 
 ---
 

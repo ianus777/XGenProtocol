@@ -44,6 +44,8 @@
     id,
     pattern,
     name,
+    autocomplete,
+    redactValue = false,
   }: {
     type?: 'text' | 'search' | 'email' | 'url' | 'tel' | 'password';
     value?: string;
@@ -53,11 +55,15 @@
     id?: string;
     pattern?: string;
     name?: string;
+    autocomplete?: string;
+    redactValue?: boolean;
   } = $props();
 
   // N-024 opt-in is one greppable line. $state.snapshot de-proxies the value so CDP's
-  // returnByValue receives plain JSON rather than a reactive proxy.
-  const debug = () => $state.snapshot({ type, value });
+  // returnByValue receives plain JSON rather than a reactive proxy. `redactValue`
+  // (M-RP2.23, default off) nulls the value in the getter so a `password-field` child
+  // never publishes the live secret into the dev registry; existing cells are unchanged.
+  const debug = () => $state.snapshot({ type, value: redactValue ? null : value });
 </script>
 
 <input
@@ -67,6 +73,7 @@
   {readonly}
   {pattern}
   {name}
+  autocomplete={autocomplete || undefined}
   bind:value
   use:envelope={{ name: 'textfield', id, debug }}
 />

@@ -766,3 +766,35 @@ html, body {
 .status-indicator > .link {
   margin-left: auto;
 }
+
+/* --------------------------------------------------
+ * password-field (.password-field)
+ *   The SECOND di COMPOSITE (M-RP2.23) + the home for the reveal toggle. Root IS
+ *   <div class="password-field">. Skin only lays out the composed atomics: textfield (field) +
+ *   button toggle-mode (reveal) + optional caps-lock label. Flex row; the reveal button's glyph is
+ *   a ::before placeholder (Show/Hide) keyed on the reflected aria-pressed — upgrades to the real
+ *   `icon` primitive when it lands (N-052). The caps-lock label wraps to its own line. Field/button
+ *   focus + colour are inherited from .textfield / .button (N-055 unchanged). No new token.
+ *   PROVISIONAL (Joe live-tunes via HMR).
+ * -------------------------------------------------- */
+
+.password-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.password-field > .textfield {
+  flex: 1;
+}
+.password-field > .button::before {
+  content: "Show";
+}
+.password-field > .button[aria-pressed="true"]::before {
+  content: "Hide";
+}
+.password-field > .label {
+  flex-basis: 100%;
+  color: var(--err-bright);
+  font-size: var(--fs-1);
+}

@@ -37,6 +37,7 @@
   import Led from '$core/components/data-independent/led.svelte';
   import Link from '$core/components/data-independent/link.svelte';
   import StatusIndicator from '$core/components/data-independent/status-indicator.svelte';
+  import PasswordField from '$core/components/data-independent/password-field.svelte';
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -115,6 +116,10 @@
   let smDefault = $state([]);
   let smSeeded = $state(['a', 'c']);
   let smDisabled = $state(['b']);
+  // password-field (M-RP2.23) — string bind:value; the child textfield is redactValue'd.
+  let pwDefault = $state('hunter2');
+  let pwDisabled = $state('inert');
+  let pwRevealed = $state('shown');
 
   const selOptions = [
     { value: 'one', label: 'One' },
@@ -321,6 +326,15 @@
         <div class="s-cell"><span class="s-id">status-indicator#default</span><StatusIndicator states={ledStates} state="ON" caption="Connected" id="default" /></div>
         <div class="s-cell"><span class="s-id">status-indicator#withlink</span><StatusIndicator states={ledStates} state="OFF" caption="Disconnected" linkHref="https://xgen.example/status" linkText="Status page" linkExternal id="withlink" /></div>
         <div class="s-cell"><span class="s-id">status-indicator#pulse</span><StatusIndicator states={ledStates} state="ERR" pulse caption="Error" linkHref="#logs" linkText="View logs →" id="pulse" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">password-field</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">password-field#default</span><PasswordField bind:value={pwDefault} id="default" placeholder="password" autocomplete="current-password" /></div>
+        <div class="s-cell"><span class="s-id">password-field#disabled</span><PasswordField bind:value={pwDisabled} id="disabled" disabled /></div>
+        <div class="s-cell"><span class="s-id">password-field#revealed</span><PasswordField bind:value={pwRevealed} id="revealed" revealedByDefault /></div>
       </div>
     </div>
   </div>

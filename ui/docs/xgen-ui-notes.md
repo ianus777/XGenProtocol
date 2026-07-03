@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.44  
+> Version: 0.45  
 > Date: May 2026  
 > **Last updated**: 2026-07-03  
 > Language: English  
@@ -1374,7 +1374,7 @@ M-RP2.24 closed (J-447). The **third di composite** (after `status-indicator` N-
 
 **Verify (Chat self-drove, sampler + CDP 9422, both accents, real output — Rule 2).** `ids().length===68`; `#default {value:0,max:5}` / `#rated {value:3,max:5}` / `#readonly {value:4,max:5}`. Click star 4 → `4`; click again → `0` (clearable). Hover (split read — the Svelte-5 flush finding N-053: `data-filled` re-renders next tick, so preview fill is read in a *separate* eval): `filled:5` while `value:0`, `mouseleave` → `filled:0` (restore, value untouched). Keyboard `#rated`: `3→Right→4→Left×2→2→Home→1→End→5`. a11y: `role=radiogroup` / star `role=radio` / `checkedIdx=2` (aria-checked on the value star). readonly: `tabindex=null`, click no-op (stays 4), `data-readonly="true"`, `aria-disabled=null` (readonly ≠ disabled). Colour: filled gold `rgb(194,136,64)` ↔ blue `rgb(58,122,176)`, empty `--t4 rgb(88,92,100)`; 4 `.star-rating` rules in cascade. Screenshots both accents eye-checked (default empty / rated 3 / readonly 4). Teardown 0 orphans.
 
-**Skin note.** Joe cosmetic-tuned the shipped skin post-build: star `18px` (from 20px), `gap: var(--sp-0)` (from `--sp-1`). If `--sp-0` is not in `:root`, the gap resolves to 0 (touching stars) — recorded as-shipped.
+**Skin note.** Joe cosmetic-tuned the shipped skin post-build: star `18px` (from 20px), `gap: var(--sp-0)` (from `--sp-1`). `--sp-0` is now an explicit `:root` scale step (`0`) — the **0-gap is intentional**: the star SVG carries its own whitespace, so stars sit adjacent (no dead click-zones) while reading correctly spaced.
 
 **Correction owned (Rule 5).** The runbook DoD first wrote the matrix as `65→66` (a `+1`-total slip); Shape B adds 1 entry × 3 cells = **+3**, so `65→68` is the correct, verified count. Runbook fixed at close.
 

@@ -46,6 +46,7 @@
     name,
     autocomplete,
     redactValue = false,
+    list,
   }: {
     type?: 'text' | 'search' | 'email' | 'url' | 'tel' | 'password';
     value?: string;
@@ -57,6 +58,7 @@
     name?: string;
     autocomplete?: string;
     redactValue?: boolean;
+    list?: string;
   } = $props();
 
   // N-024 opt-in is one greppable line. $state.snapshot de-proxies the value so CDP's
@@ -73,6 +75,7 @@
   {readonly}
   {pattern}
   {name}
+  list={list || undefined}
   autocomplete={autocomplete || undefined}
   bind:value
   use:envelope={{ name: 'textfield', id, debug }}

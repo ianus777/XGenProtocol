@@ -31,7 +31,7 @@
   /* Radius scale */
   --rad: 6px;  --rad2: 10px;
   /* Spacing scale */
-  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;  --sp-4: 20px;
+  --sp-0: 0; --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;  --sp-4: 20px;
   /* Interactive control height */
   --ctl-h: 28px;
 
@@ -851,4 +851,41 @@ html, body {
 .password-field > .button[aria-pressed="true"]::before {
   -webkit-mask-image: var(--eye-off);
   mask-image: var(--eye-off);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * star-rating (di composite, M-RP2.24) — SHAPE B, self-contained. Internal stars,
+ * currentColor mask glyph (N-052 eye precedent). Filled = --accent2 (rides the shell
+ * accent), empty = --t4. Whole-star only v1. PROVISIONAL.
+ * ───────────────────────────────────────────────────────────────────────── */
+.star-rating {
+  display: inline-flex;
+  gap: var(--sp-0);
+  /* Five-point star silhouette, masked (fill comes from background-color). */
+  --star: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l2.94 6.26 6.86.62-5.2 4.53 1.56 6.71L12 17.1l-6.12 3.55 1.56-6.71-5.2-4.53 6.86-.62z'/%3E%3C/svg%3E");
+}
+.star-rating .star {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  background-color: var(--t4);                 /* empty */
+  -webkit-mask: var(--star) center / contain no-repeat;
+  mask: var(--star) center / contain no-repeat;
+}
+.star-rating .star[data-filled] {
+  background-color: var(--accent2);            /* filled — re-themes gold/blue per shell */
+}
+.star-rating .star:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);               /* affordance = accent ring (N-055; stars act) */
+  border-radius: var(--rad);
+}
+/* readonly / disabled drop the pointer affordance; disabled also dims. */
+.star-rating[aria-disabled] .star,
+.star-rating[data-readonly] .star {
+  cursor: default;
+}
+.star-rating[aria-disabled] .star {
+  opacity: 0.4;
 }

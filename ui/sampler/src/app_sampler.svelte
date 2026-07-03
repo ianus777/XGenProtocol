@@ -38,6 +38,7 @@
   import Link from '$core/components/data-independent/link.svelte';
   import StatusIndicator from '$core/components/data-independent/status-indicator.svelte';
   import PasswordField from '$core/components/data-independent/password-field.svelte';
+  import StarRating from '$core/components/data-independent/star-rating.svelte';
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -120,6 +121,10 @@
   let pwDefault = $state('hunter2');
   let pwDisabled = $state('inert');
   let pwRevealed = $state('shown');
+  // star-rating (M-RP2.24) — numeric bind:value; 0 = unrated. readonly cell shows a fixed rating.
+  let srDefault = $state(0);
+  let srRated = $state(3);
+  let srReadonly = $state(4);
 
   const selOptions = [
     { value: 'one', label: 'One' },
@@ -335,6 +340,15 @@
         <div class="s-cell"><span class="s-id">password-field#default</span><PasswordField bind:value={pwDefault} id="default" placeholder="password" autocomplete="current-password" /></div>
         <div class="s-cell"><span class="s-id">password-field#disabled</span><PasswordField bind:value={pwDisabled} id="disabled" disabled /></div>
         <div class="s-cell"><span class="s-id">password-field#revealed</span><PasswordField bind:value={pwRevealed} id="revealed" revealedByDefault /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">star-rating</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">star-rating#default</span><StarRating bind:value={srDefault} id="default" ariaLabel="Rate" /></div>
+        <div class="s-cell"><span class="s-id">star-rating#rated</span><StarRating bind:value={srRated} id="rated" ariaLabel="Rate" /></div>
+        <div class="s-cell"><span class="s-id">star-rating#readonly</span><StarRating bind:value={srReadonly} id="readonly" readonly ariaLabel="Rating" /></div>
       </div>
     </div>
   </div>

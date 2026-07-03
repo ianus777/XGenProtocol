@@ -39,6 +39,7 @@
   import StatusIndicator from '$core/components/data-independent/status-indicator.svelte';
   import PasswordField from '$core/components/data-independent/password-field.svelte';
   import StarRating from '$core/components/data-independent/star-rating.svelte';
+  import FileFieldComposite from '$core/components/data-independent/file-field.svelte';
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -125,6 +126,10 @@
   let srDefault = $state(0);
   let srRated = $state(3);
   let srReadonly = $state(4);
+  // file-field (M-RP2.25) — FileList|null; unsettable from markup (browser security), all start null.
+  let ffDefault = $state(null);
+  let ffMultiple = $state(null);
+  let ffDisabled = $state(null);
 
   const selOptions = [
     { value: 'one', label: 'One' },
@@ -349,6 +354,15 @@
         <div class="s-cell"><span class="s-id">star-rating#default</span><StarRating bind:value={srDefault} id="default" ariaLabel="Rate" /></div>
         <div class="s-cell"><span class="s-id">star-rating#rated</span><StarRating bind:value={srRated} id="rated" ariaLabel="Rate" /></div>
         <div class="s-cell"><span class="s-id">star-rating#readonly</span><StarRating bind:value={srReadonly} id="readonly" readonly ariaLabel="Rating" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">file-field</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">file-field#default</span><FileFieldComposite bind:files={ffDefault} id="default" /></div>
+        <div class="s-cell"><span class="s-id">file-field#multiple</span><FileFieldComposite bind:files={ffMultiple} id="multiple" multiple /></div>
+        <div class="s-cell"><span class="s-id">file-field#disabled</span><FileFieldComposite bind:files={ffDisabled} id="disabled" disabled /></div>
       </div>
     </div>
   </div>

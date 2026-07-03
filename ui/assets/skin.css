@@ -889,3 +889,58 @@ html, body {
 .star-rating[aria-disabled] .star {
   opacity: 0.4;
 }
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * file-field (di composite, M-RP2.25) — Shape A: hidden child `file` input + a
+ * styled drop-zone + a file-list. Zone drives the input; [data-dragging] highlights.
+ * ───────────────────────────────────────────────────────────────────────── */
+.file-field {
+  --drop: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8v10a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-8l-2-2H4a1 1 0 0 0-1 1z'/%3E%3Cpath d='M12 11.5V15'/%3E%3Cpath d='M10 13l2 2 2-2'/%3E%3C/svg%3E");
+}
+.file-field .file {
+  display: none;                               /* hidden native input; the zone drives it via .click() */
+}
+.file-field .drop-zone {
+  border: 1px dashed var(--s5);
+  border-radius: var(--rad);
+  padding: var(--sp-3);
+  text-align: center;
+  color: var(--t3);
+  font-size: var(--fs-1);
+  cursor: pointer;
+}
+.file-field .drop-zone::before {
+  content: "";
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  margin-right: var(--sp-2);
+  vertical-align: -4px;
+  background-color: var(--t3);                  /* info-only glyph — fixed neutral, no accent on drag */
+  -webkit-mask: var(--drop) center / contain no-repeat;
+  mask: var(--drop) center / contain no-repeat;
+}
+.file-field .drop-zone:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);               /* affordance ring (N-055; the zone acts) */
+}
+.file-field[data-dragging] .drop-zone {
+  border-color: var(--accent2);                /* drag highlight rides the shell accent */
+  color: var(--accent2);
+  background: var(--s2);
+}
+.file-field[aria-disabled] .drop-zone {
+  opacity: 0.4;
+  cursor: default;
+}
+.file-field .file-list {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  font-size: var(--fs-1);
+  color: var(--t2);
+}
+.file-field .file-list .size {
+  color: var(--t4);
+}

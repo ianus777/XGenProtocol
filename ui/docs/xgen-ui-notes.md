@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.43  
+> Version: 0.44  
 > Date: May 2026  
-> **Last updated**: 2026-07-02  
+> **Last updated**: 2026-07-03  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -1357,6 +1357,28 @@ The **second di composite** (after `status-indicator`, N-054), 18th `core` compo
 **Logged / deferred.** Confirm-password match → future `password-confirm` composite (equality-check leans dd). Strength meter → future dd. Real eye `icon` primitive (N-052) supersedes the mask placeholder when it lands.
 
 *UI-design note. Component + skin change (shipped), no protocol/data implication. → components registry (18th `core`, 2nd di composite). Next: a di-composite from the N-054 backlog (Joe's selection).*
+
+## 2026-07-03
+
+### N-061 — `star-rating` (M-RP2.24): the 3rd di composite; SHAPE B (self-contained, internal stars — not composing child atomics) refines the composite definition; discrete-value + roving-radiogroup + hover-preview
+
+M-RP2.24 closed (J-447). The **third di composite** (after `status-indicator` N-054, `password-field` N-060), 19th `core` component, and the **third di-composite backlog pick** (N-054 list). Its headline is a taxonomy refinement.
+
+**Shape B — a composite that composes NOTHING (the definition refinement).** The first two composites compose real child atomic *components* (led+label+link; textfield+button), which self-register and multiply the matrix. `star-rating` is a `<div class="star-rating">` (the N-020/N-022 composite root-marker via `envelope`) that renders its stars **internally** in an `{#each}` of plain `<span role="radio">` — it composes no child components. So it registers **one** aggregate getter and the matrix multiplies **flat +1 per cell** (3 cells → +3, **65→68**), not the child-multiply of the earlier composites. This **refines the composite definition**: *a di-composite is a `<div class="type">` assembly; composing child atomic components (status/password) is the common case, not a requirement.* → **D-069 promotion-watch** (definition refinement — note only unless it recurs; a fourth composite that also composes-nothing would promote it).
+
+**di + PASSIVE (the backlog bar).** The caller supplies `max`/`value`; the component interprets no domain structure (di). Hover-preview is transient presentational `$state` (the `button :active` precedent), not load/save/validate/host-I/O — so it clears the **widget** bar (N-059) and stays a passive composite, as the backlog mandates. (star-rating was the deliberate FIRST pick precisely because it's the one unambiguously-passive candidate; the stateful trio — combobox/tag-select/color-picker — come last, where they pressure-test the passive/active line before the widget spec.)
+
+**Mechanics.** Value = `number`, `$bindable`, default 0 (= unrated), numeric bind-out; `max` default 5; getter `{value, max}` (Shape B — no children to aggregate). **a11y**: root `role="radiogroup"`; each star `role="radio"` + `aria-checked`; a **roving tabindex** (the checked star, or star 1 when unrated, is the sole tab stop); arrows move+select (selection-follows-focus radiogroup model), Home=1/End=max, with `stars[next-1].focus()` moving focus with the value. **hover-preview + clearable**: `hovered` transient preview (fill target = `hovered || value`, restores on root `mouseleave`); `clearable` default true — clicking the active star zeroes it. `readonly`/`disabled` drop interaction (no tabindex/handlers); readonly stays full-colour (it *displays* a rating), only disabled dims.
+
+**Glyph = mask placeholder (N-052 lineage).** ★ via a currentColor `mask-image` (skin-scoped `--star` SVG data-URI), filled = `--accent2` (re-themes gold/blue per shell), empty = `--t4` — the password-field eye pattern reused; the real `icon` primitive (N-052) supersedes it when it lands. Whole-star only v1; a half-star readonly average is a future shape.
+
+**Verify (Chat self-drove, sampler + CDP 9422, both accents, real output — Rule 2).** `ids().length===68`; `#default {value:0,max:5}` / `#rated {value:3,max:5}` / `#readonly {value:4,max:5}`. Click star 4 → `4`; click again → `0` (clearable). Hover (split read — the Svelte-5 flush finding N-053: `data-filled` re-renders next tick, so preview fill is read in a *separate* eval): `filled:5` while `value:0`, `mouseleave` → `filled:0` (restore, value untouched). Keyboard `#rated`: `3→Right→4→Left×2→2→Home→1→End→5`. a11y: `role=radiogroup` / star `role=radio` / `checkedIdx=2` (aria-checked on the value star). readonly: `tabindex=null`, click no-op (stays 4), `data-readonly="true"`, `aria-disabled=null` (readonly ≠ disabled). Colour: filled gold `rgb(194,136,64)` ↔ blue `rgb(58,122,176)`, empty `--t4 rgb(88,92,100)`; 4 `.star-rating` rules in cascade. Screenshots both accents eye-checked (default empty / rated 3 / readonly 4). Teardown 0 orphans.
+
+**Skin note.** Joe cosmetic-tuned the shipped skin post-build: star `18px` (from 20px), `gap: var(--sp-0)` (from `--sp-1`). If `--sp-0` is not in `:root`, the gap resolves to 0 (touching stars) — recorded as-shipped.
+
+**Correction owned (Rule 5).** The runbook DoD first wrote the matrix as `65→66` (a `+1`-total slip); Shape B adds 1 entry × 3 cells = **+3**, so `65→68` is the correct, verified count. Runbook fixed at close.
+
+*UI-design note. Component + skin change (shipped), no protocol/data implication. → components registry (19th `core`, 3rd di composite). Refines the composite definition (Shape-B composes-nothing) — D-069 promotion-watch. Next: a di-composite from the N-054 backlog — `file-field` next by the passive-purity order (Joe's pick).*
 
 ---
 

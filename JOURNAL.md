@@ -1,10 +1,30 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-02  
+> **Last updated:** 2026-07-03  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-447 — M-RP2.24 CLOSED: `star-rating`, the 3rd di composite (Shape B: self-contained, composes no child components — refines the composite definition); discrete-value + roving-radiogroup + hover-preview — built, CDP-verified, records closed
+
+**What happened.** Built `star-rating`, the **19th `core` component** and the **3rd di composite** (after `status-indicator`, `password-field`), and the third di-composite backlog pick (N-054). Design Joe-locked this session (Shape B + Locks 1–3 + all-next); runbook `tasks/M_RP2_24_STAR_RATING.md` (now COMPLETED). Steps A–E.
+
+**Shape B — the taxonomy refinement (the headline).** Unlike the first two composites, which compose real child atomic *components* that self-register and multiply the matrix, `star-rating` is a `<div class="star-rating">` (composite root-marker via `envelope`) that renders its stars **internally** in an `{#each}` of `<span role="radio">` — composing no child components. It registers **one** aggregate getter, so the matrix multiplies **flat +1 per cell** (3 cells → **+3**, 65→68), not the child-multiply of status-indicator/password-field. This **refines the composite definition** (N-061): *a di-composite is a `<div class="type">` assembly; composing child atomics is the common case, not a requirement.* → **D-069 promotion-watch** (note only unless a 4th composes-nothing composite recurs).
+
+**di + passive.** Caller supplies `max`/`value`; interprets no domain (di). Hover-preview is transient presentational `$state` (button `:active` precedent), not host-I/O → clears the widget bar (N-059); the deliberate first backlog pick as the one unambiguously-passive candidate.
+
+**Mechanics.** `value: number` `$bindable` (0=unrated), `max` (5), getter `{value,max}`; `role=radiogroup` + per-star `role=radio`/`aria-checked` + roving `tabindex`; arrows move+select (selection-follows-focus) with `stars[next-1].focus()`, Home=1/End=max; hover-preview (`hovered`, restores on `mouseleave`) + `clearable` (click active star → 0); `readonly` (full-colour display) + `disabled` (dims). Glyph = ★ currentColor `mask` placeholder (N-052), filled `--accent2` (gold/blue) / empty `--t4`; whole-star v1.
+
+**Correction owned (Rule 5).** The runbook DoD first wrote the matrix as `65→66` (a `+1`-total slip); Shape B adds 1 entry × 3 cells = **+3**, so `65→68` is the correct, verified count. Runbook fixed at close before commit.
+
+**Joe cosmetic edit.** Post-build, Joe tuned the shipped skin: star `18px` (from 20px), `gap: var(--sp-0)` (from `--sp-1`). Recorded as-shipped (if `--sp-0` is undefined in `:root`, gap resolves to 0/touching — flagged, his call).
+
+**Verify (all real, Rule 2 — Chat self-drove, sampler + CDP 9422, both accents).** Static `vite build` 139 modules. `ids().length===68`; `#default {value:0,max:5}` / `#rated {value:3,max:5}` / `#readonly {value:4,max:5}`. Click star 4 → `4`; again → `0` (clearable). Hover split-read (N-053 Svelte-5 flush): `filled:5` while `value:0`; `mouseleave` → `filled:0` (restore). Keyboard `#rated`: `3→Right→4→Left×2→2→Home→1→End→5`. a11y: `role=radiogroup` / star `role=radio` / `checkedIdx=2`. readonly: `tabindex=null`, click no-op (stays 4), `data-readonly="true"`, `aria-disabled=null`. Colour: filled gold `rgb(194,136,64)` ↔ blue `rgb(58,122,176)`, empty `--t4 rgb(88,92,100)`; 4 `.star-rating` rules in cascade. Screenshots both accents eye-checked. Teardown 0 orphans.
+
+**Records (this close, one atomic per D-074).** N-061 (ui-notes v0.44) + components registry v0.33 (19th `core`, 3rd di composite, Build note M-RP2.24) + ROADMAP v4.16 (RP node M-RP2.24 ✅, next-active reordered) + this entry + CLAUDE PLAY (next-active flip) + runbook → COMPLETED. **Next-active (J-445/N-059 order):** the remaining di-composite backlog (`file-field`/`combobox`/`tag-select`/`color-picker`, N-054, passive-purity order — `file-field` next) → the `widget` tier definition → M-RP4.3.
 
 ---
 

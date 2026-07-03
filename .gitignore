@@ -56,3 +56,6 @@ xgen-node/gen/
 # Multiparty / integration test runtime data (regenerated per run)
 test_runs/
 ui/sampler/node_modules/
+
+# CDP verification screenshots (local eye-checks, not tracked)
+ui/docs/_shots/

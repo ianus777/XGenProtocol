@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.47  
+> Version: 0.48  
 > Date: May 2026  
 > **Last updated**: 2026-07-03  
 > Language: English  
@@ -1411,6 +1411,24 @@ Rebuilt as **owned-popup**: own `<ul role="listbox">`, so everything is styleabl
 **Verify (Chat self-drove, CDP 9422, both accents, real — Rule 2).** `ids()===80`; children `textfield#*__input` (no collision). Open-on-focus sets `data-open` + mounts `<ul>`; filter narrows (`"on"`→Online); select sets value + closes + ▼→chevron; disabled composite inert; disabled row (Offline) unselectable; `.chev` cursor `pointer`, click focuses+opens. 0 orphans.
 
 *UI-design note. Component + skin (shipped). → registry (21st `core`, 5th di composite, matrix 74→80). Establishes the reusable **owned-popup pattern** → color-picker will reuse it (native color popup also unstyleable, N-047). Next: `tag-select` (N-054 backlog).*
+
+---
+
+## 2026-07-03
+
+### N-064 — `chip` (M-RP2.27): standalone di token; self-computed colour; the used-internally-without-registration pattern
+
+M-RP2.27 closed (J-450). **22nd `core`**, a standalone di token (atomic-ish `<span class="chip">`, no self-registering child components — the `×` is a raw `<button>`). Built standalone (own registry row + sampler cells) rather than internal-only because it recurs downstream (dd facets, tier/`is_ai` badges, entity tokens) and the registry already reserved the name. **Prerequisite for `tag-select`** (M-RP2.28).
+
+**Self-computed colour (the headline).** `led` (N-034) was caller-supplied; every other di is accent-derived. `chip` is the **first di whose colour is computed from its own content**: `hash(label)` → hue, at a fixed muted S/L band (fill `hsl(h 45% 82%)`, text `hsl(h 55% 30%)`, border `hsl(h 40% 80%)` — never bright/white), injected as inline vars (`--chip-bg/fg/bd`) the `.chip` skin reads (the `--led-colour` mechanism). Deterministic + **shell-independent** (CDP-proven: identical fill under gold and blue).
+
+**The N-064 pattern — standalone component used internally without registration.** `tag-select` will render chip instances via `{#each}` **without** per-instance `envelope` registration (chips are dynamic/data-driven, not fixed structural children). So a component can be *built standalone* (self-registers in its own sampler cells) yet *used internally without self-registration* when instances are dynamic — keeping the consumer's matrix contribution predictable (tag-select stays +2/cell: composite + textfield, chips don't multiply).
+
+**Contract.** `label` = raw stored value (uppercase is display-only, skin `text-transform`; **bold** `font-weight:700`); `removable?` default true (`×` on the right, `×`-only remove, chip body stays inert-selectable); `onRemove?`; getter `{label, removable}`. Long labels ellipsis-truncate (max-width). `×` = masked stroke glyph (`--chip-x`, N-052 lineage).
+
+**Verify (Chat self-drove, sampler + CDP 9422, both accents, real — Rule 2).** `vite build` 142 modules. `ids()===83`; `#default {label:"rust",removable:true}` / `#static {removable:false}` (no `×`) / `#long` (ellipsis). Computed fills differ per label — rust `rgb(244,225,242)` ≠ svelte `rgb(225,233,244)`, both muted; rust fill **identical** under node shell (self-computed, not accent-derived). `×` present/default, absent/static; `×` click fires bound `onRemove` (local spy, internal counter — not surfaced to registry), no throw. Screenshot eye-checked (bold caps, per-label tints). Joe cosmetic: fill L 92→82 (−10%), label bold.
+
+*UI-design note. Component + skin (shipped). → registry (22nd `core`, matrix 80→83). First self-computed-colour di; establishes the N-064 used-internally-without-registration pattern → `tag-select`. Next: `tag-select` (M-RP2.28, the chip consumer).*
 
 ---
 

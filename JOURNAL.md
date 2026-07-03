@@ -8,6 +8,22 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-450 — M-RP2.27 CLOSED: `chip`, a standalone di token (22nd `core`) — self-computed colour (first di), the used-internally-without-registration pattern (N-064); prerequisite for `tag-select` — built, CDP-verified, records closed
+
+**What happened.** Built `chip`, the **22nd `core`** — a standalone di token (atomic-ish `<span class="chip">`, no self-registering children; the `×` is a raw `<button>`). Not a composite: built standalone as the **prerequisite for `tag-select`** (M-RP2.28) and because it recurs downstream (dd facets, tier/`is_ai` badges, entity tokens). Design Joe-locked across the session (chip standalone; `×` right / `×`-only; uppercase; self-computed colour); runbook `tasks/M_RP2_27_CHIP.md` (now COMPLETED). Steps A–D.
+
+**Self-computed colour (the headline).** First di whose colour comes from its own content: `hash(label)`→hue at a fixed muted S/L band (fill `hsl(h 45% 82%)`, text `hsl(h 55% 30%)`, border `hsl(h 40% 80%)` — never white), injected as inline `--chip-bg/fg/bd` the `.chip` skin reads (the `--led-colour` mechanism). `led` was caller-supplied; every other di is accent-derived — `chip` computes its own, so it is **shell-independent** (identical under gold/blue).
+
+**N-064 pattern.** A standalone component (self-registers in its own sampler cells) can be **used internally without per-instance registration** when instances are dynamic — `tag-select` will render chips via `{#each}` with no `envelope` per chip, so the consumer's matrix stays predictable (+2/cell, chips don't multiply).
+
+**Contract.** `label` (raw stored value; uppercase + **bold** display-only) / `removable?` (default true, `×` right, `×`-only, body inert-selectable) / `onRemove?` / `id`; getter `{label, removable}`; ellipsis truncation; `×` masked stroke glyph (`--chip-x`, N-052).
+
+**Verify (all real, Rule 2 — Chat self-drove, sampler + CDP 9422, both accents).** `vite build` 142 modules. `ids()===83`; `#default {label:"rust",removable:true}` / `#static {removable:false}` (no `×`) / `#long` ellipsis-truncated. Computed fills differ per label — rust `rgb(244,225,242)` ≠ svelte `rgb(225,233,244)`, both muted; rust fill **identical** under node shell (self-computed proof). `×` present/default, absent/static; `×` click fires bound `onRemove` (internal spy counter, not surfaced), no throw. Screenshot eye-checked. **Joe cosmetic (as-shipped):** fill L 92→82 (−10% brightness), label `font-weight:700`.
+
+**Records (atomic, D-074).** N-064 (ui-notes v0.48) + registry v0.36 (22nd `core`, chip build note, matrix 80→83, tag-select schema stub updated) + ROADMAP v4.19 (RP node M-RP2.27 ✅) + this entry + CLAUDE PLAY + runbook → COMPLETED. **Next-active:** **M-RP2.28 `tag-select`** (the chip consumer) → `color-picker` → widget definition → M-RP4.3. **Housekeeping still open:** `tasks/HANDOFF_UI_TIER_DISCUSSION.md` ACTIVE→SUPERSEDED (deliverable met by J-445) — flip next touch.
+
+---
+
 ## Entry J-449 — M-RP2.26 CLOSED: `combobox`, the 5th di composite — native `<datalist>` tried + reverted, rebuilt as a rich **owned-popup** (own `<ul role=listbox>`, passive; owned-popup pattern → color-picker) — built, CDP-verified, records closed
 
 **What happened.** Built `combobox`, the **21st `core`** and the **5th di composite**, 5th backlog pick (N-054). A two-phase round: started native, reverted, rebuilt owned. Design walked + Joe-locked live (6 locks); runbook `tasks/M_RP2_26_COMBOBOX.md` (now COMPLETED).

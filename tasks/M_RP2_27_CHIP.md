@@ -1,5 +1,5 @@
 # M-RP2.27 — `chip` (removable token)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-03  
@@ -25,8 +25,8 @@
 - **D (CDP — self-driven, 9422, both accents)** — `ids()===83`; `#default {label, removable:true}`; `#static {removable:false}` (no `×`); computed fill/fg differ per label (deterministic, same under both accents — colour is self-computed, not accent-derived); `×` click fires `onRemove` (spy); long-label ellipsis; screenshots; 0 orphans on 9422/5175.
 
 ## DoD
-- [ ] A: `chip.svelte`, hash→HSL vars, conditional `×`, getter `{label, removable}`
-- [ ] B: `.chip` skin, computed-colour vars read, `×` mask, uppercase + ellipsis
-- [ ] C: 3 sampler cells, `vite build` clean
-- [ ] D: CDP both accents, real output (Rule 2), matrix 80→83, colour-self-computed proof, `onRemove` spy, 0 orphans
-- [ ] Records (D-074): N-064 (chip + standalone-used-internally-without-registration pattern) + registry v0.36 + ROADMAP + JOURNAL + CLAUDE PLAY + this runbook → COMPLETED
+- [x] A: `chip.svelte`, hash→HSL vars, conditional `×`, getter `{label, removable}`
+- [x] B: `.chip` skin, computed-colour vars read, `×` mask, uppercase + ellipsis
+- [x] C: 3 sampler cells, `vite build` clean (142 modules)
+- [x] D: CDP both accents, real output (Rule 2), matrix 80→83, colour-self-computed proof, `onRemove` spy, 0 orphans
+- [x] Records (D-074): N-064 + registry v0.36 + ROADMAP v4.19 + J-450 + CLAUDE PLAY + this runbook → COMPLETED

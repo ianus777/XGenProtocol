@@ -944,3 +944,82 @@ html, body {
 .file-field .file-list .size {
   color: var(--t4);
 }
+
+
+/* ── combobox (di composite, M-RP2.26) — OWNED popup <ul>, styleable (unlike native
+ * datalist): compact, left-aligned, no balloon. Passive; owns only `open`. Chevron
+ * (--tri) collapsed, closed-triangle (--tri-open) on [data-open]. Both stroke-only
+ * masked, sw2 (N-052). ▼ nudged −5px. ── */
+.combobox {
+  --tri: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 9l7 7 7-7'/%3E%3C/svg%3E");
+  --tri-open: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16L5 8h14z'/%3E%3C/svg%3E");
+  display: flex;
+  position: relative;
+}
+.combobox > .textfield {
+  flex: 1;
+  margin-left: 0;
+  margin-right: 0;
+  padding-right: calc(var(--sp-2) + 18px + 5px);
+}
+.combobox .chev {
+  position: absolute;
+  right: calc(var(--sp-2) + 5px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  background-color: var(--t3);
+  -webkit-mask: var(--tri) center / contain no-repeat;
+  mask: var(--tri) center / contain no-repeat;
+  cursor: pointer;
+}
+.combobox[data-open] .chev {
+  -webkit-mask-image: var(--tri-open);
+  mask-image: var(--tri-open);
+}
+.combobox[aria-disabled] .chev {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* owned popup: compact, left-aligned, square (no balloon) */
+.combobox-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--s3);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+.combobox-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 3px var(--sp-2);
+  font-size: var(--fs-1);
+  color: var(--t);
+  cursor: pointer;
+  text-align: left;
+}
+.combobox-list li:hover,
+.combobox-list li[aria-selected="true"] {
+  background: var(--s4);
+}
+.combobox-list li[aria-disabled] {
+  opacity: 0.4;
+  cursor: default;
+}
+.combobox-list .status {
+  font-size: var(--fs-0);
+  color: var(--t4);
+}

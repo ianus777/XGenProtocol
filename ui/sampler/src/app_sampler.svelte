@@ -40,6 +40,7 @@
   import PasswordField from '$core/components/data-independent/password-field.svelte';
   import StarRating from '$core/components/data-independent/star-rating.svelte';
   import FileFieldComposite from '$core/components/data-independent/file-field.svelte';
+  import Combobox from '$core/components/data-independent/combobox.svelte';
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -130,6 +131,16 @@
   let ffDefault = $state(null);
   let ffMultiple = $state(null);
   let ffDisabled = $state(null);
+  // combobox (M-RP2.26) — rich owned-popup; string bind:value = shown label. preset seeded.
+  let cbDefault = $state('');
+  let cbPreset = $state('Online');
+  let cbDisabled = $state('');
+  const cbOptions = [
+    { value: 'online', label: 'Online', status: 'active' },
+    { value: 'away', label: 'Away', status: 'idle' },
+    { value: 'busy', label: 'Busy', status: 'DND' },
+    { value: 'offline', label: 'Offline', status: 'off', disabled: true },
+  ];
 
   const selOptions = [
     { value: 'one', label: 'One' },
@@ -363,6 +374,15 @@
         <div class="s-cell"><span class="s-id">file-field#default</span><FileFieldComposite bind:files={ffDefault} id="default" /></div>
         <div class="s-cell"><span class="s-id">file-field#multiple</span><FileFieldComposite bind:files={ffMultiple} id="multiple" multiple /></div>
         <div class="s-cell"><span class="s-id">file-field#disabled</span><FileFieldComposite bind:files={ffDisabled} id="disabled" disabled /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">combobox</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">combobox#default</span><Combobox bind:value={cbDefault} id="default" options={cbOptions} placeholder="Type or pick" /></div>
+        <div class="s-cell"><span class="s-id">combobox#preset</span><Combobox bind:value={cbPreset} id="preset" options={cbOptions} /></div>
+        <div class="s-cell"><span class="s-id">combobox#disabled</span><Combobox bind:value={cbDisabled} id="disabled" options={cbOptions} disabled /></div>
       </div>
     </div>
   </div>

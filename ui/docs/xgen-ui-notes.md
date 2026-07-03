@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.45  
+> Version: 0.46  
 > Date: May 2026  
 > **Last updated**: 2026-07-03  
 > Language: English  
@@ -1379,6 +1379,22 @@ M-RP2.24 closed (J-447). The **third di composite** (after `status-indicator` N-
 **Correction owned (Rule 5).** The runbook DoD first wrote the matrix as `65→66` (a `+1`-total slip); Shape B adds 1 entry × 3 cells = **+3**, so `65→68` is the correct, verified count. Runbook fixed at close.
 
 *UI-design note. Component + skin change (shipped), no protocol/data implication. → components registry (19th `core`, 3rd di composite). Refines the composite definition (Shape-B composes-nothing) — D-069 promotion-watch. Next: a di-composite from the N-054 backlog — `file-field` next by the passive-purity order (Joe's pick).*
+
+## 2026-07-03
+
+### N-062 — `file-field` (M-RP2.25): the 4th di composite; SHAPE A (child-composite — hidden `file` atomic + drop-zone + list); passive slice only (no remove, no progress); outline drop-icon
+
+M-RP2.25 closed (J-448). The **4th di composite** (after status-indicator, password-field, star-rating), **20th `core`**, 4th backlog pick (N-054). Re-exercises the child-composite model — contrast to star-rating's Shape B.
+
+**Shape A + the scope call (Rule 6).** `file-field` composes the real `file` atomic as a **hidden** child input (`__input`, self-registers) driven by a styled drop-zone + a file-list. The deferred spec was "zone + list + remove + progress"; the **passive slice** shipped is zone + list only. **No remove** (a `FileList` is immutable — remove needs a `File[]` model + `DataTransfer` write-back, tag-select territory; logged follow-up). **No progress/upload** (host I/O = widget-tier, N-059, deferred). So it stays FileList-native + passive: drop/pick **replaces** the selection. Matrix multiplies **+2/cell** (composite + child) → 3 cells → **68→74**.
+
+**Mechanics.** `files` `$bindable` (FileList|null); the zone (`role=button`, `tabindex`, Enter/Space → picker) drives the hidden input via a queried ref (`root.querySelector('input[type=file]')` — no atomic change). Drop builds a `DataTransfer` (respects `multiple`; keeps first when single), sets `input.files`, dispatches `change` so the child `bind:files` syncs up. `data-dragging` reflects for the highlight; `disabled` drops interaction. Getter `{count, files:[{name,size,type}]}`.
+
+**Drop-icon (approved in-milestone touch-up).** Outline (stroked, `fill=none`) folder + short down-arrow centered in the folder rect — **info-only, no accent**. Skin-only: `--drop` mask var on `.file-field`, `::before` on `.drop-zone` left of the label, fixed `--t3` (stays neutral even while the zone border/text go accent on drag). Same mask mechanism as the eye/star glyphs (N-052 lineage); the real `icon` primitive supersedes it later.
+
+**Verify (Chat self-drove, sampler + CDP 9422, both accents, real — Rule 2).** `vite build` 140 modules (caught + fixed a name clash: `file.svelte` already aliased `FileField` → sampler import renamed `FileFieldComposite`). `ids()===74`; baseline `{count:0,files:[]}` on composite + child. Drop → `{count:1,files:[{name:"a.txt",size:1,type:"text/plain"}]}`; `!multiple` drop of 2 keeps 1; `#multiple` keeps 2. Enter triggers hidden input (click spy). `dragover` → `data-dragging="true"`, border `--accent2`. Disabled: `tabindex=-1`, `aria-disabled=true`, drop no-op. `::before` 18×18, mask set, bg `--t3 rgb(138,136,128)`. Accent gold`rgb(194,136,64)`↔blue`rgb(58,122,176)`; 4 `.file-field` rules in cascade. Screenshots eye-checked (icon left of label). 0 orphans.
+
+*UI-design note. Component + skin (shipped). → registry (20th `core`, 4th di composite). Re-confirms the child-composite matrix model (+2/cell) alongside star-rating's Shape-B (+1/cell). Next: `combobox` (N-054 backlog, passive-purity order).*
 
 ---
 

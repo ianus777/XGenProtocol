@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-448 — M-RP2.25 CLOSED: `file-field`, the 4th di composite (Shape A: child-composite — hidden `file` atomic + drop-zone + list); passive slice only (no remove, no progress); outline drop-icon — built, CDP-verified, records closed
+
+**What happened.** Built `file-field`, the **20th `core`** and the **4th di composite** (after status-indicator, password-field, star-rating), 4th backlog pick (N-054). Design Joe-locked this session (Shape A + scope + Locks 1–3); runbook `tasks/M_RP2_25_FILE_FIELD.md` (now COMPLETED). Last round of the session.
+
+**Shape A + scope (Rule 6).** Composes the real `file` atomic as a **hidden** child input (`__input`, self-registers) driven by a styled drop-zone + a file-list — the child-composite model, contrast to star-rating's Shape B. Matrix multiplies **+2/cell** (composite + child) → 3 cells → **68→74**. Passive slice only: **no remove** (a `FileList` is immutable — remove needs a `File[]` model + `DataTransfer` write-back, tag-select territory; follow-up) and **no progress/upload** (host I/O = widget-tier, N-059, deferred). Drop/pick **replaces** the selection; stays FileList-native + passive.
+
+**Mechanics.** `files` `$bindable` (FileList|null); zone `role=button`/`tabindex`/Enter-Space → picker via a queried input ref (no atomic change); drop builds a `DataTransfer` (respects `multiple`, keeps first when single), sets `input.files`, dispatches `change` so the child `bind:files` syncs up to the composite. `data-dragging` highlight; `disabled`. Getter `{count, files:[{name,size,type}]}`.
+
+**Name clash caught at build.** `vite build` failed: `file.svelte` is already aliased `FileField` in the sampler → renamed the composite import `FileFieldComposite`. Fixed, rebuilt clean (140 modules).
+
+**Drop-icon (approved in-milestone touch-up).** Outline (stroked, `fill=none`) folder + short down-arrow centered in the folder rect — **info-only, no accent**. Skin-only: `--drop` mask var + `::before` on `.drop-zone` left of the label, fixed `--t3` (stays neutral even while the zone goes accent on drag). Same mask mechanism as eye/star (N-052 lineage). Joe confirmed the outline design + placement before it landed.
+
+**Verify (all real, Rule 2 — Chat self-drove, sampler + CDP 9422, both accents).** `ids()===74`; composite + child baseline `{count:0,files:[]}`. Drop → `{count:1,files:[{name:"a.txt",size:1,type:"text/plain"}]}`; `!multiple` drop of 2 keeps 1; `#multiple` keeps 2. Enter triggers hidden input (click spy). `dragover` → `data-dragging="true"`, border `--accent2`. Disabled: `tabindex=-1`, `aria-disabled=true`, drop no-op. `::before` 18×18, mask set, bg `--t3 rgb(138,136,128)`. Accent gold `rgb(194,136,64)` ↔ blue `rgb(58,122,176)`; 4 `.file-field` rules in cascade. Screenshots eye-checked (icon left of label). 0 orphans.
+
+**Records (atomic, D-074).** N-062 (ui-notes v0.46) + registry v0.34 (20th `core`, 4th di composite, Build note M-RP2.25) + ROADMAP v4.17 (RP node M-RP2.25 ✅, reorder) + this entry + CLAUDE PLAY + runbook → COMPLETED. **Next-active:** the remaining di-composite backlog (`combobox` → `tag-select` → `color-picker`, N-054, passive-purity order) → the `widget` tier definition → M-RP4.3.
+
+---
+
 ## Entry J-447 — M-RP2.24 CLOSED: `star-rating`, the 3rd di composite (Shape B: self-contained, composes no child components — refines the composite definition); discrete-value + roving-radiogroup + hover-preview — built, CDP-verified, records closed
 
 **What happened.** Built `star-rating`, the **19th `core` component** and the **3rd di composite** (after `status-indicator`, `password-field`), and the third di-composite backlog pick (N-054). Design Joe-locked this session (Shape B + Locks 1–3 + all-next); runbook `tasks/M_RP2_24_STAR_RATING.md` (now COMPLETED). Steps A–E.

@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.34  
+> Version: 0.35  
 > Date: Jun 2026  
 > **Last updated**: 2026-07-03  
 > Language: English  
@@ -109,6 +109,8 @@ First built `core` component, authored at M-RP2.3 as the substrate proof: verifi
 
 > **Build note (M-RP2.25):** `file-field` is now **built** — di **composite**, the **4th di composite** and **20th `core`**, root `<div class="file-field">`. **Shape A (child-composite):** composes the real `file` atomic as a **hidden** child input (`__input`, self-registers) + a styled drop-zone + a file-list — contrast to star-rating's Shape B; matrix multiplies **+2/cell** (composite + child) → 3 cells → **68→74**. **Passive slice only** (Rule 6, N-062): zone + list; **no remove** (FileList immutable — follow-up) and **no progress/upload** (host I/O = widget-tier, N-059). `files` `bind:files` (FileList|null); getter `{count, files:[{name,size,type}]}`. Zone `role=button`/`tabindex`/Enter-Space → picker; drop builds a `DataTransfer` (respects `multiple`), writes `input.files`, dispatches `change` to sync the child bind; `data-dragging` highlight; `disabled`. Outline folder drop-icon (`--drop` mask `::before`, info-only `--t3`, N-052 lineage). CDP-verified in the sampler DI·composite panel (D-097): 3 cells, both accents; drop/multiple/keyboard/disabled, 4 `.file-field` rules in cascade, 0 orphans. The di catalogue — 16 atomics + **four** composites — is now built. See N-062.
 
+> **Build note (M-RP2.26):** `combobox` is now **built** — di **composite**, the **5th di composite** and **21st `core`**, root `<div class="combobox">`. **Owned-popup:** own `<ul role="listbox">`, **not** native `<datalist>` — the native version started (Path A) but was **reverted**: datalist rows are text-only + OS/WebView-unstyleable (no rich rows, no compact/left-align), N-063. Rows are now fully styleable — compact, left-aligned, no balloon, rich `options` `{value,label,status?,disabled?,icon?}[]` (back-compat `string[]`; `icon?` declared, **unwired** pending the icon primitive). **Passive di** — owns only `open` (a UI flag like password-field `revealed`; **not** a `widget` — the widget bar is *behaviour-contract*, not *any state*). Child `textfield` registers `__input` (suffix ≠ password-field's `__field`, collision-safe — the clash was caught at CDP: 74→78 vs 80). Matrix **+2/cell** → 3 cells → **74→80**. ▼ swaps chevron→closed-triangle on `[data-open]`; a real `.chev` span carries the masked glyph + finger cursor (click focuses/opens). Filter = case-insensitive substring on label; select sets value + closes; disabled row unselectable. CDP-verified in the sampler DI·composite panel (D-097): 3 cells, both accents; open/filter/select/disabled/disabled-row/chev, 0 orphans. Establishes the reusable **owned-popup pattern** → `color-picker` will reuse it. The di catalogue — 16 atomics + **five** composites — is now built. See N-063.
+
 > **Built (di) — the `status-indicator` cluster (`led` ✅ BUILT M-RP2.20, `link` ✅ BUILT M-RP2.21, `status-indicator` ✅ BUILT M-RP2.22; locked 2026-06-29, N-049):**
 > • **`led`** ✅ BUILT (M-RP2.20, J-431) — di·A, **simple display-di** (the 4th, after label/paragraph/image), atomic inline `<span class="led">` status light. Caller-supplied **`states: Record<string,string>`** map (`{ "ON":"#ff0000", "OFF":"var(--t4)" }` — hex **or** `var(--token)`) + **`state: string`** key picks the shown colour; **`pulse?: boolean`** (orthogonal animation). Resolve: `colour = states[state] ?? "#000000"` — **full black `#000000` is the reserved unknown/undefined sentinel; consumers must never map a real state to black**. `title = state ?? "?"` (native tooltip shows the live key; a set-but-unmapped key still shows in the tooltip, only truly-undefined shows `"?"`). Getter `{ state, colour }`. `role="img"` + `aria-label={title}`. The `.led` skin owns **shape only** (size, `border-radius:50%`, pulse `@keyframes`); colour rides an inline CSS var from the prop. The `select` options-prop precedent (N-034): a caller-supplied map the atomic does not interpret → fully data-independent.
 > • **`link`** ✅ BUILT (M-RP2.21, J-432) — di·A, **navigation** semantic (the new catalogue row above), atomic `<a href>`. Value-carrying (the `text` label) **and** navigational (`href`), with optional `onclick` for in-app/SPA routing (e.g. a "details →" jump to a settings section). **Distinct** from the existing *button link-styled shape* (a `<button>` that *looks* like a link but acts via `onclick`, no navigation) — `link` **is** an `<a>`. Full prop surface (`href`/`text`/`target`/`rel`/external-vs-in-app/inert handling) is its own design walk at build time.
@@ -119,10 +121,10 @@ First built `core` component, authored at M-RP2.3 as the substrate proof: verifi
 Data-independent composites (N-022 amendment): several native controls assembled into one control point, still keyed to a single semantic, binding = none. Schema: the header line carries name · annotations · `→ <root tag class>`; a `<div class="type">` root means composite and the `├──` child lines are its composed-of members (N-020/N-022). Children are named bare — each child's own catalogue entry defines its root.
 
 ```
-combobox         keyed: single-select · binding: none → <div class="combobox">
-├── textfield     free-text constituent (filter / value)
-├── icon-button   list toggle (tabindex -1)
-└── select-list   single-select constituent (filtered set)
+combobox         keyed: single-select · binding: none → <div class="combobox">   ✅ BUILT (M-RP2.26)
+├── textfield     free-text constituent (filter / value; `__input`)
+└── owned listbox <ul role="listbox"> of rich rows (custom, styleable) + decorative `.chev` ▼
+                 (replaces the native <datalist> — text-only/unstyleable, N-063; owned-popup pattern)
 
 tag-select       keyed: multi-select · binding: none → <div class="tag-select">
 ├── chip × N      selected items  (chip = sub-composite; schema TBD)

@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-449 — M-RP2.26 CLOSED: `combobox`, the 5th di composite — native `<datalist>` tried + reverted, rebuilt as a rich **owned-popup** (own `<ul role=listbox>`, passive; owned-popup pattern → color-picker) — built, CDP-verified, records closed
+
+**What happened.** Built `combobox`, the **21st `core`** and the **5th di composite**, 5th backlog pick (N-054). A two-phase round: started native, reverted, rebuilt owned. Design walked + Joe-locked live (6 locks); runbook `tasks/M_RP2_26_COMBOBOX.md` (now COMPLETED).
+
+**Native tried → reverted (the pivot).** First built Path A: `textfield` + native `<datalist>` via a Step-A additive `list?` prop, decorative ▼. Passive and cheap, but the native datalist popup is **OS/WebView-drawn** — rows are text-only and completely unstyleable (no compact spacing, no left-align, no rich content). Joe's usage needs **rich rows** (icon/status), which native can't render at all. So the native version (incl. the `textfield` `list?` prop) was **reverted from a clean slate** — not kept as a baseline (documenting a dead-end wasn't worth the second component). N-063.
+
+**Owned-popup rebuild.** `combobox` now renders its own `<ul role="listbox">`: compact, left-aligned, no balloon, rich `options` `{value,label,status?,disabled?,icon?}[]` (back-compat `string[]`; `icon?` declared but **unwired** until an icon primitive lands). **Passive di** — owns exactly one UI flag, `open` (same order as password-field `revealed`). Settled a live disagreement: an earlier over-rigid "owns `open` → widget" was **corrected** — the `widget` bar (N-059) is a *behaviour contract*, not *any state*; a styled dropdown with one open flag stays a passive di-composite. Establishes the reusable **owned-popup pattern** → `color-picker` will reuse it (native colour popup is also unstyleable, N-047).
+
+**Collision caught at CDP.** The child `textfield` first used suffix `__field` — which **collided** with password-field's child key (`textfield#default__field`) when both share instance id "default": registry came up **78, not 80** (two child getters shadowing). Fixed by giving combobox its own child suffix `__input` (`textfield#default__input`) — collision-safe; each textfield-bearing composite now owns a distinct child suffix.
+
+**Icon + affordance.** ▼ is a stroke-only masked glyph (N-052 lineage — the eye/drop precedent: outline comes from a `fill=none` SVG under a mask, not an inline SVG). Chevron collapsed, closed-triangle on `[data-open]` (the real `open` makes the swap honest). Rendered both candidates for Joe (chevron vs closed-triangle) before he picked chevron-collapsed. The glyph lives on a real `.chev` span (not `::after`) so it can carry a **finger cursor** + a click that focuses the field/opens (Joe's cosmetic add).
+
+**Verify (all real, Rule 2 — Chat self-drove, sampler + CDP 9422, both accents).** `ids()===80`; children `textfield#*__input` (no collision). Open-on-focus sets `data-open` + mounts `<ul>` + ▼→triangle; filter narrows (`"on"`→Online); select sets value + closes + ▼→chevron; disabled composite inert (aria-disabled, input disabled, no open); disabled row (Offline) unselectable; `.chev` cursor `pointer`, click focuses+opens. Focus-retention across CDP evals is a harness artifact (blur closes next-tick) — drove disabled-row + open-state via synthetic `focusin`. Node-accent shot confirmed (combobox uses neutral `--s3/--s4`, so it reads the same under both accents by design). 0 orphans on 9422/5175.
+
+**Records (atomic, D-074).** N-063 (ui-notes v0.47) + registry v0.35 (21st `core`, 5th di composite, Build note M-RP2.26, combobox schema updated) + ROADMAP v4.18 (RP node M-RP2.26 ✅, reorder) + this entry + CLAUDE PLAY + runbook → COMPLETED. **Housekeeping flagged:** `tasks/HANDOFF_UI_TIER_DISCUSSION.md` is still `Status: ACTIVE` but its deliverable (widget-tier concept-lock) was met by J-445/N-059 — flip to COMPLETED/SUPERSEDED next touch. **Next-active:** the remaining di-composite backlog (`tag-select` → `color-picker`, N-054, passive-purity order; color-picker reuses the owned-popup pattern) → the `widget` tier definition → M-RP4.3.
+
+---
+
 ## Entry J-448 — M-RP2.25 CLOSED: `file-field`, the 4th di composite (Shape A: child-composite — hidden `file` atomic + drop-zone + list); passive slice only (no remove, no progress); outline drop-icon — built, CDP-verified, records closed
 
 **What happened.** Built `file-field`, the **20th `core`** and the **4th di composite** (after status-indicator, password-field, star-rating), 4th backlog pick (N-054). Design Joe-locked this session (Shape A + scope + Locks 1–3); runbook `tasks/M_RP2_25_FILE_FIELD.md` (now COMPLETED). Last round of the session.

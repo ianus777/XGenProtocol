@@ -1,5 +1,5 @@
 # M-RP2.26 — `combobox` (rich, owned-popup)
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-03  

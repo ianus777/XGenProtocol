@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.46  
+> Version: 0.47  
 > Date: May 2026  
 > **Last updated**: 2026-07-03  
 > Language: English  
@@ -1395,6 +1395,22 @@ M-RP2.25 closed (J-448). The **4th di composite** (after status-indicator, passw
 **Verify (Chat self-drove, sampler + CDP 9422, both accents, real — Rule 2).** `vite build` 140 modules (caught + fixed a name clash: `file.svelte` already aliased `FileField` → sampler import renamed `FileFieldComposite`). `ids()===74`; baseline `{count:0,files:[]}` on composite + child. Drop → `{count:1,files:[{name:"a.txt",size:1,type:"text/plain"}]}`; `!multiple` drop of 2 keeps 1; `#multiple` keeps 2. Enter triggers hidden input (click spy). `dragover` → `data-dragging="true"`, border `--accent2`. Disabled: `tabindex=-1`, `aria-disabled=true`, drop no-op. `::before` 18×18, mask set, bg `--t3 rgb(138,136,128)`. Accent gold`rgb(194,136,64)`↔blue`rgb(58,122,176)`; 4 `.file-field` rules in cascade. Screenshots eye-checked (icon left of label). 0 orphans.
 
 *UI-design note. Component + skin (shipped). → registry (20th `core`, 4th di composite). Re-confirms the child-composite matrix model (+2/cell) alongside star-rating's Shape-B (+1/cell). Next: `combobox` (N-054 backlog, passive-purity order).*
+
+---
+
+## 2026-07-03
+
+### N-063 — `combobox`: native reverted, rebuilt as rich owned-popup
+
+Started native (Path A, `<input list>` + `<datalist>`, passive). Reverted mid-arc: native datalist rows are **text-only and unstyleable** (OS/WebView-drawn) — no rich rows (icon/status), no compact/left-aligned list. Real usage needs rich rows, so native was dropped entirely (not kept as a baseline).
+
+Rebuilt as **owned-popup**: own `<ul role="listbox">`, so everything is styleable — compact, left-aligned, no balloon. Still a **passive di composite**: owns exactly one UI flag, `open` (same order as password-field `revealed` / file-field `data-dragging`), no behaviour contract → **not** a `widget` (N-059). Settled that the widget bar is *behaviour contract*, not *any state* — an earlier over-rigid "owns open → widget" was corrected.
+
+`options` = `{value,label,status?,disabled?,icon?}[]` (back-compat `string[]`); `icon?` declared but **unwired** until an icon primitive exists. Child textfield registers as `<id>__input` (suffix deliberately ≠ password-field's `__field`, so two textfield-bearing composites don't collide on a shared instance id — a real collision caught at CDP: 74→78 instead of 80). ▼ swaps chevron→closed-triangle on `[data-open]` (real `open` makes the swap honest). ▼ is a real `.chev` span (finger cursor scoped to the glyph; click focuses the field/opens).
+
+**Verify (Chat self-drove, CDP 9422, both accents, real — Rule 2).** `ids()===80`; children `textfield#*__input` (no collision). Open-on-focus sets `data-open` + mounts `<ul>`; filter narrows (`"on"`→Online); select sets value + closes + ▼→chevron; disabled composite inert; disabled row (Offline) unselectable; `.chev` cursor `pointer`, click focuses+opens. 0 orphans.
+
+*UI-design note. Component + skin (shipped). → registry (21st `core`, 5th di composite, matrix 74→80). Establishes the reusable **owned-popup pattern** → color-picker will reuse it (native color popup also unstyleable, N-047). Next: `tag-select` (N-054 backlog).*
 
 ---
 

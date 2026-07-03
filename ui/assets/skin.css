@@ -1023,3 +1023,46 @@ html, body {
   font-size: var(--fs-0);
   color: var(--t4);
 }
+
+/* ── chip (di token, M-RP2.27) — self-computed colour: fill/text/border ride inline
+ * --chip-bg/fg/bd (hash(label)→HSL, muted band) the component injects. Skin owns SHAPE:
+ * inline-flex pill, 8px UPPERCASE + letter-spacing, ellipsis truncation, `×` masked
+ * stroke glyph (--chip-x, N-052) on the RIGHT. Non-removable drops the button. ── */
+.chip {
+  --chip-x: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6L6 18M6 6l12 12'/%3E%3C/svg%3E");
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 120px;
+  padding: 1px 4px 1px 6px;
+  background: var(--chip-bg);
+  border: 0.5px solid var(--chip-bd);
+  border-radius: 5px;
+}
+.chip .chip-label {
+  font-size: 8px;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 700;
+  color: var(--chip-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip .chip-x {
+  flex: none;
+  margin-left: auto;
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: 0;
+  background-color: var(--chip-fg);
+  -webkit-mask: var(--chip-x) center / contain no-repeat;
+  mask: var(--chip-x) center / contain no-repeat;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.chip .chip-x:hover {
+  opacity: 1;
+}

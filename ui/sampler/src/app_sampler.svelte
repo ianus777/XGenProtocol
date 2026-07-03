@@ -41,6 +41,7 @@
   import StarRating from '$core/components/data-independent/star-rating.svelte';
   import FileFieldComposite from '$core/components/data-independent/file-field.svelte';
   import Combobox from '$core/components/data-independent/combobox.svelte';
+  import Chip from '$core/components/data-independent/chip.svelte';
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -135,6 +136,8 @@
   let cbDefault = $state('');
   let cbPreset = $state('Online');
   let cbDisabled = $state('');
+  // chip (M-RP2.27) — display token, no bind. onRemove spy for CDP.
+  let chipRemoved = $state(0);
   const cbOptions = [
     { value: 'online', label: 'Online', status: 'active' },
     { value: 'away', label: 'Away', status: 'idle' },
@@ -331,6 +334,17 @@
         <div class="s-cell"><span class="s-id">link#default</span><Link href="#settings" text="Settings" id="default" /></div>
         <div class="s-cell"><span class="s-id">link#external</span><Link href="https://xgen.example" text="xgen.example" external ariaLabel="XGen site (opens externally)" id="external" /></div>
         <div class="s-cell"><span class="s-id">link#disabled</span><Link href="#x" text="Unavailable" disabled id="disabled" /></div>
+      </div>
+    </div>
+
+    <div class="s-section-title">Token</div>
+
+    <div class="s-row">
+      <div class="s-rowname">chip</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">chip#default</span><Chip label="rust" id="default" onRemove={() => chipRemoved++} /></div>
+        <div class="s-cell"><span class="s-id">chip#static</span><Chip label="svelte" removable={false} id="static" /></div>
+        <div class="s-cell"><span class="s-id">chip#long</span><Chip label="a-very-long-keyword-that-truncates" id="long" onRemove={() => chipRemoved++} /></div>
       </div>
     </div>
   </div>

@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.53  
+> Version: 0.54  
 > Date: May 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -1541,6 +1541,22 @@ M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the 
 **CDP-verified** (sampler 9422, real output): pure core `99→10 / -5→0 / 7→7 / null→null / idempotent`; live on `change` — `99→10` and `-5→0` (bind synced), in-range `7` no-op (value preserved); registry **97→98** (`number#clamped`); reuses the `.number` skin (kind 3 adds none); 0 orphans. *(Verify note: the in-range no-op doesn't dispatch `input`, so a `change`-only CDP drive won't sync `bind:value` — real typing fires `input` first; verified with `input`+`change`.)*
 
 *UI-implementation record. Pure `$common`+`$core`, no effect layer. → D-099 amendment (kind 3 built), 2 of 4 kinds now built. Next: kind 2 (converter/bridge, `Intl`) → kind 4 (`use:render`, deferred) → dd-components.*
+
+### N-070 — converter-field: kind-2 converter/bridge — the one processor kind that is a component
+
+**M-RP4.5.** Built kind **2** of the four-kind taxonomy (D-099/N-056): the **converter/bridge**, `string ↔ T`. The 25th `core` component and the **first "processor kind" that ships as a real component, not a forwarded attachment**. Kinds 1 (transformer) and 3 (filter/guard) forward an attachment onto an atomic's inner `<input>` and sync back through a **single** `bind:value` — legal because display-rep and bound-rep share a type. Kind 2 has **two reps of different type** (a formatted display *string* + a typed bound *value* `T`); one binding can't carry both, so it is a host component owning both slots. (Reinforced: `textfield` is not a processor-host — no `{...rest}` — so an attachment path was never available here anyway.)
+
+**Pure core (`transform.ts`, additive, DOM-free).** `PARSE_FAILED = Symbol()` (unique sentinel, so `null`/`NaN` stay legitimate `T`); `Converter<T> {toString(v):string; fromString(s): T | PARSE_FAILED; toEditable?(v):string}`; first concrete `intlNumber(opts?, locale?)` — `toString`=`Intl.NumberFormat.format`, `toEditable`=raw `String(v)`, `fromString` discovers this locale's group+decimal glyphs via `formatToParts(11111.1)` (Intl has no parser), strips the group glyph, normalises the decimal to `.`, then `Number()`+finite-check. Still the `logic.ts` posture — Intl is ECMA-402, not DOM; no `window` here.
+
+**Host (`converter-field.svelte`, new di atomic).** `<script lang="ts" generics="T">`, root `<input type="text">`. Two-rep state: `value` ($bindable, typed OUT) + internal `text` ($state display/edit string, **never** a `$derived` of value — that would clobber live typing) + `invalid`. An `$effect` reformats `text` from `value` on external change **only while unfocused**. Timing (Joe-lock): `focus`→raw `toEditable` (edit "1234.56", not "1,234.56"); `change`/`blur`→`commit()`; **nothing on `input`** (decoupled → no caret-restore machinery, the kind-1 concern doesn't arise). `commit()`: empty text = no-op revert to `display(value)` (never an "invalid empty"); `PARSE_FAILED` = **reject-and-mark** (`[data-invalid]`, keep text, value UNCHANGED); success = set value + reformat display. The component is kind 2's sole framework touch, so the DEV `__XGEN_CONVERT__` hook lives here (not `transform.ts`). Getter `{value,text,valid}`.
+
+**Skin (`.converter-field`).** Assembled from the `.number` L2 vocabulary (single-line, `--ctl-h`), text-input (no spinner). Parse-failure is NOT a native `:invalid` (the field holds a free string until commit), so the error look keys off the reflected `[data-invalid="true"]` → `--err` / focused `--err-bright` (the `.led [data-pulse]` attribute-hook precedent).
+
+**Provenance = Tier-1 only.** A converter is code-supplied LOGIC, never a user-authored string — no caps, no convergence lint, no `assertSafeRules` (that gate stays kind-1-specific).
+
+**CDP-verified** (sampler 9422, both accents, real output). `vite build` 146→147 modules clean (generics compiled). Pure core via `__XGEN_CONVERT__`: `toString(1234567.5)="1,234,567.5"`, `toEditable="1234567.5"`, `fromString("2,000,000.5")=2000000.5`, `fromString("abc")=PARSE_FAILED`, `fromString("   ")=PARSE_FAILED`, idempotent round-trip `fromString(toString(1234.5))=1234.5`. Live `#default`: seed `{value:1234.5, text:"1,234.5", valid:true}`; drive `abc`→`{value:1234.5(HELD), text:"abc", valid:false}` + settled `data-invalid="true"` + border `rgb(138,42,42)`=`--err`; drive `2000000.5`→`{value:2000000.5, text:"2,000,000.5", valid:true}`; empty→revert `{value:2000000.5(preserved), text:"2,000,000.5"}`. `#disabled {99.9,"99.9",valid}` disabled; base `INPUT`/`type=text`/`min-height:28px`/`fs 12px`. Registry **98→100** (+2 cells). 0 orphans. *(Verify note: getter reads live `$state` synchronously; the DOM `data-invalid` attr + `bind:value` display reformat flush a microtask later — read the settled attribute on a second CDP round-trip, not inline with the drive.)*
+
+*UI-implementation record. Pure `$common`+`$core`, no effect layer (fully sampler-verifiable, no D-097 blind spot). → D-099 amendment (kind 2 built), 3 of 4 kinds now built. Accent-neutral atomic (border `--s5`/`--err`, no accent dependency — like `number`/`textfield`). Next: kind 4 (`use:render`, deferred) → dd-components.*
 
 ---
 

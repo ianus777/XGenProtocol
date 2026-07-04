@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.41  
+> Version: 0.42  
 > Date: Jun 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -12,7 +12,7 @@ This file records the data-independent **catalogue** (the intended control vocab
 
 > **Level-2 `widget` tier (2026-07-04, → D-102 / N-067).** Above this Level-1 component catalogue sits the **`widget`** tier — a pluggable **UI plugin** that owns state/lifecycle + host I/O (home `ui/common/lib/components/widgets/`), connected via a reactive `$common` store binding, verified two-layer (pure/presentational → sampler WIDGET tab / effect → real shell). It is **not catalogued here** (a widget is not a `core` component). Spec: `ui/docs/xgen-widget-tier.md` v1.0 (first-instance-provisional). First **buildable** widget = `substitutions-editor` ✅ **BUILT** (M-RP4.3, J-454) — the first `widgets/` occupant; edits the `[substitutions]` rules string (one textarea, D-100 1:1) → store → live morph, persists via host-injected `set_substitutions`. `temperature-indicator` first conceived but dd-blocked.
 
-> **Text-processor kinds (2026-07-04, D-099/N-056).** The edit-side processor engine has **2 of 4 kinds built**: kind 1 transformer (`string→string`, live on `input`; `textarea`/`number` hosts, M-RP4.0/4.2) + kind 3 filter/guard (`number` min/max clamp on `change`, M-RP4.1). Kind 2 (converter/bridge, `Intl`) + kind 4 (`use:render`) are codified, not built. Delivered as forwarded `common` attachments; the atomics stay logic-free (`{...rest}` hosts).
+> **Text-processor kinds (2026-07-04, D-099/N-056).** The edit-side processor engine has **3 of 4 kinds built**: kind 1 transformer (`string→string`, live on `input`; `textarea`/`number` hosts, M-RP4.0/4.2) + kind 3 filter/guard (`number` min/max clamp on `change`, M-RP4.1) + kind 2 converter/bridge (`string↔T`, the new di atomic `converter-field` with `Intl`, M-RP4.5). Kind 4 (`use:render`) remains codified, not built. Kinds 1/3 are forwarded `common` attachments (atomics stay `{...rest}` hosts); kind 2 is the exception — a real component, since two reps of different type can't ride one `bind:value`.
 
 ---
 
@@ -35,6 +35,7 @@ The live registry of components actually authored in the tree (N-019). **Tier** 
 | textarea | `core` | A | data-independent · free-text multi-line | `<textarea>` | `ui/core/lib/components/data-independent/textarea.svelte` | `() => $state.snapshot({ value })` | N-022/N-024/N-038/N-040/N-056/N-057 |
 | number | `core` | A | data-independent · numeric | `<input type="number">` | `ui/core/lib/components/data-independent/number.svelte` | `() => $state.snapshot({ value })` | N-022/N-024/N-038/N-041 |
 | range | `core` | A | data-independent · numeric (bounded) | `<input type="range">` | `ui/core/lib/components/data-independent/range.svelte` | `() => $state.snapshot({ value })` | N-022/N-024/N-038/N-042 |
+| converter-field | `core` | A | data-independent · converter/bridge (kind 2) | `<input type="text">` | `ui/core/lib/components/data-independent/converter-field.svelte` | `() => $state.snapshot({ value, text, valid })` | N-022/N-024/N-056/N-070 |
 
 First built `core` component, authored at M-RP2.3 as the substrate proof: verified live in **both** apps (client 9222 / node 9322) — `snapshot()` returned real `{checked:false}`, flip → `{checked:true}` confirmed live reactive reads.
 

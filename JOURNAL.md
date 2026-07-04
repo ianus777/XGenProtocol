@@ -8,6 +8,50 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-456 — M-RP4.5 CLOSED: kind-2 converter/bridge — `converter-field`, the one processor kind that is a component; `string ↔ T` via `Converter<T>`/`intlNumber` + a `<generics=T>` two-rep host — built, sampler-verified, records closed
+
+**What happened.** Built + closed **kind 2** of the four-kind processor taxonomy (D-099/N-056): the **converter/bridge** (`string ↔ T`). Unlike kinds 1/3 (same-type in/out, forwarded attachments), kind 2 has TWO representations of DIFFERENT type coexisting — a formatted display string + a typed bound value — which one `bind:value` cannot carry, so it ships as a **real component**, the 25th `core` (di atomic `converter-field`). Pure layer only (no Rust, no effect layer), fully sampler-verifiable. Design Joe-locked Phase-0 (host / config+parse / timing / provenance / getter); runbook `tasks/M_RP4_5_CONVERTER_FIELD.md` (now COMPLETED). Three of four processor kinds now built (1 transformer, 3 filter/guard, 2 converter); only kind 4 (`use:render`) remains codified-not-built.
+
+**Pure core (`transform.ts`, additive, DOM-free).** `PARSE_FAILED = Symbol()` (unique sentinel — `null`/`NaN` stay legitimate `T`); `Converter<T> {toString(v):string; fromString(s): T | PARSE_FAILED; toEditable?(v):string}`; first concrete `intlNumber(opts?, locale?)` over `Intl.NumberFormat` — `toString`=format, `toEditable`=raw `String(v)`, `fromString` discovers the locale's group+decimal glyphs via `formatToParts(11111.1)` (Intl has no parser), strips group, normalises decimal to `.`, `Number()`+finite-check. Still the `logic.ts` posture (Intl = ECMA-402, not DOM; no `window`). The `ProcessorRule` union stays codified-not-declared (D-065).
+
+**Host (`converter-field.svelte`, new di atomic).** `<script lang="ts" generics="T">`, root `<input type="text">`. Two-rep state: `value` ($bindable, typed OUT) + internal `text` ($state, never a `$derived` of value — that clobbers typing) + `invalid`. An `$effect` reformats `text` from `value` on external change **only while unfocused**. Timing (Joe-lock): `focus`→raw `toEditable`; `change`/`blur`→`commit()`; **nothing on `input`** (decoupled → no caret-restore). `commit()`: empty = no-op revert (never "invalid empty"); `PARSE_FAILED` = reject-and-mark (`[data-invalid]`, value held); success = set value + reformat. The component is kind 2's sole framework touch, so the DEV `__XGEN_CONVERT__` hook lives here (not `transform.ts`). Getter `{value,text,valid}`. Skin `.converter-field` assembled from the `.number` vocabulary; parse-fail look keys off `[data-invalid="true"]` (not native `:invalid` — the field holds a free string until commit; the `.led [data-pulse]` attribute-hook precedent). **Provenance = Tier-1 only** (a converter is code, not a user string — no caps/lint).
+
+**Sampler.** New DI·atomic Interactive row; stable converter identity (`const numConv = intlNumber({maximumFractionDigits:2})`, defined once, not inline); cells `#default` (seed 1234.5) + `#disabled` (99.9).
+
+**CDP verify** (sampler 9422, both accents, real output — Rule 2). `npm run build` clean:
+```
+✓ 147 modules transformed.
+✓ built in 711ms
+```
+(146→147; the `generics="T"` component compiled). Registry + presence:
+```
+{"total":100,"converter":["converter-field#default","converter-field#disabled"]}
+```
+Pure core via `__XGEN_CONVERT__`:
+```
+{"fmt":"1,234,567.5","edit":"1234567.5","parseGrouped":2000000.5,"parsePlain":42.25,"parseBad":"PARSE_FAILED","parseEmpty":"PARSE_FAILED","roundtrip":1234.5}
+```
+Live `#default` (drive input+change per commit):
+```
+initial : {"value":1234.5,"text":"1,234.5","valid":true}
+afterBad("abc")     : {"value":1234.5,"text":"abc","valid":false}
+afterValid("2000000.5"): {"value":2000000.5,"text":"2,000,000.5","valid":true}
+afterEmpty("")      : {"value":2000000.5,"text":"2,000,000.5","valid":true}
+```
+Settled DOM after the bad drive (second round-trip, post-flush):
+```
+{"dataInvalid":"true","borderColor":"rgb(138, 42, 42)","getter":{"value":2000000.5,"text":"abc","valid":false}}
+```
+`rgb(138,42,42)` = `#8a2a2a` = `--err` (the `.converter-field[data-invalid="true"]` skin rule applies). Disabled cell + base skin:
+```
+{"disabled":{"get":{"value":99.9,"text":"99.9","valid":true},"isDisabled":true},"defaultBase":{"tag":"INPUT","type":"text","minHeight":"28px","fontSize":"12px"},"restored":{"value":2000000.5,"text":"2,000,000.5","valid":true}}
+```
+Registry **98→100** (+2 cells). Field left clean (empty-commit reverted to the current value). **0 orphans.** *(Method note: the getter reads live `$state` synchronously, but the DOM `data-invalid` attribute + `bind:value` display reformat flush a microtask later — the settled attribute is read on a second CDP round-trip, not inline with the drive. This is why the first combined drive showed `dataInvalid:null` while the getter already read `valid:false`.)*
+
+**Records (atomic, D-074).** D-099 amendment (kind 2 built) + N-070 (ui-notes v0.54) + registry v0.42 (converter-field row + processor-kinds banner 3-of-4) + ROADMAP v4.25 (RP node + tree + M-RP4.5 ✅ DONE) + CLAUDE PLAY (Entry head → J-456, next-active → kind 4/dd) + this entry + runbook → COMPLETED. **Next-active:** kind 4 (`use:render`, deferred) → dd-components (unblocks `temperature-indicator` + the widget registry/dynamic-mount layer).
+
+---
+
 ## Entry J-455 — M-RP4.1 CLOSED: kind-3 filter/guard — `number` min/max clamp; the 2nd of four processor kinds built (`ClampRule`+`applyClamp` + change-triggered `clamp.ts` attachment + `number` clamp-host) — built, sampler-verified, records closed
 
 **What happened.** Built + closed **kind 3** of the four-kind processor taxonomy (D-099/N-056): the **filter/guard** (`T → T`, idempotent). First consumer = `number` min/max **clamp** on commit (`change`). Pure layer only — no Rust, no effect layer, fully sampler-verifiable (no D-097 blind spot). Design Joe-locked Phase-0 (1–5); runbook `tasks/M_RP4_1_NUMBER_CLAMP.md` (now COMPLETED). Two of four processor kinds are now built (1 transformer, 3 filter/guard).

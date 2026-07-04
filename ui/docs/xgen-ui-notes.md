@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.52  
+> Version: 0.53  
 > Date: May 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -1527,6 +1527,20 @@ M-RP4.3 closed (J-454). The first `widget` (D-102) shipped and firmed the spec. 
 **W-conformance.** W-1…W-10 held; W-11 N/A (no dd-slot this instance). Spec firmed to **v1.1** — no clause was wrong; W-3 (host-injected shell I/O) + W-8 (first-run caveat) gained real-world detail.
 
 *UI-design note. Component (shipped) + Rust command + doc firmings. → registry v0.40 (first `widgets/` occupant), widget-tier spec v1.1, D-100 amendment. The first widget dogfooded + firmed the tier. Next: M-RP4.1 (kind-3 number-clamp, on `change`) → kind-2 converter field → kind-4 `use:render` (deferred) → dd-components.*
+
+### N-069 — kind-3 filter/guard (M-RP4.1): `number` min/max clamp — the 2nd of four processor kinds built
+
+M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the **filter/guard** (`T → T`, idempotent), first consumer = `number` min/max clamp on **commit** (`change`), not per-keystroke. Pure layer only — no Rust, fully sampler-verifiable.
+
+**Pure core (`transform.ts`).** `ClampRule {min?,max?}` + `applyClamp(n: number|null, rule): number|null` — total, idempotent, `null` (empty field) passes through; each bound applied only if present; min>max keeps the upper clamp (total, no throw). Co-located with the kind-1 core (both DOM-free); the `ProcessorRule` union stays codified-not-declared.
+
+**Engine (`processor/clamp.ts`).** A **new sibling attachment**, not a branch of `processor.ts`: kind 1 is `input`-shaped with caret restore; kind 3 is **`change`-shaped**, numeric-coerce, no caret. `clamp({min?,max?})` → forwardable attachment; on `change` reads `valueAsNumber`, coerces via `applyClamp`, writes back + dispatches synthetic `input` to sync `bind:value`; re-entrancy-guarded; DEV hook `__XGEN_CLAMP__`.
+
+**Host (`number.svelte`).** Gains `...rest` + `{...rest}` on `<input>` — the comment's "reserved insertion point", now the first **clamp-host**. Delivery mirrors kind-1 (`<Number {...clamp({min,max})} />`, N-056). Additive, no clamp logic in the atomic (D-065).
+
+**CDP-verified** (sampler 9422, real output): pure core `99→10 / -5→0 / 7→7 / null→null / idempotent`; live on `change` — `99→10` and `-5→0` (bind synced), in-range `7` no-op (value preserved); registry **97→98** (`number#clamped`); reuses the `.number` skin (kind 3 adds none); 0 orphans. *(Verify note: the in-range no-op doesn't dispatch `input`, so a `change`-only CDP drive won't sync `bind:value` — real typing fires `input` first; verified with `input`+`change`.)*
+
+*UI-implementation record. Pure `$common`+`$core`, no effect layer. → D-099 amendment (kind 3 built), 2 of 4 kinds now built. Next: kind 2 (converter/bridge, `Intl`) → kind 4 (`use:render`, deferred) → dd-components.*
 
 ---
 

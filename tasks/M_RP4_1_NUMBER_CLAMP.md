@@ -1,6 +1,6 @@
 # M-RP4.1 — kind-3 filter/guard: `number` min/max clamp
-> **Status**: ACTIVE  
-> Version: 0.1  
+> **Status**: COMPLETED  
+> Version: 1.0  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -28,12 +28,12 @@ Runbook for **kind 3** of the four-kind processor taxonomy (D-099/N-056): the **
 
 ## Definition of Done
 
-- [ ] A `ClampRule` + `applyClamp` (idempotent, total, null pass-through) + DEV hook
-- [ ] B `clamp.ts` attachment, `change`-triggered, re-entrancy-guarded, `__XGEN_CLAMP__`
-- [ ] C `number.svelte` `{...rest}` additive (guard-ready, no logic)
-- [ ] D sampler `number#clamped` cell, matrix +1
-- [ ] E CDP verified in sampler, both accents, real output, 0 orphans
-- [ ] Records atomic per D-074 (N-069 + registry + ROADMAP + PLAY + JOURNAL); D-099 kind-3 marked built
+- [x] A `ClampRule` + `applyClamp` (idempotent, total, null pass-through) + DEV hook
+- [x] B `clamp.ts` attachment, `change`-triggered, re-entrancy-guarded, `__XGEN_CLAMP__`
+- [x] C `number.svelte` `{...rest}` additive (guard-ready, no logic)
+- [x] D sampler `number#clamped` cell, matrix +1
+- [x] E CDP verified in sampler, both accents, real output, 0 orphans (99→10 / -5→0 / in-range no-op; registry 97→98)
+- [x] Records atomic per D-074 (D-099 amendment + N-069 + registry v0.41 + ROADMAP v4.24 + PLAY + JOURNAL J-455); D-099 kind-3 marked built
 
 ## Notes
 

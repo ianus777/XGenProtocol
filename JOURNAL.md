@@ -8,6 +8,22 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-455 — M-RP4.1 CLOSED: kind-3 filter/guard — `number` min/max clamp; the 2nd of four processor kinds built (`ClampRule`+`applyClamp` + change-triggered `clamp.ts` attachment + `number` clamp-host) — built, sampler-verified, records closed
+
+**What happened.** Built + closed **kind 3** of the four-kind processor taxonomy (D-099/N-056): the **filter/guard** (`T → T`, idempotent). First consumer = `number` min/max **clamp** on commit (`change`). Pure layer only — no Rust, no effect layer, fully sampler-verifiable (no D-097 blind spot). Design Joe-locked Phase-0 (1–5); runbook `tasks/M_RP4_1_NUMBER_CLAMP.md` (now COMPLETED). Two of four processor kinds are now built (1 transformer, 3 filter/guard).
+
+**Pure core (`transform.ts`).** `ClampRule {min?,max?}` + `applyClamp(n: number|null, rule): number|null` — pure, total, **idempotent**, `null` (empty field) passes through; each bound applied only if present; `min>max` keeps the upper clamp (total, no throw). Co-located with the kind-1 core (both DOM-free, the `logic.ts` posture). The `ProcessorRule` union stays codified-not-declared (D-065).
+
+**Engine (`processor/clamp.ts`).** A **new sibling attachment**, NOT a branch of `processor.ts` — kind 1 is `input`-shaped with caret restore; kind 3 is **`change`-shaped**, numeric-coerce, no caret. `clamp({min?,max?})` → forwardable attachment (`createAttachmentKey`); on `change` reads `valueAsNumber`, coerces via `applyClamp`, writes back + dispatches synthetic `input` to sync `bind:value`; re-entrancy-guarded; DEV hook `__XGEN_CLAMP__`.
+
+**Host (`number.svelte`).** Gains `...rest` + `{...rest}` on `<input>` — the comment's "reserved insertion point", now the first **clamp-host**. Delivery mirrors kind-1 (`<Number {...clamp({min,max})} />`). Additive, no clamp logic in the atomic (D-065).
+
+**CDP verify** (sampler 9422, real output — Rule 2). `vite build` clean 146 modules. Pure core via `__XGEN_CLAMP__`: `applyClamp(99,{0,10})=10`, `(-5)=0`, `(7)=7`, `(null)=null`, idempotent (`99→10→10`). Live `number#clamped` on `change`: drove `99` → DOM+getter `10`; `-5` → `0` (both bind-synced via the synthetic input); in-range `7` → no-op, value preserved (verified with `input`+`change`, since the no-op path intentionally dispatches no `input`). Registry **97→98**; reuses the `.number` skin (kind 3 adds none); 0 orphans.
+
+**Records (atomic, D-074 — code pushed as feat; this is the docs close).** D-099 amendment (kind 3 built) + N-069 (ui-notes v0.53) + registry v0.41 (processor-kinds status) + ROADMAP v4.24 (RP node + tree + M-RP4.1 ✅ DONE) + CLAUDE PLAY (Entry head → J-455, next-active → kind 2) + this entry + runbook → COMPLETED. **Next-active:** kind 2 (converter/bridge field, `Intl`) → kind 4 (`use:render`, deferred) → dd-components.
+
+---
+
 ## Entry J-454 — M-RP4.3 CLOSED: `substitutions-editor`, the FIRST widget — one-textarea rules editor → store → live morph, host-injected `set_substitutions` persist (seam-only real-shell verify); W-3/W-8 firmed to spec v1.1; the seed `-->`/`<--`→`->`/`<-` substring-shadowing fix — built, two-layer verified, records closed
 
 **What happened.** Built + closed the **first `widget`** (D-102) — `substitutions-editor`, the settings UI for the substitution rules. Chat built the pure layer (Steps A–E), Clair the effect layer (Steps F–G, commit `f94a138`); one milestone, two verify homes (Lock 2). Design was Joe-locked across Phase-0 (shape 1–7); runbook `tasks/M_RP4_3_SUBSTITUTIONS_EDITOR.md` (now COMPLETED). It dogfooded + firmed the tier.

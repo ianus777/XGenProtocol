@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.40  
+> Version: 0.41  
 > Date: Jun 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -11,6 +11,8 @@
 This file records the data-independent **catalogue** (the intended control vocabulary) and a **seed** of the data-derived spine (concept-locked rows that extend during stock-take + testing); both become the live registry of built components as the library is laid down.
 
 > **Level-2 `widget` tier (2026-07-04, → D-102 / N-067).** Above this Level-1 component catalogue sits the **`widget`** tier — a pluggable **UI plugin** that owns state/lifecycle + host I/O (home `ui/common/lib/components/widgets/`), connected via a reactive `$common` store binding, verified two-layer (pure/presentational → sampler WIDGET tab / effect → real shell). It is **not catalogued here** (a widget is not a `core` component). Spec: `ui/docs/xgen-widget-tier.md` v1.0 (first-instance-provisional). First **buildable** widget = `substitutions-editor` ✅ **BUILT** (M-RP4.3, J-454) — the first `widgets/` occupant; edits the `[substitutions]` rules string (one textarea, D-100 1:1) → store → live morph, persists via host-injected `set_substitutions`. `temperature-indicator` first conceived but dd-blocked.
+
+> **Text-processor kinds (2026-07-04, D-099/N-056).** The edit-side processor engine has **2 of 4 kinds built**: kind 1 transformer (`string→string`, live on `input`; `textarea`/`number` hosts, M-RP4.0/4.2) + kind 3 filter/guard (`number` min/max clamp on `change`, M-RP4.1). Kind 2 (converter/bridge, `Intl`) + kind 4 (`use:render`) are codified, not built. Delivered as forwarded `common` attachments; the atomics stay logic-free (`{...rest}` hosts).
 
 ---
 

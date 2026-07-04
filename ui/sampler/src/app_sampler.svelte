@@ -368,6 +368,8 @@
         <div class="s-cell"><span class="s-id">meter#neutral</span><Meter value={50} min={0} max={100} id="neutral" /></div>
         <div class="s-cell"><span class="s-id">meter#fixed</span><Meter value={70} min={0} max={100} optimum={20} low={50} high={80} width="120px" id="fixed" /></div>
         <div class="s-cell"><span class="s-id">meter#disabled</span><Meter value={40} min={0} max={100} disabled id="disabled" /></div>
+        <div class="s-cell"><span class="s-id">meter#custom</span><Meter value={70} min={0} max={100} optimum={20} low={50} high={80} fill="var(--accent2)" id="custom" /></div>
+        <div class="s-cell"><span class="s-id">meter#neutral2</span><Meter value={50} min={0} max={100} fill="var(--t3)" id="neutral2" /></div>
       </div>
     </div>
 

@@ -486,15 +486,15 @@ html, body {
 }
 .meter::-webkit-meter-optimum-value {
   border-radius: 999px;
-  background: var(--ok);
+  background: var(--meter-fill, var(--ok));
 }
 .meter::-webkit-meter-suboptimum-value {
   border-radius: 999px;
-  background: var(--warn);
+  background: var(--meter-fill, var(--warn));
 }
 .meter::-webkit-meter-even-less-good-value {
   border-radius: 999px;
-  background: var(--err);
+  background: var(--meter-fill, var(--err));
 }
 .meter[aria-disabled="true"] {
   opacity: 0.45;

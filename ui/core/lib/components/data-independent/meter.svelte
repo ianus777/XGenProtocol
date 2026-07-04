@@ -32,6 +32,7 @@
     low,
     high,
     width,
+    fill,
     disabled = false,
     id,
     name,
@@ -50,6 +51,10 @@
     high?: number;
     /** Fixed width (e.g. "200px" / "12rem"). Omitted = full-width (skin 100%). */
     width?: string;
+    /** Custom bar colour (hex or `var(--token)`). Set = a fixed fill that OVERRIDES the optimum/
+     *  sub/over semantics (the led/chip inline-var mechanism); omitted = the semantic --ok/--warn/
+     *  --err fills. Use `var(--t3)` for a neutral no-semantics bar. */
+    fill?: string;
     disabled?: boolean;
     id?: string;
     name?: string;
@@ -57,7 +62,7 @@
 
   // N-024 opt-in is one greppable line. $state.snapshot de-proxies for CDP returnByValue. Config
   // (min/max/optimum) travels with the value since it defines what the value MEANS on the bar.
-  const debug = () => $state.snapshot({ value, min, max, optimum });
+  const debug = () => $state.snapshot({ value, min, max, optimum, fill });
 </script>
 
 <meter
@@ -69,6 +74,6 @@
   {high}
   {name}
   aria-disabled={disabled ? 'true' : undefined}
-  style={width ? `width: ${width}` : undefined}
+  style={[width ? `width: ${width}` : '', fill ? `--meter-fill: ${fill}` : ''].filter(Boolean).join('; ') || undefined}
   use:envelope={{ name: 'meter', id, debug }}
 ></meter>

@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.56  
+> Version: 0.58  
 > Date: May 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -1579,6 +1579,28 @@ M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the 
 **CDP-verified** (sampler 9422, real output). `vite build` clean. `#custom {value:70,…,fill:"var(--accent2)"}` + inline `--meter-fill: var(--accent2)`; `#neutral2 {…,fill:"var(--t3)"}`. Pseudo rules in cascade: `::-webkit-meter-optimum-value/-suboptimum-value/-even-less-good-value => var(--meter-fill, var(--ok|--warn|--err))`. Registry **106→108**. 0 orphans.
 
 *UI-implementation record. Additive, no breaking change. → registry v0.44 (meter getter gains `fill`). Next: the dd track opens (`section-header` → `entity-avatar`, D-071-audited).*
+
+### N-073 — section: collapsible disclosure container (di, atomic-ish); supersedes the seed `section-header`
+
+**M-RP2.31.** Built `section` — the **27th `core`**, root native `<section>`. A collapsible **disclosure container**: optional header (title + badge + chevron) over a body slot of arbitrary content. **di, binding = none**. **Atomic-ish** (the chip/star-rating self-contained shape): composes NO registering child *components* — header bits + chevron are raw internal elements, body is a `children` snippet — so **one getter per instance** (a nested section is its own instance → its own id; matrix +1/instance). Does NOT open dd.
+
+**Supersedes the seed `section-header`.** The seed row was a bare *divider* that, once collapse was required, would have to reach out and hide *sibling* rows (awkward). A self-contained container that owns its own body collapses cleanly. Design walked with Joe: it is di (not dd — binding none), atomic on `<section>`, `<div>`-body (the semantically-honest neutral container for arbitrary/nestable content — `<article>`/`<p>` carry wrong meaning / `<p>` can't hold block children), solid header band (not a rule line — the future bg-colour/picture widget-mods need a filled surface). **Filter/search is NOT this component** — a data-aware panel/widget concern that feeds `badge` + hides rows (deferred).
+
+**Skeleton:** `<section class="section">` → `<h{level} class="section-header">title <span class="section-badge">2/5</span></h{level}>` + `<div class="section-body">…children…</div>`. Collapsible → header content in `<button aria-expanded>` + chevron; body `[data-collapsed]` → `display:none` (NEVER `{#if}` — slot stays mounted). **Nesting is free** (a `section` in the body). Chevron **reuses combobox's masked glyphs** (`--tri` chevron / `--tri-open` closed-triangle, Joe-lock), swapped on `[data-collapsed]`.
+
+**Props/getter.** `title?`/`badge?: string` (programmatic, e.g. "2/5" unread/total — not user text)/`collapsible?` (def false)/`collapsed?` ($bindable)/`level?` (def 2)/`id`/`children`. Getter `{title, badge, collapsible, collapsed}`. Accent-neutral.
+
+**CDP-verified** (sampler 9422, real output — Rule 2). `vite build` clean. Registry **108→114** (5 cells + `#nested-inner`; nesting registers its own id). Getters: `#plain {title:"Spaces",collapsible:false,collapsed:false}`, `#badged {…,badge:"2/5"}`, `#collapsible {title:"Rooms",collapsible:true,collapsed:false}`, `#bare {collapsible:false,collapsed:false}` (no title/badge keys). `tag=SECTION`, `<h2.section-header>` present, `#bare` has NO header, badge text "2/5", `#nested` body contains a child `<section>`. **Collapse** (click toggle, settled DOM 2nd round-trip): getter `collapsed:true`, `[data-collapsed]`, `aria-expanded=false`, body `display:none`, chevron mask swapped to `--tri-open`. 12 `.section*` rules in cascade. Screenshot `temp/section-verify.png`. 0 orphans.
+
+*UI-implementation record. Pure `$core`, atomic-ish di. → registry v0.45 (section row, 27th core; seed `section-header` → DEPRECATED/superseded). Next: the dd track opens for real — `entity-avatar` (domain-bound, D-071 audit: IdentityRecord/SpaceState) → `container-list-item` → `spaces-panel` (composes `section` + rows).*
+
+### N-074 — section `width?` amendment: settable width (meter mechanism)
+
+**M-RP2.31a.** Additive amendment to `section` (M-RP2.31) — an optional **`width?`** prop (string, e.g. `"320px"`/`"24rem"`) → inline `width` on the root `<section>`; unset → **100%** (fills container). `.section` gains `min-width:160px` (a titled box needs more than meter's 80px) + `box-sizing:border-box`. Getter gains `width` → `{title, badge, collapsible, collapsed, width}` (meter precedent). No breaking change.
+
+**CDP-verified** (sampler 9422, real output). `vite build` clean. `#fixed {…,width:"320px"}` + computed `width:320px`; `#plain` has no width key (unset), computed `min-width:160px`. Registry **114→115**. 0 orphans.
+
+*UI-implementation record. Additive. → registry v0.46 (section getter gains `width`). Next: the dd track opens (`entity-avatar`, D-071-audited).*
 
 ---
 

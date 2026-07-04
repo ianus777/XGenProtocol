@@ -8,6 +8,48 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-460 — M-RP2.31a CLOSED: `section` `width?` — settable width (additive, meter mechanism) — built, sampler-verified, records closed
+
+**What happened.** Additive amendment to `section` (M-RP2.31) — an optional **`width?`** prop, the `meter` width contract (M-RP2.30). No breaking change.
+
+**Change.** `section.svelte`: `width?: string` → inline `width` on root `<section>`; unset → 100% (fills container). `skin.css` `.section`: `width:100%` + `min-width:160px` (a titled box needs more than meter's 80px) + `box-sizing:border-box`. Getter gains `width` → `{title, badge, collapsible, collapsed, width}` (meter precedent). Sampler: `section#fixed` (`width="320px"`).
+
+**CDP verify** (sampler 9422, real output — Rule 2). `vite build` clean.
+```
+{"total":115,"fixedGetter":{"title":"Fixed width","collapsible":false,"collapsed":false,"width":"320px"},"plainGetter":{"title":"Spaces","collapsible":false,"collapsed":false},"fixedWidth":"320px","fixedMinWidth":"160px","plainMinWidth":"160px"}
+```
+`#fixed` getter carries `width:"320px"` + computed `width:320px`; `#plain` has no width key (unset) + `min-width:160px`. Registry **114→115**. 0 orphans.
+
+**Records (atomic, D-074).** N-074 (ui-notes v0.58) + registry v0.46 (section getter gains `width`) + ROADMAP v4.29 (tree tail + M-RP2.31a ✅ DONE) + CLAUDE PLAY (→ J-460) + this entry + runbook → COMPLETED. No DECISIONS touch. **Next-active:** the **dd track opens for real** — Phase-0 on `entity-avatar` (first domain-bound dd; D-071 audit of IdentityRecord/SpaceState + Appendix I) → `container-list-item` → `spaces-panel` (composes `section` + rows) → `temperature-indicator` widget. Kind 4 `use:render` stays deferred (D-065).
+
+---
+
+## Entry J-459 — M-RP2.31 CLOSED: `section` — collapsible disclosure container (di, atomic-ish, root `<section>`); supersedes the seed `section-header` — built, sampler-verified, records closed
+
+**What happened.** Built + closed `section` — the **27th `core`**, root native `<section>`: a collapsible **disclosure container** (optional header over a body slot). **di, binding none; atomic-ish** (self-contained, composes no registering child components — one getter per instance; a nested section is its own instance → its own id). Does NOT open dd.
+
+**Design walk (Joe).** Started from the seed `section-header` (a bare divider). The collapse requirement exposed that a divider must reach out and hide *sibling* rows — awkward. Joe steered to a **container** that owns its own body (clean self-collapse). Reclassified: a binding-none container that wraps children is di (the status-indicator precedent), NOT dd — so `section` does not open the dd track, and it **supersedes** the seed `section-header` (⬛ DEPRECATED). Locks: atomic on `<section>`; `<div>`-body (the honest neutral container — `<article>`/`<p>` carry wrong meaning, `<p>` can't hold block children incl. nested sections); **solid header band** (not a rule line — future bg-colour/picture widget-mods target a filled surface); chevron **reuses combobox's `--tri`/`--tri-open` masked glyphs**; badge is a programmatic string ("2/5" unread/total), not user text. Filter/search explicitly OUT (a data-aware panel/widget concern feeding `badge` + hiding rows — deferred).
+
+**Component (`section.svelte`).** Skeleton `<section class="section">` → `<h{level} class="section-header">title <span class="section-badge">2/5</span></h{level}>` + `<div class="section-body">{@render children}</div>`. Props `title?`/`badge?`/`collapsible?` (def false)/`collapsed?` ($bindable)/`level?` (def 2)/`id`/`children`. Collapsible → header in `<button aria-expanded>` + `.chev`; body hidden via `[data-collapsed]` `display:none` (NEVER `{#if}` — slot stays mounted). Getter `{title, badge, collapsible, collapsed}`. Accent-neutral.
+
+**CDP verify** (sampler 9422, real output — Rule 2). `vite build` clean. Registry + presence:
+```
+{"total":114,"sec":["section#plain","section#badged","section#collapsible","section#bare","section#nested-inner","section#nested"]}
+```
+Structure + getters:
+```
+{"plainGetter":{"title":"Spaces","collapsible":false,"collapsed":false},"badgedGetter":{"title":"Direct messages","badge":"2/5","collapsible":false,"collapsed":false},"collapsibleGetter":{"title":"Rooms","collapsible":true,"collapsed":false},"bareGetter":{"collapsible":false,"collapsed":false},"tag":"SECTION","hasH2":true,"bareHasHeader":false,"badgeText":"2/5","nestedChildIsSection":true,"ariaExpanded":"true","bodyDisplay":"block","ruleCount":12}
+```
+Collapse (click toggle, settled DOM 2nd round-trip):
+```
+{"getter":{"title":"Rooms","collapsible":true,"collapsed":true},"dataCollapsed":"true","ariaExpanded":"false","bodyDisplay":"none","chevMask":"url(...tri-open...)"}
+```
+Registry **108→114** (5 cells + `#nested-inner`, nesting registers its own id). 12 `.section*` rules in cascade. Screenshot `temp/section-verify.png`. 0 orphans. *(Verify note: a stale zombie Vite on 5175 served the pre-edit module for several restarts — the fix was killing all node + confirming the served `/src/app_sampler.svelte` contained `section#plain` BEFORE probing the registry; a lesson for the run-sampler thrash.)*
+
+**Records (atomic, D-074).** N-073 (ui-notes v0.57) + registry v0.45 (section row, 27th core; seed `section-header` → DEPRECATED/superseded) + ROADMAP v4.28 (RP node + tree + M-RP2.31 ✅ DONE) + CLAUDE PLAY (→ J-459) + this entry + runbook → COMPLETED. No DECISIONS touch. **Next-active:** the **dd track opens for real** — Phase-0 on `entity-avatar` (the first domain-bound dd; D-071 subsystem audit of IdentityRecord/SpaceState + Appendix I) → `container-list-item` (the object-backed row composing `entity-avatar`) → `spaces-panel` (composes `section` + rows) → `temperature-indicator` widget. Kind 4 `use:render` stays deferred (D-065).
+
+---
+
 ## Entry J-458 — M-RP2.30a CLOSED: `meter` `fill?` — custom bar colour (additive), the led/chip inline-var mechanism — built, sampler-verified, records closed
 
 **What happened.** Additive amendment to `meter` (M-RP2.30) — an optional **`fill?`** prop for a custom bar colour, Joe-lock **option A** (a set `fill` overrides the optimum/sub/over semantics entirely). The led/chip data-coloured-via-inline-var mechanism. No breaking change; unset callers unaffected. Runbook `tasks/M_RP2_30a_METER_FILL.md` (now COMPLETED).

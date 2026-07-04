@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.44  
+> Version: 0.46  
 > Date: Jun 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -37,6 +37,7 @@ The live registry of components actually authored in the tree (N-019). **Tier** 
 | range | `core` | A | data-independent · numeric (bounded) | `<input type="range">` | `ui/core/lib/components/data-independent/range.svelte` | `() => $state.snapshot({ value })` | N-022/N-024/N-038/N-042 |
 | converter-field | `core` | A | data-independent · converter/bridge (kind 2) | `<input type="text">` | `ui/core/lib/components/data-independent/converter-field.svelte` | `() => $state.snapshot({ value, text, valid })` | N-022/N-024/N-056/N-070 |
 | meter | `core` | A | data-independent · display-kind bounded value bar | `<meter>` | `ui/core/lib/components/data-independent/meter.svelte` | `() => $state.snapshot({ value, min, max, optimum, fill })` | N-022/N-024/N-032/N-071/N-072 |
+| section | `core` | A | data-independent · collapsible disclosure container | `<section>` | `ui/core/lib/components/data-independent/section.svelte` | `() => $state.snapshot({ title, badge, collapsible, collapsed, width })` | N-022/N-024/N-073/N-074 |
 
 First built `core` component, authored at M-RP2.3 as the substrate proof: verified live in **both** apps (client 9222 / node 9322) — `snapshot()` returned real `{checked:false}`, flip → `{checked:true}` confirmed live reactive reads.
 
@@ -178,7 +179,7 @@ One row per component. Root tag discriminates atomic (no sub-components) vs comp
 |---|---|---|---|---|
 | entity-avatar | `<div class="entity-avatar">` | `IdentityRecord \| SpaceState` | — | identity/locality visual token; dynamic by kind (N-011/N-018) |
 | container-list-item | `<div class="container-list-item">` | `SpaceState \| RoomState` | — | one row in a container list; dynamic by kind (N-013) |
-| section-header | `<div class="section-header">` | none | — | labelled divider within a panel; ungrounded (N-022) |
+| section-header | `<div class="section-header">` | none | — | ⬛ DEPRECATED — superseded by the built **`section`** di atomic (M-RP2.31, N-073): a collapsible disclosure container (root `<section>`) whose header + body cover the divider role; a bare `section` with no body is the divider case |
 | visit-card | `<div class="visit-card">` | `IdentityRecord` (tiers) | — | public profile render; tier-relative decay (N-010) |
 | contact-entry | `<div class="contact-entry">` | reference + cached visit-card + private annotations | *kind TBD* | one contact-book person, three owned strata (N-009) |
 | spaces-panel | `<div class="spaces-panel">` | `[SpaceState]` | container-list-item ×N + section-header | joined-Spaces panel (N-022 worked example) |

@@ -45,6 +45,7 @@
   import TagSelect from '$core/components/data-independent/tag-select.svelte';
   import ColorPicker from '$core/components/data-independent/color-picker.svelte';
   import ConverterField from '$core/components/data-independent/converter-field.svelte';
+  import Meter from '$core/components/data-independent/meter.svelte';
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -355,6 +356,18 @@
         <div class="s-cell"><span class="s-id">led#off</span><Led states={ledStates} state="OFF" id="off" /></div>
         <div class="s-cell"><span class="s-id">led#pulse</span><Led states={ledStates} state="ERR" pulse id="pulse" /></div>
         <div class="s-cell"><span class="s-id">led#unknown</span><Led states={ledStates} state="???" id="unknown" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">meter</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">meter#optimum</span><Meter value={35} min={0} max={100} optimum={20} low={50} high={80} id="optimum" /></div>
+        <div class="s-cell"><span class="s-id">meter#caution</span><Meter value={65} min={0} max={100} optimum={20} low={50} high={80} id="caution" /></div>
+        <div class="s-cell"><span class="s-id">meter#danger</span><Meter value={94} min={0} max={100} optimum={20} low={50} high={80} id="danger" /></div>
+        <div class="s-cell"><span class="s-id">meter#neutral</span><Meter value={50} min={0} max={100} id="neutral" /></div>
+        <div class="s-cell"><span class="s-id">meter#fixed</span><Meter value={70} min={0} max={100} optimum={20} low={50} high={80} width="120px" id="fixed" /></div>
+        <div class="s-cell"><span class="s-id">meter#disabled</span><Meter value={40} min={0} max={100} disabled id="disabled" /></div>
       </div>
     </div>
 

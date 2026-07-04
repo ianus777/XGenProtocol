@@ -26,6 +26,7 @@
   --inf-soft: #0e2030; --inf: #2a6090;  --inf2: #3a7ab0; --inf-ink: #d0e8f8;
   /* Semantic state — NOT brand: shared across shells, used by the state-dot */
   --ok:  #2d7a3a;
+  --warn: #ba7517;  /* caution / sub-optimum (meter, M-RP2.30); reused for future form-warning states */
   --err: #8a2a2a;  --err-bright: #e64343;  /* --err-bright: focused-invalid border (brighter than --err); tune via HMR */
 
   /* Radius scale */
@@ -451,6 +452,52 @@ html, body {
 .range:disabled::-webkit-slider-thumb {
   background: var(--s4);
   border-color: var(--s5);
+}
+
+/* ---------------------------------------------------
+ * meter (.meter)
+ *   Root IS <meter> (N-020 atomic). DISPLAY-kind di (bounded, read-only value bar, N-032) — the
+ *   read-only sibling of `range`. FULL-WIDTH by default (display:block + width:100%); the atomic
+ *   sets an inline width only when the `width?` prop pins one. min-width floor stops a narrow
+ *   parent crushing it. Pseudo-heavy like `.range` (PROVISIONAL, Joe live-tunes via HMR): the
+ *   track = ::-webkit-meter-bar (--s5 groove); the FILL is UA-picked by optimum position —
+ *   ::-webkit-meter-optimum-value (--ok green) / -suboptimum-value (--warn amber) /
+ *   -even-less-good-value (--err red). With no `optimum` the UA paints the optimum-value pseudo,
+ *   so a no-optimum bar reads --ok; a NEUTRAL grey for that case would need a per-instance hook
+ *   (deferred — callers that want semantics set `optimum`). Verified by stylesheet-rule inspection
+ *   + screenshot (getComputedStyle returns UA defaults on the shadow-pseudos, N-042 method).
+ * --------------------------------------------------- */
+
+.meter {
+  display: block;
+  width: 100%;
+  min-width: 80px;
+  height: 10px;
+  margin: var(--sp-1) var(--sp-2);
+  border-radius: 999px;
+  background: var(--s5);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.meter::-webkit-meter-bar {
+  border: none;
+  border-radius: 999px;
+  background: var(--s5);
+}
+.meter::-webkit-meter-optimum-value {
+  border-radius: 999px;
+  background: var(--ok);
+}
+.meter::-webkit-meter-suboptimum-value {
+  border-radius: 999px;
+  background: var(--warn);
+}
+.meter::-webkit-meter-even-less-good-value {
+  border-radius: 999px;
+  background: var(--err);
+}
+.meter[aria-disabled="true"] {
+  opacity: 0.45;
 }
 
 /* ---------------------------------------------------

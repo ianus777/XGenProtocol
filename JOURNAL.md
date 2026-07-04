@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-457 — M-RP2.30 CLOSED: `meter` — the 26th `core` / 5th simple display-di, root `<meter>`, the read-only sibling of `range`; founds the `--warn` L2 token — built, sampler-verified, records closed
+
+**What happened.** Built + closed `meter` — the **26th `core`** and the **5th simple display-di** (after label/paragraph/image/led), root native `<meter>`. The read-only sibling of `range` (same `{value,min,max}` shape, opposite direction: range = editable numeric-in via `bind:value`; meter = read-only value-against-range-out). **di, NOT dd** — during Phase-0 I first framed meter as the first dd-atomic; Joe challenged it and I corrected: a bare value+range is a display primitive, not a domain materialization (dd = IdentityRecord/SpaceState/etc.). So meter stays on the di display family and does NOT open the dd track. Design Joe-locked (surface / prop set / width / semantic-fill+token / skin / classification); runbook `tasks/M_RP2_30_METER.md` (now COMPLETED).
+
+**Component (`meter.svelte`).** Root `<meter>`; `value` plain prop (read-only display-di rule, not `$bindable`); `min`(0)/`max`(1)/`optimum?`/`low?`/`high?`/`width?`/`disabled?`/`id`/`name`. `low`/`high`/`optimum` drive the native semantic fill. Getter `{value,min,max,optimum}`. No caption/readout (the consuming composite/widget adds it — the range/number rule). Width (Joe-lock): **full-width by default** (`.meter` `display:block`+`width:100%`; JavaFX HGrow is native here), optional `width?` pins a fixed width via inline `style`, `min-width:80px` floor.
+
+**Skin + `--warn`.** Founds **`--warn: #ba7517`** in L2 `:root` (amber; XGen had `--ok`/`--err` but no caution colour; reused later for form-warning states). Pseudo-heavy `.meter` (PROVISIONAL, the `range` precedent): `::-webkit-meter-bar` track `--s5` + `::-webkit-meter-optimum-value` `--ok` / `-suboptimum-value` `--warn` / `-even-less-good-value` `--err`; `[aria-disabled]` dims. **Build finding (D-065):** with no `optimum` the UA paints the *optimum* pseudo, so a no-optimum bar reads green, NOT neutral grey — the design-mock grey isn't achievable via pure native pseudos without a per-instance hook (deferred; the `meter#neutral` cell shows it).
+
+**CDP verify** (sampler 9422, real output — Rule 2). `vite build` clean. Registry + presence:
+```
+{"total":106,"meter":["meter#optimum","meter#caution","meter#danger","meter#neutral","meter#fixed","meter#disabled"]}
+```
+Getters + computed:
+```
+{"getters":{"optimum":{"value":35,"min":0,"max":100,"optimum":20},"caution":{"value":65,"min":0,"max":100,"optimum":20},"danger":{"value":94,"min":0,"max":100,"optimum":20},"neutral":{"value":50,"min":0,"max":100},"disabled":{"value":40,"min":0,"max":100}},"base":{"tag":"METER","display":"block","minWidth":"80px","widthPx":96},"fixed":{"width":"120px"},"disabled":{"opacity":"0.45","ariaDisabled":"true"}}
+```
+Skin rules in cascade + `--warn` token (N-042 stylesheet inspection — `getComputedStyle` returns UA defaults on the shadow-pseudos):
+```
+{"warnToken":"#ba7517","meterRules":[".meter => var(--s5)",".meter::-webkit-meter-bar => var(--s5)",".meter::-webkit-meter-optimum-value => var(--ok)",".meter::-webkit-meter-suboptimum-value => var(--warn)",".meter::-webkit-meter-even-less-good-value => var(--err)",".meter[aria-disabled=\"true\"]"]}
+```
+Screenshot at `temp/meter-verify.png`. Registry **100→106** (+6 cells). Accent-neutral (semantic fills, no `--accent`) → no skin-swap. 0 orphans.
+
+**Records (atomic, D-074).** N-071 (ui-notes v0.55) + registry v0.43 (meter row) + ROADMAP v4.26 (RP node + tree + M-RP2.30 ✅ DONE) + CLAUDE PLAY (Entry head → J-457, next-active → dd track open) + this entry + runbook → COMPLETED. No DECISIONS touch (`--warn` recorded in N-071). **Next-active:** the **dd track opens** — `section-header` (ungrounded warm-up) → `entity-avatar` (first domain-bound, D-071 audit on IdentityRecord/Appendix I). `temperature-indicator` later consumes meter as its readout via the widget dd-socket. Kind 4 `use:render` stays deferred (D-065).
+
+---
+
 ## Entry J-456 — M-RP4.5 CLOSED: kind-2 converter/bridge — `converter-field`, the one processor kind that is a component; `string ↔ T` via `Converter<T>`/`intlNumber` + a `<generics=T>` two-rep host — built, sampler-verified, records closed
 
 **What happened.** Built + closed **kind 2** of the four-kind processor taxonomy (D-099/N-056): the **converter/bridge** (`string ↔ T`). Unlike kinds 1/3 (same-type in/out, forwarded attachments), kind 2 has TWO representations of DIFFERENT type coexisting — a formatted display string + a typed bound value — which one `bind:value` cannot carry, so it ships as a **real component**, the 25th `core` (di atomic `converter-field`). Pure layer only (no Rust, no effect layer), fully sampler-verifiable. Design Joe-locked Phase-0 (host / config+parse / timing / provenance / getter); runbook `tasks/M_RP4_5_CONVERTER_FIELD.md` (now COMPLETED). Three of four processor kinds now built (1 transformer, 3 filter/guard, 2 converter); only kind 4 (`use:render`) remains codified-not-built.

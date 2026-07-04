@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.54  
+> Version: 0.55  
 > Date: May 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -1557,6 +1557,20 @@ M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the 
 **CDP-verified** (sampler 9422, both accents, real output). `vite build` 146→147 modules clean (generics compiled). Pure core via `__XGEN_CONVERT__`: `toString(1234567.5)="1,234,567.5"`, `toEditable="1234567.5"`, `fromString("2,000,000.5")=2000000.5`, `fromString("abc")=PARSE_FAILED`, `fromString("   ")=PARSE_FAILED`, idempotent round-trip `fromString(toString(1234.5))=1234.5`. Live `#default`: seed `{value:1234.5, text:"1,234.5", valid:true}`; drive `abc`→`{value:1234.5(HELD), text:"abc", valid:false}` + settled `data-invalid="true"` + border `rgb(138,42,42)`=`--err`; drive `2000000.5`→`{value:2000000.5, text:"2,000,000.5", valid:true}`; empty→revert `{value:2000000.5(preserved), text:"2,000,000.5"}`. `#disabled {99.9,"99.9",valid}` disabled; base `INPUT`/`type=text`/`min-height:28px`/`fs 12px`. Registry **98→100** (+2 cells). 0 orphans. *(Verify note: getter reads live `$state` synchronously; the DOM `data-invalid` attr + `bind:value` display reformat flush a microtask later — read the settled attribute on a second CDP round-trip, not inline with the drive.)*
 
 *UI-implementation record. Pure `$common`+`$core`, no effect layer (fully sampler-verifiable, no D-097 blind spot). → D-099 amendment (kind 2 built), 3 of 4 kinds now built. Accent-neutral atomic (border `--s5`/`--err`, no accent dependency — like `number`/`textfield`). Next: kind 4 (`use:render`, deferred) → dd-components.*
+
+### N-071 — meter: the 5th simple display-di / read-only sibling of range / `--warn` token founded
+
+**M-RP2.30.** Built `meter` — the **26th `core`** and the **5th simple display-di** (after label/paragraph/image/led), root native `<meter>`. The **read-only sibling of `range`**: same `{value,min,max}` value shape, opposite direction (range = editable numeric-in via `bind:value`; meter = read-only value-against-range-out) — a distinct atomic on the display-vs-edit axis (the paragraph/textarea precedent). **di, not dd** — binds a plain number against a range, interprets no domain structure (the initial "first dd" framing was corrected: a bare value+range is a display primitive, not a domain materialization). Does NOT open the dd track.
+
+**Surface.** `value` (plain prop — read-only display-di rule, not `$bindable`) / `min` (0) / `max` (1) / `optimum?` / `low?` / `high?` / `width?` / `disabled?` / `id` / `name`. Getter `{value,min,max,optimum}` (config travels with the value — it defines what the value means on the bar). No caption/readout — a bare `<meter>` is just the bar; the consuming composite/widget adds label + value text (the range/number rule).
+
+**Width (Joe-lock).** FULL-WIDTH by default (`.meter` `display:block` + `width:100%`, fills the container — unlike range's pinned 160px, since a status bar reads better stretched; JavaFX-style HGrow is native here). Optional `width?` pins a fixed width (inline `style`). `min-width:80px` floor. No collapse/measure logic (nothing to overflow).
+
+**Semantic fill + `--warn` token.** The UA picks the value-pseudo by optimum position: `::-webkit-meter-optimum-value` (green) / `-suboptimum-value` (amber) / `-even-less-good-value` (red). XGen had `--ok`/`--err` but no amber — **founded `--warn: #ba7517`** in L2 `:root` (reused later for form-caution states). Pseudo-heavy `.meter` skin, PROVISIONAL (the `range` precedent). **Build finding (D-065 honest):** with **no `optimum`** the UA paints the *optimum* pseudo, so a no-optimum bar reads **green (`--ok`), not neutral grey** — the design mock's grey isn't achievable via pure native pseudos without a per-instance hook (deferred; callers wanting semantics set `optimum`). The `meter#neutral` sampler cell demonstrates this.
+
+**CDP-verified** (sampler 9422, real output — Rule 2). `vite build` clean. Getters: `#optimum {35,0,100,20}`, `#caution {65,...}`, `#danger {94,...}`, `#neutral {50,0,100}` (no optimum key), `#disabled {40,0,100}`. Base: `tag=METER`, `display:block`, `min-width:80px`, full-width fills the cell; `#fixed width=120px` (the `width?` prop); `#disabled opacity:0.45` + `aria-disabled=true`. All 6 `.meter*` rules in cascade via stylesheet inspection (N-042 — `getComputedStyle` returns UA defaults on shadow-pseudos): `.meter`/`::-webkit-meter-bar` → `--s5`, optimum → `--ok`, suboptimum → `--warn`, even-less-good → `--err`; `--warn` resolves `#ba7517`. Screenshot at `temp/meter-verify.png`. Registry **100→106** (+6 cells). Accent-neutral (fills are semantic, no `--accent`), so no skin-swap. 0 orphans.
+
+*UI-implementation record. Pure `$core` display-di. → registry v0.43 (meter row); `--warn` L2 token founded. Next: the dd track opens (section-header ungrounded → entity-avatar domain-bound, D-071-audited). `temperature-indicator` later consumes meter as its readout via the widget dd-socket.*
 
 ---
 

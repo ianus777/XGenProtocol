@@ -1,6 +1,6 @@
 # XGen UI — The `widget` Tier
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -11,6 +11,8 @@
 Formal definition of the `widget` tier — the Level-2, behaviour-carrying, pluggable assembly unit. Promotes the N-059 concept-lock (name + placement + home + one-tier-+-Phase, Joe-locked J-445) to a checkable specification. Crystallises into **D-102**.
 
 **Provisional status (D-065).** This is **v1.0, first-instance-provisional**. The constraint set is drawn against the six closed di composites (N-054, N-060–N-066), not against a built widget. The first buildable widget — `substitutions-editor` (M-RP4.3) — dogfoods the spec and may surface a constraint needing amendment, exactly as `tag-select` amended N-064. The spec firms once an instance proves it.
+
+**FIRMED at v1.1 (M-RP4.3, 2026-07-04).** The first widget shipped and verified two-layer (pure → sampler; persistence → real shell, seam-only). No W-clause was wrong; two were *firmed* with real-world detail: **W-3** (a `common` widget cannot import a shell dep — shell I/O is host-injected via a callback, not a bare `invoke`) and **W-8** (the first-run-no-config caveat). The spec stands; these are firmings, not rewrites.
 
 ---
 
@@ -64,12 +66,12 @@ Each clause is phrased so a candidate widget is yes/no conformant.
 
 - **W-1 — Composes down only.** Logic-bearing / value-holding elements come from `core`; substrate from `common/base`. Raw native tags are allowed for layout only, never to carry the widget's own logic. *(Test: a native `<input>`/`<select>` with behaviour attached outside a core component = fail.)*
 - **W-2 — Owns state + lifecycle.** Holds task-state with transitions that persist across renders (§1.2), beyond a single momentary view toggle. This clause **is** the discriminator.
-- **W-3 — I/O only via declared seams.** All host interaction goes through Tauri `invoke` commands + `$common` stores. No `fs`, no bespoke IPC, no direct `fetch` in the widget body.
+- **W-3 — I/O only via declared seams.** All host interaction goes through Tauri `invoke` commands + `$common` stores. No `fs`, no bespoke IPC, no direct `fetch` in the widget body. **A widget in `common` never imports a shell dep (`@tauri-apps/api`) — it build-fails outside a Tauri host (M-RP4.3 finding). Shell I/O is *host-injected* (a callback prop the shell backs with `invoke`); the widget calls the callback, never `invoke` directly.** This is the imperative-one-shot form of the seam; the live in-app effect stays store-mediated.
 - **W-4 — One aggregate getter.** Self-registers exactly one debug getter (N-054 model); child `core` components self-register under `<id>__<slot>`. The getter **publishes observable task-state** (`{dirty, valid, phase, …}` — the state that lets CDP drive the machine) and **never publishes payload or secrets** (the N-060 `hasValue` precedent).
 - **W-5 — Clean mount/unmount.** A droppable unit: wires listeners / observers / store subscriptions on mount, tears them **all** down on unmount (the 0-orphans discipline extends to widget lifecycle). No cross-widget shared mutable state except through explicit `$common` stores.
 - **W-6 — Skin L2 only; pure/effect separable.** Zero component `<style>` — all appearance in `skin.css` (N-066). Authored so the **presentational layer** (composed components + layout + validation display + the state machine) runs with **I/O stubbed** — this is what makes the two-home verify (§5) possible.
 - **W-7 — Scoped home + a Phase.** Lives in `ui/common`. Declares a Phase (A pure Svelte / B +Tauri / C all three, N-028); the declaration matches the code (a Phase-A widget has no `invoke`).
-- **W-8 — Surfaces honest phase-limits.** A partial capability (e.g. session-only write-back under D-101) is visibly flagged, not silently absent (D-065).
+- **W-8 — Surfaces honest phase-limits.** A partial capability (e.g. session-only write-back under D-101) is visibly flagged, not silently absent (D-065). **First-run caveat (M-RP4.3): on a genuinely fresh machine (no config yet) the strict write-back errors and the widget's `try/catch` swallows it — the in-app effect still applies, but the durable write silently no-ops until a config exists. Only bites once a widget is mounted in a real shell; surface it, don't rediscover it.**
 - **W-9 — Representation.** A widget is an ordinary Svelte component (no `<component>` element exists) — a `.svelte` file in `ui/common/lib/components/widgets/`, marked Level-2 via `envelope` (optional tier arg / reflected `data-tier="widget"`) so `ids()` and the sampler's WIDGET tab partition it from composites. **Connection v1 = static import + placement** (`import`, `<WidgetName …/>`). A **widget registry + dynamic mount** (declarative `widget-id → component` placement — the true plugin-discovery layer) is **reserved**, triggered when dd-components give it a first consumer (D-065/D-069).
 - **W-10 — Plugin contract.** The explicit seam a host relies on: mount lifecycle · one aggregate getter · store-mediated I/O · declared Phase + capability. A widget is swappable behind this contract exactly as a protocol plugin is.
 - **W-11 — dd-socket.** A widget MAY expose typed **dd-slots**. Each slot = a `$common` **store handle** (read + optional write-back) + a **named mount point**. The slot is **source-agnostic** (N-057): the widget owns the store, a dd-component binds to it, and *who backs the store* (protocol vs literal) is the shell's job. **The dd-component binds to the store, never to widget internals.** This is the socket defined ahead of any dd-component so that when one is built it plugs in with zero widget rework.

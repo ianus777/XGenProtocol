@@ -1,6 +1,6 @@
 # M-RP4.3 — `substitutions-editor` (the first `widget`)
-> **Status**: ACTIVE  
-> Version: 0.1  
+> **Status**: COMPLETED  
+> Version: 1.0  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -43,12 +43,19 @@ Feat commits (A → B/C/D → F) then docs commit: N-068 (ui-notes) + components
 
 ## Definition of Done
 
-- [ ] A store `source` additive; existing tests/behaviour unchanged
-- [ ] B widget built; getter `{dirty,valid,count}`; Apply/Revert; inline warning; session-only note
-- [ ] C `.substitutions-editor` skin, zero component `<style>`
-- [ ] D sampler WIDGET tab (mounted-not-`{#if}`); `substitutions-editor#demo` mounted
-- [ ] E pure-layer CDP verified in sampler, both accents, real output, 0 orphans
-- [ ] F Rust `set_substitutions` + client write path
-- [ ] G effect-layer real-shell CDP verified; session-only-under-D-101 demonstrated
-- [ ] W-1…W-11 conformance self-check recorded (W-11 = N/A)
-- [ ] Records atomic per D-074; spec firmed/amended note
+- [x] A store `source` additive; existing tests/behaviour unchanged
+- [x] B widget built; getter `{dirty,valid,count}`; Apply/Revert; inline warning; session-only note
+- [x] C `.substitutions-editor` skin, zero component `<style>`
+- [x] D sampler WIDGET tab (mounted-not-`{#if}`); `substitutions-editor#demo` mounted
+- [x] E pure-layer CDP verified in sampler, both accents, real output, 0 orphans
+- [x] F Rust `set_substitutions` + `write_substitutions_section` helper (strict write; +4 tests, 131→135). **Superseded sub-item:** "wire `onApply` in the client shell" — seam-only (Joe-lock Option 2), the widget is NOT mounted in `app_client.svelte` (no content layer yet); the callback path exists, the command is the persistence surface.
+- [x] G effect-layer real-shell CDP verified **seam-only** (direct `invoke('set_substitutions')` at 9222); on-disk write + other sections intact + relaunch clean-slate→seed (session-only under D-101) demonstrated
+- [x] W-1…W-11 conformance self-check recorded (W-11 = N/A; W-3 + W-8 firmed to spec v1.1)
+- [x] Records atomic per D-074 (N-068 + registry v0.40 + widget-tier v1.1 + D-100 seed amendment + ROADMAP + PLAY + JOURNAL J-454)
+
+## Close notes (J-454)
+
+- **Seam-only supersession (Joe-lock):** logic/UI verified in the sampler (Step E); the real shell has no content layer, so persistence was verified seam-only (Option 2). Split of record: logic/UI → sampler; persistence → real shell.
+- **W-3 firming (first-instance finding):** a `common` widget can't bare-import `@tauri-apps/api` → shell I/O is host-injected via `onApply`, never a bare `invoke`.
+- **W-8 firming:** first-run-no-config caveat — strict write no-ops (swallowed by `try/catch`, graceful degrade) until a config exists.
+- **Seed fix:** `-->`/`<--` → `->`/`<-` (substring-shadowing; the `--` rule pre-empts `-->` on live rescan). New seed `-> → | <- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒`. → D-100 amendment; hand-synced across 2 Rust consts + sampler placeholder.

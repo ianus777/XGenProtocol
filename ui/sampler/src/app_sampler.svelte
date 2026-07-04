@@ -256,7 +256,7 @@
       <div class="s-cells">
         <div class="s-cell"><span class="s-id">textarea#default</span><TextArea bind:value={taDefault} id="default" rows={3} /></div>
         <div class="s-cell"><span class="s-id">textarea#disabled</span><TextArea bind:value={taDisabled} id="disabled" rows={3} disabled /></div>
-        <div class="s-cell"><span class="s-id">textarea#processed</span><TextArea {...processor(substitutions.rules, { trusted: true })} bind:value={taProcessed} id="processed" rows={3} placeholder="type --> <-- :) <3 :( -- to morph" /></div>
+        <div class="s-cell"><span class="s-id">textarea#processed</span><TextArea {...processor(substitutions.rules, { trusted: true })} bind:value={taProcessed} id="processed" rows={3} placeholder="type -> <- :) <3 :( -- to morph" /></div>
       </div>
     </div>
 

@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.51  
+> Version: 0.52  
 > Date: May 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -1290,7 +1290,7 @@ M-RP4.2 closed (J-441). Executes decision 9 of the M-RP4.0 runbook: the kind-1 t
 
 **The source duality (Chat/Clair split; this arc crosses the boundary).** Chat owns the `$common` parser + store + sampler rewire (CDP-verifiable, J-436). Clair owns the Rust config struct + Tauri command + client boot hydration (client-only, J-437). Two sources feed the same store: the **real client** via `get_substitutions` (Rust `load_substitutions_section` reads `xgen-client_config.toml [substitutions] rules` → command → store on `onMount`); the **sampler** seeds a literal (D-097: a minimal host, no client config to read).
 
-**Two hand-synced seeds (a documented seam).** The first-run starter pack (J-438, Joe-locked, six pairs `--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒`) lives in two places kept in sync by hand: Rust `DEFAULT_SUBSTITUTIONS_SEED` (`app.rs`, seeded once at config-birth in `cmd_init`, never resurrected after the user clears it — J-438/J-439) and the TS literal in `app_sampler.svelte` (the sampler mirrors the client pack — J-440). Wiring the sampler host to read a shared config is deprecated-UI plumbing set aside for now; the seam is closed properly by **M-RP4.4** (the sampler real config-load arc).
+**Two hand-synced seeds (a documented seam).** The first-run starter pack (J-438, Joe-locked, six pairs `--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒`) lives in two places kept in sync by hand: Rust `DEFAULT_SUBSTITUTIONS_SEED` (`app.rs`, seeded once at config-birth in `cmd_init`, never resurrected after the user clears it — J-438/J-439) and the TS literal in `app_sampler.svelte` (the sampler mirrors the client pack — J-440). Wiring the sampler host to read a shared config is deprecated-UI plumbing set aside for now; the seam is closed properly by **M-RP4.4** (the sampler real config-load arc). **(Seed amended M-RP4.3, 2026-07-04: `-->`/`<--` → `->`/`<-` — the `--` rule substring-shadows `-->` during live typing; see N-068 + D-100 amendment.)**
 
 **Tier-2 richer UX deferred.** The per-pair partition + inline warnings (a bad pair drops, the rest survive, with feedback) is M-RP4.3 — the in-app editor needs it; the file-edit read path fails safe whole (D-065).
 
@@ -1503,6 +1503,30 @@ Design session (J-453), no code. Promotes the N-059 concept-lock to a checkable 
 **Doc home (locked 3A).** A new focused spec doc `ui/docs/xgen-widget-tier.md` (beside ui-notes + the components registry it extends) + **D-102** naming the decision + this note; N-059 gets a `→ D-102` forward pointer (append-only).
 
 *UI-design note. No protocol/data implication, no component change (design/spec only). Promotes N-059 (J-445) → D-102 + `ui/docs/xgen-widget-tier.md` v1.0. Next: M-RP4.3 (`substitutions-editor`, first widget) → M-RP4.1 (kind-3 number-clamp) → kind-2 → kind-4 → dd-components.*
+
+### N-068 — `substitutions-editor` (M-RP4.3): the FIRST widget built + closed — two-layer verify (pure→sampler / persistence→real shell seam-only); W-3/W-8 firmed; the seed `-->`/`<--`→`->`/`<-` substring-shadowing fix
+
+M-RP4.3 closed (J-454). The first `widget` (D-102) shipped and firmed the spec. Chat built the pure layer (Steps A–E), Clair the effect layer (Steps F–G, commit `f94a138`); one milestone, two verify homes (Lock 2).
+
+**What it is.** A settings widget for the substitution rules — it edits the `[substitutions]` rules string, feeds the `$common` store, and the store drives the text-processor (kind-1 transformer) on every processor-host. NOT a field: it *contains* a textarea to type the rules into; the rules then apply to text controls elsewhere. Home `ui/common/lib/components/widgets/substitutions-editor.svelte` (first `widgets/` occupant). Phase-B.
+
+**Shape (Joe-lock).** One textarea holding the raw `" | "` string (D-100 1:1-with-TOML; no per-pair rows, no `stringifyRules` this instance) + explicit **Apply**/**Revert** gated on `dirty && valid`. Owns `draft` (divergent buffer), `dirty`, live Tier-2 validation (`assertSafeRules` → inline warning). Getter `{dirty, valid, count}` — task-state, never payload. Seed via the Step-A additive `substitutions.source` (raw string stashed on `setRules`).
+
+**The I/O seam (W-3 firming — first-instance finding).** First build called `invoke` via a dynamic `import('@tauri-apps/api/core')` inside the widget → **build-fails**: `common` can't resolve a shell dep. Fix: persistence is a **host-injected `onApply` callback** (the imperative-one-shot seam) — the real client shell passes an `invoke('set_substitutions')`-backed callback, the sampler passes nothing → live-only. The live in-app effect stays store-mediated (`setRules` → processor-hosts re-morph). **A `common` widget never imports a shell dep; shell I/O is injected.** Firms W-3, not a rewrite.
+
+**Two-layer verify.**
+- **Pure layer → sampler** (Chat, CDP 9422, both accents, real output): 5th **WIDGET** tab (mounted-not-`{#if}`, N-053). Registry **93→97** (widget + `textarea#demo__rules` + `button#demo__{apply,revert}`). Getter seeded `{dirty:false,valid:true,count:6}`; valid edit→`dirty:true`/Apply-enabled; looping pair `a aa`→`valid:false` + inline warn + Apply disabled; Apply→store updated + dirty cleared + **live cross-widget morph** (`zzz here`→`WORKED here` in `textarea#processed`, DOM+registry, no file I/O); Revert restores source; skin in cascade; accent-swap `#c28840`↔`#3a7ab0` (widget accent-neutral); 0 orphans.
+- **Persistence → real shell, SEAM-ONLY** (Clair, CDP 9222, Joe-lock Option 2): the client shell is a minimal scaffold (logo + state dot + Quit) with **no content layer**, so the widget is **not mounted** there (`app_client.svelte` untouched). The sampler already proves Apply-through-UI; the real shell verifies **persistence only** via direct `invoke('set_substitutions', {rules})`. Evidence: baseline get→seed; set→`<null>`; get read-through→new rules; on-disk `[substitutions] rules` written, other sections intact; relaunch→clean-slate (D-101)→seed. **Split of record: logic/UI → sampler; persistence → real shell.**
+
+**Rust (Clair, F).** `set_substitutions(rules: String)` command (`desktop.rs`) + `write_substitutions_section(config_path, rules)` helper (`app.rs`) — read-mutate-write `ClientConfig`, only `substitutions.rules` replaced, all else preserved; **strict write** (D-065: errors on missing/malformed rather than clobber). +4 write-back tests, client-lib 131→135.
+
+**First-run caveat (W-8 firming, notes-level).** On a genuinely fresh machine (no config), clean-slate leaves it untouched and the shell goes SETUP without creating a config — so a mounted widget's strict write would hit the missing-config error. The widget `try/catch` swallows it (in-app effect still applies → graceful degrade), but the durable write silently no-ops until a config exists. Only bites when the widget is later mounted in a real shell. Surfaced so it isn't rediscovered.
+
+**The seed fix (`-->`/`<--` → `->`/`<-`).** A live bug, not just fragility: the transformer rescans the whole field every keystroke, so the `--` rule (`-- ‒`) morphs the `--` prefix the instant it's typed — `-->` never completes (`‒>`, never `→`). `->`/`<-` carry no `--` substring. **New seed:** `-> → | <- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒`. General rule (sibling to the convergence lint): *a rule whose `find` is a substring of a longer rule's `find` shadows the longer one during live keystroke-rescan — prefer collision-free tokens.* Hand-synced across the two Rust seed consts (client `app.rs` + sampler host `main.rs`, Clair) + the sampler placeholder (Chat). → D-100 amendment.
+
+**W-conformance.** W-1…W-10 held; W-11 N/A (no dd-slot this instance). Spec firmed to **v1.1** — no clause was wrong; W-3 (host-injected shell I/O) + W-8 (first-run caveat) gained real-world detail.
+
+*UI-design note. Component (shipped) + Rust command + doc firmings. → registry v0.40 (first `widgets/` occupant), widget-tier spec v1.1, D-100 amendment. The first widget dogfooded + firmed the tier. Next: M-RP4.1 (kind-3 number-clamp, on `change`) → kind-2 converter field → kind-4 `use:render` (deferred) → dd-components.*
 
 ---
 

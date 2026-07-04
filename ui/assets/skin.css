@@ -359,6 +359,49 @@ html, body {
 }
 
 /* ---------------------------------------------------
+ * converter-field (.converter-field)
+ *   Root IS <input type="text"> (N-020 atomic). The KIND-2 bridge (D-099 / N-056): a decoupled
+ *   text field whose DISPLAY is a formatted string and whose bound value is typed `T`. Single-line
+ *   control, so ASSEMBLED from the same L2 vocabulary as .number (keeps min-height:--ctl-h). No
+ *   spinner (it is type=text, not number). Parse failure is NOT a native :invalid (the value is a
+ *   free string until committed) so the error look is keyed off the reflected [data-invalid] the
+ *   component sets on reject-and-mark (the .led [data-pulse] attribute-hook precedent).
+ * --------------------------------------------------- */
+
+.converter-field {
+  min-height: var(--ctl-h);
+  padding: var(--sp-1) var(--sp-2);
+  margin: var(--sp-1) var(--sp-2);
+  background: var(--s);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  color: var(--t);
+  font-size: var(--fs-1);
+  line-height: var(--lh);
+  transition: border-color var(--motion), box-shadow var(--motion);
+}
+.converter-field::placeholder { color: var(--t4); }
+.converter-field:focus-visible {
+  outline: none;
+  border-color: var(--t3);
+}
+.converter-field:disabled {
+  background: var(--s2);
+  color: var(--t4);
+  cursor: not-allowed;
+}
+.converter-field:read-only {
+  background: var(--s2);
+  border-color: var(--s4);
+}
+.converter-field[data-invalid="true"] {
+  border-color: var(--err);
+}
+.converter-field[data-invalid="true"]:focus-visible {
+  border-color: var(--err-bright);
+}
+
+/* ---------------------------------------------------
  * range (.range)
  *   Root IS <input type="range"> (N-020 atomic). Bounded numeric slider (N-022). SAME
  *   root + value-type as .number, but a DISTINCT component on the sharpened fold

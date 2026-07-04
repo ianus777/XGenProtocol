@@ -44,6 +44,7 @@
   import Chip from '$core/components/data-independent/chip.svelte';
   import TagSelect from '$core/components/data-independent/tag-select.svelte';
   import ColorPicker from '$core/components/data-independent/color-picker.svelte';
+  import ConverterField from '$core/components/data-independent/converter-field.svelte';
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -53,6 +54,7 @@
   // path, mirroring app_client.svelte / J-437; M-RP4.4 / D-101). No literal seed.
   import { processor } from '$common/components/processor/processor';
   import { clamp } from '$common/components/processor/clamp';
+  import { intlNumber } from '$common/components/processor/transform';
   import { substitutions } from '$common/components/processor/store.svelte';
   import SubstitutionsEditor from '$common/components/widgets/substitutions-editor.svelte';
 
@@ -105,6 +107,11 @@
   let numDisabled = $state(7);
   let numInvalid = $state(50); // outside [0,10] -> :invalid (rangeOverflow)
   let numClamped = $state(5); // clamp-host (M-RP4.1): kind-3 guard coerces to [0,10] on change
+  // converter-field (M-RP4.5): kind-2 bridge. Typed value = number; display = Intl-formatted string.
+  // Stable converter identity (defined once, NOT inline) so the prop doesn't churn per render.
+  const numConv = intlNumber({ maximumFractionDigits: 2 });
+  let cvDefault = $state(1234.5); // shows "1,234.5"; edit raw, blur reformats
+  let cvDisabled = $state(99.9);
   let rngDefault = $state(50);
   let rngDisabled = $state(30);
   // date — string bind:value for every type (empty would be ''); seeded valid here.
@@ -269,6 +276,14 @@
         <div class="s-cell"><span class="s-id">number#disabled</span><NumberField bind:value={numDisabled} id="disabled" disabled /></div>
         <div class="s-cell"><span class="s-id">number#invalid</span><NumberField bind:value={numInvalid} id="invalid" min={0} max={10} /></div>
         <div class="s-cell"><span class="s-id">number#clamped</span><NumberField {...clamp({ min: 0, max: 10 })} bind:value={numClamped} id="clamped" min={0} max={10} /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">converter-field</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">converter-field#default</span><ConverterField converter={numConv} bind:value={cvDefault} id="default" placeholder="number" /></div>
+        <div class="s-cell"><span class="s-id">converter-field#disabled</span><ConverterField converter={numConv} bind:value={cvDisabled} id="disabled" disabled /></div>
       </div>
     </div>
 

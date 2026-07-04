@@ -137,3 +137,65 @@ export function applyClamp(n: number | null, rule: ClampRule): number | null {
   if (rule.max !== undefined) out = Math.min(rule.max, out);
   return out;
 }
+
+// ── KIND 2 — converter/bridge (M-RP4.5) ────────────────────────────────────────
+// The taxonomy's BRIDGE: `string <-> T`. Unlike kinds 1/3 (same-type in/out, shipped as a
+// forwarded attachment), kind 2 has TWO representations of DIFFERENT type coexisting — a display
+// string (toString, may use Intl) and a bound typed value (fromString). One `bind:value` can't
+// carry both, so kind 2 is a real COMPONENT (converter-field.svelte), not an attachment. This
+// file holds only the DOM-free contract + first concrete (still the logic.ts posture: no Svelte,
+// no DOM — Intl is ECMA-402, not DOM; the component owns the one framework touch + the DEV hook).
+
+/**
+ * Sentinel returned by `Converter.fromString` when the text cannot be parsed into `T`. A unique
+ * symbol (not `null`/`undefined`/`NaN`) so those stay usable as legitimate `T` values. The host
+ * treats it as "reject-and-mark": keep the user's text, flag invalid, leave the bound value alone.
+ */
+export const PARSE_FAILED = Symbol('PARSE_FAILED');
+
+/**
+ * A bidirectional bridge between a typed value `T` and its editable text form (kind 2). Trusted
+ * (Tier-1) code supplies this — it is LOGIC, never a user-authored string, so no provenance caps
+ * or convergence lint apply (contrast kind 1's assertSafeRules).
+ *   - toString    : the DISPLAY form (formatted; grouping, currency, Intl, …)
+ *   - fromString   : parse text -> `T`, or PARSE_FAILED when it doesn't parse
+ *   - toEditable?  : the RAW form shown while the field is focused (default = toString). Lets the
+ *                    user edit "1234.56" without fighting the "1,234.56" group separators.
+ */
+export type Converter<T> = {
+  toString(v: T): string;
+  fromString(s: string): T | typeof PARSE_FAILED;
+  toEditable?(v: T): string;
+};
+
+/**
+ * First concrete converter: a locale-aware number bridge over `Intl.NumberFormat`. `toString`
+ * formats (grouping/decimals/currency per `opts`); `toEditable` is the raw ungrouped number so
+ * typing is unimpeded; `fromString` reverses the format by discovering THIS locale's group +
+ * decimal glyphs via `formatToParts` (Intl has no parser), stripping the group glyph, normalising
+ * the decimal glyph to '.', then `Number()` + a finite check. Empty/blank or non-finite -> PARSE_FAILED.
+ * Pure + total (no throw). `T = number`.
+ */
+export function intlNumber(
+  opts: Intl.NumberFormatOptions = {},
+  locale?: string,
+): Converter<number> {
+  const fmt = new Intl.NumberFormat(locale, opts);
+  // Discover the locale's separators from a sample that exercises both (11111.1).
+  const parts = fmt.formatToParts(11111.1);
+  const group = parts.find((p) => p.type === 'group')?.value ?? '';
+  const decimal = parts.find((p) => p.type === 'decimal')?.value ?? '.';
+  return {
+    toString: (v) => fmt.format(v),
+    toEditable: (v) => String(v),
+    fromString: (s) => {
+      const trimmed = s.trim();
+      if (trimmed === '') return PARSE_FAILED;
+      let normalised = trimmed;
+      if (group) normalised = normalised.split(group).join(''); // strip group separators
+      if (decimal !== '.') normalised = normalised.split(decimal).join('.'); // decimal -> '.'
+      const n = Number(normalised);
+      return Number.isFinite(n) ? n : PARSE_FAILED;
+    },
+  };
+}

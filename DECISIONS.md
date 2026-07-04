@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-01  
+> **Last updated:** 2026-07-04  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -3949,3 +3949,29 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 **Refines D-097/D-098.** The sampler host gains a tiny fs+toml capability for its subset config; still "minimal" (no protocol deps). Closes the two-hand-synced-seeds seam N-057 flagged (the sampler stops carrying a separate frontend literal; it loads from a generated file like the client does). The **seed const** itself remains hand-synced across the client + sampler host until a shared-const crate is justified — explicitly **out of scope** here (a third copy, documented, not resolved).
 
 **Relationship to other decisions:** D-097/D-098 (minimal host — refined, not broken); J-438 (seed-once — suspended this phase); N-057 (the seam this closes); D-100 (the substitution source this arc plumbs through the real path); D-065 (build-when-consumed — the sampler-load path is built now that a config-backed component exists to prove it).
+
+---
+
+## D-102 — The `widget` tier: a Level-2 UI-plugin above the di/dd × atomic/composite grid
+
+**Date:** 2026-07-04 · **Layer:** UI reference library (`ui/common` substrate) · **Spec ref:** `ui/docs/xgen-widget-tier.md` (v1.0, canonical); N-059 (concept-lock, J-445); N-067 (this promotion). · **Lineage:** promotes the N-059 concept-lock to a checkable specification; sits above the Level-1 component model (D-095 tier split, D-096 atomic criterion, N-054 composite-registration model).
+
+**Decision.** The `widget` is a new **Level-2** tier — a **UI plugin**: the pluggable, behaviour-carrying assembly unit that sits *above* the Level-1 di/dd × atomic/composite grid (Level 0 substrate → Level 1 components → **Level 2 widget**), not a rung wedged into the arity axis. The Level-1 grid stays entirely passive; the widget is where state-ownership, lifecycle, and host I/O live. Home = `ui/common`. Canonical definition lives in the spec doc; this entry names the decision and its load-bearing choices.
+
+**Discriminator (passive composite vs active widget).** A widget owns state with a **transition-lifecycle that persists across renders** (draft→dirty→saving→saved, load→loaded→error) — progress through a task. A passive composite's state is a pure function of props plus **at most a single momentary view toggle** (`open`/`revealed`/`hovered`/`dragging`). Gloss: remove it — lose a *behaviour* (widget) or a *layout* (composite)? This settles the N-063 correction (one UI flag ≠ widget).
+
+**Plugin inheritance + the one divergence.** A widget is conceptually the **same mechanism as a protocol/auth plugin** (contract-not-hardcoded, capability + Phase declaration, one aggregate getter, clean mount/unmount, swappable behind the interface). The single divergence: a plugin is **invocation-shaped** (call→return, one-shot, request-scoped); a widget's data connection is **binding-shaped** — a **reactive `$common` store binding** (standing subscription, mount-lifetime, read + optional write-back). *Widget = the plugin contract with the invocation channel replaced by a reactive store binding.*
+
+**Constraint set (checkable, W-1…W-11 — full text in the spec).** Composes-down-only (logic from `core`/substrate, never a logic-bearing raw native tag) · owns state+lifecycle · I/O only via declared seams (Tauri `invoke` + `$common` stores) · one aggregate getter publishing observable **task-state** (`{dirty,valid,phase}`) but **never payload/secret** · clean mount/unmount (0-orphans, no cross-widget coupling) · skin L2 only + pure/effect-separable · scoped home + a Phase (A/B/C, N-028) · honest phase-limits (e.g. session-only write-back under D-101) · **representation** (an ordinary Svelte component + a Level-2 `envelope` marker + a `widgets/` home; connection v1 = static import, a widget registry + dynamic mount **reserved** until dd-components give it a first consumer) · **plugin contract** · **dd-socket** (a widget MAY expose typed dd-slots — each a `$common` store handle (read + write-back) + a named mount point, source-agnostic per N-057; the dd-component binds to the store, never to widget internals; defined ahead of any dd-component so one plugs in with zero widget rework).
+
+**I/O seam.** Store-mediated by default (the N-057/N-058 substitutions precedent — the widget touches only `$common` stores, backed by `invoke` in the real shell and a literal in the sampler); callback/prop injection for a genuinely imperative one-shot action; a DEV hook (N-056 `__XGEN_PROC__` precedent) for a pure-compute core. No new mechanism invented.
+
+**Verify home — two layers.** The widget's defining trait (host I/O + integration) is the sampler's declared blind spot (D-097). So verification splits: the **pure/presentational layer** (I/O stubbed) verifies in the sampler (a 5th **WIDGET** tab, mounted-not-`{#if}` per N-053); the **effect layer** (real config read/write, command round-trip, session-vs-persistent behaviour) verifies in the **real shell** (client/node, CDP 9222/9322). One milestone, two verify homes — a widget is not done until both are green.
+
+**First widgets.** First **buildable** = `substitutions-editor` (M-RP4.3, in-app `[substitutions]` TOML editor + write-back; composes core-di only, no dd dependency; Phase-B, session-only write-back under D-101) — it dogfoods this spec. `temperature-indicator` is the first **conceived** widget but is **dd-blocked** (nothing to plug into until a dd-component exists; it will bind its `temperature` state through a W-11 dd-socket).
+
+**Provisional status (D-065).** The spec ships **v1.0, first-instance-provisional** — the constraint set is drawn against the six closed di composites, not a built widget. M-RP4.3 may surface a constraint needing amendment (the `tag-select`→N-064 precedent). The spec firms once an instance proves it.
+
+**Why a new decision.** The widget is the first **behaviour-carrying** UI tier and every downstream milestone (M-RP4.3/4.1, kind-2, kind-4, dd-components) cites it — a durable, cross-cutting architectural choice that earns its own decision + a citable spec doc (the federation-design-doc precedent, not a scattered D-entry).
+
+**Relationship to other decisions:** D-095 (the `ui/{...}` tier split this extends with a Level-2 storey); D-096/N-054 (the Level-1 passive model the widget sits above); D-097/D-098 (the sampler blind spot that forces the two-layer verify); N-028 (the A/B/C Phase axis the one-tier decision maps I/O onto); N-057/N-058 (the source-agnostic store the I/O seam + dd-socket reuse); N-056 (the DEV-hook precedent); D-101 (the session-only write-back the first widget honestly surfaces); D-065 (build-when-consumed + first-instance-provisional); N-059 (concept-lock) → this.

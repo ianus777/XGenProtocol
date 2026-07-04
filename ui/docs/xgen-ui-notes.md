@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.50  
+> Version: 0.51  
 > Date: May 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -1336,7 +1336,7 @@ Design discussion (J-445), no code. M-RP4.3 (in-app `[substitutions]` TOML edito
 
 **Roadmap consequence.** M-RP4.3 is the first widget, so it now waits on the widget definition. Reordered: finish the di-composite backlog as **passive** (`password-field` / `color-picker` / `file-field` / `combobox` / `tag-select` / `star-rating`, N-054) → **widget definition** (this note promoted to a spec) → **M-RP4.3** (first widget instance) → M-RP4.1 (kind-3 clamp); the kind-2 converter field + kind-4 `use:render` slot around as before.
 
-*UI-design note. No protocol/data implication, no component change. Concept + name + placement + home + one-tier-+-Phase Joe-locked (J-445); full definition (constraint set + verify home) deferred until the di-composite backlog is built. Next: a di-composite from the N-054 backlog (Joe's selection).*
+*UI-design note. No protocol/data implication, no component change. Concept + name + placement + home + one-tier-+-Phase Joe-locked (J-445); full definition (constraint set + verify home) deferred until the di-composite backlog is built. Next: a di-composite from the N-054 backlog (Joe's selection).* → **promoted to a formal spec 2026-07-04 (J-453): `ui/docs/xgen-widget-tier.md` v1.0 + D-102 + N-067.**
 
 ### N-060 — `password-field` (M-RP2.23): the 2nd di composite; redact/reveal/caps mechanics + the transparent-icon + no-reflow lessons
 
@@ -1475,6 +1475,34 @@ M-RP2.28 closed (J-451). **23rd `core`**, **6th di composite**, last of the N-05
 **Deferred (D-065):** colorspace attr; persistence of recents + model; alpha-as-% toggle; keyboard nav on the SV surface (pointer-only v1); external-`value`-set-after-mount re-sync (init parses once; passive-di, value is derived output).
 
 *UI-design note. Component + skin (shipped). → registry v0.38 (24th `core`, 7th di composite, matrix 93). **D-069 7th-composite watch: no promotion.** Next: the `widget` tier definition (N-059→spec) → M-RP4.3 (in-app TOML editor + write-back, first widget) → M-RP4.1 (kind-3 number-clamp).*
+
+### N-067 — the `widget` tier promoted to a formal spec (N-059→spec): a Level-2 UI-plugin, checkable constraint set W-1…W-11, the dd-socket defined ahead of dd, two-layer verify (→ D-102)
+
+Design session (J-453), no code. Promotes the N-059 concept-lock to a checkable specification at `ui/docs/xgen-widget-tier.md` (v1.0) + **D-102**. The two deferred N-059 locks (full constraint set + verify home) + the representation/plugin questions raised this session are all locked.
+
+**Widget = a UI plugin.** The pluggable **Level-2** tier above the di/dd × atomic/composite grid (Level 0 substrate → Level 1 components → **Level 2 widget**), home `ui/common`. Active (owns state/lifecycle + host I/O), where the Level-1 grid is passive.
+
+**Discriminator (locked 1a: B primary + A gloss + C illustration).** A widget owns state with a **transition-lifecycle persisting across renders** (task progress: draft→dirty→saving→saved); a passive composite is props + at most a single momentary view toggle (the closed family: `open`/`revealed`/`hovered`/`dragging`). Gloss: remove it — lose a *behaviour* or a *layout*? Settles the N-063 "one flag ≠ widget" correction.
+
+**Plugin inheritance + the one divergence (brainstormed this session).** A widget is conceptually the **same mechanism as a protocol/auth plugin** (contract-not-hardcoded, capability+Phase, one aggregate getter, clean mount/unmount, swappable behind the interface). The single divergence is the **channel**: a plugin is **invocation-shaped** (call→return, one-shot, request-scoped); a widget is **binding-shaped** — a **reactive `$common` store binding** (standing subscription, mount-lifetime, read + write-back). *Widget = plugin contract with the invocation channel swapped for a reactive store binding.*
+
+**Constraint set W-1…W-11 (locked).** composes-down-only · owns state+lifecycle · I/O via declared seam only · one aggregate getter publishing **task-state** (`{dirty,valid,phase}`), never payload/secret (locked 1b) · clean mount/unmount · skin-L2 pure/effect-separable · scoped home + Phase · honest phase-limits · **W-9 representation** · **W-10 plugin contract** · **W-11 dd-socket**.
+
+**Representation (W-9, the code question this session).** No `<component>` tag exists — a widget is an ordinary Svelte component (`.svelte`) in `ui/common/lib/components/widgets/`, marked Level-2 via `envelope` (tier arg / `data-tier="widget"`) so `ids()` + the sampler WIDGET tab partition it from composites. **Connection v1 = static import + placement**; a widget **registry + dynamic mount** (declarative `widget-id→component` — the true plugin-discovery layer) is **reserved**, triggered when dd-components give it a first consumer (D-065/D-069). The plugin *contract* is plugin-shaped from day one; only the *discovery/registry* layer is deferred.
+
+**dd-socket (W-11, defined ahead of dd — the crucial move).** Since no dd-component exists yet, the widget↔dd **socket** is defined now so any future dd plugs in with zero widget rework. A widget MAY expose typed **dd-slots**: each = a `$common` **store handle** (read + optional write-back) + a **named mount point**, source-agnostic (N-057). The dd-component binds to the store, never to widget internals. This is the plugin contract **+ a reactive data port** — the same divergence (binding, not invocation) applied to the dd connection. `temperature-indicator` later provides a `temperature` store socket → a dd temp-gauge binds to it; the widget frame doesn't change when the dd arrives, only the slot fills.
+
+**I/O seam (locked 1c).** Store-mediated by default (the N-057/N-058 substitutions precedent); callback/prop injection for a genuinely imperative one-shot action; a DEV hook (N-056 `__XGEN_PROC__`) for a pure-compute core. No new mechanism.
+
+**Verify home — two layers (locked 2 + 2a + 2b).** Pure/presentational layer (I/O stubbed) → **sampler**, a 5th **WIDGET** tab (mounted-not-`{#if}`, N-053) — the component-DoD extended (registry entry, state-machine transitions CDP-asserted with I/O stubbed, skin in cascade, both accents, 0 orphans). Effect layer (real config read/write, command round-trip, session-vs-persistent) → **real shell** (client/node, CDP 9222/9322, the D-097 home for host-real + two-shells-together) — real `invoke` chain incl. write-back, honest phase-limit demonstrated, real output (Rule 2). **One milestone, two verify homes** — the effect-DoD folds into the widget's build milestone; a widget isn't done until both are green.
+
+**First widgets.** First **buildable** = `substitutions-editor` (M-RP4.3; composes core-di only, no dd; Phase-B, session-only write-back under D-101) — dogfoods the spec. `temperature-indicator` = first **conceived** but **dd-blocked** (conceptually defined, but nothing to plug into until a dd-component exists). So the spec defines the **frame + connection generically** (proven by the dd-free editor), instance-independent.
+
+**Provisional (D-065).** Ships **v1.0 first-instance-provisional** — constraint set drawn against the six closed di composites, not a built widget; M-RP4.3 may amend one (the tag-select→N-064 precedent).
+
+**Doc home (locked 3A).** A new focused spec doc `ui/docs/xgen-widget-tier.md` (beside ui-notes + the components registry it extends) + **D-102** naming the decision + this note; N-059 gets a `→ D-102` forward pointer (append-only).
+
+*UI-design note. No protocol/data implication, no component change (design/spec only). Promotes N-059 (J-445) → D-102 + `ui/docs/xgen-widget-tier.md` v1.0. Next: M-RP4.3 (`substitutions-editor`, first widget) → M-RP4.1 (kind-3 number-clamp) → kind-2 → kind-4 → dd-components.*
 
 ---
 

@@ -1576,3 +1576,104 @@ html, body {
   font-size: var(--fs-1);
   color: var(--t4);
 }
+
+/* ── section (di, M-RP2.31) — a collapsible DISCLOSURE container. Root <section>. Bordered box:
+ * a SOLID header band (--s2, the future bg-colour/picture-mod target) over a padded body. Header
+ * = title + optional right-pinned badge (+ a de-chromed toggle button when collapsible). The
+ * chevron REUSES combobox's masked glyphs (--tri chevron / --tri-open closed-triangle), swapped
+ * on [data-collapsed]. Body hides via [data-collapsed] display:none (slot stays mounted). Nesting
+ * is free (a .section inside .section-body). Accent-neutral. PROVISIONAL. ── */
+.section {
+  --tri: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 9l7 7 7-7'/%3E%3C/svg%3E");
+  --tri-open: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16L5 8h14z'/%3E%3C/svg%3E");
+  margin: var(--sp-1) var(--sp-0);
+  width: 100%;
+  min-width: 160px;
+  box-sizing: border-box;
+  background: var(--s);
+  overflow: hidden;
+}
+/* solid header band */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: var(--sp-1) var(--sp-1);
+  background: none;
+  border-bottom: 1px solid var(--s5);
+  color: var(--t2);
+  font-size: var(--fs-0);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: var(--lh);
+}
+.section-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 2px;
+  color: var(--t3);
+}
+/* de-chromed collapse toggle (password-field reveal pattern): transparent, icon+label */
+.section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0;
+  margin: 0;
+  min-height: auto;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.section-toggle:hover {
+  color: var(--t);
+  background: none;
+}
+.section-toggle:focus-visible {
+  outline: none;
+  border-radius: var(--rad);
+  box-shadow: var(--focus-ring);
+}
+.section .chev {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background-color: var(--t3);
+  -webkit-mask: var(--tri) center / contain no-repeat;
+  mask: var(--tri) center / contain no-repeat;
+}
+.section[data-collapsed] .chev {
+  -webkit-mask-image: var(--tri-open);
+  mask-image: var(--tri-open);
+}
+/* badge — right-pinned programmatic string */
+.section-badge {
+  margin-left: auto;
+  padding: 0 5px;
+  background: var(--s4);
+  border-radius: 5px;
+  color: var(--t3);
+  font-size: var(--fs-0);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+/* body — any content; hidden (not unmounted) while collapsed */
+.section-body {
+  padding: var(--sp-1);
+  font-size: var(--fs-1);
+}
+.section[data-collapsed] .section-body {
+  display: none;
+}
+/* nested sections sit flush inside a parent body (the outer box already frames) */
+.section-body > .section {
+  margin-left: 0;
+  margin-right: 0;
+}

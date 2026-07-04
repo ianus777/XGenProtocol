@@ -46,6 +46,7 @@
   import ColorPicker from '$core/components/data-independent/color-picker.svelte';
   import ConverterField from '$core/components/data-independent/converter-field.svelte';
   import Meter from '$core/components/data-independent/meter.svelte';
+  import Section from '$core/components/data-independent/section.svelte';
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -370,6 +371,20 @@
         <div class="s-cell"><span class="s-id">meter#disabled</span><Meter value={40} min={0} max={100} disabled id="disabled" /></div>
         <div class="s-cell"><span class="s-id">meter#custom</span><Meter value={70} min={0} max={100} optimum={20} low={50} high={80} fill="var(--accent2)" id="custom" /></div>
         <div class="s-cell"><span class="s-id">meter#neutral2</span><Meter value={50} min={0} max={100} fill="var(--t3)" id="neutral2" /></div>
+      </div>
+    </div>
+
+    <div class="s-section-title">Container</div>
+
+    <div class="s-row">
+      <div class="s-rowname">section</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">section#plain</span><Section title="Spaces" id="plain">Body content here.</Section></div>
+        <div class="s-cell"><span class="s-id">section#badged</span><Section title="Direct messages" badge="2/5" id="badged">alice, bob</Section></div>
+        <div class="s-cell"><span class="s-id">section#collapsible</span><Section title="Rooms" collapsible id="collapsible">#general, #dev</Section></div>
+        <div class="s-cell"><span class="s-id">section#bare</span><Section id="bare">No header — bare container.</Section></div>
+        <div class="s-cell"><span class="s-id">section#nested</span><Section title="Outer" collapsible id="nested"><Section title="Inner" id="nested-inner">nested body</Section></Section></div>
+        <div class="s-cell"><span class="s-id">section#fixed</span><Section title="Fixed width" width="320px" id="fixed">width=320px</Section></div>
       </div>
     </div>
 

@@ -102,6 +102,17 @@ fn get_substitutions(config: tauri::State<ConfigPath>) -> String {
     app::load_substitutions_section(&config.0).rules
 }
 
+/// Writes the raw `[substitutions] rules` string back to xgen-client_config.toml
+/// (M-RP4.3 — the effect half of the `substitutions-editor` widget). Symmetric with
+/// `get_substitutions`; the widget's host-injected `onApply` callback invokes this
+/// on Apply. Returns `Err(String)` (surfaced to the webview) on a read/parse/write
+/// failure rather than clobbering the config (D-065). Session-only under D-101
+/// (clean-slate-on-start re-seeds every launch) — surfaced in the editor UI (W-8).
+#[tauri::command]
+fn set_substitutions(rules: String, config: tauri::State<ConfigPath>) -> std::result::Result<(), String> {
+    app::write_substitutions_section(&config.0, &rules).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn quit(app: AppHandle) {
     emit_state(&app, ClientLifecycleState::Closing);
@@ -283,7 +294,8 @@ pub fn run(
             get_state,
             get_pacing_state,
             quit,
-            get_substitutions
+            get_substitutions,
+            set_substitutions
         ])
         .run(tauri::generate_context!())
         .expect("error while running xgen-client desktop shell");

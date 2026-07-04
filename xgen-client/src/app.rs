@@ -253,6 +253,32 @@ pub fn load_substitutions_section(config_path: &Path) -> SubstitutionsSection {
     }
 }
 
+/// Write the raw `[substitutions] rules` string back to `xgen-client_config.toml`
+/// (M-RP4.3 — the effect half of the first `widget`, symmetric with
+/// `load_substitutions_section`). Read-mutate-write: the existing config is read
+/// and re-parsed into `ClientConfig`, only `substitutions.rules` is replaced, and
+/// the whole struct is re-serialised — so every other section (`[client]`,
+/// `[paths]`, `[logging]`, `[ai]`, `[sync]`) round-trips untouched.
+///
+/// Unlike the read path (which fails soft to empty), the write path is **strict**:
+/// a missing or malformed config is an error, NOT a silent regenerate-from-default
+/// that would clobber the operator's config (D-065, honest behaviour — the caller
+/// surfaces the failure rather than losing data). The raw string is stored verbatim;
+/// the ` | ` + first-space grammar stays UI-side (D-099, engine source-agnostic).
+///
+/// Phase note (D-101): clean-slate-on-start wipes the config to seed every launch,
+/// so this write-back is **session-only** this phase (W-8, surfaced in the editor UI).
+pub fn write_substitutions_section(config_path: &Path, rules: &str) -> Result<()> {
+    let text = std::fs::read_to_string(config_path)
+        .context("failed to read config for substitutions write-back")?;
+    let mut cfg: ClientConfig =
+        toml::from_str(&text).context("failed to parse config for substitutions write-back")?;
+    cfg.substitutions.rules = rules.to_string();
+    let toml_str = toml::to_string_pretty(&cfg).context("failed to serialise config")?;
+    std::fs::write(config_path, toml_str).context("failed to write config")?;
+    Ok(())
+}
+
 /// Serialise a fresh client config from defaults, seeded with the starter
 /// substitution pack (M-RP4.2 §4d). `keypair_path` is recorded in
 /// `[paths].keypair_path`; `ai` is the optional `[ai]` section (None on the
@@ -6237,6 +6263,76 @@ mod m_rp4_2_substitutions_tests {
         let dir = tempfile::tempdir().unwrap();
         let config_path = dir.path().join("xgen-client_config.toml");
         std::fs::write(&config_path, "this is not valid toml {{{").unwrap();
+        assert_eq!(load_substitutions_section(&config_path).rules, "");
+    }
+
+    /// M-RP4.3 write-back — `write_substitutions_section` replaces `rules` and
+    /// round-trips through `load_substitutions_section`, leaving every other
+    /// section (`[client]`, `[paths]`, `[logging]`) untouched (read-mutate-write).
+    #[test]
+    fn write_back_replaces_rules_preserving_other_sections() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-client_config.toml");
+        std::fs::write(
+            &config_path,
+            "[client]\nnode = \"ws://example:9999/xgen\"\n\
+             [paths]\nkeypair_path = \"custom.enc\"\n\
+             [logging]\nlevel = \"trace\"\n\
+             [substitutions]\nrules = \"old old\"\n",
+        )
+        .unwrap();
+
+        let new_rules = "--> → | <-- ← | brb be right back";
+        write_substitutions_section(&config_path, new_rules).expect("write-back succeeds");
+
+        // New rules are readable back.
+        assert_eq!(load_substitutions_section(&config_path).rules, new_rules);
+
+        // Every other section survived the round-trip.
+        let text = std::fs::read_to_string(&config_path).unwrap();
+        let cfg: ClientConfig = toml::from_str(&text).unwrap();
+        assert_eq!(cfg.client.node, "ws://example:9999/xgen");
+        assert_eq!(cfg.paths.keypair_path, "custom.enc");
+        assert_eq!(cfg.logging.level, "trace");
+    }
+
+    /// Write-back to an absent file is a hard error, NOT a silent regenerate —
+    /// the strict-write contract (D-065, never clobber the operator's config).
+    #[test]
+    fn write_back_missing_file_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("does-not-exist.toml");
+        assert!(write_substitutions_section(&config_path, "a b").is_err());
+        // No file was created as a side effect.
+        assert!(!config_path.exists());
+    }
+
+    /// Write-back over a malformed config is a hard error (won't overwrite an
+    /// unparseable file with a fresh default that would lose its contents).
+    #[test]
+    fn write_back_malformed_config_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-client_config.toml");
+        std::fs::write(&config_path, "not valid toml {{{").unwrap();
+        assert!(write_substitutions_section(&config_path, "a b").is_err());
+        // The malformed file is left exactly as it was.
+        assert_eq!(
+            std::fs::read_to_string(&config_path).unwrap(),
+            "not valid toml {{{"
+        );
+    }
+
+    /// Clearing the list (empty string) is a valid write-back — the editor's
+    /// "delete all pairs" path. Round-trips to empty `rules`.
+    #[test]
+    fn write_back_empty_clears_rules() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-client_config.toml");
+        let mut cfg = ClientConfig::default();
+        cfg.substitutions.rules = DEFAULT_SUBSTITUTIONS_SEED.to_string();
+        std::fs::write(&config_path, toml::to_string_pretty(&cfg).unwrap()).unwrap();
+
+        write_substitutions_section(&config_path, "").expect("clearing succeeds");
         assert_eq!(load_substitutions_section(&config_path).rules, "");
     }
 

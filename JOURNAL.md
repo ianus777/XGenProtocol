@@ -8,6 +8,22 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-458 — M-RP2.30a CLOSED: `meter` `fill?` — custom bar colour (additive), the led/chip inline-var mechanism — built, sampler-verified, records closed
+
+**What happened.** Additive amendment to `meter` (M-RP2.30) — an optional **`fill?`** prop for a custom bar colour, Joe-lock **option A** (a set `fill` overrides the optimum/sub/over semantics entirely). The led/chip data-coloured-via-inline-var mechanism. No breaking change; unset callers unaffected. Runbook `tasks/M_RP2_30a_METER_FILL.md` (now COMPLETED).
+
+**Change.** `meter.svelte`: `fill?: string` prop (hex or `var(--token)`) → inline `--meter-fill` var, composed with `width?` into one `style` string; getter → `{value,min,max,optimum,fill}`. `skin.css`: the three value-pseudos become `background: var(--meter-fill, var(--ok|--warn|--err))` — set `fill` wins, unset falls back to the semantic fill. Bonus: closes the no-optimum-reads-green gap (`fill="var(--t3)"` = neutral bar). Sampler: `meter#custom` (`fill="var(--accent2)"`) + `meter#neutral2` (`fill="var(--t3)"`).
+
+**CDP verify** (sampler 9422, real output). `vite build` clean.
+```
+{"total":108,"customGetter":{"value":70,"min":0,"max":100,"optimum":20,"fill":"var(--accent2)"},"neutral2Getter":{"value":50,"min":0,"max":100,"fill":"var(--t3)"},"customVar":"var(--accent2)","pseudoRules":[".meter::-webkit-meter-bar => var(--s5)",".meter::-webkit-meter-optimum-value => var(--meter-fill, var(--ok))",".meter::-webkit-meter-suboptimum-value => var(--meter-fill, var(--warn))",".meter::-webkit-meter-even-less-good-value => var(--meter-fill, var(--err))"]}
+```
+Getters carry `fill`; the inline `--meter-fill` var is present on `#custom`; all three value-pseudos now read `var(--meter-fill, <semantic>)`. Registry **106→108** (+2 cells). 0 orphans.
+
+**Records (atomic, D-074).** N-072 (ui-notes v0.56) + registry v0.44 (meter getter gains `fill`) + ROADMAP v4.27 (tree tail + M-RP2.30a ✅ DONE) + CLAUDE PLAY (→ J-458) + this entry + runbook → COMPLETED. No DECISIONS touch. **Next-active:** the **dd track opens** — Phase-0 on `section-header` (ungrounded warm-up) → `entity-avatar` (first domain-bound, D-071 audit on IdentityRecord/Appendix I). `temperature-indicator` later consumes meter (fill + semantic) via the widget dd-socket. Kind 4 `use:render` stays deferred (D-065).
+
+---
+
 ## Entry J-457 — M-RP2.30 CLOSED: `meter` — the 26th `core` / 5th simple display-di, root `<meter>`, the read-only sibling of `range`; founds the `--warn` L2 token — built, sampler-verified, records closed
 
 **What happened.** Built + closed `meter` — the **26th `core`** and the **5th simple display-di** (after label/paragraph/image/led), root native `<meter>`. The read-only sibling of `range` (same `{value,min,max}` shape, opposite direction: range = editable numeric-in via `bind:value`; meter = read-only value-against-range-out). **di, NOT dd** — during Phase-0 I first framed meter as the first dd-atomic; Joe challenged it and I corrected: a bare value+range is a display primitive, not a domain materialization (dd = IdentityRecord/SpaceState/etc.). So meter stays on the di display family and does NOT open the dd track. Design Joe-locked (surface / prop set / width / semantic-fill+token / skin / classification); runbook `tasks/M_RP2_30_METER.md` (now COMPLETED).

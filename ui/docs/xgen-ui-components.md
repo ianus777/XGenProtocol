@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.43  
+> Version: 0.44  
 > Date: Jun 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -36,7 +36,7 @@ The live registry of components actually authored in the tree (N-019). **Tier** 
 | number | `core` | A | data-independent · numeric | `<input type="number">` | `ui/core/lib/components/data-independent/number.svelte` | `() => $state.snapshot({ value })` | N-022/N-024/N-038/N-041 |
 | range | `core` | A | data-independent · numeric (bounded) | `<input type="range">` | `ui/core/lib/components/data-independent/range.svelte` | `() => $state.snapshot({ value })` | N-022/N-024/N-038/N-042 |
 | converter-field | `core` | A | data-independent · converter/bridge (kind 2) | `<input type="text">` | `ui/core/lib/components/data-independent/converter-field.svelte` | `() => $state.snapshot({ value, text, valid })` | N-022/N-024/N-056/N-070 |
-| meter | `core` | A | data-independent · display-kind bounded value bar | `<meter>` | `ui/core/lib/components/data-independent/meter.svelte` | `() => $state.snapshot({ value, min, max, optimum })` | N-022/N-024/N-032/N-071 |
+| meter | `core` | A | data-independent · display-kind bounded value bar | `<meter>` | `ui/core/lib/components/data-independent/meter.svelte` | `() => $state.snapshot({ value, min, max, optimum, fill })` | N-022/N-024/N-032/N-071/N-072 |
 
 First built `core` component, authored at M-RP2.3 as the substrate proof: verified live in **both** apps (client 9222 / node 9322) — `snapshot()` returned real `{checked:false}`, flip → `{checked:true}` confirmed live reactive reads.
 

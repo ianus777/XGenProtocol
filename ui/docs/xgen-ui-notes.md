@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.55  
+> Version: 0.56  
 > Date: May 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -1571,6 +1571,14 @@ M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the 
 **CDP-verified** (sampler 9422, real output — Rule 2). `vite build` clean. Getters: `#optimum {35,0,100,20}`, `#caution {65,...}`, `#danger {94,...}`, `#neutral {50,0,100}` (no optimum key), `#disabled {40,0,100}`. Base: `tag=METER`, `display:block`, `min-width:80px`, full-width fills the cell; `#fixed width=120px` (the `width?` prop); `#disabled opacity:0.45` + `aria-disabled=true`. All 6 `.meter*` rules in cascade via stylesheet inspection (N-042 — `getComputedStyle` returns UA defaults on shadow-pseudos): `.meter`/`::-webkit-meter-bar` → `--s5`, optimum → `--ok`, suboptimum → `--warn`, even-less-good → `--err`; `--warn` resolves `#ba7517`. Screenshot at `temp/meter-verify.png`. Registry **100→106** (+6 cells). Accent-neutral (fills are semantic, no `--accent`), so no skin-swap. 0 orphans.
 
 *UI-implementation record. Pure `$core` display-di. → registry v0.43 (meter row); `--warn` L2 token founded. Next: the dd track opens (section-header ungrounded → entity-avatar domain-bound, D-071-audited). `temperature-indicator` later consumes meter as its readout via the widget dd-socket.*
+
+### N-072 — meter `fill?` amendment: custom bar colour (led/chip inline-var mechanism)
+
+**M-RP2.30a.** Additive amendment to `meter` (M-RP2.30) — an optional **`fill?`** prop (hex or `var(--token)`) sets an inline `--meter-fill` var; the three value-pseudos now read `background: var(--meter-fill, var(--ok|--warn|--err))`, so a set `fill` **overrides the optimum/sub/over semantics entirely** (the led/chip data-coloured-via-inline-var mechanism; Joe-lock option A). Unset → the existing semantic fills (no change for current callers). Bonus: closes the no-optimum-reads-green gap — a neutral bar is `fill="var(--t3)"`. Getter → `{value,min,max,optimum,fill}`. `fill` composes with `width?` into one inline `style` string.
+
+**CDP-verified** (sampler 9422, real output). `vite build` clean. `#custom {value:70,…,fill:"var(--accent2)"}` + inline `--meter-fill: var(--accent2)`; `#neutral2 {…,fill:"var(--t3)"}`. Pseudo rules in cascade: `::-webkit-meter-optimum-value/-suboptimum-value/-even-less-good-value => var(--meter-fill, var(--ok|--warn|--err))`. Registry **106→108**. 0 orphans.
+
+*UI-implementation record. Additive, no breaking change. → registry v0.44 (meter getter gains `fill`). Next: the dd track opens (`section-header` → `entity-avatar`, D-071-audited).*
 
 ---
 

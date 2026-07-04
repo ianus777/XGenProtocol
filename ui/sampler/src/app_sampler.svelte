@@ -42,6 +42,7 @@
   import FileFieldComposite from '$core/components/data-independent/file-field.svelte';
   import Combobox from '$core/components/data-independent/combobox.svelte';
   import Chip from '$core/components/data-independent/chip.svelte';
+  import TagSelect from '$core/components/data-independent/tag-select.svelte';
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -138,6 +139,13 @@
   let cbDisabled = $state('');
   // chip (M-RP2.27) — display token, no bind. onRemove spy for CDP.
   let chipRemoved = $state(0);
+  // tag-select (M-RP2.28) — string[] bind:value. default seeds 4 (proves +N overflow at
+  // COLLAPSE_AT=3); max caps at 2 (3rd pick no-ops + data-full dim); create allows freeform.
+  let tsDefault = $state(['important', 'work', 'personal', 'urgent']);
+  let tsMax = $state(['important', 'work']);
+  let tsCreate = $state([]);
+  let tsManaged = $state(0); // gear spy (onManage) for CDP
+  const tagOptions = ['important', 'work', 'personal', 'urgent', 'later'];
   const cbOptions = [
     { value: 'online', label: 'Online', status: 'active' },
     { value: 'away', label: 'Away', status: 'idle' },
@@ -397,6 +405,15 @@
         <div class="s-cell"><span class="s-id">combobox#default</span><Combobox bind:value={cbDefault} id="default" options={cbOptions} placeholder="Type or pick" /></div>
         <div class="s-cell"><span class="s-id">combobox#preset</span><Combobox bind:value={cbPreset} id="preset" options={cbOptions} /></div>
         <div class="s-cell"><span class="s-id">combobox#disabled</span><Combobox bind:value={cbDisabled} id="disabled" options={cbOptions} disabled /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">tag-select</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">tag-select#default</span><TagSelect bind:value={tsDefault} id="default" options={tagOptions} width="260px" onManage={() => tsManaged++} placeholder="Add tags" /></div>
+        <div class="s-cell"><span class="s-id">tag-select#max</span><TagSelect bind:value={tsMax} id="max" options={tagOptions} max={2} onManage={() => tsManaged++} placeholder="max 2" /></div>
+        <div class="s-cell"><span class="s-id">tag-select#create</span><TagSelect bind:value={tsCreate} id="create" options={tagOptions} allowCreate onManage={() => tsManaged++} placeholder="type + Enter" /></div>
       </div>
     </div>
   </div>

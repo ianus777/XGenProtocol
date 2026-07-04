@@ -23,11 +23,13 @@
     removable = true,
     onRemove,
     id,
+    register = true,
   }: {
     label?: string;
     removable?: boolean;
     onRemove?: () => void;
     id?: string;
+    register?: boolean;
   } = $props();
 
   // Deterministic string hash → hue 0..359 (djb2-ish). Content-derived, stable per label.
@@ -42,7 +44,10 @@
   const fg = $derived(`hsl(${hue} 55% 30%)`);
   const bd = $derived(`hsl(${hue} 40% 80%)`);
 
-  const debug = () => ({ label, removable });
+  // Registration opt-out (N-064): a consumer rendering chips dynamically (tag-select) passes
+  // register={false} so the chip renders + stamps `.chip` but does NOT self-register (envelope
+  // registers only when a debug getter is present). Standalone chips keep register=true.
+  const debug = register ? () => ({ label, removable }) : undefined;
 </script>
 
 <span

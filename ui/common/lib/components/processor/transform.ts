@@ -1,11 +1,12 @@
 // transform.ts — text-processor KIND 1 (transformer): the pure, DOM-free, framework-free
 // core. Mirrors logic.ts in posture (no Svelte, no DOM) — the edit-side engine's wrapper
 // (processor.ts) is the only framework touch. Part of the four-kind taxonomy (D-099 / N-056):
-// this file is kind 1 only — `string -> string`, live, sequential literal replace-all.
+// this file holds the DOM-free pure cores: kind 1 (`string -> string`, live replace-all) and
+// now kind 3 (`number|null -> number|null`, the idempotent clamp guard, M-RP4.1).
 //
-// SCOPE (D-065, codify-four / build-one): only `TransformRule` exists in code. The future
-// union `ProcessorRule = TransformRule | ConvertRule | ClampRule | RenderRule` is documented
-// in D-099, NOT declared here, so the namespace stays clean when kinds 2/3/4 land.
+// SCOPE (D-065, codify-four / build-progressively): `TransformRule` (kind 1) + `ClampRule`
+// (kind 3) exist in code. The union `ProcessorRule = TransformRule | ConvertRule | ClampRule |
+// RenderRule` is documented in D-099, NOT declared here, so the namespace stays clean.
 
 /** A single literal find/replace pair (kind 1). */
 export type TransformRule = {
@@ -106,5 +107,33 @@ export function parseRules(text: string): TransformConfig {
     if (find.length === 0) continue; // empty find -> skip (assertSafeRules would reject anyway)
     out.push({ find, replace });
   }
+  return out;
+}
+
+// ── KIND 3 — filter/guard (M-RP4.1) ─────────────────────────────────────────────────────────
+// Pure numeric guard: `number|null -> number|null`, idempotent. Separate from kind 1 (which is
+// string->string); co-located here because both are DOM-free pure cores (the logic.ts posture).
+// The change-triggered edit-side engine is the sibling attachment processor/clamp.ts.
+
+/** A numeric clamp bound (kind 3). Both bounds optional; absent = that side is unclamped. */
+export type ClampRule = {
+  /** Inclusive lower bound. Omitted = no lower clamp. */
+  min?: number;
+  /** Inclusive upper bound. Omitted = no upper clamp. */
+  max?: number;
+};
+
+/**
+ * Clamp `n` into the ClampRule's [min, max]. Pure, total, IDEMPOTENT
+ * (applyClamp(applyClamp(n, r), r) === applyClamp(n, r)). `null` (the empty numeric field)
+ * passes through unchanged — clamping an absent value is meaningless. Each bound applies only if
+ * present, so {min} / {max} / {min,max} / {} all behave. If min > max (author error) the upper
+ * clamp runs last and wins; kept total rather than throwing.
+ */
+export function applyClamp(n: number | null, rule: ClampRule): number | null {
+  if (n === null) return null;
+  let out = n;
+  if (rule.min !== undefined) out = Math.max(rule.min, out);
+  if (rule.max !== undefined) out = Math.min(rule.max, out);
   return out;
 }

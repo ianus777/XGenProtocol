@@ -52,6 +52,7 @@
   // (xgen-sampler_config.toml [substitutions], generated from the seed on start — the REAL load
   // path, mirroring app_client.svelte / J-437; M-RP4.4 / D-101). No literal seed.
   import { processor } from '$common/components/processor/processor';
+  import { clamp } from '$common/components/processor/clamp';
   import { substitutions } from '$common/components/processor/store.svelte';
   import SubstitutionsEditor from '$common/components/widgets/substitutions-editor.svelte';
 
@@ -103,6 +104,7 @@
   let numDefault = $state(42);
   let numDisabled = $state(7);
   let numInvalid = $state(50); // outside [0,10] -> :invalid (rangeOverflow)
+  let numClamped = $state(5); // clamp-host (M-RP4.1): kind-3 guard coerces to [0,10] on change
   let rngDefault = $state(50);
   let rngDisabled = $state(30);
   // date — string bind:value for every type (empty would be ''); seeded valid here.
@@ -266,6 +268,7 @@
         <div class="s-cell"><span class="s-id">number#default</span><NumberField bind:value={numDefault} id="default" /></div>
         <div class="s-cell"><span class="s-id">number#disabled</span><NumberField bind:value={numDisabled} id="disabled" disabled /></div>
         <div class="s-cell"><span class="s-id">number#invalid</span><NumberField bind:value={numInvalid} id="invalid" min={0} max={10} /></div>
+        <div class="s-cell"><span class="s-id">number#clamped</span><NumberField {...clamp({ min: 0, max: 10 })} bind:value={numClamped} id="clamped" min={0} max={10} /></div>
       </div>
     </div>
 

@@ -51,6 +51,7 @@
     step,
     id,
     name,
+    ...rest
   }: {
     value?: number | null;
     placeholder?: string;
@@ -61,6 +62,10 @@
     step?: number;
     id?: string;
     name?: string;
+    // Clamp-host (M-RP4.1): a forwarded attachment (+ any extra native attrs) lands here and is
+    // spread onto <input> — the reserved insertion point, now wired. The index signature covers
+    // the symbol-keyed attachment. The atomic carries NO clamp logic (ready, not containing, D-065).
+    [key: string]: unknown;
   } = $props();
 
   // N-024 opt-in is one greppable line. $state.snapshot de-proxies for CDP's
@@ -69,6 +74,7 @@
 </script>
 
 <input
+  {...rest}
   type="number"
   {placeholder}
   {disabled}

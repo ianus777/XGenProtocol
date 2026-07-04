@@ -43,6 +43,7 @@
   import Combobox from '$core/components/data-independent/combobox.svelte';
   import Chip from '$core/components/data-independent/chip.svelte';
   import TagSelect from '$core/components/data-independent/tag-select.svelte';
+  import ColorPicker from '$core/components/data-independent/color-picker.svelte';
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -145,6 +146,9 @@
   let tsMax = $state(['important', 'work']);
   let tsCreate = $state([]);
   let tsManaged = $state(0); // gear spy (onManage) for CDP
+  // color-picker (M-RP2.29) — string bind:value #rrggbbaa; seeded with the per-shell accents (padded ff).
+  let cpDefault = $state('#9a6a30ff');
+  let cpDisabled = $state('#2a6090ff');
   const tagOptions = ['important', 'work', 'personal', 'urgent', 'later'];
   const cbOptions = [
     { value: 'online', label: 'Online', status: 'active' },
@@ -414,6 +418,14 @@
         <div class="s-cell"><span class="s-id">tag-select#default</span><TagSelect bind:value={tsDefault} id="default" options={tagOptions} width="260px" onManage={() => tsManaged++} placeholder="Add tags" /></div>
         <div class="s-cell"><span class="s-id">tag-select#max</span><TagSelect bind:value={tsMax} id="max" options={tagOptions} max={2} onManage={() => tsManaged++} placeholder="max 2" /></div>
         <div class="s-cell"><span class="s-id">tag-select#create</span><TagSelect bind:value={tsCreate} id="create" options={tagOptions} allowCreate onManage={() => tsManaged++} placeholder="type + Enter" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">color-picker</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">color-picker#default</span><ColorPicker bind:value={cpDefault} id="default" /></div>
+        <div class="s-cell"><span class="s-id">color-picker#disabled</span><ColorPicker bind:value={cpDisabled} id="disabled" disabled /></div>
       </div>
     </div>
   </div>

@@ -1237,3 +1237,228 @@ html, body {
   font-size: var(--fs-0);
   color: var(--t4);
 }
+
+/* ── color-picker (di composite, M-RP2.29) — the compact, themeable answer to the native
+ * <input type=color> picker (native popup is OS-painted, unreachable by CSS/JS past the swatch,
+ * N-047). Combobox-shaped owned-popup: anchor .textfield (__hex) + a live swatch + a PALETTE
+ * icon in the chevron slot; the popup carries an SV surface, a hue range, a checkerboard alpha
+ * range, a HEXA/RGBA/HSVA model selector, an eyedropper, and 8 recent slots. Value #rrggbbaa.
+ * Accent-derived chrome (range thumbs, model active, focus) rides --accent2 (gold/blue); the
+ * SV/hue/alpha surfaces are colour-native (identical across shells by design). PROVISIONAL. ── */
+.color-picker {
+  --pal: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1.1.9-2 2-2h1.5A4.5 4.5 0 0 0 21 11c0-4.97-4.03-9-9-9z'/%3E%3Ccircle cx='7.5' cy='11' r='1.2' fill='%23000'/%3E%3Ccircle cx='12' cy='7.5' r='1.2' fill='%23000'/%3E%3Ccircle cx='16.5' cy='11' r='1.2' fill='%23000'/%3E%3C/svg%3E");
+  --checker: repeating-conic-gradient(rgba(255,255,255,0.18) 0 25%, transparent 0 50%) 0 0 / 8px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  position: relative;
+  margin: var(--sp-1) var(--sp-2);
+}
+.color-picker > .textfield {
+  flex: none;
+  width: 15ch;
+  margin: 0;
+  padding-left: calc(var(--sp-2) + 16px + 4px);
+  padding-right: var(--sp-2);
+  font-family: ui-monospace, monospace;
+}
+.color-picker .cp-swatch {
+  position: absolute;
+  left: calc(var(--sp-2) + 1px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid var(--s5);
+  background-color: var(--s);
+  z-index: 1;
+}
+.color-picker .pal {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  background-color: var(--t3);
+  -webkit-mask: var(--pal) center / contain no-repeat;
+  mask: var(--pal) center / contain no-repeat;
+  cursor: pointer;
+}
+.color-picker[data-open] .pal {
+  background-color: var(--accent2, var(--t2));
+}
+.color-picker[aria-disabled] .pal {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* owned popup — dense floating panel, combobox-list conventions */
+.color-picker-pop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  width: 240px;
+  margin: 2px 0 0;
+  padding: var(--sp-2);
+  background: var(--s3);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+/* SV surface — hue base (right) x white (left) x black (bottom); pointer sets S/V. */
+.cp-sv {
+  position: relative;
+  height: 120px;
+  border-radius: var(--rad);
+  cursor: crosshair;
+  background:
+    linear-gradient(to top, #000, transparent),
+    linear-gradient(to right, #fff, var(--cp-hue, #f00));
+  touch-action: none;
+}
+.cp-sv-thumb {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* hue + alpha ranges: reuse the .range atomic; only the TRACK background is overridden here.
+ * The thumb stays the accent thumb from the base .range skin (gold/blue). */
+.cp-hue,
+.cp-alpha {
+  margin-top: var(--sp-1);
+}
+.cp-hue > .range,
+.cp-alpha > .range {
+  width: 100%;
+  margin: 0;
+}
+.cp-hue > .range::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+.cp-alpha > .range::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 5px;
+  background:
+    linear-gradient(to right, transparent, var(--cp-solid, #fff)),
+    var(--checker);
+}
+.cp-hue > .range::-webkit-slider-thumb,
+.cp-alpha > .range::-webkit-slider-thumb {
+  margin-top: -3px;
+}
+
+/* model selector — segmented HEXA / RGBA / HSVA */
+.cp-models {
+  display: flex;
+  gap: 2px;
+  margin-top: var(--sp-1);
+}
+.cp-models button {
+  flex: 1;
+  padding: 0px 0;
+  background: var(--s4);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  color: var(--t3);
+  font-size: var(--fs-0);
+  letter-spacing: 0.04em;
+  text-align: center;
+  cursor: pointer;
+}
+.cp-models button.active {
+  background: var(--accent, var(--pr));
+  border-color: var(--accent2, var(--pr2));
+  color: var(--accent-ink, var(--pr-ink));
+}
+
+/* numeric row — raw inputs (NOT registered atomics) + eyedropper */
+.cp-fields {
+  display: flex;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+}
+.cp-num {
+  flex: 1;
+  min-width: 0;
+  min-height: 24px;
+  padding: var(--sp-1);
+  background: var(--s);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  color: var(--t);
+  font-size: var(--fs-0);
+  text-align: center;
+}
+.cp-num.cp-hex {
+  font-family: ui-monospace, monospace;
+  text-align: left;
+}
+.cp-num:focus-visible {
+  outline: none;
+  border-color: var(--t3);
+}
+.cp-num::-webkit-inner-spin-button {
+  transform: scale(0.7);
+}
+.cp-eyedrop {
+  --drop-i: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 22l1-4 10-10'/%3E%3Cpath d='M15 6l3 3'/%3E%3Cpath d='M18 2l4 4-3.5 3.5-4-4z'/%3E%3C/svg%3E");
+  flex: none;
+  width: 26px;
+  min-height: 24px;
+  padding: 0;
+  background: var(--s4);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  color: var(--t2);
+  cursor: pointer;
+}
+.cp-eyedrop::before {
+  content: "";
+  display: block;
+  width: 15px;
+  height: 15px;
+  margin: 0 auto;
+  background-color: currentColor;
+  -webkit-mask: var(--drop-i) center / contain no-repeat;
+  mask: var(--drop-i) center / contain no-repeat;
+}
+.cp-eyedrop:hover {
+  background: var(--s5);
+  color: var(--t);
+}
+
+/* recents — 8 fixed slots; empty = checkerboard */
+.cp-recents {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: var(--sp-1);
+  margin: var(--sp-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.cp-recents li {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  border: 1px solid var(--s5);
+  cursor: pointer;
+}
+.cp-recents li.empty {
+  background: var(--checker), var(--s2);
+  cursor: default;
+}
+.cp-recents li[aria-selected] {
+  box-shadow: 0 0 0 2px var(--accent2, var(--t2));
+}
+
+.color-picker[aria-disabled] .color-picker-pop {
+  display: none;
+}

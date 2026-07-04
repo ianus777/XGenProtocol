@@ -1462,3 +1462,27 @@ html, body {
 .color-picker[aria-disabled] .color-picker-pop {
   display: none;
 }
+
+/* ── widget: substitutions-editor (M-RP4.3, the FIRST widget / D-102) ───────── */
+.substitutions-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  max-width: 380px;
+}
+.substitutions-editor .subs-status {
+  min-height: var(--fs-1);
+  font-size: var(--fs-1);
+  line-height: var(--lh);
+}
+.substitutions-editor .subs-count { color: var(--t3); }
+.substitutions-editor .subs-warn { color: var(--err-bright); }
+.substitutions-editor .subs-actions {
+  display: flex;
+  gap: var(--sp-1);
+}
+.substitutions-editor .subs-note {
+  margin: 0;
+  font-size: var(--fs-1);
+  color: var(--t4);
+}

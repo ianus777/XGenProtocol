@@ -53,6 +53,7 @@
   // path, mirroring app_client.svelte / J-437; M-RP4.4 / D-101). No literal seed.
   import { processor } from '$common/components/processor/processor';
   import { substitutions } from '$common/components/processor/store.svelte';
+  import SubstitutionsEditor from '$common/components/widgets/substitutions-editor.svelte';
 
   // Runtime client<->node skin-swap (D-098): flipping [data-shell] re-aliases --accent*
   // live, so the whole grid re-themes at once. Replaces "run in both real shells".
@@ -82,6 +83,7 @@
     { id: 'di-composite', label: 'DI · composite' },
     { id: 'dd-atomic',    label: 'DD · atomic' },
     { id: 'dd-composite', label: 'DD · composite' },
+    { id: 'widget',       label: 'WIDGET' },
   ];
 
   // Bound values (bare $state — plain-JS shell). One per interactive cell.
@@ -447,6 +449,18 @@
     <div class="s-empty">
       <strong>No components yet</strong>
       <span>Composite data-derived components land here (downstream of dd atomics).</span>
+    </div>
+  </div>
+</div>
+
+<!-- WIDGET (Level-2 UI-plugin, D-102) -->
+<div class="sampler-panel" class:hidden={activeTab !== 'widget'}>
+  <div class="sampler-body">
+    <div class="s-group">
+      <div class="s-rowname">substitutions-editor</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">substitutions-editor#demo</span><SubstitutionsEditor id="demo" /></div>
+      </div>
     </div>
   </div>
 </div>

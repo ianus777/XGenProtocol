@@ -10,11 +10,20 @@
 import { parseRules, assertSafeRules, type TransformConfig } from './transform';
 
 let _rules = $state<TransformConfig>([]);
+let _source = $state<string>('');
 
 export const substitutions = {
   /** The live, validated rule list. Read by processor-hosts; reactive. */
   get rules(): TransformConfig {
     return _rules;
+  },
+  /**
+   * The raw text last handed to setRules (the TOML / one-textarea shape), stashed verbatim so
+   * the M-RP4.3 editor can seed its draft from the live source without re-serialising or a second
+   * `invoke`. Set on every setRules call — success AND reject — so it reflects what was last applied.
+   */
+  get source(): string {
+    return _source;
   },
   /**
    * Replace the whole list from one raw string (the TOML / one-textarea shape, M-RP4.2 grammar).
@@ -24,6 +33,7 @@ export const substitutions = {
    * warning. (Per-pair partition + inline warnings are the M-RP4.3 editor's job.)
    */
   setRules(text: string): void {
+    _source = text;
     const parsed = parseRules(text);
     try {
       assertSafeRules(parsed, { trusted: false });

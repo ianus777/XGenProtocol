@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.48  
+> Version: 0.49  
 > Date: May 2026  
-> **Last updated**: 2026-07-03  
+> **Last updated**: 2026-07-04  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -1429,6 +1429,30 @@ M-RP2.27 closed (J-450). **22nd `core`**, a standalone di token (atomic-ish `<sp
 **Verify (Chat self-drove, sampler + CDP 9422, both accents, real — Rule 2).** `vite build` 142 modules. `ids()===83`; `#default {label:"rust",removable:true}` / `#static {removable:false}` (no `×`) / `#long` (ellipsis). Computed fills differ per label — rust `rgb(244,225,242)` ≠ svelte `rgb(225,233,244)`, both muted; rust fill **identical** under node shell (self-computed, not accent-derived). `×` present/default, absent/static; `×` click fires bound `onRemove` (local spy, internal counter — not surfaced to registry), no throw. Screenshot eye-checked (bold caps, per-label tints). Joe cosmetic: fill L 92→82 (−10%), label bold.
 
 *UI-design note. Component + skin (shipped). → registry (22nd `core`, matrix 80→83). First self-computed-colour di; establishes the N-064 used-internally-without-registration pattern → `tag-select`. Next: `tag-select` (M-RP2.28, the chip consumer).*
+
+**AMENDMENT (M-RP2.28, 2026-07-04):** "used internally without registration" is NOT automatic — `envelope` registers whenever a debug getter is present (id-less instances just get ordinal ids, `chip#1..4`, caught at CDP when tag-select first consumed chip). Made real by an additive `register` prop on `chip` (default true; `register={false}` omits the getter → renders + stamps `.chip` but does not register). tag-select renders chips `register={false}` → matrix stays +2/cell (composite + `__filter`), chips don't multiply. → N-065.
+
+---
+
+## 2026-07-04
+
+### N-065 — `tag-select` (M-RP2.28): the 6th di composite, THE CHIP CONSUMER; multi-select `string[]`; owned-popup reuse; a general width system
+
+M-RP2.28 closed (J-451). **23rd `core`**, **6th di composite**, last of the N-054 backlog. A **completely new component** (own file/logic) that *reuses the owned-popup pattern* (N-063) and *composes* two existing components as children — `Textfield` (the `__filter` query buffer) + `Chip` (the tags, `register={false}`). Not built on combobox (no shared code).
+
+**Model + registration.** `value: string[]` `$bindable`, empty `[]`; getter `{values,count}` (select-multiple precedent). The query is LOCAL `$state` on the child textfield (`__filter` — 3rd distinct textfield suffix after `__field`/`__input`, collision-safe), cleared on pick, NOT the model. Matrix **+2/cell** (composite + `__filter`; chips don't register via N-064) → **83→89** (3 cells: default/max/create).
+
+**Owned popup, two sections.** Own `<ul role=listbox aria-multiselectable>`: top **"Selected (N)"** (all picked, reachable even when the row collapses) + main **"Options"** (`notSelected && matchesQuery` — hide-selected). Pick STAYS OPEN, clears query, refocuses. `allowCreate?` (default false) → Enter on non-empty query, no exact match → create `{value:q,label:q}`. Dedup case-insensitive + silent. `max?` → picks no-op + `[data-full]` dim + input disabled + no open. Backspace on empty query pops the last tag.
+
+**Structure (password-field layout).** Root `.tag-select` = flex ROW = `.tag-field` (the bordered box; anchors the popup; holds the chip row + growing borderless `__filter`) + an **OUTSIDE** manage gear (`.tag-manage`, transparent icon-only, outline cog mask, N-052 lineage) — beside the field, not inside. Gear fires `onManage?` (opt-in); the actual keyword-set editor = widget-tier (N-059), deferred.
+
+**Width system (Joe-locked).** No `width` → `.tag-field` sizes to content (`max-content`), cap at `DEFAULT_CAP=3`. `width` set → fixed field, a **hidden mirror row** gives natural chip widths + a `ResizeObserver` tracks the field, a derived count shows only chips that FULLY fit, the rest → `+N` pill (no half-clipped chips). Deterministic at fixed width (CDP-stable).
+
+**Candidate collection (design note, deferred).** `options` is source-agnostic (N-057). The persistent vocabulary lives in the client config TOML `[tags] keywords = [...]` (seed `["important","work","personal"]`) → Rust loader → `get_tags` command → `$common` store → `options`; write-back (persisting a created tag) is widget-tier (M-RP4.3). NOT built this milestone — sampler passes a literal. A future **dd** `tag-select` fed from a protocol keyword catalog is reserved.
+
+**Verify (Chat self-drove, sampler + CDP 9422, both accents, real — Rule 2).** `vite build` clean. `ids()===89`; children `textfield#{default,max,create}__filter` (no collision); **0 stray chips** (`register={false}` proven, N-064 made real). Getters default `{count:4}`/max `{count:2}`/create `{count:0}`. Freeform create `zzz`→value===label; dedup `ZZZ`→no-op; Backspace-last→0. Popup sections `["Selected (4)","Options"]`, hide-selected (only `later` pickable); pick `later`→count 5, stays open, query cleared. Width: fixed 260 → 2 chips + `+2`, **no clipping**; auto cells fit content (max 295 / create 155). max cap → no-op + `[data-full]` + disabled input. Gear outside `.tag-field` on all 3 cells, mask set, click-safe. `✓` mark gold `rgb(194,136,64)` ↔ blue `rgb(58,122,176)`. 0 orphans. (Note: a stale Svelte HMR state showed a wrong count mid-arc; a clean reload gave the correct measured `cap` — recorded honestly, Rule 1.)
+
+*UI-design note. Component + skin (shipped). → registry (23rd `core`, 6th di composite, matrix 89). Closes the N-054 di-composite backlog. Next: `color-picker` (reuses owned-popup, N-047) → the `widget` definition (N-059→spec) → M-RP4.3.*
 
 ---
 

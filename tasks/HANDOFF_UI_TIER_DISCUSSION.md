@@ -1,12 +1,14 @@
 # Handoff — UI tier discussion (behaviour-carrying assemblies) before M-RP4.3 scope
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: DEPRECATED  
+> Version: 1.1  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-01  
+> **Last updated**: 2026-07-04  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+**DEPRECATED (2026-07-04, J-451):** replaced by the `widget` tier concept-lock (J-445/N-059) — the UI-tier discussion this handoff carried is resolved; the deferred keyword-set editor is now scoped as widget-tier (M-RP4.3).
 
 ## Kickoff (Chat Claude seat)
 

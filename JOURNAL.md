@@ -1,10 +1,30 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-03  
+> **Last updated:** 2026-07-04  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-451 — M-RP2.28 CLOSED: `tag-select`, the 6th di composite (the chip consumer) — multi-select `string[]`, owned-popup reuse, `chip` `register` opt-out makes N-064 real, a general width system — built, CDP-verified, records closed
+
+**What happened.** Built `tag-select`, the **23rd `core`** and the **6th di composite** — the last of the N-054 di-composite backlog. A **completely new component** (own file/logic) that *reuses the owned-popup pattern* (N-063, from combobox) and *composes* two existing components as children: `Textfield` (the `__filter` query buffer) + `Chip` (the tags). Not built on combobox (no shared code). Design walked + Joe-locked across the session; runbook `tasks/M_RP2_28_TAG_SELECT.md` (now COMPLETED). Steps A–E + two in-arc additions (gear, width) + two mid-arc fixes surfaced by CDP.
+
+**Model + registration.** `value: string[]` `$bindable` (empty `[]`), getter `{values,count}` (select-multiple precedent). The query is LOCAL `$state` bound to the child textfield (suffix `__filter` — 3rd distinct textfield suffix after `__field`/`__input`, collision-safe), cleared on pick, NOT the model. Matrix **+2/cell** (composite + `__filter`) → 3 cells → **83→89**.
+
+**N-064 made real (the headline correction).** The recorded N-064 ("chips used internally without per-instance registration") did **not** hold mechanically — `envelope` registers whenever a debug getter is present, so id-less chips got ordinal ids (`chip#1..4`, caught at CDP: total 91 not 89). Fixed with an **additive `register` prop** on `chip` (default true; `register={false}` omits the getter → renders + stamps `.chip` but does not register). tag-select renders chips `register={false}` → 0 stray chips, matrix deterministic at 89. (Rule 6 stop-and-surface: the fix edits the closed `chip` atomic, so it was Joe-locked before landing.)
+
+**Popup + behaviour.** Own `<ul role=listbox aria-multiselectable>`, TWO sections: top "Selected (N)" (reveals all, reachable even when the row collapses) + "Options" (`notSelected && matchesQuery`, hide-selected). Pick stays open + clears query + refocus. `allowCreate?` (Enter, no exact match → value===label), silent case-insensitive dedup, `max?` (no-op + `[data-full]` dim + input disabled + no open), Backspace-last.
+
+**Structure + two additions (Joe).** Password-field layout: root `.tag-select` = flex row = `.tag-field` box (anchors popup) + an **outside** manage gear (`.tag-manage`, transparent cog mask, fires `onManage?` — keyword-set editor is widget-tier, deferred). **Width system:** no `width` → `.tag-field` `max-content` + cap `DEFAULT_CAP=3`; `width` set → a hidden mirror row gives natural chip widths + a `ResizeObserver` tracks the field → only fully-fitting chips shown, rest → `+N` (no half-clipped chips). Two CDP-caught fixes: gear was clipped inside the field (moved outside, sibling); a stale Svelte-HMR state showed a wrong fit count until a clean reload (recorded honestly, Rule 1).
+
+**Candidate collection (deferred).** `options` is source-agnostic (N-057). The persistent vocabulary will live in the client TOML `[tags] keywords = [...]` (seed `["important","work","personal"]`) → loader → `get_tags` command → store; write-back = widget-tier (M-RP4.3). NOT built — sampler passes a literal.
+
+**Verify (all real, Rule 2 — Chat self-drove, sampler + CDP 9422, both accents).** `vite build` clean. `ids()===89`; children `textfield#{default,max,create}__filter` (no collision); 0 stray chips. Getters default `{count:4}`/max `{count:2}`/create `{count:0}`. Freeform create `zzz`→value===label; dedup `ZZZ`→no-op; Backspace-last→0. Popup `["Selected (4)","Options"]`, hide-selected; pick `later`→count 5, stays open, query cleared. Width: fixed 260→2 chips + `+2` **no clipping**; auto max 295 / create 155 fit content. max cap → no-op + `[data-full]` + disabled. Gear outside `.tag-field` all 3 cells, mask set, click-safe. `✓` mark gold `rgb(194,136,64)` ↔ blue `rgb(58,122,176)`. 0 orphans.
+
+**Records (atomic, D-074).** N-064 amend + N-065 (ui-notes v0.49) + registry v0.37 (23rd `core`, 6th di composite, tag-select ✅ BUILT, matrix 89) + ROADMAP v4.20 (RP node M-RP2.28 ✅) + this entry + CLAUDE PLAY + runbook → COMPLETED + `tasks/HANDOFF_UI_TIER_DISCUSSION.md` ACTIVE→DEPRECATED (deliverable met by J-445). **Next-active:** the N-054 di-composite backlog is CLOSED → `color-picker` (reuses owned-popup, N-047) → the `widget` tier definition (N-059→spec) → M-RP4.3 (first widget) → M-RP4.1.
 
 ---
 

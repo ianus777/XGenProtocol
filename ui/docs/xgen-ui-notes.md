@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.49  
+> Version: 0.50  
 > Date: May 2026  
 > **Last updated**: 2026-07-04  
 > Language: English  
@@ -1453,6 +1453,28 @@ M-RP2.28 closed (J-451). **23rd `core`**, **6th di composite**, last of the N-05
 **Verify (Chat self-drove, sampler + CDP 9422, both accents, real — Rule 2).** `vite build` clean. `ids()===89`; children `textfield#{default,max,create}__filter` (no collision); **0 stray chips** (`register={false}` proven, N-064 made real). Getters default `{count:4}`/max `{count:2}`/create `{count:0}`. Freeform create `zzz`→value===label; dedup `ZZZ`→no-op; Backspace-last→0. Popup sections `["Selected (4)","Options"]`, hide-selected (only `later` pickable); pick `later`→count 5, stays open, query cleared. Width: fixed 260 → 2 chips + `+2`, **no clipping**; auto cells fit content (max 295 / create 155). max cap → no-op + `[data-full]` + disabled input. Gear outside `.tag-field` on all 3 cells, mask set, click-safe. `✓` mark gold `rgb(194,136,64)` ↔ blue `rgb(58,122,176)`. 0 orphans. (Note: a stale Svelte HMR state showed a wrong count mid-arc; a clean reload gave the correct measured `cap` — recorded honestly, Rule 1.)
 
 *UI-design note. Component + skin (shipped). → registry (23rd `core`, 6th di composite, matrix 89). Closes the N-054 di-composite backlog. Next: `color-picker` (reuses owned-popup, N-047) → the `widget` definition (N-059→spec) → M-RP4.3.*
+
+---
+
+### N-066 — `color-picker` (M-RP2.29): compact themed picker, `#rrggbbaa`, float-HSV, open-only children
+
+`color-picker` — **7th di composite, 24th `core`**. The themeable, compact answer to native `<input type=color>`, whose popup dialog is OS/Chromium-painted and **unreachable by CSS *or* JS** past the swatch (N-047, reconfirmed live in DevTools: the dialog is a UA-native window, not DOM — no shadow root, nothing to query; dense/compact layout is only possible in an owned popup). Combobox-shaped **owned-popup** (N-063): anchor `textfield` (`__hex`) + live swatch + a **palette** icon in the chevron slot; passive di, owns only `open`; closes on outside-pointerdown (not blur — avoids a race with the in-popup sliders/SV drag).
+
+**Value = canonical `#rrggbbaa`** (8-digit, lowercase, always-valued; default `#000000ff`). **More capable than native** — native emits no alpha at all. Internal source of truth = **HSVA** (`h` 0–360, `s`/`v` 0–100, `a` 0–255); `value` is derived on every change.
+
+**Float-HSV (the fidelity fix).** Rounding HSV to integers made `rgb→hsv→rgb` lossy — seed `#9a6a30ff` came back `#99692fff` (off-by-one per channel), and the first buggy mount wrote the drift **back into the bound sampler state** (sticky until a fresh load). Fix: keep `h`/`s`/`v` as **floats**, round only at display in the HSVA numeric fields. `rgb→hsv(float)→rgb→round` is then lossless for integer rgb inputs. Verified: seeds `#9a6a30ff`/`#2a6090ff` preserved exactly.
+
+**Two guarded effects, no feedback loop.** commit (hsva → `value` + anchor `hexDraft` + `lastHexa` gate; reads hsva only) and parse (user hex edits → hsva, gated by `lastHexa` so reflected writes are no-ops). The gate is what prevents the anchor field and the sliders/SV from ping-ponging. Hex field accepts **6-digit** (pads `ff`); invalid → native `:invalid`, **no commit**.
+
+**Model selector (HEXA/RGBA/HSVA)** swaps the popup **numeric row only** — the SV surface + hue + alpha are HSV-native and identical across models (view-state `model`, reset each mount, **not** published in the getter). Numeric inputs are **raw** `<input>` (no atomic → no registration). **SV surface** is a CSS-gradient `<div>` + positioned thumb (pointer x→S, y→V), **not `<canvas>`** — CDP-readable (N-042 lesson). **Eyedropper** recycles the native `EyeDropper` API (returns `#rrggbb`, keeps current alpha; button hidden when the API is absent — present in WebView2). **8 recent slots**: commit **on close**, dedup, most-recent-first, empty = checkerboard; local `$state` (persistence deferred).
+
+**Matrix accounting — open-only children (correction vs the runbook's 97).** The `__hue`/`__alpha` ranges live **inside the `{#if open}` popup**, so they register **only while the popup is open** — a **live sub-state, like focus**, not a static cell. Stable closed-state count is therefore **+2/cell** (composite + `textfield __hex`) → 2 cells → **89→93**; opening a cell adds its `__hue`/`__alpha` (verified live at **95**). This is the honest deterministic count (combobox/tag-select popups had **no** registered children, so this is the first composite where a registered child is conditionally mounted — treat the open children as a live-verified state, not part of the baseline matrix).
+
+**Skin.** All appearance in `skin.css` (30 `.color-picker*`/`.cp-*` rules); the only inline `style=` are **data-driven values that cannot live in a stylesheet** — current-colour swatch, live SV hue (`--cp-hue`), thumb x/y %, alpha track colour (`--cp-solid`), each recent slot's colour. Zero component `<style>`. (Vite **dev** injects global CSS into one `<style>` tag for HMR — DevTools labels those rules `<style>`; prod `vite build` extracts them to the external `.css`. Not hardcoding.) Cosmetic pass: field sized to content (`12ch`), palette icon **outside** the field on the right (password-field pattern), tight popup line spacing (`--sp-1`), centered model-button text.
+
+**Deferred (D-065):** colorspace attr; persistence of recents + model; alpha-as-% toggle; keyboard nav on the SV surface (pointer-only v1); external-`value`-set-after-mount re-sync (init parses once; passive-di, value is derived output).
+
+*UI-design note. Component + skin (shipped). → registry v0.38 (24th `core`, 7th di composite, matrix 93). **D-069 7th-composite watch: no promotion.** Next: the `widget` tier definition (N-059→spec) → M-RP4.3 (in-app TOML editor + write-back, first widget) → M-RP4.1 (kind-3 number-clamp).*
 
 ---
 

@@ -1,6 +1,6 @@
 # XGen UI — dd Phase-0: `entity-item` (variant-driven entity composite)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  
@@ -8,7 +8,7 @@
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
-Phase-0 subsystem audit (D-071) for **M-RP5.1** — `entity-item`, the first dd-**composite**. A single variant-driven composite that materializes one address-book entry as a full display unit (avatar + text + meta), replacing the earlier per-shape plan (`container-list-item`, `entity-card`, …). Design-only; no code until Joe-locked + runbook authored.
+Phase-0 subsystem audit (D-071) for **M-RP5.1** — `entity-item`, the first dd-**composite**. A single variant-driven composite that materializes one address-book entry as a full display unit (avatar + text + meta), replacing the earlier per-shape plan (`container-list-item`, `entity-card`, …). Decisions A–G **LOCKED** (2026-07-05 design walk). No code until runbook authored + Joe "go".
 
 ---
 
@@ -30,7 +30,7 @@ Same source as M-RP5.0 — the `EntityDescriptor` seam (source-agnostic, `core` 
 - trailing meta — unread count, timestamp, **self-status** (emoji+text from Track A `state.status`, J-461).
 - row behaviour — activate, selected/hover, keyboard nav (list context).
 
-Status is now unblocked (Track A shipped `state.status`), so a status-bearing variant is buildable this milestone if in scope.
+Status is now unblocked (Track A shipped `state.status`), so a status-bearing variant is buildable this milestone.
 
 ## 4. Locked framing (Phase-0)
 
@@ -39,18 +39,20 @@ Status is now unblocked (Track A shipped `state.status`), so a status-bearing va
 3. Entity-generic (identity ∪ space ∪ DM) — driven by descriptor `kind`, not a per-kind component.
 4. Secondary line + meta are **caller-supplied slots** (source-agnostic); composite owns layout, not protocol reads.
 5. dd-composite root per N-075 (honest HTML; class×arity from folder + panel + getter). Composes the real `entity-avatar` child (self-registers, matrix multiplies).
+6. **Global width rule (N-076, new standing contract).** No `width` set → **100%** (fills container); `width` set → that value; **`min-width` = the component's intrinsic composition floor** (its slot layout's natural minimum). Generalizes the `meter`/`section` `width?` precedent to a default contract for all width-bearing components; retro-referenced by `meter`/`section`.
 
-## 5. Decisions to Joe-lock (design walk, one at a time)
+## 5. Decisions — LOCKED (2026-07-05)
 
-- **A — name.** `entity-item` (mirrors `entity-avatar`, purpose-neutral). *Rec: yes.*
-- **B — variant set (v1).** `row` (dense list line) · `card` (richer tile) · `nav` (sidebar entry) · `inline` (compact mention/token). + the derive-inner-avatar-variant map + the "new-need → new-variant" rule. *Rec: yes; confirm the four.*
-- **C — slot surface per variant.** which of {name, secondary, meta/status} each variant shows (derived, not free). *Rec: row=name+meta · card=name+secondary+status · nav=name · inline=name.*
-- **D — row behaviour.** `onActivate?`; `selected?`/hover as skin state; keyboard nav owned by the *list/panel* (M-RP5.2), not the item. *Rec: item exposes `onActivate?`+`selected?`, panel owns roving focus.*
-- **E — status wiring.** consume `state.status` as a caller-supplied `status?: {emoji?,text?}` slot (source-agnostic, shell maps from Track A). *Rec: yes, slot only.*
-- **F — getter.** `{ variant, kind, name, hasSecondary, hasStatus, selected }`. *Rec: yes.*
-- **G — root element.** honest dd-composite root (`<div class="entity-item">` acceptable here — dd-composite, panel-disambiguated; or `<article>`/`<li>` if a list-semantic is wanted). *Rec: decide at walk; lean `<div>`.*
+- **A — name.** `entity-item`. ✅
+- **B — variant set (v1) + rules.** `row` · `card` · `nav` · `inline`. Derive-map: `row`→avatar `list` · `card`→`card` · `nav`→`labeled` · `inline`→`presence`. Rule: new entity-display need → **new variant** (standalone only if it can't fit, D-069 bar). ✅
+- **C — slot surface per variant** (derived, not free): `row` = name + meta · `card` = name + secondary + status · `nav` = name · `inline` = name. ✅
+- **D — row behaviour.** item exposes `onActivate?` + `selected?` (skin state); the list/panel (M-RP5.2) owns roving keyboard focus, not the item. ✅
+- **E — status wiring.** caller-supplied `status?: { emoji?, text? }` slot, source-agnostic (shell maps from Track A `state.status`). ✅
+- **F — getter.** `{ variant, kind, name, hasSecondary, hasStatus, selected }`. ✅
+- **G — root element.** `<div class="entity-item">` (dd-composite, panel-disambiguated per N-075). ✅
+- **Width.** `width?` per the N-076 global rule (unset = 100%; set = value; `min-width` = slot-composition floor). ✅
 
-## 6. Roadmap — dd track (M-RP5, updated)
+## 6. Roadmap — dd track (M-RP5)
 
 | milestone | component | tier | note |
 |---|---|---|---|
@@ -64,4 +66,4 @@ Kind-4 `use:render` stays deferred (D-065).
 
 ---
 
-*Phase-0 audit. No protocol implication — `core` stays protocol-free behind `EntityDescriptor` + caller-supplied slots. Framing locks 1–5 set; decisions A–G await the walk before a runbook.*
+*Phase-0 audit. No protocol implication — `core` stays protocol-free behind `EntityDescriptor` + caller-supplied slots. Framing locks 1–6 set; decisions A–G LOCKED; runbook next.*

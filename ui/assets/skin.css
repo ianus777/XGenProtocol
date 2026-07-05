@@ -17,7 +17,7 @@
 
 :root {
   /* Surfaces (dark ramp, low -> high) */
-  --s:  #16181c;  --s2: #1c1f24;  --s3: #22262d;  --s4: #2a2f38;  --s5: #343b47;
+  --s:  #16181c;  --s2: #1c1f24;  --s3: #22262d;  --s4: #2a2f38;  --s5: #343b47;  --s0: #191b20;
   /* Text ramp (dim -> bright) */
   --t4: #585c64;  --t3: #8a8880;  --t2: #c8c4bc;  --t:  #ece9e1;
   /* Gold primary (client brand SOURCE) */
@@ -284,10 +284,10 @@ html, body {
 
 .textarea {
   padding: var(--sp-1) var(--sp-2);
-  margin: var(--sp-1) var(--sp-2);
-  background: var(--s);
-  border: 1px solid var(--s5);
-  border-radius: var(--rad);
+  margin: var(--sp-0) var(--sp-1);
+  background: var(--s0);
+  border: none;
+  border-radius: var(--rad0);
   color: var(--t);
   font-size: var(--fs-1);
   line-height: var(--lh);

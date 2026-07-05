@@ -17,21 +17,34 @@
   // the first dd-composite) which derives them via its single-knob variant map. The name text
   // still lives in `entity-item`'s own text column, NOT inside the avatar (<figcaption> stays
   // reserved-unused) — these two presets differ from `list` only in glyph size.
+  //
+  // STATUS SLOT (M-RP5.1b, additive). An optional `status?` view-model (Track A self-status) is
+  // rendered as a `status` child in the `badge` variant — a bottom-right CORNER OVERLAY (the
+  // `.entity-avatar .status` skin positions it). The child self-registers `<id>__status`; it is
+  // mounted whenever a `status` is passed and empties itself when expired (the status atomic owns
+  // that logic — no duplication here). The bottom-right corner is reserved for self-status; a
+  // future presence dot, if ever added, takes a different corner.
   import { envelope } from '$common/components/base/envelope';
   import { seedColour } from '$common/components/base/seed-colour';
+  import Status from './status.svelte';
   import type { EntityDescriptor } from './types';
 
   let {
     descriptor,
     variant = 'presence',
+    status,
     onActivate,
     id,
   }: {
     descriptor: EntityDescriptor;
     variant?: 'presence' | 'list' | 'labeled' | 'card';
+    status?: { emoji?: string; text?: string; updatedAt?: string; expiresAt?: string };
     onActivate?: () => void;
     id?: string;
   } = $props();
+
+  // Composite-derived stable child id (so the self-registering status child reads cleanly).
+  const cid = (s: string) => (id ? `${id}__${s}` : undefined);
 
   const kind = $derived(descriptor.kind);
   const name = $derived(descriptor.name);
@@ -103,5 +116,8 @@
 >
   {#if variant !== 'presence'}
     <span class="ea-initials">{initials}</span>
+  {/if}
+  {#if status}
+    <Status {status} variant="badge" id={cid('status')} />
   {/if}
 </figure>

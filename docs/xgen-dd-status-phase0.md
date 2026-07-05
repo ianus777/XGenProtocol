@@ -1,6 +1,6 @@
 # XGen UI — dd Phase-0: `status` (self-status component, variant-driven)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  

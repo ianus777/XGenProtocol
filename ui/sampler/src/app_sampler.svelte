@@ -49,6 +49,7 @@
   import Section from '$core/components/data-independent/section.svelte';
   import EntityAvatar from '$core/components/data-dependent/entity-avatar.svelte'; // first dd-atomic (M-RP5.0)
   import EntityItem from '$core/components/data-dependent/entity-item.svelte'; // first dd-composite (M-RP5.1)
+  import Status from '$core/components/data-dependent/status.svelte'; // self-status dd-atomic (M-RP5.1a)
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -195,6 +196,19 @@
   // caller slots (source-agnostic; the shell would map protocol + Track A state.status here).
   const eiStatus = { emoji: '🟢', text: 'online' }; // Track A self-status slot (card only)
   let eiActivated = $state(0); // onActivate spy for CDP (row activation)
+
+  // status (M-RP5.1a, self-status dd-atomic) — source-agnostic view-model {emoji?,text?,updatedAt?,
+  // expiresAt?} (shell maps Track A StatusRecord). Timestamps are computed relative to render so
+  // `full`'s "updated Nm ago" and the expired case are deterministic (browser Date.now(), fine in
+  // the live sampler). expired → mounted-but-empty (data-empty), still registers.
+  const nowMs = Date.now();
+  const isoAt = (deltaMs) => new Date(nowMs + deltaMs).toISOString();
+  const stEmoji = { emoji: '🎯' };                                       // emoji-only
+  const stEmojiText = { emoji: '🌙', text: 'sleeping' };                 // emoji + text
+  const stTextOnly = { text: 'on vacation' };                            // no emoji (tooltip/line)
+  const stFull = { emoji: '🎧', text: 'in a meeting', updatedAt: isoAt(-5 * 60 * 1000) };
+  const stExpired = { emoji: '💤', text: 'away', expiresAt: isoAt(-60 * 1000) }; // expired → empty
+  const stAvatar = { emoji: '🟢', text: 'online', updatedAt: isoAt(-2 * 60 * 1000) }; // avatar corner
 
   // select-multiple shares the N-034 options-prop shape (carried over from `select`).
   const smOptions = [
@@ -536,6 +550,33 @@
         <div class="s-cell"><span class="s-id">entity-avatar#absent</span><EntityAvatar descriptor={eaAnon} variant="list" id="absent" /></div>
         <div class="s-cell"><span class="s-id">entity-avatar#revoked</span><EntityAvatar descriptor={eaRevoked} variant="list" id="revoked" /></div>
         <div class="s-cell"><span class="s-id">entity-avatar#ai</span><EntityAvatar descriptor={eaAi} variant="list" id="ai" /></div>
+      </div>
+    </div>
+
+    <div class="s-section-title">Self-status (M-RP5.1a)</div>
+
+    <div class="s-row">
+      <div class="s-rowname">status · badge</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">status#badge-emoji</span><Status status={stEmoji} variant="badge" id="badge-emoji" /></div>
+        <div class="s-cell"><span class="s-id">status#badge-noemoji</span><Status status={stTextOnly} variant="badge" id="badge-noemoji" /></div>
+        <div class="s-cell"><span class="s-id">status#expired</span><Status status={stExpired} variant="badge" id="expired" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">status · line / full</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">status#line</span><Status status={stEmojiText} variant="line" id="line" /></div>
+        <div class="s-cell"><span class="s-id">status#line-noemoji</span><Status status={stTextOnly} variant="line" id="line-noemoji" /></div>
+        <div class="s-cell"><span class="s-id">status#full</span><Status status={stFull} variant="full" id="full" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">entity-avatar · with status (M-RP5.1b)</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">entity-avatar#with-status</span><EntityAvatar descriptor={eaIdentity} variant="list" status={stAvatar} id="with-status" /></div>
       </div>
     </div>
   </div>

@@ -1881,3 +1881,62 @@ html, body {
   background: var(--s4);
   box-shadow: inset 2px 0 0 var(--accent, var(--pr));
 }
+
+/* ───────────────────────────────────────────────────
+ * status (.status) — the dd-atomic self-status (M-RP5.1a): an emoji + optional short line (Track
+ *   A `state.status`, self-EXPRESSION, never presence). `badge` = emoji glyph (rides an avatar
+ *   corner, M-RP5.1b); `line` = emoji + text; `full` = + a relative "updated Nm ago". `[data-empty]`
+ *   collapses the expired / content-less case (mounted-but-empty — the root stays registered, the
+ *   content is absent). ACCENT-NEUTRAL: the emoji carries its own colour, the text is muted.
+ *   PROVISIONAL. NOTE: the base rule is scoped `.status[data-variant]` — the component ALWAYS
+ *   emits `data-variant` (badge/line/full), while combobox/tag-select popups already use a bare
+ *   ad-hoc `.status` (option-status label, no data-variant). Scoping keeps the two apart so this
+ *   rule never leaks into those closed components (0-regression). ── */
+.status[data-variant] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-1);
+  line-height: 1.2;
+  color: var(--t2);
+}
+.status[data-empty] {
+  display: none; /* expired / no content → collapsed, still mounted+registered */
+}
+.status[data-variant="badge"] {
+  gap: 0; /* emoji glyph only */
+}
+.status .st-emoji {
+  font-size: var(--fs-2);
+  line-height: 1;
+}
+.status .st-text {
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--t2);
+}
+.status .st-time {
+  color: var(--t3);
+  font-size: var(--fs-0);
+}
+
+/* corner overlay — a `badge` status riding an entity-avatar's bottom-right rim. The avatar is
+ * position:relative + overflow:visible, so the badge sits on the rim with a ring against the
+ * avatar fill. NOTE (PROVISIONAL): the isAi spark (`.entity-avatar[data-ai]::after`) also occupies
+ * bottom-right — an AI identity that also sets a status overlaps here; reserved for HMR tuning
+ * (self-status keeps the locked bottom-right corner; a presence dot, if ever, takes another). */
+.entity-avatar .status {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  padding: 1px;
+  border-radius: 50%;
+  background: var(--s);
+  box-shadow: 0 0 0 1px var(--s);
+  z-index: 1;
+}
+.entity-avatar .status .st-emoji {
+  font-size: calc(var(--ea-size) * 0.5);
+}

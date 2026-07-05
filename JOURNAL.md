@@ -8,6 +8,51 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-464 — M-RP5.1a + 5.1b CLOSED: `status` — the self-status dd-atomic (badge/line/full) + the `entity-avatar` `status?` corner-slot; mounted-but-empty on expiry (runbook wording corrected); the `.status` naming-collision fix
+
+**What happened.** Built `status` (dd-atomic) + the additive `entity-avatar` `status?` corner-slot per `tasks/RUNBOOK_STATUS.md` (design Joe-locked A–G, Phase-0 `docs/xgen-dd-status-phase0.md`). One runbook — the badge IS the avatar slot payload, so they ship together (M-RP5.1a + 5.1b). Clair (impl seat); explicit handoff for the full D-074 atomic close. One interpretation point was Joe-resolved at go: how an *expired* status behaves in the DOM (below).
+
+**What it is.** A dd-atomic that materializes a **self-set status** (Track A `state.status`, J-461) into a visual — personal **EXPRESSION** (emoji + short line), **NOT** presence/connection state (Track A deferred presence, so it never renders here/away). Source-agnostic: consumes a view-model `{ emoji?, text?, updatedAt?, expiresAt? }` (the shell maps Track A's `StatusRecord`); `core` imports no protocol type. **Variants = display density:** `badge` (emoji corner) · `line` (emoji + text) · `full` (+ relative "updated Nm ago"). Root: `badge` = `<span class="status" role="img">` (aria-label = text ?? emoji); `line`/`full` = plain `<span class="status">`. `title` tooltip fallback (E). Getter `{ variant, emoji, hasText, expired }`. Emoji is a single grapheme (Track A cap), taken grapheme-safe.
+
+**Mounted-but-empty on expiry (Joe-locked; corrects the runbook wording).** The runbook DoD said "expired → absent (not rendered)" while also asking for "getter G per cell" — a genuine tension, since a not-rendered instance can't register its getter. Joe's call: the root `<span use:envelope>` **always mounts** (so getter G always registers and `expired:true` stays CDP-readable), but renders **no emoji/text content** when expired (lazy `expiresAt < now`) or content-less; a `data-empty` attribute then collapses it (`.status[data-empty] { display:none }`). "Absent" = empty content, **not** absent DOM. Rationale: matches the envelope-always-registers-while-mounted convention, keeps `expired` testable, gives a **stable registry count** (no cell blinks in/out on expiry), and is the honest "status exists but expired" state. **The runbook's "not rendered" wording is superseded by this** (noted so it doesn't mislead next time).
+
+**Avatar seam (M-RP5.1b).** `entity-avatar` gains a `status?` prop; when passed it renders `<Status status variant="badge" id={cid('status')} />` inside the figure as a bottom-right corner overlay (`.entity-avatar .status` = `position:absolute` on the `position:relative`/`overflow:visible` figure). The child self-registers `<id>__status`; the status atomic owns expiry (no duplication in the avatar). Additive — the avatar's own getter is unchanged (presence/list/labeled/card + entity-item 0-regression).
+
+**The `.status` naming-collision fix (D-065 — surfaced + fixed, not papered).** `status` is a generic class, and `combobox`/`tag-select` popups already render a bare `<span class="status">` for an option-status label (`.combobox-list .status` / `.tag-select-list .status`). The new component's envelope type-class is also `status`, so a bare `.status { display:inline-flex; … }` base rule **leaked** into those closed components. Fix: the component **always** emits `data-variant` (badge/line/full) while the ad-hoc popup `.status` never does, so the base rule is scoped **`.status[data-variant]`** — matches only the component. No closed-component edits; a synthetic bare `.status` probe reads `display:inline` (leak gone). PROVISIONAL note also surfaced: the isAi spark (`.entity-avatar[data-ai]::after`) also sits bottom-right → an AI identity that *also* sets a status overlaps there (left for Joe's HMR tuning; self-status keeps the locked corner).
+
+**Verify — real CDP output (Rule 2), sampler DD·atomic panel, port 9422.** `vite build` clean (153 modules; zero `status.svelte` warnings). Per-cell getters:
+```
+"status#badge-emoji":{"variant":"badge","emoji":"🎯","hasText":false,"expired":false}
+"status#badge-noemoji":{"variant":"badge","emoji":null,"hasText":true,"expired":false}
+"status#expired":{"variant":"badge","emoji":"💤","hasText":true,"expired":true}
+"status#line":{"variant":"line","emoji":"🌙","hasText":true,"expired":false}
+"status#line-noemoji":{"variant":"line","emoji":null,"hasText":true,"expired":false}
+"status#full":{"variant":"full","emoji":"🎧","hasText":true,"expired":false}
+"status#with-status__status":{"variant":"badge","emoji":"🟢","hasText":true,"expired":false}
+"entity-avatar#with-status":{"kind":"identity","variant":"list","name":"Alice Ng","initials":"AN","seed":"hsl(0 45% 82%)","flags":{}}
+```
+Registry delta + 0-regression counts:
+```
+{"count":146,"unique":146,"statusCount":7,"statusChild":1,"avatarCount":17,"itemCount":7}
+```
+Render / layout (DD·atomic tab visible):
+```
+{"expiredTag":"SPAN","expiredDataEmpty":"true","expiredDisplay":"none","expiredText":"","badgeRole":"img","badgeAria":"🎯","badgeEmoji":"🎯","badgeDisplay":"flex","noemojiTitle":"on vacation","noemojiDataEmpty":null,"noemojiText":"","fullText":"🎧 in a meeting updated 5m ago","lineText":"🌙 sleeping","childPosition":"absolute","childRight":"-3px","childBottom":"-3px","avatarPosition":"relative","childInsideAvatar":true}
+```
+Collision fix (mine styled, bare `.status` clean):
+```
+{"mineDisplay":"flex","bareStatusDisplay":"inline","bareStatusGap":"normal","hasScopedRule":true,"hasBareBaseRule":false}
+```
+Reading these out: registry **138→146** (+8 = 6 standalone `status#` + `entity-avatar#with-status` + its `status#with-status__status` child); `count===unique===146` → **0 orphans**. **`expired` registers with `{expired:true}` on a mounted, empty span** (`data-empty="true"` + `display:none` + empty text) — the always-mount design proven CDP-readable. `badge` `role=img`/`aria-label="🎯"`; `noemoji` `title="on vacation"` (tooltip E) with empty glyph (visible span, not data-empty); `full` = **"🎧 in a meeting updated 5m ago"** (deterministic relative time from render-relative timestamps); `line` = "🌙 sleeping". Avatar seam: corner child `position:absolute` `-3px/-3px` inside the `position:relative` avatar (`childInsideAvatar:true`); avatar getter **unchanged** → **0-regression** (avatars 17 = 9 + 7 item-children + 1 new; items 7). Collision fix: bare `.status` → `display:inline`, no bare base rule, only `.status[data-variant]` in the sheet. Screenshots `temp/status-verify.png` + `temp/status-verify-2.png` (badge 🎯; line "🌙 sleeping"; line-noemoji "on vacation"; full "🎧 in a meeting updated 5m ago"; AN avatar with a 🟢 bottom-right corner badge).
+
+**Engineering judgment (surfaced, D-065).** (1) The avatar delegates expiry to the status child (renders `<Status>` whenever `status` present; the child self-empties) — no duplicated expiry logic. (2) Relative time + expiry are lazy (`Date.now()` at render, no reactive timer) — fits the "lazy" lock; sampler timestamps are render-relative so "5m ago"/expired are deterministic. (3) The naming collision was caught in verify (the `.combobox-list .status` selector surfaced in the cascade probe) and fixed by scoping, not by renaming closed components. (4) The isAi/status bottom-right corner overlap is a known PROVISIONAL-skin item, flagged not silently moved.
+
+**Records (atomic, D-074).** New: `ui/core/lib/components/data-dependent/status.svelte`; edited `entity-avatar.svelte` (`status?` prop + `cid` + corner child + comments), `ui/assets/skin.css` (`.status` block, scoped `.status[data-variant]`), `ui/sampler/src/app_sampler.svelte` (status cells + avatar-with-status). Docs: `ui/docs/xgen-ui-notes.md` N-077 (v0.61), `ui/docs/xgen-ui-components.md` registry v0.49 (status row + avatar `+status?` + build note), `docs/ROADMAP.md` v4.33 (tree tail + M-RP5.1a/5.1b block), `docs/xgen-dd-status-phase0.md` (Status→COMPLETED v1.1), this PLAY (→ J-464), this entry, runbook → COMPLETED (DoD ticked). No `DECISIONS.md` touch (N-077 is a component note; the collision fix + mounted-empty are arc-local; D-069 bar not met).
+
+**Next-active.** `spaces-panel` (dd-composite, composes `section` + `entity-item ×N`; owns roving focus) — now inherits self-status via the avatar corner-slot → `entity-context-menu` widget (consumes `onActivate?`; uses `status full`) → `temperature-indicator` widget (W-11 dd-socket). Track A (J-461) gates the status-bearing avatar variants (M-RP5.2). Not pushed — Joe pushes.
+
+---
+
 ## Entry J-463 — M-RP5.1 CLOSED: `entity-item` — the FIRST dd-composite (renamed from `container-list-item`); single-knob variant derive; the global width rule (N-076); `entity-avatar` `labeled`/`card` amendment; sampler DD·composite panel populated
 
 **What happened.** Built `entity-item` per `tasks/RUNBOOK_ENTITY_ITEM.md` (design Joe-locked A–G + width in the Phase-0 walk, `docs/xgen-dd-entity-item-phase0.md` v1.1). The **first data-dependent composite** and the second `data-dependent/` occupant — the dd track's second rung. Clair (impl seat); this arc's handoff explicitly authorized the full atomic records close (D-074). One blocker surfaced at go-request and was Joe-resolved before any writes: the locked derive-map targets avatar variants `labeled`/`card` the shipped `entity-avatar` (M-RP5.0) didn't have — Joe chose **Option A: extend the avatar** (the seam M-RP5.0 pre-announced), tightly scoped, recorded as an additive M-RP5.0 amendment in this same commit.

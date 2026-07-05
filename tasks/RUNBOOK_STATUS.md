@@ -1,6 +1,6 @@
 # Runbook — M-RP5.1a `status` + M-RP5.1b avatar amendment
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  
@@ -67,9 +67,9 @@ Build runbook for `status` (dd-atomic) + the `entity-avatar` status-slot amendme
 
 ## Definition of Done
 
-- [ ] `status.svelte` built; variants badge/line/full; expired→absent; getter G; no protocol import.
-- [ ] `entity-avatar` `status?` slot; badge corner overlay; `__status` registers; 5.0/5.1 0-regression.
-- [ ] `.status` skin (corner badge + inline line/full).
-- [ ] sampler cells (variant×state + avatar-with-status).
-- [ ] CDP-verified: getter, variant render, expiry-absent, tooltip, avatar seam, registry delta, **0 orphans** — real output quoted.
-- [ ] records closed atomically (D-074): N-077, registry v0.49, ROADMAP, phase0→COMPLETED, PLAY→J-464, JOURNAL J-464, runbook→COMPLETED.
+- [x] `status.svelte` built; variants badge/line/full; expired→absent; getter G; no protocol import. *(expired→absent resolved as MOUNTED-BUT-EMPTY per Joe, not no-DOM; runbook "not rendered" wording superseded — see J-464)*
+- [x] `entity-avatar` `status?` slot; badge corner overlay; `__status` registers; 5.0/5.1 0-regression. *(CDP: status#with-status__status registered; avatar getter unchanged; avatars 17 / items 7 unchanged)*
+- [x] `.status` skin (corner badge + inline line/full). *(scoped `.status[data-variant]` to avoid the combobox/tag-select `.status` collision, D-065)*
+- [x] sampler cells (variant×state + avatar-with-status). *(6 status cells + entity-avatar#with-status)*
+- [x] CDP-verified: getter, variant render, expiry-absent, tooltip, avatar seam, registry delta, **0 orphans** — real output quoted. *(registry 138→146, count===unique; screenshots status-verify.png/-2.png)*
+- [x] records closed atomically (D-074): N-077, registry v0.49, ROADMAP, phase0→COMPLETED, PLAY→J-464, JOURNAL J-464, runbook→COMPLETED.

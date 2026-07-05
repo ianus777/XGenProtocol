@@ -107,7 +107,13 @@
   name ?? kind. <figcaption> stays RESERVED-UNUSED even now that `labeled`/`card` ship — the
   caption text lives in `entity-item`'s text column, not the avatar (an avatar is a glyph, not a
   captioned figure). `presence` renders shape + colour only; `list`/`labeled`/`card` add the
-  initials text (ascending glyph size). -->
+  initials text (ascending glyph size).
+
+  FILL LAYER (M-RP5.0d, N-081). The SHAPE (circle/square/hexagon clip-path) + seed bg/border ride
+  an absolutely-positioned `.ea-fill` layer BEHIND the content; the root <figure> stays transparent
+  + `overflow:visible` + UN-clipped, so the status corner badge + the isAi spark sit on TRUE box
+  corners, un-sliced by the hexagon `clip-path`. Resolves the M-RP5.0c PROVISIONAL badge-clip bug
+  (the hexagon `.status` nudge is retired). Initials + badges stay on the root, above the fill. -->
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 <figure
   use:envelope={{ name: 'entity-avatar', id, debug }}
@@ -121,6 +127,7 @@
   style="--seed-bg: {seed.bg}; --seed-fg: {seed.fg}; --seed-bd: {seed.bd}"
   onclick={() => onActivate?.()}
 >
+  <span class="ea-fill" aria-hidden="true"></span>
   {#if variant !== 'presence'}
     <span class="ea-initials">{initials}</span>
   {/if}

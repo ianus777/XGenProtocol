@@ -1684,15 +1684,23 @@ html, body {
  *   COLOURED (fill/text/border ride inline --seed-bg/fg/bd the component injects from the
  *   shared seedColour helper — the chip/led --*-colour mechanism); NO --accent dependency, so
  *   an entity reads identical under gold or blue. The skin owns SHAPE + SIZE + BADGES only.
- *   `data-shape` circle (identity + DM) vs rounded-square (non-DM space); `data-variant` xs
- *   (presence) vs sm (list, + initials); `data-ai` a self-drawn spark badge (::after, FIXED
- *   violet — not accent, keeps seed shell-independence); `data-revoked` greyed + a diagonal
- *   slash (::before). PROVISIONAL. ── */
+ *   `data-shape` circle (identity + DM) vs rounded-square (non-DM space) vs hexagon (room);
+ *   `data-variant` xs (presence) vs sm (list, + initials); `data-ai` a self-drawn spark badge
+ *   (::after, FIXED violet — not accent, keeps seed shell-independence); `data-revoked` greyed +
+ *   a diagonal slash (::before).
+ *
+ *   FILL LAYER (M-RP5.0d, N-081). The SHAPE (border-radius / hexagon clip-path) + seed bg/border
+ *   live on an absolutely-positioned `.ea-fill` BEHIND the content (z-index:-1, contained by the
+ *   root's `isolation:isolate`). The root <figure> is transparent + un-clipped + `overflow:visible`,
+ *   so the status corner badge + isAi spark sit on TRUE box corners — the hexagon `clip-path` no
+ *   longer slices them (resolves the M-RP5.0c PROVISIONAL badge-clip; the hexagon `.status` nudge
+ *   is retired). PROVISIONAL. ── */
 .entity-avatar {
   --ea-size: 28px; /* sm (list); presence overrides to xs below */
   --ea-ai: #6d5ce7; /* isAi badge — FIXED (not --accent), shell-independent */
   --ea-spark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23fff'%3E%3Cpath d='M12 2l1.7 6.7L20 10l-6.3 1.3L12 18l-1.7-6.7L4 10l6.3-1.3z'/%3E%3C/svg%3E");
   position: relative;
+  isolation: isolate; /* stacking context so `.ea-fill` z-index:-1 stays contained */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1700,28 +1708,31 @@ html, body {
   margin: 0; /* reset the UA <figure> margin */
   width: var(--ea-size);
   height: var(--ea-size);
+  color: var(--seed-fg);
+  overflow: visible; /* badges sit on the rim, un-clipped */
+  user-select: none;
+}
+/* the fill layer — carries shape + seed fill/ring, behind the content */
+.entity-avatar .ea-fill {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   border-radius: 50%; /* circle default (identity + DM space) */
   background: var(--seed-bg);
   border: 1px solid var(--seed-bd);
-  color: var(--seed-fg);
-  overflow: visible; /* badges sit on the rim */
-  user-select: none;
 }
 /* C — non-DM space = rounded-square (a container, not a person) */
-.entity-avatar[data-shape="square"] {
+.entity-avatar[data-shape="square"] .ea-fill {
   border-radius: var(--rad0);
 }
-/* C — room = hexagon (a location peer to space, M-RP5.0c). clip-path defines the hull; the seed
- * FILL reads the shape. NOTE (PROVISIONAL): clip-path clips ALL descendants — the seed border-ring
- * is diminished on the diagonal edges, and a corner-anchored status badge would be sliced, so the
- * badge is nudged INSIDE the lower-right hull below. Joe live-tunes via HMR. */
-.entity-avatar[data-shape="hexagon"] {
+/* C — room = hexagon (a location peer to space, M-RP5.0c). clip-path on the FILL defines the hull;
+ * the root stays un-clipped so badges are NOT sliced (M-RP5.0d fix). NOTE (PROVISIONAL): a CSS
+ * `border` only draws on the rectangular border-box edges, so the seed ring reads on the flat
+ * top/bottom but not along the diagonal hull cuts — the seed FILL carries the diagonals. Joe
+ * live-tunes via HMR. */
+.entity-avatar[data-shape="hexagon"] .ea-fill {
   border-radius: 0;
   clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-}
-.entity-avatar[data-shape="hexagon"] .status {
-  right: calc(var(--ea-size) * 0.04);
-  bottom: calc(var(--ea-size) * 0.26);
 }
 /* F — variant presets: presence = xs glyph only; list/labeled/card = + initials at ascending
  * sizes. labeled/card are the M-RP5.1 additive amendment (pre-announced at M-RP5.0); they differ

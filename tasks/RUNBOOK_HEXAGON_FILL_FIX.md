@@ -1,6 +1,6 @@
 # Runbook — M-RP5.0d hexagon badge-clip fix (fill-layer refactor)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  
@@ -43,8 +43,8 @@ Fix the PROVISIONAL hexagon bug: `clip-path` on `.entity-avatar[data-shape="hexa
 
 ## DoD
 
-- [ ] `.ea-fill` layer added; shape/seed moved to it; root unclipped `overflow:visible`.
-- [ ] hexagon status badge on bottom-right corner, unclipped; isAi top-right intact.
-- [ ] circle/square/DM 0-regression; full hexagon ring restored.
-- [ ] CDP-verified: badge rect unclipped, shapes intact, registry unchanged, 0 orphans.
-- [ ] records: N-081, registry v0.52, ROADMAP, PLAY→next-J, JOURNAL, runbook→COMPLETED.
+- [x] `.ea-fill` layer added; shape/seed moved to it; root unclipped `overflow:visible`.
+- [x] hexagon status badge on bottom-right corner, unclipped; isAi top-right intact.
+- [x] circle/square/DM 0-regression. **Note:** the diagonal-hull seed ring stays absent — a CSS `border` only draws on the rectangular border-box, so `clip-path` cuts bare fill on the diagonals regardless of the fill-layer move (the fill carries them). This was flagged before build; the primary deliverable (badge un-sliced) is fixed; the diagonal ring remains PROVISIONAL (Joe HMR-tunes a drawn hull if wanted). "Full ring restored" (step 3's optimistic phrasing) is therefore **not** claimed.
+- [x] CDP-verified (9422): badge rect unclipped (`badgeBottomRightCorner:true`, in-viewport), root `clip-path:none`+`overflow:visible`, `.ea-fill` carries the hexagon polygon, isAi `::after` top:-1px/right:-1px, shapes intact, registry unchanged at 185, `count===unique` 0 orphans; screenshot `temp/room-hex-fix.png`.
+- [x] records: N-081 (ui-notes v0.65), registry v0.52 (ui-components), ROADMAP v4.37, PLAY→J-468, JOURNAL J-468, runbook→COMPLETED. No DECISIONS.

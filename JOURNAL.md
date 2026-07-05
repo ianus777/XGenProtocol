@@ -8,6 +8,36 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-468 — M-RP5.0d CLOSED: hexagon badge-clip fix — the fill-layer refactor; shape moves to an inner `.ea-fill` so the status badge + isAi spark sit on unclipped corners; resolves the M-RP5.0c PROVISIONAL
+
+**What happened.** Fixed the M-RP5.0c PROVISIONAL badge-clip per `tasks/RUNBOOK_HEXAGON_FILL_FIX.md` (option A, fill-layer refactor; design Joe-locked). Clair (impl seat); full D-074 close. No `DECISIONS.md` touch (additive skin/component refactor — no new component, no wire/prop change).
+
+**The bug.** The hexagon `clip-path` lived on the root `<figure class="entity-avatar">`, so its clip region also clipped every descendant — the `status` corner badge and the isAi `::after` spark were **sliced** by the hull. M-RP5.0c only *nudged* the badge inward to hide the slice (a workaround, and the isAi spark had the same latent clip).
+
+**The fix (option A).** Move the SHAPE off the root onto an inner layer:
+- `entity-avatar.svelte`: a new absolutely-positioned `<span class="ea-fill" aria-hidden>` is the FIRST child; it carries shape + seed bg/border. The root `<figure>` is now transparent, un-clipped, `overflow:visible`; initials + the `status` badge + the `::after`/`::before` badges stay on the root, above the fill.
+- `ui/assets/skin.css`: `background`/`border`/`border-radius` + the hexagon `clip-path` moved from `.entity-avatar` → `.entity-avatar .ea-fill` (`position:absolute; inset:0; z-index:-1`); `[data-shape="square"]`/`[data-shape="hexagon"]` now target `.ea-fill`. The root gains `isolation:isolate` so the fill's `z-index:-1` stays contained (paints behind the in-flow initials + positioned badges). The M-RP5.0c hexagon `.status` nudge is **removed** — the badge returns to the standard `-3px` bottom-right corner, now unclipped.
+
+**Verify — real CDP output (Rule 2), sampler DD·atomic, port 9422.** `vite build` clean (154 modules; only the pre-existing `link.svelte` `state_referenced_locally` notes). Hexagon room-with-status + isAi spark + shapes + registry:
+```
+{"count":185,"unique":185,"room":{"dataShape":"hexagon","rootClip":"none","fillClip":"polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)","fillBg":"rgb(188, 230, 207)","justify":"center","align":"center","overflow":"visible","badgePos":"absolute","avRect":{"l":551,"t":540,"r":579,"b":568,"w":28,"h":28},"badgeRect":{"l":567,"t":559,"r":582,"b":571,"w":15,"h":11},"badgeBottomRightCorner":true,"badgeInViewport":true},"circle":{"dataShape":"circle","rootClip":"none","fillRadius":"50%","fillClip":"none","fillBg":"rgb(230, 188, 188)","fillBorder":"0.8px rgb(224, 184, 184)"},"square":{"dataShape":"square","rootClip":"none","fillRadius":"0px","fillClip":"none","fillBg":"rgb(197, 230, 188)"},"dm":{"dataShape":"circle","rootClip":"none","fillRadius":"50%","fillClip":"none"},"hexPlain":{"dataShape":"hexagon","rootClip":"none","fillClip":"polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)"}}
+```
+isAi spark (`::after`) + `--rad0` + revoked slash (corrected probe — the earlier `cs(el,'::after')` helper had dropped the pseudo arg):
+```
+{"rad0":"0","ai":{"hasDataAi":true,"dataAi":"true","rootClip":"none","afterContent":"\"\"","afterTop":"-1px","afterRight":"-1px","afterW":"11.75px","afterBg":"rgb(109, 92, 231)","aiRect":{"l":427,"t":447,"r":455,"b":475,"w":28,"h":28}},"revoked":{"hasDataRevoked":true,"beforeContent":"\"\"","beforeInset":"0px 0px 0px 0px","rootClip":"none"}}
+```
+Reading these out: **hexagon** root `clip-path:none` + `overflow:visible`; `.ea-fill` carries the hexagon polygon + seed fill `rgb(188,230,207)`; initials `justify/align:center`. **Status badge** `position:absolute`, rect (567,559)–(582,571) — bottom-right of the 28×28 avatar (551,540)–(579,568), `badgeBottomRightCorner:true`, in-viewport → **un-sliced** (no longer inside a clipped ancestor). **isAi spark** `::after` content generated, `top:-1px right:-1px` (top-right), violet `rgb(109,92,231)`, on an unclipped root. **0-regression**: circle/DM `border-radius:50%`, square `0px` (`--rad0` is `0` — pre-existing, not changed here), all with the seed fill + 0.8px ring, root `clip-path:none`. Registry **185**, `count===unique===185` → **0 orphans** (no new component; matches J-467). Screenshot `temp/room-hex-fix.png` (green "GE" hexagons; the room-status dot on the bottom-right corner, unsliced; the `#ai` violet spark top-right; revoked "MA" greyed+slashed).
+
+**Remaining PROVISIONAL (unchanged, flagged before build — Rule 6).** The seed **ring on the diagonal hull** is still absent: a CSS `border` only draws on the rectangular border-box, so the `clip-path` cuts bare fill along the four diagonals regardless of which layer owns the clip (`fillBorder` reads `0.8px` but it only shows on the flat top/bottom). The seed FILL carries the diagonals — same accepted posture as J-467. A true diagonal ring would need a two-layer / drawn-hull technique (out of scope; Joe HMR-tunes if wanted). The badge-slice — the locked deliverable — is fixed.
+
+**Verify finding (Rule 3).** The first measurement pass returned zero rects + a bogus `::after` read: the DD·atomic panel is CSS-hidden when its tab is inactive (M-RP4.9 confined-scroll shell), so `getBoundingClientRect` and pseudo layout are unavailable — clicking the `DD Atomics` tab (`role=tab`) first gave real geometry. (My initial probe also had a helper bug — `cs(el)` ignored the `::after` arg; the corrected `getComputedStyle(el,'::after')` pass is the second block above.) A `run-sampler` dev session launched clean this time (no HMR overlay).
+
+**Records (atomic, D-074).** Edited `ui/core/lib/components/data-dependent/entity-avatar.svelte` (`.ea-fill` layer), `ui/assets/skin.css` (shape/seed → `.ea-fill`, root `isolation:isolate` + un-clipped, hexagon `.status` nudge removed). Docs: `ui/docs/xgen-ui-notes.md` N-081 (v0.65), `ui/docs/xgen-ui-components.md` registry v0.52 (avatar internal note; no surface change), `docs/ROADMAP.md` v4.37 (M-RP5.0d block + tree tail), this PLAY (→ J-468), this entry, runbook → COMPLETED (DoD ticked). No `DECISIONS.md` touch.
+
+**Next-active.** The dd track is complete and the room kind + its badge-clip are settled. Next is the **widget tier**: `entity-context-menu` (M-RP5.3 — the 100% entity read; consumes the reserved `onActivate?`; uses `status full`) → `temperature-indicator` (M-RP5.4 — `meter` via the W-11 dd-socket). Not pushed — Joe pushes.
+
+---
+
 ## Entry J-467 — M-RP5.0c CLOSED: the `room` kind — a third entity kind (hexagon avatar), additive to `EntityDescriptor` + `entity-avatar`; ripples free through item/panel
 
 **What happened.** Added **`room`** as a third entity kind per `tasks/RUNBOOK_ROOM_KIND.md` (design Joe-locked A–E, Phase-0 `docs/xgen-dd-room-kind-phase0.md` v1.1). A room is a first-class location entity — a peer to `space` (a room/channel inside a space), NOT a variant of it. Additive to `EntityDescriptor` + the `entity-avatar` shape branch; **ripples free** through `entity-item`/`entity-panel` with zero code change there. Clair (impl seat); full D-074 close.

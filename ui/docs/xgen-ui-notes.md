@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.64  
+> Version: 0.65  
 > Date: May 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  
@@ -1701,6 +1701,22 @@ M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the 
 **CDP-verified** (sampler DD·atomic + DD·composite, 9422, real output — Rule 2). `vite build` clean (154 modules; only the pre-existing `<figure>` a11y note). Room getter `{kind:"room",variant:"list",name:"general",initials:"GE",seed:"hsl(147 45% 82%)",flags:{}}`; `data-shape="hexagon"`; `clip-path` = `polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)`; initials `justify-content:center`/`align-items:center` (centered); status nudged onto the hull (`right:0.04·size`/`bottom:0.26·size`). **0-regression**: `identity`=circle, `space`=square (clip `none`), DM=circle — all unchanged. **Ripple**: `entity-avatar#room-item__avatar` + `entity-avatar#rooms-general-1a__avatar` + `#rooms-dev-2b__avatar` all `data-shape="hexagon"`. Registry **173→185** (+12 = 3 DD·atomic room avatars + 1 room-status child + item-ripple 2 + panel-ripple 6); `count===unique===185` → **0 orphans**. (A transient Vite dev-server startup overlay appeared but cleared on reload — the build proves the file valid.) Screenshot `temp/room-verify.png` (green hexagons "GE"; room-status badge on-hull).
 
 *Additive dd-atomic amendment. First `room` kind. → registry v0.51 (avatar kind taxonomy += room). Next: the widget tier — `entity-context-menu` (M-RP5.3) → `temperature-indicator` (M-RP5.4).*
+
+---
+
+### N-081 — the fill-layer refactor: shape on an inner layer so badges sit on unclipped corners (M-RP5.0d)
+
+**The bug (M-RP5.0c PROVISIONAL, resolved).** The hexagon `clip-path` lived on the root `<figure class="entity-avatar">`, so its clip region also clipped every descendant — the `status` corner badge and the isAi `::after` spark were **sliced** by the hull. M-RP5.0c only *nudged* the badge inward to hide the slice (a workaround, not a fix; the isAi spark had the same latent clip).
+
+**The fix (option A — fill layer).** Move the SHAPE off the root onto an inner layer:
+- `entity-avatar.svelte`: a new absolutely-positioned `<span class="ea-fill" aria-hidden>` is the FIRST child; it carries shape + seed bg/border. The root `<figure>` is now transparent, un-clipped, `overflow:visible`; initials + the `status` badge + the `::after`/`::before` badges stay on the root, above the fill.
+- `skin.css`: `background`/`border`/`border-radius` and the hexagon `clip-path` moved from `.entity-avatar` → `.entity-avatar .ea-fill` (`position:absolute; inset:0; z-index:-1`); `[data-shape="square"]`/`[data-shape="hexagon"]` now target `.ea-fill`. The root gains `isolation:isolate` so the fill's `z-index:-1` stays contained (the fill paints behind the in-flow initials + the positioned badges). The M-RP5.0c hexagon `.status` nudge is **removed** — the badge returns to the standard `-3px` bottom-right corner, now unclipped.
+
+**CDP-verified** (sampler DD·atomic, 9422, real output — Rule 2). `vite build` clean (154 modules; only the pre-existing `link.svelte` `state_referenced_locally` notes). Hexagon room-with-status (`entity-avatar#room-status`, 28×28): root `clip-path:none` + `overflow:visible`; `.ea-fill` `clip-path` = `polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)` + `background:rgb(188,230,207)`; initials `justify/align:center`. Status badge `position:absolute`, rect bottom-right of the avatar (`badgeBottomRightCorner:true`, in-viewport) — un-sliced. isAi spark (`entity-avatar#ai::after`): content generated, `top:-1px right:-1px`, `rgb(109,92,231)` violet, on an unclipped root. **0-regression**: circle (`#identity-list`) fill `border-radius:50%`, square (`#space-list`) `0px` (`--rad0` is `0`, pre-existing), DM circle — all with the seed fill + 0.8px seed ring, root `clip-path:none`. Registry **185**, `count===unique===185` → **0 orphans** (no new component). Screenshot `temp/room-hex-fix.png` (green "GE" hexagons; room-status dot on the bottom-right corner, unsliced).
+
+**Remaining PROVISIONAL (unchanged).** The seed **ring on the diagonal hull** is still absent — a CSS `border` only draws on the rectangular border-box, so the `clip-path` cuts bare fill along the four diagonals regardless of which layer owns the clip. The seed FILL carries the diagonals; Joe HMR-tunes if a true diagonal ring is wanted (a two-layer / drawn-hull technique, out of scope here). The badge-slice — the locked deliverable — is fixed.
+
+*Additive skin/component refactor; no new component, no wire/prop change. Resolves the M-RP5.0c badge-clip PROVISIONAL. → registry v0.52 (avatar internal note). Next: the widget tier — `entity-context-menu` (M-RP5.3) → `temperature-indicator` (M-RP5.4).*
 
 ---
 

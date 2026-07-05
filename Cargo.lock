@@ -5326,6 +5326,7 @@ dependencies = [
  "tokio-tungstenite",
  "toml 0.8.2",
  "tracing",
+ "unicode-segmentation",
  "uuid",
  "windows-sys 0.59.0",
  "xgen-common",

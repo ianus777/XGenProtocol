@@ -20,6 +20,11 @@ rand = "0.8"
 base64 = "0.21"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
+# Self-set status (PROTO-STATUS.2) — the `emoji` cap is "exactly one grapheme
+# cluster"; correct counting of ZWJ sequences / skin-tone modifiers needs
+# Unicode grapheme segmentation, not `chars().count()`. Already compiled in the
+# workspace as a transitive dep; this promotes it to a direct dependency.
+unicode-segmentation = "1"
 # Storage-Engine / Plugin-Framework milestone (SE-D5) — EngineSettings is an
 # opaque `toml::Value` passthrough: the host hands a `[storage.<engine>]`
 # sub-table to StorageEngine::open untyped, the plugin validates its own schema.

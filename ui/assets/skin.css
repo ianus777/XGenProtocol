@@ -1711,12 +1711,20 @@ html, body {
 .entity-avatar[data-shape="square"] {
   border-radius: var(--rad2);
 }
-/* F — variant presets: presence = xs glyph only; list = sm + initials */
+/* F — variant presets: presence = xs glyph only; list/labeled/card = + initials at ascending
+ * sizes. labeled/card are the M-RP5.1 additive amendment (pre-announced at M-RP5.0); they differ
+ * from list only in glyph size — the name text lives in entity-item's text column, not here. */
 .entity-avatar[data-variant="presence"] {
   --ea-size: 14px;
 }
 .entity-avatar[data-variant="list"] {
   --ea-size: 28px;
+}
+.entity-avatar[data-variant="labeled"] {
+  --ea-size: 32px;
+}
+.entity-avatar[data-variant="card"] {
+  --ea-size: 40px;
 }
 /* initials — rendered only in the list variant (uppercased in the component) */
 .entity-avatar .ea-initials {
@@ -1762,4 +1770,114 @@ html, body {
     var(--t4) calc(50% + 1px),
     transparent calc(50% + 1px)
   );
+}
+
+/* ───────────────────────────────────────────────────
+ * entity-item (.entity-item) — the FIRST data-dependent COMPOSITE (M-RP5.1, dd-composite).
+ *   Root IS <div class="entity-item"> (N-075 dd-root). Composes the `entity-avatar` glyph +
+ *   a text column (name over optional secondary) + a trailing region (meta OR status). LAYOUT
+ *   only — the entity COLOUR stays seed-driven inside the avatar; the skin never re-tints the
+ *   glyph. `data-variant` picks the DENSITY (row / card / nav / inline); `data-selected` +
+ *   :hover are the interactive states (accent-signalled, the ONE place --accent enters — via a
+ *   left inset bar, so the seed colour stays shell-independent).
+ *
+ *   WIDTH (N-076 global rule): unset → 100% (fills its container); set → the inline `width` the
+ *   component injects (wins by inline-specificity); `min-width` = the slot-composition floor.
+ *   `inline` is the deliberate per-variant floor exception — an inline token shrinks to content
+ *   (width:auto / min-width:0), still overridable by a set `width`. PROVISIONAL. ── */
+.entity-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  box-sizing: border-box;
+  width: 100%; /* N-076: unset → 100% */
+  min-width: 180px; /* N-076: slot-composition floor */
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--rad);
+  color: var(--t);
+  cursor: default;
+}
+/* text column — name over optional secondary; flexes to fill, both lines truncate */
+.entity-item .ei-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0; /* allow the ellipsis inside a flex row */
+  gap: 1px;
+}
+.entity-item .ei-name {
+  font-size: var(--fs-1);
+  font-weight: 600;
+  line-height: var(--lh);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.entity-item .ei-secondary {
+  font-size: var(--fs-0);
+  color: var(--t3);
+  line-height: var(--lh);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* trailing region — meta (row) or status (card), pinned right; variant-exclusive so both share it */
+.entity-item .ei-meta {
+  flex: none;
+  margin-left: auto;
+  font-size: var(--fs-0);
+  color: var(--t3);
+  font-variant-numeric: tabular-nums;
+}
+.entity-item .ei-status {
+  flex: none;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-0);
+  color: var(--t2);
+}
+.entity-item .ei-status-emoji {
+  line-height: 1;
+}
+.entity-item .ei-status-text {
+  max-width: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* card — prominent: bordered surface, roomier padding (avatar is derived to the 40px `card` glyph) */
+.entity-item[data-variant="card"] {
+  padding: var(--sp-2);
+  background: var(--s2);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad2);
+}
+/* nav — sidebar entry: compact */
+.entity-item[data-variant="nav"] {
+  gap: var(--sp-1);
+  padding: var(--sp-0) var(--sp-1);
+}
+/* inline — mention/presence token: shrink-to-content, single line (per-variant floor exception) */
+.entity-item[data-variant="inline"] {
+  display: inline-flex;
+  width: auto;
+  min-width: 0;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-1);
+  vertical-align: middle;
+}
+.entity-item[data-variant="inline"] .ei-name {
+  font-size: var(--fs-0);
+  font-weight: 500;
+}
+/* interactive states — hover on any row; selected persists. --accent enters ONLY here (left bar),
+ * never on the seed glyph. selected rule follows hover so it wins at equal specificity. */
+.entity-item:hover {
+  background: var(--s3);
+}
+.entity-item[data-selected] {
+  background: var(--s4);
+  box-shadow: inset 2px 0 0 var(--accent, var(--pr));
 }

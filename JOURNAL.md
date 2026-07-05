@@ -8,6 +8,53 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-463 — M-RP5.1 CLOSED: `entity-item` — the FIRST dd-composite (renamed from `container-list-item`); single-knob variant derive; the global width rule (N-076); `entity-avatar` `labeled`/`card` amendment; sampler DD·composite panel populated
+
+**What happened.** Built `entity-item` per `tasks/RUNBOOK_ENTITY_ITEM.md` (design Joe-locked A–G + width in the Phase-0 walk, `docs/xgen-dd-entity-item-phase0.md` v1.1). The **first data-dependent composite** and the second `data-dependent/` occupant — the dd track's second rung. Clair (impl seat); this arc's handoff explicitly authorized the full atomic records close (D-074). One blocker surfaced at go-request and was Joe-resolved before any writes: the locked derive-map targets avatar variants `labeled`/`card` the shipped `entity-avatar` (M-RP5.0) didn't have — Joe chose **Option A: extend the avatar** (the seam M-RP5.0 pre-announced), tightly scoped, recorded as an additive M-RP5.0 amendment in this same commit.
+
+**What it is.** A dd-**composite** that materializes ONE address-book entry (identity ∪ space ∪ DM) as a **full display unit** — avatar + name + optional secondary line + trailing meta/status — one tier up from `entity-avatar` (the dd-atomic glyph). One composite, **purpose selected by `variant`**: `row` (list entry) · `card` (prominent) · `nav` (sidebar) · `inline` (mention/presence). A genuinely new entity-display need → a **new variant**, not a new component (D-069 bar). Root = **`<div class="entity-item">`** per the N-075 dd-root rule (honest HTML; class×arity from folder + panel + getter). Source-agnostic: consumes the same `EntityDescriptor` seam as the avatar; `core` imports **no** `IdentityRecord`/`SpaceState`.
+
+**Single-knob derive (the composite finding).** The consumer sets **one** `entity-item` `variant`; the composite **derives** the inner `entity-avatar` variant internally (`row→list · card→card · nav→labeled · inline→presence`) — the two variant axes never fight. The slot surface is **derived per variant** (not free props): `row` = name + meta · `card` = name + secondary + status · `nav` = name · `inline` = name. Secondary/status/meta are **caller-supplied slots** (the shell maps protocol + Track A `state.status` → these strings); the composite owns layout, not protocol reads. `onActivate?` + `selected?` are on the root; the list/panel (M-RP5.2) owns roving focus, not the item. Composes the **real** `entity-avatar` child (self-registers `<id>__avatar`, the status-indicator composite precedent — the matrix multiplies). Getter `{ variant, kind, name, hasSecondary, hasStatus, selected }` (`hasSecondary`/`hasStatus` = render truth).
+
+**The global width rule (N-076).** A width-bearing component: **no `width` → 100%** (fills container); **`width` set → that value** (inline style, wins by specificity); **`min-width` = the intrinsic composition floor**. Per-variant floor exceptions allowed + marked (`inline` shrinks to content). Promotes the `meter`/`section` `width?` precedent to a default contract, retro-referenced by both (no code change — they already ship the shape).
+
+**`entity-avatar` amendment (additive, pre-announced at M-RP5.0).** `variant` union widened `'presence' | 'list'` → `+ 'labeled' | 'card'`; they render initials like `list` at ascending glyph sizes (list 28 / labeled 32 / card 40); the name text stays in `entity-item`'s column (`<figcaption>` stays reserved-unused). Not a D-065 retrofit — the seam was named. `presence`/`list` unchanged (0-regression re-verified live).
+
+**Verify — real CDP output (Rule 2), sampler DD·composite panel, port 9422.** `vite build` clean (152 modules; zero warnings on `entity-item`, the pre-existing `entity-avatar` `<figure>` a11y note untouched). Per-cell getters + child avatars (registry excerpt):
+```
+"entity-avatar#row-identity__avatar":{"kind":"identity","variant":"list","name":"Alice Ng","initials":"AN","seed":"hsl(0 45% 82%)","flags":{}}
+"entity-item#row-identity":{"variant":"row","kind":"identity","name":"Alice Ng","hasSecondary":false,"hasStatus":false,"selected":false}
+"entity-avatar#card-space__avatar":{"kind":"space","variant":"card","name":"Dev Team","initials":"DT",...}
+"entity-item#card-space":{"variant":"card","kind":"space","name":"Dev Team","hasSecondary":true,"hasStatus":true,"selected":false}
+"entity-avatar#nav-dm__avatar":{"kind":"space","variant":"labeled","name":"Bob Lee","initials":"BL","flags":{"isDm":true}}
+"entity-item#nav-dm":{"variant":"nav","kind":"space","name":"Bob Lee","hasSecondary":false,"hasStatus":false,"selected":false}
+"entity-avatar#inline-identity__avatar":{"kind":"identity","variant":"presence",...}
+"entity-item#inline-identity":{"variant":"inline","kind":"identity","name":"Alice Ng","hasSecondary":false,"hasStatus":false,"selected":false}
+"entity-item#card-plain":{"variant":"card","kind":"space","name":"Dev Team","hasSecondary":false,"hasStatus":false,"selected":false}
+"entity-item#selected":{"variant":"row","kind":"identity","name":"Alice Ng","hasSecondary":false,"hasStatus":false,"selected":true}
+```
+Registry delta + width rule + child registration:
+```
+{"count":138,"unique":138,"eiCount":7,"avChild":7,"fixedTag":"DIV","fixedClass":"entity-item","fixedWidth":"280px","fixedMinWidth":"180px","rowWidth":"180px","rowMinWidth":"180px","inlineDisplay":"flex","inlineWidth":"158.212px","selectedAttr":"true","cardHasAvatarChild":true,"hasEntityItemRule":true,"hasSelectedRule":true}
+```
+Set-vs-unset width + inline floor exception:
+```
+{"inlineVariantAttr":"inline","inlineDisplay":"flex","inlineWidth":"158.212px","inlineMinWidth":"0px","rowInlineStyle":"(none)","fixedInlineStyle":"width: 280px;"}
+```
+Cascade + per-variant density:
+```
+{"entityItemSelectors":[".entity-item",".entity-item .ei-body",".entity-item .ei-name",".entity-item .ei-secondary",".entity-item .ei-meta",".entity-item .ei-status",".entity-item .ei-status-emoji",".entity-item .ei-status-text",".entity-item[data-variant=\"card\"]",".entity-item[data-variant=\"nav\"]",".entity-item[data-variant=\"inline\"]",".entity-item[data-variant=\"inline\"] .ei-name",".entity-item:hover",".entity-item[data-selected]"],"cardBorderStyle":"solid","cardBg":"rgb(28, 31, 36)","navPaddingLeft":"4px"}
+```
+Reading these out: registry **124→138** (+14 = 7 composites + 7 self-registered `__avatar` children); `count===unique===138` → **0 orphans**. **Derive-map literal** — the inner avatars are `list`/`card`/`labeled`/`presence` per the composite's `row`/`card`/`nav`/`inline` (the two new presets `card`/`labeled` exercised). **Slots per C** — `card-space` `hasSecondary:true,hasStatus:true`; `row`/`nav`/`inline` false; `card-plain` (absent-secondary edge) false/false, proving render-truth. **`selected`** `data-selected="true"`. **Width (N-076):** `row` no inline style → used width clamped to the `min-width:180px` floor; `fixed` inline `width:280px`; `inline` `min-width:0` + content width `158px` (the per-variant floor exception). Root `DIV.entity-item`; **14** `.entity-item*` rules in cascade (per-variant density + `:hover` + `[data-selected]`); card density `border:solid` + bg `rgb(28,31,36)`=`--s2`; nav `padding-left:4px`=`--sp-1`. (`inline` computed `display:flex` not `inline-flex` — correct: the `.s-cell` parent is a flex container, so the item's `inline-flex` is blockified per CSS Display; the `min-width:0` confirms the inline rule applied.) Screenshot `temp/entity-item-verify.png` (eye-checked: row AN circle + `3`; card DT rounded-square + secondary + 🟢 online; nav BL circle; inline presence dot + small name; selected gold `--accent` left bar; card-plain name-only; fixed 280px row).
+
+**Engineering judgment (surfaced, D-065).** (1) `onActivate` is on the composite root only, NOT forwarded to the child avatar — one activate target, no double-fire; the avatar's own `onActivate?` stays unused here. (2) `hasSecondary`/`hasStatus` report render-truth (slot-applicable AND value present), so the getter reads exactly what the DOM shows — hence `card-plain` reports false/false. (3) The avatar amendment gives `labeled`/`card` size-only presets (no `<figcaption>`), since the name lives in the composite; the two new variants differ from `list` in glyph size alone. (4) CDP-tooling finding recorded: `cdp-debug.ps1 -Expression` via a `Get-Content -Raw` file avoids the `\"`-vs-`''` quoting trap (escaped `\"` fails; doubled `''` or a file works).
+
+**Records (atomic, D-074).** New: `ui/core/lib/components/data-dependent/entity-item.svelte`; edited `ui/core/lib/components/data-dependent/entity-avatar.svelte` (variant union + initials-render + comments), `ui/assets/skin.css` (`.entity-avatar` labeled/card presets + `.entity-item` block), `ui/sampler/src/app_sampler.svelte` (DD·composite panel). Docs: `ui/docs/xgen-ui-notes.md` N-076 (v0.60), `ui/docs/xgen-ui-components.md` registry v0.48 (entity-item row + avatar variant note + build note; `container-list-item`⬛SUPERSEDED; `spaces-panel` composed-of), `docs/ROADMAP.md` v4.32 (tree tail + M-RP5.1 ✅ DONE block), `docs/xgen-dd-entity-item-phase0.md` (Status→COMPLETED v1.2), this PLAY (→ J-463), this entry, runbook → COMPLETED (DoD ticked). No `DECISIONS.md` touch (N-076 is a component contract/note, arc-local; D-069 bar not met).
+
+**Next-active.** `spaces-panel` (dd-composite, composes `section` + `entity-item ×N`; owns roving focus) → `entity-context-menu` widget (consumes `onActivate?`, the 100% read) → `temperature-indicator` widget (W-11 dd-socket). Track A (J-461) gates the status-bearing avatar variants (M-RP5.2). Kind 4 `use:render` stays deferred (D-065). Not pushed — Joe pushes.
+
+---
+
 ## Entry J-462 — M-RP5.0 CLOSED: `entity-avatar` — the FIRST data-dependent component (dd-atomic); the dd-root rule (N-075); shared `seedColour` base helper factored from `chip`; sampler DD·atomic panel populated
 
 **What happened.** Built `entity-avatar` per `tasks/RUNBOOK_ENTITY_AVATAR.md` (design Joe-locked A–H in the J-461 design walk; Phase-0 `docs/xgen-dd-entity-avatar-phase0.md`). The **first data-dependent component** and first `data-dependent/` occupant — the dd track opens for real. Clair (impl seat); this arc's handoff explicitly authorized the atomic records close (D-074).

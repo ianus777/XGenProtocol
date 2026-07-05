@@ -1,6 +1,6 @@
 # Runbook — M-RP5.1 `entity-item` (variant-driven dd-composite)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  
@@ -67,10 +67,10 @@ Build runbook for `entity-item` — the first dd-**composite**. Design locked in
 
 ## Definition of Done
 
-- [ ] `entity-item.svelte` built; root `<div>`; composes `entity-avatar` with derived inner variant; getter F; `onActivate?`/`selected?`; no protocol imports.
-- [ ] slot surface per variant (C) correct.
-- [ ] width rule (N-076) implemented (unset=100%, set=value, min-width floor).
-- [ ] `.entity-item` skin; per-variant density; selected/hover states.
-- [ ] sampler DD·composite panel populated (variants × kinds + edge cells).
-- [ ] CDP-verified: getter, derive-map, slots, selected, width, child registration, registry delta, **0 orphans** — real output quoted.
-- [ ] records closed atomically (D-074): ui-notes N-076, registry v0.48, ROADMAP, phase0→COMPLETED, CLAUDE PLAY→J-463, JOURNAL J-463, runbook→COMPLETED.
+- [x] `entity-item.svelte` built; root `<div>`; composes `entity-avatar` with derived inner variant; getter F; `onActivate?`/`selected?`; no protocol imports.
+- [x] slot surface per variant (C) correct. *(CDP: card-space hasSecondary+hasStatus true; row/nav/inline false; card-plain absent-secondary false)*
+- [x] width rule (N-076) implemented (unset=100%, set=value, min-width floor). *(CDP: row no inline style → 180px floor; fixed inline 280px; inline min-width:0)*
+- [x] `.entity-item` skin; per-variant density; selected/hover states. *(14 `.entity-item*` rules in cascade; card border+`--s2`; `[data-selected]` gold bar)*
+- [x] sampler DD·composite panel populated (variants × kinds + edge cells). *(7 cells: 4 variant×kind + selected + card-plain + fixed)*
+- [x] CDP-verified: getter, derive-map, slots, selected, width, child registration, registry delta, **0 orphans** — real output quoted. *(registry 124→138, count===unique===138; screenshot temp/entity-item-verify.png)*
+- [x] records closed atomically (D-074): ui-notes N-076, registry v0.48, ROADMAP, phase0→COMPLETED, CLAUDE PLAY→J-463, JOURNAL J-463, runbook→COMPLETED.

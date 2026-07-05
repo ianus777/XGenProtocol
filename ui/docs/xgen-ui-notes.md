@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.59  
+> Version: 0.60  
 > Date: May 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  
@@ -1617,6 +1617,24 @@ M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the 
 **CDP-verified** (sampler DD·atomic panel, 9422, real output — Rule 2). `vite build` clean (151 modules). Registry **115→124** (+9 cells: identity/space/DM × {presence,list} + edge {absent-name, revoked, isAi}). Per-cell getters exact: `identity-list {kind:"identity",variant:"list",name:"Alice Ng",initials:"AN",seed:"hsl(0 45% 82%)",flags:{}}`; `space-list` `initials:"DT"` `shape=square`; `dm-list` `flags:{isDm:true}` `shape=circle`; `absent {name:null,initials:"AZ"}` (xgid-tail fallback) + `aria-label="identity"`. All roots `FIGURE`/`role=img`. **Seed shell-independence:** `identity-list` bg `rgb(230,188,188)` **identical** client↔node (`seedMatch:true`). `data-shape` square→`10px`, circle→`50%`. isAi `::after` content drawn, bg `rgb(109,92,231)` (fixed violet). revoked `::before` slash + `filter:grayscale(1)`/`opacity:0.55`. **8** `.entity-avatar*` rules in cascade. **0 orphans.** Chip 0-regression: 3 chips intact, per-label muted fills unchanged (rust→h307, svelte→h216, long→h60). Screenshot `temp/entity-avatar-verify.png`.
 
 *UI-implementation record. First `$core` dd. → registry v0.47 (entity-avatar BUILT, first `data-dependent/` occupant; DD·atomic panel populated; the dd-root rule). Shared `seedColour` base helper factored from chip. Next: `container-list-item` (dd-composite, composes entity-avatar; unlocks `labeled`/`card`) → `spaces-panel` → `temperature-indicator` widget (consumes the W-11 dd-socket).*
+
+---
+
+### N-076 — `entity-item`, the first dd-composite; the single-knob variant derive; the global width rule; `entity-avatar` `labeled`/`card` amendment
+
+**M-RP5.1.** Built `entity-item` — the **first dd-composite** and the second `data-dependent/` occupant. It materializes ONE address-book entry (identity ∪ space ∪ DM) as a **full display unit** — avatar + name + optional secondary line + trailing meta/status — one tier up from `entity-avatar` (the dd-atomic glyph). Root = **`<div class="entity-item">`** (per the N-075 dd-root rule: honest HTML; class×arity from the folder + panel + getter). Composes the **real** `entity-avatar` child (self-registers `<id>__avatar`, the status-indicator composite precedent — the matrix multiplies).
+
+**One composite, purpose = `variant`.** `row` (list entry) · `card` (prominent) · `nav` (sidebar) · `inline` (mention/presence). The slot surface is **derived per variant, not free props**: `row` = name + meta · `card` = name + secondary + status · `nav` = name · `inline` = name. A new entity-display need → a **new variant**, not a new component (D-069 recurrence bar) — the "purpose → variant, presentation derived" discipline (led.state / textfield.type / entity-avatar.variant) applied one tier up.
+
+**Single-knob derive (the composite finding).** The consumer sets **one** `entity-item` `variant`; the composite **derives** the inner `entity-avatar` variant internally (`row→list · card→card · nav→labeled · inline→presence`). The two variant axes never fight — the caller never touches the avatar's variant. Secondary/status/meta are **caller-supplied slots** (source-agnostic; the shell maps protocol + Track A `state.status` → these strings); the composite owns layout, not protocol reads. `onActivate?` + `selected?` (skin state) are on the root; the list/panel (M-RP5.2) owns roving keyboard focus, not the item.
+
+**The global width rule (the standing contract, generalized here).** A width-bearing component: **no `width` set → 100%** (fills its container); **`width` set → that value** (inline style, wins by specificity); **`min-width` = the component's intrinsic composition floor** (its slot layout's natural minimum). Per-variant floor exceptions are allowed and marked (`inline` shrinks to content — `width:auto`/`min-width:0`). This promotes the `meter`/`section` `width?` precedent to a default contract for all width-bearing components — retro-referenced by both (no code change; they already ship the shape: `width:100%` + `min-width` floor + `box-sizing:border-box`).
+
+**`entity-avatar` amendment (additive, pre-announced at M-RP5.0).** The avatar's `variant` union widened `'presence' | 'list'` → `+ 'labeled' | 'card'` — the two presets M-RP5.0 explicitly reserved ("`labeled`/`card` land with M-RP5.1"). They render initials like `list` at ascending glyph sizes (list 28 / labeled 32 / card 40); the name text stays in `entity-item`'s text column (`<figcaption>` stays reserved-unused → these presets differ from `list` only in size). **Not** a D-065 retrofit — the seam was named. `presence`/`list` unchanged (0-regression re-verified). Recorded as an amendment to the M-RP5.0 registry/note row in this same D-074 commit.
+
+**CDP-verified** (sampler DD·composite panel, 9422, real output — Rule 2). `vite build` clean (152 modules). Registry **124→138** (+14 = 7 composites + 7 self-registered `__avatar` children); `count===unique===138` → **0 orphans**. Getters exact: `row-identity {variant:"row",kind:"identity",name:"Alice Ng",hasSecondary:false,hasStatus:false,selected:false}`; `card-space {variant:"card",kind:"space",hasSecondary:true,hasStatus:true}`; `nav-dm {variant:"nav"}`; `inline-identity {variant:"inline"}`; `card-plain` (absent-secondary edge) `hasSecondary:false,hasStatus:false`; `selected {selected:true}`. **Derive-map literal** — inner avatars `row→list`, `card→card`, `nav→labeled`, `inline→presence` (both new presets exercised). **Width:** unset `row` no inline style → clamped to `min-width:180px` floor; set `fixed` inline `width:280px`; `inline` `min-width:0`+content width `158px`. Root `DIV.entity-item`; 14 `.entity-item*` rules in cascade (per-variant density + `:hover` + `[data-selected]`); card density `border:solid` + bg `--s2` `rgb(28,31,36)`. Screenshot `temp/entity-item-verify.png`.
+
+*UI-implementation record. First `$core` dd-composite. → registry v0.48 (entity-item BUILT; DD·composite panel populated; entity-avatar `labeled`/`card` amendment; width-rule note). Next: `spaces-panel` (composes `section` + `entity-item ×N`, owns roving focus) → `entity-context-menu` widget (consumes `onActivate?`) → `temperature-indicator` widget (W-11 dd-socket).*
 
 ---
 

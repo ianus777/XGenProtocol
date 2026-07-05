@@ -48,6 +48,7 @@
   import Meter from '$core/components/data-independent/meter.svelte';
   import Section from '$core/components/data-independent/section.svelte';
   import EntityAvatar from '$core/components/data-dependent/entity-avatar.svelte'; // first dd-atomic (M-RP5.0)
+  import EntityItem from '$core/components/data-dependent/entity-item.svelte'; // first dd-composite (M-RP5.1)
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -188,6 +189,12 @@
   const eaRevoked = { kind: 'identity', name: 'Mallory', id: 'xgen://identity/mal-1', flags: { revoked: true } };
   const eaAi = { kind: 'identity', name: 'Aria Bot', id: 'xgen://identity/aria-ai', flags: { isAi: true } };
   let eaActivated = $state(0); // onActivate spy (reserved menu seam) for CDP
+
+  // entity-item (M-RP5.1, first dd-composite) — composes the real entity-avatar (single-knob
+  // derive: row->list, card->card, nav->labeled, inline->presence). secondary/status/meta are
+  // caller slots (source-agnostic; the shell would map protocol + Track A state.status here).
+  const eiStatus = { emoji: '🟢', text: 'online' }; // Track A self-status slot (card only)
+  let eiActivated = $state(0); // onActivate spy for CDP (row activation)
 
   // select-multiple shares the N-034 options-prop shape (carried over from `select`).
   const smOptions = [
@@ -534,12 +541,30 @@
   </div>
 </div>
 
-<!-- DD · composite -->
+<!-- DD · composite — first occupant: entity-item (M-RP5.1). variant x kind grid + edge cells.
+  Each cell yields TWO registry entries: the composite (entity-item#id) + its self-registering
+  avatar child (entity-avatar#id__avatar) — the matrix multiplies (status-indicator precedent). -->
 <div class="sampler-panel" class:hidden={activeTab !== 'dd-composite'}>
   <div class="sampler-body">
-    <div class="s-empty">
-      <strong>No components yet</strong>
-      <span>Composite data-derived components land here (downstream of dd atomics).</span>
+    <div class="s-section-title">Composite</div>
+
+    <div class="s-row">
+      <div class="s-rowname">entity-item · variant × kind</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">entity-item#row-identity</span><EntityItem descriptor={eaIdentity} variant="row" meta="3" onActivate={() => eiActivated++} id="row-identity" /></div>
+        <div class="s-cell"><span class="s-id">entity-item#card-space</span><EntityItem descriptor={eaSpace} variant="card" secondary="#general · 42 members" status={eiStatus} onActivate={() => eiActivated++} id="card-space" /></div>
+        <div class="s-cell"><span class="s-id">entity-item#nav-dm</span><EntityItem descriptor={eaDm} variant="nav" onActivate={() => eiActivated++} id="nav-dm" /></div>
+        <div class="s-cell"><span class="s-id">entity-item#inline-identity</span><EntityItem descriptor={eaIdentity} variant="inline" id="inline-identity" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">entity-item · edge</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">entity-item#selected</span><EntityItem descriptor={eaIdentity} variant="row" meta="7" selected onActivate={() => eiActivated++} id="selected" /></div>
+        <div class="s-cell"><span class="s-id">entity-item#card-plain</span><EntityItem descriptor={eaSpace} variant="card" id="card-plain" /></div>
+        <div class="s-cell"><span class="s-id">entity-item#fixed</span><EntityItem descriptor={eaIdentity} variant="row" meta="1" width="280px" id="fixed" /></div>
+      </div>
     </div>
   </div>
 </div>

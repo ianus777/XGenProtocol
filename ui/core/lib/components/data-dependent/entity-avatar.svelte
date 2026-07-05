@@ -12,7 +12,11 @@
   // The avatar is a PARTIAL read of the record (the context menu, M-RP5.3, is the 100% read).
   // The primary axis is `variant` (PURPOSE) — size + content are DERIVED presets, not free
   // props (the led.state / textfield.type discipline): `presence` = shape + colour seed only;
-  // `list` = + initials. `labeled`/`card` land with `container-list-item` (M-RP5.1, dd-composite).
+  // `list` / `labeled` / `card` = + initials, at ascending sizes. The `labeled`/`card` presets
+  // were pre-announced at M-RP5.0 and land as an ADDITIVE amendment with `entity-item` (M-RP5.1,
+  // the first dd-composite) which derives them via its single-knob variant map. The name text
+  // still lives in `entity-item`'s own text column, NOT inside the avatar (<figcaption> stays
+  // reserved-unused) — these two presets differ from `list` only in glyph size.
   import { envelope } from '$common/components/base/envelope';
   import { seedColour } from '$common/components/base/seed-colour';
   import type { EntityDescriptor } from './types';
@@ -24,7 +28,7 @@
     id,
   }: {
     descriptor: EntityDescriptor;
-    variant?: 'presence' | 'list';
+    variant?: 'presence' | 'list' | 'labeled' | 'card';
     onActivate?: () => void;
     id?: string;
   } = $props();
@@ -80,9 +84,10 @@
 
 <!-- B — dd root = HONEST HTML for the materialized thing: <figure role="img"> (a self-
   contained figure; dd does NOT inherit the di <div>=composite litmus — N-075). aria-label =
-  name ?? kind. <figcaption> is RESERVED — the seam for the `labeled`/`card` variants
-  (M-RP5.1) — deliberately unused in v1 (an avatar is a glyph, not a captioned figure yet).
-  `presence` renders shape + colour only; `list` adds the initials text. -->
+  name ?? kind. <figcaption> stays RESERVED-UNUSED even now that `labeled`/`card` ship — the
+  caption text lives in `entity-item`'s text column, not the avatar (an avatar is a glyph, not a
+  captioned figure). `presence` renders shape + colour only; `list`/`labeled`/`card` add the
+  initials text (ascending glyph size). -->
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 <figure
   use:envelope={{ name: 'entity-avatar', id, debug }}
@@ -96,7 +101,7 @@
   style="--seed-bg: {seed.bg}; --seed-fg: {seed.fg}; --seed-bd: {seed.bd}"
   onclick={() => onActivate?.()}
 >
-  {#if variant === 'list'}
+  {#if variant !== 'presence'}
     <span class="ea-initials">{initials}</span>
   {/if}
 </figure>

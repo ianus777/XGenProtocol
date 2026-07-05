@@ -1,6 +1,6 @@
 # Runbook — M-RP4.9 sampler static-header + scroll + rename
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  
@@ -35,7 +35,7 @@ Sampler-infra build. No component/registry touch. Design locked (`docs/xgen-samp
 
 ## DoD
 
-- [ ] static header (title+toggle+tabs fixed); body-only scroll.
-- [ ] five tabs renamed; indices/keys stable; panel routing unchanged.
-- [ ] CDP-verified: header-fixed-while-body-scrolls, labels, routing, registry unchanged, 0 orphans.
-- [ ] records: N-079, ROADMAP, phase0→COMPLETED, PLAY→J-466, JOURNAL, runbook→COMPLETED.
+- [x] static header (title+toggle+tabs fixed); body-only scroll. *(`.sampler-scroll` flex:1/overflow-y:auto/min-height:0; #sampler-root overflow:hidden)*
+- [x] five tabs renamed; indices/keys stable; panel routing unchanged. *(labels DI Atomics/DI Composites/DD Atomics/DD Composites/Widgets; ids untouched)*
+- [x] CDP-verified: header-fixed-while-body-scrolls, labels, routing, registry unchanged, 0 orphans. *(headerFixed:true @ scrollTop=400, docScrollable:false, registry 173, DD Composites renders entity-panel/item; screenshot static-header-verify.png)*
+- [x] records: N-079, ROADMAP, phase0→COMPLETED, PLAY→J-466, JOURNAL, runbook→COMPLETED.

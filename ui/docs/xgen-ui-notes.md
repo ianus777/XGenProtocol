@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.62  
+> Version: 0.63  
 > Date: May 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  
@@ -1671,6 +1671,20 @@ M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the 
 **CDP-verified** (sampler DD·composite panel, 9422, real output — Rule 2). `vite build` clean (154 modules; zero `entity-panel`/`entity-item` warnings). Getters G exact: `spaces {count:3,selected:"xgen://space/design-7a2",collapsed:false,hasEmpty:false}` (bind:selected seeded), `dms {count:3,selected:null}`, `empty {count:0,hasEmpty:true}`, `collapsed {count:2,collapsed:true}`. Registry **146→173** (+27); `count===unique===173` → **0 orphans**. Child registration (DMs subtree): `entity-panel#dms` + `section#dms__section` + 3 `entity-item#dms-<key>` + 3 `entity-avatar#…__avatar` + 2 `status#…__avatar__status` (Bob 🟢 + Aria 🤖 rows forward to the corner; Alice has none) — the forward proven. Roles: ul `role=listbox` class `entity-panel`; 3 `role=option`; roving tabindex `["-1","0","-1"]` (one `0`, on the selected row). Keyboard: ArrowDown → tabindex `["-1","0","-1"]` moved to row 1 + `document.activeElement` = row 1; Enter → `selected="xgen://identity/alice-7f3a"` + `aria-selected ["false","true","false"]`. Empty: 0 options + "No blocked users." Collapse: `section[data-collapsed=true]` + body `display:none` (rows still registered → slot mounted). Corner-fix: Aria avatar `data-ai` `::after top:-1px` (top-right) + `status position:absolute bottom:-3px right:-3px` (bottom-right) — no overlap. 0-regression: `card-space` getter unchanged `{…hasStatus:true}`, inline status "🟢 online", **no avatar corner badge** (`status#card-space__avatar__status` absent); a DM **row** avatar DOES carry the corner badge. Screenshot `temp/entity-panel-verify.png`.
 
 *UI-implementation record. Last `$core` dd-composite — the dd-composite tier is closed. → registry v0.50 (entity-panel BUILT; avatar corner-fix H; entity-item status-forward amendment). Next: the widget tier — `entity-context-menu` (M-RP5.3, the 100% read, uses `status full`) → `temperature-indicator` (M-RP5.4, `meter` via the W-11 dd-socket).*
+
+---
+
+### N-079 — sampler static header + confined scroll + tab rename (test-bed ergonomics, M-RP4.9)
+
+**M-RP4.9 (sampler-infra only — zero component/registry touch).** Reorganized the sampler shell so the header block is **fixed** and only the panel body scrolls, and renamed the tab labels. Pure test-bed ergonomics (D-097/D-098); no `core` component, no registry delta — nothing in the registry catalogue changes.
+
+**Static header + confined scroll** (`ui/sampler/src/app.css` + `app_sampler.svelte`). `#sampler-root` is a `height:100%` flex column: the header block — `.sampler-bar` (title + `client|node` skin-swap) + `.sampler-tabs` — is `flex:0 0 auto` (the bar's old `position:sticky` retired, redundant now); the five `.sampler-panel`s are wrapped in a new **`.sampler-scroll`** = `flex:1 1 auto; overflow-y:auto; min-height:0` (the `min-height:0` is the flexbox-scroll gotcha — without it the flex child won't shrink below its content and the overflow never engages). `#sampler-root` gets `overflow:hidden` so the document itself never scrolls — the tab bar no longer scrolls away with the content.
+
+**Tab rename (string-only).** `DI · atomic → DI Atomics` · `DI · composite → DI Composites` · `DD · atomic → DD Atomics` · `DD · composite → DD Composites` · `WIDGET → Widgets`. The `tabs` const `id` keys (`di-atomic`/`di-composite`/`dd-atomic`/`dd-composite`/`widget`) are **unchanged**, so the N-053 keyed panel routing + the CDP tab-index probes are unaffected (the harness reads `data-debug-id`, never tab labels).
+
+**CDP-verified** (sampler, 9422, real output — Rule 2). `vite build` clean (154 modules, unchanged). Five new labels `["DI Atomics","DI Composites","DD Atomics","DD Composites","Widgets"]`; **registry `ids().length` unchanged at 173** (unique 173 → 0 orphans, no component delta). Header-fixed-while-body-scrolls: `.sampler-scroll.scrollTop=400` while `.sampler-bar` `getBoundingClientRect().top` stays `0` and `.sampler-tabs` stays `44.2` (`headerFixed:true`); `document.documentElement` **not** scrollable (`docScrollable:false` — scroll confined). Routing intact: clicking DD Composites → 1 visible panel containing rendered `entity-panel#dms` + `entity-item#card-space`. (A transient Vite HMR "div left open" overlay appeared at startup but cleared on reload — the production build proves the markup is balanced; a stale artifact, not a real parse error.) Screenshot `temp/static-header-verify.png`.
+
+*Sampler ergonomics only — no component contract, no registry row. → ROADMAP M-RP4.9 ✅.*
 
 ---
 

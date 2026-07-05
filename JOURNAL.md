@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-466 — M-RP4.9 CLOSED: sampler static-header + confined scroll + tab rename (test-bed ergonomics; zero component/registry touch)
+
+**What happened.** Reorganized the `xgen-sampler` shell per `tasks/RUNBOOK_SAMPLER_STATIC_HEADER.md` (design Joe-locked, Phase-0 `docs/xgen-sampler-static-header-phase0.md`): the header block became **fixed**, the panel body became the **only** scroller, and the tab labels were renamed. Sampler-infra only (D-097/D-098) — **no `core` component, no registry delta, no components-doc/DECISIONS touch**. Clair (impl seat); full D-074 close.
+
+**What changed.** (1) **Static header + confined scroll** (`ui/sampler/src/app_sampler.svelte` + `ui/sampler/src/app.css` — NOT `ui/assets/skin.css`; the runbook's path is the usual shorthand). `#sampler-root` is now a `height:100%` flex column with `overflow:hidden`; the header block — `.sampler-bar` (title + `client|node` skin-swap) + `.sampler-tabs` — is `flex:0 0 auto` (the bar's old `position:sticky` retired); the five `.sampler-panel`s are wrapped in a new **`.sampler-scroll`** = `flex:1 1 auto; overflow-y:auto; min-height:0`. The `min-height:0` is the flexbox-scroll gotcha (without it the flex child won't shrink below its content and the overflow never engages). The tab bar no longer scrolls away with the content; the document itself never scrolls. (2) **Tab rename** (string-only, `tabs` const labels): `DI · atomic → DI Atomics` · `DI · composite → DI Composites` · `DD · atomic → DD Atomics` · `DD · composite → DD Composites` · `WIDGET → Widgets`. The `id` keys (`di-atomic`/…/`widget`) are unchanged → N-053 keyed routing + CDP tab-indices unaffected.
+
+**Verify — real CDP output (Rule 2), sampler 9422.** `vite build` clean (154 modules, unchanged — no new module). Header-fixed + labels + registry + confinement:
+```
+{"tabLabels":["DI Atomics","DI Composites","DD Atomics","DD Composites","Widgets"],"registryCount":173,"unique":173,"scrollerExists":true,"canScroll":true,"scrolledTo":400,"barTopBefore":0,"barTopAfter":0,"tabsTopBefore":44.2,"tabsTopAfter":44.2,"headerFixed":true,"docScrollable":false}
+```
+Routing intact (after clicking DD Composites):
+```
+{"visiblePanels":1,"activeHasEntityPanel":true,"dmsRendered":true,"itemRendered":true}
+```
+Reading these out: **five new labels**; **registry `ids().length` unchanged at 173** (`unique:173` → 0 orphans, no component delta). **Header fixed while body scrolls**: `.sampler-scroll.scrollTop` set to `400` while `.sampler-bar` top stays `0` and `.sampler-tabs` top stays `44.2` (`headerFixed:true`); **scroll confined** — `document.documentElement` not scrollable (`docScrollable:false`). **Routing unchanged**: DD Composites → exactly 1 visible panel containing a rendered `entity-panel#dms` + `entity-item#card-space`. Screenshot `temp/static-header-verify.png` (fixed header + tab bar over a scrolled body).
+
+**Verify finding (surfaced, D-065 / Rule 3).** A transient Vite HMR error overlay ("`<div>` was left open at :276") appeared over the running app at startup, but: the production `vite build` **passed** (a genuinely unbalanced file can't compile), the app was mounted (all CDP probes succeeded), and after `location.reload()` the overlay was gone (`overlayPresent:false`, registry 173). A stale HMR startup artifact, not a real parse error — the markup is balanced. Investigated rather than ignored.
+
+**Records (atomic, D-074).** Edited `ui/sampler/src/app_sampler.svelte` (`.sampler-scroll` wrapper + tab-label rename), `ui/sampler/src/app.css` (fixed-header + scroll CSS). Docs: `ui/docs/xgen-ui-notes.md` N-079 (v0.63), `docs/ROADMAP.md` v4.35 (tree tail + M-RP4.9 block), `docs/xgen-sampler-static-header-phase0.md` (Status→COMPLETED v1.1), this PLAY (→ J-466), this entry, runbook → COMPLETED (DoD ticked). **No `ui/docs/xgen-ui-components.md` change (no component/registry delta), no `DECISIONS.md` touch** (sampler ergonomics; N-079 is a sampler note, not a component contract).
+
+**Next-active.** `room` kind (M-RP5.0c — an additive `EntityDescriptor.kind='room'` + a hexagon avatar shape) → the widget tier: `entity-context-menu` (M-RP5.3) → `temperature-indicator` (M-RP5.4). Not pushed — Joe pushes.
+
+---
+
 ## Entry J-465 — M-RP5.2 CLOSED: `entity-panel` — the LAST dd-composite (roving-focus listbox); the avatar corner-fix (H); the `entity-item` status-forward amendment ("status once per variant"). The dd-composite tier is CLOSED.
 
 **What happened.** Built `entity-panel` per `tasks/RUNBOOK_ENTITY_PANEL.md` (design Joe-locked A–H, Phase-0 `docs/xgen-dd-spaces-panel-phase0.md` v1.1). The **last dd-composite** — closes the dd-composite tier; the widget tier (M-RP5.3/5.4) is next. Clair (impl seat); explicit handoff for the full D-074 close. One wiring gap surfaced mid-build and was Joe-resolved before the sampler cells (the status-forward, below).

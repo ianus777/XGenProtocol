@@ -88,11 +88,11 @@
   // NOT unmounted (class:hidden), so every component stays registered for CDP `ids()`.
   let activeTab = $state('di-atomic'); // 'di-atomic' | 'di-composite' | 'dd-atomic' | 'dd-composite'
   const tabs = [
-    { id: 'di-atomic',    label: 'DI · atomic' },
-    { id: 'di-composite', label: 'DI · composite' },
-    { id: 'dd-atomic',    label: 'DD · atomic' },
-    { id: 'dd-composite', label: 'DD · composite' },
-    { id: 'widget',       label: 'WIDGET' },
+    { id: 'di-atomic',    label: 'DI Atomics' },
+    { id: 'di-composite', label: 'DI Composites' },
+    { id: 'dd-atomic',    label: 'DD Atomics' },
+    { id: 'dd-composite', label: 'DD Composites' },
+    { id: 'widget',       label: 'Widgets' },
   ];
 
   // Bound values (bare $state — plain-JS shell). One per interactive cell.
@@ -271,6 +271,9 @@
   {/each}
 </div>
 
+<!-- Scroll region (M-RP4.9): the header block above (bar + tabs) is fixed; only this body
+  scrolls (flex:1 + overflow-y:auto). All panels stay mounted inside it (N-053). -->
+<div class="sampler-scroll">
 <!-- DI · atomic — the current 44-cell grid; INTERACTIVE / DISPLAY / NAVIGATION sub-headers -->
 <div class="sampler-panel" class:hidden={activeTab !== 'di-atomic'}>
   <div class="sampler-body">
@@ -664,3 +667,4 @@
     </div>
   </div>
 </div>
+</div><!-- /.sampler-scroll -->

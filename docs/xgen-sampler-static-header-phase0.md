@@ -1,6 +1,6 @@
 # XGen UI — Phase-0: sampler static-header + scroll reorg + tab rename
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  

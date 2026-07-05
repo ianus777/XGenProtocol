@@ -27,13 +27,16 @@ body {
 }
 
 #sampler-root {
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden; /* header is fixed; scroll is confined to .sampler-scroll (M-RP4.9) */
   display: flex;
   flex-direction: column;
 }
 
-/* Sticky bar: title + segmented skin-swap. */
+/* Fixed header — title + segmented skin-swap (M-RP4.9: flex:0 0 auto, no longer sticky-
+ * inside-a-scroller; the bar sits above the scroll region and never moves). */
 .sampler-bar {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -41,9 +44,6 @@ body {
   padding: 10px 16px;
   background-color: var(--s2);
   border-bottom: 1px solid var(--s5);
-  position: sticky;
-  top: 0;
-  z-index: 10;
 }
 .sampler-title {
   color: var(--t);
@@ -78,11 +78,21 @@ body {
 /* Tab bar (M-RP3.2): outer class x arity axis. Tool chrome (NOT a sampled .button),
  * same line as .sampler-seg. Active tab uses the live --accent so it re-themes on swap. */
 .sampler-tabs {
+  flex: 0 0 auto;
   display: flex;
   gap: 4px;
   padding: 8px 16px 0;
   background-color: var(--s1);
   border-bottom: 1px solid var(--s4);
+}
+
+/* Scroll region (M-RP4.9): the ONLY scroller — fills the space under the fixed header and
+ * scrolls vertically. `min-height:0` lets this flex child shrink below its content so the
+ * overflow actually engages (the flexbox-scroll gotcha). All panels are mounted inside it. */
+.sampler-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 .sampler-tabs button {
   background: var(--s2);

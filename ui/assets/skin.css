@@ -30,7 +30,7 @@
   --err: #8a2a2a;  --err-bright: #e64343;  /* --err-bright: focused-invalid border (brighter than --err); tune via HMR */
 
   /* Radius scale */
-  --rad: 6px;  --rad2: 10px;
+  --rad: 6px; --rad0: 0; --rad2: 10px;
   /* Spacing scale */
   --sp-0: 0; --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;  --sp-4: 20px;
   /* Interactive control height */
@@ -1709,7 +1709,7 @@ html, body {
 }
 /* C — non-DM space = rounded-square (a container, not a person) */
 .entity-avatar[data-shape="square"] {
-  border-radius: var(--rad2);
+  border-radius: var(--rad0);
 }
 /* F — variant presets: presence = xs glyph only; list/labeled/card = + initials at ascending
  * sizes. labeled/card are the M-RP5.1 additive amendment (pre-announced at M-RP5.0); they differ
@@ -1793,7 +1793,7 @@ html, body {
   width: 100%; /* N-076: unset → 100% */
   min-width: 180px; /* N-076: slot-composition floor */
   padding: var(--sp-1) var(--sp-2);
-  border-radius: var(--rad);
+  border-radius: var(--rad0);
   color: var(--t);
   cursor: default;
 }
@@ -1852,7 +1852,7 @@ html, body {
   padding: var(--sp-2);
   background: var(--s2);
   border: 1px solid var(--s5);
-  border-radius: var(--rad2);
+  border-radius: var(--rad0);
 }
 /* nav — sidebar entry: compact */
 .entity-item[data-variant="nav"] {
@@ -1907,7 +1907,7 @@ html, body {
   gap: 0; /* emoji glyph only */
 }
 .status .st-emoji {
-  font-size: var(--fs-2);
+  font-size: var(--fs-0);
   line-height: 1;
 }
 .status .st-text {
@@ -1934,11 +1934,11 @@ html, body {
   padding: 1px;
   border-radius: 50%;
   background: var(--s);
-  box-shadow: 0 0 0 1px var(--s);
+  box-shadow: 0 0 0 .25px var(--s);
   z-index: 1;
 }
 .entity-avatar .status .st-emoji {
-  font-size: calc(var(--ea-size) * 0.5);
+  font-size: calc(var(--ea-size) * 0.333);
 }
 
 /* ───────────────────────────────────────────────────
@@ -1959,7 +1959,7 @@ html, body {
 }
 .entity-panel-option {
   list-style: none;
-  border-radius: var(--rad);
+  border-radius: var(--rad0);
   cursor: pointer;
 }
 .entity-panel-option:focus-visible {

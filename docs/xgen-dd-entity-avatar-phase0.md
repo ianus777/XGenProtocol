@@ -1,8 +1,8 @@
 # XGen UI — dd Phase-0: `entity-avatar` (first data-dependent component)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-04  
+> **Last updated**: 2026-07-05  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -110,8 +110,10 @@ DOM: circle/square + initials + hashed colour + badge
 
 ## 5. Decisions to Joe-lock (design walk, one at a time)
 
-- **A — descriptor shape.** Confirm `EntityDescriptor { kind: 'identity'|'space', name?, id, flags, image? }`; `flags` = `{ isAi?, revoked?, isDm?, e2e? }`.
-- **B — dd root convention.** Propose dd-atomic root = `<div class="entity-avatar">` (a materialized object → composite-like shell, unlike di-atomic's native-tag root). *Rec: yes.*
+> **✅ LOCKED + BUILT (M-RP5.0, J-462).** All of A–H were Joe-locked in the design walk and realized in `entity-avatar` (the first dd-atomic); this Phase-0 is now COMPLETED. **One correction from the walk:** decision **B** below proposed a `<div>` root — the walk instead chose the semantically-honest **`<figure class="entity-avatar" role="img">`** (`aria-label={name ?? kind}`, `<figcaption>` reserved), and generalized this to **the dd-root rule (N-075):** a dd root is honest HTML for the materialized thing, NOT the di `<div>`=composite litmus. See `ui/docs/xgen-ui-notes.md` N-075 for the built record.
+
+- **A — descriptor shape.** Confirm `EntityDescriptor { kind: 'identity'|'space', name?, id, flags, image? }`; `flags` = `{ isAi?, revoked?, isDm?, e2e? }`. *LOCKED as proposed.*
+- **B — dd root convention.** Propose dd-atomic root = `<div class="entity-avatar">` (a materialized object → composite-like shell, unlike di-atomic's native-tag root). *Rec: yes.* **→ LOCKED as `<figure role="img">` instead (N-075 dd-root rule; see the banner above).**
 - **C — kind → shape.** identity = circle; space = rounded-square; DM space = circle (people-shaped). *Rec: circle for identity + DM, rounded-square for non-DM space.*
 - **D — badges (this milestone).** `isAi` badge + `revoked` overlay (greyed + slash) in-scope; `e2e` lock deferred to a later amendment. *Rec: yes.*
 - **E — colour seed.** `hash(name ?? id) → HSL`, reuse the `chip` muted S/L band via a shared helper. *Rec: yes.*

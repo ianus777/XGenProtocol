@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.58  
+> Version: 0.59  
 > Date: May 2026  
-> **Last updated**: 2026-07-04  
+> **Last updated**: 2026-07-05  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -1601,6 +1601,22 @@ M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the 
 **CDP-verified** (sampler 9422, real output). `vite build` clean. `#fixed {…,width:"320px"}` + computed `width:320px`; `#plain` has no width key (unset), computed `min-width:160px`. Registry **114→115**. 0 orphans.
 
 *UI-implementation record. Additive. → registry v0.46 (section getter gains `width`). Next: the dd track opens (`entity-avatar`, D-071-audited).*
+
+## 2026-07-05
+
+### N-075 — the dd-root rule; `entity-avatar`, the first data-dependent component (dd-atomic)
+
+**M-RP5.0.** Built `entity-avatar` — the **first `data-dependent/` occupant** and the first dd component. It materializes ONE address-book entry (an identity or a space, per the D-071 Phase-0 audit of `IdentityRecord`/`SpaceState`) into a visual. What makes it **dd (not di):** the rendered *shape itself branches on the data* — identity → circle + AI-badge; non-DM space → rounded-square; revoked → greyed/slashed. That domain → presentation mapping IS its reason to exist (remove it and it is a styled box).
+
+**The dd-root rule (the reusable finding).** dd does **NOT** inherit the di `<div>` = composite litmus. A dd root is **honest HTML for the materialized thing**; class×arity is read from the folder (`data-dependent/`) + the sampler panel + the getter, not from the root tag. `entity-avatar` root = **`<figure class="entity-avatar" role="img">`**, `aria-label={name ?? kind}`; `<figcaption>` is **reserved** (the seam for the `labeled`/`card` variants, M-RP5.1) — deliberately unused in v1. (This supersedes the Phase-0 §5-B provisional recommendation of a `<div>` root — the design walk chose the semantically-honest `<figure>`.)
+
+**Source-agnostic seam.** The dd consumes an `EntityDescriptor { kind, name?, id, flags{isAi?,revoked?,isDm?,e2e?}, image? }` view-model — the **W-11 dd-socket payload** — NOT the raw protocol type. `core` imports **no** `IdentityRecord`/`SpaceState` (GPL ref lib stays protocol-free; the shell owns the protocol → descriptor map, N-057 lineage). `image` is reserved-unfed (D-065); `e2e` reserved (no lock drawn in v1).
+
+**Mechanics.** **C** kind → shape: identity + DM space = circle (people-shaped), non-DM space = rounded-square (`--rad2`). **E** colour = the shared **`seedColour(name ?? id)`** helper (`ui/common/lib/components/base/seed-colour.ts`) — the hash + muted band **factored out of `chip`** (byte-identical output; chip re-verified 0-regression). NO `--accent` dependency → an entity reads identically under gold or blue. **initials** = 1–2 graphemes from `name` (grapheme-safe via `Intl.Segmenter` — a ZWJ family / combining mark stays one unit), absent name → **xgid-tail fallback** (last 2 alphanumerics of the id, uppercased). **F** `variant` (the primary axis = purpose, N-032 discipline): `presence` = xs, shape + colour only; `list` = sm, + initials — size/content are derived presets, not free props. **D** badges self-drawn (NOT a nested `led` — keeps the first dd atomic): `isAi` → `::after` fixed-violet spark disc; `revoked` → `grayscale(1)` + dim + a diagonal `::before` slash. **H** `onActivate?` reserved (the `entity-context-menu` widget, M-RP5.3, consumes it) — wired to `onclick`, no menu built. **G** getter `{ kind, variant, name, initials, seed, flags }`.
+
+**CDP-verified** (sampler DD·atomic panel, 9422, real output — Rule 2). `vite build` clean (151 modules). Registry **115→124** (+9 cells: identity/space/DM × {presence,list} + edge {absent-name, revoked, isAi}). Per-cell getters exact: `identity-list {kind:"identity",variant:"list",name:"Alice Ng",initials:"AN",seed:"hsl(0 45% 82%)",flags:{}}`; `space-list` `initials:"DT"` `shape=square`; `dm-list` `flags:{isDm:true}` `shape=circle`; `absent {name:null,initials:"AZ"}` (xgid-tail fallback) + `aria-label="identity"`. All roots `FIGURE`/`role=img`. **Seed shell-independence:** `identity-list` bg `rgb(230,188,188)` **identical** client↔node (`seedMatch:true`). `data-shape` square→`10px`, circle→`50%`. isAi `::after` content drawn, bg `rgb(109,92,231)` (fixed violet). revoked `::before` slash + `filter:grayscale(1)`/`opacity:0.55`. **8** `.entity-avatar*` rules in cascade. **0 orphans.** Chip 0-regression: 3 chips intact, per-label muted fills unchanged (rust→h307, svelte→h216, long→h60). Screenshot `temp/entity-avatar-verify.png`.
+
+*UI-implementation record. First `$core` dd. → registry v0.47 (entity-avatar BUILT, first `data-dependent/` occupant; DD·atomic panel populated; the dd-root rule). Shared `seedColour` base helper factored from chip. Next: `container-list-item` (dd-composite, composes entity-avatar; unlocks `labeled`/`card`) → `spaces-panel` → `temperature-indicator` widget (consumes the W-11 dd-socket).*
 
 ---
 

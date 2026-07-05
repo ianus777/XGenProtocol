@@ -8,6 +8,48 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-462 — M-RP5.0 CLOSED: `entity-avatar` — the FIRST data-dependent component (dd-atomic); the dd-root rule (N-075); shared `seedColour` base helper factored from `chip`; sampler DD·atomic panel populated
+
+**What happened.** Built `entity-avatar` per `tasks/RUNBOOK_ENTITY_AVATAR.md` (design Joe-locked A–H in the J-461 design walk; Phase-0 `docs/xgen-dd-entity-avatar-phase0.md`). The **first data-dependent component** and first `data-dependent/` occupant — the dd track opens for real. Clair (impl seat); this arc's handoff explicitly authorized the atomic records close (D-074).
+
+**What it is.** A dd materializes ONE address-book entry (an identity or a space — the D-071 Phase-0 audit of `IdentityRecord`/`SpaceState`) into a visual; the rendered **shape branches on the data** (the dd ≠ di line): identity + DM space = circle (people-shaped), non-DM space = rounded-square. Consumes a **source-agnostic `EntityDescriptor { kind, name?, id, flags{isAi?,revoked?,isDm?,e2e?}, image? }`** — the W-11 dd-socket payload — NOT the raw protocol type; `core` imports **no** `IdentityRecord`/`SpaceState` (the shell owns the protocol → descriptor map; `image`/`e2e` reserved-unfed, D-065).
+
+**The dd-root rule (N-075, the reusable finding).** dd does NOT inherit the di `<div>`=composite litmus. A dd root is **honest HTML for the materialized thing**; class×arity reads from the folder + sampler panel + getter. `entity-avatar` root = **`<figure class="entity-avatar" role="img">`**, `aria-label={name ?? kind}`, `<figcaption>` reserved (the `labeled`/`card` seam, M-RP5.1) — this corrects the Phase-0 §5-B `<div>` recommendation.
+
+**Mechanics built.** **E** colour = `seedColour(name ?? id)` — the hash + muted band **factored out of `chip`** into a shared base helper `ui/common/lib/components/base/seed-colour.ts` (`{hue,bg,fg,bd}`, byte-identical strings; `chip.svelte` now imports it; no `--accent` dependency). **initials** = 1–2 graphemes of `name` via `Intl.Segmenter` (grapheme-safe), absent name → xgid-tail fallback (last 2 alphanumerics, uppercased). **F** `variant` primary axis (purpose): `presence` (xs, glyph) / `list` (sm, + initials) — size/content derived presets. **D** badges self-drawn (not a nested `led`): `isAi` `::after` fixed-violet spark disc, `revoked` `grayscale(1)`+dim + `::before` diagonal slash. **H** `onActivate?` reserved (menu seam, wired to `onclick`, no menu). **G** getter `{ kind, variant, name, initials, seed, flags }`.
+
+**Verify — real CDP output (Rule 2), sampler DD·atomic panel, port 9422.** `vite build` clean (151 modules). Registry + presence:
+```
+{"href":"http://localhost:5175/","total":124,"eaCount":9,"ea":["entity-avatar#identity-presence","entity-avatar#identity-list","entity-avatar#space-presence","entity-avatar#space-list","entity-avatar#dm-presence","entity-avatar#dm-list","entity-avatar#absent","entity-avatar#revoked","entity-avatar#ai"]}
+```
+Per-cell getter + DOM (excerpt — full 9 cells verified):
+```
+"identity-list":{"g":{"kind":"identity","variant":"list","name":"Alice Ng","initials":"AN","seed":"hsl(0 45% 82%)","flags":{}},"tag":"FIGURE","role":"img","shape":"circle","ai":false,"rev":false,"aria":"Alice Ng"}
+"space-list":{"g":{"kind":"space",...,"initials":"DT",...},"shape":"square",...}
+"dm-list":{"g":{...,"name":"Bob Lee","initials":"BL","flags":{"isDm":true}},"shape":"circle",...}
+"absent":{"g":{"kind":"identity","variant":"list","name":null,"initials":"AZ","seed":"hsl(318 45% 82%)","flags":{}},"shape":"circle",...,"aria":"identity"}
+"revoked":{"g":{...,"flags":{"revoked":true}},"rev":true,...}
+"ai":{"g":{...,"flags":{"isAi":true}},"ai":true,...}
+```
+Shell-independence + cascade + pseudos + orphans:
+```
+{"clientSeed":{"seed":"hsl(0 45% 82%)","bg":"rgb(230, 188, 188)","rad":"50%"},"nodeSeed":{"seed":"hsl(0 45% 82%)","bg":"rgb(230, 188, 188)","rad":"50%"},"seedMatch":true,"squareRad":"10px","eaRuleCount":8,"orphanCount":0,"aiBadge":{"content":"\"\"","bg":"rgb(109, 92, 231)"},"revoked":{"beforeContent":"\"\"","filter":"grayscale(1)","opacity":"0.55"}}
+```
+Chip 0-regression (Step-1 DoD — per-label seed unchanged, byte-identical band):
+```
+"chip#default":{"styleBg":"hsl(307 45% 82%)","styleFg":"hsl(307 55% 30%)","styleBd":"hsl(307 40% 80%)",...}
+"chip#static":{"styleBg":"hsl(216 45% 82%)",...}  "chip#long":{"styleBg":"hsl(60 45% 82%)",...}   chipCount:3
+```
+Reading these out: registry **115→124** (+9 cells), all roots `FIGURE`/`role=img`; shape-per-kind (identity/DM circle, non-DM space square `10px`); `absent` → `name:null`/`initials:"AZ"` xgid-tail fallback + `aria-label="identity"`; **seed shell-independence** — `identity-list` bg `rgb(230,188,188)` **identical client↔node** (`seedMatch:true`), no accent swap; isAi `::after` drawn violet `rgb(109,92,231)`; revoked `::before` slash + `grayscale(1)`/`0.55`; **8** `.entity-avatar*` rules in cascade; **0 orphans**; chip 3 cells intact with distinct per-label fills. Screenshot `temp/entity-avatar-verify.png` (eye-checked: circles/rounded-square, AN/DT/BL initials, AZ fallback, MA greyed+slashed, AB with spark badge).
+
+**Engineering judgment (surfaced, D-065).** (1) `seedColour` returns `{hue,bg,fg,bd}` (chip's full triple) so both consumers share one source; chip's output is byte-identical (re-verified). (2) getter `seed` = the fill `bg` hsl string (directly comparable → the shell-independence probe). (3) isAi badge colour is a **fixed** violet literal, deliberately NOT `var(--accent)`, to preserve the whole-avatar shell-independence. (4) `onActivate?` wired to `onclick` with a scoped `svelte-ignore` for the role=img a11y warning (reserve-don't-build). (5) `<figcaption>` reserved as an in-file comment seam (no empty element rendered).
+
+**Records (atomic, D-074).** New: `ui/common/lib/components/base/seed-colour.ts`, `ui/core/lib/components/data-dependent/{types.ts,entity-avatar.svelte}`; edited `chip.svelte` (import helper), `ui/assets/skin.css` (`.entity-avatar` block), `ui/sampler/src/app_sampler.svelte` (DD·atomic panel). Docs: `ui/docs/xgen-ui-notes.md` N-075 (v0.59), `ui/docs/xgen-ui-components.md` registry v0.47 (entity-avatar row + dd-seed BUILT + build note), `docs/ROADMAP.md` v4.31 (tree tail + M-RP5.0 ✅ DONE block), `docs/xgen-dd-entity-avatar-phase0.md` (A–H LOCKED, Status→COMPLETED v1.1), this PLAY (→ J-462), this entry, runbook + handoff → COMPLETED. No `DECISIONS.md` touch (N-075 is registry/note, arc-local; D-069 bar not met).
+
+**Next-active.** `container-list-item` (dd-composite, composes `entity-avatar`; unlocks `labeled`/`card`) → `spaces-panel` → `entity-context-menu` widget (consumes `onActivate?`) → `temperature-indicator` widget (W-11 dd-socket). Track A (J-461) gates the status-bearing avatar variants (M-RP5.2). Not pushed — Joe pushes.
+
+---
+
 ## Entry J-461 — PROTO-STATUS.2 CLOSED: self-set status reference impl (`xgen-core/src/status/`) — type + validation + resolution wiring + 19 tests, workspace green
 
 **What happened.** Built the self-set status reference impl per `tasks/RUNBOOK_PROTO_STATUS_2.md` (PROTO-STATUS.0/.1 locked design). New `xgen-core/src/status/mod.rs`: the `StatusRecord` type + validating constructor + `is_expired`, plus the resolution wiring (`status_state_key` + `StatusStore`) and 19 unit tests. Track A (protocol), Clair (impl seat).

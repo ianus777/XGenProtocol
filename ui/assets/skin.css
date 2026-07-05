@@ -1677,3 +1677,89 @@ html, body {
   margin-left: 0;
   margin-right: 0;
 }
+
+/* ───────────────────────────────────────────────────
+ * entity-avatar (.entity-avatar) — the FIRST data-dependent component (M-RP5.0, dd-ATOMIC).
+ *   Root IS <figure class="entity-avatar" role="img"> (N-075 dd-root = honest HTML). SEED-
+ *   COLOURED (fill/text/border ride inline --seed-bg/fg/bd the component injects from the
+ *   shared seedColour helper — the chip/led --*-colour mechanism); NO --accent dependency, so
+ *   an entity reads identical under gold or blue. The skin owns SHAPE + SIZE + BADGES only.
+ *   `data-shape` circle (identity + DM) vs rounded-square (non-DM space); `data-variant` xs
+ *   (presence) vs sm (list, + initials); `data-ai` a self-drawn spark badge (::after, FIXED
+ *   violet — not accent, keeps seed shell-independence); `data-revoked` greyed + a diagonal
+ *   slash (::before). PROVISIONAL. ── */
+.entity-avatar {
+  --ea-size: 28px; /* sm (list); presence overrides to xs below */
+  --ea-ai: #6d5ce7; /* isAi badge — FIXED (not --accent), shell-independent */
+  --ea-spark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23fff'%3E%3Cpath d='M12 2l1.7 6.7L20 10l-6.3 1.3L12 18l-1.7-6.7L4 10l6.3-1.3z'/%3E%3C/svg%3E");
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0; /* reset the UA <figure> margin */
+  width: var(--ea-size);
+  height: var(--ea-size);
+  border-radius: 50%; /* circle default (identity + DM space) */
+  background: var(--seed-bg);
+  border: 1px solid var(--seed-bd);
+  color: var(--seed-fg);
+  overflow: visible; /* badges sit on the rim */
+  user-select: none;
+}
+/* C — non-DM space = rounded-square (a container, not a person) */
+.entity-avatar[data-shape="square"] {
+  border-radius: var(--rad2);
+}
+/* F — variant presets: presence = xs glyph only; list = sm + initials */
+.entity-avatar[data-variant="presence"] {
+  --ea-size: 14px;
+}
+.entity-avatar[data-variant="list"] {
+  --ea-size: 28px;
+}
+/* initials — rendered only in the list variant (uppercased in the component) */
+.entity-avatar .ea-initials {
+  font-size: calc(var(--ea-size) * 0.4);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--seed-fg);
+}
+/* D — isAi spark badge: a fixed-violet disc + white spark on the rim, size-scaled */
+.entity-avatar[data-ai]::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: calc(var(--ea-size) * 0.42);
+  height: calc(var(--ea-size) * 0.42);
+  min-width: 7px;
+  min-height: 7px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1px solid var(--s);
+  background-color: var(--ea-ai);
+  background-image: var(--ea-spark);
+  background-size: 68%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+/* D — revoked: greyed + dimmed, with a diagonal slash across the shape */
+.entity-avatar[data-revoked] {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+.entity-avatar[data-revoked]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    to bottom right,
+    transparent calc(50% - 1px),
+    var(--t4) calc(50% - 1px),
+    var(--t4) calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+}

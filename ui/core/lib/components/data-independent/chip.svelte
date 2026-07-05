@@ -16,7 +16,12 @@
   // `×` on the RIGHT, `×`-only (the chip body stays inert-selectable for later); `onRemove?`
   // fires on click; the glyph is a masked stroke (`--chip-x`, N-052 lineage). `removable?`
   // default true — false drops the `×`, same fill. Plain props, no `$bindable` (display token).
+  //
+  // The hash + muted band was FACTORED OUT to the shared `seedColour` helper at M-RP5.0
+  // (entity-avatar, the first dd-atomic, reuses it). Output is byte-identical to the prior
+  // inline computation — `seedColour(label)` returns the same `{bg,fg,bd}` strings.
   import { envelope } from '$common/components/base/envelope';
+  import { seedColour } from '$common/components/base/seed-colour';
 
   let {
     label = '',
@@ -32,17 +37,10 @@
     register?: boolean;
   } = $props();
 
-  // Deterministic string hash → hue 0..359 (djb2-ish). Content-derived, stable per label.
-  const hue = $derived.by(() => {
-    let h = 5381;
-    for (let i = 0; i < label.length; i++) h = ((h << 5) + h + label.charCodeAt(i)) | 0;
-    return ((h % 360) + 360) % 360;
-  });
-
-  // Fixed muted S/L band — fill light, text dark, border mid — all same hue. Never white.
-  const bg = $derived(`hsl(${hue} 45% 82%)`);
-  const fg = $derived(`hsl(${hue} 55% 30%)`);
-  const bd = $derived(`hsl(${hue} 40% 80%)`);
+  // Content-derived muted-band colour — factored to the shared `seedColour` helper (M-RP5.0).
+  // `{bg,fg,bd}` are byte-identical to the prior inline hash+band; the fill is light, text dark,
+  // border mid, all the same hue, never white. Deterministic + shell-independent.
+  const seed = $derived(seedColour(label));
 
   // Registration opt-out (N-064): a consumer rendering chips dynamically (tag-select) passes
   // register={false} so the chip renders + stamps `.chip` but does NOT self-register (envelope
@@ -53,7 +51,7 @@
 <span
   class="chip"
   use:envelope={{ name: 'chip', id, debug }}
-  style="--chip-bg: {bg}; --chip-fg: {fg}; --chip-bd: {bd}"
+  style="--chip-bg: {seed.bg}; --chip-fg: {seed.fg}; --chip-bd: {seed.bd}"
 >
   <span class="chip-label">{label}</span>
   {#if removable}

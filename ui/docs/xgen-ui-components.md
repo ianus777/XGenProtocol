@@ -1,8 +1,8 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.46  
+> Version: 0.47  
 > Date: Jun 2026  
-> **Last updated**: 2026-07-04  
+> **Last updated**: 2026-07-05  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -20,11 +20,11 @@ This file records the data-independent **catalogue** (the intended control vocab
 
 The live registry of components actually authored in the tree (N-019). **Tier** marks the home crate-mirror (N-026): `common` = shared substrate, `core` = the reference component library. **Phase** marks the build-layer a component's binding demands (N-028): A = pure Svelte · B = Svelte + Tauri · C = all three layers — orthogonal to the di/dd class axis. The catalogue/seed tables below remain the *intended* vocabulary; a row graduates here once built.
 
-> **Test-bed (M-RP3.0, D-097/D-098, N-044):** from `date` onward these components are built, tuned, and CDP-verified in the **`xgen-sampler`** app (a third Tauri/WebView2 sibling, ports Vite 5175 / CDP 9422; populated M-RP3.1 with all 10 components live in a 22-cell grid, N-045), not by wiring demos into the real client/node shells. The sampler hosts the library in isolation with a live client↔node skin-swap; the real shells are reserved for integration + the two-apps-together interaction the sampler structurally cannot exercise. **(M-RP3.2, N-053):** the sampler is now a **four-panel tab container** keyed by class×arity — **DI · atomic** (the current 44-cell grid, INTERACTIVE/DISPLAY/NAVIGATION sub-headers) / **DI · composite** / **DD · atomic** / **DD · composite** (the latter three empty placeholders for now). All panels stay mounted (inactive hidden via CSS, never `{#if}`) so the CDP registry stays complete; the skin-swap stays global above the tabs.
+> **Test-bed (M-RP3.0, D-097/D-098, N-044):** from `date` onward these components are built, tuned, and CDP-verified in the **`xgen-sampler`** app (a third Tauri/WebView2 sibling, ports Vite 5175 / CDP 9422; populated M-RP3.1 with all 10 components live in a 22-cell grid, N-045), not by wiring demos into the real client/node shells. The sampler hosts the library in isolation with a live client↔node skin-swap; the real shells are reserved for integration + the two-apps-together interaction the sampler structurally cannot exercise. **(M-RP3.2, N-053):** the sampler is now a **four-panel tab container** keyed by class×arity — **DI · atomic** (the current 44-cell grid, INTERACTIVE/DISPLAY/NAVIGATION sub-headers) / **DI · composite** / **DD · atomic** (first occupant `entity-avatar`, M-RP5.0/N-075) / **DD · composite** (empty placeholder for now). All panels stay mounted (inactive hidden via CSS, never `{#if}`) so the CDP registry stays complete; the skin-swap stays global above the tabs.
 
 | Component | Tier | Phase | Class · semantic | Root | Path | Debug | Ref |
 |---|---|---|---|---|---|---|---|
-| base (substrate) | `common` | — | foundation | — | `ui/common/lib/components/base/{logic,envelope,debug}.ts` | provides `use:envelope` + `window.__XGEN_DEBUG__` registry | N-023/N-024 |
+| base (substrate) | `common` | — | foundation | — | `ui/common/lib/components/base/{logic,envelope,debug,seed-colour}.ts` | provides `use:envelope` + `window.__XGEN_DEBUG__` registry; `seedColour` content-hash → muted-band colour (chip + entity-avatar, N-064/N-075) | N-023/N-024 |
 | toggle | `core` | A | data-independent · boolean-toggle | `<input type="checkbox">` | `ui/core/lib/components/data-independent/toggle.svelte` | `() => $state.snapshot({ checked })` | N-022/N-024/N-030 |
 | button | `core` | A | data-independent · action-trigger | `<button>` | `ui/core/lib/components/data-independent/button.svelte` | `() => $state.snapshot({ clicks, disabled, pressed })` | N-022/N-024/N-028/N-030 |
 | textfield | `core` | A | data-independent · string-input family (`type`) | `<input type=…>` | `ui/core/lib/components/data-independent/textfield.svelte` | `() => $state.snapshot({ type, value })` | N-022/N-024/N-029/N-038/N-039 |
@@ -38,6 +38,7 @@ The live registry of components actually authored in the tree (N-019). **Tier** 
 | converter-field | `core` | A | data-independent · converter/bridge (kind 2) | `<input type="text">` | `ui/core/lib/components/data-independent/converter-field.svelte` | `() => $state.snapshot({ value, text, valid })` | N-022/N-024/N-056/N-070 |
 | meter | `core` | A | data-independent · display-kind bounded value bar | `<meter>` | `ui/core/lib/components/data-independent/meter.svelte` | `() => $state.snapshot({ value, min, max, optimum, fill })` | N-022/N-024/N-032/N-071/N-072 |
 | section | `core` | A | data-independent · collapsible disclosure container | `<section>` | `ui/core/lib/components/data-independent/section.svelte` | `() => $state.snapshot({ title, badge, collapsible, collapsed, width })` | N-022/N-024/N-073/N-074 |
+| entity-avatar | `core` | A | **data-dependent** · identity/space visual token | `<figure role="img">` | `ui/core/lib/components/data-dependent/entity-avatar.svelte` | `() => ({ kind, variant, name, initials, seed, flags })` | N-011/N-018/N-075 |
 
 First built `core` component, authored at M-RP2.3 as the substrate proof: verified live in **both** apps (client 9222 / node 9322) — `snapshot()` returned real `{checked:false}`, flip → `{checked:true}` confirmed live reactive reads.
 
@@ -177,7 +178,7 @@ One row per component. Root tag discriminates atomic (no sub-components) vs comp
 
 | Component | Root | Binding | Composed-of | Purpose |
 |---|---|---|---|---|
-| entity-avatar | `<div class="entity-avatar">` | `IdentityRecord \| SpaceState` | — | identity/locality visual token; dynamic by kind (N-011/N-018) |
+| entity-avatar | `<figure class="entity-avatar" role="img">` | `EntityDescriptor` (source-agnostic seam) | — | ✅ **BUILT** (M-RP5.0, J-462) — the **first dd**, dd-atomic; identity/space visual token, shape branches on kind; `variant` presence/list; seed-coloured; isAi/revoked badges; menu seam reserved (N-075) |
 | container-list-item | `<div class="container-list-item">` | `SpaceState \| RoomState` | — | one row in a container list; dynamic by kind (N-013) |
 | section-header | `<div class="section-header">` | none | — | ⬛ DEPRECATED — superseded by the built **`section`** di atomic (M-RP2.31, N-073): a collapsible disclosure container (root `<section>`) whose header + body cover the divider role; a bare `section` with no body is the divider case |
 | visit-card | `<div class="visit-card">` | `IdentityRecord` (tiers) | — | public profile render; tier-relative decay (N-010) |
@@ -185,6 +186,8 @@ One row per component. Root tag discriminates atomic (no sub-components) vs comp
 | spaces-panel | `<div class="spaces-panel">` | `[SpaceState]` | container-list-item ×N + section-header | joined-Spaces panel (N-022 worked example) |
 | outbox-card | `<div class="outbox-card">` | event catalog §I.2 | icon + title + description + accent + action-row | one unresolved event, friendly register (N-017) |
 | console | `<div class="console">` | O + G (D-056) | scrollback + input-line | tilde-invoked CLI surface (N-015/N-016) |
+
+> **Build note (M-RP5.0):** `entity-avatar` is now **built** — the **first data-dependent component** (dd-**atomic**), the first `data-dependent/` occupant. It materializes ONE address-book entry (identity or space) into a visual; the rendered **shape branches on the data** (the dd ≠ di line): identity + DM space = circle, non-DM space = rounded-square. **The dd-root rule (N-075):** dd does NOT inherit the di `<div>`=composite litmus — a dd root is honest HTML for the materialized thing (`<figure role="img">`, `aria-label={name ?? kind}`, `<figcaption>` reserved for `labeled`/`card`); class×arity reads from folder + panel + getter. Consumes a source-agnostic **`EntityDescriptor { kind, name?, id, flags{isAi?,revoked?,isDm?,e2e?}, image? }`** (the W-11 dd-socket payload) — `core` imports **no** `IdentityRecord`/`SpaceState`; the shell owns the protocol → descriptor map. Colour = the shared **`seedColour(name ?? id)`** base helper (factored out of `chip`, byte-identical; no `--accent` dependency → shell-independent). `initials` = 1–2 graphemes of `name` (grapheme-safe), absent → xgid-tail fallback. Primary axis = **`variant`** (purpose): `presence` (xs, glyph) / `list` (sm, + initials) — size/content derived, not free props. Badges self-drawn (not a nested `led`): `isAi` `::after` spark, `revoked` grey + `::before` slash. `onActivate?` reserved (menu seam, M-RP5.3). Getter `{ kind, variant, name, initials, seed, flags }`. CDP-verified in the sampler **DD·atomic** panel (D-097): `ids()` **115→124** (9 cells), FIGURE/role=img, shape-per-kind, `absent→"AZ"` fallback, seed client↔node identical (`seedMatch:true`), isAi/revoked pseudos in cascade (8 `.entity-avatar*` rules), chip 0-regression, 0 orphans. See N-075.
 
 *Read-only display primitives (`<progress>` / `<meter>` / `<output>`) remain deferred from the di side; likely land here as small data-derived rows when first needed.*
 

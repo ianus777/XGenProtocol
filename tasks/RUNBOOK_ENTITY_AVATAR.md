@@ -1,6 +1,6 @@
 # Runbook — M-RP5.0 `entity-avatar` (first dd-atomic)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  
@@ -77,9 +77,9 @@ Build runbook for `entity-avatar` — the **first data-dependent component** (dd
 
 ## Definition of Done
 
-- [ ] `seedColour` helper shared; `chip` re-verified 0 regression.
-- [ ] `entity-avatar.svelte` built; root `<figure role="img">`; getter G; `onActivate?` + `<figcaption>` reserved; no protocol imports.
-- [ ] `.entity-avatar` skin; seed-coloured, no accent dependency.
-- [ ] sampler DD·atomic panel populated (kind×variant + edge cells).
-- [ ] CDP-verified: getter fields, shape-per-kind, badges, fallback, seed shell-independence, registry delta, **0 orphans** — real output quoted.
-- [ ] records closed atomically (D-074): ui-notes N-075, registry v0.47, ROADMAP, phase0 lock, CLAUDE PLAY→J-462, JOURNAL J-462, runbook→COMPLETED.
+- [x] `seedColour` helper shared (`ui/common/lib/components/base/seed-colour.ts`); `chip` re-verified 0 regression (per-label fills byte-identical: rust→h307, svelte→h216, long→h60).
+- [x] `entity-avatar.svelte` built; root `<figure role="img">`; getter G `{kind,variant,name,initials,seed,flags}`; `onActivate?` wired + `<figcaption>` reserved (in-file comment seam); no protocol imports (`EntityDescriptor` seam in `data-dependent/types.ts`).
+- [x] `.entity-avatar` skin; seed-coloured (`--seed-*`), no accent dependency (verified `seedMatch:true` client↔node).
+- [x] sampler DD·atomic panel populated (identity/space/DM × presence/list + absent/revoked/isAi = 9 cells).
+- [x] CDP-verified: getter fields, shape-per-kind, isAi/revoked badges, absent→"AZ" fallback, seed shell-independence, registry **115→124**, **0 orphans** — real output quoted in J-462.
+- [x] records closed atomically (D-074): ui-notes N-075 (v0.59), registry v0.47, ROADMAP v4.31, phase0 A–H LOCKED, CLAUDE PLAY→J-462, JOURNAL J-462, runbook + handoff→COMPLETED.

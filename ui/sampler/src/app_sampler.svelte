@@ -47,6 +47,7 @@
   import ConverterField from '$core/components/data-independent/converter-field.svelte';
   import Meter from '$core/components/data-independent/meter.svelte';
   import Section from '$core/components/data-independent/section.svelte';
+  import EntityAvatar from '$core/components/data-dependent/entity-avatar.svelte'; // first dd-atomic (M-RP5.0)
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -175,6 +176,18 @@
     { value: 'two', label: 'Two' },
     { value: 'three', label: 'Three' },
   ];
+
+  // entity-avatar (M-RP5.0, first dd-atomic) — source-agnostic EntityDescriptor view-models
+  // (the shell owns the protocol -> descriptor map; core imports no IdentityRecord/SpaceState).
+  // kind identity + DM space -> circle; non-DM space -> rounded-square. name absent -> xgid-tail
+  // fallback initials. flags drive the isAi spark badge + revoked greyed/slash overlay.
+  const eaIdentity = { kind: 'identity', name: 'Alice Ng', id: 'xgen://identity/alice-7f3a', flags: {} };
+  const eaSpace = { kind: 'space', name: 'Dev Team', id: 'xgen://space/dev-2b11', flags: {} };
+  const eaDm = { kind: 'space', name: 'Bob Lee', id: 'xgen://space/dm-bob-9c04', flags: { isDm: true } };
+  const eaAnon = { kind: 'identity', id: 'xgen://identity/anon-55az', flags: {} }; // no name -> "AZ"
+  const eaRevoked = { kind: 'identity', name: 'Mallory', id: 'xgen://identity/mal-1', flags: { revoked: true } };
+  const eaAi = { kind: 'identity', name: 'Aria Bot', id: 'xgen://identity/aria-ai', flags: { isAi: true } };
+  let eaActivated = $state(0); // onActivate spy (reserved menu seam) for CDP
 
   // select-multiple shares the N-034 options-prop shape (carried over from `select`).
   const smOptions = [
@@ -481,12 +494,42 @@
   </div>
 </div>
 
-<!-- DD · atomic -->
+<!-- DD · atomic — first occupant: entity-avatar (M-RP5.0). kind x variant grid + edge cells -->
 <div class="sampler-panel" class:hidden={activeTab !== 'dd-atomic'}>
   <div class="sampler-body">
-    <div class="s-empty">
-      <strong>No components yet</strong>
-      <span>Atomic data-derived components land here (downstream of the di catalogue).</span>
+    <div class="s-section-title">Atomic</div>
+
+    <div class="s-row">
+      <div class="s-rowname">entity-avatar · identity</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">entity-avatar#identity-presence</span><EntityAvatar descriptor={eaIdentity} variant="presence" onActivate={() => eaActivated++} id="identity-presence" /></div>
+        <div class="s-cell"><span class="s-id">entity-avatar#identity-list</span><EntityAvatar descriptor={eaIdentity} variant="list" onActivate={() => eaActivated++} id="identity-list" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">entity-avatar · space</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">entity-avatar#space-presence</span><EntityAvatar descriptor={eaSpace} variant="presence" id="space-presence" /></div>
+        <div class="s-cell"><span class="s-id">entity-avatar#space-list</span><EntityAvatar descriptor={eaSpace} variant="list" id="space-list" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">entity-avatar · DM</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">entity-avatar#dm-presence</span><EntityAvatar descriptor={eaDm} variant="presence" id="dm-presence" /></div>
+        <div class="s-cell"><span class="s-id">entity-avatar#dm-list</span><EntityAvatar descriptor={eaDm} variant="list" id="dm-list" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">entity-avatar · edge</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">entity-avatar#absent</span><EntityAvatar descriptor={eaAnon} variant="list" id="absent" /></div>
+        <div class="s-cell"><span class="s-id">entity-avatar#revoked</span><EntityAvatar descriptor={eaRevoked} variant="list" id="revoked" /></div>
+        <div class="s-cell"><span class="s-id">entity-avatar#ai</span><EntityAvatar descriptor={eaAi} variant="list" id="ai" /></div>
+      </div>
     </div>
   </div>
 </div>

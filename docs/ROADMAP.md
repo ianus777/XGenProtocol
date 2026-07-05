@@ -1,8 +1,8 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 4.29  
+> Version: 4.30  
 > Date: May 2026  
-> **Last updated**: 2026-07-04  
+> **Last updated**: 2026-07-05  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -684,6 +684,8 @@ The track the project is actively working on right now. Detail here is the most 
 > **M-RP2.31 `section` ✅ DONE (J-459):** the **27th `core`**, root native `<section>` — a **collapsible disclosure container** (di, binding none; **atomic-ish** — composes no registering child components, one getter per instance). Optional header `<h{level} class="section-header">` (title + `badge?: string` programmatic + chevron) over a `<div class="section-body">` `children` slot. `collapsible?`/`collapsed?` ($bindable) hide the body via `[data-collapsed]` `display:none` (slot stays mounted); **nesting is free** (a `section` in the body → its own id). `<div>`-body (honest neutral container for arbitrary/nestable content); **solid header band** (future bg-colour/picture widget-mods). Chevron **reuses combobox's `--tri`/`--tri-open` masked glyphs**, swapped on collapse. Filter/search deferred (a panel/widget concern, not this component). **Supersedes the seed `section-header`** (⬛ DEPRECATED). Getter `{title, badge, collapsible, collapsed}`. Sampler-verified (9422): registry **108→114**, getters exact, `SECTION`/`<h2>`, `#bare` headerless, `#nested` body holds a child `<section>`, collapse → `[data-collapsed]`/`aria-expanded=false`/body `display:none`/chevron swap, 12 `.section*` rules in cascade, 0 orphans. Next-active → the dd track opens for real (`entity-avatar` domain-bound, D-071-audited: IdentityRecord/SpaceState → `container-list-item` → `spaces-panel` composes `section` + rows).
 
 > **M-RP2.31a `section` `width?` ✅ DONE (J-460):** additive amendment — an optional **`width?`** prop (string, e.g. `"320px"`) → inline `width` on the root `<section>`; unset = **100%** (fills container). `.section` gains `min-width:160px` + `box-sizing:border-box`. Getter gains `width` (meter precedent). Sampler-verified (9422): `#fixed {…,width:"320px"}` + computed `width:320px`, `#plain` unset + `min-width:160px`, registry **114→115**, 0 orphans. Next-active → dd track opens.
+
+⚫ **Track A — self-set status protocol arc — CLOSED (J-461).** A parallel protocol arc opened while the dd track was scoped: self-set status (emoji + description line) was found to be entirely absent from the protocol (audit of `IdentityRecord`/`SpaceState` — only system-derived `revoked`/`is_ai`/`member_temperature`/`active_mutes` exist). Closed in three doc phases + one impl: **PROTO-STATUS.0 ✅** (dedicated `state.status` object, not on `IdentityRecord`; shape `{emoji?,text?,updated_at,expires_at?}`, global/public, presence excluded) → **PROTO-STATUS.1 ✅** (key `state.status/<identity_xgid>`, caps: 1-grapheme emoji / ≤128B text / `expires_at` now+60s..30d, clear-by-delete, lazy expiry) → **PROTO-STATUS.2 ✅** (Clair reference impl: new `xgen-core/src/status/` module, `StatusRecord` + validating ctor + `is_expired`, reuse `state.*` resolution + owner-write guard, 19 tests; 1502 passed / 0 failed workspace, clippy clean; Appendix I §V.4 entry, J-461). Docs: `xgen-status-gap-phase0.md`, `xgen-proto-status-phase0.md`, `xgen-proto-status-spec.md`, `tasks/RUNBOOK_PROTO_STATUS_2.md`. **Gates the status-bearing `entity-avatar` variants (Track B, M-RP5.2).** Deferred: per-space status, visibility gating, presence.
 
 ✅ **Documentation-optimization phase (pre-UI consolidation) — COMPLETE (J-396).** Discharged the doc bloat the M8→M12 sprint left while reference/operational records lagged. Doc-only; no code. All five sub-steps done.
 

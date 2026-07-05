@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.50  
+> Version: 0.51  
 > Date: Jun 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  
@@ -38,7 +38,7 @@ The live registry of components actually authored in the tree (N-019). **Tier** 
 | converter-field | `core` | A | data-independent · converter/bridge (kind 2) | `<input type="text">` | `ui/core/lib/components/data-independent/converter-field.svelte` | `() => $state.snapshot({ value, text, valid })` | N-022/N-024/N-056/N-070 |
 | meter | `core` | A | data-independent · display-kind bounded value bar | `<meter>` | `ui/core/lib/components/data-independent/meter.svelte` | `() => $state.snapshot({ value, min, max, optimum, fill })` | N-022/N-024/N-032/N-071/N-072 |
 | section | `core` | A | data-independent · collapsible disclosure container | `<section>` | `ui/core/lib/components/data-independent/section.svelte` | `() => $state.snapshot({ title, badge, collapsible, collapsed, width })` | N-022/N-024/N-073/N-074 |
-| entity-avatar | `core` | A | **data-dependent** · identity/space visual token; `variant` presence/list/labeled/card; +`status?` corner-slot | `<figure role="img">` | `ui/core/lib/components/data-dependent/entity-avatar.svelte` | `() => ({ kind, variant, name, initials, seed, flags })` | N-011/N-018/N-075/N-076/N-077 |
+| entity-avatar | `core` | A | **data-dependent** · identity/space/room visual token (kind→shape: circle/square/hexagon); `variant` presence/list/labeled/card; +`status?` corner-slot | `<figure role="img">` | `ui/core/lib/components/data-dependent/entity-avatar.svelte` | `() => ({ kind, variant, name, initials, seed, flags })` | N-011/N-018/N-075/N-076/N-077/N-080 |
 | entity-item | `core` | C | **data-dependent** · entity display unit (composite; composes `entity-avatar`); row/nav/inline forward status→avatar corner (M-RP5.2) | `<div class="entity-item">` | `ui/core/lib/components/data-dependent/entity-item.svelte` | `() => ({ variant, kind, name, hasSecondary, hasStatus, selected })` | N-075/N-076/N-078 |
 | status | `core` | A | **data-dependent** · self-status (emoji + line); `variant` badge/line/full | `<span class="status">` | `ui/core/lib/components/data-dependent/status.svelte` | `() => ({ variant, emoji, hasText, expired })` | N-075/N-077 |
 | entity-panel | `core` | C | **data-dependent** · roving-focus entity listbox (composite; wraps `section` + `entity-item ×N`) | `<section>` → `<ul role="listbox">` | `ui/core/lib/components/data-dependent/entity-panel.svelte` | `() => ({ count, selected, collapsed, hasEmpty })` | N-075/N-078 |
@@ -181,7 +181,7 @@ One row per component. Root tag discriminates atomic (no sub-components) vs comp
 
 | Component | Root | Binding | Composed-of | Purpose |
 |---|---|---|---|---|
-| entity-avatar | `<figure class="entity-avatar" role="img">` | `EntityDescriptor` (source-agnostic seam) | +`status` (corner-slot) | ✅ **BUILT** (M-RP5.0, J-462; +`status?` slot M-RP5.1b, J-464) — the **first dd**, dd-atomic; identity/space visual token, shape branches on kind; `variant` presence/list/labeled/card; seed-coloured; isAi/revoked badges; menu seam reserved; +optional bottom-right self-status badge; isAi spark → top-right (corner-fix H, M-RP5.2) (N-075/N-077/N-078) |
+| entity-avatar | `<figure class="entity-avatar" role="img">` | `EntityDescriptor` (source-agnostic seam) | +`status` (corner-slot) | ✅ **BUILT** (M-RP5.0, J-462; +`status?` slot M-RP5.1b, J-464) — the **first dd**, dd-atomic; identity/space/**room** visual token, shape branches on kind (circle / rounded-square / **hexagon**, M-RP5.0c); `variant` presence/list/labeled/card; seed-coloured; isAi/revoked badges; menu seam reserved; +optional bottom-right self-status badge; isAi spark → top-right (corner-fix H, M-RP5.2) (N-075/N-077/N-078/N-080) |
 | status | `<span class="status" role="img">` (badge) / `<span class="status">` (line/full) | `state.status` view-model (source-agnostic) | — | ✅ **BUILT** (M-RP5.1a, J-464) — self-status dd-atomic; `variant` badge/line/full; badge rides the avatar corner-slot; expired → mounted-but-empty; the `.status[data-variant]` scope avoids the combobox/tag-select naming collision (N-077) |
 | container-list-item | `<div class="container-list-item">` | `SpaceState \| RoomState` | — | ⬛ SUPERSEDED — built as **`entity-item`** (M-RP5.1, J-463, renamed): the variant-driven dd-**composite** display unit (composes `entity-avatar`); see the built catalogue + N-076 |
 | section-header | `<div class="section-header">` | none | — | ⬛ DEPRECATED — superseded by the built **`section`** di atomic (M-RP2.31, N-073): a collapsible disclosure container (root `<section>`) whose header + body cover the divider role; a bare `section` with no body is the divider case |

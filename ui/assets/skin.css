@@ -1711,6 +1711,18 @@ html, body {
 .entity-avatar[data-shape="square"] {
   border-radius: var(--rad0);
 }
+/* C — room = hexagon (a location peer to space, M-RP5.0c). clip-path defines the hull; the seed
+ * FILL reads the shape. NOTE (PROVISIONAL): clip-path clips ALL descendants — the seed border-ring
+ * is diminished on the diagonal edges, and a corner-anchored status badge would be sliced, so the
+ * badge is nudged INSIDE the lower-right hull below. Joe live-tunes via HMR. */
+.entity-avatar[data-shape="hexagon"] {
+  border-radius: 0;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+.entity-avatar[data-shape="hexagon"] .status {
+  right: calc(var(--ea-size) * 0.04);
+  bottom: calc(var(--ea-size) * 0.26);
+}
 /* F — variant presets: presence = xs glyph only; list/labeled/card = + initials at ascending
  * sizes. labeled/card are the M-RP5.1 additive amendment (pre-announced at M-RP5.0); they differ
  * from list only in glyph size — the name text lives in entity-item's text column, not here. */

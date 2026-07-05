@@ -190,6 +190,8 @@
   const eaAnon = { kind: 'identity', id: 'xgen://identity/anon-55az', flags: {} }; // no name -> "AZ"
   const eaRevoked = { kind: 'identity', name: 'Mallory', id: 'xgen://identity/mal-1', flags: { revoked: true } };
   const eaAi = { kind: 'identity', name: 'Aria Bot', id: 'xgen://identity/aria-ai', flags: { isAi: true } };
+  // room (M-RP5.0c) — a location peer to space; shape branches to hexagon (clip-path).
+  const eaRoom = { kind: 'room', name: 'general', id: 'xgen://room/general-1a', flags: {} };
   let eaActivated = $state(0); // onActivate spy (reserved menu seam) for CDP
 
   // entity-item (M-RP5.1, first dd-composite) — composes the real entity-avatar (single-knob
@@ -234,6 +236,12 @@
   let epSelDms = $state();
   let epCollapsed = $state(true);
   let epActivated = $state(0); // onActivate spy for CDP
+  // room-kind panel (M-RP5.0c) — proves item/panel ripple hexagon avatars with no item/panel code.
+  const epRooms = [
+    { descriptor: { kind: 'room', name: 'general', id: 'xgen://room/general-1a', flags: {} }, meta: '9' },
+    { descriptor: { kind: 'room', name: 'dev', id: 'xgen://room/dev-2b', flags: {} } },
+  ];
+  let epSelRooms = $state();
 
   // select-multiple shares the N-034 options-prop shape (carried over from `select`).
   const smOptions = [
@@ -581,6 +589,15 @@
       </div>
     </div>
 
+    <div class="s-row">
+      <div class="s-rowname">entity-avatar · room (M-RP5.0c)</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">entity-avatar#room-presence</span><EntityAvatar descriptor={eaRoom} variant="presence" id="room-presence" /></div>
+        <div class="s-cell"><span class="s-id">entity-avatar#room-list</span><EntityAvatar descriptor={eaRoom} variant="list" id="room-list" /></div>
+        <div class="s-cell"><span class="s-id">entity-avatar#room-status</span><EntityAvatar descriptor={eaRoom} variant="list" status={stAvatar} id="room-status" /></div>
+      </div>
+    </div>
+
     <div class="s-section-title">Self-status (M-RP5.1a)</div>
 
     <div class="s-row">
@@ -651,6 +668,14 @@
       <div class="s-cells">
         <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-panel#empty</span><EntityPanel items={[]} title="Blocked" emptyText="No blocked users." id="empty" /></div>
         <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-panel#collapsed</span><EntityPanel items={epArchived} title="Archived" badge="2" collapsible bind:collapsed={epCollapsed} id="collapsed" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">room ripple (M-RP5.0c)</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-item#room-item</span><EntityItem descriptor={eaRoom} variant="row" meta="9" id="room-item" /></div>
+        <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-panel#rooms</span><EntityPanel items={epRooms} title="Rooms" bind:selected={epSelRooms} id="rooms" /></div>
       </div>
     </div>
   </div>

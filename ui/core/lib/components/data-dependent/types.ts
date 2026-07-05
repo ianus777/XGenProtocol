@@ -4,8 +4,9 @@
 // protocol → descriptor map; the dd owns kind → presentation.
 
 /**
- * `EntityDescriptor` — a record projection of ONE address-book entry (an identity or a
- * space), source-agnostic. This IS the W-11 dd-socket payload (`temperature-indicator`
+ * `EntityDescriptor` — a record projection of ONE address-book entry (an identity, a space,
+ * or a room — a location peer to space), source-agnostic. This IS the W-11 dd-socket payload
+ * (`temperature-indicator`
  * and future dd-consumers plug into the same slot shape).
  *
  * - `kind` stays on the descriptor so the dd still BRANCHES on it (a domain view-model,
@@ -25,7 +26,7 @@ export interface EntityFlags {
 }
 
 export interface EntityDescriptor {
-  kind: 'identity' | 'space';
+  kind: 'identity' | 'space' | 'room'; // room = a location peer to space (M-RP5.0c, hexagon)
   name?: string;
   id: string;
   flags?: EntityFlags;

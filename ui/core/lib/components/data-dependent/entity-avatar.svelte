@@ -51,8 +51,15 @@
   const flags = $derived(descriptor.flags ?? {});
 
   // C — kind → shape. identity = circle; DM space = circle (people-shaped); non-DM space =
-  // rounded-square. The dd's shape branches on the data — this is the dd ≠ di line.
-  const shape = $derived(kind === 'space' && !flags.isDm ? 'square' : 'circle');
+  // rounded-square; room = hexagon (a location peer to space, M-RP5.0c). The dd's shape branches
+  // on the data — this is the dd ≠ di line. (ring/seed/initials/status all inherit unchanged.)
+  const shape = $derived(
+    kind === 'room'
+      ? 'hexagon'
+      : kind === 'space' && !flags.isDm
+        ? 'square'
+        : 'circle',
+  );
 
   // E — content-derived colour, seeded on `name ?? id` (an absent-name avatar still gets a
   // stable colour). The shared `seedColour` helper (chip's muted band); NO `--accent`

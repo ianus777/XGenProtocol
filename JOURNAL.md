@@ -8,6 +8,38 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-467 — M-RP5.0c CLOSED: the `room` kind — a third entity kind (hexagon avatar), additive to `EntityDescriptor` + `entity-avatar`; ripples free through item/panel
+
+**What happened.** Added **`room`** as a third entity kind per `tasks/RUNBOOK_ROOM_KIND.md` (design Joe-locked A–E, Phase-0 `docs/xgen-dd-room-kind-phase0.md` v1.1). A room is a first-class location entity — a peer to `space` (a room/channel inside a space), NOT a variant of it. Additive to `EntityDescriptor` + the `entity-avatar` shape branch; **ripples free** through `entity-item`/`entity-panel` with zero code change there. Clair (impl seat); full D-074 close.
+
+**What it is.** `kind: 'room'` (Option A — own kind; `flags.isRoom` Option B rejected as it hides a location peer inside `space` and muddies the taxonomy). Kind → shape: `identity` = circle · `space` (non-DM) = rounded-square · DM (`space`+`flags.isDm`) = circle · **`room` = hexagon**. `EntityDescriptor.kind` union `'identity' | 'space'` → `+ 'room'` (source-agnostic; `core` protocol-free). The `entity-avatar` shape derive gained a `kind === 'room' ? 'hexagon'` branch (`data-shape="hexagon"`); ring/seed/initials/status all inherit — no structure change.
+
+**Hexagon skin (`clip-path`, PROVISIONAL).** `.entity-avatar[data-shape="hexagon"] { clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%) }` (a pointy-top hexagon). Two `clip-path` consequences, both surfaced + accepted (Joe HMR-tunes, same posture as `meter`/`range`): (1) the seed **border-ring** is diminished on the diagonal edges (clip clips the border-box) — the seed FILL carries the shape; (2) the status corner badge would be **sliced** by the clip (it is a descendant of the clipped element), so `.entity-avatar[data-shape="hexagon"] .status` is **nudged onto the lower-right hull** (inset `right`/`bottom`, tuned via HMR) instead of the box-corner `-3px` — decision C. Initials stay centered (the base flex `justify/align:center` is untouched by clip — decision D).
+
+**Ripple (free — the reason it's a kind, not a component).** `entity-item` (variant=row) and `entity-panel` compose `entity-avatar`; a `room` descriptor flows straight through with **no `entity-item`/`entity-panel` code change**. Only four files touched: `types.ts` (kind union), `entity-avatar.svelte` (shape branch), `skin.css` (hexagon), `app_sampler.svelte` (cells).
+
+**Verify — real CDP output (Rule 2), sampler DD·atomic + DD·composite, port 9422.** `vite build` clean (154 modules; only the pre-existing `<figure>` a11y note). Room getter + shape + clip + initials + 0-regression:
+```
+{"roomGetter":{"kind":"room","variant":"list","name":"general","initials":"GE","seed":"hsl(147 45% 82%)","flags":{}},"roomDataShape":"hexagon","roomClipPath":"polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)","roomInitialsText":"GE","roomJustify":"center","roomAlign":"center","statusPos":"absolute","identityShape":"circle","spaceShape":"square","dmShape":"circle","spaceClip":"none","identityGetterKind":"identity"}
+```
+Ripple (DD·composite item + panel room avatars):
+```
+{"itemAvatarShape":"hexagon","panelAvatar1Shape":"hexagon","panelAvatar2Shape":"hexagon","itemAvatarClip":"polygon(50% 0%, 100%…"}
+```
+Registry:
+```
+{"count":185,"unique":185,"roomIds":["entity-avatar#room-item__avatar","entity-avatar#room-list","entity-avatar#room-presence","entity-avatar#room-status","entity-avatar#rooms-dev-2b__avatar","entity-avatar#rooms-general-1a__avatar","entity-item#room-item","entity-item#rooms-dev-2b","entity-item#rooms-general-1a","entity-panel#rooms","section#rooms__section","status#room-status__status"]}
+```
+Reading these out: **kind='room' getter** works, seed-coloured (`hsl(147…)`), initials "GE"; **`data-shape="hexagon"` + clip-path applied**; **initials centered** (`justify/align: center`); status positioned absolute on the hull (nudged, PROVISIONAL). **0-regression**: `identity`=circle, `space`=square (`clip:none`), DM=circle — all unchanged. **Ripple**: `entity-item#room-item`'s avatar + both `entity-panel#rooms` row avatars are `data-shape="hexagon"` with clip-path, **no item/panel code change**. Registry **173→185** (+12 = 3 DD·atomic room avatars + 1 `status#room-status__status` child + item-ripple 2 + panel-ripple 6); `count===unique===185` → **0 orphans**. Screenshot `temp/room-verify.png` (green "GE" hexagons; room-status badge on-hull).
+
+**Verify finding (Rule 3).** A second transient Vite dev-server startup overlay appeared this session ("Can only bind to state or props" at the `entity-panel#rooms` cell). Same class as the M-RP4.9 one: the production build passed, the app was mounted (registry 185, the rooms panel getter `{count:2,…}` read fine — `bind:selected={epSelRooms}` where `epSelRooms = $state()` is valid, identical to the working `epSelDms`), and `location.reload()` cleared it. A dev-server startup race, not a real error — reload to clear, trust the build.
+
+**Records (atomic, D-074).** Edited `ui/core/lib/components/data-dependent/types.ts` (kind union), `entity-avatar.svelte` (shape branch), `ui/assets/skin.css` (hexagon clip-path + status nudge), `ui/sampler/src/app_sampler.svelte` (room cells). Docs: `ui/docs/xgen-ui-notes.md` N-080 (v0.64), `ui/docs/xgen-ui-components.md` registry v0.51 (avatar kind taxonomy += room), `docs/ROADMAP.md` v4.36 (tree tail + M-RP5.0c block), `docs/xgen-dd-room-kind-phase0.md` (Status→COMPLETED v1.2), this PLAY (→ J-467), this entry, runbook → COMPLETED (DoD ticked). No `DECISIONS.md` touch (additive dd-atomic amendment; N-080 is a component note).
+
+**Next-active.** The dd track is complete (avatar/item/status/panel + room kind). Next is the **widget tier**: `entity-context-menu` (M-RP5.3 — the 100% entity read; consumes the reserved `onActivate?`; uses `status full`) → `temperature-indicator` (M-RP5.4 — `meter` via the W-11 dd-socket). Not pushed — Joe pushes.
+
+---
+
 ## Entry J-466 — M-RP4.9 CLOSED: sampler static-header + confined scroll + tab rename (test-bed ergonomics; zero component/registry touch)
 
 **What happened.** Reorganized the `xgen-sampler` shell per `tasks/RUNBOOK_SAMPLER_STATIC_HEADER.md` (design Joe-locked, Phase-0 `docs/xgen-sampler-static-header-phase0.md`): the header block became **fixed**, the panel body became the **only** scroller, and the tab labels were renamed. Sampler-infra only (D-097/D-098) — **no `core` component, no registry delta, no components-doc/DECISIONS touch**. Clair (impl seat); full D-074 close.

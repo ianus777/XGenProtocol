@@ -1,6 +1,6 @@
 # Runbook — M-RP5.0c `room` kind (avatar + descriptor amendment)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  
@@ -41,9 +41,9 @@ Build runbook for the `room` kind. Design locked (`docs/xgen-dd-room-kind-phase0
 
 ## DoD
 
-- [ ] `EntityDescriptor` kind += room; no protocol import.
-- [ ] avatar `room → hexagon`; ring/seed/initials/status inherit; identity/space/DM 0-regression.
-- [ ] `clip-path` hexagon skin + status hull-nudge.
-- [ ] sampler room cells (avatar + item + panel).
-- [ ] CDP-verified: hexagon shape, clip-path, centered initials, status on-hull, item/panel free ripple, registry delta, 0 orphans.
-- [ ] records: N-080, registry v0.51, ROADMAP, phase0→COMPLETED, PLAY→entry, JOURNAL, runbook→COMPLETED.
+- [x] `EntityDescriptor` kind += room; no protocol import.
+- [x] avatar `room → hexagon`; ring/seed/initials/status inherit; identity/space/DM 0-regression. *(CDP: identity=circle, space=square+clip:none, DM=circle unchanged)*
+- [x] `clip-path` hexagon skin + status hull-nudge. *(pointy-top polygon; .status nudged right:0.04·size/bottom:0.26·size; PROVISIONAL — border-ring diminished + badge on-hull are the clip-path tradeoffs, Joe HMR-tunes)*
+- [x] sampler room cells (avatar + item + panel). *(room-presence/list/status + entity-item#room-item + entity-panel#rooms)*
+- [x] CDP-verified: hexagon shape, clip-path, centered initials, status on-hull, item/panel free ripple, registry delta, 0 orphans. *(registry 173→185; room-item/rooms avatars all data-shape=hexagon with NO item/panel code change; screenshot room-verify.png)*
+- [x] records: N-080, registry v0.51, ROADMAP, phase0→COMPLETED, PLAY→entry, JOURNAL, runbook→COMPLETED.

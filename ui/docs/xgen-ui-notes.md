@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.63  
+> Version: 0.64  
 > Date: May 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  
@@ -1685,6 +1685,22 @@ M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the 
 **CDP-verified** (sampler, 9422, real output — Rule 2). `vite build` clean (154 modules, unchanged). Five new labels `["DI Atomics","DI Composites","DD Atomics","DD Composites","Widgets"]`; **registry `ids().length` unchanged at 173** (unique 173 → 0 orphans, no component delta). Header-fixed-while-body-scrolls: `.sampler-scroll.scrollTop=400` while `.sampler-bar` `getBoundingClientRect().top` stays `0` and `.sampler-tabs` stays `44.2` (`headerFixed:true`); `document.documentElement` **not** scrollable (`docScrollable:false` — scroll confined). Routing intact: clicking DD Composites → 1 visible panel containing rendered `entity-panel#dms` + `entity-item#card-space`. (A transient Vite HMR "div left open" overlay appeared at startup but cleared on reload — the production build proves the markup is balanced; a stale artifact, not a real parse error.) Screenshot `temp/static-header-verify.png`.
 
 *Sampler ergonomics only — no component contract, no registry row. → ROADMAP M-RP4.9 ✅.*
+
+---
+
+### N-080 — the `room` kind: a third entity kind (hexagon avatar), additive to `EntityDescriptor` + `entity-avatar` (M-RP5.0c)
+
+**M-RP5.0c.** Added **`room`** as a third entity kind — a location peer to `space` (a room/channel inside a space), not a variant of it (`kind:'room'`, Option A; `flags.isRoom` rejected as it muddies the kind taxonomy). Additive to `EntityDescriptor` + the `entity-avatar` shape branch; **ripples free** through `entity-item`/`entity-panel` with zero code change there.
+
+**Kind → shape taxonomy (after amendment).** `identity` = circle · `space` (non-DM) = rounded-square · DM (`space`+`flags.isDm`) = circle · **`room` = hexagon**. The `entity-avatar` shape derive gained a `kind === 'room' ? 'hexagon'` branch (`data-shape="hexagon"`); ring/seed/initials/status all inherit unchanged. `EntityDescriptor.kind` union `'identity' | 'space'` → `+ 'room'` (source-agnostic; `core` protocol-free).
+
+**Hexagon skin (`clip-path`, PROVISIONAL).** `.entity-avatar[data-shape="hexagon"] { clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%) }` (a pointy-top hexagon). Two `clip-path` consequences, both accepted + noted: (1) the seed **border-ring** is diminished on the diagonal edges (clip clips the border-box) — the seed FILL carries the shape; (2) the status corner badge would be **sliced** by the clip (it's a descendant), so `.entity-avatar[data-shape="hexagon"] .status` is **nudged onto the lower-right hull** (`right: calc(--ea-size*0.04); bottom: calc(--ea-size*0.26)`) instead of the box-corner `-3px` — decision C. Both are Joe's HMR-tune surface (same posture as `meter`/`range`). Initials stay centered (the base flex `justify/align:center` is unaffected by clip — decision D).
+
+**Ripple (free — the point of a kind, not a component).** `entity-item` (variant=row) and `entity-panel` compose `entity-avatar`; a `room` descriptor flows straight through — CDP confirmed `entity-item#room-item`'s avatar and both `entity-panel#rooms` row avatars render `data-shape="hexagon"` + clip-path with **no `entity-item`/`entity-panel` code change**.
+
+**CDP-verified** (sampler DD·atomic + DD·composite, 9422, real output — Rule 2). `vite build` clean (154 modules; only the pre-existing `<figure>` a11y note). Room getter `{kind:"room",variant:"list",name:"general",initials:"GE",seed:"hsl(147 45% 82%)",flags:{}}`; `data-shape="hexagon"`; `clip-path` = `polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)`; initials `justify-content:center`/`align-items:center` (centered); status nudged onto the hull (`right:0.04·size`/`bottom:0.26·size`). **0-regression**: `identity`=circle, `space`=square (clip `none`), DM=circle — all unchanged. **Ripple**: `entity-avatar#room-item__avatar` + `entity-avatar#rooms-general-1a__avatar` + `#rooms-dev-2b__avatar` all `data-shape="hexagon"`. Registry **173→185** (+12 = 3 DD·atomic room avatars + 1 room-status child + item-ripple 2 + panel-ripple 6); `count===unique===185` → **0 orphans**. (A transient Vite dev-server startup overlay appeared but cleared on reload — the build proves the file valid.) Screenshot `temp/room-verify.png` (green hexagons "GE"; room-status badge on-hull).
+
+*Additive dd-atomic amendment. First `room` kind. → registry v0.51 (avatar kind taxonomy += room). Next: the widget tier — `entity-context-menu` (M-RP5.3) → `temperature-indicator` (M-RP5.4).*
 
 ---
 

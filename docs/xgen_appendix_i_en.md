@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix I: Data Structures
 > **Status**: ACTIVE  
-> Version: 1.7  
+> Version: 1.8  
 > Date: May 2026  
-> **Last updated**: 2026-06-18  
+> **Last updated**: 2026-07-05  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -569,6 +569,26 @@ The signature covers the canonical bytes. The public key in the signature must m
 **Validation:**
 - Both required fields MUST be present in the serialised form; deserialisation rejects messages missing either.
 - The `extra` map MUST be preserved across registration, replication, and round-trip serialisation so that a Node forwarding a record between protocol versions does not silently drop unknown capability flags.
+
+### V.4 `StatusRecord`
+
+**Source:** `xgen-core/src/status/mod.rs`  
+**Spec:** PROTO-STATUS.0 / PROTO-STATUS.1 (`docs/xgen-proto-status-phase0.md`, `docs/xgen-proto-status-spec.md`); Ch3 spec section pending.  
+**Description:** Self-set identity status (PROTO-STATUS). A dedicated, identity-scoped, **global** state object — *not* a field on `IdentityRecord` — at the logical key `state.status/<identity_xgid>`, owner-writable only, public, global-scoped. It reuses the existing `state.*` conventions (a `StateKey` in the `state.status` category, a per-object monotonic `update_version`, and an owner-write guard) rather than a new sync primitive; because it is identity-scoped and global it does not ride the per-Space DAG resolution. Cleared by object deletion; expiry is lazy (readers treat expired as absent, no active sweep).
+
+| Field | Wire key | Type | Req/Opt | Description |
+|---|---|---|---|---|
+| `emoji` | `emoji` | `Option<String>` / string | Opt | Exactly one Unicode grapheme cluster (ZWJ sequences / skin-tone modifiers count as one). Absent optionals are omitted from the serialised form (`null` never written). |
+| `text` | `text` | `Option<String>` / string | Opt | Description line; ≤128 bytes UTF-8, stored trimmed. Whitespace-only input is coerced to absent. |
+| `updated_at` | `updated_at` | `DateTime<Utc>` / string | Req | Write instant, RFC 3339 UTC; stamped by the validating constructor. |
+| `expires_at` | `expires_at` | `Option<DateTime<Utc>>` / string | Opt | Auto-clear time, RFC 3339 UTC; when set, within `[now+60s, now+30d]` (inclusive) of the write instant. |
+
+**Validation** (`StatusRecord::new`, the write-path constructor):
+- `emoji` — rejects any value that is not exactly one grapheme cluster (empty string = zero clusters = rejected).
+- `text` — trimmed; whitespace-only → absent (not an error); trimmed byte length >128 → rejected.
+- `expires_at` — outside `[now+60s, now+30d]` → rejected (both bounds inclusive).
+
+**Store** (`StatusStore`): identity-scoped, one object per identity. `set` / `clear` enforce the owner-write guard (writer must equal the key subject); `set` returns the new monotonic `update_version` (first write → 1); `clear` deletes the object; `get(subject, now)` reads through lazy expiry (an expired object reads as absent but is not swept). `is_expired(now)` = an `expires_at` is set and strictly precedes `now`.
 
 ---
 

@@ -1,10 +1,41 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-04  
+> **Last updated:** 2026-07-05  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-461 — PROTO-STATUS.2 CLOSED: self-set status reference impl (`xgen-core/src/status/`) — type + validation + resolution wiring + 19 tests, workspace green
+
+**What happened.** Built the self-set status reference impl per `tasks/RUNBOOK_PROTO_STATUS_2.md` (PROTO-STATUS.0/.1 locked design). New `xgen-core/src/status/mod.rs`: the `StatusRecord` type + validating constructor + `is_expired`, plus the resolution wiring (`status_state_key` + `StatusStore`) and 19 unit tests. Track A (protocol), Clair (impl seat).
+
+**Grounding (D-078 — grep symbol defs, not inference).** Confirmed against the tree before coding: there is no `Timestamp` newtype (timestamps are `String` RFC-3339 on the wire, e.g. `Event.timestamp`, `IdentityRecord.registered_at`); `update_version: u64` is the monotonic per-object counter pattern (`IdentityRecord`, spec §3.6.8); `IdentityXgid` is `#[serde(transparent)]` with `from_xgid`/`as_str`; the `state.*` machinery (`resolution::state_key::state_key_for_event` → `StateKey{category,key_field}` → `resolve`/`derive_resolved`) builds a **`SpaceState`** from a Space's DAG.
+
+**Scope call (surfaced, D-065).** The locked design fixes status as **identity-scoped and global — explicitly NOT under `space/`** (PROTO-STATUS.0 §2). That makes it structurally unable to ride the per-Space DAG resolution (`derive_resolved` yields `SpaceState`; status is not Space state). So "register `state.status/<identity_xgid>` under existing `state.*` machinery" is read as **reuse the conventions**, not thread a new `EventType` through wire/validation/app — which would be a wire-format change (needs its own Joe-lock) and is not enumerated (every runbook test is unit-level on the type/store). Built a self-contained module: `status_state_key(id) -> StateKey{"state.status", <xgid>}` (reuses the `StateKey` namespace) + a `StatusStore` carrying the per-object `update_version`, owner-write guard, clear-by-delete, and lazy-expiry read.
+
+**Type (`StatusRecord`).** `emoji: Option<String>` / `text: Option<String>` / `updated_at: DateTime<Utc>` / `expires_at: Option<DateTime<Utc>>`; absent optionals `skip_serializing_if` (no `null` on the wire). `new(emoji, text, expires_at, now)` stamps `updated_at = now` and validates: emoji = exactly one grapheme cluster (via `unicode-segmentation` — ZWJ/skin-tone are one cluster, `chars().count()` would be wrong); text trimmed, whitespace-only → absent, >128 bytes → reject; `expires_at ∈ [now+60s, now+30d]` inclusive → else reject. `is_expired(now)` = `expires_at` set and strictly < `now`.
+
+**Verify (real output — Rule 2, from `C:/cargo-targets/XGenProtocol`).**
+```
+cargo test -p xgen-core status::
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 742 filtered out; finished in 0.00s
+```
+Full workspace, no regressions:
+```
+cargo test --workspace   →   TOTAL passed=1502 failed=0 ignored=62
+```
+`cargo clippy -p xgen-core` — 0 warnings/errors (one `map_or(false,…)` → `is_some_and` suggestion applied on `is_expired`). The 19 tests cover the runbook enumeration exactly: emoji 1-grapheme accept (incl. ZWJ family + skin-tone) / 2+ / empty reject; text 128B accept / 129B reject / whitespace→absent / trimmed-on-store; `expires_at` now+60s & now+30d accept, now+59s & now+31d reject; `is_expired` none-never / strict-precede; `status_state_key` category+key; owner-write-only (set + clear reject non-owner); clear=delete + read-absent; lazy-expiry read-absent-without-sweep (len/version intact); monotonic `update_version`; serde omits absent optionals / no null.
+
+**Engineering judgment calls (surfaced for Joe's review before push, D-065).** (1) Scope read above — self-contained module, no new `EventType`/wire change. (2) Promoted `unicode-segmentation` (already compiled in-workspace transitively, v1.13.2) to a **direct** `xgen-core` dep — the grapheme cap needs it. (3) Typed timestamps as `chrono::DateTime<Utc>` (serialises RFC-3339, matches Appendix I "string") rather than raw `String`, for type-safe bounds/expiry — self-contained record, not wire-canonical-hashed. (4) Whitespace-only text → **absent** (per spec §3 + test enumeration "whitespace-only → absent"), not a hard reject (the runbook Type-surface's looser "rejects empty-after-trim" wording; spec + enumeration win).
+
+**Records.** feat commit: `xgen-core/src/status/mod.rs` + `lib.rs` (`pub mod status;`) + `Cargo.toml` (`unicode-segmentation`) + `Cargo.lock`. docs commit: Appendix I §V.4 `StatusRecord` (v1.7→1.8), this entry, runbook → COMPLETED (v1.1). No `DECISIONS.md` touch (arc-local, D-069).
+
+**Deferred + surfaced (D-065, not papered over).** The runbook's close names "ROADMAP PROTO-STATUS.2→DONE" and "CLAUDE.md PLAY", but the prior Track-A commits (PROTO-STATUS.0/.1/.2, `c8c1444`/`f6bc8fc`/`12f5269`/`9a43d7b`) were each **deliberately single-file, doc-only** — neither ROADMAP nor the CLAUDE PLAY block has any PROTO-STATUS / Track-A scaffolding to flip (the PLAY block is entirely RP/UI track, head J-460). Introducing that scaffolding into two session-critical, Chat-owned canonical records is a design-of-record call I did not make unilaterally. Left for Joe/Chat to decide placement; flagged rather than invented. (No false "PLAY" state exists to correct, so the ROADMAP same-commit discipline is not violated by the absence.)
+
+**Next.** PROTO-STATUS.2 gates the status-bearing `entity-avatar` variants (Track B, M-RP5.2).
 
 ---
 

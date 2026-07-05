@@ -50,6 +50,7 @@
   import EntityAvatar from '$core/components/data-dependent/entity-avatar.svelte'; // first dd-atomic (M-RP5.0)
   import EntityItem from '$core/components/data-dependent/entity-item.svelte'; // first dd-composite (M-RP5.1)
   import Status from '$core/components/data-dependent/status.svelte'; // self-status dd-atomic (M-RP5.1a)
+  import EntityPanel from '$core/components/data-dependent/entity-panel.svelte'; // last dd-composite (M-RP5.2)
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -209,6 +210,30 @@
   const stFull = { emoji: '🎧', text: 'in a meeting', updatedAt: isoAt(-5 * 60 * 1000) };
   const stExpired = { emoji: '💤', text: 'away', expiresAt: isoAt(-60 * 1000) }; // expired → empty
   const stAvatar = { emoji: '🟢', text: 'online', updatedAt: isoAt(-2 * 60 * 1000) }; // avatar corner
+
+  // entity-panel (M-RP5.2, last dd-composite) — EntityItemInput[] view-models (descriptor + caller
+  // secondary/status/meta). Rows are variant="row"; per the "status once per variant" rule (M-RP5.2
+  // entity-item amendment) a row forwards status to the avatar CORNER badge (card would show the
+  // inline line instead). Spaces = square avatars; DMs = circle; Aria (isAi + status) proves the
+  // corner-fix H no-overlap (isAi spark top-right, status badge bottom-right on one glyph).
+  const epSpaces = [
+    { descriptor: { kind: 'space', name: 'Dev Team', id: 'xgen://space/dev-2b11', flags: {} }, meta: '3' },
+    { descriptor: { kind: 'space', name: 'Design', id: 'xgen://space/design-7a2', flags: {} }, meta: '12' },
+    { descriptor: { kind: 'space', name: 'Ops', id: 'xgen://space/ops-9f1', flags: {} } },
+  ];
+  const epDms = [
+    { descriptor: { kind: 'space', name: 'Bob Lee', id: 'xgen://space/dm-bob-9c04', flags: { isDm: true } }, status: { emoji: '🟢', text: 'online' }, meta: '1' },
+    { descriptor: { kind: 'identity', name: 'Alice Ng', id: 'xgen://identity/alice-7f3a', flags: {} }, meta: '5' },
+    { descriptor: { kind: 'identity', name: 'Aria Bot', id: 'xgen://identity/aria-ai', flags: { isAi: true } }, status: { emoji: '🤖', text: 'thinking' } },
+  ];
+  const epArchived = [
+    { descriptor: { kind: 'space', name: 'Archive A', id: 'xgen://space/arch-a', flags: {} } },
+    { descriptor: { kind: 'space', name: 'Archive B', id: 'xgen://space/arch-b', flags: {} } },
+  ];
+  let epSelSpaces = $state('xgen://space/design-7a2'); // pre-selected 2nd row (bind:selected proof)
+  let epSelDms = $state();
+  let epCollapsed = $state(true);
+  let epActivated = $state(0); // onActivate spy for CDP
 
   // select-multiple shares the N-034 options-prop shape (carried over from `select`).
   const smOptions = [
@@ -605,6 +630,24 @@
         <div class="s-cell"><span class="s-id">entity-item#selected</span><EntityItem descriptor={eaIdentity} variant="row" meta="7" selected onActivate={() => eiActivated++} id="selected" /></div>
         <div class="s-cell"><span class="s-id">entity-item#card-plain</span><EntityItem descriptor={eaSpace} variant="card" id="card-plain" /></div>
         <div class="s-cell"><span class="s-id">entity-item#fixed</span><EntityItem descriptor={eaIdentity} variant="row" meta="1" width="280px" id="fixed" /></div>
+      </div>
+    </div>
+
+    <div class="s-section-title">Panel (M-RP5.2, last dd-composite)</div>
+
+    <div class="s-row">
+      <div class="s-rowname">entity-panel · spaces / DMs</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-panel#spaces</span><EntityPanel items={epSpaces} title="Spaces" badge="3" collapsible bind:selected={epSelSpaces} onActivate={() => epActivated++} id="spaces" /></div>
+        <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-panel#dms</span><EntityPanel items={epDms} title="Direct messages" bind:selected={epSelDms} onActivate={() => epActivated++} id="dms" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">entity-panel · empty / collapsed</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-panel#empty</span><EntityPanel items={[]} title="Blocked" emptyText="No blocked users." id="empty" /></div>
+        <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-panel#collapsed</span><EntityPanel items={epArchived} title="Archived" badge="2" collapsible bind:collapsed={epCollapsed} id="collapsed" /></div>
       </div>
     </div>
   </div>

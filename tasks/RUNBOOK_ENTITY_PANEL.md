@@ -1,6 +1,6 @@
 # Runbook — M-RP5.2 `entity-panel` (roving-focus dd-composite)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-05  
 > Language: English  
@@ -67,9 +67,11 @@ Build runbook for `entity-panel` — the last dd-composite. Design locked in Pha
 
 ## Definition of Done
 
-- [ ] avatar corner-fix (H): isAi top-right, status bottom-right, 0-regression.
-- [ ] `entity-panel.svelte` built; wraps `section`; listbox + roving focus; single-select `bind:selected`; empty message; no protocol import.
-- [ ] `.entity-panel` skin (ul reset, focus ring, empty muted).
-- [ ] sampler cells (spaces / DMs+status / empty / collapsed).
-- [ ] CDP-verified: getter, listbox roles, roving tabindex, keyboard nav, selection, empty, collapse, child registration, corner-fix, registry delta, **0 orphans** — real output quoted.
-- [ ] records closed atomically (D-074): N-078, registry v0.50, ROADMAP, phase0→COMPLETED, PLAY→J-465, JOURNAL J-465, runbook→COMPLETED.
+- [x] avatar corner-fix (H): isAi top-right, status bottom-right, 0-regression. *(CDP: Aria avatar ::after top:-1px, status bottom:-3px, no overlap; with-status badge still bottom:-3px)*
+- [x] `entity-panel.svelte` built; wraps `section`; listbox + roving focus; single-select `bind:selected`; empty message; no protocol import. *(root outermost `<section>`, envelope on inner `<ul class=entity-panel role=listbox>`)*
+- [x] `.entity-panel` skin (ul reset, focus ring, empty muted).
+- [x] sampler cells (spaces / DMs+status / empty / collapsed). *(4 panels; DMs Bob 🟢 + Aria isAi+🤖 rows)*
+- [x] CDP-verified: getter, listbox roles, roving tabindex, keyboard nav, selection, empty, collapse, child registration, corner-fix, registry delta, **0 orphans** — real output quoted. *(registry 146→173; roving `["-1","0","-1"]`; ArrowDown→focus row1; Enter→selected=alice; screenshot entity-panel-verify.png)*
+- [x] records closed atomically (D-074): N-078, registry v0.50, ROADMAP, phase0→COMPLETED, PLAY→J-465, JOURNAL J-465, runbook→COMPLETED.
+
+**Amendment landed (Joe-lock, this commit):** the `entity-item` **status-forward** ("status once per variant" — card=inline line, row/nav/inline=avatar corner badge). Phase-0 §1's "for free" was aspirational; the forward is the mechanism. Runbook Step 2 didn't enumerate it. Recorded as an M-RP5.1 additive amendment in J-465.

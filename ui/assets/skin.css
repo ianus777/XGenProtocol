@@ -1739,7 +1739,7 @@ html, body {
   content: '';
   position: absolute;
   right: -1px;
-  bottom: -1px;
+  top: -1px; /* corner-fix H (M-RP5.2): isAi spark = TOP-right; the status badge owns bottom-right */
   width: calc(var(--ea-size) * 0.42);
   height: calc(var(--ea-size) * 0.42);
   min-width: 7px;
@@ -1924,9 +1924,9 @@ html, body {
 
 /* corner overlay — a `badge` status riding an entity-avatar's bottom-right rim. The avatar is
  * position:relative + overflow:visible, so the badge sits on the rim with a ring against the
- * avatar fill. NOTE (PROVISIONAL): the isAi spark (`.entity-avatar[data-ai]::after`) also occupies
- * bottom-right — an AI identity that also sets a status overlaps here; reserved for HMR tuning
- * (self-status keeps the locked bottom-right corner; a presence dot, if ever, takes another). */
+ * avatar fill. The isAi spark (`.entity-avatar[data-ai]::after`) sits TOP-right (corner-fix H,
+ * M-RP5.2), so an AI identity that also sets a status no longer overlaps — the two corners are
+ * distinct (status bottom-right, isAi top-right). A presence dot, if ever, takes a third corner. */
 .entity-avatar .status {
   position: absolute;
   right: -3px;
@@ -1939,4 +1939,40 @@ html, body {
 }
 .entity-avatar .status .st-emoji {
   font-size: calc(var(--ea-size) * 0.5);
+}
+
+/* ───────────────────────────────────────────────────
+ * entity-panel (.entity-panel) — the LAST dd-composite (M-RP5.2): a roving-focus listbox. The
+ *   panel's own element is the `<ul class="entity-panel" role="listbox">` inside the `section`
+ *   body; rows are `<li role="option">` wrapping an `entity-item`. List reset; the option focus
+ *   ring is the keyboard-nav affordance (the SELECTED look is `entity-item`'s own `[data-selected]`
+ *   gold bar; hover is `entity-item`'s own `:hover`). Empty = a muted centred message. Width flows
+ *   through the rows (N-076). Accent enters only via the focus ring + the row's selected bar.
+ *   PROVISIONAL. ── */
+.entity-panel {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.entity-panel-option {
+  list-style: none;
+  border-radius: var(--rad);
+  cursor: pointer;
+}
+.entity-panel-option:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* empty-state row (role=presentation) — a muted centred message (composed di paragraph) */
+.entity-panel-empty {
+  list-style: none;
+  padding: var(--sp-2);
+  text-align: center;
+}
+.entity-panel-empty .paragraph {
+  color: var(--t3);
+  font-size: var(--fs-1);
 }

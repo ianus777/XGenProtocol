@@ -8,6 +8,55 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-465 — M-RP5.2 CLOSED: `entity-panel` — the LAST dd-composite (roving-focus listbox); the avatar corner-fix (H); the `entity-item` status-forward amendment ("status once per variant"). The dd-composite tier is CLOSED.
+
+**What happened.** Built `entity-panel` per `tasks/RUNBOOK_ENTITY_PANEL.md` (design Joe-locked A–H, Phase-0 `docs/xgen-dd-spaces-panel-phase0.md` v1.1). The **last dd-composite** — closes the dd-composite tier; the widget tier (M-RP5.3/5.4) is next. Clair (impl seat); explicit handoff for the full D-074 close. One wiring gap surfaced mid-build and was Joe-resolved before the sampler cells (the status-forward, below).
+
+**What it is.** A dd-composite that materializes a LIST of address-book entries as a keyboard-navigable, single-select group: a `section` (group chrome) wrapping a `<ul role="listbox">` of `entity-item` rows, owning the roving focus + selection + empty state (which is why it is its own composite, not a bare `section` with rows). `spaces-panel` is a consumer **preset** (a title + a spaces `items` array), not a separate component — entity-generic. Source-agnostic: `items` is an `EntityItemInput[]` view-model (`EntityDescriptor` + caller secondary/status/meta); `core` imports no protocol type.
+
+**Rooting (the "wrap, not beside" lock).** The outermost DOM is the `<section>` (from the Section child, self-registers `__section`); the panel's own identity + getter G ride the **`<ul class="entity-panel" use:envelope role="listbox">` INSIDE the section body** — the panel IS the listbox, Section frames it (unlike status-indicator/entity-item, whose root is their own `<div>`). The `<ul>` always renders so the envelope anchor is stable — holding the option rows, or (empty) a single `role="presentation"` `<li>` with a composed `paragraph` message. Composes real children (matrix multiplies deeply): `section` + `entity-item ×N` (each → `entity-avatar __avatar` + optional `status __status`).
+
+**Focus (C/D).** Roving tabindex — exactly one row `tabindex=0` (active), the rest `-1`; ArrowUp/Down move, Home/End jump, Enter/Space select+activate, click selects+activates. `selected` ($bindable id) is the persistent choice (→ each row's `aria-selected` + the row's own `[data-selected]` highlight); `activeIndex` is the transient focus position (seeded once at the selected row via a function call — a deliberate one-time capture, restructured to silence the `$state`-init prop-reference warning). Rows are `<li role="option">` wrapping `entity-item variant="row"`: the li owns option semantics + keyboard + click; entity-item is the visual. Getter G `{ count, selected, collapsed, hasEmpty }`; `collapsed` shared with Section (pass-through F). Empty → `emptyText` message + `hasEmpty:true`.
+
+**Avatar corner-fix (H, done first, skin-only).** The `entity-avatar` isAi spark `::after` moved bottom-right → **top-right** (`top:-1px`); the status corner-slot stays bottom-right. So an AI identity that also carries a status no longer overlaps — distinct corners. Resolves the PROVISIONAL note from the M-RP5.1b close.
+
+**`entity-item` status-forward amendment (Joe-lock, same-commit; "status once per variant").** Phase-0 §1 said panel rows inherit the avatar's status corner-slot "for free", but `entity-item` (built M-RP5.1, before the avatar got `status?`, J-464) never forwarded `status` to its avatar child — the wiring the M-RP5.1b slot + corner-fix H were *for*. Added it: a variant shows status **once** — `card` = the inline status LINE (it has room), so its avatar gets **no** corner badge; `row`/`nav`/`inline` (no room for a line) forward `status` to the avatar's **corner badge** (`avatarStatus = variant === 'card' ? undefined : status` on `<EntityAvatar>`). This is completing intended wiring, not a retrofit (D-065-honest) — Phase-0's "for free" was aspirational; runbook Step 2 didn't enumerate it. Recorded as an additive M-RP5.1 amendment; the M-RP5.1 `card-space` cell stays **0-regression** (verified below).
+
+**Verify — real CDP output (Rule 2), sampler DD·composite panel, port 9422.** `vite build` clean (154 modules; zero `entity-panel`/`entity-item` warnings). Getters G exact:
+```
+"entity-panel#spaces":{"count":3,"selected":"xgen://space/design-7a2","collapsed":false,"hasEmpty":false}
+"entity-panel#dms":{"count":3,"selected":null,"collapsed":false,"hasEmpty":false}
+"entity-panel#empty":{"count":0,"selected":null,"collapsed":false,"hasEmpty":true}
+"entity-panel#collapsed":{"count":2,"selected":null,"collapsed":true,"hasEmpty":false}
+```
+Registry delta + child registration:
+```
+{"count":173,"unique":173,"panelCount":4,"sectionChildren":4,"emptyPara":["paragraph#empty__empty"],
+ "dmsIds":["entity-avatar#dms-alice-7f3a__avatar","entity-avatar#dms-aria-ai__avatar","entity-avatar#dms-dm-bob-9c04__avatar","entity-item#dms-alice-7f3a","entity-item#dms-aria-ai","entity-item#dms-dm-bob-9c04","entity-panel#dms","section#dms__section","status#dms-aria-ai__avatar__status","status#dms-dm-bob-9c04__avatar__status"]}
+```
+Roles + roving tabindex + collapse + corner-fix:
+```
+{"ulRole":"listbox","ulClass":"entity-panel","optCount":3,"optRows":[{"role":"option","tabindex":"-1","ariaSelected":"false"},{"role":"option","tabindex":"0","ariaSelected":"true"},{"role":"option","tabindex":"-1","ariaSelected":"false"}],"tabZeroCount":1,"emptyOptCount":0,"emptyMsgText":"No blocked users.","collDataCollapsed":"true","collBodyDisplay":"none","ariaHasDataAi":"true","ariaAfterTop":"-1px","ariaAfterBottom":"15.65px","statusPosition":"absolute","statusBottom":"-3px","statusRight":"-3px"}
+```
+Keyboard nav (dms panel — ArrowDown from row 0, then Enter):
+```
+{"tabsAfterArrow":["-1","0","-1"],"focusedIndex":1}          // ArrowDown → roving 0 moved to row 1, DOM focus at 1
+{"selectedAfterEnter":"xgen://identity/alice-7f3a","ariaAfterEnter":["false","true","false"]}   // Enter → selected + aria-selected row 1
+```
+0-regression + status-once + corner-fix:
+```
+{"cardHasAvatarStatusChild":false,"cardGetter":{"variant":"card","kind":"space","name":"Dev Team","hasSecondary":true,"hasStatus":true,"selected":false},"cardInlineStatus":"🟢 online","rowHasAvatarStatusChild":true,"aiCellAfterTop":"-1px","avatarWithStatusBottom":"-3px"}
+```
+Reading these out: registry **146→173** (+27 across 4 panels: spaces 8 + dms 10 + empty 3 + collapsed 6); `count===unique===173` → **0 orphans**. **Child registration**: 4 panels, 4 `section#…__section`, the empty `paragraph#empty__empty`; the DMs subtree = panel + section + 3 `entity-item#dms-<key>` + 3 `entity-avatar#…__avatar` + 2 `status#…__avatar__status` (Bob 🟢 + Aria 🤖 rows forward status to the corner; Alice has none) — **the forward proven**. **Roles**: ul `role=listbox` class `entity-panel`; 3 `role=option`; **roving tabindex `["-1","0","-1"]` (one `0`, on the selected design row), aria-selected mirrors `selected`**. **Keyboard**: ArrowDown → tabindex `["-1","0","-1"]` moved to row 1 + `document.activeElement` at index 1; Enter → `selected="xgen://identity/alice-7f3a"` + `aria-selected ["false","true","false"]` (Enter → selectAt → onActivate fired + selection set). **Empty**: 0 options + "No blocked users." **Collapse**: `section[data-collapsed=true]` + body `display:none` (rows still registered → slot mounted). **Corner-fix**: Aria avatar `data-ai` `::after top:-1px` (top-right, not bottom) + status `position:absolute bottom:-3px right:-3px` (bottom-right) — no overlap on one glyph. **0-regression + status-once**: `card-space` getter unchanged, inline status "🟢 online" intact, **no avatar corner badge** (`cardHasAvatarStatusChild:false`); a DM **row** avatar DOES carry the corner badge (`rowHasAvatarStatusChild:true`); the `with-status` badge (M-RP5.1b) still `bottom:-3px`. Screenshot `temp/entity-panel-verify.png` (spaces w/ Design selected; DMs w/ Bob 🟢 corner + Aria isAi-top/🤖-bottom; "No blocked users."; Archived collapsed).
+
+**Engineering judgment (surfaced, D-065).** (1) The li owns the option semantics + roving tabindex + click/keyboard; `entity-item` is the pure visual (no `onActivate` passed to it → single activate target, no double-fire). (2) The empty message is a composed `paragraph` in a `role="presentation"` li so the listbox has no phantom option. (3) The status-forward gap was caught while writing the sampler cells and surfaced to Joe rather than silently modifying the closed `entity-item` — Joe locked Option 2 (status-once). (4) `activeIndex` init reads props once by design; restructured into a function call to keep the build warning-free.
+
+**Records (atomic, D-074).** New: `ui/core/lib/components/data-dependent/entity-panel.svelte`; edited `entity-item.svelte` (status-forward `avatarStatus`), `ui/assets/skin.css` (isAi `::after` top-right corner-fix + `.entity-panel` block), `ui/sampler/src/app_sampler.svelte` (DD·composite panel cells). Docs: `ui/docs/xgen-ui-notes.md` N-078 (v0.62), `ui/docs/xgen-ui-components.md` registry v0.50 (entity-panel row + spaces-panel BUILT + avatar corner-fix + build note), `docs/ROADMAP.md` v4.34 (tree tail + M-RP5.2 block), `docs/xgen-dd-spaces-panel-phase0.md` (Status→COMPLETED v1.2), this PLAY (→ J-465), this entry, runbook → COMPLETED (DoD ticked). No `DECISIONS.md` touch (N-078 is a component note; the amendment + rooting are arc-local; D-069 bar not met).
+
+**Next-active.** The **dd-composite tier is CLOSED**. Next is the **widget tier**: `entity-context-menu` (M-RP5.3 — the 100% read of an entity; consumes the reserved `onActivate?`; uses `status full`) → `temperature-indicator` (M-RP5.4 — `meter` via the W-11 dd-socket). Kind 4 `use:render` stays deferred (D-065). Not pushed — Joe pushes.
+
+---
+
 ## Entry J-464 — M-RP5.1a + 5.1b CLOSED: `status` — the self-status dd-atomic (badge/line/full) + the `entity-avatar` `status?` corner-slot; mounted-but-empty on expiry (runbook wording corrected); the `.status` naming-collision fix
 
 **What happened.** Built `status` (dd-atomic) + the additive `entity-avatar` `status?` corner-slot per `tasks/RUNBOOK_STATUS.md` (design Joe-locked A–G, Phase-0 `docs/xgen-dd-status-phase0.md`). One runbook — the badge IS the avatar slot payload, so they ship together (M-RP5.1a + 5.1b). Clair (impl seat); explicit handoff for the full D-074 atomic close. One interpretation point was Joe-resolved at go: how an *expired* status behaves in the DOM (below).

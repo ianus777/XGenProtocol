@@ -72,6 +72,13 @@
   );
   const showMeta = $derived(variant === 'row' && !!meta);
 
+  // Status shows ONCE per variant (M-RP5.2 amendment — the wiring the avatar `status?` slot +
+  // corner-fix H were added for): `card` renders the inline status LINE (it has room — `showStatus`
+  // above), so its avatar gets NO corner badge; `row`/`nav`/`inline` have no room for a line, so
+  // they forward `status` to the avatar's corner-slot (M-RP5.1b) instead. Keeps the M-RP5.1 `card`
+  // cell 0-regression (no corner badge on card).
+  const avatarStatus = $derived(variant === 'card' ? undefined : status);
+
   // Composite-derived stable child id (so the self-registering avatar reads cleanly, not ordinal).
   const cid = (s: string) => (id ? `${id}__${s}` : undefined);
 
@@ -111,7 +118,7 @@
   onclick={activate}
   onkeydown={onKeydown}
 >
-  <EntityAvatar {descriptor} variant={avatarVariant} id={cid('avatar')} />
+  <EntityAvatar {descriptor} variant={avatarVariant} status={avatarStatus} id={cid('avatar')} />
   <div class="ei-body">
     <span class="ei-name">{displayName}</span>
     {#if showSecondary}

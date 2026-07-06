@@ -8,6 +8,18 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-471 — records: MP-R3 "owed" note corrected (already delivered J-356) + Pre-UI Node↔Client Functional Gate opened (M-RP6.0, PENDING)
+
+**Two record actions, no code.**
+
+**(1) MP-R3 capstone ledger — correction, not retirement.** A standing note tracked a consolidated R1+R2+R3 multiparty ledger as *owed* at MP-R3 close (carried as `tasks/HANDOFF_MP_R3.md`). On checking: the Multiparty-tests milestone is **fully CLOSED (J-356)** — MP-R1 (J-340) → MP-R2 (J-348) → MP-R3 capstone (J-356), and ROADMAP line 634 states the **consolidated ledger was delivered** at that close. So the obligation was already discharged; the "owed" note was **stale**, not an open debt. No file to retire; no `tasks/HANDOFF_MP_R3.md` exists (content folded into the J-356 close + the `docs/tests/MULTIPARTY_*` findings/matrix). Chat memory corrected accordingly. Round-2 checkpoint audit remains DONE (J-357, GO).
+
+**(2) Pre-UI Node↔Client Functional Gate opened — `M-RP6.0` (PENDING).** Before building the main client UI panel, a lean **live** re-verification of the node↔client surface against the *current* binaries — a **D-071 subsystem audit** (client UI panel = dependent milestone; node↔client channel = dependency) and the live-functional slice of the planned Round-2 whole-codebase audit. **Not** a re-run of the closed multiparty milestone. Recommended G-set (single-node, client-facing; federation out): **G1** connect+`get_state` · **G2** state sync · **G3** send/receive round-trip · **G4** multi-client/one-node (reuse `MULTIPARTY_S1`) · **G5** client rebind (reuse `MULTIPARTY_S5`). Method: reuse `xgen-mptest` where it covers G1–G5 + live CDP self-drive (9222/9322, J-405) for the rest; real output quoted (Rule 2). DoD: each G# green + findings list + a GO/NO-GO for the client UI panel. Scope is **recommended, not locked** — Joe locks the G-set + final name before the gate opens.
+
+**Records.** New Phase-0 doc `docs/tests/PRE_UI_NODE_CLIENT_GATE_phase0.md` (PENDING, v0.1). ROADMAP v4.40 (M-RP6.0 PENDING pointer; MP-R3 already-delivered clarification). No DECISIONS/registry touch. Next-active is unchanged from the code side (widget tier complete; M-RP5.4 POSTPONED, J-470) — this gate is the recommended next real work before the client UI panel.
+
+---
+
 ## Entry J-470 — M-RP5.4 `temperature-indicator` ⏸️ POSTPONED: deferred until fully testable end-to-end (needs a `message` representation + a real activity source)
 
 **Decision (Joe).** The last widget-tier item, `temperature-indicator` (M-RP5.4), is **postponed — not cancelled**. Design and build are deferred until it can be verified end-to-end. No code, no Phase-0 this session; roadmap/pointer record only.

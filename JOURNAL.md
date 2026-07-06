@@ -8,6 +8,27 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-473 — M-RP6.0 gate CLOSED: all G1–G5 green → GO; node↔client channel confirmed on current binaries
+
+**Execution + verification, no production code.** Ran the M-RP6.0 Pre-UI Node↔Client Functional Gate (opened+locked J-472). **Verdict: GO** — every gate green on the current binaries; the client UI panel arc may open.
+
+**Drive surface (D-071 coverage-map audit first).** Harness-primary: `xgen-mptest` drives the **real** `xgen-node`/`xgen-client` binaries over the `--aicontrol` JSONL channel and observes convergence via `.events`/`state` (black-box). CDP `get_state` is a supplementary witness only. Reshape from the Phase-0 recommendation, surfaced + Joe-approved before running (D-065): the pre-UI client shell has no connect/send affordances and no Tauri verb-commands (M5 carry-over), so CDP can only *read* state — the harness IS the real client↔node drive. Node built `--features harness-control` (mock clock; the feature lives on `xgen-node`, baked into the built exe — not an `xgen-mptest` feature).
+
+**Builds (real output):** `cargo build -p xgen-node --features harness-control` EXIT=0; `cargo build -p xgen-client` EXIT=0; `cargo test -p xgen-mptest --no-run` EXIT=0.
+
+**Gate→scenario map + results (Rule 2, real quoted output):**
+- **G3 send/receive + G4 multi-client/one-node** → **MP-C-01** (`mp_c_01_local_fanout_converges`, `xgen-mptest/tests/mp_r1_c5.rs`): `MP-C-01 PASS (single-node local fan-out): 2 nodes converge on membership {owner+member}`; `test result: ok. 1 passed; 0 failed`, EXIT=0, 19.06s.
+- **G5 client rebind** → **MP-C-10** (`mp_c_10_leave_and_rejoin_converges`, same file): `MP-C-10 PASS (leave & rejoin, cross-node A↔B): 2 nodes converge`; `1 passed; 0 failed`, EXIT=0, 22.04s.
+- **G1 connect + G2 state sync** → witnessed by both scenarios (clients connect + register + converge on shared membership/transcript); the `get_state` UI-read surface itself was proven live in J-469.
+
+**Findings:** F-1 — no CDP-drivable connect/send at pre-UI stage (client Tauri verb-commands absent, M5 carry-over); closed by the client UI panel arc (M-RP6.1+), NOT a channel defect. F-2 — S5 has no single-node harness scenario; cross-node MP-C-10 served as the rebind witness — adequate for the single-node gate.
+
+**Records (D-074 atomic).** Phase-0 doc `docs/tests/PRE_UI_NODE_CLIENT_GATE_phase0.md` ACTIVE→**COMPLETED** v1.0 (Results + GO section). ROADMAP **v4.41→v4.42** (M-RP6.0 🟢 PLAY → ✅ DONE, J-473; result summary + Next→client UI panel arc). CLAUDE.md PLAY flipped M-RP6.0 ✅ DONE with evidence; next-active = **M-RP6.1+ client UI panel arc**. This entry. GitHub board M-RP6.0 → DONE (`92abd4cb`). No DECISIONS/registry/component touch. Not pushed — Joe pushes.
+
+**Next-active.** M-RP6.1+ — the client UI panel arc: assemble the shipped `core`/dd/widget components onto real node↔client state.
+
+---
+
 ## Entry J-472 — M-RP6.0 LOCK: Pre-UI Node↔Client Functional Gate opened (PENDING→PLAY); G-set G1–G5 + name M-RP6.0 locked (Joe)
 
 **Record action, no code.** Joe locked the two open items from the M-RP6.0 Phase-0 (opened PENDING at J-471): the **G-set** and the **milestone name**. Both locked as recommended.

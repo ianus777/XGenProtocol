@@ -1,6 +1,6 @@
 # Pre-UI Node↔Client Functional Gate — Phase-0 (M-RP6.0)
-> **Status**: ACTIVE  
-> Version: 0.2  
+> **Status**: COMPLETED  
+> Version: 1.0  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-06  
 > Language: English  
@@ -38,10 +38,24 @@ Reuse the `xgen-mptest` harness where it covers G1–G5; live-run the **real** `
 
 Each of G1–G5 green with **real quoted output**; a short findings list (any drift → logged, fixed or explicitly deferred); a **GO / NO-GO** verdict for opening the client UI panel arc. (No "commit pushed" checklist item — the `COMPLETED` header is the shipped signal.)
 
+## Results (J-473) — GO
+
+Drive surface: harness-primary (`xgen-mptest`, real binaries over the `--aicontrol` channel, black-box), CDP `get_state` as supplementary witness. Node built `--features harness-control`.
+
+- **G1 connect + state** — ✅ witnessed by MP-C-01/MP-C-10 (clients connect+register on the node); `get_state` UI-read surface live (J-469).
+- **G2 state sync** — ✅ both scenarios converge on shared membership + transcript.
+- **G3 send/receive** — ✅ `mp_c_01_local_fanout_converges` PASS, EXIT=0, 19.06s.
+- **G4 multi-client / one node (S1)** — ✅ MP-C-01 (owner + member converge on one node).
+- **G5 client rebind (S5)** — ✅ `mp_c_10_leave_and_rejoin_converges` PASS, EXIT=0, 22.04s.
+
+**Findings:** F-1 — no CDP-drivable connect/send at pre-UI stage (client Tauri verb-commands don't exist, M5 carry-over); the client-UI-panel arc (M-RP6.1+) closes it — not a channel defect. F-2 — S5 has no single-node harness scenario; MP-C-10 (cross-node leave & rejoin) served as the rebind witness — adequate for the single-node gate.
+
+**Verdict: GO** — the node↔client channel is confirmed-working on current binaries. The client UI panel arc (M-RP6.1+) may open.
+
 ## Roadmap consequence
 
 `M-RP6.0` (this gate, ACTIVE) → *(GO)* → **client UI panel arc** (`M-RP6.1+`, assembles the shipped `core`/dd/widget components onto real node↔client state). A NO-GO routes to fix-the-drift first.
 
 ---
 
-*Test/verification Phase-0. No protocol/data change. G-set + name LOCKED (J-472). Supersedes nothing; the multiparty milestone stays closed (J-356).*
+*Test/verification Phase-0 — CLOSED GO (J-473). No protocol/data change. G-set + name LOCKED (J-472). Supersedes nothing; the multiparty milestone stays closed (J-356).*

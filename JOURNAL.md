@@ -8,6 +8,18 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-470 — M-RP5.4 `temperature-indicator` ⏸️ POSTPONED: deferred until fully testable end-to-end (needs a `message` representation + a real activity source)
+
+**Decision (Joe).** The last widget-tier item, `temperature-indicator` (M-RP5.4), is **postponed — not cancelled**. Design and build are deferred until it can be verified end-to-end. No code, no Phase-0 this session; roadmap/pointer record only.
+
+**Why.** Clarified this session that `temperature-indicator` is a **room/message activity** widget — "temperature" = conversation heat (activity level), materialized as a `meter` fill through the W-11 dd-socket that `entity-context-menu` (J-469) just proved real. Its UI representation is a **`message`-shaped surface**, and the registry has **no `message` component yet**. Two prerequisites are therefore missing, both downstream of UI integration: (1) a `message` representation component; (2) a real room/message **activity source** to bind heat against. Building it now would be against stubs we can't honestly verify (W-8 honest-phase-limits / D-065 honest-over-polite / "honest longer work over fast shortcuts").
+
+**State.** Widget tier otherwise complete: `substitutions-editor` (M-RP4.3, J-454) ✅ + `entity-context-menu` (M-RP5.3, J-469) ✅. dd tier closed (J-465). Registry unchanged at **186**, 0 orphans (no component touched). Resumes when a `message` representation + a live activity feed exist — likely alongside real-shell entity-UI integration.
+
+**Records.** ROADMAP (M-RP5.4 ⏸️ POSTPONED, v4.39) + CLAUDE.md PLAY next-active. No `DECISIONS.md`/registry/notes touch (a planning deferral, not a build). Standing: MP-R3 capstone ledger (`tasks/HANDOFF_MP_R3.md`) still owed.
+
+---
+
 ## Entry J-469 — M-RP5.3 CLOSED: `entity-context-menu` — the SECOND widget + the FIRST real W-11 dd-socket consumer; overlay behaviour machine + portal-to-body/flip-shift; two-layer verify green (sampler 9422 + real client 9222)
 
 **What happened.** Built `entity-context-menu` per the design-locked `docs/entity-context-menu-phase0.md` (A→H). The **second `widget`** (Level-2, D-102) and the **first widget with a real dd-dependency** — the first genuine exercise of the **W-11 dd-socket** (binds an `EntityDescriptor` + a self-status view-model; `core` imports no protocol type). Five build steps (scaffold → machine → header+item → skin+sampler+pure-CDP → portal+effect-CDP), each Joe-gated. Clair (impl seat); full D-074 close. No `DECISIONS.md` touch (a new `common/widgets/` occupant + additive skin; no wire/prop/protocol change). New file `ui/common/lib/components/widgets/entity-context-menu.svelte`; skin block in `ui/assets/skin.css`; sampler WIDGET cell in `ui/sampler/src/app_sampler.svelte`.

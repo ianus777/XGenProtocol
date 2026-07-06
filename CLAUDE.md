@@ -20,6 +20,8 @@
 
 > (Prior PLAY blocks: the AFI/F17 audit-against-code head J-398/J-400 ← doc-opt J-391…J-396 ← J-390 ← … ← M6 / XGID-retrofit — archived to `CLAUDE_HISTORY.md` per D-094, latest at J-435.)  
 
+> **♻️ Recovery anchor:** git tag `m-rp6.0-gate-go` (commit at J-473) = last known-good state — M-RP6.0 gate CLOSED GO, node↔client channel confirmed, before the M-RP6.1+ client UI panel arc. If a later state can't be recovered, `git reset --hard m-rp6.0-gate-go` returns here.  
+
 > **⚫ Track A (self-set status protocol) — CLOSED through PROTO-STATUS.2 (J-461, latest JOURNAL).** A parallel protocol arc run alongside the RP track: self-set status (emoji + description line) was found absent from the protocol → specced + built. `state.status/<identity_xgid>` object `{emoji?,text?,updated_at,expires_at?}` (global/public, presence excluded); new `xgen-core/src/status/` module (`StatusRecord` + validating ctor + `is_expired`, reuse `state.*` resolution + owner-write guard, 19 tests, 1502/0 workspace, Appendix I §V.4). Docs: `xgen-status-gap-phase0.md`, `xgen-proto-status-phase0.md`, `xgen-proto-status-spec.md`, `tasks/RUNBOOK_PROTO_STATUS_2.md` (COMPLETED). **Gates the status-bearing `entity-avatar` variants (M-RP5.2).** Deferred: per-space status, visibility gating, presence.  
 
 ---

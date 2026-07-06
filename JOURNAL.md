@@ -27,6 +27,8 @@ property purposes. Entries are written contemporaneously with the work described
 
 **Next-active.** M-RP6.1+ — the client UI panel arc: assemble the shipped `core`/dd/widget components onto real node↔client state.
 
+**Recovery anchor.** git tag `m-rp6.0-gate-go` marks this commit as the last known-good state (gate CLOSED GO, node↔client channel confirmed). If a later state can't be recovered, `git reset --hard m-rp6.0-gate-go` returns here.
+
 ---
 
 ## Entry J-472 — M-RP6.0 LOCK: Pre-UI Node↔Client Functional Gate opened (PENDING→PLAY); G-set G1–G5 + name M-RP6.0 locked (Joe)

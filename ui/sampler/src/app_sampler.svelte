@@ -63,6 +63,7 @@
   import { intlNumber } from '$common/components/processor/transform';
   import { substitutions } from '$common/components/processor/store.svelte';
   import SubstitutionsEditor from '$common/components/widgets/substitutions-editor.svelte';
+  import EntityContextMenu from '$common/components/widgets/entity-context-menu.svelte'; // 2nd widget, first W-11 dd-socket consumer (M-RP5.3)
 
   // Runtime client<->node skin-swap (D-098): flipping [data-shell] re-aliases --accent*
   // live, so the whole grid re-themes at once. Replaces "run in both real shells".
@@ -193,6 +194,14 @@
   // room (M-RP5.0c) — a location peer to space; shape branches to hexagon (clip-path).
   const eaRoom = { kind: 'room', name: 'general', id: 'xgen://room/general-1a', flags: {} };
   let eaActivated = $state(0); // onActivate spy (reserved menu seam) for CDP
+
+  // entity-context-menu (M-RP5.3, 2nd widget) — the gesture-agnostic overlay. The sampler wires a
+  // trigger button to ecmRef.open(anchorEl); onSelect is the stubbed consumer dispatch (pure layer).
+  const ecmEntity = { kind: 'identity', name: 'Alice Ng', id: 'xgen://identity/alice-7f3a', flags: {} };
+  const ecmStatus = { emoji: '🎧', text: 'in a meeting', updatedAt: new Date(Date.now() - 5 * 60000).toISOString() };
+  let ecmRef; // component instance (bind:this) exposing open()/close()
+  let ecmSelected = $state('—'); // last dispatched item id (dispatch spy for CDP)
+  const ecmSelect = (itemId) => { ecmSelected = itemId; };
 
   // entity-item (M-RP5.1, first dd-composite) — composes the real entity-avatar (single-knob
   // derive: row->list, card->card, nav->labeled, inline->presence). secondary/status/meta are
@@ -688,6 +697,17 @@
       <div class="s-rowname">substitutions-editor</div>
       <div class="s-cells">
         <div class="s-cell"><span class="s-id">substitutions-editor#demo</span><SubstitutionsEditor id="demo" /></div>
+      </div>
+    </div>
+    <div class="s-group">
+      <div class="s-rowname">entity-context-menu</div>
+      <div class="s-cells">
+        <div class="s-cell" style="align-items:flex-start;">
+          <span class="s-id">entity-context-menu#demo</span>
+          <button type="button" class="ecm-trigger" onclick={(e) => ecmRef.open(e.currentTarget)}>Open menu ▾</button>
+          <EntityContextMenu bind:this={ecmRef} descriptor={ecmEntity} status={ecmStatus} portal={true} onSelect={ecmSelect} id="demo" />
+          <span class="s-note">selected: {ecmSelected}</span>
+        </div>
       </div>
     </div>
   </div>

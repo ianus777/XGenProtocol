@@ -1,10 +1,42 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-05  
+> **Last updated:** 2026-07-06  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-469 — M-RP5.3 CLOSED: `entity-context-menu` — the SECOND widget + the FIRST real W-11 dd-socket consumer; overlay behaviour machine + portal-to-body/flip-shift; two-layer verify green (sampler 9422 + real client 9222)
+
+**What happened.** Built `entity-context-menu` per the design-locked `docs/entity-context-menu-phase0.md` (A→H). The **second `widget`** (Level-2, D-102) and the **first widget with a real dd-dependency** — the first genuine exercise of the **W-11 dd-socket** (binds an `EntityDescriptor` + a self-status view-model; `core` imports no protocol type). Five build steps (scaffold → machine → header+item → skin+sampler+pure-CDP → portal+effect-CDP), each Joe-gated. Clair (impl seat); full D-074 close. No `DECISIONS.md` touch (a new `common/widgets/` occupant + additive skin; no wire/prop/protocol change). New file `ui/common/lib/components/widgets/entity-context-menu.svelte`; skin block in `ui/assets/skin.css`; sampler WIDGET cell in `ui/sampler/src/app_sampler.svelte`.
+
+**What it is (Phase-0 lock, honoured).** A gesture-agnostic overlay: exposes `open(anchor)`/`close()`, the consumer wires the trigger (the avatar/item reserved `onActivate?`, right-click, long-press). Root `<div class="entity-context-menu" role="menu">`, `data-tier="widget"`. **Behaviour machine D** (the W-2 discriminator, §2 A — not roving-focus, which `entity-panel` already owns): `closed → open(anchored, focus moved in) → navigating(roving) → dispatch(run handler) → closed`; dismiss = Esc · outside-click · select-then-close · focus-leaves; focus returns to the anchor; W-5 listeners wire on open, tear down on close/unmount. **Header** composes `entity-avatar` + name + `status` **full** (the identity-read surface); item rows = widget-owned `<li role="menuitem">`. Base ships exactly the **universal `identity` item** (kind-labelled; space/room labels reserved; flag-gated per-(variant,purpose) slots declared-not-populated, W-8). Getter G `{open,variant,purpose,kind,itemCount,activeIndex}` — task-state only, no payload (N-060); children self-register `entity-avatar#<id>__avatar` + `status#<id>__status`.
+
+**Portal (§2 C).** `portal` (opt-in) relocates the root to `document.body` (escaping every ancestor `overflow` clip) + `position:fixed` + placement against the anchor's viewport rect (flip below→above on bottom overflow, shift to clamp on right/left). One skin, gated by `data-portal`. **Joe-lock override (this session):** the sampler pure layer runs `portal={true}` too (Phase-0 §2 C had scoped the sampler to an inline `position:absolute` popup; Joe locked "sampler also portals" so its demo matches the real shell — the inline popup overlapped the trigger + ellipsized the status line; the portal presents cleanly). The two-layer verify is otherwise unchanged.
+
+**Verify — pure layer, real CDP output (Rule 2), sampler WIDGET tab, port 9422 (portal on).** `vite build` clean (155 modules; the widget = +1 over J-468's 154). Closed → open → rove → dispatch → teardown:
+```
+closed:  {"n":186,"ecm":{"open":false,"variant":"card","purpose":"default","kind":"identity","itemCount":1,"activeIndex":-1}}
+open:    {"open":true,"activeIndex":0,"n":188,"orphans":0,"hasAvatar":true,"hasStatus":true,"parentIsBody":true,"position":"fixed","dataPortal":"true","zIndex":"1000","inViewport":true,"activeText":"View identity","statusText":"🎧 in a meeting updated 6m ago"}
+Enter:   {"afterEnter_open":false,"activeIndex":-1,"focusReturnedToTrigger":true}
+teardown:{"n":186,"orphans":0,"childrenGone":true,"selectedNote":"selected: identity"}
+```
+Reading these out: registry **186** closed (185 J-468 baseline + the widget root; the always-mounted root keeps G readable while closed, N-053) → **188** open (`entity-avatar#demo__avatar` + `status#demo__status` self-register) → back to **186** on close (W-5 teardown), `count===unique` throughout → **0 orphans**. Getter G exact. Open moves `activeIndex` −1→0 + focus into the "View identity" menuitem; header renders the avatar + name + `status full`. Portal: root reparented to `document.body`, `position:fixed`, `z-index:1000`, in-viewport. Enter dispatches → `onSelect("identity")` (`selected: identity`) + closes + returns focus to the trigger. Esc + outside-click dismiss were proven in the Step-4 inline pass (`true→false` each); the machine is portal-agnostic. Both accents: `--accent2` swaps gold `#c28840` ↔ blue `#3a7ab0` (live), menu chrome accent-neutral (`bg rgb(34,38,45)=--s3` identical both shells — the item focus ring is the lone accent touch). Screenshot `temp/ecm-sampler-portal.png` (header AN + Alice Ng + "🎧 in a meeting updated 9m ago" + "View identity", clean popup below the trigger).
+
+**Verify — effect layer, real CDP output (Rule 2), REAL client shell, port 9222.** A minimal, clearly-marked **temporary** harness in `app_client.svelte` (an `overflow:hidden` box existing only to prove the clip escape + a real host-injected `onSelect`); reverted at close (lean chrome restored, J-428 — client frontend 126→**122** modules after revert). Portal escape + host round-trip:
+```
+open:  {"open":true,"parentIsBody":true,"insideHarness":false,"position":"fixed","zIndex":"1000","dataPortal":"true","menuRect":{"t":53,"l":79,"w":235,"h":88},"harnessRect":{"t":136,"l":70,"w":180,"h":60},"menuTallerThanClipBox":true,"inViewport":true}
+select:{"afterEnter_open":false,"activeIndex":-1,"handlerResult":"dispatch:identity -> host get_state=DISCONNECTED","focusReturnedToTrigger":true,"childrenGone":true,"menuContentGone":true,"widgetStillRegistered":true}
+```
+Reading these out: the menu **portals out of the `overflow:hidden` clip box** (`parentIsBody:true`, `insideHarness:false`), renders **88px tall inside a 60px clip box yet fully in-viewport** (an inline popup would be sliced), `position:fixed` `z-index:1000`; the **flip** fired (top:53, above the trigger — the small client window couldn't fit it below). Select → the injected `onSelect` fired **and reached real host I/O**: `handlerResult:"dispatch:identity -> host get_state=DISCONNECTED"` (a real `invoke('get_state')` returning the live client state) — the full W-3 host-injected round-trip; then close + focus-return across the portal boundary + W-5 teardown (portaled children removed from `body`), the always-mounted root persisting. Screenshot `temp/ecm-effect-layer.png` (portaled menu above the trigger, gold focus ring on "View identity", the round-trip line at the foot). **Both verify homes green → done** (widget-tier §5).
+
+**Two honest notes (Rule 6, recorded not hidden).** (1) **ArrowDown clamps, does not advance** — the base ships exactly one item by design (universal `identity`; W-8), so multi-row advance is catalogue-bounded, not a gap; the roving arithmetic is `Math.min(n-1, activeIndex+1)` and open already moves `activeIndex` −1→0. (2) The status-full line **ellipsizes** at the min-width in a cramped container (was visible in the inline sampler popup as "in a me…"; the portal placement gives it natural width so it shows in full) — cosmetic, Joe HMR-tunes.
+
+**Registry.** 185 (J-468) → **186** (the widget root, closed) → **188** open (+`entity-avatar#demo__avatar` +`status#demo__status`). 0 orphans at every state.
+
+**Remaining / next.** The widget tier has **one left**: `temperature-indicator` (M-RP5.4) — the first-conceived widget, binding `meter` through the W-11 dd-socket this widget just exercised for real. Kind 4 `use:render` stays deferred (D-065). Standing: MP-R3 capstone ledger owed (`tasks/HANDOFF_MP_R3.md`).
 
 ---
 

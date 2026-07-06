@@ -1,6 +1,6 @@
 # entity-context-menu — Phase-0 (M-RP5.3)
-> **Status**: PENDING  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-06  
 > Language: English  
@@ -82,3 +82,13 @@ Registry delta measured at build (+1 widget + composed `__avatar`/`__status` chi
 ---
 
 *UI-architecture Phase-0. No protocol/data implication. Locks the A→H design for `entity-context-menu`; build deferred to a later session (Clair code seat). Standing: MP-R3 capstone ledger owed on that milestone's close (`tasks/HANDOFF_MP_R3.md`).*
+
+---
+
+## Close (M-RP5.3 BUILT — J-469, 2026-07-06)
+
+**Status PENDING → COMPLETED.** Built to the A→H lock across the §5 five steps (scaffold → machine → header+item → skin+sampler+pure-CDP → portal+effect-CDP). Both verify layers green: pure (sampler 9422) + effect (real client 9222, host `invoke('get_state')` round-trip). Registry 185→186 (widget root; +2 `__avatar`/`__status` on open), 0 orphans. Deliverables: `ui/common/lib/components/widgets/entity-context-menu.svelte` + `.entity-context-menu` skin block + the sampler WIDGET cell. See JOURNAL J-469 + N-082.
+
+**One amendment to the lock (Joe-lock, this build).** §2 C / §4 scoped the sampler pure layer to an **inline `position:absolute` popup** (portal = effect-layer only). At build, the inline popup overlapped the trigger and ellipsized the status line; Joe locked `portal={true}` in the **sampler cell too**, so the pure-layer demo matches the real shell. Technically clean (portal is pure DOM — `appendChild` to `body` — needing no host); the two-layer verify (getter/machine/registry) is position-agnostic and unaffected. The rest of the A→H lock shipped as written.
+
+**Honest phase-limits carried (W-8, Rule 6).** ArrowDown clamps rather than advances (the base ships one item by design; multi-row advance is catalogue-bounded). The status-full line ellipsizes in a cramped container (cosmetic, HMR). The flag-gated per-(variant,purpose) item slots + the space/room universal-item labels + a `menu-item` core di remain reserved.

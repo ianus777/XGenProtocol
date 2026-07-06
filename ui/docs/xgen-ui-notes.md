@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.65  
+> Version: 0.66  
 > Date: May 2026  
-> **Last updated**: 2026-07-05  
+> **Last updated**: 2026-07-06  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -1717,6 +1717,30 @@ M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the 
 **Remaining PROVISIONAL (unchanged).** The seed **ring on the diagonal hull** is still absent — a CSS `border` only draws on the rectangular border-box, so the `clip-path` cuts bare fill along the four diagonals regardless of which layer owns the clip. The seed FILL carries the diagonals; Joe HMR-tunes if a true diagonal ring is wanted (a two-layer / drawn-hull technique, out of scope here). The badge-slice — the locked deliverable — is fixed.
 
 *Additive skin/component refactor; no new component, no wire/prop change. Resolves the M-RP5.0c badge-clip PROVISIONAL. → registry v0.52 (avatar internal note). Next: the widget tier — `entity-context-menu` (M-RP5.3) → `temperature-indicator` (M-RP5.4).*
+
+---
+
+### N-082 — `entity-context-menu`: the second widget, the first real W-11 dd-socket consumer — behaviour machine + portal-to-body/flip-shift (M-RP5.3)
+
+**What it is.** The **second `widget`** (Level-2, D-102; home `ui/common/lib/components/widgets/`) and the **first widget with a real dd-dependency** — the first genuine exercise of the **W-11 dd-socket** the tier spec defined ahead of any consumer. It binds an `EntityDescriptor` + a self-status view-model (`core` imports no protocol type; the shell owns the protocol→descriptor map). A gesture-agnostic droppable overlay: `open(anchor)`/`close()` are exported instance methods; the **consumer** wires the trigger (the reserved avatar/item `onActivate?`, right-click, long-press). Root `<div class="entity-context-menu" role="menu">`, `data-tier="widget"`. Design lock: `docs/entity-context-menu-phase0.md` (A→H).
+
+**Why a widget, not a composite (W-2, the discriminator).** Roving focus alone is *not* the line — `entity-panel` (a composite) already owns roving focus. Three things push this over W-2: (1) an **overlay mount/unmount lifecycle** (appear → focus-trap → dismiss-policy → tear down); (2) it **dispatches host-integrating side effects** (message / block / navigate); (3) it is the **first real W-11 dd-socket consumer**. That trio is a behaviour contract — remove it and you lose a *behaviour*, not a *layout*.
+
+**The behaviour machine D.** `closed → open(anchored, focus moved in) → navigating(roving) → dispatch(run handler) → closed`. Dismiss policy = **Esc** · **outside-click** (a document `mousedown` capture listener, the anchor exempt) · **select-then-close** · **focus-leaves** (`focusout` with a relatedTarget outside the menu — the "anchor blur" essence). Focus returns to the anchor on close. **W-5 lifecycle:** the outside-click listener + focus-move-in wire inside a `$effect` keyed on `isOpen` and tear down the instant it closes **or** the component unmounts (the effect cleanup covers both) → 0 orphans, CDP-proven (188 open → 186 on close, children removed).
+
+**Header + item model.** The menu = a **header** (composes `entity-avatar` + name + `status` **full** — the identity-read surface; the avatar is passed **no** `status` so the children stay exactly `__avatar`/`__status` per getter G) over a `<ul role="none">` of widget-owned `<li role="menuitem">` rows. Base ships exactly the **universal `identity` item** (kind-labelled; space/room labels + the flag-gated per-(variant,purpose) slots reserved — declared-not-populated, W-8). Getter G `{open,variant,purpose,kind,itemCount,activeIndex}` — task-state only, no payload (N-060); children self-register `entity-avatar#<id>__avatar` + `status#<id>__status`.
+
+**Always-mounted root (N-053).** The registered root always mounts (like `status.svelte` mounted-but-empty) so getter G stays CDP-readable while **closed** (`{open:false}` after Esc) and the registry count is stable; `data-open` reflects state, the skin collapses `:not([data-open])`; the popup **content** (header + items) is what's conditional. A widget's children legitimately mount/unmount with the overlay lifecycle — the *root* anchor persists.
+
+**Portal-to-body + flip/shift (§2 C).** Avatars live inside `overflow` panels that clip an inline popup. The opt-in `portal` prop relocates the root to `document.body` (via a Svelte action, no-op when off) and switches it to `position:fixed` (`data-portal` skin), then places it against the anchor's viewport rect: default below-left, **flip** below→above on bottom overflow, **shift** to clamp into the viewport on right/left overflow. Placement runs in the open-effect's `queueMicrotask` (before paint → no flash). CDP-proven in the real client: the menu renders 88px tall inside a 60px `overflow:hidden` box yet fully in-viewport (`parentIsBody:true`, `insideHarness:false`), and the small window triggered the flip (placed above the trigger).
+
+**Joe-lock — the sampler also portals (overrides Phase-0 §2 C).** Phase-0 scoped the sampler pure layer to an inline `position:absolute` popup (portal = effect-layer only). In practice the inline popup overlapped the trigger and cramped the status line to an ellipsis; Joe locked `portal={true}` in the sampler cell too, so the pure-layer demo matches the real shell. Technically clean — portal is pure DOM (`appendChild` to body), no host needed; the two-layer verify (getter/machine/registry) is position-agnostic and unchanged.
+
+**Two-layer verify green (widget-tier §5, real CDP output — Rule 2).** *Pure (sampler 9422):* registry 186 closed → 188 open (`entity-avatar#demo__avatar` + `status#demo__status`), 0 orphans; getter exact; open → `{open:true,activeIndex:0}` + focus into "View identity"; `parentIsBody:true`/`position:fixed`/`data-portal:true`; Enter → `onSelect("identity")` + close + focus-return; Esc + outside-click dismiss (`true→false`); both accents (menu chrome accent-neutral `--s3`, item focus ring rides `--accent2` gold↔blue). *Effect (real client 9222):* the menu portals out of a real `overflow:hidden` box and stays in-viewport; the injected `onSelect` reaches **real host I/O** — `handlerResult:"dispatch:identity -> host get_state=DISCONNECTED"` (a real `invoke('get_state')`); focus returns across the portal boundary; W-5 teardown removes the portaled children from `body`; the always-mounted root persists. A minimal temp harness in `app_client.svelte` (an `overflow:hidden` box + a real `onSelect`) proved this and was **reverted** at close (lean chrome, J-428; client frontend 126→122 modules after revert).
+
+**Two honest notes (Rule 6, recorded not hidden).** (1) **ArrowDown clamps, does not advance** — the base ships exactly one item by design (W-8), so multi-row advance is catalogue-bounded, not a gap; the arithmetic is `Math.min(n-1, activeIndex+1)` and open already moves `activeIndex` −1→0. (2) The **status-full line ellipsizes** in a cramped container (was "in a me…" in the inline sampler popup; the portal placement gives natural width so it shows in full) — cosmetic, Joe HMR-tunes.
+
+*New `common/widgets/` occupant + additive skin; no wire/prop/protocol change → no `DECISIONS.md` touch. Registry 185→186 (widget root; +2 `__avatar`/`__status` on open), 0 orphans. → registry v0.53. Next: `temperature-indicator` (M-RP5.4) — the last widget-tier item, binds `meter` via this same W-11 dd-socket.*
 
 ---
 

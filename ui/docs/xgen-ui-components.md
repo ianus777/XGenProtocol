@@ -1,8 +1,8 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.52  
+> Version: 0.53  
 > Date: Jun 2026  
-> **Last updated**: 2026-07-05  
+> **Last updated**: 2026-07-06  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -10,7 +10,7 @@
 
 This file records the data-independent **catalogue** (the intended control vocabulary) and a **seed** of the data-derived spine (concept-locked rows that extend during stock-take + testing); both become the live registry of built components as the library is laid down.
 
-> **Level-2 `widget` tier (2026-07-04, → D-102 / N-067).** Above this Level-1 component catalogue sits the **`widget`** tier — a pluggable **UI plugin** that owns state/lifecycle + host I/O (home `ui/common/lib/components/widgets/`), connected via a reactive `$common` store binding, verified two-layer (pure/presentational → sampler WIDGET tab / effect → real shell). It is **not catalogued here** (a widget is not a `core` component). Spec: `ui/docs/xgen-widget-tier.md` v1.0 (first-instance-provisional). First **buildable** widget = `substitutions-editor` ✅ **BUILT** (M-RP4.3, J-454) — the first `widgets/` occupant; edits the `[substitutions]` rules string (one textarea, D-100 1:1) → store → live morph, persists via host-injected `set_substitutions`. `temperature-indicator` first conceived but dd-blocked.
+> **Level-2 `widget` tier (2026-07-04, → D-102 / N-067).** Above this Level-1 component catalogue sits the **`widget`** tier — a pluggable **UI plugin** that owns state/lifecycle + host I/O (home `ui/common/lib/components/widgets/`), connected via a reactive `$common` store binding, verified two-layer (pure/presentational → sampler WIDGET tab / effect → real shell). It is **not catalogued here** (a widget is not a `core` component). Spec: `ui/docs/xgen-widget-tier.md` v1.0 (first-instance-provisional). First **buildable** widget = `substitutions-editor` ✅ **BUILT** (M-RP4.3, J-454) — the first `widgets/` occupant; edits the `[substitutions]` rules string (one textarea, D-100 1:1) → store → live morph, persists via host-injected `set_substitutions`. Second widget = `entity-context-menu` ✅ **BUILT** (M-RP5.3, J-469) — the **first real W-11 dd-socket consumer** (binds an `EntityDescriptor` + a self-status view-model; `core` protocol-free). A gesture-agnostic overlay (`open(anchor)`/`close()`) owning the W-2 behaviour machine (open→focus-in→roving→dispatch→close; dismiss Esc/outside-click/select-then-close/focus-leave) + **portal-to-body + flip/shift**; the header composes `entity-avatar` + name + `status full`; base ships the universal `identity` item (flag-gated per-(variant,purpose) slots reserved, W-8); getter `{open,variant,purpose,kind,itemCount,activeIndex}`, children self-register `__avatar`/`__status`. Two-layer verify green — pure (sampler 9422, `portal=true` per a Joe-lock overriding Phase-0 §2 C) + effect (real client 9222: portal escapes a real `overflow:hidden` box, host `invoke('get_state')` round-trip). See N-082. `temperature-indicator` first conceived, next (M-RP5.4, binds `meter` via the same dd-socket).
 
 > **Text-processor kinds (2026-07-04, D-099/N-056).** The edit-side processor engine has **3 of 4 kinds built**: kind 1 transformer (`string→string`, live on `input`; `textarea`/`number` hosts, M-RP4.0/4.2) + kind 3 filter/guard (`number` min/max clamp on `change`, M-RP4.1) + kind 2 converter/bridge (`string↔T`, the new di atomic `converter-field` with `Intl`, M-RP4.5). Kind 4 (`use:render`) remains codified, not built. Kinds 1/3 are forwarded `common` attachments (atomics stay `{...rest}` hosts); kind 2 is the exception — a real component, since two reps of different type can't ride one `bind:value`.
 

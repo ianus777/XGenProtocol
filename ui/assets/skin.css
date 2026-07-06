@@ -1999,3 +1999,82 @@ html, body {
   color: var(--t3);
   font-size: var(--fs-1);
 }
+
+/* ── widget: entity-context-menu (M-RP5.3, the SECOND widget / D-102; first W-11 dd-socket consumer)
+ *   Root <div class="entity-context-menu" role="menu">, data-tier="widget". The root ALWAYS mounts
+ *   (getter G stays CDP-readable while closed, N-053); :not([data-open]) collapses it. Open = an
+ *   anchored popup surface (the combobox-list popup vocabulary — --s3 fill, --s5 border, soft
+ *   shadow, z-index 20): a HEADER (avatar + name + status full) over a menuitem list. Sampler pure
+ *   layer = an absolute popup at the static position; portal-to-body + viewport flip/shift are the
+ *   effect layer (Step 5). Accent-neutral chrome; the roving item highlight rides --s4, the focus
+ *   ring rides --accent2 (gold/blue). PROVISIONAL. ── */
+.entity-context-menu:not([data-open]) {
+  display: none;
+}
+.entity-context-menu {
+  position: absolute;
+  z-index: 20;
+  min-width: 200px;
+  max-width: 280px;
+  padding: var(--sp-1);
+  background: var(--s3);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+/* portal (effect layer): relocated to <body>, viewport-positioned (top/left set inline by
+ * reposition()), stacked above app chrome. The inline absolute popup (sampler) is the default. */
+.entity-context-menu[data-portal] {
+  position: fixed;
+  z-index: 1000;
+}
+.entity-context-menu:focus {
+  outline: none;
+}
+/* header — the identity read: avatar beside name + status full */
+.entity-context-menu .ecm-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2) var(--sp-2);
+  border-bottom: 1px solid var(--s5);
+}
+.entity-context-menu .ecm-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0; /* let the name ellipsis inside a flex row */
+}
+.entity-context-menu .ecm-name {
+  font-size: var(--fs-2);
+  font-weight: 600;
+  color: var(--t);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* item list — widget-owned menuitem rows (the header composes core; rows are layout+dispatch) */
+.entity-context-menu .ecm-items {
+  list-style: none;
+  margin: var(--sp-1) 0 0;
+  padding: 0;
+}
+.entity-context-menu .ecm-item {
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-1);
+  color: var(--t);
+  border-radius: var(--rad0);
+  cursor: pointer;
+}
+.entity-context-menu .ecm-item:hover,
+.entity-context-menu .ecm-item:focus {
+  outline: none;
+  background: var(--s4); /* roving highlight — programmatic .focus() triggers :focus */
+}
+.entity-context-menu .ecm-item:focus-visible {
+  box-shadow: var(--focus-ring); /* keyboard ring rides --accent2 */
+}
+.entity-context-menu .ecm-item[aria-disabled] {
+  opacity: 0.4;
+  cursor: default;
+}

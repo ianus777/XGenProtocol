@@ -8,6 +8,24 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-472 — M-RP6.0 LOCK: Pre-UI Node↔Client Functional Gate opened (PENDING→PLAY); G-set G1–G5 + name M-RP6.0 locked (Joe)
+
+**Record action, no code.** Joe locked the two open items from the M-RP6.0 Phase-0 (opened PENDING at J-471): the **G-set** and the **milestone name**. Both locked as recommended.
+
+**Locked (Joe):**
+- **G-set = G1–G5** (single-node, client-facing; federation topology out): **G1** connect+`get_state` · **G2** state sync · **G3** send/receive round-trip · **G4** multi-client/one-node (reuse `MULTIPARTY_S1`) · **G5** client rebind (reuse `MULTIPARTY_S5`). G1–G3 are the load-bearing gates (what the client UI panel sits on); G4–G5 are the robustness reuses. **No G6/durability** this gate (logged as a candidate for a later federation/durability gate, D-080 family).
+- **Name = M-RP6.0** — opens a fresh RP6 arc (`M-RP6.0` = pre-UI gate; `M-RP6.1+` = the client-UI-panel build). Integration is a new concern, not more RP5 component work.
+
+**Method (from Phase-0):** reuse `xgen-mptest` where it covers G1–G5 + live CDP self-drive of the real binaries (9222 client / 9322 node, J-405) for anything harness-external; real output quoted (Rule 2). **DoD:** each G# green with real quoted output + a short findings list + a **GO/NO-GO** verdict for opening the client UI panel arc. **Not** a re-run of the closed Multiparty-tests milestone (that stays CLOSED, J-356; the consolidated ledger was already delivered there — the earlier "MP-R3 owed" note was stale, corrected J-471).
+
+**Records (D-074 atomic).** Phase-0 doc `docs/tests/PRE_UI_NODE_CLIENT_GATE_phase0.md` PENDING→**ACTIVE** (v0.1→v0.2, G-set + name LOCKED banner + scope section flipped to LOCKED). ROADMAP **v4.40→v4.41** (M-RP6.0 🟡 PENDING → 🟢 PLAY, J-472; tail flipped recommended→LOCKED). CLAUDE.md PLAY next-active flipped to M-RP6.0 PLAY (the stale "Next-active = temperature-indicator" line neutralised — M-RP5.4 stays ⏸️ POSTPONED, J-470). This entry. No DECISIONS/registry/component touch. GitHub board M-RP6.0 → PLAY (`3f8e96a8`). Not pushed — Joe pushes.
+
+**Note (Rule 3, honest).** The Filesystem MCP server went unresponsive mid-bundle (two `edit_file` calls on CLAUDE.md timed out at 4 min each; a light read also hung). Joe killed the hung processes and the server recovered. On recovery it was found the two "timed-out" CLAUDE.md edits had in fact applied to disk — the timeout was in the response channel, not the write. All four `.md` files verified consistent post-recovery before this entry was written (Rule 4: journal last).
+
+**Next-active.** M-RP6.0 gate execution: run G1–G5 live, quote real output, produce findings + GO/NO-GO. On GO → the client UI panel arc (M-RP6.1+).
+
+---
+
 ## Entry J-471 — records: MP-R3 "owed" note corrected (already delivered J-356) + Pre-UI Node↔Client Functional Gate opened (M-RP6.0, PENDING)
 
 **Two record actions, no code.**

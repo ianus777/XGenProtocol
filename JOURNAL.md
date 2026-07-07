@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-479 — M-RP5.5 B: `message` text states — grouped / edited / deleted (registry 202→215)
+
+**Two-commit close (D-074).** Clair's feat `063aeab` (3 files, pushed) + this doc-bridge. Second build step of the message dd sub-family — the three `text` render-states, on sampler fixtures.
+
+**Built (`text` states).**
+- **`grouped`** — a **stream-computed PROP** on `message.svelte` (not a `MessageDescriptor` field; `message-stream` sets it at M-RP5.6). `{#if !grouped}` suppresses the whole `.msg-header` (name + `details`); the avatar + body stay, the reserved column keeps alignment (reader orientation).
+- **`edited`** (descriptor field) — a trailing `.message-edited` `(edited)` marker after the body; suppressed under `deleted`.
+- **`deleted`** (descriptor field) — tombstone: the body `paragraph` is replaced by an empty `.msg-deleted` span whose copy is a skin `content` var (`--msg-deleted`, the `--caps-hint` precedent); `details`/`edited` dropped, `detailsCount` forced 0, avatar + name kept.
+- **Precedence:** `deleted` wins. Getter `+= grouped, edited, deleted`.
+
+**CDP (9422, both accents).** `ids()` **202→215** (+13 = grouped 3 + edited 4 + deleted 3 + grouped-edited 3 — grouped cells drop `__name`, deleted cells drop `__body`), `count===unique`, 0 orphans both directions. grouped/grouped-edited → no `.msg-header` in DOM + `__name` unregistered; edited → `(edited)` present; deleted → `::before` = the `--msg-deleted` copy, no body/details/edited, `__body` unregistered, avatar+name kept. Accent-neutral (`--accent2` `#c28840` ↔ `#3a7ab0`). `vite build` clean (158 modules; the two warnings pre-existing in meter/entity-avatar).
+
+**Records-honesty note (Rule 1).** The B kickoff called all three "existing `MessageDescriptor` fields." Phase-0 §4's descriptor field-list loosely included `grouped`, but Phase-0 §2/§5 lock it as stream-computed ("message only *accepts* it"). Clair implemented it correctly as a **prop**, not a field — `edited`/`deleted` are the descriptor fields. The code is authoritative; no reversal. (Phase-0 §4's loose mention noted here, not rewritten — §5's split was always right.)
+
+**Records.** `ui/docs/xgen-ui-components.md` v0.54→v0.55 (message row getter + Build note (M-RP5.5 B) + count 202→215). `docs/ROADMAP.md` M-RP5.5 B ✅. CLAUDE.md PLAY. `tasks/M_RP5_5_B_MESSAGE_TEXT_STATES.md` → COMPLETED. This entry. Feat `063aeab` already pushed; doc-bridge is a second commit — Joe pushes.
+
+**Next-active.** **M-RP5.5 C** — `system` kind (authorless centered notice) + full `isOwn` both-sides verify → closes message family v1, D-074 close.
+
+---
+
 ## Entry J-478 — M-RP5.5 A: `message` dd-composite built — `MessageDescriptor` + `text` full (registry 186→202)
 
 **Two-commit close (D-074).** Clair's feat `166529e` (5 files, pushed) + this doc-bridge. First build step of the message dd sub-family, on sampler fixtures.

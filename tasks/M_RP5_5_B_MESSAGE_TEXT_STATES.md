@@ -1,6 +1,6 @@
 # M-RP5.5 B — `text` states: grouped / edited / deleted (message dd-composite)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-07  
 > Language: EN  
@@ -60,3 +60,7 @@ Grouped cells suppress the composed `label` → those cells register `message + 
 2. **docs** (Chat): registry bump, `JOURNAL` J-NNN, `docs/ROADMAP.md` (M-RP5.5 B ✅), CLAUDE.md PLAY, this runbook → COMPLETED.
 
 Joe pushes both.
+
+## Close record
+
+CLOSED at **J-479**. feat `063aeab` (3 files, pushed). Sampler **202→215** (+13 = grouped 3 + edited 4 + deleted 3 + grouped-edited 3 — grouped cells drop `__name`, deleted cells drop `__body`), `count===unique`, 0 orphans both directions. **Design note:** `grouped` shipped as a stream-computed **prop** on `message.svelte` (not a descriptor field — Phase-0 §5 split; the code is authoritative); `edited`/`deleted` are descriptor fields. Deleted-tombstone copy = skin `content` var `--msg-deleted`. Doc-bridge: registry v0.55, ROADMAP v4.48 (M-RP5.5 B ✅), CLAUDE PLAY, this runbook. Next → **M-RP5.5 C** (`system` kind + full `isOwn` verify → closes family v1).

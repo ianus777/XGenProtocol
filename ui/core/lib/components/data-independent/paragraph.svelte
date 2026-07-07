@@ -25,11 +25,11 @@
   // block spacing — is skin, keyed by `.paragraph` in the one skin file (N-025).
   import { envelope } from '$common/components/base/envelope';
 
-  let { text = '', id }: { text?: string; id?: string } = $props();
+  let { text = '', id, class: klass }: { text?: string; id?: string; class?: string } = $props();
 
   // N-024 opt-in. Read-only (no user delta); the registry stays uniform (N-030 §4).
   // Verify = render + computed-style, the display-di pattern founded at label (N-035).
   const debug = () => $state.snapshot({ text });
 </script>
 
-<p use:envelope={{ name: 'paragraph', id, debug }}>{text}</p>
+<p class={klass} use:envelope={{ name: 'paragraph', id, debug }}>{text}</p>

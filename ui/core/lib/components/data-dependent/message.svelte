@@ -100,6 +100,6 @@
         </span>
       {/if}
     </div>
-    <Paragraph text={descriptor.body ?? ''} id={cid('body')} />
+    <Paragraph text={descriptor.body ?? ''} class="message-paragraph" id={cid('body')} />
   </div>
 </article>

@@ -2146,3 +2146,8 @@ html, body {
 .message .msg-content .paragraph {
   margin: 0;
 }
+
+.message .message-paragraph {
+	font-size: var(--fs-2);
+	letter-spacing: .5px;
+}

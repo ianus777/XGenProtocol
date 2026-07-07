@@ -1,6 +1,6 @@
 # XGen UI — Region / Dock Model
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-07  
 > Language: English  
@@ -88,6 +88,27 @@ A shell primitive the regions share: **one active selection** across the layout 
 ## 8. Relationship to other decisions
 
 D-102 (the `widget` tier this extends with a layout seam) · W-11 dd-socket (the data seam; W-12 is its layout sibling) · D-095 (the `ui/{...}` tier split) · D-056 (one shared command layer — the dock engine is shell-level, above components) · D-065 (build-when-consumed; renderer A before B so tiles prove content before they become draggable). All-widgets framing locked by Joe (2026-07-07).
+
+## 9. Layout persistence
+
+The live layout descriptor (§3) is saved to disk and restored on start. Layout is a **local UI preference** — stored in the client config dir (Tauri `app_config_dir()`), never federated, per-device.
+
+**Baseline — one active layout (auto).**
+- **Auto-load on start:** `get_layout()` → saved `Layout` or the default layout when absent.
+- **Auto-save on exit:** persist the live tree in the window close hook (`on_window_event` / `CloseRequested`) before quit; also debounced-save on each mutation so a crash loses at most the last change.
+- File: `xgen-client_layout.json`.
+
+**Manual + named layouts (a layout manager).**
+- Storage widens to a set: `xgen-client_layouts.json` = `{ active, layouts: { <id>: { name, layout, updated_at } } }`.
+- Verbs: `list_layouts()` · `save_layout(name?)` (overwrite active or save-as) · `load_layout(id)` · `delete_layout(id)` · `rename_layout(id, name)`. Same read/write shape as `get_substitutions`/`set_substitutions` — the webview owns the live tree, Rust persists the blob.
+- The **layout manager is itself a widget** (fits the model): pick / save-as / rename / delete / set-active. `delete_layout` confirms in-UI (destructive).
+
+**Identity + reconcile rules.**
+- **`widgetId` is the durable identity; the display name is a mutable label.** A saved layout references ids, so renaming a widget is a non-issue. A widget update MUST keep its id — same id or it is a different widget.
+- On load, reconcile the saved tree against the current registry: **drop nodes with unknown `widgetId`** (removed/uninstalled widget), **re-inject missing `system` widgets** (W-13 — a saved layout can never lose the Composer), then re-flow.
+- **`version` bump + migrate** only for descriptor **schema** changes (node shape). Prop/name drift on the same id is the widget's own concern, not a layout concern. On unrecoverable mismatch → fall back to default, never crash on a stale tree.
+
+**Sequencing.** Contract is free now (`version` in the descriptor; the verbs are layout-shaped siblings of the M-RP6.1 read/write verbs). M-RP6.1 may stub `get_layout` (returns default) at no cost. Baseline auto-save/load lands at **M-RP7.3**; named layouts + manager widget at **M-RP7.6** (after renderer B can produce varied layouts worth naming).
 
 ---
 

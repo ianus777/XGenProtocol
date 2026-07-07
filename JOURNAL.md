@@ -8,6 +8,18 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-475 — Region/dock model v1.1: layout persistence (§9) + M-RP7.6 named layouts / manager widget
+
+**Design-only, no code.** Follow-on doc amendment to M-RP6.0d (J-474), answering "how is a custom layout saved?".
+
+**Locked.** Layout = the serializable descriptor (§3) written to a **local** file in the client config dir (Tauri `app_config_dir()`), never federated, per-device. **Auto-save-on-exit** (window close hook, + debounced on mutation) + **auto-load-on-start** (`get_layout()` → saved or default) as the baseline; **manual + named layouts** via a small set file + verbs (`list/save/load/delete/rename_layout`), with a **layout-manager widget** on top (fits the all-widgets model). Verb shape mirrors `get_substitutions`/`set_substitutions` — webview owns the live tree, Rust persists the blob.
+
+**Key correction (Joe).** `widgetId` is the **durable identity**; the display name is a mutable label — so **renaming a widget is a non-issue** (layouts reference ids). A widget update MUST keep its id. On-load reconcile then only handles real identity change: drop unknown-`widgetId` nodes, re-inject missing `system` widgets (W-13, Composer can't be lost); `version` bump + migrate only for descriptor **schema** changes; unrecoverable → default, never crash.
+
+**Records.** `ui/docs/xgen-region-dock-model.md` **v1.0→v1.1** (+§9 Layout persistence). `docs/ROADMAP.md` **v4.43→v4.44** (M-RP7.3 enriched + **M-RP7.6** named layouts / manager widget). This entry. No code, registry unchanged (186). Sequencing: contract free now (`version` + verb siblings of M-RP6.1); baseline persistence at **M-RP7.3**, named layouts at **M-RP7.6**. Not pushed — Joe pushes.
+
+---
+
 ## Entry J-474 — M-RP6.0d: region / dock model locked — every UI region is a widget (`system`|`custom`); one serializable layout descriptor for both renderers (D-103)
 
 **Design-only, no code (Rule 1/5: nothing built, nothing to verify — stated plainly).** Joe locked, across a short design discussion, the architecture for the whole client UI panel *before* any panel is built. Opened + closed same session as **M-RP6.0d** (a design beat off the M-RP6.0 gate, ahead of the M-RP6.1+ build arc).

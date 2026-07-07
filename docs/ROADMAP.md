@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 4.43  
+> Version: 4.44  
 > Date: May 2026  
 > **Last updated**: 2026-07-07  
 > Language: English  
@@ -707,7 +707,7 @@ The track the project is actively working on right now. Detail here is the most 
 
 > **🟡 M-RP6.1+ client UI panel arc (PENDING):** regions on real node↔client state via config-grid renderer A; each region built + CDP-verified as a system widget. **M-RP6.1** region-shell scaffold + selection bus + **R3 Self/connection** + **R8 inspector** (self = first inspectable) — closes the *read* half of gate finding F-1 (real Tauri read verb + reactive `app.emit` push; the shell's current auto-connect is a discard-the-stream scaffold, not a real resident). **M-RP6.2** R1 Spaces + R2 Rooms on real `KnownSpace`. **M-RP6.3** R6 Composer send verb — *write* half of F-1 (revisits M4 optimistic-ack). **M-RP6.4** R7 Members (resolve M6 `members` data-source shape A/B/hybrid first). **M-RP6.5** R4 heat + R5 `message` stream — un-postpones `temperature-indicator` (M-RP5.4).
 
-> **🟡 M-RP7 dock engine (PENDING):** the owned Maya-style renderer B on the same layout descriptor. 7.1 layout tree + splitters · 7.2 drag + drop-zone overlays (hover-to-plug-in) · 7.3 save/restore layouts · 7.4 custom-widget-contributed regions live · 7.5 (stretch) tear-off into separate OS windows (Tauri `WebviewWindow` + cross-window sync).
+> **🟡 M-RP7 dock engine (PENDING):** the owned Maya-style renderer B on the same layout descriptor. 7.1 layout tree + splitters · 7.2 drag + drop-zone overlays (hover-to-plug-in) · 7.3 save/restore layouts (auto-save-on-exit + auto-load-on-start; local `xgen-client_layout.json`, per-device, never federated) · 7.4 custom-widget-contributed regions live · 7.5 (stretch) tear-off into separate OS windows (Tauri `WebviewWindow` + cross-window sync) · 7.6 named layouts + a layout-manager widget (save-as/rename/delete/set-active; `xgen-client_layouts.json`). Persistence spec: `xgen-region-dock-model.md` §9 (v1.1) — `widgetId` = durable identity, on-load reconcile drops unknown ids + re-injects missing `system` widgets (W-13).
 
 ⚫ **Track A — self-set status protocol arc — CLOSED (J-461).** A parallel protocol arc opened while the dd track was scoped: self-set status (emoji + description line) was found to be entirely absent from the protocol (audit of `IdentityRecord`/`SpaceState` — only system-derived `revoked`/`is_ai`/`member_temperature`/`active_mutes` exist). Closed in three doc phases + one impl: **PROTO-STATUS.0 ✅** (dedicated `state.status` object, not on `IdentityRecord`; shape `{emoji?,text?,updated_at,expires_at?}`, global/public, presence excluded) → **PROTO-STATUS.1 ✅** (key `state.status/<identity_xgid>`, caps: 1-grapheme emoji / ≤128B text / `expires_at` now+60s..30d, clear-by-delete, lazy expiry) → **PROTO-STATUS.2 ✅** (Clair reference impl: new `xgen-core/src/status/` module, `StatusRecord` + validating ctor + `is_expired`, reuse `state.*` resolution + owner-write guard, 19 tests; 1502 passed / 0 failed workspace, clippy clean; Appendix I §V.4 entry, J-461). Docs: `xgen-status-gap-phase0.md`, `xgen-proto-status-phase0.md`, `xgen-proto-status-spec.md`, `tasks/RUNBOOK_PROTO_STATUS_2.md`. **Gates the status-bearing `entity-avatar` variants (Track B, M-RP5.2).** Deferred: per-space status, visibility gating, presence.
 

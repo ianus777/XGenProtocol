@@ -8,6 +8,20 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-476 — Reprioritize: `message` component + R5 stream region pulled ahead of the live-wiring arc
+
+**Design/records-only, no code.** Joe reprioritized: build the **`message` component** first, then the **R5 message-stream region** as a system widget — both **before** the M-RP6.x live-wiring arc. Rationale: R5 is the one region with no built component under it (and the app's whole point), and both build on **sampler fixtures** with no node↔client channel needed — so unit-then-container is the honest order, sequenced with the rest of the dd track.
+
+**Locked sequence.** **M-RP5.5** = `message` **dd-composite** (materializes a protocol message → honest HTML, N-075; composes `entity-avatar`/`label`/`paragraph`/`status`/`led`), a small **type family**. **M-RP5.6** = **R5 message-stream** as a **system widget** (the listbox-analogue of `entity-panel`: wraps N `message`s + ordering / grouping / day-dividers / scroll). Both sampler-verified. **M-RP5.5 opens with a D-071 Phase-0** on the message family (enumerate types, pin v1 vs deferred, map each type → composed atomics, define the `MessageDescriptor` dd-socket shape). Proposed v1: text (author+body+timestamp+send-status), system notice, consecutive-grouping, edited/deleted markers; deferred: reply/quote, attachment/media, reactions.
+
+**`temperature-indicator`** stays **⏸️ POSTPONED** (M-RP5.4 / the M-RP6.5 heat slot) until the main window is functional (Joe) — its blocker was exactly "no `message` component," which M-RP5.5 removes, but Joe defers the build itself to post-functional-window.
+
+**Records.** `docs/ROADMAP.md` **v4.44→v4.45** (M-RP5.5/M-RP5.6 block added as next-active; M-RP6.5 amended — R5 built earlier, heat stays POSTPONED). CLAUDE.md PLAY next-active reprioritized. This entry. No code, registry unchanged (186). Not pushed — Joe pushes.
+
+**Next-active.** **M-RP5.5 Phase-0** on the message family (discussion → doc), then build `message` on sampler fixtures.
+
+---
+
 ## Entry J-475 — Region/dock model v1.1: layout persistence (§9) + M-RP7.6 named layouts / manager widget
 
 **Design-only, no code.** Follow-on doc amendment to M-RP6.0d (J-474), answering "how is a custom layout saved?".

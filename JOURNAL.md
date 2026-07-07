@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-477 — M-RP5.5/5.6 Phase-0 LOCKED: the `message` family (2 kinds, `MessageDescriptor` dd-socket, `details`/`bodyExtras` widget sockets, `isOwn` flip); doc written
+
+**Design/records-only, no code.** Ran the D-071 Phase-0 on the message family (opened as next-active at J-476). Discussion → Joe-locked → canonical doc. Joe's early mockup (`ui/docs/user-member-message-ui-concept.jpg`) folded in: composition + own/other flip, ID#/IDU placeholders = avatar initials.
+
+**Locked (Joe).**
+- **2 kinds:** `text` (avatar both sides, **reserved column**, `isOwn` flip mirrors the row) + `system` (no avatar either side, centered special-adjust line). grouped/edited/deleted = **fields on `text`**, not types (the `EntityDescriptor.revoked`-is-a-flag discipline).
+- **`grouped`** suppresses the **header line only** (name + details); the **avatar stays** (reader orientation) — stream-computed.
+- **`MessageDescriptor` dd-socket** (source-agnostic, `core` protocol-free): `kind`,`id`,`author?: EntityDescriptor`(reuse),`body?`(text-node),`timestamp`,`isOwn?`(shell-set),`edited?`,`deleted?`,`details?: WidgetMount[]`,`bodyExtras?: WidgetMount[]`; reserved-unfed reply/attachments/reactions (D-065).
+- **Widget sockets (new requirement, Joe):** `message` is a **host surface** for system/custom widgets (all-widgets model, W-12) — `details` (header region: time/temperature/badges/icon-buttons; send-status `led` lives here) + `bodyExtras` (below body; attachments/reactions later). Each a `WidgetMount[]` (`{widgetId,props}`; unknown-`widgetId` dropped, W-13 reconcile). Renamed off `meta` to avoid the `meta`-attributes collision.
+- **Author self-status** rides `entity-avatar`'s existing `status?` corner-slot (M-RP5.1b) — no message-level `status` wiring.
+- **Stream = `core` dd-composite now** (`message-stream`, the `entity-panel` analogue; `role="log"`, click-select not roving); the **R5 system-widget wrap deferred to M-RP6.x** (needs the region shell — same posture as `temperature-indicator`, J-470). Records honesty: J-465 closed the *entity* dd-composite sub-family; `message`+`message-stream` open a new *message* sub-family, not a tier reopen.
+
+**Sub-milestones.** **M-RP5.5** (`message`): A (`MessageDescriptor` + `text` full) · B (grouped/edited/deleted) · C (`system` + `isOwn` flip) → D-074 close. **M-RP5.6** (`message-stream`): A (section + ordered N `message`s + empty + grouping + day-dividers) · B (scroll: auto-bottom/scrollback/jump-to-latest) → D-074 close.
+
+**Records.** New canonical doc `docs/xgen-dd-message-family-phase0.md` (ACTIVE, v1.0). `docs/ROADMAP.md` **v4.45→v4.46** (M-RP5.5/5.6 block: Phase-0 LOCKED + doc pointer + sub-milestone steps; stale "proposed v1" parenthetical corrected to locked fields). CLAUDE.md PLAY next-active flipped (Phase-0 locked → M-RP5.5 A build). This entry. No code, registry unchanged (**186**). GitHub board: M-RP5.5 card stays PENDING (design-locked; build not yet started). Not pushed — Joe pushes.
+
+**Next-active.** **M-RP5.5 A** — `MessageDescriptor` type + `text` full (avatar + name + body + `details` socket) on sampler fixtures; sampler DD·composite + CDP-verify.
+
+---
+
 ## Entry J-476 — Reprioritize: `message` component + R5 stream region pulled ahead of the live-wiring arc
 
 **Design/records-only, no code.** Joe reprioritized: build the **`message` component** first, then the **R5 message-stream region** as a system widget — both **before** the M-RP6.x live-wiring arc. Rationale: R5 is the one region with no built component under it (and the app's whole point), and both build on **sampler fixtures** with no node↔client channel needed — so unit-then-container is the honest order, sequenced with the rest of the dd track.

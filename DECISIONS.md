@@ -3981,3 +3981,17 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 **Why a new decision.** The widget is the first **behaviour-carrying** UI tier and every downstream milestone (M-RP4.3/4.1, kind-2, kind-4, dd-components) cites it — a durable, cross-cutting architectural choice that earns its own decision + a citable spec doc (the federation-design-doc precedent, not a scattered D-entry).
 
 **Relationship to other decisions:** D-095 (the `ui/{...}` tier split this extends with a Level-2 storey); D-096/N-054 (the Level-1 passive model the widget sits above); D-097/D-098 (the sampler blind spot that forces the two-layer verify); N-028 (the A/B/C Phase axis the one-tier decision maps I/O onto); N-057/N-058 (the source-agnostic store the I/O seam + dd-socket reuse); N-056 (the DEV-hook precedent); D-101 (the session-only write-back the first widget honestly surfaces); D-065 (build-when-consumed + first-instance-provisional); N-059 (concept-lock) → this.
+
+---
+
+## D-103 — Region / dock model: every UI region is a widget (`system` | `custom`); one serializable layout descriptor for both renderers
+
+**Decision.** The main client UI panel is a **layout of dockable regions**, and **every region is a widget** — there is no separate "region" concept. Widgets carry a `kind`: **`system`** (the built-in surfaces R1–R8: pre-installed, non-removable, but individually configurable + redockable like any widget) or **`custom`** (installable/removable; MAY also contribute a region). This extends D-102: a widget already plugs into a `$common` store (its *data* seam, W-11); it now MAY also contribute a dockable *surface* (its *layout* seam, W-12). The di/dd × atomic/composite grid stays the **content** tier; **widgets are the dockable surfaces that host content.**
+
+**The shared contract.** A single **serializable layout descriptor** (a tree of `leaf`/`split`/`tabs` nodes referencing widgets by id) is read by **both** renderers: a lean **config-grid (A)** now (M-RP6.1+; `split`-only subset, edit-to-rearrange) and an owned **Maya-style dock engine (B)** later (M-RP7; full tree + drag-drop hover-to-plug-in + splitters + save/restore). Because both read one descriptor, the dock engine is a **renderer upgrade, not a region rewrite**. A **selection bus** (`{regionId, entity}`) is the shell primitive R8/R1/R2 + `entity-context-menu` share.
+
+**Two constraint additions to the widget tier** (`xgen-widget-tier.md` v1.2): **W-12** — a widget owns exactly one region (promotes the earlier "MAY own a region" to the universal rule); **W-13** — `system` widgets are non-removable (always present in the default layout; may collapse/redock/retab/configure but never fully close — a user can't lose the Composer).
+
+**Why a new decision.** All-regions-are-widgets is a durable, cross-cutting architectural choice that reframes the whole client UI as a plugin surface (a custom widget can ship a new dockable region) and is cited by every M-RP6/M-RP7 milestone — it earns its own decision + a citable spec doc (`ui/docs/xgen-region-dock-model.md` v1.0, the federation-design-doc precedent). All-widgets framing locked by Joe 2026-07-07.
+
+**Relationship to other decisions:** D-102 (the `widget` tier this extends with a layout seam) · W-11 (the data-socket sibling of W-12) · D-095 (the `ui/{...}` tier split) · D-056 (one shared command layer — the dock engine is shell-level) · D-065 (build-when-consumed → renderer A before B); N-075 (`EntityDescriptor` = the selection-bus payload).

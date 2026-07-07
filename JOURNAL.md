@@ -1,10 +1,30 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-06  
+> **Last updated:** 2026-07-07  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-474 — M-RP6.0d: region / dock model locked — every UI region is a widget (`system`|`custom`); one serializable layout descriptor for both renderers (D-103)
+
+**Design-only, no code (Rule 1/5: nothing built, nothing to verify — stated plainly).** Joe locked, across a short design discussion, the architecture for the whole client UI panel *before* any panel is built. Opened + closed same session as **M-RP6.0d** (a design beat off the M-RP6.0 gate, ahead of the M-RP6.1+ build arc).
+
+**What was locked.**
+1. **The main client UI panel is a layout of dockable regions**, movable/rearrangeable like Maya panes ("undock, hover, plug in").
+2. **Every region is a widget** — there is no separate "region" concept. Widgets carry `kind`: **`system`** (the built-in surfaces R1–R8 — pre-installed, **non-removable**, but individually configurable + redockable like any widget) or **`custom`** (install/remove; MAY also contribute a region). This makes the client UI a plugin surface end-to-end: a custom widget can ship a brand-new dockable region.
+3. **One serializable layout descriptor** (`Layout = {version, root}`; `LayoutNode = leaf | split | tabs`, leaves referencing widgets by id) is read by **both** renderers — a lean **config-grid (A)** now and an owned **Maya-style dock engine (B)** at M-RP7 — so the dock engine is a **renderer upgrade, not a region rewrite**.
+4. **Selection bus** — one active selection `{regionId, entity: EntityDescriptor}` across the layout; feeds **R8 Selection-info** (the inspector: whatever's selected exposes its parameter rows) + reuses the same signal `entity-context-menu` reads. A shell primitive arriving with the region shell (M-RP6.1), consumed from M-RP6.2.
+
+**The 8 regions (all system widgets):** R1 Spaces rail (`entity-panel` space) · R2 Rooms (`entity-panel` room→hexagon) · R3 Self/connection (`entity-item`+`status`+`led`) · R4 Room header (`label`/`section` + temperature) · R5 Message stream (`message`, unbuilt) · R6 Composer (`textarea`+`button`) · R7 Members (`entity-panel` identity) · R8 Selection-info (`section`+`label` rows).
+
+**Two widget-tier constraint additions (v1.1→v1.2):** **W-12** — a widget owns exactly one region (the *layout* sibling of the W-11 *data* dd-socket; promotes the earlier "MAY own a region" to the universal rule). **W-13** — `system` widgets are non-removable (always in the default layout; may collapse/redock/retab/configure but never fully close — a user can't lose the Composer).
+
+**Records (D-074 atomic).** New canonical doc `ui/docs/xgen-region-dock-model.md` **v1.0** (region registry + layout-descriptor schema + region-provider seam + W-12/W-13 + renderer roadmap A→B). `DECISIONS.md` **+D-103** (region/dock model; every region a widget; one descriptor for both renderers). `ui/docs/xgen-widget-tier.md` **v1.1→v1.2** (+W-12/W-13 + a v1.2 reframe note). `docs/ROADMAP.md` **v4.42→v4.43** (M-RP6.0d ✅ DONE block + the 🟡 M-RP6.1+ client-UI-panel arc + the 🟡 M-RP7 dock-engine arc). CLAUDE.md PLAY next-active flipped (M-RP6.0d done; M-RP6.1 = region-shell scaffold + selection bus + R3 + R8, closing the read half of gate finding F-1). This entry. No component/registry/`.svelte` touch (registry unchanged at **186**). GitHub board: M-RP6.0d card → DONE. Not pushed — Joe pushes.
+
+**Next-active.** **M-RP6.1** — open with a D-071 Phase-0 auditing the honestly-bindable client-local state (identity / lifecycle / known-spaces on a clean-slate boot), then build the region-shell scaffold + selection bus + **R3 Self/connection** + **R8 Selection-info** (self = first inspectable) on config-grid renderer A, closing the *read* half of F-1 (the shell's current auto-connect discards its WS stream and fakes Ready — needs a real Tauri read verb + reactive `app.emit` push). Renderer B (the Maya dock engine) is the M-RP7 arc on the same descriptor.
 
 ---
 

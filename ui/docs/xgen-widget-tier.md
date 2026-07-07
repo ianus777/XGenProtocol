@@ -1,8 +1,8 @@
 # XGen UI — The `widget` Tier
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-04  
+> **Last updated**: 2026-07-07  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -75,6 +75,10 @@ Each clause is phrased so a candidate widget is yes/no conformant.
 - **W-9 — Representation.** A widget is an ordinary Svelte component (no `<component>` element exists) — a `.svelte` file in `ui/common/lib/components/widgets/`, marked Level-2 via `envelope` (optional tier arg / reflected `data-tier="widget"`) so `ids()` and the sampler's WIDGET tab partition it from composites. **Connection v1 = static import + placement** (`import`, `<WidgetName …/>`). A **widget registry + dynamic mount** (declarative `widget-id → component` placement — the true plugin-discovery layer) is **reserved**, triggered when dd-components give it a first consumer (D-065/D-069).
 - **W-10 — Plugin contract.** The explicit seam a host relies on: mount lifecycle · one aggregate getter · store-mediated I/O · declared Phase + capability. A widget is swappable behind this contract exactly as a protocol plugin is.
 - **W-11 — dd-socket.** A widget MAY expose typed **dd-slots**. Each slot = a `$common` **store handle** (read + optional write-back) + a **named mount point**. The slot is **source-agnostic** (N-057): the widget owns the store, a dd-component binds to it, and *who backs the store* (protocol vs literal) is the shell's job. **The dd-component binds to the store, never to widget internals.** This is the socket defined ahead of any dd-component so that when one is built it plugs in with zero widget rework.
+- **W-12 — a widget owns exactly one region.** A widget MAY own a dockable **region** (a named surface in the layout descriptor). W-11 is the *data* seam; W-12 is its *layout* sibling. Every region-owning widget maps to exactly one surface. See `xgen-region-dock-model.md` (D-103).
+- **W-13 — `system` widgets are non-removable.** Widgets carry a `kind`: `system` (built-in regions R1–R8: pre-installed, always in the default layout, configurable + redockable but never fully closed) or `custom` (install/remove; MAY also provide a region). Prevents a user closing the Composer with no way back.
+
+> **Reframe (v1.2, D-103).** Every UI **region is a widget** — the client panel is a layout of dockable widgets (`system` R1–R8 + `custom`). The di/dd grid stays the **content** tier; **widgets are the dockable surfaces that host content**, so a custom widget can contribute a new dockable region. Renderers: config-grid (A) now → owned dock engine (B) at M-RP7, both reading one serializable layout descriptor. Full model in `xgen-region-dock-model.md`.
 
 ---
 

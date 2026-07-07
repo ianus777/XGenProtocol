@@ -51,6 +51,8 @@
   import EntityItem from '$core/components/data-dependent/entity-item.svelte'; // first dd-composite (M-RP5.1)
   import Status from '$core/components/data-dependent/status.svelte'; // self-status dd-atomic (M-RP5.1a)
   import EntityPanel from '$core/components/data-dependent/entity-panel.svelte'; // last dd-composite (M-RP5.2)
+  import Message from '$core/components/data-dependent/message.svelte'; // message dd sub-family opener (M-RP5.5 A)
+  import FixtureWidget from './fixture-widget.svelte'; // sampler-local stub for the message details socket
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -251,6 +253,17 @@
     { descriptor: { kind: 'room', name: 'dev', id: 'xgen://room/dev-2b', flags: {} } },
   ];
   let epSelRooms = $state();
+
+  // message (M-RP5.5 A, message dd sub-family opener) — MessageDescriptor fixtures. `author` REUSES
+  // the entity dd-socket (EntityDescriptor); the shell would map protocol → descriptor here. The
+  // `details` widget socket resolves widgetId → component via a sampler-supplied registry; an
+  // unknown id is DROPPED on render (W-13). `text-own` sets isOwn → the row mirrors to the right.
+  const eaSelf = { kind: 'identity', name: 'You', id: 'xgen://identity/self-0', flags: {} };
+  const msgWidgets = { 'fixture.time': FixtureWidget, 'fixture.badge': FixtureWidget };
+  const msgOther = { kind: 'text', id: 'm-1', author: eaIdentity, body: 'Hey — did the fan-out converge on your node?', timestamp: '2026-07-07T12:03:00Z' };
+  const msgOwn = { kind: 'text', id: 'm-2', author: eaSelf, body: 'Yep — 19s, clean. Pushing the tag now.', timestamp: '2026-07-07T12:04:00Z', isOwn: true };
+  const msgDetails = { kind: 'text', id: 'm-3', author: eaIdentity, body: 'Two details mounts render inline in the header.', timestamp: '2026-07-07T12:05:00Z', details: [{ widgetId: 'fixture.time', props: { label: '12:05' } }, { widgetId: 'fixture.badge', props: { label: 'pinned', tone: 'muted' } }] };
+  const msgUnknownWidget = { kind: 'text', id: 'm-4', author: eaIdentity, body: 'One known mount + one unknown id (dropped).', timestamp: '2026-07-07T12:06:00Z', details: [{ widgetId: 'fixture.time', props: { label: '12:06' } }, { widgetId: 'does.not.exist', props: { label: 'GHOST' } }] };
 
   // select-multiple shares the N-034 options-prop shape (carried over from `select`).
   const smOptions = [
@@ -685,6 +698,24 @@
       <div class="s-cells">
         <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-item#room-item</span><EntityItem descriptor={eaRoom} variant="row" meta="9" id="room-item" /></div>
         <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-panel#rooms</span><EntityPanel items={epRooms} title="Rooms" bind:selected={epSelRooms} id="rooms" /></div>
+      </div>
+    </div>
+
+    <div class="s-section-title">Message (M-RP5.5 A — text full)</div>
+
+    <div class="s-row">
+      <div class="s-rowname">message · text full × isOwn</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-other</span><Message descriptor={msgOther} id="text-other" /></div>
+        <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-own</span><Message descriptor={msgOwn} id="text-own" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">message · details socket</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-details</span><Message descriptor={msgDetails} widgets={msgWidgets} id="text-details" /></div>
+        <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-unknown-widget</span><Message descriptor={msgUnknownWidget} widgets={msgWidgets} id="text-unknown-widget" /></div>
       </div>
     </div>
   </div>

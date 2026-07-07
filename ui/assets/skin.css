@@ -2078,3 +2078,71 @@ html, body {
   opacity: 0.4;
   cursor: default;
 }
+
+/* ───────────────────────────────────────────────────
+ * message (.message) — the message dd sub-family opener (M-RP5.5, dd-composite). Root IS
+ *   <article class="message"> (N-075 dd-root). A chat row: a RESERVED avatar column + a content
+ *   column (header line = author name + `details` widget socket, over the body paragraph). The
+ *   avatar column is reserved on BOTH sides — `[data-own]` MIRRORS the row to the right edge (avatar
+ *   → right track, content right-aligned), the shell-set self view. Reserving the column on both
+ *   sides is what lets grouped rendering (M-RP5.5 B) later suppress the header while keeping the
+ *   avatar space (reader orientation — Joe). LAYOUT only: the entity COLOUR stays seed-driven inside
+ *   the avatar, the text is muted skin; --accent does not enter. `body` is a text-node paragraph
+ *   (never @html). PROVISIONAL. ── */
+.message {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--sp-2);
+  align-items: start;
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--sp-1) var(--sp-2);
+  color: var(--t);
+}
+/* own message — mirror: content in track 1, avatar in track 2. BOTH sides keep the reserved column */
+.message[data-own] {
+  grid-template-columns: 1fr auto;
+}
+.message > .entity-avatar {
+  grid-column: 1;
+  grid-row: 1;
+}
+.message[data-own] > .entity-avatar {
+  grid-column: 2;
+}
+.message .msg-content {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0; /* allow the body to wrap / ellipsis inside the grid track */
+}
+.message[data-own] .msg-content {
+  grid-column: 1;
+  text-align: right;
+}
+/* header line — author name (composed label) + details socket, on one row above the body */
+.message .msg-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+.message[data-own] .msg-header {
+  flex-direction: row-reverse; /* name pins to the right edge on own rows */
+  justify-content: flex-start;
+}
+.message .msg-header .label {
+  font-size: var(--fs-1);
+  font-weight: 600;
+  color: var(--t);
+}
+/* details socket — inline widget host (time · badges · send-status led …); muted, small */
+.message .msg-details {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-0);
+  color: var(--t3);
+}
+/* body — the composed prose paragraph, flow-tightened under the header */
+.message .msg-content .paragraph {
+  margin: 0;
+}

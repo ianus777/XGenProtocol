@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-478 — M-RP5.5 A: `message` dd-composite built — `MessageDescriptor` + `text` full (registry 186→202)
+
+**Two-commit close (D-074).** Clair's feat `166529e` (5 files, pushed) + this doc-bridge. First build step of the message dd sub-family, on sampler fixtures.
+
+**Built (`text` full only).**
+- **`MessageDescriptor` dd-socket** (`types.ts`, beside `EntityDescriptor`; source-agnostic, `core` protocol-free): `{kind,id,author?: EntityDescriptor,body?,timestamp,isOwn?,edited?,deleted?,details?: WidgetMount[],bodyExtras?: WidgetMount[]}`; `WidgetMount {widgetId,props?}`.
+- **`message.svelte`** (NEW) — `text` full: composes the **real** `entity-avatar` (`__avatar`) + `label` (`__name`) + `paragraph` (`__body`), no re-implement. `details` resolves `WidgetMount[]` through the consumer widgets registry, **drops unknown `widgetId`** (W-13). `isOwn` → `data-own` mirror. Getter `{kind,isOwn,author,hasBody,detailsCount}`.
+- **`.message` skin** — grid: avatar column reserved **both** sides + `[data-own]` mirror + header line + body (no new tokens).
+- Sampler: fixture stub widget + 4 DD·composite cells (text-other, text-own, text-details, text-unknown-widget).
+
+**CDP (9422, both accents).** `ids()` **186→202** (+16 = 4 cells × 4: message + `__avatar` + `__name` + `__body`), `count===unique`, 0 orphans. `isOwn` false/true exact; `detailsCount` 2 (known) vs 1 (unknown-widget — drop proven, W-13); grid `28px 288px` ↔ `288px 28px` (mirror); accent-neutral geometry. `vite build` ✓.
+
+**Correction (Rule 1, honest-over-polite).** The runbook's "message root + `__avatar`" registry note **under-counted**: because `message` composes the real `label`/`paragraph` too (per its own DoD), each `text` full cell yields **4** entries, not 2 — hence +16, not +8. Recorded correctly here and in the registry doc.
+
+**Records.** `ui/docs/xgen-ui-components.md` v0.53→v0.54 (message built-table row + Build note (M-RP5.5 A) + count 186→202). `docs/ROADMAP.md` M-RP5.5 A ✅. CLAUDE.md PLAY. `tasks/M_RP5_5_A_MESSAGE_TEXT_FULL.md` → COMPLETED. This entry. Feat `166529e` already pushed; doc-bridge is a second commit — Joe pushes.
+
+**Next-active.** **M-RP5.5 B** — states on `text`: grouped (header-line suppressed, avatar stays) / edited marker / deleted tombstone. Sampler cells each + CDP.
+
+---
+
 ## Entry J-477 — M-RP5.5/5.6 Phase-0 LOCKED: the `message` family (2 kinds, `MessageDescriptor` dd-socket, `details`/`bodyExtras` widget sockets, `isOwn` flip); doc written
 
 **Design/records-only, no code.** Ran the D-071 Phase-0 on the message family (opened as next-active at J-476). Discussion → Joe-locked → canonical doc. Joe's early mockup (`ui/docs/user-member-message-ui-concept.jpg`) folded in: composition + own/other flip, ID#/IDU placeholders = avatar initials.

@@ -1,6 +1,6 @@
 # M-RP5.5 A — `MessageDescriptor` + `text` full (message dd-composite)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-07  
 > Language: EN  
@@ -43,6 +43,10 @@ OUT (later steps): grouped / edited / deleted (B); `system` kind (C); `bodyExtra
 - `details` socket renders known mounts, drops unknown id (W-13).
 - Header rule honoured on every touched `.md`; registry doc bumped.
 - `Status: COMPLETED` header = the done signal (no "commit pushed" in DoD).
+
+## Close record
+
+CLOSED at **J-478**. feat `166529e` (5 files, pushed). Sampler **186→202** (+16 = 4 cells × 4: message + `__avatar` + `__name` + `__body` — runbook's +8 under-count corrected: `message` composes the real `label`/`paragraph` too), `count===unique`, 0 orphans, both accents; `isOwn` false/true exact; `detailsCount` 2 vs 1 (unknown-widget drop, W-13). Doc-bridge: registry v0.54, ROADMAP v4.47 (M-RP5.5 A ✅), CLAUDE PLAY, this runbook. Next → **M-RP5.5 B** (grouped/edited/deleted).
 
 ## Close (D-074, two commits)
 

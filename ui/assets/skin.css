@@ -1919,7 +1919,7 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
-  font-size: var(--fs-1);
+  font-size: var(--fs-0);
   line-height: 1.2;
   color: var(--t2);
 }

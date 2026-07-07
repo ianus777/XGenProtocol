@@ -265,6 +265,14 @@
   const msgDetails = { kind: 'text', id: 'm-3', author: eaIdentity, body: 'Two details mounts render inline in the header.', timestamp: '2026-07-07T12:05:00Z', details: [{ widgetId: 'fixture.time', props: { label: '12:05' } }, { widgetId: 'fixture.badge', props: { label: 'pinned', tone: 'muted' } }] };
   const msgUnknownWidget = { kind: 'text', id: 'm-4', author: eaIdentity, body: 'One known mount + one unknown id (dropped).', timestamp: '2026-07-07T12:06:00Z', details: [{ widgetId: 'fixture.time', props: { label: '12:06' } }, { widgetId: 'does.not.exist', props: { label: 'GHOST' } }] };
 
+  // M-RP5.5 B — text render-states. `grouped` is a PROP (stream-computed, M-RP5.6), not a descriptor
+  // field; `edited` / `deleted` are descriptor fields. `text-grouped-edited` proves the combination
+  // (header suppressed by grouped + "(edited)" shown because not deleted).
+  const msgGrouped = { kind: 'text', id: 'm-5', author: eaIdentity, body: 'A continuation line — same author, header suppressed but avatar column reserved.', timestamp: '2026-07-07T12:07:00Z' };
+  const msgEdited = { kind: 'text', id: 'm-6', author: eaIdentity, body: 'This line was tweaked after it was sent.', timestamp: '2026-07-07T12:08:00Z', edited: true };
+  const msgDeleted = { kind: 'text', id: 'm-7', author: eaIdentity, body: 'Original text — must NOT render (tombstone).', timestamp: '2026-07-07T12:09:00Z', deleted: true, details: [{ widgetId: 'fixture.time', props: { label: '12:09' } }] };
+  const msgGroupedEdited = { kind: 'text', id: 'm-8', author: eaIdentity, body: 'Grouped + edited: header gone, (edited) still shown.', timestamp: '2026-07-07T12:10:00Z', edited: true };
+
   // select-multiple shares the N-034 options-prop shape (carried over from `select`).
   const smOptions = [
     { value: 'a', label: 'Alpha' },
@@ -701,7 +709,7 @@
       </div>
     </div>
 
-    <div class="s-section-title">Message (M-RP5.5 A — text full)</div>
+    <div class="s-section-title">Message (M-RP5.5 A/B — text full + states)</div>
 
     <div class="s-row">
       <div class="s-rowname">message · text full × isOwn</div>
@@ -716,6 +724,16 @@
       <div class="s-cells">
         <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-details</span><Message descriptor={msgDetails} widgets={msgWidgets} id="text-details" /></div>
         <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-unknown-widget</span><Message descriptor={msgUnknownWidget} widgets={msgWidgets} id="text-unknown-widget" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">message · states (B): grouped / edited / deleted</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-grouped</span><Message descriptor={msgGrouped} grouped id="text-grouped" /></div>
+        <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-edited</span><Message descriptor={msgEdited} id="text-edited" /></div>
+        <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-deleted</span><Message descriptor={msgDeleted} widgets={msgWidgets} id="text-deleted" /></div>
+        <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-grouped-edited</span><Message descriptor={msgGroupedEdited} grouped id="text-grouped-edited" /></div>
       </div>
     </div>
   </div>

@@ -2151,3 +2151,29 @@ html, body {
 	font-size: var(--fs-2);
 	letter-spacing: .5px;
 }
+
+/* ── M-RP5.5 B — text render-states (grouped / edited / deleted) ── */
+/* grouped continuation row — tighten the top gap so a run reads as one block. The header is gone
+   from the DOM (component guard), the avatar column still reserves its track. */
+.message[data-grouped] {
+  padding-top: 0;
+}
+/* edited marker — a muted trailing note after the body (own string "(edited)" in the component). */
+.message .message-edited {
+  margin-left: var(--sp-1);
+  font-size: var(--fs-0);
+  color: var(--t3);
+}
+/* deleted tombstone — the body is replaced by an italic-muted placeholder. The COPY is skin-owned
+   in `--msg-deleted` (the --caps-hint precedent) so the component ships no string. */
+.message {
+  --msg-deleted: "This message was deleted.";
+}
+.message[data-deleted] .msg-deleted {
+  font-style: italic;
+  font-size: var(--fs-1);
+  color: var(--t3);
+}
+.message[data-deleted] .msg-deleted::before {
+  content: var(--msg-deleted);
+}

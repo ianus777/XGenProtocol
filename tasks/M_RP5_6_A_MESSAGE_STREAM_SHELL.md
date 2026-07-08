@@ -10,6 +10,12 @@
 
 ---
 
+## Landing note (J-482) — code COMPLETE, CDP DoD DEFERRED (D-104)
+
+The feat is built + `vite build`-clean (161 modules) + 20/20 pure unit test on `stream/grouping.ts`. It **landed** at J-482 with the **CDP-only DoD items DEFERRED** — registry `count===unique` / 0 orphans / getter-G readout / both-accents — because the sampler remote-debug harness (9422) is blocked by the WebView2 150 / Chromium-136 guard (D-104). Those items close retroactively once **M-RP-CDP1** restores the harness; this runbook flips to `Status: COMPLETED` then. The non-CDP DoD items in §10 are met; the CDP ones (§9 checks 1–7 that need a live port, + the last two DoD boxes) are **DEFERRED**, not done.
+
+---
+
 ## 0. Read-order (Rule 0) + spec of record
 
 Before touching code: CLAUDE.md PLAY → JOURNAL J-481 → this runbook. **Spec of record = `docs/xgen-dd-message-family-phase0.md` v1.1 §9** (the locked M-RP5.6 addendum). This runbook is the build sheet for **step A only**; if it and §9 ever disagree, §9 wins — stop and flag (Rule 6).

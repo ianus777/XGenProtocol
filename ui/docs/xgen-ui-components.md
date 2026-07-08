@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.56  
+> Version: 0.57  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-08  
 > Language: English  
@@ -43,6 +43,9 @@ The live registry of components actually authored in the tree (N-019). **Tier** 
 | status | `core` | A | **data-dependent** · self-status (emoji + line); `variant` badge/line/full | `<span class="status">` | `ui/core/lib/components/data-dependent/status.svelte` | `() => ({ variant, emoji, hasText, expired })` | N-075/N-077 |
 | entity-panel | `core` | C | **data-dependent** · roving-focus entity listbox (composite; wraps `section` + `entity-item ×N`) | `<section>` → `<ul role="listbox">` | `ui/core/lib/components/data-dependent/entity-panel.svelte` | `() => ({ count, selected, collapsed, hasEmpty })` | N-075/N-078 |
 | message | `core` | C | **data-dependent** · chat message (composite; composes `entity-avatar`+`label`+`paragraph`); kinds `text`/`system` · `isOwn` flip · `grouped`/`edited`/`deleted` states · `details` widget socket | `<div class="message">` | `ui/core/lib/components/data-dependent/message.svelte` | `() => ({ kind, isOwn, author, hasBody, detailsCount, grouped, edited, deleted })` | N-075 · phase0 |
+| message-stream | `core` | C | **data-dependent** · chat log (composite; wraps N `message`s + interleaved day-dividers); `role="log"` · click-select · 5-min grouping (stream-computed `grouped`) · date-carrying dividers · persistent `background` layer + `backgroundLive` · empty fallback | `<div class="message-stream">` | `ui/core/lib/components/data-dependent/message-stream.svelte` (+ pure `stream/grouping.ts`) | `() => ({ count, selected, hasEmpty, groupedCount, dividerCount, atBottom, backgroundMountCount, backgroundLive })` | N-075 · phase0 §9 |
+
+> **⚠️ Registry count PENDING re-verify (M-RP5.6 A, D-104).** `message-stream` is built + `vite build`-clean + 20/20 unit-tested, but its live-registry contribution is **not yet CDP-verified** — the sampler remote-debug harness (9422) is blocked by the WebView2 150 / Chromium-136 remote-debug guard (see D-104 / M-RP-CDP1). The last CDP-verified count is **219** (J-480); it stays there, un-incremented, until M-RP-CDP1 restores the harness and the deferred §9 CDP legs close. No count is asserted for `message-stream` (Rule 5).
 
 First built `core` component, authored at M-RP2.3 as the substrate proof: verified live in **both** apps (client 9222 / node 9322) — `snapshot()` returned real `{checked:false}`, flip → `{checked:true}` confirmed live reactive reads.
 

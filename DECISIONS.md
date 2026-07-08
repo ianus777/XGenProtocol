@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-04  
+> **Last updated:** 2026-07-08  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -3995,3 +3995,19 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 **Why a new decision.** All-regions-are-widgets is a durable, cross-cutting architectural choice that reframes the whole client UI as a plugin surface (a custom widget can ship a new dockable region) and is cited by every M-RP6/M-RP7 milestone — it earns its own decision + a citable spec doc (`ui/docs/xgen-region-dock-model.md` v1.0, the federation-design-doc precedent). All-widgets framing locked by Joe 2026-07-07.
 
 **Relationship to other decisions:** D-102 (the `widget` tier this extends with a layout seam) · W-11 (the data-socket sibling of W-12) · D-095 (the `ui/{...}` tier split) · D-056 (one shared command layer — the dock engine is shell-level) · D-065 (build-when-consumed → renderer A before B); N-075 (`EntityDescriptor` = the selection-bus payload).
+
+---
+
+## D-104 — Dev CDP verification: a temporary "build + unit-verified, CDP-deferred" close is allowed while the WebView2 remote-debug harness is blocked (→ M-RP-CDP1)
+
+**Date:** 2026-07-08 · **Layer:** UI infra (M-RP5.6 A / M-RP-CDP1) · **Ref:** D-097, D-098, N-044
+
+**Context.** The sampler CDP harness (D-097: a component milestone isn't done until its sampler cells are CDP-verified at 9422) worked unchanged J-405→J-480. It is now BLOCKED by an environment change: the machine's WebView2 Evergreen runtime auto-updated to **150.0.4078.48** (Chromium ≥136), which enforces the Chromium-136 remote-debugging hardening — `--remote-debugging-port` is IGNORED unless accompanied by a **non-default `--user-data-dir`** on the browser command line. Confirmed with real output on the reliable PowerShell path (clean launch + visible/foregrounded window + ~90s poll): 9422 never opens. All launcher/env levers exhausted — port-only; port + `--user-data-dir` inside `AdditionalBrowserArguments` (disallowed by WebView2); port + `WEBVIEW2_USER_DATA_FOLDER` (overridden by wry's own data folder). Official fixed-version runtimes are published only for the latest two majors (both ≥136); the only pre-136 source is an untrusted third-party archive (declined — supply-chain risk on a dev machine).
+
+**Decision.** While the harness is blocked, a `core` UI component MAY land with its **CDP-only DoD items** (registry `count===unique` / 0 orphans / getter-G readout / both-accents) **DEFERRED and honestly recorded** — NOT marked complete, NOT fabricated (Rule 5: registry counts come only from a live `ids().length`). The other verification legs still gate the land: a clean `vite build`, and — where the logic is pure — a real unit test. The deferred CDP legs are closed retroactively once the harness is restored. This is a **scoped, temporary exception** to the D-097 sampler-CDP DoD, not a repeal.
+
+**Harness restore = M-RP-CDP1** (its own milestone). Preferred approach: an **in-repo host change** making the sampler's Tauri/wry webview use an explicit, controlled **non-default data directory**, so `--remote-debugging-port` + a non-default `--user-data-dir` satisfy the Chromium-136 guard (the documented Playwright combo, once wry stops overriding it). Fallback: rewrite `cdp-debug.ps1` to CDP-over-`--remote-debugging-pipe` (the guard does not gate the pipe). **No untrusted runtime downloads.** Universal: the same block will hit the real client (9222) + node (9322) — restoring it fixes all three.
+
+**First application:** M-RP5.6 A (`message-stream` shell, J-482) — landed build-clean + a 20/20 pure unit test on `stream/grouping.ts`; CDP legs deferred to M-RP-CDP1.
+
+**Relationship:** D-097 (the sampler-CDP DoD this scopes a temporary exception to) · D-098 (sampler runtime = the WebView2 sibling where the block lives) · D-065 (honest-over-polite: deferred-not-faked).

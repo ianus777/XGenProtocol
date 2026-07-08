@@ -8,6 +8,35 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-482 — M-RP5.6 A: `message-stream` shell BUILT + landed with CDP verification DEFERRED (WebView2 150 harness block; D-104 / M-RP-CDP1 opened)
+
+**Two-commit close (D-074), CDP legs DEFERRED (D-104).** Clair's feat (`message-stream.svelte` + `stream/grouping.ts` + `skin.css` + sampler) + this doc-bridge. **Honest status (Rule 1/2/5):** the code is built and `vite build`-clean, the pure grouping logic is unit-verified 20/20, but the **CDP-only DoD legs are DEFERRED** — the sampler remote-debug harness (9422) is environmentally blocked. Registry count is **NOT** asserted (no live `ids().length`, Rule 5) — it stays at the last-verified **219** with a pending-CDP note.
+
+**Built (`message-stream` dd-composite — step A shell, faithful to phase0 v1.1 §9).**
+- **Root** `<div class="message-stream" role="log" use:envelope>` = the scroll viewport (`overflow-y:auto`); background layer + row list are siblings (bg `position:absolute; inset:0; z-index:0` behind, rows `z-index:1`). Structure in the scoped `<style>`; appearance in `skin.css`.
+- **`stream/grouping.ts`** (pure, colocated, unit-testable — the `transform.ts`/`clamp.ts` precedent): `GROUP_WINDOW_MS = 5*60*1000` + `computeRows(messages, now)` → an interleaved `StreamRow[]` (`message` carrying its stream-computed `grouped` / `divider` carrying its label) + `formatDayDivider(ts, now)` (fixed en-US `Intl`, DOM-free). Grouping: `text` + same `author.id` + within window + no divider between; breaks on author/`system`/day/first; `deleted` keeps author (doesn't break). Dividers: inserted **between** consecutive messages on local-day change (`toDateString()`), **no leading divider** (spec compares two timestamps — the oldest day heads the stream unlabelled; the four label bands show on day-changes down the stream).
+- **Props** = `messages[]` (ordered, not re-sorted) · `background?: WidgetMount[]` + `backgroundLive?` (default true, binding M-RP6.x) · `widgets` registry (widgetId→Component; background + child `message.details`, unknown-id dropped W-13) · `selected?` ($bindable) + `onSelect?` (reserved). Child ids: `<id>__m-<msgid>` prefix chain (clean parent-prefix nesting).
+- **Empty (§9.4):** default centered `paragraph` ("No messages yet") ONLY when `count===0` AND no `background` declared; a declared background "shows through" instead.
+- **Getter G (§9.6):** `{count, selected, hasEmpty, groupedCount, dividerCount, atBottom, backgroundMountCount, backgroundLive}` — `atBottom` initialised `true` in A (B drives it live).
+- **Sampler:** import + 5 DD·composite fixtures (basic / days / empty / bg / bg-unknown) + cells; `skin.css` gains `.message-stream` / `.day-divider` / `.message-stream-row[data-selected]` / `.message-stream-empty`.
+- **Scope:** this is **A only** — the root is the scroll viewport but **no scroll behaviour is built** (stick-to-bottom / jump-pill / prepend-preserve = **B**).
+
+**Verified (real output).**
+- ✅ `vite build` clean — **161 modules**, no `message-stream` warnings (the two pre-existing meter/entity-avatar notes only).
+- ✅ **20/20 pure unit test** on the real `stream/grouping.ts` (ad-hoc `node` type-strip run — reproducible; not a committed suite, no JS runner ships): proves `groupedCount` (1 / 0), `dividerCount` (0 / 4), all four divider bands with real values `["Jun 30, 2026", "Sunday (Jul 5, 2026)", "Yesterday (Jul 7, 2026)", "Today (Jul 8, 2026)"]`, divider-breaks-grouping, system-breaks-a-run, no leading divider — i.e. the exact facts the CDP getter checks would target.
+
+**DEFERRED (D-104) — the CDP legs, blocked by the harness, not by the code.** registry `count===unique` · 0 orphans both directions · getter-G live readout · both-accents. These close retroactively once M-RP-CDP1 restores the harness.
+
+**Why deferred — the harness block (full record).** The sampler CDP harness (9422) worked unchanged J-405→J-480; it is now blocked because the machine's WebView2 Evergreen runtime auto-updated to **150.0.4078.48** (Chromium ≥136), which enforces the Chromium-136 remote-debugging hardening: `--remote-debugging-port` is ignored unless a **non-default `--user-data-dir`** accompanies it on the browser command line. Diagnosed on the reliable PowerShell path with real output — clean verified-zero launch + visible/foregrounded window + ~90s poll → 9422 never opens; runtime pv confirmed `150.0.4078.48`; launcher env var confirmed correct. All levers exhausted: port-only; port + `--user-data-dir` in `AdditionalBrowserArguments` (WebView2 disallows it there); port + `WEBVIEW2_USER_DATA_FOLDER` (wry overrides the data folder). Official fixed-version runtimes exist only for the latest two majors (both ≥136); the only pre-136 source is an untrusted third-party archive — **declined** (supply-chain risk on a dev machine, Joe's call). Full mechanism + fix hierarchy in D-104. (Earlier speculation that "wry overrides the env var per WebView2 precedence" is retracted — the real cause is the Chromium-136 `--user-data-dir` guard.)
+
+**M-RP-CDP1 opened (harness restore, own milestone).** Preferred: an in-repo host change giving the sampler webview an explicit non-default data dir (so port + non-default `--user-data-dir` satisfy the guard); fallback: `cdp-debug.ps1` → `--remote-debugging-pipe`. Universal — the same block will hit client 9222 + node 9322, so the restore fixes all three Tauri apps. No untrusted downloads.
+
+**Records.** `DECISIONS.md` **+D-104** (temporary CDP-deferred close). `docs/ROADMAP.md` **v4.50→v4.51** (M-RP5.6 A = code-landed/CDP-pending; **M-RP-CDP1** added, PENDING). `ui/docs/xgen-ui-components.md` **v0.56→v0.57** (message-stream row + count-pending note; still 219). CLAUDE.md PLAY. `tasks/M_RP5_6_A_MESSAGE_STREAM_SHELL.md` landing note (code COMPLETE, CDP DoD DEFERRED). This entry. Feat + docs = two commits, Joe pushes both.
+
+**Next-active.** **M-RP-CDP1** (harness restore) — then close M-RP5.6 A's deferred CDP legs → **M-RP5.6 B** (scroll machine). If Joe prefers, M-RP5.6 B is buildable now on fixtures too, but its DoD is CDP-heavy (`atBottom` transitions, prepend `scrollTop` invariance), so the harness should come first.
+
+---
+
 ## Entry J-481 — M-RP5.6 Phase-0 addendum LOCKED: `message-stream` (grouping / day-dividers / scroll / background / select)
 
 **Design/records-only, no code (Rule 1/5: nothing built, nothing to verify — stated plainly).** Ran the D-071 Phase-0 gate for the `message-stream` (opened as next-active at J-480). Discussion → Joe-locked → the family Phase-0 doc extended **v1.0→v1.1** (§9 addendum). Registry unchanged (**219**).

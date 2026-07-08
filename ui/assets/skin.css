@@ -2191,3 +2191,54 @@ html, body {
   font-size: var(--fs-1);
   color: var(--t3);
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * message-stream (.message-stream) — the message dd-composite's `entity-panel` analogue
+ *   (M-RP5.6 A). The root IS the scroll viewport (structure — position/overflow/stacking — lives
+ *   in the component <style>); THIS block is appearance only. A framed log surface holding message
+ *   rows + centered day-dividers, with an optional wallpaper layer showing through. ACCENT-NEUTRAL:
+ *   --accent never enters (a chat log is chrome, not accent-themed) → the divider hairline + muted
+ *   caption read identically client↔node. PROVISIONAL. ── */
+.message-stream {
+  box-sizing: border-box;
+  background: var(--s0);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+}
+/* selectable rows — click-select (§9.5); the [data-selected] mirror is the light-select highlight
+   (feeds the future R8 inspector / entity-context-menu selection bus, M-RP6.x). */
+.message-stream-row {
+  cursor: pointer;
+}
+.message-stream-row[data-selected] {
+  background: var(--s3);
+}
+/* day-divider — a centered muted caption with hairline rules on each side ("──── Today (…) ────").
+   Muted --t3 / --fs-0, no accent → identical across shells. */
+.day-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2);
+  font-size: var(--fs-0);
+  color: var(--t3);
+}
+.day-divider::before,
+.day-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--s5);
+}
+/* empty fallback — the centered "No messages yet" paragraph (§9.4, never bare). */
+.message-stream-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  padding: var(--sp-4);
+}
+.message-stream-empty .paragraph {
+  color: var(--t3);
+  font-size: var(--fs-1);
+}

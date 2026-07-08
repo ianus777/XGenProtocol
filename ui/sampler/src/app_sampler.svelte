@@ -52,6 +52,7 @@
   import Status from '$core/components/data-dependent/status.svelte'; // self-status dd-atomic (M-RP5.1a)
   import EntityPanel from '$core/components/data-dependent/entity-panel.svelte'; // last dd-composite (M-RP5.2)
   import Message from '$core/components/data-dependent/message.svelte'; // message dd sub-family opener (M-RP5.5 A)
+  import MessageStream from '$core/components/data-dependent/message-stream.svelte'; // message-stream shell (M-RP5.6 A)
   import FixtureWidget from './fixture-widget.svelte'; // sampler-local stub for the message details socket
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
@@ -277,6 +278,42 @@
   // `system-long` wraps to ≥2 lines to prove the centered wrap stays symmetric.
   const msgSystemNotice = { kind: 'system', id: 'm-9', body: 'alice joined the room', timestamp: '2026-07-07T12:11:00Z' };
   const msgSystemLong = { kind: 'system', id: 'm-10', body: 'bob renamed the room from “general” to “protocol-dev” — everyone in the room was notified of the change.', timestamp: '2026-07-07T12:12:00Z' };
+
+  // message-stream (M-RP5.6 A, shell) — ordered MessageDescriptor arrays. Timestamps are computed
+  // RELATIVE to load time so the day-divider "Today"/"Yesterday" bands are stable regardless of when
+  // CDP runs (the divider label is a fn of `new Date()`). The sampler is dev tooling → Date.now() ok.
+  // (`nowMs` reuses the existing declaration above.)
+  const minMs = 60 * 1000;
+  const dayMs = 86_400_000;
+  const iso = (ms) => new Date(ms).toISOString();
+  const atNoon = (ms) => { const d = new Date(ms); d.setHours(12, 0, 0, 0); return d.getTime(); };
+
+  // stream-basic — same local day, two authors + a system notice. Proves: consecutive same-author
+  // collapse (sb-2 grouped) + different author breaks (sb-3) + a system message breaks a run (sb-5).
+  const streamBasic = [
+    { kind: 'text', id: 'sb-1', author: eaIdentity, body: 'First line from Alice.', timestamp: iso(nowMs - 4 * minMs) },
+    { kind: 'text', id: 'sb-2', author: eaIdentity, body: 'Second line, same author within 5 min → grouped (header suppressed).', timestamp: iso(nowMs - 3 * minMs) },
+    { kind: 'text', id: 'sb-3', author: eaSelf, body: 'Different author → not grouped; mirrors right.', timestamp: iso(nowMs - 2 * minMs), isOwn: true },
+    { kind: 'system', id: 'sb-4', body: 'alice changed the topic', timestamp: iso(nowMs - 90 * 1000) },
+    { kind: 'text', id: 'sb-5', author: eaIdentity, body: 'After a system notice → run broken, not grouped.', timestamp: iso(nowMs - 60 * 1000) },
+  ];
+  // stream-days — five distinct local days (oldest heads the stream un-dividered) → four day-CHANGE
+  // dividers exhibiting all four label bands, and each post-divider row is grouped=false.
+  const streamDays = [
+    { kind: 'text', id: 'sd-1', author: eaIdentity, body: 'Oldest day (10 days ago) — top of stream, no divider above.', timestamp: iso(atNoon(nowMs - 10 * dayMs)) },
+    { kind: 'text', id: 'sd-2', author: eaIdentity, body: '8 days ago → date-only divider above me (≥7 band).', timestamp: iso(atNoon(nowMs - 8 * dayMs)) },
+    { kind: 'text', id: 'sd-3', author: eaSelf, body: '3 days ago → weekday+date divider (2–6 band).', timestamp: iso(atNoon(nowMs - 3 * dayMs)), isOwn: true },
+    { kind: 'text', id: 'sd-4', author: eaIdentity, body: 'Yesterday → "Yesterday (…)" divider.', timestamp: iso(atNoon(nowMs - 1 * dayMs)) },
+    { kind: 'text', id: 'sd-5', author: eaIdentity, body: 'Today → "Today (…)" divider.', timestamp: iso(atNoon(nowMs)) },
+  ];
+  // background / empty — the wallpaper layer resolves widgetId → component (drop-unknown W-13), same
+  // registry as message.details; a KNOWN mount shows through when empty (no fallback paragraph), an
+  // UNKNOWN one drops (backgroundMountCount 0) but is still "declared" (still no fallback paragraph).
+  const streamWidgets = { 'fixture.wallpaper': FixtureWidget, 'fixture.time': FixtureWidget, 'fixture.badge': FixtureWidget };
+  const streamBgKnown = [{ widgetId: 'fixture.wallpaper', props: { label: 'wallpaper', tone: 'muted' } }];
+  const streamBgUnknown = [{ widgetId: 'does.not.exist', props: { label: 'GHOST' } }];
+  let streamBgLive = $state(true); // sampler control → backgroundLive
+  let streamSel = $state(); // bind:selected proof (click-select)
 
   // select-multiple shares the N-034 options-prop shape (carried over from `select`).
   const smOptions = [
@@ -747,6 +784,31 @@
       <div class="s-cells">
         <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#system-notice</span><Message descriptor={msgSystemNotice} id="system-notice" /></div>
         <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#system-long</span><Message descriptor={msgSystemLong} id="system-long" /></div>
+      </div>
+    </div>
+
+    <div class="s-section-title">Message-stream (M-RP5.6 A — shell)</div>
+
+    <div class="s-row">
+      <div class="s-rowname">message-stream · basic (grouping + system-break)</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-basic</span><MessageStream messages={streamBasic} widgets={streamWidgets} bind:selected={streamSel} id="stream-basic" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">message-stream · days (four divider bands)</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-days</span><MessageStream messages={streamDays} id="stream-days" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">message-stream · empty / background (backgroundLive: <button type="button" class="s-note" onclick={() => (streamBgLive = !streamBgLive)}>{streamBgLive}</button>)</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-empty</span><MessageStream messages={[]} id="stream-empty" /></div>
+        <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-bg</span><MessageStream messages={[]} background={streamBgKnown} widgets={streamWidgets} backgroundLive={streamBgLive} id="stream-bg" /></div>
+        <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-bg-unknown</span><MessageStream messages={[]} background={streamBgUnknown} widgets={streamWidgets} id="stream-bg-unknown" /></div>
       </div>
     </div>
   </div>

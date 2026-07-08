@@ -8,6 +8,31 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-481 — M-RP5.6 Phase-0 addendum LOCKED: `message-stream` (grouping / day-dividers / scroll / background / select)
+
+**Design/records-only, no code (Rule 1/5: nothing built, nothing to verify — stated plainly).** Ran the D-071 Phase-0 gate for the `message-stream` (opened as next-active at J-480). Discussion → Joe-locked → the family Phase-0 doc extended **v1.0→v1.1** (§9 addendum). Registry unchanged (**219**).
+
+**`message-stream`** = `core` dd-composite, the `entity-panel` analogue. Root `<div class="message-stream" role="log" use:envelope>` = also the **scroll viewport** (`overflow-y:auto`). Children = `message`s + interleaved day-divider rows, chronological. Sets each child's `grouped` prop (Phase-0 §5). `role="log"`, click-select (not roving).
+
+**Locked (Joe).**
+- **Grouping (Q1):** a `text` message renders `grouped` iff the previous *rendered* row is `text`, same `author.id`, within a **5-min** window, no day-divider between. Breaks on different author / any `system` / day boundary / first row. `deleted` tombstone keeps `author.id` → doesn't break a run. `system` never groups. Window = build-time const, Joe-tunable.
+- **Day-dividers (Q2):** separator row (`<div class="day-divider" role="separator">`) inserted on local-day change (boundary = local midnight); breaks grouping. Label **always carries the date**: `Today (Jul 8, 2026)` / `Yesterday (Jul 7, 2026)` / `Saturday (Jul 6, 2026)` (2–6 days, weekday+date) / `Jul 1, 2026` (≥7 days, date only). Build-time formatter, Joe-tunable.
+- **Scroll (Q3) — full A:** stick-to-bottom (at/near bottom ≤80px → append auto-scrolls; scrolled-up → append shows a **jump-to-latest pill**, no yank) + **preserve-position-on-prepend** (older-load adjusts `scrollTop` by inserted height). Exercised on fixtures via sampler append/prepend controls (no live channel yet, J-476); CDP reads `atBottom` transitions + prepend `scrollTop` invariance.
+- **Background/empty (Q6):** `background?: WidgetMount[]` = a **persistent fixed layer** behind the log (`position:absolute; inset:0`, below messages; does NOT scroll — wallpaper style); reuses the `WidgetMount[]`/W-13 socket (static object OR lifecycled/reactive widget). `backgroundLive?: boolean` (default true) = the settings switch (`false` → static/frozen). Fallback: `background` unset AND `count===0` → default composed `paragraph` ("No messages yet"), never bare.
+- **Select (Q4):** click → `selected` ($bindable id) + `[data-selected]` row mirror + reserved `onSelect?`. Feeds the future R8 inspector / `entity-context-menu` selection bus. No roving tabindex (§6). Wiring deferred to M-RP6.x; hook reserved now.
+- **Getter G:** `{count, selected, hasEmpty, groupedCount, dividerCount, atBottom, backgroundMountCount, backgroundLive}` — mirrors `entity-panel` + stream/background observables (grouping + scroll + background CDP-readable).
+- **No `MessageDescriptor` change** — grouping stays a stream-computed prop passed down; stream-level props (`messages[]`, `background?`, `backgroundLive?`, `selected?`, `onSelect?`) are the new surface.
+
+**Two deferrals (Rule 6, recorded).** (1) The `backgroundLive` **settings binding** ($common store / layout field) is M-RP6.x; M-RP5.6 exposes the prop + drives it from a sampler control (same posture as the R5-wrap deferral). (2) The R5 system-widget wrap stays deferred to the M-RP6.x region shell (Phase-0 §1).
+
+**Sub-milestones (locked).** **A** — shell: root `<div role="log">` + ordered N `message`s + grouping computation (sets `grouped`) + day-dividers + empty fallback + background layer render. Static fixtures. Sampler DD·composite cells + CDP. **B** — scroll machine (stick + jump-pill + prepend-preserve) via sampler append/prepend controls. CDP. → D-074 close.
+
+**Records.** `docs/xgen-dd-message-family-phase0.md` **v1.0→v1.1** (+§9 M-RP5.6 addendum). `docs/ROADMAP.md` **v4.49→v4.50** (M-RP5.6 Phase-0 addendum LOCKED + doc pointer). CLAUDE.md PLAY next-active flipped (M-RP5.6 Phase-0 locked → A build). Runbook `tasks/M_RP5_6_A_MESSAGE_STREAM_SHELL.md` drafted (ACTIVE, for Clair). This entry. No code, registry unchanged (**219**). GitHub board: M-RP5.6 card stays PENDING (design-locked; build not started). Not pushed — Joe pushes.
+
+**Next-active.** **M-RP5.6 A** — `message-stream` shell (log + ordered N + grouping-compute + day-dividers + empty + background) on sampler fixtures; sampler DD·composite + CDP-verify (Clair feat → Chat doc-bridge).
+
+---
+
 ## Entry J-480 — M-RP5.5 C: `message` `system` kind + `isOwn` verify — message family v1 CLOSED (registry 215→219)
 
 **Two-commit close (D-074).** Clair's feat `09e9cbe` (3 files, pushed) + this doc-bridge. Third + final step of the `message` dd sub-family — the second v1 kind, on sampler fixtures. **Message family v1 is CLOSED.**

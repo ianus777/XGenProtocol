@@ -1,8 +1,8 @@
 # XGen Protocol — Message Family Phase-0 (M-RP5.5 / M-RP5.6)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-07  
+> **Last updated**: 2026-07-08  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -123,3 +123,59 @@ Following the `entity-context-menu` precedent (one milestone, Joe-gated internal
 6. `role="log"`, click-select (not roving) — **LOCKED**.
 7. Grouped = suppress header line only, avatar stays — **LOCKED**.
 8. One M-RP5.5 (A/B/C), one M-RP5.6 (A/B) — **LOCKED**.
+
+---
+
+## 9. M-RP5.6 addendum — `message-stream` (LOCKED, v1.1)
+
+The D-071 Phase-0 gate for the stream (opened at J-480, locked at J-481). `message-stream` = `core` dd-composite, the `entity-panel` analogue. Root `<div class="message-stream" role="log" use:envelope>` — **also the scroll viewport** (`overflow-y:auto`). Children = `message`s + interleaved day-divider rows, chronological. The stream **sets each child's `grouped` prop** (§5). `role="log"` (a scrolling live region, NOT `listbox`), **click-select** (not roving, §6).
+
+### 9.1 Grouping (Q1 — LOCKED)
+A `text` message renders `grouped` iff the previous **rendered** row is a `text` message, same `author.id`, within the window, no day-divider between.
+- Window = **5 min** (build-time const, Joe-tunable).
+- Breaks on: different author · any `system` message · day boundary · first row.
+- `deleted` tombstone keeps its `author.id` → does **not** break a run.
+- `system` messages never group (authorless, centered).
+
+### 9.2 Day-dividers (Q2 — LOCKED)
+A separator row is inserted when the local calendar day changes between consecutive rows (boundary = local midnight). It is a stream row, not a message: `<div class="day-divider" role="separator">`; it **breaks grouping**. The label **always carries the date**; the relative prefix drops once old (build-time formatter, Joe-tunable):
+- today → `Today (Jul 8, 2026)`
+- yesterday → `Yesterday (Jul 7, 2026)`
+- 2–6 days → `Saturday (Jul 6, 2026)` (weekday + date)
+- ≥7 days → `Jul 1, 2026` (date only)
+
+### 9.3 Scroll machine (Q3 — LOCKED, full A)
+Two independent behaviours on the `role="log"` viewport:
+- **Stick-to-bottom** — if the user is at/near bottom (≤ **80px**, build-time const), an appended message auto-scrolls to keep the bottom in view. If scrolled up, an append does **not** yank; a **jump-to-latest pill** appears instead (click → scroll to bottom, pill hides).
+- **Preserve-position-on-prepend** — loading older messages adjusts `scrollTop` by the inserted block height so the viewport stays anchored (no jump).
+- Exercised on fixtures via **sampler append/prepend controls** (no live channel yet, J-476). CDP reads `atBottom` transitions + prepend `scrollTop` invariance.
+
+### 9.4 Background / empty layer (Q6 — LOCKED, persistent + switchable)
+`background?: WidgetMount[]` — a **persistent fixed layer** behind the log (`position:absolute; inset:0`; z-index below messages; does **not** scroll — messages scroll over it, chat-wallpaper style). Reuses the `WidgetMount[]` / W-13 socket → accepts a **static display object** (image/paragraph) OR a **lifecycled/reactive widget**.
+- `backgroundLive?: boolean` (default `true`) — the settings switch; `false` = static mode (passed into the mount; a reactive widget renders frozen, a static object ignores it).
+- Fallback: `background` unset **and** `count===0` → default composed `paragraph` ("No messages yet"). Never bare.
+- Deferral (Rule 6): the `backgroundLive` settings **binding** ($common store / layout field) is M-RP6.x; M-RP5.6 exposes the prop + drives it from a sampler control (same posture as the R5-wrap deferral).
+
+### 9.5 Select hook (Q4 — LOCKED)
+Click a message → `selected` ($bindable id) + `[data-selected]` row mirror + reserved `onSelect?`. Feeds the future R8 inspector / `entity-context-menu` selection bus (M-RP6.x). **No roving tabindex** (it's a log). Wiring deferred; hook reserved now (§6).
+
+### 9.6 Getter G (LOCKED)
+`{count, selected, hasEmpty, groupedCount, dividerCount, atBottom, backgroundMountCount, backgroundLive}` — mirrors `entity-panel` plus the stream observables (`groupedCount` / `dividerCount` / `atBottom`) and the background pair, so grouping + scroll + background are CDP-readable.
+
+### 9.7 Stream-level surface (LOCKED)
+No change to `MessageDescriptor` (§4) — grouping stays a **stream-computed prop** passed down. `message-stream` props: `messages: MessageDescriptor[]` (ordered) · `background?: WidgetMount[]` · `backgroundLive?: boolean` (default `true`) · `selected?: string` ($bindable) · `onSelect?`.
+
+### 9.8 Sub-milestone steps (LOCKED)
+- **A** — shell: root `<div role="log">` + ordered N `message`s + grouping computation (sets `grouped`) + day-dividers + empty fallback + background layer render. Static fixtures. Sampler DD·composite cells + CDP. Runbook `tasks/M_RP5_6_A_MESSAGE_STREAM_SHELL.md`.
+- **B** — scroll machine (stick-to-bottom + jump-pill + prepend-preserve) driven by sampler append/prepend controls. CDP (`atBottom` transitions, prepend `scrollTop` invariance). → D-074 close.
+- *(R5 system-widget wrap → deferred to M-RP6.x region shell, §1.)*
+
+### 9.9 Open items (locked this session, J-481)
+1. Root `<div role="log">` = scroll viewport; children = messages + divider rows; stream sets `grouped` — **LOCKED**.
+2. Grouping = 5-min same-author window, breaks on author/system/day/first, `deleted` keeps author — **LOCKED**.
+3. Day-dividers = date-carrying (Today/Yesterday/weekday+date/date-only), separator row, breaks grouping — **LOCKED**.
+4. Scroll = full A (stick-to-bottom + jump-pill + preserve-on-prepend), sampler-driven — **LOCKED**.
+5. `background?: WidgetMount[]` persistent fixed layer + `backgroundLive?` switch (default true); unset+count0 → default paragraph — **LOCKED**.
+6. Select = click → `selected` $bindable + `[data-selected]` + reserved `onSelect?`, no roving; wiring M-RP6.x — **LOCKED**.
+7. Getter G eight-field; no `MessageDescriptor` change; stream-level props — **LOCKED**.
+8. Two steps: A (shell) / B (scroll) — **LOCKED**.

@@ -1,10 +1,30 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-07  
+> **Last updated:** 2026-07-08  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-480 — M-RP5.5 C: `message` `system` kind + `isOwn` verify — message family v1 CLOSED (registry 215→219)
+
+**Two-commit close (D-074).** Clair's feat `09e9cbe` (3 files, pushed) + this doc-bridge. Third + final step of the `message` dd sub-family — the second v1 kind, on sampler fixtures. **Message family v1 is CLOSED.**
+
+**Built (`system` kind).**
+- **Top-level `kind` split** in `message.svelte`: `{#if kind === 'system'}` → an authorless centered notice; `{:else}` → the A/B `text` sub-tree, untouched. The two paths are visibly separate so `system` reads NONE of the text-only fields.
+- **`system` arm** = its own `<article data-kind="system">` (no `data-own` — a notice has no side) rendering ONE centered `paragraph` (`__body`). No avatar, no `.msg-header`/name, no `details`, no `edited` marker, no tombstone.
+- **Getter (Option A — normalized on `system`):** forces the text-only fields off — `{kind:'system', author:null, hasBody, detailsCount:0, isOwn:false, grouped:false, edited:false, deleted:false}`. On `text` the getter is verbatim (unchanged from A/B). Deliberate: the getter tracks RENDER truth, not descriptor truth (the `deleted → detailsCount:0` precedent, J-479); a stray field on a system descriptor never renders, so it never reports. One-line comment marks it.
+- **Skin** `.message[data-kind="system"]` collapses the avatar-column grid to `1fr` + `text-align:center`; the notice paragraph is muted `--t3`/`--fs-1` (no new token). Wrapping stays symmetric on the full centered track.
+
+**CDP (9422, both accents) — real output.** `ids()` **215→219** (+4 = 2 system cells × `message` + `paragraph#…__body`; NO `__avatar`/`__name`), `count===219`, `unique===219`, **0 orphans both directions**. System getters both cells exactly the Option-A shape. `system-notice`: `data-kind=system`, single `324px` track, `text-align:center`, no `.msg-header`, no `.entity-avatar`, h=26 (one line). `system-long`: same, h=62 (wraps, centered symmetric). Text mirror re-asserted: `text-other` grid `28px 288px` (own=false) ↔ `text-own` `288px 28px` (own=true, `data-own`). Accent-neutral: system line `rgb(138,136,128)`=`--t3` **identical** client↔node; `--accent2` `#c28840` ↔ `#3a7ab0` (swap live). Screenshot `temp/m-rp5-5-c-system.png`. `vite build` clean (158 modules; the two meter/entity-avatar warnings pre-existing).
+
+**Message family v1 CLOSED.** 2 kinds (`text` / `system`) + `grouped`/`edited`/`deleted` states + the `details` widget socket. `bodyExtras` stays reserved-unfed (D-065); the `message-stream` (M-RP5.6) is the next dd step (it sets B's `grouped` prop).
+
+**Records.** `ui/docs/xgen-ui-components.md` v0.55→v0.56 (message row kinds `text`/`system` + Build note (M-RP5.5 C) + count 215→219). `docs/ROADMAP.md` v4.48→v4.49 (M-RP5.5 ✅ DONE + C ✅ — family v1 CLOSED). CLAUDE.md PLAY. `tasks/M_RP5_5_C_MESSAGE_SYSTEM.md` → COMPLETED (+ close record). This entry. Feat `09e9cbe` already pushed; doc-bridge is a second commit — Joe pushes.
+
+**Next-active.** **M-RP5.6** `message-stream` dd-composite (the `entity-panel` analogue): Phase-0 addendum (grouping algo, day-divider rule, scroll machine, `role="log"`, select hook) → A (section + ordered N `message`s + empty + grouping computation + day-dividers) → B (scroll) → D-074 close. R5 system-widget wrap stays deferred to M-RP6.x.
 
 ---
 

@@ -1,6 +1,6 @@
 # M-RP5.5 C — `system` kind + full `isOwn` verify (message dd-composite)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-08  
 > Language: EN  
@@ -82,4 +82,8 @@ Joe pushes both.
 
 ## Close record
 
-_(filled at close: J-NNN, feat hash, actual registry count, notes.)_
+CLOSED at **J-480**. feat `09e9cbe` (3 files: `message.svelte` top-level `kind` split + system arm + Option-A getter normalization; `skin.css` `.message[data-kind="system"]` grid→`1fr` + centered; `app_sampler.svelte` 2 system fixtures/cells). Doc-bridge = second commit (Joe pushes).
+
+**CDP (9422, both accents) — real output:** `ids()` **215→219** (`count===219`, `unique===219`, 0 orphans both directions). Each system cell = `message#<id>` + `paragraph#<id>__body` (2 entries; NO `__avatar`/`__name`). System getters both cells = `{kind:'system', author:null, hasBody:true, detailsCount:0, isOwn:false, grouped:false, edited:false, deleted:false}` (Option-A normalized). `system-notice`: `data-kind=system`, `grid-template-columns:324px` (single track), `text-align:center`, no `.msg-header`, no `.entity-avatar`, h=26 (one line). `system-long`: same, h=62 (wraps, centered symmetric). Text mirror re-asserted: `text-other` `28px 288px` (own=false) / `text-own` `288px 28px` (own=true). Accent-neutral: system line `rgb(138,136,128)`=`--t3` identical client↔node; `--accent2` `#c28840` ↔ `#3a7ab0` (swap live). Screenshot `temp/m-rp5-5-c-system.png`. `vite build` clean (158 modules; two pre-existing meter/entity-avatar warnings only).
+
+**Message family v1 CLOSED** (2 kinds `text`/`system` + `grouped`/`edited`/`deleted` states + `details` socket). Doc-bridge: registry v0.56, ROADMAP v4.49 (M-RP5.5 ✅ DONE + C ✅), CLAUDE PLAY, this runbook. Next → **M-RP5.6** `message-stream` (Phase-0 addendum → A shell+grouping+dividers → B scroll).

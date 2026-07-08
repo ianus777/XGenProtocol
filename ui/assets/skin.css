@@ -2177,3 +2177,17 @@ html, body {
 .message[data-deleted] .msg-deleted::before {
   content: var(--msg-deleted);
 }
+
+/* ── M-RP5.5 C — system kind: an authorless centered notice. Collapse the avatar-column grid to a
+   single full-width track (no author → no reserved avatar column) and center the muted line. Reuses
+   --t3 / --fs-1 — no new token. A wrapping notice stays symmetric (text-align:center on the full
+   track). --accent stays out (accent-neutral geometry). ── */
+.message[data-kind="system"] {
+  grid-template-columns: 1fr;
+  text-align: center;
+}
+.message[data-kind="system"] .message-paragraph {
+  margin: 0;
+  font-size: var(--fs-1);
+  color: var(--t3);
+}

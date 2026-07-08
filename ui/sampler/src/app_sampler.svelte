@@ -273,6 +273,11 @@
   const msgDeleted = { kind: 'text', id: 'm-7', author: eaIdentity, body: 'Original text — must NOT render (tombstone).', timestamp: '2026-07-07T12:09:00Z', deleted: true, details: [{ widgetId: 'fixture.time', props: { label: '12:09' } }] };
   const msgGroupedEdited = { kind: 'text', id: 'm-8', author: eaIdentity, body: 'Grouped + edited: header gone, (edited) still shown.', timestamp: '2026-07-07T12:10:00Z', edited: true };
 
+  // M-RP5.5 C — system kind: authorless centered notice (no avatar / header / name / details).
+  // `system-long` wraps to ≥2 lines to prove the centered wrap stays symmetric.
+  const msgSystemNotice = { kind: 'system', id: 'm-9', body: 'alice joined the room', timestamp: '2026-07-07T12:11:00Z' };
+  const msgSystemLong = { kind: 'system', id: 'm-10', body: 'bob renamed the room from “general” to “protocol-dev” — everyone in the room was notified of the change.', timestamp: '2026-07-07T12:12:00Z' };
+
   // select-multiple shares the N-034 options-prop shape (carried over from `select`).
   const smOptions = [
     { value: 'a', label: 'Alpha' },
@@ -709,7 +714,7 @@
       </div>
     </div>
 
-    <div class="s-section-title">Message (M-RP5.5 A/B — text full + states)</div>
+    <div class="s-section-title">Message (M-RP5.5 A/B/C — text full + states + system)</div>
 
     <div class="s-row">
       <div class="s-rowname">message · text full × isOwn</div>
@@ -734,6 +739,14 @@
         <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-edited</span><Message descriptor={msgEdited} id="text-edited" /></div>
         <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-deleted</span><Message descriptor={msgDeleted} widgets={msgWidgets} id="text-deleted" /></div>
         <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-grouped-edited</span><Message descriptor={msgGroupedEdited} grouped id="text-grouped-edited" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">message · system (C)</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#system-notice</span><Message descriptor={msgSystemNotice} id="system-notice" /></div>
+        <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#system-long</span><Message descriptor={msgSystemLong} id="system-long" /></div>
       </div>
     </div>
   </div>

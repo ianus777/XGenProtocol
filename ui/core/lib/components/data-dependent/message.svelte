@@ -83,22 +83,51 @@
   // system kind; `detailsCount` = RESOLVED (rendered) mounts, the drop-unknown proof. `grouped` /
   // `edited` / `deleted` report the Step-B render-state (deleted forces `detailsCount` to 0 via the
   // render guard below, so the getter mirrors what is actually shown).
-  const debug = () => ({
-    kind,
-    isOwn,
-    author: author ? (author.name ?? author.id) : null,
-    hasBody,
-    detailsCount: deleted ? 0 : resolvedDetails.length,
-    grouped,
-    edited,
-    deleted,
-  });
+  //
+  // Option A normalization on `system` (M-RP5.5 C): the system kind is authorless / centered, so the
+  // text-only fields are structurally meaningless — the getter FORCES them off. Deliberate: the getter
+  // tracks RENDER truth, not descriptor truth (the `deleted → detailsCount:0` precedent, J-479). A
+  // stray field on a system descriptor never renders, so it never reports.
+  const debug = () =>
+    kind === 'system'
+      ? {
+          kind,
+          author: null,
+          hasBody,
+          detailsCount: 0,
+          isOwn: false,
+          grouped: false,
+          edited: false,
+          deleted: false,
+        }
+      : {
+          kind,
+          isOwn,
+          author: author ? (author.name ?? author.id) : null,
+          hasBody,
+          detailsCount: deleted ? 0 : resolvedDetails.length,
+          grouped,
+          edited,
+          deleted,
+        };
 </script>
 
 <!-- dd-composite root = honest HTML for a message: <article> (a self-contained composition — a
-  comment/post; N-075 dd-root). It composes cleanly into the stream's role="log" later. `data-own`
-  reflects the shell-set mirror; the skin owns the both-sides reserved avatar column + the flip. The
-  avatar (author), name (label), and body (paragraph) are REAL atomics that self-register. -->
+  comment/post; N-075 dd-root). It composes cleanly into the stream's role="log" later.
+
+  TOP-LEVEL KIND SPLIT (M-RP5.5 C). Two v1 kinds, two visibly separate sub-trees so the `system`
+  path reads NONE of the text-only fields:
+   - `system` — an authorless centered notice. No `entity-avatar`, no `.msg-header` / `label`
+     (`__name`), no `details`, no `edited` marker, no tombstone path: ONE centered `paragraph`
+     (`__body`). Root `<article data-kind="system">`, NO `data-own` (a system notice has no side).
+   - `text` — the A/B sub-tree (below): reserved avatar column + header guard + body/tombstone;
+     `data-own` reflects the shell-set mirror, the skin owns the both-sides column + the flip. The
+     avatar (author), name (label), and body (paragraph) are REAL atomics that self-register. -->
+{#if kind === 'system'}
+  <article use:envelope={{ name: 'message', id, debug }} data-kind="system">
+    <Paragraph text={descriptor.body ?? ''} class="message-paragraph" id={cid('body')} />
+  </article>
+{:else}
 <article
   use:envelope={{ name: 'message', id, debug }}
   data-kind={kind}
@@ -139,3 +168,4 @@
     {/if}
   </div>
 </article>
+{/if}

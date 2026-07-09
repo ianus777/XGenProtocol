@@ -1,8 +1,8 @@
 # XGen Protocol — Message Family Phase-0 (M-RP5.5 / M-RP5.6)
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-08  
+> **Last updated**: 2026-07-09  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -179,3 +179,16 @@ No change to `MessageDescriptor` (§4) — grouping stays a **stream-computed pr
 6. Select = click → `selected` $bindable + `[data-selected]` + reserved `onSelect?`, no roving; wiring M-RP6.x — **LOCKED**.
 7. Getter G eight-field; no `MessageDescriptor` change; stream-level props — **LOCKED**.
 8. Two steps: A (shell) / B (scroll) — **LOCKED**.
+
+### 9.10 M-RP5.6 B — scroll machine implementation refinement (LOCKED, J-484)
+
+§9.3 locks the scroll machine at concept level ("full A"); this refines the **implementation** for the B build (Phase-0 gate run at J-484, Joe-locked "by recomms"). No `MessageDescriptor` / `grouping.ts` / `message.svelte` change — B is scroll behaviour on the A viewport only. Runbook `tasks/M_RP5_6_B_MESSAGE_STREAM_SCROLL.md`.
+
+- **Q1 — thresholds (single 80px, rAF-throttled).** One build-time const `BOTTOM_THRESHOLD_PX = 80` governs both `atBottom` and pill visibility (no hysteresis / second band). `atBottom` (`$state`) `= scrollHeight − scrollTop − clientHeight ≤ 80`, recomputed in a `scroll` listener, **rAF-throttled** for a clean CDP read. Pill visible ⇔ `!atBottom`. Getter G's `atBottom` becomes live (drops the A `true` stub).
+- **Q2 — jump-pill = inline chrome.** A plain `<button class="jump-to-latest">` in the stream markup (`{#if !atBottom}`), `position:absolute` bottom-right over the viewport, appearance in `skin.css`. **NOT a component, NOT registered** (the `day-divider` precedent) — its state is already CDP-observable via getter `atBottom`. (Fallback if a registry-visible node is later wanted: compose the `core` `button` → `<id>__jump`.)
+- **Q3 — prepend = scrollHeight-delta + first-id heuristic.** Prepend-detection = `messages.length` grew **AND** the previous first-descriptor id is no longer at index 0 (self-contained; distinct from append = count grew, first-id stable). Anchor: capture `prevScrollHeight` in `$effect.pre`, after `tick()` apply `scrollTop += scrollHeight − prevScrollHeight` — the previously-top message stays at the same visual offset (the "prepend `scrollTop` invariance" DoD). `atBottom` unaffected.
+- **Q4 — sampler drives via a live fixture.** One new `stream-scroll` = a **mutable `$state`** array (~10 seeded `text` messages, overflows `max-height:340px`) + **append / prepend / reset** buttons in sampler chrome (the `streamBgLive`-button pattern). Append pushes `now`; prepend unshifts ~10 min earlier (re-exercises grouping/dividers — free via `$derived computeRows`). The four static fixtures (basic/days/empty/bg) stay untouched. CDP drives by clicking the real buttons + `el.scrollTop` sets.
+- **Sub-point — initial scroll on mount.** On mount, `scrollTop = scrollHeight` (chat opens at newest); matches the `atBottom:true` init. Mount is neither append nor prepend.
+- **No new decision (D-series).** §9.3 already carries the machine; these are implementation choices, not a project-level decision — DECISIONS.md untouched.
+
+**Open items (locked J-484):** (1) 80px single threshold + rAF-throttle — LOCKED. (2) pill = inline chrome — LOCKED. (3) prepend = scrollHeight-delta + first-id heuristic — LOCKED. (4) sampler `stream-scroll` live fixture + append/prepend/reset — LOCKED. (5) initial scroll to bottom on mount — LOCKED. (6) no descriptor/grouping change, `message-stream.svelte`+sampler+`skin.css` only — LOCKED.

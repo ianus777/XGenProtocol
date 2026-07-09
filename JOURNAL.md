@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-484 — M-RP5.6 B Phase-0 LOCKED: `message-stream` scroll machine (implementation refinement)
+
+**Design/records-only, no code (Rule 1/5: nothing built, nothing to verify — stated plainly).** Ran the D-071 Phase-0 gate for M-RP5.6 B (the scroll machine), opened as next-active at J-483. §9.3 of the family Phase-0 already locked the machine at concept level ("full A"); this gate refined the **implementation** — Joe-locked "by recomms" on all four questions + two surfaced sub-points. No `MessageDescriptor` / `grouping.ts` / `message.svelte` change: B is scroll behaviour on the A viewport (`overflow-y:auto`, `max-height:340px`, getter G's `atBottom` currently a `true` stub). Registry unchanged (**262**).
+
+**Locked (Joe, "by recomms").**
+- **Q1 — thresholds:** ONE build-time const `BOTTOM_THRESHOLD_PX = 80` governs both `atBottom` and pill visibility (no hysteresis / second band). `atBottom` (`$state`) `= scrollHeight − scrollTop − clientHeight ≤ 80`, recomputed in a `scroll` listener, **rAF-throttled** for a clean CDP read. Getter G's `atBottom` becomes live (drops the A stub).
+- **Q2 — jump-pill = inline chrome:** a plain `<button class="jump-to-latest">` in the stream markup (`{#if !atBottom}`), `position:absolute` bottom-right, appearance in `skin.css`. **NOT a component, NOT registered** (the `day-divider` precedent) — its state is already CDP-observable via getter `atBottom`. Fallback if a registry-visible node is later wanted: compose `core` `button` → `<id>__jump`.
+- **Q3 — prepend = scrollHeight-delta + first-id heuristic:** prepend-detection = `messages.length` grew AND the previous first-descriptor id is no longer at index 0 (self-contained; distinct from append = count grew, first-id stable). Anchor: capture `prevScrollHeight` in `$effect.pre`, after `tick()` apply `scrollTop += scrollHeight − prevScrollHeight` — the "prepend `scrollTop` invariance" the DoD names. `atBottom` unaffected.
+- **Q4 — sampler drive:** ONE new `stream-scroll` live fixture (mutable `$state` array, ~10 seeded `text` messages overflowing 340px) + **append / prepend / reset** buttons in sampler chrome (the existing `streamBgLive`-button pattern). Append pushes `now`; prepend unshifts ~10 min earlier (re-exercises grouping/dividers — free via `$derived computeRows`). Four static fixtures (basic/days/empty/bg) untouched. CDP drives via clicking the real buttons + `el.scrollTop` sets.
+- **Sub-point 1 — initial scroll on mount:** on mount `scrollTop = scrollHeight` (chat opens at newest); matches the `atBottom:true` init.
+- **Sub-point 2 — grouping recompute is free:** append/prepend mutate `messages` → `computeRows` re-derives grouping + dividers with zero extra code (stated so the runbook doesn't re-solve it).
+
+**No new decision (D-series).** §9.3 already carries the machine; these are implementation choices, not a project-level decision — DECISIONS.md untouched.
+
+**Sub-milestone (locked).** **B** — single Clair feat on the existing `message-stream` root (scroll listener + rAF-throttle + live `atBottom` + inline pill + `$effect.pre`/`tick()` prepend-anchor + mount-to-bottom) + sampler `stream-scroll` live fixture + `skin.css` pill rule; then Chat CDP-verify (`atBottom` true→false→true transitions / append-stick vs append-no-yank / pill visibility / prepend `scrollTop` invariance) → D-074 two-commit close. Closes M-RP5.6 (A+B) → message dd sub-family complete → next-active M-RP6.1 client UI panel arc.
+
+**Records.** `docs/xgen-dd-message-family-phase0.md` **v1.1→v1.2** (+§9.10 M-RP5.6 B implementation refinement). `docs/ROADMAP.md` **v4.52→v4.53** (M-RP5.6 B Phase-0 LOCKED). CLAUDE.md PLAY (head J-483→J-484, next-active flipped to the B build). Runbook `tasks/M_RP5_6_B_MESSAGE_STREAM_SCROLL.md` drafted (ACTIVE, for Clair). This entry. No code, registry unchanged (**262**). GitHub board: M-RP5.6 card stays PENDING (design-locked; build not started). Not pushed — Joe pushes.
+
+**Next-active.** **M-RP5.6 B build** — the scroll machine on the `stream-scroll` live fixture (Clair feat → Chat CDP-verify → D-074 close).
+
+---
+
 ## Entry J-483 — M-RP-CDP1: CDP harness RESTORED across all three Tauri apps (dev-only `--config` overlay) + M-RP5.6 A CDP legs CLOSED (registry 219→262)
 
 **One atomic commit (D-074) — infra (overlays + launch scripts) travels with the records it produces.** No Clair feat leg (no Rust/Svelte): the fix is Tauri config + PowerShell + docs, Chat-Claude territory. Everything below is verified with real CDP output on the reliable PowerShell path (Rule 2); the M-RP5.6 A registry count is now the live `ids().length`, no longer withheld (Rule 5).

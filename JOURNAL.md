@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-487 — M-RP5.7 grouped-avatar suppression: built + CDP-verified, M-RP5.7 CLOSED
+
+**Doc-bridge (D-074 second commit).** Clair's feat `fd0af23` (code-only, `message.svelte` + `skin.css`) is already pushed = commit 1; this entry + the paired canonical records = commit 2. The grouped-avatar suppression (Phase-0-locked at J-486, D-106) is built and CDP-verified against the live sampler (9422, both accents). **M-RP5.7 CLOSED** — grouping now reads correctly. Registry **296→286**.
+
+**What Clair built (feat `fd0af23`).** `message.svelte`: the grouped-branch guard widened `{#if author}` → `{#if author && !grouped}`, so a `grouped` continuation renders **no** `entity-avatar` child (element absent, not `visibility:hidden`) — the name was already dropped at B, so a grouped cell now registers **neither `__avatar` nor `__name`**; also fixed the stale header doc-comment that still said grouped “keeps the avatar.” `skin.css`: the `.message` avatar grid track was `auto` (collapses to 0 when the avatar element is absent → body left-shift), **pinned to `28px`** (`.message` → `28px 1fr`, `.message[data-own]` → `1fr 28px`; 28px = list-avatar width) so the empty continuation cell reserves its column. Scope-clean (no `MessageDescriptor` / `stream/grouping.ts` / `message-stream.svelte`; `grouped` stays the stream-computed prop); `vite build` clean (161 modules).
+
+**CDP verification (sampler 9422, both accents — all legs green).**
+- **Registry:** `ids().length` **296→286 (−10)** — exactly the **10 grouped rows** across the DD·composite panel (7 in `stream-scroll` at seed + `text-grouped` + `text-grouped-edited` + 1 in `stream-basic`), each losing its one `__avatar`; `count===unique` (286/286), **0 orphans both directions**.
+- **Grouped suppression:** 10 grouped rows, **0 leaking avatar or name**. `text-grouped` / `text-grouped-edited` cells = only `__body` + root (no `entity-avatar#…__avatar`, no `label#…__name`). The head `text-other` keeps both.
+- **Heads keep both:** 0 text-kind heads missing an avatar; the 3 avatar-less heads (`system-notice`, `system-long`, `stream-basic__m-sb-4`) are all `kind=system` (authorless, by design — not a regression).
+- **No left-shift:** head `seed-9` and its grouped continuation `seed-8` share an identical grid `28px 311.2px` (1fr resolves to 311.2px in the sampler cell) and body-left **402=402** — the pinned 28px track keeps the empty cell's width. The `seed-4` outlier at body-left 366 is `isOwn:true` (own-side layout, grid `311.2px 28px`), unrelated to the fix.
+- **grouped + content-state:** `text-grouped-edited` suppresses avatar+name (av0/nm0/bd1). grouped+deleted has no sampler fixture but rides the same `author && !grouped` positional guard (deleted independently replaces the body).
+- **Both accents:** node `#3a7ab0` ↔ client `#c28840`, suppression identical, registry 286 both; grouping is structural / accent-independent.
+- **Eye-check GREEN** (Joe-confirmed against the OS screenshot): Alice Ng appears once as the group head with the “AN” avatar, then Seed 8/9/10 render as bare continuation bodies (no avatar, no name, left-aligned under the head). Previously that same avatar repeated on every row — the reason grouping read as invisible.
+
+**Doc-wording fix (Clair Rule-6 flag).** §10 / D-106 illustrated the reserved grid as `28px 288px` / `288px 28px`, but the real code was `auto 1fr` / `1fr auto` — 288px was never literal (illustrative). Clair pinned the avatar track to the real `28px` and kept the content track `1fr` (hardcoding 288px would break responsive width). Intent — reserve the avatar column — is met exactly; the wording in **D-106**, **phase0 §10**, and the components-doc registry note is corrected to `28px 1fr` in-place.
+
+**Records.** `docs/ROADMAP.md` **v4.55→v4.56** (M-RP5.7 🟡 PENDING → ✅ DONE, full CDP results; next-active M-RP6.1). `ui/docs/xgen-ui-components.md` **v0.59→v0.60** (message row grouped-drops-avatar+name; registry note 296→286 with cause; M-RP5.7 build note). `DECISIONS.md` D-106 grid-wording fix. `docs/xgen-dd-message-family-phase0.md` §10 grid-wording fix. CLAUDE.md PLAY (head J-486→J-487; M-RP5.6 B block next-active repointed to M-RP6.1). `tasks/M_RP5_7_GROUPED_AVATAR_SUPPRESSION.md` → COMPLETED (all 7 DoD boxes checked, real-output annotated). This entry. Feat `fd0af23` = commit 1 (Clair, pushed); this doc-bridge = commit 2. Not pushed — Joe pushes.
+
+**Next-active.** **M-RP6.1 client UI panel arc** — region-shell scaffold + selection bus + R3 Self/connection + R8 inspector (self = first inspectable; closes the read half of gate finding F-1). `temperature-indicator` (M-RP6.5 / M-RP5.4) stays ⏸️ POSTPONED until the main window is functional.
+
+
+---
+
 ## Entry J-486 — M-RP5.7 grouped-avatar suppression: Phase-0 LOCKED
 
 **Design/records-only, no code (Rule 1/5).** Ran the D-071 Phase-0 gate for **M-RP5.7**, opened after Joe flagged the M-RP5.6 B screenshot: the `stream-scroll` render showed the identical avatar on every row with nothing dropped, so grouping read as invisible. Root: M-RP5.5 B made `grouped` suppress the **name header** but **keep the avatar** — a same-author run then repeats the avatar, the exact who-is-speaking noise grouping exists to remove. Joe locked the correction “by recomms.” Registry unchanged this entry (**296**); the build will DROP it.

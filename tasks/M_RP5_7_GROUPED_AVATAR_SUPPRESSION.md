@@ -1,6 +1,6 @@
 # XGen Protocol — M-RP5.7 Runbook: grouped-avatar suppression (Clair)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-09  
 > Language: EN  
@@ -53,13 +53,13 @@ Must show (real output):
 
 ## 6. Definition of Done (Rule 7 — verify each with real output)
 
-- [ ] `message.svelte` grouped branch drops the `entity-avatar` child (element absent) in addition to the name; `MessageDescriptor`/`grouping.ts`/`message-stream.svelte` untouched.
-- [ ] Grouped cells register **neither** `__avatar` **nor** `__name` (CDP-quoted absence).
-- [ ] Group-head cells keep avatar + name (CDP-quoted presence).
-- [ ] Continuation body stays column-aligned under the head — grid tracks identical, no left-shift (CDP-quoted `rect.left` head vs continuation).
-- [ ] grouped + deleted and grouped + edited still suppress avatar + name (CDP-quoted).
-- [ ] New registry total measured + recorded, cause noted (grouped cells lose `__avatar`); `count===unique`, 0 orphans.
-- [ ] `vite build` clean (module count quoted) + both accents + eye-check (head avatar + bare continuations).
+- [x] `message.svelte` grouped branch drops the `entity-avatar` child (element absent) in addition to the name; `MessageDescriptor`/`grouping.ts`/`message-stream.svelte` untouched. — guard `{#if author}`→`{#if author && !grouped}`; feat `fd0af23`, scope-clean, `vite build` 161 modules.
+- [x] Grouped cells register **neither** `__avatar` **nor** `__name` (CDP-quoted absence). — 10 grouped rows, **0 leaking avatar or name**; `text-grouped`/`text-grouped-edited` = only `__body`+root.
+- [x] Group-head cells keep avatar + name (CDP-quoted presence). — `text-other` head has `entity-avatar#…__avatar` + `label#…__name` + `__body`; 0 text heads missing avatar (the 3 avatar-less heads are all `kind=system`).
+- [x] Continuation body stays column-aligned under the head — grid tracks identical, no left-shift (CDP-quoted `rect.left` head vs continuation). — head `seed-9` + grouped `seed-8` both grid `28px 311.2px`, body-left **402=402** (`isOwn` `seed-4`@366 = own-side `311.2px 28px`).
+- [x] grouped + deleted and grouped + edited still suppress avatar + name (CDP-quoted). — `text-grouped-edited` av0/nm0/bd1; grouped+deleted has no fixture but rides the same `author && !grouped` positional guard.
+- [x] New registry total measured + recorded, cause noted (grouped cells lose `__avatar`); `count===unique`, 0 orphans. — **296→286** (−10 = 10 grouped rows × one `__avatar`), 286/286, 0 orphans both directions.
+- [x] `vite build` clean (module count quoted) + both accents + eye-check (head avatar + bare continuations). — 161 modules; node `#3a7ab0` ↔ client `#c28840`, suppression identical, 286 both; eye-check GREEN (Joe-confirmed: Alice Ng head + bare continuations).
 
 *(DoD never includes "commit pushed" — the `Status: COMPLETED` header is the close signal.)*
 

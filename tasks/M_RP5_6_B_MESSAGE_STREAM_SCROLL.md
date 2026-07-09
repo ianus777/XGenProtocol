@@ -1,6 +1,6 @@
 # XGen Protocol — M-RP5.6 B Runbook: `message-stream` scroll machine (Clair)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-09  
 > Language: EN  
@@ -94,14 +94,14 @@ Must show (real output):
 
 ## 9. Definition of Done (Rule 7 — verify each with real output)
 
-- [ ] `message-stream.svelte` scroll machine added (scroll listener + rAF-throttle + `atBottom` live + inline pill + `$effect.pre`/`tick` prepend-anchor + mount-to-bottom); `MessageDescriptor`/`grouping.ts`/`message.svelte` untouched.
-- [ ] `atBottom` live and CDP-readable: `true` on mount, `false` when scrolled up, back to `true` within 80px (CDP-quoted transitions).
-- [ ] Append sticks when at bottom (`scrollTop`→max) and does **not** yank when scrolled up (CDP-quoted `scrollTop` before/after).
-- [ ] Jump-to-latest pill (inline chrome) shows ⇔ `!atBottom`; click → bottom + hide (CDP-quoted).
-- [ ] Prepend preserves position: previously-top message unmoved, `scrollTop` += inserted height (CDP-quoted delta).
-- [ ] Sampler `stream-scroll` live fixture + append/prepend/reset controls; four static fixtures untouched.
-- [ ] Grouping/dividers recompute correctly after mutation (no regression; CDP-quoted counts).
-- [ ] `vite build` clean (module count quoted) + both accents + screenshot (`temp/`).
+- [x] `message-stream.svelte` scroll machine added (scroll listener + rAF-throttle + `atBottom` live + inline pill + `$effect.pre`/`tick` prepend-anchor + mount-to-bottom); `MessageDescriptor`/`grouping.ts`/`message.svelte` untouched. — feat `5cfd718`, `vite build` clean (161 modules).
+- [x] `atBottom` live and CDP-readable: `true` on mount, `false` when scrolled up, back to `true` within 80px (CDP-quoted transitions). — mount `scrollTop=398=max`, `atBottom` true→false (gap 398)→true.
+- [x] Append sticks when at bottom (`scrollTop`→max) and does **not** yank when scrolled up (CDP-quoted `scrollTop` before/after). — stick `scrollTop 444→490`; no-yank held at `0` (`scrollHeight +46`).
+- [x] Jump-to-latest pill (inline chrome) shows ⇔ `!atBottom`; click → bottom + hide (CDP-quoted). — pill "↓ Latest" present when scrolled-up; jump → `scrollTop=444`=max, `atBottom:true`, pill hides.
+- [x] Prepend preserves position: previously-top message unmoved, `scrollTop` += inserted height (CDP-quoted delta). — `ΔscrollTop = ΔscrollHeight = 68` (isPrepend branch fired).
+- [x] Sampler `stream-scroll` live fixture + append/prepend/reset controls; four static fixtures untouched. — verified live; four static A fixtures unchanged.
+- [x] Grouping/dividers recompute correctly after mutation (no regression; CDP-quoted counts). — `groupedCount 7→9` across mutations, zero extra code.
+- [x] `vite build` clean (module count quoted) + both accents + screenshot (`temp/`). — 161 modules; pill accent-neutral / `--accent2` gold`#c28840`↔blue`#3a7ab0`; screenshot OS-captured (harness screenshot mode bugged on large PNG — PS-5.1 `ConvertFrom-Json` limit, flagged for the J-483 fix). Registry **262→296**, `count===unique`, 0 orphans.
 
 *(DoD never includes "commit pushed" — the `Status: COMPLETED` header is the close signal.)*
 

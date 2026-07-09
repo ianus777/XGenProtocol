@@ -8,6 +8,35 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-485 — M-RP5.6 B DONE: `message-stream` scroll machine built + CDP-verified (M-RP5.6 CLOSED)
+
+**Doc-bridge (D-074 second commit).** Clair's feat `5cfd718` (the scroll machine) is already pushed = commit 1; this entry + the paired canonical records = commit 2. The `message-stream` **scroll machine** (M-RP5.6 B, Phase-0-locked at J-484) is built and CDP-verified against the live sampler (9422, both accents). **M-RP5.6 CLOSED** — the message dd sub-family (`message` A/B/C + `message-stream` A/B) is complete. Registry **262→296**.
+
+**Built (Clair, `5cfd718`).** On the existing A viewport (`overflow-y:auto`, `max-height:340px`): `atBottom` is now live — a `scroll` listener, **rAF-throttled**, one const `BOTTOM_THRESHOLD_PX = 80` governs both `atBottom` and pill visibility (getter G's `atBottom` drops the A `true` stub). Stick-to-bottom on append@bottom; no-yank when scrolled up. Jump-to-latest pill = **inline chrome** (`<button class="jump-to-latest">`, `{#if !atBottom}`, unregistered — the `day-divider` precedent; state CDP-observable via getter `atBottom`). Preserve-position-on-prepend: `$effect.pre` captures `scrollHeight`, `tick()` re-applies the delta; prepend-detect = count grew AND prev-first-id no longer at index 0. Initial scroll to bottom on mount. No `MessageDescriptor` / `grouping.ts` / `message.svelte` change — grouping/dividers recompute for free via the existing `$derived computeRows`. `vite build` clean (161 modules); scope-clean (`message-stream.svelte` + `app_sampler.svelte` + `skin.css`).
+
+**As-built structural deviation (Clair, sound — flagged and verified against the contract before verifying with it).** §9.10 named the pill as `position:absolute` inside the stream, but an absolute pill INSIDE the `overflow-y:auto` root scrolls away with the content. Clair wrapped the viewport in a non-scrolling `.message-stream-shell` (`position:relative`) and made the pill a **sibling** of the scroll element — the `entity-panel` rooting precedent (outermost DOM = a chrome wrapper). The envelope + `role="log"` still ride the inner `.message-stream` scroll element, so the **registry root is unchanged** and getter G is untouched. Chat confirmed this preserves the contract, then verified against it.
+
+**CDP verification (sampler 9422, live drive; real output quoted, Rule 2).** Joe launched the dev sampler; Chat ran short probes.
+- **Registry integrity:** `{count:296, unique:296, orphans:0}` both directions; `count===unique`. The `stream-scroll` seed subtree = **+34** over A's 262 (10 `__avatar` + 10 `__body` + 3 `__name` [7 grouped rows suppress `__name`] + composed roots). *(A transient `306` read appeared for one probe immediately after a reset click — a mid-flush read as the mutated 13-msg subtree tore down to the 10-msg seed; re-measured after settle = `296`, groupedCount 7, names 3. Rule 5: the settled number is authoritative.)*
+- **Getter G shape:** `{count, selected, hasEmpty, groupedCount, dividerCount, atBottom, backgroundMountCount, backgroundLive}` — the eight-field contract, `atBottom` now live.
+- **Mount-to-bottom:** `scrollTop=398` = max (`scrollHeight 736 − clientHeight 338`).
+- **`atBottom` live:** `true` @bottom → `false` scrolled-up (gap 398, pill "↓ Latest" present) → `true` @jump. Pill present ⇔ `!atBottom`.
+- **Append@bottom sticks:** count `11→12`, `scrollTop 444→490` (followed the growth).
+- **Append scrolled-up = NO yank:** count `10→11`, `scrollTop` held at `0`, `scrollHeight +46`, pill persists.
+- **Jump pill:** `scrollTop→444`=max, `atBottom:true`, pill hides.
+- **Prepend invariance:** `ΔscrollTop = ΔscrollHeight = 68` (isPrepend branch fired: `200+68=268`) — the anchor holds exactly.
+- **Grouping recompute free:** `groupedCount 7→9` across mutations, zero extra code.
+- **Both accents:** pill accent-neutral (bg `rgb(42,47,56)` / color `rgb(200,196,188)` identical client↔node) while `--accent2` swaps gold `#c28840` ↔ blue `#3a7ab0`.
+
+**Eye-check screenshot — OS-captured (harness screenshot mode bugged).** The harness `-Mode screenshot` returned exit-1 on this capture (foregrounded, and with `-Seconds 30`). Root-caused: NOT window occlusion and NOT the receive timeout — the failure throws *before* the mode's own error prints, and screenshot is the only mode with a large payload (the base64 PNG), while `eval`/`state` (small payloads) work through the same receive+`ConvertFrom-Json` path. **Windows PowerShell 5.1 `ConvertFrom-Json` chokes on the large screenshot payload** (with `$ErrorActionPreference='Stop'` → throws to `finally` → exit-1). Intermittent across captures because payload size tracks window content — the added `stream-scroll` rows pushed this capture over the limit where the older ~51 KB `cdp-shot-sampler.png` squeaked under. Concrete next-touch for the standing J-483 "harden screenshot mode" flag: parse `result.data` via substring instead of full-object `ConvertFrom-Json`. Joe captured an OS-level screenshot instead (`screenshot_2026-07-09_173150.jpg`), eye-checked GREEN: DD Composites tab, `stream-scroll` scrolled to bottom (Seed 8/9/10 + Appended #1/#2), no pill (at bottom), avatars on every row (grouping suppresses the name header, not the avatar), `stream-bg-unknown` empty box (W-13 unknown-`widgetId` drop), client accent.
+
+**Records (this commit).** `ui/docs/xgen-ui-components.md` **v0.58→v0.59** (message-stream row + scroll machine; registry note 262→**296**; M-RP5.6 C build note). `docs/ROADMAP.md` **v4.53→v4.54** (M-RP5.6 B ✅ DONE, M-RP5.6 CLOSED, next-active M-RP6.1). CLAUDE.md PLAY (head J-484→J-485, M-RP5.6 B ✅ DONE, next-active M-RP6.1). `tasks/M_RP5_6_B_MESSAGE_STREAM_SCROLL.md` → COMPLETED. This entry. No `DECISIONS.md` change (§9.3/§9.10 already carry the machine; the `.message-stream-shell` wrapper is an implementation realisation, not a project-level decision). GitHub board: M-RP5.6 card → DONE. Not pushed — Joe pushes.
+
+**Next-active.** **M-RP6.1 client UI panel arc** — region-shell scaffold + selection bus + R3 Self/connection + R8 inspector (the R5 message-stream system-widget wrap + live node↔client wiring land in the M-RP6.x arc). `temperature-indicator` (M-RP6.5 / M-RP5.4) stays ⏸️ POSTPONED until the main window is functional.
+
+
+---
+
 ## Entry J-484 — M-RP5.6 B Phase-0 LOCKED: `message-stream` scroll machine (implementation refinement)
 
 **Design/records-only, no code (Rule 1/5: nothing built, nothing to verify — stated plainly).** Ran the D-071 Phase-0 gate for M-RP5.6 B (the scroll machine), opened as next-active at J-483. §9.3 of the family Phase-0 already locked the machine at concept level ("full A"); this gate refined the **implementation** — Joe-locked "by recomms" on all four questions + two surfaced sub-points. No `MessageDescriptor` / `grouping.ts` / `message.svelte` change: B is scroll behaviour on the A viewport (`overflow-y:auto`, `max-height:340px`, getter G's `atBottom` currently a `true` stub). Registry unchanged (**262**).

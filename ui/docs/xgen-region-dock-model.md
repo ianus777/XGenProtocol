@@ -1,8 +1,8 @@
 # XGen UI — Region / Dock Model
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-07  
+> **Last updated**: 2026-07-09  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -109,6 +109,21 @@ The live layout descriptor (§3) is saved to disk and restored on start. Layout 
 - **`version` bump + migrate** only for descriptor **schema** changes (node shape). Prop/name drift on the same id is the widget's own concern, not a layout concern. On unrecoverable mismatch → fall back to default, never crash on a stale tree.
 
 **Sequencing.** Contract is free now (`version` in the descriptor; the verbs are layout-shaped siblings of the M-RP6.1 read/write verbs). M-RP6.1 may stub `get_layout` (returns default) at no cost. Baseline auto-save/load lands at **M-RP7.3**; named layouts + manager widget at **M-RP7.6** (after renderer B can produce varied layouts worth naming).
+
+---
+
+## 10. App frame — the non-dockable complement (D-107)
+
+Added at M-RP6.1 Phase-0 (J-488; `docs/xgen-client-frame-phase0.md`). The model above describes the **dockable** layout; this section adds the **fixed frame** around it.
+
+The client window is a **BorderPane**: a fixed **top pane** (menu-bar), a fixed **bottom pane** (status-bar), and a **center** — and the center is the *only* part the `Layout` descriptor (§3) subdivides. The menu-bar and status-bar are **fixed frame chrome, NOT dockable regions/widgets, and live OUTSIDE the descriptor.** The dock engine (renderer B, M-RP7) mutates the center; the frame is stable.
+
+- **Why not widgets.** W-12/W-13 keep *system widgets* present-but-dockable. The frame needs something stronger: File→Exit must be un-dockable and unclosable, period. Making it frame chrome (outside the dock tree entirely) is that guarantee — a cleaner answer than a special widget flag.
+- **Frame containers are `core`; window-effects are shell-wired.** The status-bar and menu family are reusable `core` components (the node app needs an un-minimalized status-bar too). `core` imports no Tauri/protocol, so real-window effects ride **seams**: the status-bar resize-grip via `onResizeGrip?` (shell → `startResizeDragging`), the menu Exit via a command callback (shell → exit command).
+- **New components this introduces:** `icon` (core, svg glyph) · `separator` (core, vertical|horizontal, shared menu+status-bar) · `Accelerator` (`ui/common` value-object, display+dispatch) + a lean shell keymap registry · `menu-bar`/`menu`/`menu-item` (core, minimal File→Exit) · `status-bar` (core). Skin tokens `--fs-s1: 9px` / `--fs-s2: 8px` below `--fs-0: 10px`.
+- **Relationship to §1.** “Every region is a widget” still holds for the **center**. The frame is not a region; it is the window shell the center layout sits inside. The two are complements: descriptor-driven dockable center + fixed frame chrome.
+
+See `docs/xgen-client-frame-phase0.md` for the full frame Phase-0 and the frame-first M-RP6.1 build order. Crystallised as **D-107**.
 
 ---
 

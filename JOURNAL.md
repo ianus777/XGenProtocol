@@ -8,6 +8,31 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-488 — M-RP6.1 client-UI-frame Phase-0 LOCKED (app frame: menu-bar + status-bar)
+
+**Design/records-only, no code (Rule 1/5).** Opened the M-RP6.1 D-071 Phase-0 gate for the client UI panel arc and ran a full brainstorm with Joe on the **app frame** — the fixed menu-bar (top) and status-bar (bottom) around the dockable region layout. Dependency (node↔client surface) confirmed **GO** at M-RP6.0/J-473 (`m-rp6.0-gate-go`); gate result **GO to design + build**. Finding F-1 (no live read verb pre-UI) is this milestone's deliverable, not a defect. Joe locked the frame concept + the component prerequisites + the frame-first build order. Registry unchanged (**286**) — no code this entry.
+
+**Locked (Joe) — the app frame.**
+1. **Frame = fixed chrome, NOT dockable regions.** BorderPane: menu-bar top pane + status-bar bottom pane are fixed and live **OUTSIDE** the `Layout` descriptor; only the center is subdivided by the descriptor (renderer A now → dock engine B at M-RP7). Consequence: File→Exit is unconditionally reachable (outside the dock tree — stronger than W-13). → **D-107**.
+2. **Frame containers are `core`; window-effects are shell-wired.** The status-bar (and menu family) are reusable `core` components — the node app needs an un-minimalized status-bar too. `core` imports no Tauri, so real-window effects ride seams: status-bar resize-grip via `onResizeGrip?` (shell → `startResizeDragging`); menu Exit via a command callback (shell → existing exit command).
+3. **`icon`** = its own `core` component (NOT folded into `image`) — cleared by D-096 on **two** axes: value-type (a shape/path definition, not a `src` reference) and surface (tintable UI glyph vs raster content). Mirrors JavaFX `SVGPath`-vs-`ImageView` (verified: JavaFX `ImageView` is raster-only, SVG is a separate `SVGPath` Shape). Primary path inline `<svg>` (tintable via `currentColor`), raster `<img>` secondary. png/jpg/svg only, no `.ico`.
+4. **`separator`** = shared `core` component, orientation vertical | horizontal — used between status-bar cells AND as `menu-separator`. Built once.
+5. **Menu-bar** minimal now (File→Exit); JavaFX-standard taxonomy (`menu-bar`/`menu`/`menu-item`/`menu-separator`/`menu-check-item`), fully skinnable / no native; reuses the `entity-context-menu` W-2 behaviour machine. Grows by accretion (separator / check-item / **submenu-flyout** deferred until a 2nd menu needs them, D-065). The menu bar doubles as a live dev-state signal.
+6. **`Accelerator`** = ONE `ui/common` value-object, two projections from a single definition (`toDisplay()` display hint + `matches(event)` dispatch) → no display/dispatch drift; pure/DOM-free. Consumed by a **lean** shell-level keymap registry (built full object now, registry starts with one binding Ctrl+Q→Exit).
+7. **`status-bar`** = `core` container: side-stacking `sb-cell`s (left/right) + `separator`s + our own always-visible SE resize-grip (our glyph, Tauri mechanism via the seam). Connection cell = `status-indicator` (led+label) reading the SAME reactive `self-state` signal as R3 (single source of truth). Default text `--fs-s1` (9px), tune to `--fs-s2` (8px) if needed.
+8. **Font tokens** (verified against `skin.css`, Rule 5 — real scale is `--fs-0:10px; --fs-1:12px; --fs-2:14px`): add **`--fs-s1: 9px`** and **`--fs-s2: 8px`** below `--fs-0`, additive, no rename of the shipped scale. General L2 tokens (dense UI wants sub-10 elsewhere too).
+
+**Decision (D-series).** **D-107** — app frame (menu-bar + status-bar) = fixed chrome outside the dockable region layout; frame containers are `core`, window-effects are shell-wired. Extends D-103 (which had no frame concept).
+
+**Revised M-RP6.1 build order (frame-first; each step gets its own design lock + runbook when it opens).** 6.1a `icon` core · 6.1b `separator` core · 6.1c `Accelerator` + lean keymap registry · 6.1d `menu-bar` minimal (File→Exit) · 6.1e `status-bar` core · 6.1f center region-shell scaffold (renderer A reads descriptor, `get_layout` stub→default, placeholder leaves) + selection bus · 6.1g R3 Self/connection live (`get_self_state` verb + scoped `app.emit` push + `listen`; closes F-1 read half) · 6.1h R8 inspector on the selection bus (generic `EntityDescriptor` rows, self = first inspectable). Verify **graduates from the sampler to the real client app** (the sampler is `tauri`+`tauri-build` only, cannot reach a node — D-097): three-layer = pure unit (vitest) / real-client-offline (fixture self) / real-client + node (stop-node → led flips via the emit push).
+
+**Records.** `docs/xgen-client-frame-phase0.md` **v1.0** (new, the frame Phase-0). `DECISIONS.md` **+D-107**. `ui/docs/xgen-region-dock-model.md` **v1.1→v1.2** (+§10 frame concept). `docs/ROADMAP.md` **v4.56→v4.57** (M-RP6.1 re-sequenced frame-first). CLAUDE.md PLAY (head pointer J-487→J-488, next-active M-RP6.1a `icon` build). This entry. No code, registry unchanged (**286**). Not pushed — Joe pushes.
+
+**Next-active.** **M-RP6.1a `icon` build** — first frame prerequisite (per-component design lock → Clair feat → Chat verify → D-074 close). Submenu-flyout / menu-separator / check-item deferred (D-065). `temperature-indicator` (M-RP6.5) stays ⏸️ POSTPONED.
+
+
+---
+
 ## Entry J-487 — M-RP5.7 grouped-avatar suppression: built + CDP-verified, M-RP5.7 CLOSED
 
 **Doc-bridge (D-074 second commit).** Clair's feat `fd0af23` (code-only, `message.svelte` + `skin.css`) is already pushed = commit 1; this entry + the paired canonical records = commit 2. The grouped-avatar suppression (Phase-0-locked at J-486, D-106) is built and CDP-verified against the live sampler (9422, both accents). **M-RP5.7 CLOSED** — grouping now reads correctly. Registry **296→286**.

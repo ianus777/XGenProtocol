@@ -4050,3 +4050,27 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 **Scope.** `message.svelte` grouped branch + `skin.css` (empty-gutter handling) only. **No** `MessageDescriptor` / `stream/grouping.ts` / `message-stream.svelte` change (`grouped` stays the stream-computed prop). Tighter inter-continuation vertical spacing (the usual chat compaction) is a **deferred** skin follow-up, out of scope here (D-065).
 
 **Relationship:** M-RP5.5 B (corrects its “keep the avatar” build note) · phase0 §10 (the M-RP5.7 lock) · N-075 (dd-composite / `message` root) · D-065 (honest longer work over the papered-over asymmetry).
+
+---
+
+## D-107 — App frame (menu-bar + status-bar) = fixed chrome outside the dockable region layout; frame containers are `core`, window-effects are shell-wired
+
+**Date:** 2026-07-09 · **Layer:** UI / client shell (M-RP6.1) · **Ref:** D-103 (region/dock model, extended), D-102 (widget tier), D-095 (`ui/{…}` tier split), D-056 (one shared command layer), D-096 (fold criterion), D-065
+
+**Context.** The client UI panel arc (M-RP6.1) needs a menu-bar and a status-bar. The region/dock model (D-103) knew only the dockable region layout; it had no concept of fixed window chrome. Left unresolved, a menu-bar or status-bar could be mis-modelled as a dockable system widget — which would let a user dock the Composer's neighbour away, or (worse) lose the only exit affordance.
+
+**Decision.** The client window is a BorderPane: a fixed **top pane** (menu-bar), a fixed **bottom pane** (status-bar), and a **center** that holds the dockable region layout. The **menu-bar and status-bar are fixed frame chrome — NOT dockable regions/widgets — and live OUTSIDE the `Layout` descriptor.** Only the center is subdivided by the descriptor; the dock engine (renderer B, M-RP7) mutates the center, the frame is stable. This makes File→Exit unconditionally reachable (outside the dock tree entirely — stronger than W-13, which only keeps *system widgets* present).
+
+**Frame containers are `core`; window-effects are shell-wired.** The status-bar (and the menu family) are reusable `core` library components — the node app needs an un-minimalized status-bar too. Because `core` stays app-agnostic (imports no Tauri/protocol, per the `link`/`entity-avatar` rule), any real-window effect is exposed as a **seam** the consuming shell wires to its own Tauri call: the status-bar's resize-grip via `onResizeGrip?` (shell → `startResizeDragging`), the menu's Exit via a command callback (shell → the existing exit command). Client and node reuse the same component, each supplying the window effect.
+
+**Consequences (new components/objects, all this arc).**
+- `icon` (`core`) — its own component, NOT folded into `image`; cleared by **D-096 on two axes** (value-type: a shape/path definition vs a `src` reference; surface: tintable UI glyph vs raster content). Primary path inline `<svg>` (tintable), raster `<img>` secondary. Mirrors JavaFX `SVGPath`-vs-`ImageView`.
+- `separator` (`core`) — orientation vertical | horizontal; shared by the status-bar (between cells) and the menu (`menu-separator`).
+- `Accelerator` (`ui/common`) — one value-object, two projections from a single definition (`toDisplay()` for the menu hint, `matches(event)` for dispatch) → no display/dispatch drift; consumed by a lean shell-level keymap registry.
+- `menu-bar` / `menu` / `menu-item` (`core`) — minimal (File→Exit) now; reuses the `entity-context-menu` W-2 behaviour machine; grows by accretion (separator / check-item / submenu-flyout deferred, D-065).
+- `status-bar` (`core`) — side-stacking `sb-cell`s + `separator`s + our own always-visible SE resize-grip (via the `onResizeGrip?` seam); text defaults to `--fs-s1` (9px).
+- Skin: `--fs-s1: 9px` / `--fs-s2: 8px` added below the existing `--fs-0: 10px` (additive, no rename of the shipped `--fs-0/1/2` scale).
+
+**Scope.** Frame concept + the component prerequisites + the frame-first M-RP6.1 re-sequence. Design-only at lock (J-488); each component gets its own design lock + runbook when its sub-milestone opens. Verify graduates from the sampler to the real client app (the sampler cannot reach a node; D-097) — three-layer: pure unit / real-client-offline / real-client + node.
+
+**Relationship:** D-103 (extends it with the frame concept — the frame is the non-dockable complement of the center layout) · D-102/W-12/W-13 (the frame is deliberately NOT a widget) · D-096 (clears `icon` as its own component) · D-095 (frame containers are `core`) · D-056 (window-effects shell-wired, above components) · D-065 (minimal-now, grow-by-accretion).

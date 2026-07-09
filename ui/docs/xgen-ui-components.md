@@ -1,8 +1,8 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.57  
+> Version: 0.58  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-08  
+> **Last updated**: 2026-07-09  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -45,7 +45,7 @@ The live registry of components actually authored in the tree (N-019). **Tier** 
 | message | `core` | C | **data-dependent** · chat message (composite; composes `entity-avatar`+`label`+`paragraph`); kinds `text`/`system` · `isOwn` flip · `grouped`/`edited`/`deleted` states · `details` widget socket | `<div class="message">` | `ui/core/lib/components/data-dependent/message.svelte` | `() => ({ kind, isOwn, author, hasBody, detailsCount, grouped, edited, deleted })` | N-075 · phase0 |
 | message-stream | `core` | C | **data-dependent** · chat log (composite; wraps N `message`s + interleaved day-dividers); `role="log"` · click-select · 5-min grouping (stream-computed `grouped`) · date-carrying dividers · persistent `background` layer + `backgroundLive` · empty fallback | `<div class="message-stream">` | `ui/core/lib/components/data-dependent/message-stream.svelte` (+ pure `stream/grouping.ts`) | `() => ({ count, selected, hasEmpty, groupedCount, dividerCount, atBottom, backgroundMountCount, backgroundLive })` | N-075 · phase0 §9 |
 
-> **⚠️ Registry count PENDING re-verify (M-RP5.6 A, D-104).** `message-stream` is built + `vite build`-clean + 20/20 unit-tested, but its live-registry contribution is **not yet CDP-verified** — the sampler remote-debug harness (9422) is blocked by the WebView2 150 / Chromium-136 remote-debug guard (see D-104 / M-RP-CDP1). The last CDP-verified count is **219** (J-480); it stays there, un-incremented, until M-RP-CDP1 restores the harness and the deferred §9 CDP legs close. No count is asserted for `message-stream` (Rule 5).
+> **Registry count = 262 (CDP-verified, M-RP5.6 A closed, J-483).** `message-stream` is built + CDP-verified in the sampler DD·composite panel: live `ids().length` **219→262 (+43)** — the 5 fixtures (`stream-basic` 18 / `stream-days` 21 / `stream-empty` 2 / `stream-bg` 1 / `stream-bg-unknown` 1) = the stream roots + composed `message`/`entity-avatar`/`label`/`paragraph` instances (day-dividers are plain `role="separator"` divs, unregistered); `count===unique` (262/262), **0 orphans both directions**. The J-482 WebView2-150 harness block is resolved by M-RP-CDP1 (dev-only `--config` overlay, D-105) — harness restored on sampler 9422 + client 9222 + node 9322.
 
 First built `core` component, authored at M-RP2.3 as the substrate proof: verified live in **both** apps (client 9222 / node 9322) — `snapshot()` returned real `{checked:false}`, flip → `{checked:true}` confirmed live reactive reads.
 

@@ -65,10 +65,13 @@ if ($args[0] -eq "release") {
     Write-Host "Vite ready. Starting XGen Node (dev)..."
     $env:TAURI_SKIP_DEVSERVER_CHECK = "true"
     if ($WantDebug) {
-        $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9322"
-        Write-Host "[-Debug] WebView2 remote-debugging port 9322 enabled (dev-only)."
+        # WebView2 >=136 ignores the env-var route (wry overrides it); the port now rides a
+        # dev-only Tauri config OVERLAY (cdp.dev.conf.json), base stays release-safe. See D-104.
+        Write-Host "[-Debug] CDP remote-debugging port 9322 via cdp.dev.conf.json overlay (dev-only)."
+        cargo tauri dev --config cdp.dev.conf.json
+    } else {
+        cargo tauri dev
     }
-    cargo tauri dev
 
     $vite | Stop-Process -Force -ErrorAction SilentlyContinue
 }

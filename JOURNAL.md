@@ -1,10 +1,44 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-08  
+> **Last updated:** 2026-07-09  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-483 — M-RP-CDP1: CDP harness RESTORED across all three Tauri apps (dev-only `--config` overlay) + M-RP5.6 A CDP legs CLOSED (registry 219→262)
+
+**One atomic commit (D-074) — infra (overlays + launch scripts) travels with the records it produces.** No Clair feat leg (no Rust/Svelte): the fix is Tauri config + PowerShell + docs, Chat-Claude territory. Everything below is verified with real CDP output on the reliable PowerShell path (Rule 2); the M-RP5.6 A registry count is now the live `ids().length`, no longer withheld (Rule 5).
+
+**Root cause — CORRECTED (the D-104 diagnosis was wrong).** D-104 (and J-482) blamed the Chromium-136 `--user-data-dir` guard: "the port is ignored unless a non-default `--user-data-dir` accompanies it." That is **refuted**. Two facts from the real `msedgewebview2.exe` child command line (captured in a normal shell — `Get-CimInstance` on webview2 hangs the MCP, so Joe ran it): (1) the sampler child **already** carries a non-default `--user-data-dir=…\com.alchemydump.xgensampler\EBWebView` — Tauri **forces** a non-default data dir on Windows by default (`tauri-2.11.1 manager/webview.rs` L534–545), so the guard's precondition was satisfied all along; (2) `--remote-debugging-port` was **absent from every webview2 process**. The port never reached the browser command line. Cause: **wry overrides the `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` env var** with its own programmatic `AdditionalBrowserArguments`, dropping the env-supplied port. (The env-var route happened to work pre-150 by timing/precedent; it is not a contract.) So the guard was a red herring; the real failure was env-var clobbering, and the earlier spikes into `dataDirectory` were a fair-but-null test (Tauri only honours a **relative** config `dataDirectory`, resolved under `%LOCALAPPDATA%\<label>\`; an absolute one is logged-and-ignored — `webview/mod.rs` L392–424).
+
+**Fix (Option A, Joe-locked; verified).** Route the port through Tauri config **`additionalBrowserArgs`** (wry's programmatic channel — where it lands and WebView2 150 honours it), delivered as a **dev-only overlay** so it never ships in release: a per-app `cdp.dev.conf.json` (full window object + `--remote-debugging-port=<port>`) merged via `cargo tauri dev --config cdp.dev.conf.json`; the base `tauri.conf.json` stays **port-free**. `--config` replaces the `app.windows` array (RFC-7396), so the full-window overlay preserves geometry — confirmed (sampler window 960×820 intact, single instance).
+
+**Verified — all three apps (real output).**
+- **sampler 9422:** `/json/version` Edg/150.0.4078.48; page `http://localhost:5175/`; `cdp-debug.ps1 -App sampler -Mode eval` → `XGen Sampler | debug=object`.
+- **client 9222:** page `http://localhost:5173/`; harness eval → `XGen Client | debug=object`.
+- **node 9322:** page `http://localhost:5174/` (window `visible:false`, webview+port still up); harness eval → `XGen Node | debug=object`.
+The block is universal (all three are Tauri 2.11.1 / wry 0.55.1); the one fix restores the whole M-RP6.x CDP loop.
+
+**Implemented (B — propagation).** `xgen-sampler/`, `xgen-client/`, `xgen-node/` each gain `cdp.dev.conf.json`; `run-sampler.ps1 -Debug` / `run-client.ps1 -Debug` / `run-node.ps1 -Debug` swap the dead env var for `--config cdp.dev.conf.json`; `cdp-debug.ps1` header note updated. **Flagged (Rule 6, not silently fixed):** `cdp-debug.ps1 -Launch` (built-exe path) still sets the env var — **dead under ≥136** and un-fixable by `--config` (a built exe takes no config overlay); the supported CDP path is attaching to a `run-*.ps1 -Debug` **dev session**. Baking a port into a release config was rejected (would expose CDP in release). See D-104 resolution note + `CDP_DEBUG_HARNESS.md`.
+
+**M-RP5.6 A CDP legs — CLOSED (all §9 checks green against live 9422).**
+1. **Registry integrity:** `ids().length` **262**, `count===unique` (262/262), **262 DOM `[data-debug-id]`**, **0 orphans both directions**.
+2. **Grouping** (`stream-basic`): getter `groupedCount:1`; DOM grouped row drops `.msg-header` (the 1 `system` row counted separately: 5 rows, 2 header-less = 1 grouped + 1 system).
+3. **Dividers** (`stream-days`): getter `dividerCount:4`; the four label bands render with correct live dates — `Today (Jul 9, 2026)` / `Yesterday (Jul 8, 2026)` / `Monday (Jul 6, 2026)` (weekday band) / `Jul 1, 2026` (≥7-day date-only); `groupedCount:0` (dividers break grouping).
+4. **Empty:** `stream-empty` `hasEmpty:true` + rendered `.paragraph` "No messages yet".
+5. **Background:** `stream-bg` `backgroundMountCount:1` (known) vs `stream-bg-unknown` `0` (W-13 unknown-drop; background-set → no fallback paragraph, spec-consistent); `.message-stream-bg` `position:absolute`, top 0, z-index 0.
+6. **Select:** click row → getter `selected:"sb-3"` + exactly one `[data-selected]="true"` mirror.
+7. **Both accents:** shell swap gold `#c28840` ↔ blue `#3a7ab0` (accent-neutral component); divider `--t3` identical `rgb(138,136,128)` client↔node.
+8. `vite build` clean (**161 modules**); screenshot `temp/cdp-shot-sampler.png` (51 KB).
+
+**Registry: 219 → 262 (+43).** The 5 `message-stream` fixture subtrees: `stream-basic` **18**, `stream-days` **21**, `stream-empty` **2**, `stream-bg` **1**, `stream-bg-unknown` **1** (`_sum:43`) — the stream roots + their composed `message`/`entity-avatar`/`label`/`paragraph` instances (dividers are plain `role="separator"` divs, unregistered). `count===unique`, 0 orphans confirms the retroactive close.
+
+**Records.** `DECISIONS.md` **+D-105** (dev-only `--config` CDP overlay mechanism) + **D-104** resolution note (root-cause correction + exception retired). `docs/ROADMAP.md` **v4.51→v4.52** (M-RP-CDP1 ✅, M-RP5.6 A ✅). `ui/docs/xgen-ui-components.md` **v0.57→0.58** (count 219→262, ⚠️ PENDING note dropped, message-stream CDP-verified build note). `CLAUDE.md` PLAY (count 262, head J-483, next-active M-RP5.6 B). `tasks/M_RP5_6_A_MESSAGE_STREAM_SHELL.md` → **COMPLETED**. `tasks/CDP_DEBUG_HARNESS.md` (overlay mechanism + `-Launch` flag). This entry. One commit, Joe pushes.
+
+**Next-active.** **M-RP5.6 B** — the scroll machine (stick-to-bottom + jump-to-latest pill + prepend `scrollTop` invariance) on sampler fixtures; opens with a D-071 Phase-0. Its DoD is CDP-heavy (`atBottom` transitions, prepend invariance) — now unblocked.
 
 ---
 

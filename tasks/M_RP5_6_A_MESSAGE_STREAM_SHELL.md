@@ -1,12 +1,18 @@
 # XGen Protocol — M-RP5.6 A Runbook: `message-stream` shell (Clair)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-08  
+> **Last updated**: 2026-07-09  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+## Close note (J-483) — CDP DoD legs CLOSED, runbook COMPLETED
+
+The deferred CDP legs closed retroactively once **M-RP-CDP1** restored the harness (dev-only `--config cdp.dev.conf.json` overlay; D-105 — root cause was wry clobbering the env var, not the Chromium-136 guard). All §9 checks green against live sampler 9422: registry `ids().length` **219→262 (+43)**, `count===unique` (262/262), **0 orphans both directions**; grouping `groupedCount:1` + header-drop; dividers `dividerCount:4` all four bands (`Today (Jul 9, 2026)`/`Yesterday (Jul 8)`/`Monday (Jul 6)`/`Jul 1, 2026`); empty `hasEmpty:true` + "No messages yet"; background mount 1 vs 0 (W-13 drop) + `.message-stream-bg` absolute; select → `selected:"sb-3"` + `[data-selected]`; both accents gold↔blue with divider `--t3` identical; `vite build` clean (161 modules) + screenshot. **Status → COMPLETED.**
 
 ---
 
@@ -105,15 +111,15 @@ Must show:
 
 ## 10. Definition of Done (Rule 7 — verify each with real output)
 
-- [ ] `message-stream.svelte` + `stream/grouping.ts` created (`Filesystem:*`, verified via `get_file_info`).
-- [ ] Root `<div role="log">` = scroll viewport; children = messages + divider rows in order.
-- [ ] Grouping computed + passed down; `groupedCount` correct on `stream-basic` (CDP-quoted).
-- [ ] Day-dividers inserted on local-day change; all four label bands verified on `stream-days` (CDP-quoted); divider breaks grouping.
-- [ ] `background` persistent fixed layer + W-13 unknown-drop; `backgroundLive` toggles; empty fallback paragraph.
-- [ ] Select hook: `selected` $bindable + `[data-selected]` + `onSelect?`.
-- [ ] Getter G eight-field, CDP-readable.
-- [ ] Registry `count===unique`, **0 orphans both directions**, both accents (CDP-quoted).
-- [ ] `vite build` clean + screenshot.
+- [x] `message-stream.svelte` + `stream/grouping.ts` created (`Filesystem:*`, verified via `get_file_info`).
+- [x] Root `<div role="log">` = scroll viewport; children = messages + divider rows in order.
+- [x] Grouping computed + passed down; `groupedCount` correct on `stream-basic` (CDP-quoted: `groupedCount:1`).
+- [x] Day-dividers inserted on local-day change; all four label bands verified on `stream-days` (CDP-quoted: `dividerCount:4`, `Today (Jul 9, 2026)`/`Yesterday (Jul 8)`/`Monday (Jul 6)`/`Jul 1, 2026`); divider breaks grouping (`groupedCount:0`).
+- [x] `background` persistent fixed layer + W-13 unknown-drop (mount 1 vs 0); `backgroundLive` toggles; empty fallback paragraph ("No messages yet").
+- [x] Select hook: `selected` $bindable (`"sb-3"`) + `[data-selected]` + `onSelect?`.
+- [x] Getter G eight-field, CDP-readable.
+- [x] Registry `count===unique` (262/262), **0 orphans both directions**, both accents (CDP-quoted; divider `--t3` identical client↔node).
+- [x] `vite build` clean (161 modules) + screenshot (`temp/cdp-shot-sampler.png`).
 
 *(DoD never includes "commit pushed" — the `Status: COMPLETED` header is the close signal.)*
 

@@ -1,8 +1,8 @@
 # XGen UI — CDP Debug Harness (WebView2 remote-debug read loop)
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jun 2026  
-> **Last updated**: 2026-06-21  
+> **Last updated**: 2026-07-09  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -13,6 +13,8 @@
 An automated way to inspect the running XGen UI — read its console output and its live state — without a manual copy-paste loop and without the Chrome extension (which cannot reach a Tauri WebView). The mechanism is the **Chrome DevTools Protocol (CDP)** exposed by the Windows WebView2 engine the Tauri shell embeds. This doc records the **resolved mechanism** (decisions locked 2026-06-20) and the **harness**, now **built and verified** as `cdp-debug.ps1` at repo root (2026-06-20). Remaining verification (real app logs, real registry content) is gated on the UI existing under `tauri dev`.
 
 ## Mechanism — RESOLVED (decisions locked 2026-06-20)
+
+> **⚠️ UPDATE (2026-07-09, J-483 / M-RP-CDP1) — port enablement changed for WebView2 ≥136.** Item 1 below (the `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` env var) is **SUPERSEDED** for the dev-session path. WebView2 Evergreen ≥136 (runtime 150.0.4078.48) stopped opening the port via the env var — **wry overrides `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`** with its own programmatic `AdditionalBrowserArguments` (confirmed: the port was absent from every `msedgewebview2.exe` child cmdline; it is NOT the Chromium-136 `--user-data-dir` guard, which Tauri already satisfies by forcing a non-default data dir). **New mechanism (D-105):** the port rides Tauri config `additionalBrowserArgs`, delivered as a **dev-only overlay** `cdp.dev.conf.json` (per app: `xgen-sampler/`, `xgen-client/`, `xgen-node/`) merged via `cargo tauri dev --config cdp.dev.conf.json`. `run-{sampler,client,node}.ps1 -Debug` now do exactly this; the base `tauri.conf.json` stays **port-free** so RELEASE never exposes CDP (item 6 still holds). Verified on all three (sampler 9422 / client 9222 / node 9322, harness attach + `__XGEN_DEBUG__` live). **`cdp-debug.ps1 -Launch` (bare built-exe) is DEAD under ≥136** — a built exe takes no `--config` and its env-var route is clobbered; the supported path is attach-to-a-dev-session (`run-*.ps1 -Debug`, then `cdp-debug.ps1 -App <app> -Mode …` WITHOUT `-Launch`). A debug-build-with-port-baked, or dropping `-Launch`, is a future decision.
 
 1. **Port enablement** — set `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=<port>` in the launching process's environment. Dev-only by convention; no code change required. Formalize a launch flag only if the harness later needs it.
 2. **WebView content** — debug runs happen under `tauri dev` (Vite serving the Svelte app on `localhost:5173`), so the real UI and registry are loaded. A production-bundled build loads its own assets; either way the CDP target exists.

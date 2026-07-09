@@ -12,8 +12,11 @@
 #
 # Port = base + Ordinal; base is 9222 (client) or 9322 (node), so client and node
 # never collide and each instance gets a unique port. Override with -Port / -Exe.
-# To debug a `tauri dev` session, launch it with the env var first, e.g.:
-#   $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--remote-debugging-port=9222'
+# To debug a `tauri dev` session, launch it with a dev-only Tauri config OVERLAY that adds
+# the port (WebView2 >=136 IGNORES the WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS env var — wry
+# overrides it with its own AdditionalBrowserArguments; D-104). The sampler's
+# run-sampler.ps1 -Debug does this via `cargo tauri dev --config cdp.dev.conf.json` (the
+# base tauri.conf.json stays port-free so RELEASE never exposes CDP).
 
 param(
     [ValidateSet('client','node','sampler')] [string]$App = 'client',

@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-08  
+> **Last updated:** 2026-07-09  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -4011,3 +4011,21 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 **First application:** M-RP5.6 A (`message-stream` shell, J-482) — landed build-clean + a 20/20 pure unit test on `stream/grouping.ts`; CDP legs deferred to M-RP-CDP1.
 
 **Relationship:** D-097 (the sampler-CDP DoD this scopes a temporary exception to) · D-098 (sampler runtime = the WebView2 sibling where the block lives) · D-065 (honest-over-polite: deferred-not-faked).
+
+**Resolution (2026-07-09, J-483) — root cause CORRECTED, exception RETIRED.** The diagnosis above was **wrong**. The real `msedgewebview2.exe` child command line (captured in a normal shell) showed: (a) a non-default `--user-data-dir=…\com.alchemydump.xgensampler\EBWebView` **already present** — Tauri forces a non-default data dir on Windows (`manager/webview.rs` L534–545) — so the Chromium-136 guard's precondition was met all along; and (b) `--remote-debugging-port` **absent from every webview2 process**. The port never reached the browser because **wry overrides the `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` env var** with its own programmatic `AdditionalBrowserArguments`. The `dataDirectory` spikes were fair-but-null (Tauri honours only a **relative** config `dataDirectory`; absolute is ignored — `webview/mod.rs` L392–424). Fix = **D-105** (route the port through config `additionalBrowserArgs` via a dev-only `--config` overlay). **M-RP-CDP1 CLOSED (J-483):** harness restored + verified on sampler 9422 + client 9222 + node 9322; M-RP5.6 A's deferred legs are now CDP-verified (registry 219→262). This temporary CDP-deferred exception is **retired** — not a standing allowance. Latent: `cdp-debug.ps1 -Launch` (built-exe) still uses the dead env var (flagged, not the supported path).
+
+---
+
+## D-105 — CDP remote-debug port via a dev-only Tauri `--config` overlay (base config stays release-safe)
+
+**Date:** 2026-07-09 · **Layer:** UI infra (M-RP-CDP1) · **Ref:** D-097, D-098, D-104
+
+**Context.** WebView2 Evergreen ≥136 (runtime 150.0.4078.48) broke the CDP harness — not via the Chromium-136 `--user-data-dir` guard (a red herring; Tauri already sets a non-default dir) but because **wry overrides the `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` env var**, so the env-supplied `--remote-debugging-port` never reached the browser command line (D-104 resolution). The port must instead travel through wry's **programmatic** additional-args channel.
+
+**Decision.** Deliver the remote-debug port through Tauri config **`additionalBrowserArgs`** (the programmatic channel wry honours), kept out of release by a **dev-only overlay**: a per-app `cdp.dev.conf.json` (a complete `app.windows[0]` object + `--remote-debugging-port=<9422 sampler | 9222 client | 9322 node>`) merged via `cargo tauri dev --config cdp.dev.conf.json`. The base `tauri.conf.json` carries **no port** → RELEASE never exposes CDP. `--config` replaces the `windows` array (RFC-7396), so the overlay must be a **full** window object (preserves geometry — confirmed, sampler 960×820 intact).
+
+**Wiring.** `run-sampler.ps1` / `run-client.ps1` / `run-node.ps1` `-Debug` pass `--config cdp.dev.conf.json`; the harness attaches unchanged (`cdp-debug.ps1 -App <app> -Mode eval`). Verified on all three apps (J-483).
+
+**Scope + limit (D-065).** Covers the **dev-session** (`tauri dev`) CDP path — the supported one. It does **not** cover `cdp-debug.ps1 -Launch` (a built exe takes no `--config`): that path's env-var route is dead under ≥136, flagged for a later decision (a debug build with the port baked, or dropping `-Launch` in favour of dev-session attach). Baking a port into a release-shipped config was **rejected** (would expose CDP in release).
+
+**Relationship:** D-104 (the block this resolves — its root cause corrected) · D-097 (the sampler-CDP DoD this restores) · D-098 (sampler WebView2 runtime) · D-056 (per-role launch scripts, one binary per role).

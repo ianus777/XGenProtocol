@@ -1,0 +1,15 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "XGen Sampler",
+        "width": 960,
+        "height": 820,
+        "decorations": true,
+        "resizable": true,
+        "center": true,
+        "additionalBrowserArgs": "--remote-debugging-port=9422"
+      }
+    ]
+  }
+}

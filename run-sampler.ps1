@@ -56,10 +56,17 @@ if ($Mode -eq "release") {
     Write-Host "Vite ready. Starting XGen Sampler (dev)..."
     $env:TAURI_SKIP_DEVSERVER_CHECK = "true"
     if ($Debug) {
-        $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9422"
-        Write-Host "[-Debug] WebView2 remote-debugging port 9422 enabled (dev-only)."
+        # WebView2 Evergreen >=136 (Chromium-136 remote-debug guard) IGNORES the
+        # WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS env var (wry overrides it with its own
+        # programmatic AdditionalBrowserArguments), so the old env-var route no longer opens
+        # the port. The port now rides a dev-only Tauri config OVERLAY (cdp.dev.conf.json)
+        # merged via --config; the base tauri.conf.json stays port-free so RELEASE builds
+        # never expose CDP. See D-104 / tasks/CDP_DEBUG_HARNESS.md.
+        Write-Host "[-Debug] CDP remote-debugging port 9422 via cdp.dev.conf.json overlay (dev-only)."
+        cargo tauri dev --config cdp.dev.conf.json
+    } else {
+        cargo tauri dev
     }
-    cargo tauri dev
 
     $vite | Stop-Process -Force -ErrorAction SilentlyContinue
 }

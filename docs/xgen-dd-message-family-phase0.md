@@ -1,6 +1,6 @@
 # XGen Protocol — Message Family Phase-0 (M-RP5.5 / M-RP5.6)
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-09  
 > Language: EN  
@@ -192,3 +192,21 @@ No change to `MessageDescriptor` (§4) — grouping stays a **stream-computed pr
 - **No new decision (D-series).** §9.3 already carries the machine; these are implementation choices, not a project-level decision — DECISIONS.md untouched.
 
 **Open items (locked J-484):** (1) 80px single threshold + rAF-throttle — LOCKED. (2) pill = inline chrome — LOCKED. (3) prepend = scrollHeight-delta + first-id heuristic — LOCKED. (4) sampler `stream-scroll` live fixture + append/prepend/reset — LOCKED. (5) initial scroll to bottom on mount — LOCKED. (6) no descriptor/grouping change, `message-stream.svelte`+sampler+`skin.css` only — LOCKED.
+
+---
+
+## 10. M-RP5.7 addendum — grouped rows drop avatar (LOCKED, v1.3)
+
+**Why.** §2 / M-RP5.5 B made `grouped` suppress the **name header** but **keep the avatar**. In practice a run of same-author continuations then repeats the identical avatar on every row — the who-is-speaking noise grouping exists to remove — and grouping reads as invisible (Joe flagged it against the M-RP5.6 B screenshot). **Corrected → D-106.** This section supersedes any “grouped keeps the avatar” wording earlier in this doc; the code is authoritative.
+
+**Locked (Joe, “by recomms”, J-486).**
+- **Symmetric suppression.** A **grouped** row (`grouped === true`, a same-author continuation, NOT the group head) renders **neither name NOR avatar**. The **group head** (`!grouped`) carries avatar + name as before. `grouped` stays the stream-computed prop `message-stream` already sets — no new field, no stream change.
+- **Element absent, not hidden.** A grouped row does not render the `entity-avatar` child at all (not `visibility:hidden`) → a grouped cell registers **neither `__avatar` NOR `__name`**.
+- **Column reserved.** The grid keeps `28px 288px` (other) / `288px 28px` (own); only the avatar **cell content** is empty, so continuation bodies stay aligned under the head (no left-shift). Symmetric for `isOwn`.
+- **Independent of content state.** `grouped` is positional — it suppresses avatar + name **regardless of `deleted` / `edited`** (grouped + deleted = no avatar, no name, tombstone body).
+- **Registry.** Every grouped cell loses `__avatar` → the live total **drops**; the ripple hits ALL grouped cells (the B `grouped`/`grouped-edited` sampler cells too, not only `stream-scroll`). CDP-measure the true new total at build + record it (Rule 5); do **not** retro-rewrite closed milestones’ counts.
+- **Scope.** `message.svelte` grouped branch + `skin.css` only. No `MessageDescriptor` / `stream/grouping.ts` / `message-stream.svelte` change. Tighter inter-continuation vertical spacing = **deferred** skin follow-up (D-065).
+
+**Decision (D-series).** → **D-106** (grouped drops name + avatar; head carries both; column reserved). Unlike the M-RP5.6 B implementation choices, this corrects a project-level UI convention, so it is a recorded decision.
+
+**DoD (Rule 7, real output).** grouped cells have **no** `__avatar` **and no** `__name` in the DOM · group-head cells keep both · continuation bodies stay column-aligned (grid tracks intact, no left-shift) · grouped + deleted / grouped + edited still suppress avatar+name · CDP-measured new registry total recorded + cause noted · both accents · eye-check: the `stream-scroll` run now shows ONE head avatar then bare continuations. Feat (Clair) → Chat CDP-verify → D-074 two-commit close → then M-RP6.1.

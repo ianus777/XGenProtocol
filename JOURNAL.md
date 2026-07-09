@@ -8,6 +8,29 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-486 — M-RP5.7 grouped-avatar suppression: Phase-0 LOCKED
+
+**Design/records-only, no code (Rule 1/5).** Ran the D-071 Phase-0 gate for **M-RP5.7**, opened after Joe flagged the M-RP5.6 B screenshot: the `stream-scroll` render showed the identical avatar on every row with nothing dropped, so grouping read as invisible. Root: M-RP5.5 B made `grouped` suppress the **name header** but **keep the avatar** — a same-author run then repeats the avatar, the exact who-is-speaking noise grouping exists to remove. Joe locked the correction “by recomms.” Registry unchanged this entry (**296**); the build will DROP it.
+
+**Locked (Joe, “by recomms”) — all six.**
+1. **Symmetric suppression.** A `grouped` row (continuation, `grouped === true`, NOT the group head) renders **neither name NOR avatar**. The group head (`!grouped`) keeps avatar + name. `grouped` stays the stream-computed prop — no stream change.
+2. **Element absent, not `visibility:hidden`.** The grouped row does not render the `entity-avatar` child at all → a grouped cell registers **neither `__avatar` nor `__name`**.
+3. **Column reserved.** Keep the message grid tracks (`28px 288px` / `288px 28px`); only the avatar **cell content** is empty, so continuation bodies stay aligned under the head (no left-shift). Symmetric for `isOwn`.
+4. **Independent of content state.** `grouped` is positional — suppresses avatar + name **regardless of `deleted` / `edited`**.
+5. **Formalize as a decision.** The B “keep the avatar” was a build note, not a D; correcting a project-level UI convention warrants a recorded decision → **D-106**.
+6. **Registry drops — measure, don’t assume.** Every grouped cell loses `__avatar`; the ripple hits ALL grouped cells (the B `grouped`/`grouped-edited` sampler cells too, not only `stream-scroll`). CDP-measure the real new total at build + record the cause (Rule 5); do NOT retro-rewrite closed milestones’ counts.
+
+**Decision (D-series).** **D-106** — grouped rows drop BOTH name and avatar; the group head carries both; the avatar column stays reserved. (Unlike the M-RP5.6 B implementation choices §9.10, which were code-level and needed no D, this corrects a UI convention.)
+
+**Sub-milestone (locked).** One small Clair feat — `message.svelte` grouped branch drops the `entity-avatar` child (element absent) in addition to the name; + `skin.css` empty-gutter handling. **No** `MessageDescriptor` / `stream/grouping.ts` / `message-stream.svelte` change. Then Chat CDP-verify (grouped cells have no `__avatar`/`__name` in DOM; head cells keep both; body alignment head-vs-continuation via `rect.left`; grouped+deleted / grouped+edited still suppress; real new registry total + cause; both accents; eye-check: one head avatar + bare continuations) → D-074 two-commit close. Closes M-RP5.7 → grouping visually correct → next-active M-RP6.1. Tighter inter-continuation vertical spacing = deferred skin follow-up (D-065).
+
+**Records.** `DECISIONS.md` **+D-106**. `docs/xgen-dd-message-family-phase0.md` **v1.2→v1.3** (+§10 M-RP5.7). `docs/ROADMAP.md` **v4.54→v4.55** (M-RP5.7 PENDING/next-active; M-RP5.6 block’s next-active repointed to M-RP5.7→M-RP6.1). CLAUDE.md PLAY (head J-485→J-486, next-active M-RP5.7). Runbook `tasks/M_RP5_7_GROUPED_AVATAR_SUPPRESSION.md` drafted (ACTIVE, for Clair). This entry. No code, registry unchanged (**296**). GitHub board: M-RP5.7 card PENDING (design-locked; build not started). Not pushed — Joe pushes.
+
+**Next-active.** **M-RP5.7 build** — grouped-avatar suppression on `message.svelte` (Clair feat → Chat CDP-verify → D-074 close), then M-RP6.1.
+
+
+---
+
 ## Entry J-485 — M-RP5.6 B DONE: `message-stream` scroll machine built + CDP-verified (M-RP5.6 CLOSED)
 
 **Doc-bridge (D-074 second commit).** Clair's feat `5cfd718` (the scroll machine) is already pushed = commit 1; this entry + the paired canonical records = commit 2. The `message-stream` **scroll machine** (M-RP5.6 B, Phase-0-locked at J-484) is built and CDP-verified against the live sampler (9422, both accents). **M-RP5.6 CLOSED** — the message dd sub-family (`message` A/B/C + `message-stream` A/B) is complete. Registry **262→296**.

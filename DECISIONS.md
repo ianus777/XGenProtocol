@@ -4029,3 +4029,24 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 **Scope + limit (D-065).** Covers the **dev-session** (`tauri dev`) CDP path — the supported one. It does **not** cover `cdp-debug.ps1 -Launch` (a built exe takes no `--config`): that path's env-var route is dead under ≥136, flagged for a later decision (a debug build with the port baked, or dropping `-Launch` in favour of dev-session attach). Baking a port into a release-shipped config was **rejected** (would expose CDP in release).
 
 **Relationship:** D-104 (the block this resolves — its root cause corrected) · D-097 (the sampler-CDP DoD this restores) · D-098 (sampler WebView2 runtime) · D-056 (per-role launch scripts, one binary per role).
+
+---
+
+## D-106 — Grouped message rows drop BOTH name and avatar; the group head carries both; the avatar column stays reserved
+
+**Date:** 2026-07-09 · **Layer:** UI / dd-component (M-RP5.7) · **Ref:** M-RP5.5 B (J-479, the build note this corrects), phase0 §10, N-075
+
+**Context.** M-RP5.5 B shipped `grouped` as “suppress the name header, keep the avatar” (stated rationale: reader orientation). In practice a run of same-author continuations then repeats the identical avatar on every row — the exact who-is-speaking noise grouping exists to remove — and grouping became visually indistinguishable in the sampler (Joe flagged it against the M-RP5.6 B screenshot: same “AN” avatar on every row, nothing dropped). The B behaviour was a build note, not a recorded decision, so it is corrected here rather than re-litigated later.
+
+**Decision.** A **grouped** row (a same-author continuation; `grouped === true`, i.e. NOT the group head) renders **neither the name header NOR the avatar** — symmetric suppression. The **group head** (`!grouped`) carries avatar + name as today. This matches the dominant chat convention (Discord/Slack/iMessage): the head establishes the speaker; continuations are bare bodies aligned beneath it.
+
+**Mechanism (locked).**
+- **Element absent, not hidden** — a grouped row does not render the `entity-avatar` child at all (not `visibility:hidden`); so a grouped cell registers **neither `__avatar` NOR `__name`** (`__name` already dropped at B). Clean, honest registry.
+- **Column reserved** — the message grid keeps its `28px 288px` (other-side) / `288px 28px` (own-side) tracks; only the avatar **cell content** is empty, so continuation bodies stay aligned under the head (no left-shift). Applies symmetrically for `isOwn`.
+- **Independent of content state** — `grouped` is positional; it suppresses avatar + name **regardless of `deleted` / `edited`** (a grouped + deleted row = no avatar, no name, tombstone body).
+
+**Consequences.** The live registry **drops**: every grouped cell loses its `__avatar` entry — this ripples across ALL grouped cells (the M-RP5.5 B `grouped`/`grouped-edited` sampler cells too, not only `stream-scroll`). The true new total is **CDP-measured at build and recorded** (Rule 5); closed milestones’ historical counts are **not** retro-rewritten (they were true when recorded). Grouping now also becomes visually obvious — dropping the avatar is what *makes* it visible, so no `stream-scroll` seed change is needed to demonstrate it.
+
+**Scope.** `message.svelte` grouped branch + `skin.css` (empty-gutter handling) only. **No** `MessageDescriptor` / `stream/grouping.ts` / `message-stream.svelte` change (`grouped` stays the stream-computed prop). Tighter inter-continuation vertical spacing (the usual chat compaction) is a **deferred** skin follow-up, out of scope here (D-065).
+
+**Relationship:** M-RP5.5 B (corrects its “keep the avatar” build note) · phase0 §10 (the M-RP5.7 lock) · N-075 (dd-composite / `message` root) · D-065 (honest longer work over the papered-over asymmetry).

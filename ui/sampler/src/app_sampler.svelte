@@ -315,6 +315,64 @@
   let streamBgLive = $state(true); // sampler control → backgroundLive
   let streamSel = $state(); // bind:selected proof (click-select)
 
+  // stream-scroll (M-RP5.6 B) — the ONE live fixture for the scroll machine. A MUTABLE $state array
+  // seeded with 10 `text` messages (1 min apart, mostly same author → grouped runs, one `eaSelf` to
+  // break) — enough to overflow max-height:340px so the viewport is actually scrollable. append /
+  // prepend / reset reassign the array (`[...arr, m]` / `[m, ...arr]`) so the stream's `$derived`
+  // recompute + the B classifier (count-grew + first-id) fire on the honest user path (CDP clicks the
+  // real buttons). The four static fixtures above (basic/days/empty/bg) are UNTOUCHED (they proved A).
+  const ssSeed = () => {
+    const arr = [];
+    for (let i = 9; i >= 0; i--) {
+      const own = i === 4;
+      arr.push({
+        kind: 'text',
+        id: `ss-seed-${i}`,
+        author: own ? eaSelf : eaIdentity,
+        body: `Seed line ${10 - i} — enough rows to overflow the 340px viewport so the scroll machine has something to scroll.`,
+        timestamp: iso(nowMs - i * minMs),
+        ...(own ? { isOwn: true } : {}),
+      });
+    }
+    return arr;
+  };
+  let ssCounter = $state(0);
+  let streamScroll = $state(ssSeed());
+  function ssAppend() {
+    const last = streamScroll[streamScroll.length - 1];
+    ssCounter++;
+    streamScroll = [
+      ...streamScroll,
+      {
+        kind: 'text',
+        id: `ss-app-${ssCounter}`,
+        author: last?.author ?? eaIdentity,
+        body: `Appended #${ssCounter} at load-now (extends the last author's group).`,
+        timestamp: iso(nowMs),
+        ...(last?.isOwn ? { isOwn: true } : {}),
+      },
+    ];
+  }
+  function ssPrepend() {
+    const first = streamScroll[0];
+    ssCounter++;
+    const firstMs = first ? Date.parse(first.timestamp) : nowMs;
+    streamScroll = [
+      {
+        kind: 'text',
+        id: `ss-pre-${ssCounter}`,
+        author: eaIdentity,
+        body: `Prepended #${ssCounter} — older (10 min before the current top).`,
+        timestamp: iso(firstMs - 10 * minMs),
+      },
+      ...streamScroll,
+    ];
+  }
+  function ssReset() {
+    ssCounter = 0;
+    streamScroll = ssSeed();
+  }
+
   // select-multiple shares the N-034 options-prop shape (carried over from `select`).
   const smOptions = [
     { value: 'a', label: 'Alpha' },
@@ -809,6 +867,13 @@
         <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-empty</span><MessageStream messages={[]} id="stream-empty" /></div>
         <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-bg</span><MessageStream messages={[]} background={streamBgKnown} widgets={streamWidgets} backgroundLive={streamBgLive} id="stream-bg" /></div>
         <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-bg-unknown</span><MessageStream messages={[]} background={streamBgUnknown} widgets={streamWidgets} id="stream-bg-unknown" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">message-stream · scroll (M-RP5.6 B — live: <button type="button" class="s-note" onclick={ssAppend}>append</button> <button type="button" class="s-note" onclick={ssPrepend}>prepend</button> <button type="button" class="s-note" onclick={ssReset}>reset</button>)</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-scroll</span><MessageStream messages={streamScroll} id="stream-scroll" /></div>
       </div>
     </div>
   </div>

@@ -2242,3 +2242,20 @@ html, body {
   color: var(--t3);
   font-size: var(--fs-1);
 }
+/* jump-to-latest pill (M-RP5.6 B, §9.10 Q2) — inline chrome shown while scrolled up (!atBottom);
+   click scrolls to the newest. Placement (absolute bottom-right over the viewport) is in the
+   component <style>; THIS is appearance only. ACCENT-NEUTRAL — a scroll affordance is chrome, not
+   accent-themed, so it reads identically client↔node. */
+.jump-to-latest {
+  padding: var(--sp-1) var(--sp-3);
+  background: var(--s4);
+  color: var(--t2);
+  border: 1px solid var(--s5);
+  border-radius: 999px;
+  font-size: var(--fs-1);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.jump-to-latest:hover {
+  background: var(--s5);
+}

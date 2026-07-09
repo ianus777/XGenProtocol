@@ -2091,7 +2091,11 @@ html, body {
  *   (never @html). PROVISIONAL. ── */
 .message {
   display: grid;
-  grid-template-columns: auto 1fr;
+  /* Fixed 28px avatar track (the list `--ea-size`) so the column is RESERVED even when the avatar is
+     absent — a grouped continuation drops the `entity-avatar` element (M-RP5.7 / D-106), and an `auto`
+     track would collapse to 0 and left-shift the body. Head rows are unchanged (the list avatar is
+     exactly 28px, so `auto` already resolved to 28px here). */
+  grid-template-columns: 28px 1fr;
   column-gap: var(--sp-2);
   align-items: start;
   box-sizing: border-box;
@@ -2101,7 +2105,7 @@ html, body {
 }
 /* own message — mirror: content in track 1, avatar in track 2. BOTH sides keep the reserved column */
 .message[data-own] {
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr 28px;
 }
 .message > .entity-avatar {
   grid-column: 1;
@@ -2153,8 +2157,9 @@ html, body {
 }
 
 /* ── M-RP5.5 B — text render-states (grouped / edited / deleted) ── */
-/* grouped continuation row — tighten the top gap so a run reads as one block. The header is gone
-   from the DOM (component guard), the avatar column still reserves its track. */
+/* grouped continuation row — tighten the top gap so a run reads as one block. Both the header AND the
+   avatar are gone from the DOM (component guard, M-RP5.7 / D-106); the fixed 28px avatar track above
+   keeps the column reserved so the body stays aligned under the head (no left-shift). */
 .message[data-grouped] {
   padding-top: 0;
 }

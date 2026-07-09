@@ -16,10 +16,12 @@
   // entity-item precedent — the matrix multiplies).
   //
   // Step B scope: the three render-states on `text` (`docs/xgen-dd-message-family-phase0.md` §2).
-  //   - `grouped` — a continuation row: the header line (name + details) is suppressed, the avatar
-  //     column STAYS (reader orientation — Joe). It is STREAM-COMPUTED (same author within a window),
-  //     so it is a PROP, not a descriptor field — Phase-0 §4's locked descriptor excludes it and §5
-  //     says the message only *accepts* the flag; the future `message-stream` (M-RP5.6) sets it.
+  //   - `grouped` — a continuation row: the header line (name + details) AND the avatar are both
+  //     suppressed (M-RP5.7 / D-106 — a same-author run otherwise repeats the identical avatar and
+  //     grouping reads as invisible); the avatar grid COLUMN stays reserved in the skin so the body
+  //     stays aligned under the head (no left-shift). It is STREAM-COMPUTED (same author within a
+  //     window), so it is a PROP, not a descriptor field — Phase-0 §4's locked descriptor excludes it
+  //     and §5 says the message only *accepts* the flag; the future `message-stream` (M-RP5.6) sets it.
   //   - `edited` — a trailing muted "(edited)" marker after the body (descriptor field).
   //   - `deleted` — a tombstone: the body paragraph is replaced by a skin-owned placeholder
   //     (`--msg-deleted`), and `details` + `edited` are dropped; the avatar + name STAY (who/where is
@@ -135,7 +137,12 @@
   data-grouped={grouped || undefined}
   data-deleted={deleted || undefined}
 >
-  {#if author}
+  <!-- Grouped continuation rows suppress the avatar too (M-RP5.7 / D-106): a same-author run repeats
+    the identical avatar otherwise, so grouping reads as invisible. The `entity-avatar` child is NOT
+    rendered on a grouped cell (element absent, not `visibility:hidden`) → that cell registers no
+    `__avatar` (and no `__name`, dropped since B). The skin keeps the avatar grid track reserved so
+    the continuation body stays column-aligned under the head (no left-shift). -->
+  {#if author && !grouped}
     <EntityAvatar descriptor={author} variant="list" id={cid('avatar')} />
   {/if}
   <div class="msg-content">

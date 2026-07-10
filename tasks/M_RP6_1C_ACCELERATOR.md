@@ -1,6 +1,6 @@
-# M-RP6.1c — `Accelerator` (ui/common) + lean keymap registry (shell) build runbook
+# M-RP6.1c — `Accelerator` + `KeymapRegistry` (ui/common) build runbook
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-10  
 > Language: English  
@@ -8,92 +8,94 @@
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
-For Clair. Third frame prerequisite of the M-RP6.1 client-UI-frame arc (Phase-0 J-488 / D-107 / `docs/xgen-client-frame-phase0.md` §4.4, §6). Per-component design **locked by Joe "all by recomms"** (Chat design walk, this session). This is **NOT a visual component** — no envelope, no sampler cell, no CDP, no registry delta. It is ONE pure `ui/common` value-object (single definition → `toDisplay()` + `matches()`, so display and dispatch never drift) plus a lean shell-level keymap registry that consumes it. Verify = **vitest** (the `stream/grouping.ts` precedent), not the CDP loop. Registry stays **299** (unchanged, no envelope).
+For Clair. Third frame prerequisite of the M-RP6.1 client-UI-frame arc (Phase-0 J-488 / D-107 / `docs/xgen-client-frame-phase0.md` §4.4, §6). Per-component design **locked by Joe** — Clair's grounded design walk + two Chat tightenings, "as you recommend" (this session). This is **NOT a visual component** — no envelope, no sampler cell, no CDP, no registry delta. It is TWO pure DOM-free objects in `$common` (`ui/common/lib`): the `Accelerator` value-object (single definition → `toDisplay()` + `matches()`, so display and dispatch never drift) and a pure `KeymapRegistry` table (`register` + `resolve(event)→commandId|null`). Verify = **vitest** (a standing harness stood up here). Component registry stays **299** (unchanged, no envelope).
+
+> **v1.1 supersedes v1.0.** v1.0 was written before Clair's grounding pass. Four locked changes: (1) **scope narrowed** — 6.1c ships library + tests only; the live `keydown` listener, the `Ctrl+Q → app.exit` binding, and the `exitCommand` (Tauri close) **defer to 6.1d** (no Exit command exists until the menu-bar; Phase-0 §7 schedules only a pure-unit leg here). (2) **`Ctrl`-as-shortcut** replaces the `Mod`/`usesMod` token. (3) The **registry pure-table moves into `$common`** (was shell) — commandId-based; only the singleton instance + population + listener stay shell (6.1d). (4) verify = a **standing vitest** harness, not an ad-hoc node run.
 
 ---
 
 ## 1. Goal
 
-- **`Accelerator`** — a canonical, DOM-free value-object in `ui/common`. Authored from a string (`"Mod+Q"`), stored as a normalized `{key, mods}`, projecting two ways from the single definition: `toDisplay(platform)` for the menu-item hint, `matches(event, platform)` for keydown dispatch. Pure, unit-testable, imports nothing from the DOM or Tauri (sibling to `Converter<T>`'s one-object-two-reps shape).
-- **keymap registry** — a lean shell module: a binding table `{accelerator → command}` + one global `keydown` listener that walks bindings via `matches`. Object built **fully** now; the table starts with **one** binding: `Mod+Q → exit`.
+- **`Accelerator`** — a canonical, DOM-free value-object in `$common`. Authored from a string (`accelerator("Ctrl+Q")`), stored as a normalized `{key, mods}`, projecting two ways from the single definition: `toDisplay(platform)` for the (future) menu-item hint, `matches(event, platform)` for dispatch. Pure, unit-testable; imports nothing from the DOM / Tauri / Svelte (sibling to the processor `transform.ts` pure core).
+- **`KeymapRegistry`** — a **pure** binding table in `$common`: `register(accel, commandId)` + `resolve(event) → commandId | null` (walks bindings via `accel.matches`, first-registered wins, dedups on the canonical string). **No DOM, no listener, no command execution** — those are shell concerns deferred to 6.1d.
 
-## 2. Locked design (Joe "all by recomms")
+## 2. Locked design
 
-### 2.1 `Accelerator` value-object (`ui/common`, pure)
+### 2.1 `Accelerator` value-object (`$common`, pure)
 
-- **Authoring (A3).** `Accelerator.parse(spec: string)` — author as a string, store canonical. No public struct constructor needed; parse is the factory.
-- **Canonical internal form.** `key: string` (normalized **lowercase**, e.g. `'q'`) + `mods: {ctrl, shift, alt, meta}` (all boolean) + `usesMod: boolean` (true when authored with the logical `Mod` token — NOT eagerly resolved, so the object stays platform-free).
-- **Modifier tokens (case-insensitive), `+`-separated, last token = the key:**
-  - logical primary → `usesMod=true`: `Mod` · `CmdOrCtrl` · `CommandOrControl`
-  - `Ctrl` · `Control` → `ctrl`
-  - `Shift` → `shift`
-  - `Alt` · `Option` → `alt`
-  - `Cmd` · `Command` · `Meta` · `Super` · `Win` → `meta`
-  - unknown modifier token, empty spec, or missing key → **throw** (parse tests cover this).
-- **Platform is a parameter, never stored.** `toDisplay(platform)` and `matches(event, platform)` take `platform: 'win' | 'mac' | 'linux'`. Keeps the object pure + lets tests pass platform explicitly. The **shell** owns platform detection (§2.2), `ui/common` never reads `navigator`.
-- **Effective-mods resolution (the `Mod` fold), computed per call:** start from `mods`; if `usesMod` then set `meta=true` on `mac`, else `ctrl=true` (win/linux). Literal `Ctrl`/`Cmd` are **not** folded — they mean exactly that modifier on every platform.
-- **`matches(event, platform)` — exact-modifier match.** `event.key.toLowerCase() === this.key` AND all four of `event.ctrlKey/shiftKey/altKey/metaKey` **equal** the effective-mods booleans exactly. So `Mod+Q` must **not** fire under `Ctrl+Shift+Q`. Key compared via `event.key` (lowercased); `event.code` noted as a future layout-independent option, not built.
-  - **`event` is duck-typed `KeyLike`** = `{ key: string; ctrlKey: boolean; shiftKey: boolean; altKey: boolean; metaKey: boolean }`. A real `KeyboardEvent` satisfies it; a plain object literal satisfies it in tests → `matches()` needs **no DOM** to verify.
-- **`toDisplay(platform)` — platform-conventional.** `win`/`linux` → modifier **words** + key, joined by `+`, order `Ctrl+Alt+Shift+Meta` (omit absent), key upper-cased (`"Ctrl+Q"`). `mac` → symbol glyphs concatenated, order `⌃⌥⇧⌘` + key (`"⌘Q"`). Uses effective-mods (so `Mod+Q` renders `Ctrl+Q` on win, `⌘Q` on mac).
-- **Getter?** None — no envelope, not a registry component. This is a plain exported class/object.
+- **Authoring (D1).** `accelerator(spec: string)` factory — author as a human string, store canonical. Bindings are **Tier-1 trusted code** (not user input) → parse **throws** on malformed (fail-fast at author time), not the lenient Tier-2 processor posture. A struct form is also exposed for programmatic construction.
+- **Canonical internal form.** `key: string` (normalized **lowercase** for letters, e.g. `'q'`; verbatim for named keys, e.g. `'F1'`, `'ArrowLeft'`, `'Delete'`) + `mods: { shortcut, shift, alt, meta }` (all boolean). Platform-free storage.
+- **Modifier model (D2 — SHORTCUT abstraction, JavaFX-style).** The primary accelerator key is abstract:
+  - `Ctrl` **=== `Control`** → `shortcut` (the platform accelerator key: `ctrlKey` on win/linux, `metaKey`/⌘ on mac). **Not** a literal-ctrl token — one shortcut token, no overload. (If a real literal-ctrl-on-mac is ever needed, add a distinct token then; out of scope, Windows-only target.)
+  - `Shift` → `shift` (literal) · `Alt` · `Option` → `alt` (literal)
+  - `Cmd` · `Command` · `Meta` · `Super` → `meta` (literal, the rare explicit case)
+  - `+`-separated, case-insensitive tokens, **last token = the key**. Unknown modifier token / empty spec / missing key → **throw**.
+- **Platform is a parameter, never stored (D2).** `toDisplay(platform)` and `matches(event, platform)` take `platform: 'win' | 'mac' | 'linux'`, **default `'win'`** (the only real target today; keeps the module DOM-free — no `navigator` read at import). Tests pass platform explicitly.
+- **Effective-mods (per call):** `ctrl = shortcut && platform !== 'mac'` · `meta = metaLiteral || (shortcut && platform === 'mac')` · `shift`/`alt` literal. (So `Ctrl+Q` → `ctrlKey` on win, `metaKey`/⌘ on mac.)
+- **`matches(event, platform)` — exact-modifier match.** `event.key` matches `this.key` (case-insensitive for single letters, verbatim for named keys) AND all four of `event.ctrlKey/shiftKey/altKey/metaKey` **equal** the effective-mods booleans exactly. So `Ctrl+Q` must **not** fire under `Ctrl+Shift+Q`. (`event.code` noted as a future layout-independent option, not built.)
+  - **`event` is duck-typed `KeyLike`** = `{ key: string; ctrlKey: boolean; shiftKey: boolean; altKey: boolean; metaKey: boolean }`. A real `KeyboardEvent` satisfies it; a plain object literal satisfies it in tests → `matches()` needs **no DOM**.
+- **`toDisplay(platform)` — platform-conventional.** win/linux → modifier **words** + key, joined `+`, order `Ctrl+Alt+Shift+Meta` (omit absent), key upper-cased for letters (`"Ctrl+Q"`). mac → symbol glyphs concatenated, order `⌃⌥⇧⌘` + key (`shortcut`→⌘, `shift`→⇧, `alt`→⌥) → `"⌘Q"`, `"⇧⌘K"`. Uses effective-mods.
+- **`canonical(): string`** — a stable platform-free normalized string (e.g. `"shortcut+shift+k"`), used as the `KeymapRegistry` dedup key. No getter/envelope — plain exported object.
 
-### 2.2 keymap registry (shell — `ui/client`)
+### 2.2 `KeymapRegistry` (`$common`, pure — the D3 split)
 
-- **Home:** a shell module (e.g. `ui/client/…/keymap.ts`), imports `Accelerator` (+ the `Platform` type) from `$common`. Shell-level because it holds a real global `keydown` listener (DOM) and calls the Tauri exit seam — both forbidden in `core`/`common`.
-- **Command (F1 now, `id?` reserved).** A binding is `{ accel: Accelerator; command: () => void; id?: string }`. Direct handler now; the optional `id` is reserved so M-RP6.1d's File→Exit `menu-item` can later reference the **same** command (single-source-of-truth), without building a command-table this milestone.
+- **Home:** `$common` (`ui/common/lib/keymap/registry.ts`), imports `Accelerator`. **Pure** — the reusable table + `resolve` (the node shell will want keymaps too, and it's unit-testable). This is the D3 refinement of Phase-0 §4.4 (which put the whole registry shell-side); only the singleton **instance**, binding **population**, and the one **`keydown` listener** stay shell-side → **6.1d**.
+- **Construction:** `new KeymapRegistry(platform)` — platform passed in (shell detects it in 6.1d; tests pass `'win'`/`'mac'`). Platform-free otherwise.
+- **Command indirection (commandId, not a handler).** A binding is `{ accel: Accelerator; commandId: string }`. The registry stores + resolves **ids** (strings) — it does not hold or run `() => void`. Execution (id → fn) is the shell's job (6.1d). This keeps the table pure/testable **and** gives 6.1d's File→Exit `menu-item` the same `commandId` to reference (single source of truth, no display/dispatch drift).
 - **API:**
-  - `register(accel, command, id?)` — append a binding.
-  - `lookup(event): Command | null` — first binding whose `accel.matches(event, platform)` wins.
-  - `dispatch(event): boolean` — `lookup`; if hit → `event.preventDefault()` + run command + return `true`; else `false`.
-  - `attach()` / `detach()` — add/remove the single `window` `keydown` listener (→ `dispatch`). Called on client mount/unmount.
-- **Platform detection lives here** — one `PLATFORM` const detected once (Tauri OS / `navigator`), passed into the registry ctor and later into `menu-item` hint render. Not in `ui/common`.
-- **The one binding:** `register(Accelerator.parse('Mod+Q'), exitCommand, 'exit')`.
-- **`exitCommand` = a thin shell fn** calling the window close. **Reuse the exact Tauri close the existing client Quit/Shut-Down button already wires** (confirm against the real shell code — Rule 5; do not invent a new close call). M-RP6.1d's File→Exit will call this same `exitCommand`.
+  - `register(accel, commandId)` — append a binding; dedup on `accel.canonical()` (first-registered wins, later dup ignored or throws — Clair's call, document which).
+  - `resolve(event): string | null` — first binding whose `accel.matches(event, this.platform)` wins → its `commandId`; else `null`.
+- **No** `attach`/`detach`/`dispatch`/DOM here — deferred to 6.1d.
 
 ## 3. Files to touch
 
-1. `ui/common/…/accelerator.ts` — new pure value-object (§2.1). Mirror an existing `ui/common` pure module (e.g. the processor `transform.ts` pure core) for placement + export convention. **No** DOM/Tauri/Svelte imports.
-2. `ui/common/…/accelerator.test.ts` (or the repo's vitest naming/location) — the unit suite (§5).
-3. `ui/client/…/keymap.ts` — new shell registry (§2.2), imports `Accelerator` from `$common`.
-4. `ui/client/…/<shell entry>.svelte` (the real client root that owns lifecycle) — construct `Keymap(PLATFORM)`, register `Mod+Q → exitCommand`, `attach()` on mount / `detach()` on destroy; define/locate `exitCommand` reusing the existing Quit close seam.
+1. `ui/common/lib/keymap/accelerator.ts` — the value-object (§2.1). No DOM/Tauri/Svelte imports. (Mirror the processor `transform.ts` pure-core export convention.)
+2. `ui/common/lib/keymap/registry.ts` — the pure `KeymapRegistry` (§2.2). Imports only `accelerator.ts`.
+3. `ui/common/lib/keymap/accelerator.test.ts` + `registry.test.ts` (or one `keymap.test.ts`) — the vitest suite (§5).
+4. **vitest harness** — add `vitest` as a devDep on the **sampler** package (it already aliases `$common` and is the component test-bed) + a `vitest.config.js` (resolve the `$common` alias for the runner) + a `test` script (`npm test` → `vitest run`). First standing UI unit harness; 6.1f's descriptor→layout walk (also pure-unit per §7) and the existing `grouping.ts`/`transform.ts`/`clamp.ts` can retro-adopt it later.
+
+**Explicitly NOT this milestone (→ 6.1d):** any `ui/client` file, the `keydown` listener, `register(accelerator("Ctrl+Q"), "app.exit")`, the id→fn command dispatch, `exitCommand` (Tauri close), `PLATFORM` detection wiring, the `menu-item` hint render.
 
 ## 4. No sampler cell
 
-`Accelerator` has no envelope and no visual — it gets **no** `app_sampler.svelte` cell and **no** CDP registry entry. Do not add one. Registry stays 299. (The frame *assembly* — the menu-item hint reading the same `Accelerator`, Ctrl+Q actually quitting — is verified in the real client at 6.1d / assembly, not here.)
+`Accelerator`/`KeymapRegistry` have no envelope and no visual → **no** `app_sampler.svelte` cell, **no** CDP registry entry, **no** registry delta. Component registry stays **299**. (The frame *assembly* — the menu-item hint reading the same `Accelerator`, Ctrl+Q actually quitting — is verified in the real client at 6.1d, not here.)
 
-## 5. Verify plan (vitest — Rule 2, quote the real N/N pass line)
+## 5. Verify plan (standing vitest — Rule 2, quote the real N/N pass line)
 
-**Clair runs `vitest` in the feat commit and quotes the actual pass output.** No CDP, no port polling, no detached launch. Cover at minimum:
+**Clair authors + runs the suite green as part of the feat** (quote the real `vitest` N/N in the handoff). **Chat independently re-runs `npm test`** at verify and records the real output in the doc-bridge — that is the verify leg in place of the CDP loop. Cover at minimum:
 
-- **parse** — `"Ctrl+Q"` → `{key:'q', mods.ctrl=true, usesMod=false}`; `"Mod+Q"` → `usesMod=true`; `"Ctrl+Shift+K"` → both mods + `key:'k'`; **throws** on `"Ctrl+"` (no key), `"Foo+Q"` (unknown modifier), `""` (empty).
-- **toDisplay** — `parse("Mod+Q").toDisplay('win')` === `"Ctrl+Q"`; `.toDisplay('mac')` === `"⌘Q"`; `parse("Ctrl+Shift+K").toDisplay('win')` === `"Ctrl+Shift+K"`, `.toDisplay('mac')` === `"⌃⇧K"`.
-- **matches (exact-modifier)** — `parse("Mod+Q").matches({key:'q',ctrlKey:true,shiftKey:false,altKey:false,metaKey:false}, 'win')` === `true`; the **same** event with `shiftKey:true` === `false`; on `'mac'` the `Mod` binding matches `metaKey:true`/`ctrlKey:false`, not the reverse; key is case-insensitive (`key:'Q'` still matches).
-- **Keymap.dispatch (spy, no DOM)** — register a **spy** `command` + `Accelerator.parse('Mod+Q')`; feed a matching synthetic `KeyLike` → `dispatch` returns `true`, spy called **once**; feed a non-matching event → `false`, spy **not** called. (Avoids actually closing the app.)
+- **parse** — `accelerator("Ctrl+Q")` → `{key:'q', mods.shortcut=true}`; `"Ctrl+Shift+K"` → `shortcut+shift`, `key:'k'`; `"Cmd+S"` → literal `meta`; named key `"F1"` / `"Ctrl+Delete"` preserved verbatim; **throws** on `"Ctrl+"` (no key), `"Foo+Q"` (unknown modifier), `""` (empty).
+- **toDisplay** — `accelerator("Ctrl+Q").toDisplay('win')` === `"Ctrl+Q"`, `.toDisplay('mac')` === `"⌘Q"`; `accelerator("Ctrl+Shift+K").toDisplay('win')` === `"Ctrl+Shift+K"`, `.toDisplay('mac')` === `"⇧⌘K"` (shortcut→⌘, in ⌃⌥⇧⌘ order).
+- **matches (exact-modifier)** — `accelerator("Ctrl+Q").matches({key:'q',ctrlKey:true,shiftKey:false,altKey:false,metaKey:false}, 'win')` === `true`; the **same** event with `shiftKey:true` === `false` (exact); on `'mac'` the same binding matches `{metaKey:true, ctrlKey:false}` and **not** `{ctrlKey:true}`; key case-insensitive (`key:'Q'` still matches).
+- **KeymapRegistry.resolve (pure, no DOM, no spy needed)** — `new KeymapRegistry('win')`, `register(accelerator("Ctrl+Q"), "app.exit")`; `resolve({key:'q',ctrlKey:true,…})` === `"app.exit"`; a non-matching event → `null`; dedup on canonical (registering the same accel twice behaves per the documented rule).
 
-**Real-client leg (manual, not automated):** with the registry wired, Ctrl+Q quits the real client window — eye-confirmed once by Joe. The automated proof is the spy-dispatch above; auto-verifying a real Ctrl+Q would close the app under test.
+**Real-client leg — DEFERRED to 6.1d** (Ctrl+Q actually quitting is eye-confirmed once the shell listener + Exit command exist). Nothing real-client this milestone.
 
 ## 6. Close (D-074 two-commit)
 
-Clair feat first (code-only: §3 files) — **including the passing vitest run quoted in the commit/handoff**. Then Chat doc-bridge:
-- `ui/docs/xgen-ui-notes.md` **N-085** (`Accelerator` = first `ui/common` value-object of the frame arc / one-definition-two-projections / platform-as-parameter / `KeyLike` duck-type for DOM-free `matches` / vitest-not-CDP verify / F1-direct-handler with `id?` reserved for 6.1d).
-- `docs/xgen-ui-components.md` — note only (Accelerator is a `ui/common` value-object, **no registry entry**; count unchanged 299). No new component row.
-- `docs/ROADMAP.md` (M-RP6.1c ✅ DONE, vX bump, next-active **M-RP6.1d `menu-bar` minimal**).
+Clair feat first (code-only: §3 files) — **including the passing vitest run quoted**. Then Chat doc-bridge:
+- **Chat re-runs `npm test`**, quotes real N/N.
+- `ui/docs/xgen-ui-notes.md` **N-085** (`Accelerator`+`KeymapRegistry` = first `$common` value-objects of the frame arc / one-definition-two-projections / `Ctrl`-as-shortcut platform model / platform-as-parameter `'win'` default / `KeyLike` duck-type for DOM-free `matches` / commandId indirection / first standing vitest harness).
+- `docs/xgen-client-frame-phase0.md` — **in-place §4.4 refinement** (the D3 split: the `KeymapRegistry` **pure table + `resolve`** lives in `$common`; only the instance + population + `keydown` listener are shell). The J-487/J-490 doc-wording-fix precedent — arc-local, **no new D** (D-069). Version bump + `> **Last updated**:` date only.
+- `docs/xgen-ui-components.md` — note only (`Accelerator`/`KeymapRegistry` are `$common` value-objects, **no registry entry**; count unchanged 299). No new component row.
+- `docs/ROADMAP.md` (M-RP6.1c ✅ DONE, vX bump, next-active **M-RP6.1d `menu-bar` minimal** — File→Exit registers `accelerator("Ctrl+Q") → "app.exit"` + the shell listener + `exitCommand`).
 - `CLAUDE.md` PLAY (head → new J-491; registry unchanged 299; next-active M-RP6.1d).
 - `JOURNAL.md` +J-491 (quote the real vitest N/N).
 - this task → COMPLETED.
 
-**No new D** — §4.4 concept already locked under D-107. `temperature-indicator` (M-RP6.5) stays ⏸️ POSTPONED. Not pushed — Joe pushes.
+**No new D.** `temperature-indicator` (M-RP6.5) stays ⏸️ POSTPONED. Not pushed — Joe pushes.
 
 ## 7. Definition of Done
 
-- [ ] `accelerator.ts` authored in `ui/common` — `parse`/`toDisplay`/`matches`, canonical `{key,mods,usesMod}`, platform-as-parameter, `KeyLike` duck-type, no DOM/Tauri import.
-- [ ] `accelerator.test.ts` — parse/toDisplay/matches + Keymap.dispatch-spy legs (§5).
-- [ ] `keymap.ts` authored in `ui/client` — `register`/`lookup`/`dispatch`/`attach`/`detach`, `PLATFORM` detected shell-side, binding `Mod+Q → exitCommand`.
-- [ ] shell entry wires `Keymap` (attach on mount / detach on destroy); `exitCommand` reuses the existing Quit close seam (confirmed against real code, Rule 5).
-- [ ] `vitest` green — real N/N pass line quoted.
+- [ ] `accelerator.ts` in `$common` — `accelerator()` parse (throw on malformed), `{key, mods:{shortcut,shift,alt,meta}}`, `Ctrl`-as-shortcut, `toDisplay`/`matches`/`canonical`, platform-as-parameter (`'win'` default), `KeyLike` duck-type, no DOM/Tauri/Svelte import.
+- [ ] `registry.ts` in `$common` — pure `KeymapRegistry(platform)`, `register`/`resolve`, commandId-based, canonical dedup, no DOM/listener.
+- [ ] vitest harness stood up (sampler devDep + `vitest.config.js` + `test` script), `$common` alias resolves for the runner.
+- [ ] test suite — parse / toDisplay / matches / resolve legs (§5).
+- [ ] `vitest` green — real N/N pass line quoted (Clair); Chat re-run quoted at verify.
 - [ ] `vite build` clean — module count quoted.
-- [ ] No sampler cell, no CDP, registry unchanged 299.
-- [ ] Records bridged (§6), task flipped COMPLETED.
+- [ ] No `ui/client` file touched; no listener/Exit/PLATFORM wiring (those are 6.1d).
+- [ ] No sampler cell, no CDP, component registry unchanged 299.
+- [ ] Records bridged (§6, incl. the in-place frame-phase0 §4.4 refinement), task flipped COMPLETED.
 
 ---
 

@@ -1,6 +1,6 @@
 # XGen Client — App Frame (Menu-bar + Status-bar) Phase-0
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-10  
 > Language: English  
@@ -37,7 +37,7 @@ Frame work lands **before** the center region shell. Rationale: a civilized exit
 Taxonomy (JavaFX-standard, fully skinnable, **no native OS menu**):
 
 - **`menu-bar`** — horizontal strip of top-level triggers; roving focus Left/Right; `role="menubar"`. Frame chrome (top pane), but composed of `core` menu components.
-- **`menu`** — a multi-level text container; its popup **reuses** the `entity-context-menu` owned-popup + W-2 behaviour machine (open→focus-in→roving→dispatch→close; Esc/outside-click/select-then-close/focus-leave dismiss; focus-return; portal + flip/shift).
+- **`menu`** — a multi-level text container; its popup runs the **W-2 owned-popup behaviour machine** (open→focus-in→roving→dispatch→close; Esc/outside-click/select-then-close/focus-leave dismiss; focus-return; portal + flip/shift). **Refined at M-RP6.1d / J-492 build:** that machine currently lives **entirely inside the CLOSED `entity-context-menu` widget** (interwoven with its dd concerns), so `menu` built a **fresh, minimal, self-contained** machine rather than refactoring the closed widget; **extracting a shared W-2/owned-popup module is DEFERRED to the 2nd populated menu or the submenu-flyout**, at which point both `entity-context-menu` + `menu` adopt it. The minimal build ships **inline-absolute** (no portal — the fixed top-pane dropdown didn't clip in the real client). Arc-local, no new D — the J-490/J-491 doc-wording-fix precedent.
 - **`menu-item`** — `<li role="menuitem">` with a leading **icon** slot + a trailing **accelerator hint**.
 - **`menu-separator`** — see §4.2 (the shared `separator`).
 - **`menu-check-item`** — `role="menuitemcheckbox"` + checkmark + bindable `checked`. (`menuitemradio` sibling noted, deferred.)

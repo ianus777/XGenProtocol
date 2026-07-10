@@ -1,6 +1,6 @@
 # XGen UI — Component Index
 > **Status**: ACTIVE  
-> Version: 0.63  
+> Version: 0.64  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-10  
 > Language: English  
@@ -15,6 +15,8 @@ This file records the data-independent **catalogue** (the intended control vocab
 > **Text-processor kinds (2026-07-04, D-099/N-056).** The edit-side processor engine has **3 of 4 kinds built**: kind 1 transformer (`string→string`, live on `input`; `textarea`/`number` hosts, M-RP4.0/4.2) + kind 3 filter/guard (`number` min/max clamp on `change`, M-RP4.1) + kind 2 converter/bridge (`string↔T`, the new di atomic `converter-field` with `Intl`, M-RP4.5). Kind 4 (`use:render`) remains codified, not built. Kinds 1/3 are forwarded `common` attachments (atomics stay `{...rest}` hosts); kind 2 is the exception — a real component, since two reps of different type can't ride one `bind:value`.
 
 > **Keymap value-objects (2026-07-10, M-RP6.1c / J-491 / N-085).** `Accelerator` + `KeymapRegistry` (home `ui/common/lib/keymap/`) are pure DOM-free `$common` **value-objects**, **not catalogued here** — a value-object is not a `core` component (no `use:envelope`, no debug getter, no registry entry). `Accelerator` = one-definition-two-projections (`toDisplay(platform)` hint + `matches(event, platform)` dispatch, `Ctrl`-as-shortcut model); `KeymapRegistry` = the pure binding table + `resolve(event) → commandId | null` (the D3 split; the shell owns only the instance + `keydown` listener, → M-RP6.1d). Verified by the **first standing vitest harness** (sampler pkg, 35/35 green), not CDP. **Component registry unchanged 299.** See N-085.
+
+> **Frame-chrome menu trio (2026-07-10, M-RP6.1d / J-492 / N-086).** `menu-bar` / `menu` / `menu-item` (`core`, in the client shell chrome) are **frame chrome, not catalogue cells** — they are authored `core` components but are **NOT registered in the sampler**; they mount into the real client's fixed top pane and are verified in the **real client (9222)**, not the sampler (D-097). So the **sampler catalogue registry stays 299**; the trio lives in the *client's own* registry (`menu-bar#app-menubar` / `menu#…__file` / `menu-item#…__file-exit` [registers only while open]). `menu-item` composes `icon` (leading slot) + an `Accelerator` hint (trailing); `menu` runs a fresh-minimal self-contained W-2 machine (NOT a refactor of the closed `entity-context-menu` widget — shared extraction deferred). File→Exit + Ctrl+Q both fire `app.exit`. See N-086.
 
 ---
 

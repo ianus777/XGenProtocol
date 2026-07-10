@@ -1,6 +1,6 @@
 # M-RP6.1d — `menu-bar` minimal (core trio) + keymap wiring (shell) build runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-10  
 > Language: English  
@@ -101,15 +101,19 @@ Clair feat first (code-only: §3 files). Then Chat doc-bridge:
 
 ## 7. Definition of Done
 
-- [ ] `menu-item.svelte` (`core`) — `<li role=menuitem>`, icon slot + label + `Accelerator` hint, getter G.
-- [ ] `menu.svelte` (`core`) — trigger + `<ul role=menu>` popup + the §2.1 minimal machine (open/rove/dispatch/dismiss/focus-return, 0 orphans), getter G.
-- [ ] `menu-bar.svelte` (`core`) — `<div role=menubar>`, roving Left/Right, getter G.
-- [ ] `skin.css` — `.menu-*` L2 rules incl. the `.mi-accel` hint (real tokens confirmed).
-- [ ] shell — `KeymapRegistry` singleton + command table `{app.exit}` + `exitCommand` reusing the existing Quit close seam (confirmed against real code, Rule 5); `Ctrl+Q → app.exit`; `keydown` listener attach/detach; menu-bar mounted in the top pane (existing Quit button left intact).
-- [ ] Real-client CDP structure green (roots/roles/getters); client registry delta measured; **sampler registry unchanged 299**.
-- [ ] Machine green (open/rove/dismiss/focus-return, 0 orphans); Ctrl+Q + File→Exit resolve to `app.exit`; a single manual quit Joe-confirmed.
-- [ ] `vite build` clean — module count quoted.
-- [ ] Records bridged (§6, incl. the §4.1 in-place refinement + the two deferred items), task flipped COMPLETED.
+- [x] `menu-item.svelte` (`core`) — `<li role=menuitem>`, icon slot + label + `Accelerator` hint, getter G.
+- [x] `menu.svelte` (`core`) — trigger + `<ul role=menu>` popup + the §2.1 minimal machine (open/rove/dispatch/dismiss/focus-return, 0 orphans), getter G.
+- [x] `menu-bar.svelte` (`core`) — `<div role=menubar>`, roving Left/Right, getter G.
+- [x] `skin.css` — `.menu-*` L2 rules incl. the `.mi-accel` hint (real tokens confirmed).
+- [x] shell — `KeymapRegistry` singleton + command table `{app.exit}` + `exitCommand` reusing the existing `invoke('quit')` seam (confirmed against real code, Rule 5); `Ctrl+Q → app.exit`; `keydown` listener attach/detach; menu-bar mounted in the top pane (existing Quit button left intact).
+- [x] Real-client CDP structure green (roots/roles/getters); client registry delta measured (closed `[menu, menu-bar, button#quit]`; `menu-item#…file-exit` registers only while open); **sampler registry unchanged 299**.
+- [x] Machine green (open/rove/dismiss/focus-return, 0 orphans); Ctrl+Q + File→Exit resolve to `app.exit`; both quit paths Joe/Clair-confirmed (each quit once, not looped).
+- [x] `vite build` clean — **129 modules**.
+- [x] Records bridged (§6, incl. the §4.1 in-place refinement + the two deferred items), task flipped COMPLETED.
+
+## 8. Close note (J-492)
+
+Built + verified. Feat `5432d25` (Clair, code-only, 6 files: `menu-item.svelte`, `menu.svelte`, `menu-bar.svelte`, `skin.css`, `app_client.svelte`, `app.css`). Chat independently re-drove the non-destructive legs against the **real client (9222, `-Debug`)**: registry closed `["menu#app-menubar__file","menu-bar#app-menubar","button#quit"]`; getters exact; open → `menu{File,open:true,activeIndex:0}` + item registers `{Exit,hasIcon:false,accel:"Ctrl+Q"}` + `.mi-accel`="Ctrl+Q" + popup `role=menu` / item `role=menuitem`; Esc → closed + item unregisters (0 orphans). Clair-verified in-session (attributed): focus-return-to-trigger + both quit paths (File→Exit exit 0, Ctrl+Q `defaultPrevented` + proc 1→0) + `vite build` 129 modules + sampler 299. Two gotchas → **N-086**: `__TAURI_INTERNALS__.invoke` non-configurable (prove each quit once, never loop); PS5.1 `ConvertTo-Json` mangles a bare-string CDP return (wrap as JSON). `menu` built a **fresh-minimal self-contained** machine (NOT a refactor of the closed `entity-context-menu` — shared-W-2 extraction deferred to the 2nd populated menu / submenu-flyout); inline-absolute popup, no clip in the client → portal stays deferred. Records bridged (JOURNAL J-492, CLAUDE PLAY, ROADMAP v4.61, frame-phase0 §4.1 v1.2, ui-notes N-086 v0.70, components v0.64). No new D. **M-RP6.1d CLOSED**; next-active **M-RP6.1e `status-bar`**.
 
 ---
 

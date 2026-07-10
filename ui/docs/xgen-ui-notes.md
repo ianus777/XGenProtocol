@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.69  
+> Version: 0.70  
 > Date: May 2026  
 > **Last updated**: 2026-07-10  
 > Language: English  
@@ -1789,6 +1789,24 @@ M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the 
 **Two Clair Rule-6 flags (beyond the named file list).** (1) `vitest.config.js` needed `server.fs.allow: [repo-root]` — the suites live in `../common`, outside the sampler package root, and Vite refused to load them until the allow-list was widened. (2) `ui/common/tsconfig.json` gained `exclude: ["lib/**/*.test.ts"]` — the new test files fell under its `lib/**/*.ts` include, which would drag `vitest` into `ui/common`'s production type graph (unresolvable — `ui/common` has no `node_modules`); production config stays production-only.
 
 *Two new `$common` value-objects; no envelope, no sampler cell, no wire/prop/protocol change → no `DECISIONS.md` touch, component registry unchanged **299**. Feat `6993b61` (Clair, code-only, 8 files). Refined frame-phase0 §4.4 in-place (v1.1). Next frame prerequisite: `menu-bar` minimal (M-RP6.1d), where the shell finally wires the keymap.*
+
+---
+
+### N-086 — `menu-bar` / `menu` / `menu-item`: the first frame chrome in the real client; a fresh-minimal W-2 machine, not a refactor of the closed widget (M-RP6.1d)
+
+**What it is.** The minimal `core` menu trio — `menu-bar` (`<div role=menubar>`, roving Left/Right) + one `menu` ("File": trigger `<button role=menuitem>` + owned `<ul role=menu>` popup) + one `menu-item` ("Exit": `<li role=menuitem>` = optional `icon` slot + label + trailing `Accelerator` hint) — plus the shell keymap wiring that makes File→Exit **and** Ctrl+Q run one `app.exit` command. **First frame chrome mounted into the real client shell** (the fixed top pane); consumes three earlier frame prerequisites: `icon` (6.1a) as the leading slot, `Accelerator` (6.1c) as the hint. `separator` (6.1b) waits for a 2nd menu.
+
+**Frame chrome ≠ sampler cells (Joe-locked).** The menu family is **frame chrome**, not catalogue components — **no sampler cells**. The **sampler catalogue registry stays 299**; the trio lives in the *client's own* registry (`menu-bar#app-menubar`, `menu#app-menubar__file`, and `menu-item#…__file-exit` which registers **only while the popup is open**). Verified in the **real client (9222)**, not the sampler (D-097 graduation — the sampler can't host the shell keymap/exit). *(Later, deferred: the sampler's own app window MAY host the real menu-bar + status-bar as an appearance demo — alongside 6.1e — but that is not built.)*
+
+**Fresh-minimal machine, NOT a refactor of the closed widget.** frame-phase0 §4.1 said `menu` "reuses the `entity-context-menu` W-2 machine." The machine actually lives **entirely inside that closed, verified widget**, interwoven with its dd concerns (EntityDescriptor header, status, async `onSelect`, variant/purpose, portal). Refactoring a closed widget to fit two divergent consumers (context-menu: portal + dd + async; menu-bar dropdown: roving Left/Right at the bar + Down/Up in the popup, sync command, no dd) risks the wrong abstraction — so `menu` built a **fresh, small, self-contained** machine (open/rove/dispatch/dismiss/focus-return/outside-click, listener wired-on-open/torn-down-on-close, open parent-controlled for single-open mutual exclusion). **No `entity-context-menu` change.** Extracting a shared W-2/owned-popup module is **DEFERRED** to when a 2nd *populated* menu or the submenu-flyout forces the shape (both then adopt it) — the submenu-flyout deferral precedent. Popup is **inline-absolute** (no portal — the fixed top-pane dropdown didn't clip in the client). → frame-phase0 §4.1 refined in-place (v1.1→v1.2), arc-local, no new D.
+
+**Keymap wired live (the 6.1c-deferred half).** The client shell creates a `KeymapRegistry` singleton + a command table `{app.exit: handleQuit}` (reusing the existing `invoke('quit')` seam, Rule-5-confirmed) + `register(accelerator("Ctrl+Q"), "app.exit")` + one `window` `keydown` → `resolve` → run. File→Exit's `menu-item` carries the **same** `Accelerator` (renders the `"Ctrl+Q"` hint) and the **same** `"app.exit"` commandId — one definition, one command, no drift (the F2 payoff the 6.1c `id?` reserved for). The existing Quit button is left intact (D-065; removing the redundant affordance is a later cleanup).
+
+**Verified — real client 9222 (Rule 2).** Chat independently re-drove the non-destructive legs against Joe's live client: registry closed `["menu#app-menubar__file","menu-bar#app-menubar","button#quit"]`; getters `menu-bar{items:1,activeIndex:0,openIndex:-1}` / `menu{File,open:false,itemCount:1,activeIndex:-1}`; open (clicked trigger) → `menu{File,open:true,activeIndex:0}` + item registers `{Exit,hasIcon:false,accel:"Ctrl+Q"}` + `.mi-accel`="Ctrl+Q" + popup `role=menu` / item `role=menuitem`; Esc → `open:false` + item **unregisters** (0 orphans). Clair-verified in-session (attributed): focus-return-to-trigger (Chat's *synthetic* Esc didn't land focus on the trigger — programmatic-focus flakiness, the N-029-shape caveat), both **quit paths** end-to-end (File→Exit launcher exit 0; Ctrl+Q `defaultPrevented:true` + process 1→0 + port gone; each done once, not looped), `vite build` 129 modules, sampler 299.
+
+**Two session gotchas (frame-work-relevant).** (1) `__TAURI_INTERNALS__.invoke` is **non-configurable** — the quit can't be stubbed/intercepted non-destructively, so a quit path is proven with one deliberate real quit (never looped). (2) PS 5.1's `ConvertTo-Json` **mangles a bare string** returned to CDP `Runtime.evaluate` (a bare-string return can surface a spurious `EVAL ERROR` even though its side effect fired) — **wrap eval returns as a JSON object**, not a bare string.
+
+*Three new `core` frame components + shell keymap wiring; no wire/prop/protocol change → no `DECISIONS.md` touch. Frame chrome, not sampler cells — **sampler catalogue registry unchanged 299**; client's own registry carries the trio. Feat `5432d25` (Clair, code-only, 6 files). Refined frame-phase0 §4.1 in-place (v1.2). Deferred: shared-W-2 extraction, sampler frame-window incorporation, submenu-flyout / menu-separator / check-item, portal, redundant-Quit removal, node menu-bar. Next frame prerequisite: `status-bar` (M-RP6.1e).*
 
 ---
 

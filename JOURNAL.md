@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-493 — M-RP6.1e client frame consolidation split (6.1e-A / -B / -C) LOCKED + window-config grounding — design/records-only
+
+**Design/records-only, no code.** Joe's "consolidation of the app's main UI" resolved into a locked sub-milestone split + the window-config decisions it needs. Grounded against the **real** client files first (Rule 5), then locked "all by your recomms." Extends the frame concept (D-107 / J-488); **no new D**. Component registry unchanged **299** (no component built here).
+
+**Grounding read (real files).** `xgen-client/tauri.conf.json`: the client window is **frameless** (`decorations:false`), **`resizable:false`**, **420×260**, centered — the old lean-chrome window. No native title bar → no native edge-resize, and currently no way to *move* the window either. `ui/client/src/app_client.svelte`: all legacy chrome sits inside `#core-ui-pane` — a hand-rolled `<img id=app-logo>`, a hand-rolled `.state-indicator` (local `dotColor()` state→colour map + `isPulsing()` + `currentState.label`), and the redundant `<Button id=quit>`. The quit seam is `invoke('quit')` (confirmed — the keymap + File→Exit already reuse it). The `.state-indicator` maps **cleanly** onto `status-indicator`: `dotColor` → `led`'s `states` colour-map, `isPulsing` → `led` `pulse`, `currentState.label` → the `label`.
+
+**The split (within the already-Phase-0'd frame arc — a sequence lock, not a new Phase-0).** M-RP6.1e becomes three:
+- **6.1e-A `status-bar` core** — the component: `sb-cell` + `separator` + `onResizeGrip?` seam + `--fs-s1`/`--fs-s2` tokens. **Left cell = a `status-indicator`, right cell = the SE resize-grip** (Joe-locked contents). Pure chrome → **sampler-cell + CDP verified** (the grip seam is inert in the sampler; that's fine — the component is data-independent). Fully specced now → **next-active**; runbook `tasks/M_RP6_1E_A_STATUS_BAR.md` written this entry.
+- **6.1e-B client frame consolidation** — real-client assembly (9222, no sampler): mount the status-bar in the bottom pane; **migrate** the hand-rolled `.state-indicator` → `status-indicator` in the left cell (reading `currentState`); wire the grip seam → `startResizeDragging` (SE corner); **confine scroll to the center pane only** (the M-RP4.9/J-466 `height:100vh` flex-column pattern — root `overflow:hidden`, chrome panes `flex:0 0 auto`, center `flex:1;min-height:0;overflow-y:auto`); **remove** the center logo + the redundant Quit button (D-065 cleanup — File→Exit is the exit); the center becomes a placeholder leaf until 6.1f. Plus the window-config flips below.
+- **6.1e-C `dialog` core + Help→About** — build the `modal`/`dialog` `core` component (flagged since J-432); add a **Help** menu (the **2nd populated menu** → the first real `menu-bar` roving Left/Right AND the trigger for the **deferred shared-W-2/owned-popup extraction**, N-086 — both `menu` + `entity-context-menu` then adopt the extracted module, or `menu`'s fresh-minimal machine proves it generalises); About = app name + version + authors + hi-res logo, **version read from the real build** (Cargo/Tauri), not hardcoded. Real client.
+
+**Window-config decisions (locked "by recomms," settle in 6.1e-B):**
+- **`resizable: true`** — flip it on (the whole point).
+- **Drag-to-move** — frameless has no title bar, so make the **menu-bar strip a drag region** (`data-tauri-drag-region` on the bar background; the interactive `<button>` triggers override, so clicks still open menus). Gives window-move back.
+- **Default + min size** — default **900×600** (a real main window, not 420×260), **min 640×400** (the frame's composition floor). Tunable in the runbook.
+- **Resize mechanic v1** — frameless + `decorations:false` means the OS draws no resize borders, so **SE-grip `startResizeDragging` is the resize affordance** (matches Joe's "grip on the right of the status-bar"). Full invisible-edge-drag resize on all four edges is a **deferred polish** (D-065).
+
+**The logo.** Joe's call: the logo does **NOT** live in the frame chrome — it goes in **Help→About** (the classic small modal: name, version, authors, hi-res logo, close button). So the menu-bar gains no logo slot; the About modal (6.1e-C) is its home. This is why 6.1e-C builds `dialog`.
+
+**Records.** `docs/xgen-client-frame-phase0.md` — grounding + the A/B/C split + the window decisions + the About-holds-the-logo call recorded (§4.1 Help menu, §4.5 status-bar contents locked, §6 sub-milestone split, new §10 consolidation grounding); version bump. `docs/ROADMAP.md` — 6.1e → 6.1e-A/-B/-C, 6.1e-A next-active; version bump. `CLAUDE.md` PLAY (head → J-493; next-active 6.1e-A). `tasks/M_RP6_1E_A_STATUS_BAR.md` — the 6.1e-A build runbook (ACTIVE). This entry. **No code, no new D** (D-107 extension). Not pushed — Joe pushes.
+
+**Next-active.** **M-RP6.1e-A `status-bar` core** (Clair build → sampler CDP → close), then 6.1e-B real-client consolidation, then 6.1e-C `dialog` + Help→About.
+
+
+---
+
 ## Entry J-492 — M-RP6.1d `menu-bar` minimal (core trio) + keymap wiring: built + real-client-verified, M-RP6.1d CLOSED
 
 **Doc-bridge (D-074 second commit).** Clair's feat (code-only, 6 files) is pushed = commit `5432d25` (commit 1); this entry + the paired canonical records = commit 2. **First frame step to touch the real client shell** — the menu family is **frame chrome, not sampler cells** (Joe-locked): built as `core`, mounted into the client's fixed top pane, and verified in the **real client (9222)** via the restored CDP harness (M-RP-CDP1), not the sampler. **M-RP6.1d CLOSED.** **Sampler catalogue registry unchanged 299** (no sampler file touched; the menu trio lives in the *client's own* small registry).

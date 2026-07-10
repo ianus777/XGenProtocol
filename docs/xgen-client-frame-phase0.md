@@ -1,6 +1,6 @@
 # XGen Client — App Frame (Menu-bar + Status-bar) Phase-0
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-10  
 > Language: English  
@@ -44,6 +44,8 @@ Taxonomy (JavaFX-standard, fully skinnable, **no native OS menu**):
 
 **Scope (D-065):** build **minimal** now — `menu-bar` + one `menu` ("File") + one `menu-item` ("Exit"). `separator` / `check-item` / **submenu-flyout** grow when a second menu needs them. The submenu-flyout (open-on-hover / Right-arrow, nested popup positioning) is the one genuinely new mechanic with no precedent; deferred until consumed.
 
+**Second menu — Help (M-RP6.1e-C, J-493).** The consolidation adds a **Help** menu with one item **About** (opens the About `dialog`). This is the **2nd populated menu** — the first real exercise of `menu-bar` roving Left/Right (6.1d had one), and the trigger for the **deferred shared-W-2/owned-popup extraction** (N-086): at this point either `menu`'s fresh-minimal machine proves it generalises, or it's extracted into a shared module both `menu` + `entity-context-menu` adopt.
+
 ### 4.2 `separator` — shared `core` component
 
 One `separator` core component, orientation **`vertical` | `horizontal`**, skinnable rule (thickness / colour / inset via L2 tokens). Used **twice**: vertical between status-bar cells, horizontal as `menu-separator`. Built once, no duplication.
@@ -79,6 +81,8 @@ Layering:
 ### 4.5 `status-bar` — `core` container
 
 A thin fixed one-line strip (bottom pane): a horizontal container of small **display** cells (read-only, glanceable), built as a **`core`** component (the node app needs it too).
+
+**Contents locked (Joe, J-493):** the strip ships with **one real cell per side** — **left `sb-cell` = a `status-indicator`** (the connection light+label, the migrated hand-rolled `.state-indicator`; single-source-of-truth with the future R3), **right `sb-cell` = the SE resize-grip**. Not an empty demo.
 
 - **Side-stacking** — cells carry `side` `left` | `right`; flex, two groups.
 - **Cells** — `<span class="sb-cell">` wrapper hosting any display component (`status-indicator` / `label` / `meter`). The cell owns positioning + separator; the inner component owns its look.
@@ -116,7 +120,10 @@ Frame first (safe order), then the original center body. Each step gets its own 
 - **M-RP6.1b** — `separator` (`core`).
 - **M-RP6.1c** — `Accelerator` (`ui/common`) + lean keymap registry (shell).
 - **M-RP6.1d** — `menu-bar` minimal (File→Exit → shell Exit command).
-- **M-RP6.1e** — `status-bar` (`core`; `sb-cell` + separators + resize-grip seam + `--fs-s1`/`--fs-s2`).
+- **M-RP6.1e** — **client frame consolidation, split A/B/C (J-493).** See §10.
+  - **M-RP6.1e-A** — `status-bar` (`core`; `sb-cell` + `separator`s + resize-grip seam + `--fs-s1`/`--fs-s2`; **left cell `status-indicator`, right cell grip**). Sampler-cell + CDP (grip inert there).
+  - **M-RP6.1e-B** — real-client frame consolidation (9222): status-bar mounted bottom; `.state-indicator` → `status-indicator`; grip → `startResizeDragging`; **center-only scroll**; remove center logo + redundant Quit; window-config flips (`resizable:true`, menu-bar drag-region, 900×600 / min 640×400).
+  - **M-RP6.1e-C** — `dialog`/`modal` `core` + **Help→About** (2nd menu; About holds name/version/authors/logo).
 - **M-RP6.1f** — center region-shell scaffold (renderer A reads the `Layout` descriptor, `get_layout` stub → default, placeholder leaves) + selection bus primitive. *Fixture-only.*
 - **M-RP6.1g** — R3 Self/connection live: `get_self_state` read verb + scoped `app.emit('self-state', …)` push + webview `listen`; renders `entity-item`(self) + `status` + `led`; the status-bar connection cell reads the same signal. *Real client 9222 + node 9322 — closes F-1 read half.*
 - **M-RP6.1h** — R8 inspector wired to the selection bus (generic `EntityDescriptor` rows; self = first inspectable). Read loop closes end-to-end.
@@ -140,6 +147,41 @@ The sampler (9422) **cannot** test the frame+shell — it is `tauri`+`tauri-buil
 ## 9. Records produced (this Phase-0, design-only)
 
 `docs/xgen-client-frame-phase0.md` (this doc) · `ui/docs/xgen-region-dock-model.md` v1.1→v1.2 (+§10 frame concept) · `DECISIONS.md` +D-107 · `docs/ROADMAP.md` v4.56→v4.57 (M-RP6.1 re-sequenced frame-first) · `CLAUDE.md` PLAY (head pointer → J-488) · `JOURNAL.md` +J-488. No code; registry unchanged (286). Not pushed — Joe pushes.
+
+---
+
+## 10. Consolidation grounding (M-RP6.1e, J-493)
+
+Joe's "consolidation of the app's main UI" = migrate the legacy hand-rolled chrome to the shipped `core` library, add the status-bar, enable whole-window resize, and confine scroll to the center. Grounded against the **real** client files (Rule 5) before locking.
+
+### 10.1 What the real client is today
+
+- **`xgen-client/tauri.conf.json`** — the window is **frameless** (`decorations:false`), **`resizable:false`**, **420×260**, centered. Consequences: no native title bar → no native edge-resize; and no way to *move* the window either.
+- **`ui/client/src/app_client.svelte`** — all legacy chrome sits inside `#core-ui-pane`: a hand-rolled `<img id=app-logo>`; a hand-rolled `.state-indicator` (local `dotColor()` state→colour map + `isPulsing()` + `currentState.label`); the redundant `<Button id=quit>`. The quit seam is `invoke('quit')` (the keymap + File→Exit already reuse it). The top-pane `menu-bar` (6.1d) is already mounted over `.app-body`.
+
+### 10.2 Legacy chrome → core mapping
+
+| Legacy | Becomes | Where |
+|--------|---------|-------|
+| `.state-indicator` (dot + label) | `status-indicator` (`led` + `label`) — `dotColor`→`led.states` map, `isPulsing`→`led.pulse`, `currentState.label`→`label` | status-bar **left cell** (6.1e-B) |
+| `<img id=app-logo>` | (removed from frame) → hi-res logo in the About `dialog` | Help→About (6.1e-C) |
+| `<Button id=quit>` | removed — File→Exit is the exit (D-065 cleanup) | 6.1e-B |
+| `#core-ui-pane` / `.app-body` | the center pane (the **only** scroller); placeholder leaf until 6.1f | 6.1e-B |
+
+### 10.3 Window-config decisions (locked “by recomms,” J-493)
+
+- **`resizable: true`** — flip it on.
+- **Drag-to-move** — make the **menu-bar strip a drag region** (`data-tauri-drag-region` on the bar background; interactive `<button>` triggers override, so clicks still open menus). Restores window-move on a frameless window.
+- **Default + min size** — default **900×600** (a real main window), **min 640×400** (composition floor). Tunable in the 6.1e-B runbook.
+- **Resize mechanic v1** — frameless → the OS draws no resize borders, so **SE-grip `startResizeDragging` is the resize affordance** (Joe's “grip on the right of the status-bar”). Full invisible-edge-drag on all four edges is deferred polish (D-065).
+
+### 10.4 The split
+
+- **6.1e-A `status-bar` core** — the component (§4.5): `sb-cell` + `separator` + `onResizeGrip?` seam + `--fs-s1`/`--fs-s2`. Left cell hosts a `status-indicator`, right the grip. **Sampler-cell + CDP** (grip inert there). *Next-active.*
+- **6.1e-B client frame consolidation** — real-client assembly (9222, no sampler): the §10.2 migration + the §10.3 window flips + center-only scroll (M-RP4.9/J-466 flex-column). *Real client only.*
+- **6.1e-C `dialog`/`modal` core + Help→About** — build `dialog` (flagged J-432); add the Help menu (§4.1); About = name/version/authors/hi-res logo (version from the real build, not hardcoded). The 2nd-menu shared-W-2 extraction decision lands here.
+
+This is a **sequence lock within the already-Phase-0'd frame arc** (D-107) — no new Phase-0, no new D. Per-milestone runbooks written as each opens (6.1e-A first).
 
 ---
 

@@ -1,6 +1,6 @@
 # M-RP6.1c — `Accelerator` + `KeymapRegistry` (ui/common) build runbook
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-10  
 > Language: English  
@@ -9,6 +9,8 @@
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 For Clair. Third frame prerequisite of the M-RP6.1 client-UI-frame arc (Phase-0 J-488 / D-107 / `docs/xgen-client-frame-phase0.md` §4.4, §6). Per-component design **locked by Joe** — Clair's grounded design walk + two Chat tightenings, "as you recommend" (this session). This is **NOT a visual component** — no envelope, no sampler cell, no CDP, no registry delta. It is TWO pure DOM-free objects in `$common` (`ui/common/lib`): the `Accelerator` value-object (single definition → `toDisplay()` + `matches()`, so display and dispatch never drift) and a pure `KeymapRegistry` table (`register` + `resolve(event)→commandId|null`). Verify = **vitest** (a standing harness stood up here). Component registry stays **299** (unchanged, no envelope).
+
+> **CLOSE (J-491, M-RP6.1c CLOSED).** Built + vitest-verified, **no deviation** from the locked design (8 files: `accelerator.ts` + `registry.ts` + `accelerator.test.ts` + `registry.test.ts` in `$common/lib/keymap/` + sampler `vitest.config.js`/`package.json`/`package-lock.json` + `ui/common/tsconfig.json` test-exclude). Feat `6993b61` (Clair, code-only). **35/35 vitest green** (27 accelerator + 8 registry); Chat independently re-ran `npm test` at verify = **35/35**, exit 0 (real output in JOURNAL J-491). `vite build` clean (sampler 772ms). Two Clair Rule-6 flags accepted (`server.fs.allow:[repo-root]` since suites sit in `../common`; `ui/common/tsconfig.json` excludes `lib/**/*.test.ts`). Records: **N-085**, frame-phase0 §4.4 refined in-place (v1.1), components v0.63 note (no registry row, **299** unchanged), ROADMAP v4.60. **No new D.** Next-active **M-RP6.1d** (`menu-bar` minimal — the shell wires the keymap).
 
 > **v1.1 supersedes v1.0.** v1.0 was written before Clair's grounding pass. Four locked changes: (1) **scope narrowed** — 6.1c ships library + tests only; the live `keydown` listener, the `Ctrl+Q → app.exit` binding, and the `exitCommand` (Tauri close) **defer to 6.1d** (no Exit command exists until the menu-bar; Phase-0 §7 schedules only a pure-unit leg here). (2) **`Ctrl`-as-shortcut** replaces the `Mod`/`usesMod` token. (3) The **registry pure-table moves into `$common`** (was shell) — commandId-based; only the singleton instance + population + listener stay shell (6.1d). (4) verify = a **standing vitest** harness, not an ad-hoc node run.
 

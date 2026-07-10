@@ -1,8 +1,8 @@
 # XGen Client — App Frame (Menu-bar + Status-bar) Phase-0
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-09  
+> **Last updated**: 2026-07-10  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -73,7 +73,7 @@ One canonical `Accelerator` value-object (parses `"Ctrl+Q"` → normalized modif
 Layering:
 
 - **`Accelerator`** (value-object + parser) → **`ui/common`**, pure, DOM-free (unit-testable like `stream/grouping.ts`; sibling to `Converter<T>`'s one-object-two-reps shape).
-- **keymap registry** (binding table `{accelerator → command}` + one global keydown listener that walks bindings via `matches`) → **shell-level**. Build the object **fully** now; the registry starts **lean** (one binding: Ctrl+Q → Exit) and grows a table.
+- **keymap registry** — **split** (D3, refined at M-RP6.1c / J-491 build): the **pure table + `resolve(event) → commandId | null`** lives in **`$common`** (`KeymapRegistry`, DOM-free + unit-testable; both the client and node shells keymap). Only the **singleton instance + binding population + the one global `keydown` listener** are **shell-level** (→ 6.1d). Build the objects **fully** now; the shell table starts **lean** (one binding: Ctrl+Q → Exit) and grows. Bindings register command **ids** (`"app.exit"`), not handlers — so the `menu-item` (6.1d) references the *same* id (single source of truth). *(Original wording put the whole registry shell-side; the pure-table-in-`$common` split is a genuine testability win, flagged not silently deviated — the J-487/J-490 doc-wording-fix precedent, arc-local, no new D.)*
 - **hint render** → inside `menu-item`, reading the *same* `Accelerator` → bind once, the menu shows the correct hint and the key fires the correct command automatically (single source of truth).
 
 ### 4.5 `status-bar` — `core` container

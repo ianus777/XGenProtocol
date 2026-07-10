@@ -8,6 +8,35 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-491 — M-RP6.1c `Accelerator` + `KeymapRegistry`: built + vitest-verified, M-RP6.1c CLOSED
+
+**Doc-bridge (D-074 second commit).** Clair's feat (code-only, 8 files) is already pushed = commit `6993b61` (commit 1); this entry + the paired canonical records = commit 2. The per-component design — Clair's grounded design walk + two Chat tightenings, Joe-locked "as you recommend" — is built and **vitest**-verified (this is the first milestone verified by unit tests, not the CDP loop; the objects are pure/DOM-free with no envelope). **M-RP6.1c CLOSED** — the frame arc's third prerequisite is down. Component registry **unchanged 299** (no envelope, no sampler cell).
+
+**What they are.** Two pure, DOM-free objects in `$common` (`ui/common/lib/keymap/`), **not** visual components. `Accelerator` — the one-definition-two-projections value-object (the `Converter<T>` shape): one authored binding (`accelerator("Ctrl+Q")`) projects to **display** (`toDisplay(platform)` → the future menu-item hint) and **dispatch** (`matches(event, platform)` → the keydown predicate), so display and dispatch can never drift. `KeymapRegistry` — the pure binding table + `resolve(event) → commandId | null`.
+
+**Locked design (built to spec).** `Ctrl` ≡ `Control` = the **platform-accelerator (shortcut) token** (`ctrlKey` on win, `metaKey`/⌘ on mac); deliberately no literal-ctrl token. `Cmd`/`Command`/`Meta`/`Super` → literal `meta`; `Alt`/`Option` → `alt`; `Shift` literal. **Platform is a parameter** (`'win'` default — the only shipped target; no `navigator` read). Canonical `{accel, meta, alt, shift, key}`; key normalization (letters upper-cased, named-key aliases `Esc`/`Del`/`Up`/`Space`… + `F1`–`F24` → `event.key` form). **Exact-modifier match** (Shift held on a plain `Ctrl+Q` suppresses). `toDisplay('win')` = `+`-joined words (literal meta shown `"Win"`), `toDisplay('mac')` = Apple-HIG glyphs `⌃⌥⇧⌘`. `matches` typed against a structural `KeyEventLike` (`Pick` of 5 fields) → DOM-free, unit-testable with a plain object literal. Parse **throws** on malformed (Tier-1 trusted code, fail-fast). `KeymapRegistry`: `register` throws on a duplicate canonical (`Accelerator.toString()`), `resolve` first-match-wins, + `has`/`size`/`list`; bindings carry command **ids** (`"app.exit"`), not handlers. **D3 split:** the pure table lives in `$common`; the shell owns only the singleton instance + binding population + the one `keydown` listener → **6.1d**. Scope narrowed at lock: no `ui/client` touch, no listener/Exit wiring this milestone (Phase-0 §7 schedules only a pure-unit leg here).
+
+**What Clair built (feat `6993b61`, code-only, 8 files).** `ui/common/lib/keymap/accelerator.ts` (the value-object) · `registry.ts` (the pure `KeymapRegistry`) · `accelerator.test.ts` + `registry.test.ts` (the suites) · sampler `vitest.config.js` + `package.json` + `package-lock.json` (the D4-V1 harness) · `ui/common/tsconfig.json` (exclude `lib/**/*.test.ts`). `vite build` clean (sampler, 772ms, no regression — keymap not yet imported by any cell).
+
+**Verify (vitest — Rule 2, real output). Clair ran it green in the feat; Chat independently re-ran `npm test` at verify — also 35/35:**
+```
+ ✓ ../common/lib/keymap/accelerator.test.ts (27 tests) 4ms
+ ✓ ../common/lib/keymap/registry.test.ts (8 tests) 4ms
+
+ Test Files  2 passed (2)
+      Tests  35 passed (35)
+```
+(exit 0; `vitest run` v3.2.7, sampler pkg.) Coverage: parse (Ctrl/Mod-shortcut/Cmd-literal/named-key/F-keys + throws on empty/empty-token/unknown-mod/multi-key), `toDisplay` win-words + mac-glyphs, `matches` exact-modifier + platform projection + case-insensitive key, `KeymapRegistry.resolve` first-match + `null` miss + dup-throw.
+
+**Two Clair Rule-6 flags (beyond the runbook file list).** (1) `vitest.config.js` needed `server.fs.allow: [repo-root]` — the suites live in `../common`, outside the sampler root, and Vite refused to load them until the allow-list widened. (2) `ui/common/tsconfig.json` gained `exclude: ["lib/**/*.test.ts"]` — the test files fell under its `lib/**/*.ts` include, which would drag `vitest` into `ui/common`'s production type graph (unresolvable). Both accepted (sensible hygiene, production config stays production-only).
+
+**Records.** `ui/docs/xgen-ui-notes.md` **+N-085** (v0.68→v0.69). `docs/xgen-client-frame-phase0.md` **§4.4 refined in-place** (v1.0→v1.1 — the D3 split: `KeymapRegistry` pure table + `resolve` in `$common`, only instance+listener shell; the J-487/J-490 doc-wording-fix precedent). `ui/docs/xgen-ui-components.md` **v0.62→v0.63** (keymap value-objects note; **not catalogued** — not `core` components; registry unchanged 299). `docs/ROADMAP.md` **v4.59→v4.60** (M-RP6.1c ✅ DONE; next-active 6.1d). `CLAUDE.md` PLAY (head J-490→J-491; registry 299; next-active M-RP6.1d). `tasks/M_RP6_1C_ACCELERATOR.md` → COMPLETED. This entry. **No new D** (§4.4 concept already under D-107; the D3 refinement is arc-local). Clair feat = commit 1 (pushed); this doc-bridge = commit 2. Not pushed — Joe pushes.
+
+**Next-active.** **M-RP6.1d `menu-bar` minimal** (File→Exit) — where the shell finally wires the keymap: a singleton `KeymapRegistry` + `register(accelerator("Ctrl+Q"), "app.exit")` + the single `keydown` listener → `resolve` → run; reuses the `entity-context-menu` W-2 machine; the `menu-item` accelerator hint reads the same `Accelerator`. `temperature-indicator` (M-RP6.5) stays ⏸️ POSTPONED.
+
+
+---
+
 ## Entry J-490 — M-RP6.1b `separator`: built + CDP-verified, M-RP6.1b CLOSED
 
 **Doc-bridge (D-074 second commit).** Clair's feat (code-only, 3 files) is already pushed = commit 1; this entry + the paired canonical records = commit 2. Per-component design (Joe-locked "go") built + CDP-verified against the live sampler (9422, both accents). **M-RP6.1b CLOSED** — the frame arc's second prerequisite is down. Registry **293→299**.

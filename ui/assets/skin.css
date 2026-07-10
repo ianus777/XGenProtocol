@@ -809,6 +809,25 @@ html, body {
 }
 
 /* ───────────────────────────────────────────────────
+ * icon (.icon)
+ *   Root IS <svg class="icon"> (N-020 atomic). DISPLAY-kind di — a tintable, token-scaled square
+ *   UI glyph (28th core, first SVG-rooted component, M-RP6.1a). The skin owns the BOX + tint plumbing
+ *   only: `fill` reads an inline `--icon-tint` custom property (the `--led-colour`/`--meter-fill`
+ *   inline-var precedent) falling back to `currentColor`, so an untinted icon inherits the surrounding
+ *   text colour and a `tint` prop overrides. Box size rides the svg width/height attrs (16/20/24),
+ *   not CSS. inline-block + vertical-align:middle so a glyph sits on a text baseline beside a label;
+ *   flex:none so it never stretches in a flex row (menu-item / status-bar cells). PROVISIONAL
+ *   (Joe live-tunes via HMR).
+ * ─────────────────────────────────────────────────── */
+
+.icon {
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+  fill: var(--icon-tint, currentColor);
+}
+
+/* ───────────────────────────────────────────────────
  * link (.link)
  *   Root IS <a class="link"> (N-020 atomic). NAVIGATION-kind di. ACCENT-derived — colour rides
  *   var(--accent2) so it re-themes gold/blue per shell (link returns to the accent pattern; `led`

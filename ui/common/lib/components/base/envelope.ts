@@ -24,14 +24,14 @@ interface ActionResult {
   destroy?(): void;
 }
 
-export function envelope(node: HTMLElement, param: EnvelopeParam): ActionResult {
+export function envelope(node: Element, param: EnvelopeParam): ActionResult {
   const { name, id, debug: getState } =
     typeof param === 'string'
       ? { name: param, id: undefined, debug: undefined }
       : param;
 
   const typeClass = kebab(name);
-  node.className = mergeClasses(typeClass, node.className); // supplies, never erases (N-023)
+  node.setAttribute('class', mergeClasses(typeClass, node.getAttribute('class'))); // supplies, never erases (N-023); attribute-based = SVG-safe
 
   if (import.meta.env.DEV && getState) {
     const debugId = `${typeClass}#${id ?? ++ordinal}`; // N-011 stable id, else ordinal

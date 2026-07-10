@@ -11,5 +11,6 @@
     "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["lib/**/*.ts"]
+  "include": ["lib/**/*.ts"],
+  "exclude": ["lib/**/*.test.ts"]
 }

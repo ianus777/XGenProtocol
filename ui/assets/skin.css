@@ -941,7 +941,7 @@ html, body {
   gap: var(--sp-2);
   box-sizing: border-box;
   min-height: 20px;
-  padding: 0 var(--sp-2);
+  padding: 0 0 0 var(--sp-2);
   background: var(--s2);
   border-top: 1px solid var(--s5);
   font-size: var(--fs-s1);

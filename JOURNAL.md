@@ -8,6 +8,33 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-490 — M-RP6.1b `separator`: built + CDP-verified, M-RP6.1b CLOSED
+
+**Doc-bridge (D-074 second commit).** Clair's feat (code-only, 3 files) is already pushed = commit 1; this entry + the paired canonical records = commit 2. Per-component design (Joe-locked "go") built + CDP-verified against the live sampler (9422, both accents). **M-RP6.1b CLOSED** — the frame arc's second prerequisite is down. Registry **293→299**.
+
+**What `separator` is.** The **29th `core`** component, a **di** display-kind primitive, and the **first value-less component** in the library (getter is config-only — no value/binding/interaction). One component used everywhere — the menu-divider and the status-bar cell-divider are the same thing (Phase-0 §4.4, built once; D-096 fold cleared, **no new D**). Root **`<div role="separator">`** — deliberately NOT `<hr>`: chosen so the same component is valid both in the flex status-bar AND as a direct child of a future `<ul role="menu">` (an `<hr>` is not a valid `<ul>` child; a `role="separator"` div is) → one root, every context, no branch. Props `orientation?: 'horizontal'|'vertical'` (default horizontal) → `data-orientation` + `aria-orientation`; `variant?: 'line'|'double'|'gap'` (default line) → `data-variant`; `id`. Getter G `{orientation, variant}`.
+
+**N-020 litmus refinement (recorded).** The di `<div>`=composite litmus is about *native atom vs. assembled structure*, not literally “is it a div.” `separator` composes **nothing** (zero children, one registered id, single-leaf getter) → it is **di-atomic**, not composite, despite the `<div>` root. The `<div>` is a fallback because HTML has no inline-divider atom valid in a `<ul role="menu">` (`<hr>` would be the native atom but is invalid there). This is the di analogue of the N-075 dd-root carve-out: the discriminator is **composition**, and a `<div>` root chosen for tag-availability doesn't make an atom a composite. → **N-084**.
+
+**Appearance = `skin.css` only (border-based).** Every visual lives in the `.separator` L2 block; component `<style>` empty. Border-based (not `background`) because `border-style: double` gives the two-line rule natively — horizontal → `border-top`, vertical → `border-left` (+ `align-self:stretch`), `gap` → `border:0` (pure spacing). Colour = the `--s5` hairline token (`#343b47`), confirmed against the live skin as the standard 1px border/groove colour (`.textfield`/`.number`/`.select` borders, `.range`/`.meter` grooves) → accent-neutral chrome.
+
+**What Clair built (feat, code-only, 3 files).** `separator.svelte` (`<div role="separator">`, orientation/variant → `data-*`+`aria-orientation`, envelope getter, empty `<style>`) · `skin.css` `.separator` L2 block · `app_sampler.svelte` 4 DI Atomics cells + import. `vite build` clean (**164 modules**, +1 = separator.svelte, no new `.ts`). Scope-clean (only the 3 files).
+
+**CDP verification (sampler 9422, both accents — all legs green).**
+- **Registry:** `ids().length` **293→299 (+6)** — 4 `separator#` cells (`horizontal`/`vertical`/`double`/`gap`) + `label#1`/`label#2` (the two demo labels flanking `#vertical` in its flex row, sampler chrome per the runbook); `count===unique` (299/299), **0 orphans both directions**.
+- **Getter G:** `{type:"separator",state:{orientation,variant}}` on every cell (config-only, the first value-less getter) — `#horizontal {horizontal,line}`, `#vertical {vertical,line}`, `#double {horizontal,double}`, `#gap {horizontal,gap}`.
+- **Element/attrs:** every cell `tag=div`, `role="separator"`; `aria-orientation` + `data-orientation` + `data-variant` reflected + correct.
+- **Variants (computed-style):** `line`→solid on the orientation edge (h `border-top`, v `border-left`); `#double`→`border-top-style:double`; `#gap`→border-width 0 (pure spacing). Widths render 0.8px/2.4px = the authored 1px/3px under a uniform 0.8× WebView device-pixel scaling (cosmetic, not a defect; the double still shows two lines).
+- **Accent-neutral:** `--s5 = #343b47`; both `line` + `double` border colour = `rgb(52,59,71)`, **unchanged** under an injected `--accent2=#3a7ab0` swap (no gold↔blue follow — the led/meter chrome precedent). Sampler left clean.
+- **Eye-check:** geometry-covered (double = two lines, gap = none, vertical stretches to row height); harness screenshot path flaky, not run.
+
+**Records.** `ui/docs/xgen-ui-components.md` **v0.61→v0.62** (separator = 29th core, di-atomic; registry 293→299 with cause). `docs/ROADMAP.md` **v4.58→v4.59** (M-RP6.1b ✅ DONE; next-active 6.1c). `ui/docs/xgen-ui-notes.md` **+N-084** (separator / leanest di / first value-less component / `<div role=separator>` root for menu+status-bar reuse / N-020 litmus refinement / border-based double via skin / accent-neutral chrome). `CLAUDE.md` PLAY (head J-489→J-490; registry 293→299; next-active M-RP6.1c `Accelerator`). `tasks/M_RP6_1B_SEPARATOR.md` → COMPLETED. This entry. **No new D** (D-096 fold cleared at Phase-0 §4.4). Clair feat = commit 1 (pushed); this doc-bridge = commit 2. Not pushed — Joe pushes.
+
+**Next-active.** **M-RP6.1c `Accelerator`** — ONE `ui/common` value-object (single definition → `toDisplay()` display + `matches(event)` dispatch, pure/DOM-free) + a lean shell keymap registry (starts with one binding Ctrl+Q→Exit). `temperature-indicator` (M-RP6.5) stays ⏸️ POSTPONED.
+
+
+---
+
 ## Entry J-489 — M-RP6.1a `icon`: built + CDP-verified, M-RP6.1a CLOSED
 
 **Doc-bridge (D-074 second commit).** Clair's feat (code-only, 6 files) is already pushed = commit 1; this entry + the paired canonical records = commit 2. The per-component design (Joe-locked "go by recomms") is built and CDP-verified against the live sampler (9422, both accents). **M-RP6.1a CLOSED** — the frame arc's first prerequisite is down. Registry **286→293**.

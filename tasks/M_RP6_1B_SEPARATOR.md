@@ -1,6 +1,6 @@
 # M-RP6.1b — `separator` (core) build runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-10  
 > Language: English  
@@ -9,6 +9,8 @@
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 For Clair. Second frame prerequisite of the M-RP6.1 client-UI-frame arc (Phase-0 J-488 / D-107 / `docs/xgen-client-frame-phase0.md` §4.4, §6). Per-component design **locked by Joe "go"** (Chat design walk, this session). `separator` = the **29th `core`** component, a **di** display-kind primitive (no data-dependency), and the **first value-less component** in the library (getter is config-only). One component, used **everywhere** — the menu-divider and the status-bar cell-divider are the same thing (Phase-0 §4.4 "built once"; D-096 fold cleared, **no new D**). Registry **293** at handoff — build raises it; **CDP-measure the real new total, do not predict** (Rule 5).
+
+> **CLOSE (J-490, M-RP6.1b CLOSED).** Built + CDP-verified, **no deviation** from this runbook (3 files, `vite build` clean 164 modules, scope-clean). Real total measured **293→299 (+6)** = the 4 `separator#` cells + `label#1`/`label#2` (the two demo labels flanking `#vertical` in its §4 flex row, sampler chrome); `count===unique`, 0 orphans both directions; all §5 legs green (real output in JOURNAL J-490). Litmus refined at close: a `<div>` root ≠ composite — `separator` composes nothing → **di-atomic** (records **N-084**). No new D.
 
 ---
 

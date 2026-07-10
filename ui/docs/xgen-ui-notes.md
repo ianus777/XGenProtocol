@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.67  
+> Version: 0.68  
 > Date: May 2026  
 > **Last updated**: 2026-07-10  
 > Language: English  
@@ -1757,6 +1757,22 @@ M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the 
 **CDP-verified (sampler 9422, both accents — Rule 2).** Registry `ids().length` **286→293 (+7)** = exactly the 7 icon cells; `count===unique` (293/293), **0 orphans both directions**. Getter G `{type:"icon",state:{name,size,tint,decorative}}` on every cell; `icon#default {caret-down,16,currentColor,true}`, `icon#labelled decorative:false`, `icon#raw name:"(path)"`, `icon#tinted tint:"var(--accent2)"`. Every cell `tag=svg`, `class="icon"` (the type-class stamped on an SVG root — the **live proof** the SVG-safe envelope works), `viewBox="0 0 24 24"`, `paths:1`; width/height + bounding box step **16·20·24**. a11y: decorative cells `aria-hidden="true"`/no role; `labelled`→`role="img"`+`aria-label="collapse"`. Tint: `icon#default` computed `fill rgb(200,196,188)` === its `color` (follows `currentColor`, accent-neutral); `icon#tinted fill rgb(194,136,64)` === `--accent2 #c28840`; injecting `--accent2=#3a7ab0` → tinted follows to `rgb(58,122,176)` while default holds → gold↔blue follows the token; clean restore. **Envelope regression:** `label` (`tag=label`,`class="label"`) + `led` (`tag=span`,`class="led"`) still stamp + register post-change. Feat (Clair, code-only, 6 files incl. `envelope.ts`), `vite build` clean 163 modules.
 
 *New `core` di + a one-file substrate generalization; no wire/prop/protocol change → no `DECISIONS.md` touch. Registry 286→293 (+7). → components registry v0.61. Drove the glyph-consolidation backlog milestone `docs/xgen-icon-adoption.md` (M-RP-ICON-ADOPT, PENDING, theory-open). Next frame prerequisite: `separator` (M-RP6.1b).*
+
+---
+
+### N-084 — `separator`: the 29th `core`, the first value-less component; and the N-020 `<div>`=composite litmus refined (M-RP6.1b)
+
+**What it is.** The **29th `core`** component, a **di-atomic** display primitive, and the **first value-less component** in the library — no value, no binding, no interaction; the getter is config-only. A pure visual divider, one component used everywhere (the menu-divider and the status-bar cell-divider are the same thing — Phase-0 §4.4, built once; D-096 fold cleared, no new D). Second frame prerequisite of the M-RP6.1 client-UI-frame arc.
+
+**Root `<div role="separator">` (not `<hr>`) — deliberately.** An `<hr>` is the native inline-divider atom, but it is **not a valid direct child of `<ul role="menu">`**; a `role="separator"` div is. Since the *same* component must serve both the flex status-bar AND a future menu list (built once), the `<div role="separator">` root is the one root valid in every context — no per-context branch. `use:envelope`, `id`; `orientation?: 'horizontal'|'vertical'` (default horizontal) → `data-orientation` + `aria-orientation`; `variant?: 'line'|'double'|'gap'` (default line) → `data-variant`. Getter G `{orientation, variant}`.
+
+**N-020 litmus refinement (the interesting bit).** The di `<div>`=composite litmus (N-020) is about **native atom vs. assembled structure**, not literally “the root is a `<div>`.” `separator` composes **nothing** — zero children, one registered id, a single-leaf getter — so it is **di-atomic**, not composite, despite the `<div>` root. The `<div>` is a **tag-availability fallback** (no native inline-divider element valid in a menu `<ul>`), not a composition signal. This is the **di analogue of the N-075 dd-root carve-out**: the discriminator is *composition* (does it assemble registered children?), and a `<div>` chosen for tag-availability doesn't make an atom a composite. Sampler placement is therefore **DI Atomics** (with `icon`), and the CDP evidence confirms it (one id per cell, no `__`-suffixed children).
+
+**Appearance = `skin.css` only (border-based).** Every visual — thickness, style, colour — lives in the `.separator` L2 block; component `<style>` empty. **Border-based**, not `background`, because `border-style: double` renders the two-line rule natively (a `<div>` divider draws its line as one edge's border; `background` can't express `double`): horizontal → `border-top`, vertical → `border-left` (+ `align-self:stretch`), `gap` → `border:0` (pure spacing). Colour = `--s5` (`#343b47`), confirmed against the live skin as the standard 1px border/groove token (`.textfield`/`.number`/`.select` borders, `.range`/`.meter` grooves) → **accent-neutral chrome** (led/meter precedent). With `border-style: double` the token paints both lines and the middle gap shows the panel background behind it (transparent); a distinctly-coloured middle gap is a two-layer technique, deferred (D-065).
+
+**CDP-verified (sampler 9422, both accents — Rule 2).** Registry `ids().length` **293→299 (+6)** = 4 `separator#` cells (`horizontal`/`vertical`/`double`/`gap`) + `label#1`/`label#2` (the two demo labels flanking `#vertical` in its flex row, sampler chrome per the runbook); `count===unique` (299/299), **0 orphans both directions**. Getter G `{type:"separator",state:{orientation,variant}}` on every cell (config-only). Every cell `tag=div`, `role="separator"`; `aria-orientation`+`data-orientation`+`data-variant` reflected + correct. Variants (computed-style): `line`→solid on the orientation edge (h `border-top`, v `border-left`); `#double`→`border-top-style:double`; `#gap`→border-width 0. Accent-neutral: `--s5 = #343b47`, both `line`+`double` border colour = `rgb(52,59,71)`, unchanged under an injected `--accent2=#3a7ab0` swap. Honest note: computed widths render 0.8px/2.4px = the authored 1px/3px under a uniform 0.8× WebView device-pixel scaling (cosmetic; the double still shows two lines). Feat (Clair, code-only, 3 files), `vite build` clean 164 modules.
+
+*New `core` di-atomic; no wire/prop/protocol change → no `DECISIONS.md` touch. Registry 293→299 (+6). → components registry v0.62. Refines the N-020 litmus (a `<div>` root for tag-availability ≠ composite). Next frame prerequisite: `Accelerator` (M-RP6.1c).*
 
 ---
 

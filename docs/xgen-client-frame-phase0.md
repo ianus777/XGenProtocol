@@ -1,6 +1,6 @@
 # XGen Client — App Frame (Menu-bar + Status-bar) Phase-0
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-10  
 > Language: English  
@@ -91,6 +91,8 @@ A thin fixed one-line strip (bottom pane): a horizontal container of small **dis
 - **Font** — status-bar text defaults to **`--fs-s1: 9px`** (tune to `--fs-s2: 8px` manually if needed).
 - **Single source of truth** — the connection `status-indicator` in the bar reads the **same** reactive `self-state` signal as R3 (one channel, two views: compact bar light + detailed R3).
 
+**Built (M-RP6.1e-A, J-494) — resolved build calls (Clair, within the runbook's latitude).** (1) **`sb-cell` = an internal, non-registering layout part** (own file, no `use:envelope`) — a value-less flex group; a registry getter would be ordinal noise (the N-064 opt-out pattern; the grip shares it). (2) **Grip glyph = a pure-CSS SE-corner `clip-path` triangle** in `--t4`, not an `icon` — a positioned corner affordance, not an inline-with-text glyph; kept wholly in `skin.css`, no `icons.ts` churn (logged for the icon-adoption backlog). (3) **2nd left cell via a `secondaryText?` prop** → a vertical `separator` + a `label` (the `#secondary` sampler cell exercises the vertical divider). (4) A **`grip` boolean prop** (default `true`) so `hasGrip` is honestly prop-driven (a non-resizable host can drop it). Getter G `{ leftCount, rightCount, hasGrip }`. Grip a11y: pointer-only, `aria-hidden`, `onpointerdown → onResizeGrip?.(e)` — no keyboard equivalent faked. CDP-green (sampler 9422, both accents): registry 299→309 (+10), 0 orphans, accent-neutral chrome, caption 9px. See N-087.
+
 ### 4.6 Font tokens (verified against `skin.css`, Rule 5)
 
 Current live scale (grepped 2026-07-09): `--fs-0: 10px; --fs-1: 12px; --fs-2: 14px`. Add **below** `--fs-0`, additive, **no rename** of the shipped scale:
@@ -121,8 +123,8 @@ Frame first (safe order), then the original center body. Each step gets its own 
 - **M-RP6.1c** — `Accelerator` (`ui/common`) + lean keymap registry (shell).
 - **M-RP6.1d** — `menu-bar` minimal (File→Exit → shell Exit command).
 - **M-RP6.1e** — **client frame consolidation, split A/B/C (J-493).** See §10.
-  - **M-RP6.1e-A** — `status-bar` (`core`; `sb-cell` + `separator`s + resize-grip seam + `--fs-s1`/`--fs-s2`; **left cell `status-indicator`, right cell grip**). Sampler-cell + CDP (grip inert there).
-  - **M-RP6.1e-B** — real-client frame consolidation (9222): status-bar mounted bottom; `.state-indicator` → `status-indicator`; grip → `startResizeDragging`; **center-only scroll**; remove center logo + redundant Quit; window-config flips (`resizable:true`, menu-bar drag-region, 900×600 / min 640×400).
+  - **M-RP6.1e-A** ✅ **DONE (J-494)** — `status-bar` (`core`; `sb-cell` + `separator`s + resize-grip seam + `--fs-s1`/`--fs-s2`; **left cell `status-indicator`, right cell grip**). Sampler-cell + CDP green (registry 299→309, 0 orphans, both accents); grip seam inert-but-fires, accent-neutral. N-087.
+  - **M-RP6.1e-B (next-active)** — real-client frame consolidation (9222): status-bar mounted bottom; `.state-indicator` → `status-indicator`; grip → `startResizeDragging`; **center-only scroll**; remove center logo + redundant Quit; window-config flips (`resizable:true`, menu-bar drag-region, 900×600 / min 640×400).
   - **M-RP6.1e-C** — `dialog`/`modal` `core` + **Help→About** (2nd menu; About holds name/version/authors/logo).
 - **M-RP6.1f** — center region-shell scaffold (renderer A reads the `Layout` descriptor, `get_layout` stub → default, placeholder leaves) + selection bus primitive. *Fixture-only.*
 - **M-RP6.1g** — R3 Self/connection live: `get_self_state` read verb + scoped `app.emit('self-state', …)` push + webview `listen`; renders `entity-item`(self) + `status` + `led`; the status-bar connection cell reads the same signal. *Real client 9222 + node 9322 — closes F-1 read half.*
@@ -177,8 +179,8 @@ Joe's "consolidation of the app's main UI" = migrate the legacy hand-rolled chro
 
 ### 10.4 The split
 
-- **6.1e-A `status-bar` core** — the component (§4.5): `sb-cell` + `separator` + `onResizeGrip?` seam + `--fs-s1`/`--fs-s2`. Left cell hosts a `status-indicator`, right the grip. **Sampler-cell + CDP** (grip inert there). *Next-active.*
-- **6.1e-B client frame consolidation** — real-client assembly (9222, no sampler): the §10.2 migration + the §10.3 window flips + center-only scroll (M-RP4.9/J-466 flex-column). *Real client only.*
+- **6.1e-A `status-bar` core** — the component (§4.5): `sb-cell` + `separator` + `onResizeGrip?` seam + `--fs-s1`/`--fs-s2`. Left cell hosts a `status-indicator`, right the grip. **Sampler-cell + CDP** (grip inert there). *✅ DONE (J-494) — registry 299→309, 0 orphans, accent-neutral, N-087.*
+- **6.1e-B client frame consolidation** — real-client assembly (9222, no sampler): the §10.2 migration + the §10.3 window flips + center-only scroll (M-RP4.9/J-466 flex-column). *Real client only. Next-active.*
 - **6.1e-C `dialog`/`modal` core + Help→About** — build `dialog` (flagged J-432); add the Help menu (§4.1); About = name/version/authors/hi-res logo (version from the real build, not hardcoded). The 2nd-menu shared-W-2 extraction decision lands here.
 
 This is a **sequence lock within the already-Phase-0'd frame arc** (D-107) — no new Phase-0, no new D. Per-milestone runbooks written as each opens (6.1e-A first).

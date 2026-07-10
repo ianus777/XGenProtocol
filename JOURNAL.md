@@ -8,6 +8,43 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-494 — M-RP6.1e-A `status-bar` core (sb-cell + status-indicator + resize-grip seam): built + CDP-verified, M-RP6.1e-A CLOSED
+
+**Doc-bridge (D-074 second commit).** Clair's feat (code-only, 4 files) is already pushed = commit `afcfaff` (commit 1); this entry + the paired canonical records = commit 2. Per-component design (Joe-locked "lock all by your recomms") built + CDP-verified against the live sampler (9422, both accents). **M-RP6.1e-A CLOSED** — the first step of the M-RP6.1e client-frame consolidation split (J-493) is down; this IS a catalogued `core` cell (unlike the 6.1d menu family — frame chrome). Sampler catalogue registry **299→309**.
+
+**What `status-bar` is.** A **di-composite** `core` component — the fixed bottom-pane strip: side-stacking `sb-cell` groups + `separator`s + an always-visible SE resize-grip. Root `<div class="status-bar">`. Composes the real `status-indicator` (left cell) which itself brings `led` + `label` → a composite cell yields multiple registry entries (the status-indicator/message precedent, matrix multiplies). Imports **no Tauri / no protocol** — the grip exposes an `onResizeGrip?` seam the consuming shell wires at 6.1e-B (`startResizeDragging`).
+
+**Clair's build calls (flagged, Joe-latitude in the runbook — all recorded).** (1) **`sb-cell` = internal, NON-registering layout part** (own file, no `use:envelope`) — a value-less flex group whose entire contribution is CSS positioning (`.sb-cell[data-side]`); a registry getter would be pure ordinal noise → the **N-064 used-internally-without-registration** pattern (chip `register` opt-out precedent). It exists as a file for readability + the "hosts any display component" `children`-snippet contract, not to add a matrix row. (2) **Grip glyph = pure-CSS corner triangle** (`clip-path: polygon(100% 0, 100% 100%, 0 100%)` in `--t4`), not an `icon` — the grip is a positioned corner affordance, not an inline-with-text glyph; a CSS triangle keeps it wholly in `skin.css` with zero `icons.ts` churn and no `Icon` import inside `status-bar` (noted for the icon-adoption backlog; lighter + cleaner fit here). (3) **2nd left cell via `secondaryText?` prop** → renders a vertical `separator` + a `label` in the left cell (exercises the vertical separator; the `#secondary` sampler cell uses `secondaryText="v0.10.3"`). (4) Added a **`grip` boolean prop** (default `true`) so `hasGrip` is honestly prop-driven (also lets a non-resizable host — e.g. the node app — drop it). **A11y honesty:** the grip is pointer-only, `aria-hidden="true"`, `onpointerdown → onResizeGrip?.(e)` — window resize has no keyboard equivalent (OS concern); not faked.
+
+**Getter G** `{ leftCount, rightCount, hasGrip }` — `leftCount = secondaryText ? 2 : 1`, `rightCount = grip ? 1 : 0`, `hasGrip = grip` (colours/captions live on the child entries, no duplication). New skin tokens `--fs-s1: 9px` / `--fs-s2: 8px` below `--fs-0: 10px`; the status-bar caption defaults to `--fs-s1`.
+
+**CDP verification (sampler 9422, both accents — Rule 2, real output). Chat re-drove the loop (D-097; launched detached, harness attach, cleaned up 0-orphan-port).**
+- **Registry:** `ids().length` **299→309 (+10)**; `count===unique===domCount` (309/309/309), **0 orphans both directions** (`orphanRegNotDom:[]`, `orphanDomNotReg:[]`). The exact +10 subtree (sorted, matches Clair's structural prediction precisely — `sb-cell` + grip do NOT register):
+  ```
+  label#default__status-indicator__label   led#default__status-indicator__led   status-bar#default   status-indicator#default__status-indicator
+  label#secondary__secondary   label#secondary__status-indicator__label   led#secondary__status-indicator__led   separator#secondary__sep   status-bar#secondary   status-indicator#secondary__status-indicator
+  ```
+  (`#default` = status-bar + status-indicator + its led + label = 4; `#secondary` = the same 4 + `separator#secondary__sep` + `label#secondary__secondary` = 6.)
+- **Getter G:** `status-bar#default → {leftCount:1,rightCount:1,hasGrip:true}`, `status-bar#secondary → {leftCount:2,rightCount:1,hasGrip:true}` — exact.
+- **Structure:** root `DIV.status-bar`; 4 `sb-cell` `SPAN`s, `data-side` = `left`/`right`/`left`/`right` (2 status-bars × left+right); grip `SPAN.sb-grip`, `aria-hidden="true"`.
+- **Tokens:** `--fs-s1`=**9px**, `--fs-s2`=**8px** (below `--fs-0`=10px); the status-bar caption (`.status-bar .label`) computed `font-size` = **9px**.
+- **Grip seam:** a bubbling `pointerdown` dispatched on `.sb-grip` reached the element (capture-probe `probeFired:1`) — since Svelte 5 delegates `pointerdown` at root, the bubbling dispatch invoked `onResizeGrip` (`dispatchThrew:null` — the stub ran clean); grip sits inside `.sb-cell[data-side=right]`; clip-path `polygon(100% 0px, 100% 100%, 0px 100%)` (SE corner). Source seam confirmed in `status-bar.svelte`: `onpointerdown={(e) => onResizeGrip?.(e)}`, imports = envelope/SbCell/StatusIndicator/Separator/Label only (**no Tauri**).
+- **Separator:** `separator#secondary__sep` → `role="separator"`, `aria-orientation="vertical"` (the vertical divider between the two left cells).
+- **Skin cascade:** `.status-bar` · `.status-bar .label` · `.sb-cell` · `.sb-cell[data-side="right"]` · `.sb-grip` all present in the stylesheets.
+- **Accent-neutral (inject-and-restore `--accent2`):** grip bg `--t4` `rgb(88,92,100)`, grip color `rgb(200,196,188)`, separator border `--s5` `rgb(52,59,71)`, led ON `rgb(34,197,94)` — **all unchanged** under an injected `--accent2=#3a7ab0` (`neutralHeld:true`); restored to `#c28840`. This composition has **no accent-carrier** (the status-indicator has no `link`), so both accents render identically — the strip is accent-neutral chrome.
+- **Eye-check:** geometry-covered by the structural CDP (grip in the right cell + SE-corner clip-path + caption 9px + vertical separator between two left cells); harness screenshot path flaky (J-489/J-490 precedent), not run.
+
+**Build:** `vite build` clean — **166 modules** (164→166, the two new `.svelte` files); no warnings on any new file (only the pre-existing meter/entity-avatar a11y warnings remain).
+
+**Records.** `ui/docs/xgen-ui-components.md` **v0.64→v0.65** (`status-bar` = 30th `core`, di-composite; `sb-cell` internal non-registering note; sampler registry 299→309). `docs/ROADMAP.md` **v4.62→v4.63** (M-RP6.1e-A ✅ DONE; next-active 6.1e-B). `ui/docs/xgen-ui-notes.md` **+N-087** (v0.70→v0.71). `docs/xgen-client-frame-phase0.md` **§4.5 build-note in-place** (v1.3→v1.4 — the resolved build calls). `CLAUDE.md` PLAY (head J-493→J-494; sampler registry 309; next-active M-RP6.1e-B). `tasks/M_RP6_1E_A_STATUS_BAR.md` → COMPLETED. This entry. **No new D** (D-107 extension). Clair feat = commit 1 (pushed `afcfaff`); this doc-bridge = commit 2. Not pushed — Joe pushes.
+
+**Deferred (D-065):** the real-client mount + `.state-indicator` → `status-indicator` migration + `onResizeGrip` → `startResizeDragging` wiring + window-config flips + center-only scroll + logo/Quit removal (all 6.1e-B); full-edge resize; the node app's own status-bar.
+
+**Next-active.** **M-RP6.1e-B** real-client frame consolidation (9222, no sampler): mount the status-bar bottom, migrate the hand-rolled `.state-indicator` → `status-indicator`, wire the grip → `startResizeDragging`, center-only scroll, remove the center logo + redundant Quit, and the window-config flips (`resizable:true`, menu-bar drag-region, 900×600 / min 640×400). Then 6.1e-C `dialog` + Help→About. `temperature-indicator` (M-RP6.5) stays ⏸️ POSTPONED.
+
+
+---
+
 ## Entry J-493 — M-RP6.1e client frame consolidation split (6.1e-A / -B / -C) LOCKED + window-config grounding — design/records-only
 
 **Design/records-only, no code.** Joe's "consolidation of the app's main UI" resolved into a locked sub-milestone split + the window-config decisions it needs. Grounded against the **real** client files first (Rule 5), then locked "all by your recomms." Extends the frame concept (D-107 / J-488); **no new D**. Component registry unchanged **299** (no component built here).

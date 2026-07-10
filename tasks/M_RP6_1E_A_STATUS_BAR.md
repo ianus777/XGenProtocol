@@ -1,5 +1,5 @@
 # M-RP6.1e-A — `status-bar` core (sb-cell + separator + resize-grip seam) build runbook
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-10  
@@ -89,15 +89,15 @@ Clair feat first (code-only: §3 files). Then Chat doc-bridge:
 
 ## 6. Definition of Done
 
-- [ ] `status-bar.svelte` (`core`, di composite) — side-stacking `sb-cell` groups + `separator` + grip; `onResizeGrip?` seam; getter G.
-- [ ] `sb-cell` — `side` left|right; hosts any display component (standalone-or-internal decision noted).
-- [ ] Left cell = `status-indicator`, right cell = `.sb-grip` (Joe-locked contents).
-- [ ] `.sb-grip` draws the SE-corner glyph (mechanism noted), fires `onResizeGrip?` on pointerdown, pointer-only (a11y honesty noted); NO Tauri import.
-- [ ] `skin.css` — `.status-bar`/`.sb-cell`/`.sb-grip` + `--fs-s1:9px`/`--fs-s2:8px` (real tokens confirmed, Rule 5).
-- [ ] Sampler DI-Composites cell (left status-indicator + right grip + stub `onResizeGrip`).
-- [ ] Sampler CDP green (both accents): registry delta **measured** (299 → N, ids stated), `count===unique`, 0 orphans; getter G exact; structure + side-stacking; grip stub fires on pointerdown; `--fs-s1`=9px resolves; grip accent-neutral; screenshot eye-checked.
-- [ ] `vite build` clean — module count quoted.
-- [ ] Records bridged (§5), task flipped COMPLETED.
+- [x] `status-bar.svelte` (`core`, di composite) — side-stacking `sb-cell` groups + `separator` + grip; `onResizeGrip?` seam; getter G `{leftCount,rightCount,hasGrip}`.
+- [x] `sb-cell` — `side` left|right; hosts any display component (**internal, non-registering** — N-064; own file, no `use:envelope`).
+- [x] Left cell = `status-indicator`, right cell = `.sb-grip` (Joe-locked contents). Getter `#default {1,1,true}`, `#secondary {2,1,true}`.
+- [x] `.sb-grip` draws the SE-corner glyph (**pure-CSS `clip-path` triangle**, `--t4`), fires `onResizeGrip?` on pointerdown (bubbling dispatch invoked it clean), pointer-only + `aria-hidden` (a11y honesty stated); NO Tauri import (verified in source imports).
+- [x] `skin.css` — `.status-bar`/`.status-bar .label`/`.sb-cell`/`.sb-cell[data-side=right]`/`.sb-grip` in cascade + `--fs-s1:9px`/`--fs-s2:8px` (confirmed resolving; caption 9px).
+- [x] Sampler DI-Composites cells (`#default` = left status-indicator + right grip; `#secondary` = + vertical separator + label via `secondaryText`; stub `onResizeGrip`).
+- [x] Sampler CDP green (both accents): registry **measured 299→309 (+10)**, exact ids stated (2 `status-bar#` + 2 `status-indicator#…__status-indicator` w/ `__led`/`__label` + `separator#secondary__sep` + `label#secondary__secondary`; `sb-cell`+grip don't register), `count===unique===domCount` (309/309/309), 0 orphans both directions; getter G exact; structure + side-stacking; grip seam fires on bubbling pointerdown; `--fs-s1`=9px resolves; grip accent-neutral (held under `--accent2` swap); eye-check geometry-covered (screenshot flaky, J-489/J-490 precedent).
+- [x] `vite build` clean — **166 modules** (164→166).
+- [x] Records bridged (§5: components v0.65, notes N-087, phase0 v1.4, ROADMAP v4.63, CLAUDE.md PLAY → J-494, JOURNAL J-494), task flipped COMPLETED.
 
 ---
 

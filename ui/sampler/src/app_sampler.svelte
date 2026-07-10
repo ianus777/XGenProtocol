@@ -39,6 +39,7 @@
   import Separator from '$core/components/data-independent/separator.svelte'; // 29th core, first value-less (M-RP6.1b)
   import Link from '$core/components/data-independent/link.svelte';
   import StatusIndicator from '$core/components/data-independent/status-indicator.svelte';
+  import StatusBar from '$core/components/data-independent/status-bar.svelte'; // status-bar di composite (M-RP6.1e-A)
   import PasswordField from '$core/components/data-independent/password-field.svelte';
   import StarRating from '$core/components/data-independent/star-rating.svelte';
   import FileFieldComposite from '$core/components/data-independent/file-field.svelte';
@@ -163,6 +164,10 @@
   let cbDisabled = $state('');
   // chip (M-RP2.27) — display token, no bind. onRemove spy for CDP.
   let chipRemoved = $state(0);
+  // status-bar (M-RP6.1e-A) — the resize-grip seam is inert in the sampler (no Tauri); a
+  // counter spy makes the onResizeGrip callback CDP-observable on pointerdown (the real
+  // startResizeDragging wiring is 6.1e-B, real client).
+  let sbGripFired = $state(0);
   // tag-select (M-RP2.28) — string[] bind:value. default seeds 4 (proves +N overflow at
   // COLLAPSE_AT=3); max caps at 2 (3rd pick no-ops + data-full dim); create allows freeform.
   let tsDefault = $state(['important', 'work', 'personal', 'urgent']);
@@ -648,6 +653,14 @@
         <div class="s-cell"><span class="s-id">status-indicator#default</span><StatusIndicator states={ledStates} state="ON" caption="Connected" id="default" /></div>
         <div class="s-cell"><span class="s-id">status-indicator#withlink</span><StatusIndicator states={ledStates} state="OFF" caption="Disconnected" linkHref="https://xgen.example/status" linkText="Status page" linkExternal id="withlink" /></div>
         <div class="s-cell"><span class="s-id">status-indicator#pulse</span><StatusIndicator states={ledStates} state="ERR" pulse caption="Error" linkHref="#logs" linkText="View logs →" id="pulse" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">status-bar</div>
+      <div class="s-cells">
+        <div class="s-cell" style="flex:0 0 340px"><span class="s-id">status-bar#default</span><div style="width:340px"><StatusBar states={ledStates} state="ON" caption="Connected" id="default" onResizeGrip={() => sbGripFired++} /></div></div>
+        <div class="s-cell" style="flex:0 0 340px"><span class="s-id">status-bar#secondary</span><div style="width:340px"><StatusBar states={ledStates} state="ERR" pulse caption="Reconnecting" secondaryText="v0.10.3" id="secondary" onResizeGrip={() => sbGripFired++} /></div></div>
       </div>
     </div>
 

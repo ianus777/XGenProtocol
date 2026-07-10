@@ -42,6 +42,9 @@
    * (--fs-1/--fs-2); --fs-0 added M-RP2.22; grow with steps when a heading/lead component
    * needs them (D-065). */
   --fs-0: 10px;  --fs-1: 12px;  --fs-2: 14px;
+  /* Sub-10px dense chrome (below --fs-0). Founded M-RP6.1e-A for the status-bar caption
+   * (--fs-s1 default); general L2 tokens (any dense strip may want them), not bar-only. */
+  --fs-s1: 9px;  --fs-s2: 8px;
   /* Line-height (shared by controls + prose) */
   --lh: 1.5;
 
@@ -916,6 +919,56 @@ html, body {
 }
 .status-indicator > .link {
   margin-left: auto;
+}
+
+/* ──────────────────────────────────────
+ * status-bar (.status-bar / .sb-cell / .sb-grip)
+ *   A di COMPOSITE (M-RP6.1e-A) — the fixed bottom-pane strip. Root IS <div class="status-bar">.
+ *   A flex row: a left `sb-cell` group (start-aligned) and a right `sb-cell` group pushed to the
+ *   end (margin-left:auto). The composed status-indicator + secondary label carry their own skin;
+ *   the bar only lays out + sets the dense caption size (--fs-s1, 9px). Accent-NEUTRAL chrome
+ *   (--s2 band, --s5 hairline top border, --t4 grip) — the led/separator no-accent precedent.
+ *   `.sb-grip` is the SE resize-grip: a CSS corner triangle (NOT an icon — a positioned corner
+ *   affordance, not an inline glyph), drawn in the neutral --t4 token, cursor nwse-resize. It is
+ *   pointer-only (aria-hidden in markup); the OS/keyboard resize story is not this control's.
+ *   PROVISIONAL (Joe live-tunes via HMR).
+ * ────────────────────────────────────── */
+
+.status-bar {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  box-sizing: border-box;
+  min-height: 20px;
+  padding: 0 var(--sp-2);
+  background: var(--s2);
+  border-top: 1px solid var(--s5);
+  font-size: var(--fs-s1);
+}
+/* Dense bar caption: the composed status-indicator's label + any secondary label render at
+ * --fs-s1 (9px) here (overriding the .label 12px default), the frame's status-bar text size. */
+.status-bar .label {
+  font-size: var(--fs-s1);
+}
+
+.sb-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.sb-cell[data-side="right"] {
+  margin-left: auto;
+}
+
+.sb-grip {
+  align-self: end;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+  background: var(--t4);
+  /* SE-corner right-triangle (bottom-right filled). */
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
 }
 
 /* --------------------------------------------------

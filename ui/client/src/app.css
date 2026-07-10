@@ -15,12 +15,23 @@
   --accent-ink: var(--pr-ink);
 }
 
-/* Shell frame — centre the pane in the window. */
+/* Shell frame — a full-height column: the fixed top-pane menu-bar (frame chrome) over a content
+ * body that centres the pane in the remaining space (M-RP6.1d; 6.1e adds the bottom status-bar). */
 html, body { height: 100%; }
-body {
+body { margin: 0; }
+
+.app-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-body {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 0; /* let the body shrink so the menu-bar keeps its intrinsic height */
 }
 
 #core-ui-pane {

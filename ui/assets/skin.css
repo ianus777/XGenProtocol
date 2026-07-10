@@ -2141,6 +2141,97 @@ html, body {
 }
 
 /* ───────────────────────────────────────────────────
+ * menu family (.menu-bar / .menu / .menu-trigger / .menu-popup / .menu-item) — the `core` menu trio
+ *   (M-RP6.1d), the client's fixed top-pane menu-bar. FRAME CHROME, not sampler cells — accent-NEUTRAL
+ *   (the separator/status-bar posture): the bar reads on --s2 with an --s5 hairline, the popup reuses
+ *   the combobox/context-menu popup vocabulary (--s3 fill, --s5 border, soft shadow). The roving
+ *   highlight rides --s4; only the keyboard focus ring rides --accent2 (gold/blue). The popup is inline
+ *   `position:absolute` below its trigger (§2.3, C1) — no portal (short downward dropdown, fixed top
+ *   pane). PROVISIONAL (Joe live-tunes via HMR). ── */
+.menu-bar {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  background: var(--s2);
+  border-bottom: 1px solid var(--s5);
+}
+/* one menubar entry — the positioning context for its own popup */
+.menu {
+  position: relative;
+  display: flex;
+}
+.menu-trigger {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--t2);
+  font-size: var(--fs-1);
+  line-height: 1.4;
+  padding: var(--sp-1) var(--sp-3);
+  cursor: pointer;
+}
+.menu-trigger:hover,
+.menu-trigger[aria-expanded="true"] {
+  background: var(--s3);
+  color: var(--t);
+}
+.menu-trigger:focus {
+  outline: none;
+}
+.menu-trigger:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+/* owned popup — anchored below the trigger, above app chrome */
+.menu-popup {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 30;
+  min-width: 180px;
+  margin: 0;
+  padding: var(--sp-1);
+  list-style: none;
+  background: var(--s3);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+/* one item row — leading icon slot + label + trailing accelerator hint */
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-1);
+  color: var(--t);
+  border-radius: var(--rad0);
+  cursor: pointer;
+}
+.menu-item:hover,
+.menu-item:focus {
+  outline: none;
+  background: var(--s4); /* roving highlight — programmatic .focus() triggers :focus */
+}
+.menu-item:focus-visible {
+  box-shadow: var(--focus-ring); /* keyboard ring rides --accent2 */
+}
+.menu-item[aria-disabled] {
+  opacity: 0.4;
+  cursor: default;
+}
+.menu-item .mi-label {
+  flex: 1;
+  white-space: nowrap;
+}
+/* the <kbd> accelerator hint — muted, trailing, monospace-neutral (inherits the UI font) */
+.menu-item .mi-accel {
+  margin-left: var(--sp-4);
+  color: var(--t3);
+  font-size: var(--fs-0);
+  font-family: inherit;
+}
+
+/* ───────────────────────────────────────────────────
  * message (.message) — the message dd sub-family opener (M-RP5.5, dd-composite). Root IS
  *   <article class="message"> (N-075 dd-root). A chat row: a RESERVED avatar column + a content
  *   column (header line = author name + `details` widget socket, over the body paragraph). The

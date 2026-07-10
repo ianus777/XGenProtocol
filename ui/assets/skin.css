@@ -828,6 +828,48 @@ html, body {
 }
 
 /* ───────────────────────────────────────────────────
+ * separator (.separator)
+ *   Root IS <div role="separator"> (N-020 atomic). DISPLAY-kind di — a pure visual divider, the
+ *   leanest + first VALUE-LESS component (29th core, 2nd frame prerequisite, M-RP6.1b). BORDER-based
+ *   (not background): a <div>'s border draws the rule, and `border-style: double` gives the two-line
+ *   variant natively (thickness >=3px shows line/gap/line — a background cannot express `double`).
+ *   Colour = the shared --s5 hairline token (the same 1px colour every bordered control uses), so
+ *   the separator is accent-NEUTRAL chrome (the led/meter no-accent precedent). Per orientation:
+ *   horizontal → border-top; vertical → border-left (+ align-self:stretch to fill a flex row's
+ *   height). `gap` → base rule only (border stays 0): pure spacing, the box still present. Spacing
+ *   AROUND the divider is the consumer's concern (status-bar cell / menu). Used everywhere — the
+ *   menu-divider and the status-bar cell-divider are this one component (frame Phase-0 §4.4).
+ *   Note (recorded, not a defect): `border-style: double` paints BOTH lines in --s5; the middle gap
+ *   shows the panel background behind it (transparent). A distinctly-coloured middle gap is a
+ *   two-layer technique, deferred (D-065). PROVISIONAL (Joe live-tunes via HMR).
+ * ─────────────────────────────────────────────────── */
+
+.separator {
+  border: 0;
+  box-sizing: border-box;
+}
+.separator[data-orientation="horizontal"] {
+  width: 100%;
+}
+.separator[data-orientation="vertical"] {
+  align-self: stretch;
+}
+
+.separator[data-variant="line"][data-orientation="horizontal"] {
+  border-top: 1px solid var(--s5);
+}
+.separator[data-variant="line"][data-orientation="vertical"] {
+  border-left: 1px solid var(--s5);
+}
+.separator[data-variant="double"][data-orientation="horizontal"] {
+  border-top: 3px double var(--s5);
+}
+.separator[data-variant="double"][data-orientation="vertical"] {
+  border-left: 3px double var(--s5);
+}
+/* data-variant="gap" → base rule only; border stays 0 (pure spacing). */
+
+/* ───────────────────────────────────────────────────
  * link (.link)
  *   Root IS <a class="link"> (N-020 atomic). NAVIGATION-kind di. ACCENT-derived — colour rides
  *   var(--accent2) so it re-themes gold/blue per shell (link returns to the accent pattern; `led`

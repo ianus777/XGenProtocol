@@ -36,6 +36,7 @@
   import SelectMultiple from '$core/components/data-independent/select-multiple.svelte';
   import Led from '$core/components/data-independent/led.svelte';
   import Icon from '$core/components/data-independent/icon.svelte'; // 28th core, first SVG-rooted (M-RP6.1a)
+  import Separator from '$core/components/data-independent/separator.svelte'; // 29th core, first value-less (M-RP6.1b)
   import Link from '$core/components/data-independent/link.svelte';
   import StatusIndicator from '$core/components/data-independent/status-indicator.svelte';
   import PasswordField from '$core/components/data-independent/password-field.svelte';
@@ -571,6 +572,16 @@
         <div class="s-cell"><span class="s-id">icon#tinted</span><Icon name="square" tint="var(--accent2)" id="tinted" /></div>
         <div class="s-cell"><span class="s-id">icon#labelled</span><Icon name="caret-down" label="collapse" id="labelled" /></div>
         <div class="s-cell"><span class="s-id">icon#raw</span><Icon path="M5 5h14v14H5z" id="raw" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">separator</div>
+      <div class="s-cells">
+        <div class="s-cell"><span class="s-id">separator#horizontal</span><div style="width:120px"><Separator id="horizontal" /></div></div>
+        <div class="s-cell"><span class="s-id">separator#vertical</span><div style="display:flex; align-items:stretch; gap:8px; height:20px"><Label text="A" /><Separator orientation="vertical" id="vertical" /><Label text="B" /></div></div>
+        <div class="s-cell"><span class="s-id">separator#double</span><div style="width:120px"><Separator variant="double" id="double" /></div></div>
+        <div class="s-cell"><span class="s-id">separator#gap</span><div style="width:120px"><Separator variant="gap" id="gap" /></div></div>
       </div>
     </div>
 

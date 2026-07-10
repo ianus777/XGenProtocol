@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.66  
+> Version: 0.67  
 > Date: May 2026  
-> **Last updated**: 2026-07-06  
+> **Last updated**: 2026-07-10  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -1741,6 +1741,22 @@ M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the 
 **Two honest notes (Rule 6, recorded not hidden).** (1) **ArrowDown clamps, does not advance** — the base ships exactly one item by design (W-8), so multi-row advance is catalogue-bounded, not a gap; the arithmetic is `Math.min(n-1, activeIndex+1)` and open already moves `activeIndex` −1→0. (2) The **status-full line ellipsizes** in a cramped container (was "in a me…" in the inline sampler popup; the portal placement gives natural width so it shows in full) — cosmetic, Joe HMR-tunes.
 
 *New `common/widgets/` occupant + additive skin; no wire/prop/protocol change → no `DECISIONS.md` touch. Registry 185→186 (widget root; +2 `__avatar`/`__status` on open), 0 orphans. → registry v0.53. Next: `temperature-indicator` (M-RP5.4) — the last widget-tier item, binds `meter` via this same W-11 dd-socket.*
+
+---
+
+## 2026-07-10
+
+### N-083 — `icon`: the 28th `core`, the first shape-definition value-type; and the `use:envelope` SVG-safe generalization (M-RP6.1a)
+
+**What it is.** The **28th `core`** component and the first frame prerequisite of the M-RP6.1 client-UI-frame arc — a **di** display-kind primitive (no data-dependency; sibling of `label`/`image`/`led`), and the **first shape-definition value-type** (the registry value is a glyph identity, neither a string body nor a `src`). Root inline `<svg>`. Cleared vs `image` by D-096 on **two** axes (value-type = shape definition, not `src`; surface = tintable UI glyph, not raster) — recorded at frame Phase-0 §4.3, no new D.
+
+**API (Joe-locked "go by recomms").** `name` keys a bundled `icons.ts` registry (`{ [name]: d | d[] }`, `d`-strings authored on a 24×24 grid); the component renders `{#each paths as d}<path d={d} />` — **no `{@html}`** (the `paragraph` N-032 lean held; multi-element glyphs ride `d[]`, not arbitrary inner-svg markup, D-065). An optional raw `path` (`string | string[]`) is an escape hatch (wins over `name`; getter reports `name:"(path)"`). Props: `size` `16|20|24` (default **16** — first consumers menu-item/status-bar are dense) → svg width/height; `tint` default `currentColor` via an inline `--icon-tint` custom prop (the led/chip precedent), override hex/`var(--token)`; `label` — **decorative by default** (`aria-hidden="true"`, no role), set → `role="img"` + `aria-label` (a glyph beside a text label must not double-announce). Getter G `{name,size,tint,decorative}`. Glyphs are **fill-based** (Material-style) so `fill: var(--icon-tint, currentColor)` tints them; a `stroke` mode (Lucide-style) is deferred until a glyph needs it (D-065). Skin = one `.icon` L2 rule; component `<style>` empty. Seed = 3 demonstrative glyphs (`caret-down`/`dot`/`square`); source `.svg` under `ui/assets/icons/` for provenance.
+
+**The substrate finding — `use:envelope` was not SVG-safe (Clair Rule-6 catch → Joe-locked Option B).** `icon` is the **first SVG-rooted `core` component** — every prior one is HTML-rooted (`label`→`<label>`, `image`→`<img>`, `led`→`<span>`). The envelope action stamped the type-class via `node.className = mergeClasses(typeClass, node.className)`. On an `<svg>` root `node.className` is a **read-only `SVGAnimatedString`**, not a string: `mergeClasses`' `(passthrough ?? '').trim()` has no `.trim()` on that object → **TypeError at mount**, and assigning a string back to the read-only accessor throws anyway. `vite build` (esbuild strips types) would **not** catch it — it is runtime-only and would have surfaced at the CDP leg. **Fix:** widen the action param `HTMLElement`→`Element` and stamp via `setAttribute('class', mergeClasses(typeClass, node.getAttribute('class')))` — `getAttribute('class')` is `string | null` on both HTML and SVG (`mergeClasses` already handles `null`), and `setAttribute('class', …)` is identical to `.className` on HTML, so the change is **behaviorally identical for all 30+ HTML-rooted components** (the debug branch already used `setAttribute`). Option A (a wrapper `<span>` root) was rejected — it contradicts the locked svg-root and fails the verify plan. A one-file substrate change (`ui/common/lib/components/base/envelope.ts`), backward-compatible, no contract change → no new D.
+
+**CDP-verified (sampler 9422, both accents — Rule 2).** Registry `ids().length` **286→293 (+7)** = exactly the 7 icon cells; `count===unique` (293/293), **0 orphans both directions**. Getter G `{type:"icon",state:{name,size,tint,decorative}}` on every cell; `icon#default {caret-down,16,currentColor,true}`, `icon#labelled decorative:false`, `icon#raw name:"(path)"`, `icon#tinted tint:"var(--accent2)"`. Every cell `tag=svg`, `class="icon"` (the type-class stamped on an SVG root — the **live proof** the SVG-safe envelope works), `viewBox="0 0 24 24"`, `paths:1`; width/height + bounding box step **16·20·24**. a11y: decorative cells `aria-hidden="true"`/no role; `labelled`→`role="img"`+`aria-label="collapse"`. Tint: `icon#default` computed `fill rgb(200,196,188)` === its `color` (follows `currentColor`, accent-neutral); `icon#tinted fill rgb(194,136,64)` === `--accent2 #c28840`; injecting `--accent2=#3a7ab0` → tinted follows to `rgb(58,122,176)` while default holds → gold↔blue follows the token; clean restore. **Envelope regression:** `label` (`tag=label`,`class="label"`) + `led` (`tag=span`,`class="led"`) still stamp + register post-change. Feat (Clair, code-only, 6 files incl. `envelope.ts`), `vite build` clean 163 modules.
+
+*New `core` di + a one-file substrate generalization; no wire/prop/protocol change → no `DECISIONS.md` touch. Registry 286→293 (+7). → components registry v0.61. Drove the glyph-consolidation backlog milestone `docs/xgen-icon-adoption.md` (M-RP-ICON-ADOPT, PENDING, theory-open). Next frame prerequisite: `separator` (M-RP6.1b).*
 
 ---
 

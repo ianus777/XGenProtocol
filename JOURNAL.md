@@ -1,10 +1,36 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-09  
+> **Last updated:** 2026-07-10  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-489 — M-RP6.1a `icon`: built + CDP-verified, M-RP6.1a CLOSED
+
+**Doc-bridge (D-074 second commit).** Clair's feat (code-only, 6 files) is already pushed = commit 1; this entry + the paired canonical records = commit 2. The per-component design (Joe-locked "go by recomms") is built and CDP-verified against the live sampler (9422, both accents). **M-RP6.1a CLOSED** — the frame arc's first prerequisite is down. Registry **286→293**.
+
+**What `icon` is.** The **28th `core`** component, a **di** display-kind primitive (no data-dependency — sibling of `label`/`image`/`led`), and the **first shape-definition value-type**. Inline `<svg>` glyph; `name` keys a bundled `icons.ts` registry (`d` string or `d[]`, rendered as `{#each}<path>` — **no `{@html}`**, N-032 lean held) with an optional raw `path` escape hatch (wins over `name`). Props: `size` `16|20|24` (default **16**); `tint` (default `currentColor` via inline `--icon-tint`, override hex/`var(--token)`); `label` — **decorative by default** (`aria-hidden="true"`), set → `role="img"`+`aria-label`. Getter `{name,size,tint,decorative}` (`name:"(path)"` on raw override). D-096-cleared vs `image` on two axes (shape-definition value-type, not `src`; tintable glyph, not raster) — already recorded at frame Phase-0 §4.3, **no new D**.
+
+**Substrate generalized SVG-safe (Clair Rule-6 catch → Joe-locked Option B).** `icon` is the first SVG-rooted `core` component. `use:envelope` stamped the type-class via `node.className = mergeClasses(…)`, but on an `<svg>` root `node.className` is a read-only `SVGAnimatedString` (and `mergeClasses`' `.trim()` has no method there) → TypeError at mount; `vite build` (esbuild, types stripped) wouldn't catch it — it would have burned a CDP cycle. Fix (verified against `envelope.ts`/`logic.ts` before locking): widen the action param `HTMLElement`→`Element` and stamp via `setAttribute('class', mergeClasses(typeClass, node.getAttribute('class')))` — `getAttribute` is `string|null` on HTML+SVG (`mergeClasses` already handles null), `setAttribute` is identical to `.className` on HTML, so behaviorally identical for all 30+ HTML-rooted components; the debug branch already used `setAttribute`. Option A (wrapper `<span>`) was rejected — it contradicts the locked svg-root + fails the verify plan.
+
+**What Clair built (feat, code-only, 6 files).** `icon.svelte` (svg root, name→registry / path override, `d[]` render, envelope getter) · `icons.ts` (registry, 3 fill-based 24-grid seeds: `caret-down`/`dot`/`square`) · 3 source `.svg` under `ui/assets/icons/` (provenance) · `skin.css` one `.icon` L2 rule (`fill: var(--icon-tint, currentColor)`) · `app_sampler.svelte` DI Atomics row (7 cells) · **`envelope.ts`** the SVG-safe generalization. `vite build` clean (**163 modules**, +2 = icon.svelte + icons.ts). Scope-clean.
+
+**CDP verification (sampler 9422, both accents — all legs green).**
+- **Registry:** `ids().length` **286→293 (+7)** — exactly the 7 icon cells (`default`/`s16`/`s20`/`s24`/`tinted`/`labelled`/`raw`); `count===unique` (293/293), **0 orphans both directions**.
+- **Getter G:** every cell `{type:"icon",state:{name,size,tint,decorative}}`; `icon#default` `{caret-down,16,currentColor,true}` (default size 16 + decorative), `icon#labelled` `decorative:false`, `icon#raw` `name:"(path)"`, `icon#tinted` `tint:"var(--accent2)"`.
+- **Element:** every cell `tag=svg`, `class="icon"` (the type-class stamped on an SVG root — the **live proof** the SVG-safe envelope landed; had it thrown, no stamp + no registration), `viewBox="0 0 24 24"`, `paths:1`; width/height **and** bounding box step **16·20·24**.
+- **a11y:** decorative cells `aria-hidden="true"`/no role; `labelled` → `role="img"`+`aria-label="collapse"`.
+- **Tint:** `icon#default` computed `fill` `rgb(200,196,188)` === its `color` (**follows `currentColor`**, accent-neutral); `icon#tinted` `fill` `rgb(194,136,64)` === `--accent2` `#c28840`; injecting `--accent2=#3a7ab0` → tinted follows to `rgb(58,122,176)` while default holds → **gold↔blue swap follows the token**; override removed → clean restore.
+- **Envelope regression (substrate blast-radius):** `label` (`tag=label`,`class="label"`) + `led` (`tag=span`,`class="led"`) still stamp their type-class + register post-change — the attribute-based stamp is behaviorally identical on HTML roots.
+- **Eye-check:** covered by geometry (non-zero 16/20/24 boxes + `paths:1` + correct fills); the harness screenshot path is flaky (transient exit-1), not run.
+
+**Records.** `ui/docs/xgen-ui-components.md` **v0.60→v0.61** (icon = 28th core; registry 286→293 with cause). `docs/ROADMAP.md` **v4.57→v4.58** (M-RP6.1a ✅ DONE; + M-RP-ICON-ADOPT backlog pointer). `ui/docs/xgen-ui-notes.md` **+N-083** (icon = first shape-definition value-type / registry-keyed / anti-`{@html}` multi-path / fill-based tint; paired: drove the `envelope` SVG-safe generalization). `CLAUDE.md` PLAY (head J-488→J-489; registry 286→293; next-active M-RP6.1b `separator`). `tasks/M_RP6_1A_ICON.md` → COMPLETED (+§3/§4/§5 amended for the 6-file/envelope reality). Backlog milestone **`docs/xgen-icon-adoption.md`** (M-RP-ICON-ADOPT, PENDING, theory-open — glyph consolidation) filed + committed separately. This entry. **No new D** (D-096 already cleared). Clair feat = commit 1 (pushed); this doc-bridge = commit 2. Not pushed — Joe pushes.
+
+**Next-active.** **M-RP6.1b `separator`** — shared `core`, orientation vertical|horizontal, used between status-bar cells and as `menu-separator` (frame build order step 2). `temperature-indicator` (M-RP6.5) stays ⏸️ POSTPONED.
+
 
 ---
 

@@ -1,14 +1,16 @@
 # M-RP6.1a — `icon` (core) build runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-09  
+> **Last updated**: 2026-07-10  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 For Clair. First frame prerequisite of the M-RP6.1 client-UI-frame arc (Phase-0 J-488 / D-107 / `docs/xgen-client-frame-phase0.md` §4.3, §6). Per-component design **locked by Joe "go by recomms"** (Chat design walk, this session). `icon` = the **28th `core`** component, a **di** display-kind primitive (no data-dependency — sibling of `label`/`image`/`led`), the **first shape-definition value-type**. Design-lock captured here; no code was written at lock time (Rule 1/5). Registry **286** at handoff — build raises it; **CDP-measure the real new total, do not predict** (Rule 5).
+
+> **CLOSE (J-489, M-RP6.1a CLOSED).** Built + CDP-verified. Scope grew to **6 files** — Clair's Rule-6 catch surfaced that `use:envelope` is not SVG-safe (`node.className` is a read-only `SVGAnimatedString` on an `<svg>` root → TypeError at mount, runtime-only, `vite build` wouldn't catch it), so **Option B** (Joe-locked) generalized `envelope.ts` to `setAttribute('class', getAttribute('class'))` + param `HTMLElement`→`Element` (see §3 file 6). §4 gained an envelope-regression leg. Real total measured **286→293 (+7)**, `count===unique`, 0 orphans; all §4 legs green (real output in JOURNAL J-489). → **N-083**; no new D.
 
 ---
 
@@ -48,6 +50,7 @@ An inline-SVG, tintable, token-scaled square UI glyph. Cleared vs `image` by D-0
 3. `ui/assets/icons/*.svg` — 3 source svgs (provenance).
 4. `ui/assets/skin.css` — one `.icon` L2 rule.
 5. `ui/sampler/app_sampler.svelte` — DI Atomics cells (§2 D7).
+6. `ui/common/lib/components/base/envelope.ts` — **SVG-safe generalization** (Option B, added at build): param `HTMLElement`→`Element`; stamp via `setAttribute('class', mergeClasses(typeClass, node.getAttribute('class')))` instead of `node.className =`. Backward-compatible for all HTML-rooted components (`getAttribute` is `string|null` on HTML+SVG; the debug branch already used `setAttribute`).
 
 (Place the component/registry per the existing `core` di convention — mirror `label`/`image`.)
 
@@ -62,7 +65,8 @@ Single-line evals, bare `querySelectorAll` + filter in JS (no quoted `[data-debu
 - **Size union** — `icon#s16`/`#s20`/`#s24` render at 16/20/24 px box (`getBoundingClientRect`).
 - **Tint** — `icon#default` computed `fill` resolves to the inherited text colour (currentColor); `icon#tinted` `fill` = `--accent2`, and **swaps gold `#c28840` ↔ blue `#3a7ab0`** on skin-swap (the accent proof); default cell is accent-neutral.
 - **a11y** — `icon#default` `aria-hidden="true"`, no `role`; `icon#labelled` `role="img"` + `aria-label="collapse"`.
-- **Eye-check** — screenshot: three glyphs render, sizes visibly step, tinted glyph accent-coloured.
+- **Envelope regression (substrate blast-radius, added w/ Option B)** — pick a `label` + a `led` cell; confirm each still stamps its type-class (`class="label"`/`"led"`) + registers post-envelope-change (the attribute-based stamp is behaviorally identical on HTML roots).
+- **Eye-check** — screenshot: three glyphs render, sizes visibly step, tinted glyph accent-coloured. *(Covered by geometry — non-zero 16/20/24 boxes + `paths:1` + correct fills; the harness screenshot path is flaky, not run. J-489.)*
 
 ## 5. Close (D-074 two-commit)
 

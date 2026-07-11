@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.73  
+> Version: 0.74  
 > Date: May 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -1867,6 +1867,51 @@ M-RP4.1 closed (J-455). Built **kind 3** of the processor taxonomy (D-099): the 
 **Harness method finding (for the next CDP driver).** Multi-statement CDP evals combining local `var` declarations with callbacks intermittently return a bare `EVAL ERROR: Uncaught` through the PS 5.1 harness even when the equivalent single-expression eval succeeds; `.click()` and `try/catch` were each proven fine **in isolation**, so the fault is the harness/transport, not the page. Practical rule: **prefer one-expression `JSON.stringify({…})` evals**, and when an eval throws, treat the *next* read as **inconclusive, not a failure** — one such throw produced a `reopened:false` reading that was discarded rather than recorded as a phantom regression (Rule 1). Indexed access (`querySelectorAll("button")[32].click()`) worked where the `forEach`+closure form threw.
 
 *New `core` di composite; no wire/prop/protocol change → no `DECISIONS.md` touch. Registry 309→313. → components registry v0.66. **The N-052 `modal`/`dialog` deferral (logged M-RP2.21) is now closed.** Next: **M-RP6.1e-C2** — `get_about_info` (`xgen-common::about` + `build.rs` metadata + the Tauri read command; real client 9222), then **C3** Help→About assembly.*
+
+---
+
+## 2026-07-11
+
+### N-090 — **every skinnable setting lives in `skin.css`** — "skinnable" is not "colour and type"; `app.css` is the app-frame skeleton and nothing else (M-RP6.1e-C3, Joe)
+
+**Joe's rule, stated twice mid-build because both Claudes got it wrong twice.** The C3 runbook (A1, Chat) said the About grid CSS belongs in `ui/client/src/app.css` — correctly rejecting a component-local `<style>` block (N-023/N-025), but **landing it in the wrong file**. Joe: *"the graphical elements we have in skin. app.css is for block positions etc"*. Clair then split it **graphics → `skin.css`, layout → `app.css`** — still wrong. Joe: *"**all skinnable settings need to be in skin.css**"*.
+
+**The rule, in its full width:** *skinnable* covers **gaps, spacing, sizing, grid tracks and layout** — not merely colour, font-size and weight. A skinner retunes an About box's density and column widths exactly as readily as its colours. Therefore:
+
+- **`skin.css` (L2)** — the **complete** presentation of every skinnable UI element, keyed by class, beside the other component skins. Removing this layer must strip *all* appearance, which is only true if layout lives here too.
+- **`app.css`** — the **app-frame skeleton only** (`.app-frame`, `.app-center`, the pane pins) plus the per-app `--accent*` knob. **No component styling.** Not "layout", not "positions in general" — *the frame*.
+
+The C3 About box (`.about`, `.about-head`, `.about-id`, `.about-name`, `.about-by`, `.about-grid` + its `dt`/`dd`) is a **skinnable UI element**, so its **entire** ruleset — flex, grid tracks, gaps, image sizing, colour, type — sits in `skin.css`. **This supersedes runbook A1.**
+
+**Method note worth copying.** Both relocations were proven as **pure relocations**, not asserted: computed styles + geometry were re-measured after each move (fonts, gaps, dialog rect 386×428, centring 496,432 — **byte-identical** before/after). A CSS move across files in one cascade *should* be a no-op; "should" is not a verification.
+
+*Layering rule, durable — sits with N-023/N-025/N-031. Not arc-local (D-069 does not apply: this is a global-principle-bar rule, stated by Joe as such).*
+
+---
+
+### N-091 — `.dialog { margin: auto }`: every modal was pinned top-left, and **C1 closed "verified" without ever testing position** (M-RP6.1e-C3)
+
+Assembling the About box exposed a defect in the **shipped, closed, CDP-verified** `dialog` core (M-RP6.1e-C1, N-089): **it did not centre.** Every `showModal()` dialog rendered **top-left**.
+
+**Mechanism.** `showModal()` promotes the element to the **top layer** with the UA stylesheet's `position: fixed; inset: 0` — and the UA centres it via **`margin: auto`** resolving against those insets. The project's **global margin reset zeroes it**, so `margin: 0` + `inset: 0` pins the box to the top-left corner. Fix: restore **`margin: auto`** on `.dialog` (a definite width plus `inset:0` centres on **both** axes).
+
+**The lesson, which is the reason this note exists.** C1's verify legs were real and passed: `:modal`, focus-lands-inside, `::backdrop`, the `$bindable` write-back, reopen, registry stability. **Not one of them looked at where the thing rendered.** A component can pass **every leg you ran** and still be visibly wrong — **"verified" is only ever as wide as the legs, and a closed milestone is not a proof of correctness beyond them.** Position/geometry now belongs on the leg list for any overlay-class component.
+
+**Scope note.** This is a change to a **shared L2 rule for a `core` component**, not an About tweak — it changes the sampler's dialogs too (for the better). It landed inside the C3 arc; it is recorded here as a **C1 amendment**, not buried as a C3 detail.
+
+*Skin-only amendment to a closed core component; no prop/getter/wire change → no `DECISIONS.md` touch. → components registry: `dialog` skin amended.*
+
+---
+
+### N-092 — two harness truths the C3 verify surfaced: the client debug bridge is **state-only** (no orphan leg), and the window config is applied in **physical px** (M-RP6.1e-C3)
+
+**(a) The registry orphan check is a sampler capability, not a universal one.** The C3 runbook demanded the standard leg — `count === unique === domCount`, **0 orphans both directions**. It **cannot be run in the real client**. `ui/common/lib/components/base/debug.ts` registers `id → { type, get }`: a **state** registry with **no DOM handle and no marker attribute** on the element. `__XGEN_DEBUG__` exposes exactly `ids()` / `get()` / `snapshot()`. There is nothing to correlate against the DOM. What *is* provable in the client: `count === unique`, the enumerated id list, and registration/unregistration deltas across mount/unmount. **Chat's own runbook review (v1.1) passed this leg through unchallenged — recorded as a miss rather than quietly dropped (Rule 1).** Anyone writing a client-side verify: **do not copy the sampler's orphan leg into a client runbook.**
+
+**(b) The window config is applied in PHYSICAL pixels.** C3 changed the client default 900×600 → **1240×1080** and it *looked* like it had not taken. Measured: `outerWidth 993 × 865` CSS at `devicePixelRatio 1.25` → **1241 × 1081 physical**. It **had** taken — as physical px, so 125% Windows scaling shrinks it to ~992×864 of CSS space. **This is J-495's DPI finding recurring** (there: 900×600 → 720×480 CSS, logged and not chased). Twice is a pattern: the **logical-vs-physical unit question is now an open item**, to be settled in **M-RP-WINSTATE** (⏸️ POSTPONED, gated on the widget grid) — the arc that must clamp restored geometry to the monitor work area anyway. Consequence: **1240×1080 is a first-launch default that will eventually be overridden by remembered geometry — do not tune it.**
+
+**(c) Esc via `eval` is inconclusive, not failing.** A synthetic `KeyboardEvent` is **untrusted** and does not trigger the UA's native `<dialog>` cancel/close default. J-496 closed this leg with a **trusted** `Input.dispatchKeyEvent`; the `eval`-only path cannot. Treat an `eval`-dispatched Esc as **not proven**, never as **broken**.
+
+*Harness/method notes; no code change. Twin-config reminder still stands (J-495): any window-block edit touches **both** `tauri.conf.json` and `cdp.dev.conf.json` — C3 did this correctly.*
 
 ---
 

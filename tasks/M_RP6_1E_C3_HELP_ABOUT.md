@@ -1,6 +1,6 @@
 # M-RP6.1e-C3 — Help→About assembly (Help menu + About dialog + logo) build runbook
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -248,6 +248,26 @@ Run `run-client.ps1 -Debug`. The sampler cannot host this (no `get_about_info`, 
 2. **Chat — doc-bridge commit**: `JOURNAL.md` (J-series) · `CLAUDE.md` PLAY · `docs/ROADMAP.md` · `docs/xgen-client-frame-phase0.md` (§6 / §10.4 — C3 ✅, **M-RP6.1e-C CLOSED**) · `ui/docs/*` (N-090 **only if** earned) · this file → **COMPLETED**.
 
 Joe pushes both. Chat never pushes.
+
+---
+
+## 8. CLOSE — delivered vs runbook (v1.2, Chat, 2026-07-11)
+
+**Status COMPLETED.** Shipped and pushed: `782f385` (feat) · `62b3424` (adjustments) · `cc08be6` + `1ff7343` (CSS refactor) · `2bde134` (Joe, cosmetic skin pass). Doc-bridge = **J-498**. **M-RP6.1e-C CLOSED.**
+
+**Delivered as specified:** D1 shell-local `about-dialog.svelte` · D2 values-as-`label` / keys-as-`dt` · D3 `get_about_info` on mount · D4 Built+commit one row · D5 `_hda` wired / `_hd_small` reserved · D6 Help→`help.about` on the existing dispatch · F1 opener on four surfaces · F2 "Developed by Alchemy Dump", no personal name · A2 link null-guard · A3 the `label`-as-value stretch (→ folded into N-090's arc, not its own note) · A5 regression.
+
+**Three deltas from this runbook — the runbook was wrong, the code is right:**
+
+1. **A1 is SUPERSEDED.** It sent the `.about-*` CSS to `app.css`. **Joe's rule: every skinnable setting lives in `skin.css`** — and *skinnable* includes **gaps, sizing, grid tracks and layout**, not just colour and type. `app.css` is the **app-frame skeleton + accent knob only**. The full `.about-*` block sits in `skin.css`. → **N-090**.
+2. **A scope addition the runbook did not foresee: `.dialog { margin: auto }`** — a fix to the **shipped `dialog` core's shared skin**, not an About tweak. Every modal was pinned **top-left** (the global margin reset zeroed the UA `margin:auto` that centres a top-layer dialog). **C1 closed "verified" without ever testing position.** → **N-091**.
+3. **§4's registry orphan leg was NOT RUNNABLE.** The client debug bridge is **state-only** (`id → {type, get}`) — no DOM handle, so `domCount` / "0 orphans both directions" is a **sampler-only** capability. Chat's v1.1 review passed that leg through unchallenged — **Chat's miss**. Proved instead: `count === unique === 22`, enumerated. → **N-092**. *Do not copy the sampler orphan leg into a client runbook again.*
+
+**Also out of runbook scope:** the window default moved 900×600 → **1240×1080** (twin config, J-495 rule held). It is applied in **physical px** — measured `993×865` CSS at DPR 1.25 = **1241×1081 physical**. Not broken. → **N-092(b)**; the logical-vs-physical question is deferred to **M-RP-WINSTATE** (⏸️ POSTPONED, gated on the widget grid). **Do not tune 1240×1080** — remembered geometry will override it.
+
+**Verified (real client 9222, Chat re-drove, Rule 5):** registry **7→22** (`count===unique`) · `:modal` true · all 10 fields real (rendered SHA **is** HEAD) · F2 personal name absent · Close → `open:false`, registry stays 22 · **re-open** → `:modal` true · **first File↔Help roving** (`activeIndex` 0↔1, Home/End). **Not claimed:** Esc via `eval` (untrusted synthetic → **inconclusive**), the OS-browser open, Ctrl+Q / File→Exit — human legs.
+
+**Process (Rule 6, logged not absorbed):** this runbook was authored by **Clair** after a mis-pasted handoff — design walk + canonical runbook are **Chat's lane**. Chat's v1.1 review then caught the A1 and A2 defects before implementation. Four commits shipped where D-074 prescribes one code-only feat.
 
 ---
 

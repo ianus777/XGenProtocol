@@ -8,6 +8,47 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-503 — surfaces §6.3 CLOSED: what goes into a UI state; scroll position REFUSED; the read-marker protocol gap FILED — design/records-only, no code
+
+**Design + records only. No code. Registry unchanged (client 38, sampler catalogue 313).** Third §6 item closed. **And for the second session running, grounding turned the questions into *different questions than they were asked as*.**
+
+**The test that now decides every future candidate (Joe-locked):**
+
+> **Would you expect it to follow you to another device?** → **NOT UI state** (it is config, or it is protocol).
+> **Does it describe *where things sit on screen*, rather than *what you chose*?** → **UI state.**
+
+*Grounded, not assumed: the real `xgen-client_config.toml` carries `node` · `keypair_path` · `logging` · `sync` · `substitutions` — **user intent, zero presentation**. §4.4's config-vs-UI-state split holds.*
+
+**✅ IN:** grid layout (tiles + split sizes) · shelf favourites · window geometry (clamped to the work area) · **collapsed/expanded** panel states · **last open space+room** · **theme**.
+
+**⚠️ Two of those carry conditions, and both conditions came from grounding:**
+- **Last open space+room is SESSION state only, and it references PROTOCOL objects** (`SpaceXgid`/`RoomXgid`) → it **needs a reconcile rule**: room gone / left / kicked → **fall back to no room, never crash**. That is the layout's unknown-`widgetId` drop **one level up** — and per **N-095**, **the fallback is EXERCISED, not asserted.**
+- **🔑 “Theme” is NOT a free key — Ch6 already specifies a THREE-LAYER theme system.** An **application theme** (dark/light, *operator-configurable*, **D-057**, layered `base.css` → `skin-dark.css`) **and a SPACE THEME declared by the Space owner via a `state.space_theme` EVENT**, overriding only a defined token subset. **Resolution: app default → user choice → Space override.** So the UI-state key is **the user-choice LAYER only**, per-device — calling it *“the theme”* would collide with a protocol event. *(Second session running in which a UI question turned out to already have a protocol answer.)*
+
+**❌ SCROLL POSITION — REFUSED, and NOT because it is hard. It is the WRONG HOME.**
+
+It is **four different things**, and only one is sound: a **pixel offset** · a **ratio** · an **anchor** (an `EventXgid` at the top of the viewport) · the **unread boundary** (a *different concept entirely*).
+
+**A pixel offset is meaningless in THIS stream, for five shipped reasons:** **prepend** (loading older history shifts everything — `message-stream` already compensates *live* with a `scrollHeight`-delta anchor, **J-485**, which is itself proof the offset is unstable **within** a session) · **edit/delete** (a tombstone is a different height) · **grouping recompute** (`grouped` rows + day-dividers change heights; `computeRows` is `$derived`) · **window resize** · **⚠️ and the killer — on relaunch the same messages are not even loaded**: if the client opens with the last N messages and you were 300 back, `scrollTop = 1400` **points at nothing**.
+
+**→ Restoring scroll across a relaunch is a BACKFILL problem, not a UI-state problem:** load history **until the anchor event is in the DOM**, then scroll to it — pagination + sync work, **not a JSON key**. **A stored number would create the illusion of a feature and deliver a wrong scroll**, and it would **fight shipped code** (`message-stream` mounts to bottom **unconditionally**; any restore is an explicit override of a closed, verified machine).
+
+**✅ What IS legitimate, and where it belongs:** **in-session, per-room scroll memory** (A → B → A keeps your place) = an **in-memory `Map<roomId, anchorEventId>`** — no file, no protocol, no persistence, **anchored on an event id even in memory** (prepends shift offsets mid-session too). **Ships with M-RP6.2**, not with the UI-state store. Across-relaunch restore stays **deferred** (needs anchor + backfill-until-found + an **LRU cap** — one entry per room ever visited grows without bound).
+
+**⚠️ NEW FILED GAP — READ / UNREAD MARKERS HAVE NO PROTOCOL MECHANISM.** **Ch6's UI already renders unread counts** (`RoomListItem` = *“Room name, last message preview, **unread count**”*; the Space list carries one too) — **and there is NO read-marker event in the protocol.** Grepped **Ch3 and Ch6**: nothing.
+
+**A read marker is per-identity state a user expects to FOLLOW THEM TO ANOTHER DEVICE**, so by the test above it is **not UI state**. Persisting one in `xgen-client_uistate.json` would ship a **local-only marker that never syncs**, and when a protocol read-marker eventually lands there would be **two sources of truth — D-067 drift, self-inflicted.**
+
+**🔑 And it is what users actually want on relaunch.** Slack and Discord do **not** restore a scroll offset — they restore you to the **unread line**. *That is the evidence: the real problem is the unread boundary, not the pixel — **a protocol gap, not a UI one**.* **This is the same species as the J-502 temperature find: a UI chapter drawing a thing the spec never gave it a mechanism for.** → **Filed as a protocol question. No UI milestone may fake it, and none may quietly persist a local marker to make an unread badge light up.**
+
+**✅ §4.1 AMENDED — the session-vs-named line, stated once:** **a named UI state carries the ARRANGEMENT** (layout · shelf · geometry · theme) and **NOT the open room**. *“Reading” is a **workspace**, not a **place** — Maya restores your panels, not your scene.*
+
+**Records.** `docs/xgen-widget-surfaces-phase0.md` **v1.3** — **§4.5 SETTLED** (the test + the IN/OUT table) · **§4.6** (scroll refused, with the four-candidate breakdown) · **§4.7** (the read-marker gap) · §4.1 amended · §6 item 3 **CLOSED**. `docs/ROADMAP.md` (the read-marker gap filed) · `CLAUDE.md`. **No new D.**
+
+**§6 status: items 2 + 3 CLOSED · item 1 PARTLY closed (the registry half) · STILL OPEN — Settings' own surface (blocked on the §9 taxonomy Phase-0) · top-shelf pinning · glyph provenance. M-RP6.1i–l remain gated.**
+
+---
+
 ## Entry J-502 — Vocabulary lock (tile / region / face / slot) + surfaces §6 partial lock; the plugin taxonomy gap FOUND — design/records-only, no code
 
 **Design + records only. No code. Registry unchanged (client 38, sampler catalogue 313).** A §6 walk of `docs/xgen-widget-surfaces-phase0.md` that produced **more corrections than answers** — which is the point of a Phase-0 gate (D-071).

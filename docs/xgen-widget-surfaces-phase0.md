@@ -1,6 +1,6 @@
 # XGen Client — Widget Surfaces, Shelves & the UI-State Store: Phase-0
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -176,6 +176,10 @@ That decision **resolves M-RP-WINSTATE by its own written criterion** (J-498): *
 
 Both live in the **same store**, under different keys, with **different lifecycles**.
 
+> **✅ AMENDED (Joe-locked 2026-07-11, J-503) — the line between them, stated once:**
+> **A named UI state carries the ARRANGEMENT** — layout · shelf · geometry · theme. **It does NOT carry the open room.**
+> *“Reading” is a **workspace**, not a **place** — Maya restores your panels, not your scene.* **The open space+room is SESSION state only.**
+
 **⚠️ Window geometry belongs to SESSION state unconditionally.** A user who never touches the diskette still expects the window to reopen where they left it. If geometry lived *only* inside named states, the common case would get no persistence at all.
 
 ### 4.2 Does a named state ALSO carry geometry?
@@ -192,14 +196,67 @@ Both live in the **same store**, under different keys, with **different lifecycl
 
 It does **not** belong in `xgen-client_config.toml`, which carries protocol / identity / user *intent*. The store is its own file (working name `xgen-client_uistate.json`), sibling to the config.
 
-### 4.5 ⚠️ OPEN — what else goes into a UI state?
+### 4.5 ✅ SETTLED (Joe-locked 2026-07-11, J-503) — what goes into a UI state
 
-Bound it **now**, on paper, before it becomes a junk drawer:
+Bounded **on paper, before it became a junk drawer** — and grounding turned two of the three open items into *different questions than they were asked as*.
 
-- grid layout ✅ · shelf favourites ✅ · window geometry ✅
-- **which room was open?** — open
-- **scroll position?** — open
-- **theme / accent?** — open
+**The test (it decides every future candidate):**
+
+> **Would you expect it to follow you to another device?** → **NOT UI state** (it is config, or it is protocol).
+> **Does it describe *where things sit on screen*, rather than *what you chose*?** → **UI state.**
+
+*(Config today — grounded from the real `xgen-client_config.toml`: `node` · `keypair_path` · `logging` · `sync` · `substitutions`. **User intent, zero presentation.** §4.4's split holds; do not erode it.)*
+
+| item | verdict |
+|---|---|
+| grid layout (tiles + split sizes) | ✅ **IN** |
+| shelf favourites | ✅ **IN** |
+| window geometry | ✅ **IN** (clamp to the monitor work area, §4.2) |
+| **collapsed / expanded** panel states | ✅ **IN** — pure presentation (`section` already carries `collapsed`) |
+| **last open space + room** | ✅ **IN — SESSION state only.** ⚠️ It references **protocol objects** (`SpaceXgid` / `RoomXgid`), so it **needs a reconcile rule**: room gone / left / kicked → **fall back to no room, never crash** — the layout's unknown-`widgetId` drop, one level up. **And the fallback is EXERCISED, not asserted** (N-095's DoD shape, same milestone). |
+| **theme** (the user's dark/light choice) | ✅ **IN**, **per-device** — **but ONLY as the user-choice LAYER.** ⚠️ **Ch6 already specifies a three-layer theme system:** an **application theme** (dark/light, *operator-configurable*, D-057, layered `base.css` → `skin-dark.css`) **and a SPACE THEME — declared by the Space owner via a `state.space_theme` EVENT**, overriding only a defined token subset. **Resolution order: app default → user choice → Space override.** Calling this key *“the theme”* would collide with a protocol event. Per-device is the honest scope (screen, lighting) and it invents no sync mechanism. |
+| **scroll position** | ❌ **OUT — and NOT because it is hard. It is the WRONG HOME.** See §4.6. |
+| **read / unread markers** | ❌ **OUT of the UI-state file — FILED AS A PROTOCOL GAP.** See §4.7. |
+
+**And the session-vs-named line gets sharper (§4.1 amendment):**
+
+> **A named UI state carries the ARRANGEMENT** — layout · shelf · geometry · theme. **It does NOT carry the open room.**
+> *“Reading” is a **workspace**, not a **place**. Maya restores your panels, not your scene.* **The open room is SESSION state only.**
+
+---
+
+### 4.6 ❌ Scroll position — why it is out (J-503)
+
+“Scroll position” is **four different things**, and only one of them is even sound:
+
+| candidate | stores | verdict |
+|---|---|---|
+| **pixel offset** (`scrollTop`) | a number | ❌ unstable |
+| **ratio** (% down the stream) | a number | ❌ worse — the denominator moves |
+| **anchor** (the event at the top of the viewport) | an **EventXgid** | ✅ the only sound mechanism — but expensive |
+| **unread boundary** (last-read event) | an **EventXgid** | ⚠️ **a different concept entirely** — semantic, not visual → §4.7 |
+
+**A pixel offset is meaningless in THIS stream, for five shipped reasons:** **prepend** (loading older history shifts everything — `message-stream` already compensates *live* with a `scrollHeight`-delta anchor, J-485, which is itself proof the offset is not stable even **within** a session) · **edit / delete** (a tombstone is a different height) · **grouping recompute** (`grouped` rows + day-dividers change heights as the set changes — `computeRows` is `$derived`) · **window resize** (re-wrapping changes every row) · **⚠️ and the killer: on relaunch the same messages are not even loaded.** If the client opens with the last N messages and you were 300 back, `scrollTop = 1400` **points at nothing**.
+
+**→ So restoring scroll across a relaunch is not a UI-state problem — it is a BACKFILL problem:** load history **until the anchor event is in the DOM**, then scroll to it. That is pagination + sync (`[sync].batch_size` territory), **not a JSON key**. **Storing a number would create the illusion of a feature and deliver a wrong scroll.** It would also **fight shipped code** — `message-stream` does **mount-to-bottom unconditionally** (J-485); any restore is an explicit override of a closed, verified machine.
+
+**✅ What IS legitimate, and where it belongs:**
+
+> **In-session, per-room scroll memory** — switching room A → B → A within one session should keep your place. That is an **in-memory `Map<roomId, anchorEventId>`**: no file, no protocol, no persistence. **Anchor on an event id even in memory** (prepends shift offsets mid-session too). **Ships with M-RP6.2** (R2 + R5 wiring), **not with the UI-state store.**
+
+**Across-relaunch restore: DEFERRED** — it needs anchor + backfill-until-found + an **LRU cap** (one entry per room ever visited grows without bound). Real work, real dependency on history loading. **Not §4.5's business.**
+
+---
+
+### 4.7 ⚠️ FILED — read / unread markers have no protocol mechanism (J-503)
+
+**Ch6's UI already renders unread counts** — `RoomListItem` = *“Room name, last message preview, **unread count**”* (§6.3), and the Space list carries one too. **But there is NO read-marker event in the protocol** — grepped Ch3 **and** Ch6: nothing.
+
+**A read marker is per-identity state a user expects to FOLLOW THEM TO ANOTHER DEVICE.** By §4.5's own test, that makes it **not UI state**. Putting it in `xgen-client_uistate.json` would ship a **local-only marker that never syncs** — and when a protocol read-marker eventually lands, there are **two sources of truth**: **D-067 drift, self-inflicted.**
+
+**🔑 And this is what users actually want on relaunch.** Slack and Discord do **not** restore a scroll offset — they restore you to the **unread line**. *That is evidence the real problem is the unread boundary, not the pixel: a **protocol** gap, not a UI one.*
+
+**→ Filed as a PROTOCOL question** (a Ch3/Ch6 hole, the same species as the temperature find at J-502 — a UI chapter drawing a thing the spec never gave it a mechanism for). **No UI milestone may fake it**, and none may quietly persist a local marker to make an unread badge light up.
 
 ---
 
@@ -236,10 +293,13 @@ Bound it **now**, on paper, before it becomes a junk drawer:
    - **BINDING UNTIL THEN: no milestone reserves a heat slot or reads a heat store.** R2 / R4 / R7 ship without it.
 
 3. **§4.5** — what else belongs in a UI state (room, scroll, theme)?
+
+   **✅ CLOSED (Joe, 2026-07-11 — J-503). See §4.5 / §4.6 / §4.7.** Two of the three sub-questions turned out to be **different questions than they were asked as**. **IN:** layout · shelf favourites · geometry · collapsed/expanded · **last open space+room** (session-only, with an **exercised** reconcile fallback) · **theme** (per-device, and **only the user-choice layer** — Ch6 already has an app theme **and** a `state.space_theme` **protocol event**). **OUT:** **scroll position** — not deferred-because-hard but **the wrong home**: a pixel offset is meaningless in this stream (prepend / edit / grouping recompute / resize / *and the messages are not even loaded on relaunch*), the sound mechanism is an **anchor + backfill** (sync work), and the in-session case is an **in-memory `Map<roomId, anchorEventId>`** landing with M-RP6.2. **OUT + FILED:** **read/unread markers** — Ch6 renders unread counts with **no protocol mechanism behind them**; a local-only marker would never sync and would become a **second source of truth**. **A named UI state carries the ARRANGEMENT, not the open room** (§4.1).
+
 4. **Top-shelf pinning mechanism** — how does a user pin a favourite (manager checkbox? drag? a `+` on the shelf)? *Deliberately unanswered; the top-shelf mounts **empty** until this is decided — no dead controls (D-065).*
 5. **Glyph provenance** — `gear` / `diskette` / `load` need licence-clean sources (the open M-RP-ICON-ADOPT question).
 
-**Status: items 1 (partly) and 2 are LOCKED. Items 1 (Settings' own surface), 3, 4, 5 remain OPEN — M-RP6.1i–l stay gated.**
+**Status: items 2 and 3 are CLOSED; item 1 is PARTLY closed (the registry half). Items 1 (Settings' own surface — ← blocked on the §9 taxonomy Phase-0), 4 and 5 remain OPEN — M-RP6.1i–l stay gated.**
 
 ---
 

@@ -6,6 +6,13 @@
   "permissions": [
     "core:default",
     "process:default",
-    "core:window:allow-start-resize-dragging"
+    "core:window:allow-start-resize-dragging",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://www.alchemydump.com" },
+        { "url": "https://www.alchemydump.com/*" }
+      ]
+    }
   ]
 }

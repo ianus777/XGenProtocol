@@ -43,6 +43,9 @@ shlex = "1"
 # Tauri desktop shell — D-062.
 tauri = { version = "2", features = [] }
 tauri-plugin-process = "2"
+# M-RP6.1e-C3 — open the About website link in the OS browser (not an in-app
+# blank webview). The link atomic stays dumb; the shell wires openUrl (F1).
+tauri-plugin-opener = "2"
 
 [dev-dependencies]
 tempfile = "3"

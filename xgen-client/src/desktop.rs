@@ -313,6 +313,7 @@ pub fn run(
 
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(shared_state)
         .manage(PipeShutdown(shutdown_tx))
         .manage(pacing_manager)

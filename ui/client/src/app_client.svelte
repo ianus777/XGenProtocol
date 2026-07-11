@@ -3,6 +3,7 @@
   import MenuBar from '$core/components/data-independent/menu-bar.svelte';
   import StatusBar from '$core/components/data-independent/status-bar.svelte';
   import Paragraph from '$core/components/data-independent/paragraph.svelte';
+  import AboutDialog from './about-dialog.svelte';
   import { substitutions } from '$common/components/processor/store.svelte';
   import { KeymapRegistry } from '$common/keymap/registry';
   import { accelerator } from '$common/keymap/accelerator';
@@ -10,6 +11,11 @@
   // Initial state before the first Tauri event arrives.
   let currentState = $state({ state: 'INITIALISING', label: 'Initialising' });
   let unlisten;
+
+  // About dialog (M-RP6.1e-C3): the get_about_info payload (build metadata + paths), fetched once
+  // on mount (static per session), and the open state flipped by Help→About.
+  let aboutInfo = $state(null);
+  let aboutOpen = $state(false);
 
   // ── Keymap wiring (M-RP6.1d — the 6.1c-deferred shell half) ──────────────────────────────
   // Windows is the only shipped target; the keymap objects take `platform` as a parameter (no
@@ -21,6 +27,7 @@
   // (invoke('quit')) — no new close call invented (runbook §2.4, Rule 5).
   const commandTable = {
     'app.exit': handleQuit,
+    'help.about': () => (aboutOpen = true),
   };
   function runCommand(commandId) {
     commandTable[commandId]?.();
@@ -46,6 +53,11 @@
       label: 'File',
       items: [{ label: 'Exit', accelerator: accelerator('Ctrl+Q'), command: 'app.exit' }],
     },
+    // Help → About (M-RP6.1e-C3). NO accelerator — F1 conventionally means Help *contents*.
+    {
+      label: 'Help',
+      items: [{ label: 'About', command: 'help.about' }],
+    },
   ];
 
   onMount(async () => {
@@ -67,6 +79,10 @@
       // TOML ([substitutions] rules). The store parses + validates (Tier-2);
       // every processor-host then sources from it.
       substitutions.setRules(await invoke('get_substitutions'));
+
+      // M-RP6.1e-C3 — About data (build metadata + Rust/Tauri/Svelte versions + paths). Static
+      // per session, so fetched once here; the dialog reads it synchronously.
+      aboutInfo = await invoke('get_about_info');
     } catch (_) {
       // Running outside Tauri (browser dev preview) — state stays at placeholder.
     }
@@ -83,6 +99,19 @@
       await invoke('quit');
     } catch (e) {
       console.error('Quit failed:', e);
+    }
+  }
+
+  // M-RP6.1e-C3 (F1) — open the About website in the OS browser. The `link` atomic stays dumb;
+  // the consumer wires this. preventDefault stops the <a target=_blank> in-app-webview path;
+  // the lazy import keeps the browser-dev preview (no Tauri) working — the handleQuit pattern.
+  async function handleAboutLink(e) {
+    e?.preventDefault?.();
+    try {
+      const { openUrl } = await import('@tauri-apps/plugin-opener');
+      await openUrl(aboutInfo?.common?.link ?? 'https://www.alchemydump.com');
+    } catch (err) {
+      console.error('Open link failed:', err);
     }
   }
 
@@ -145,4 +174,8 @@
     onResizeGrip={handleResizeGrip}
     id="app-statusbar"
   />
+
+  <!-- The About modal (M-RP6.1e-C3). A top-layer <dialog> — DOM position doesn't affect stacking;
+    opened by Help→About (help.about → aboutOpen). Always mounted (closed = display:none). -->
+  <AboutDialog bind:open={aboutOpen} info={aboutInfo} onOpenLink={handleAboutLink} />
 </div>

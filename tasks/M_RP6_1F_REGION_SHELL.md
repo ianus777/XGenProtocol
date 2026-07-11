@@ -1,6 +1,6 @@
 # M-RP6.1f — Centre region-shell scaffold + selection bus
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -292,6 +292,42 @@ N-091 exists because `dialog` shipped CLOSED and CDP-VERIFIED and still rendered
 - The 8 **real** region widgets → 6.1g (R3 Self/connection) · 6.1h (R8 inspector) · 6.2+.
 - Any bus **writer** → 6.1g+ (R1/R2 row activation).
 - Shelves / surfaces / UI-state store → their own doc, **not yet locked**.
+
+---
+
+---
+
+## 8. Delivered vs runbook — the delta (added at close, J-499)
+
+**Shipped as specified**, with three deviations recorded rather than absorbed (Rule 6). **Two of them are defects in THIS runbook.**
+
+### 8.1 ❌ Runbook defect — the “first `<style>` in the codebase” claim was FALSE (§0.4 / D4 / §5.5)
+
+This runbook asserted that a scoped `<style>` in `region-shell.svelte` *“would be the first component-local CSS in the codebase.”* **It would not have been.** Clair caught it — correctly.
+
+**But her supporting evidence was also wrong**, and was **checked rather than trusted** (Rule 5). She reported *“message-stream (80), color-picker (222), separator (22)”*. Ground truth (grepped): the **only** non-empty component `<style>` is **`message-stream.svelte` — 32 lines** (structural: scroll / stacking / pill placement). **`separator.svelte` and `sb-cell.svelte` carry `<style></style>` — EMPTY.** **`color-picker.svelte` has none at all.**
+
+**The accurate rule** (and the outcome was right either way — zero `<style>` shipped): **N-031 always permitted an L1 per-component *structural* `<style>` (“rarely used”)**; N-090 widened *skinnable* to include layout / gaps / tracks, which squeezes L1 to almost nothing. **The question is never “would this be the first?” — it is “could a skinner want to retune this?”** → **N-094**.
+
+### 8.2 ❌ Runbook defect — §3/D4 and §5.6 were mutually impossible
+
+§3/D4 put `resolve.test.ts` in **`ui/core`**; §5.6 required the diff to be **scope-clean of `ui/sampler/**`**. But the **only** vitest harness lives in `ui/sampler` and its `include` scanned `../common/lib/**` only — so the tests **could not run at all**. Clair's minimal fix (`ui/sampler/vitest.config.js` include gains `../core/lib/**/*.test.ts`, 5 lines) is **correct and belongs in the feat**. Owned, not deflected.
+
+### 8.3 The selection store needed a LOAD (D4's file list omitted it)
+
+`__XGEN_SEL__` only exists if the shell **executes** the module, so `app_client.svelte` took a **side-effect import** of `$common/stores/selection.svelte`. **W-8 honesty intact:** loaded for inspection, still **no writer** — R3 (6.1g) is the first.
+
+### 8.4 🔑 A gap found at verify — pinned to M-RP7.3, NOT patched here (N-095)
+
+A **null / absent layout unmounts `region-shell` entirely → a blank centre** (measured: registry 30→21, `.app-center` empty) — **no crash, no doc scroll**. So region-dock §9's *“never crash on a stale tree”* holds; its *“fall back to default”* does **not**.
+
+**Not fixed here, on this runbook's own logic:** `loadLayout()` returns a constant and **cannot** return null, so a `?? DEFAULT_LAYOUT` guard would be **an unreachable branch shipped in a closed milestone** — exactly the D-065/N-091 argument D1 used to keep the `tabs` branch out. **The rule applies to us too.** → **M-RP7.3 DoD:** *a missing / corrupt / schema-stale layout file falls back to `DEFAULT_LAYOUT`, never to a blank centre — and the fallback is **exercised**, not asserted.*
+
+### 8.5 Verified (real client 9222; Chat re-drove every leg, Rule 5)
+
+Registry **22→30** (`count===unique`, enumerated) · G `{version:1, leafCount:8, depth:3}` · geometry green (fills, **no document scroll**, ratios `[1,2,7,2]` **exact at a different window width than the builder measured** — the ratio leg is why that is a *stronger* proof) · leaf self-scrolls · drops (unknown-id / `tabs` / sizes-mismatch) all degrade with no crash and **restore to baseline** · bus `null→set→replace→clear` · 6 `.region-*` rules in cascade, accent-neutral · **zero component `<style>`** · `npm test` **41 passed** · `vite build` **150 modules** · 12 files, no Rust. **The orphan leg was NOT run** (N-092a — state-only bridge); the client proxy is the clean return to baseline.
+
+**Feat `899ff6e`** (Clair, code-only). Doc-bridge = **J-499**.
 
 ---
 

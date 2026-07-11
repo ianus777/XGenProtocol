@@ -1915,6 +1915,71 @@ Assembling the About box exposed a defect in the **shipped, closed, CDP-verified
 
 ---
 
+### N-093 — renderer A (`region-shell`): the drop-shape was REUSED, not invented; and the one data-exception to N-090 (M-RP6.1f)
+
+**The leaf-resolution machine already shipped.** Since M-RP5.5, `message.svelte` has taken a **prop-injected registry** `widgets: Record<widgetId, Component>`, resolved each `WidgetMount.widgetId` against it, and **dropped a mount it cannot resolve** (W-13 reconcile) — with its getter reporting the **resolved** count, so the drop is CDP-provable. Renderer A (`region-shell`) resolves layout **leaves** against the *same* registry shape with the *same* drop rule. **One mechanism, not two.** Anyone adding a third widget-hosting surface (the shelf, the widget manager) reuses it again — do not write a fourth resolver.
+
+**Structure.** `region-shell.svelte` registers **one** getter G `{version, leafCount, widgetIds, droppedCount, unsupportedCount, depth}`; the recursion rides an internal **`region-node.svelte` that registers nothing** (the `sb-cell` opt-out, N-064 — a getter per tree node would be pure ordinal noise). `leafCount`/`widgetIds` report the **rendered** truth, not the descriptor's intent (the `message.detailsCount` precedent) — that is precisely what makes a drop observable.
+
+**Renderer A implements `leaf` + `split` only.** A `tabs` node is **dropped with a DEV warn** (renderer B, M-RP7, owns tabs). No tab-strip code ships: an unfed branch is an unverified branch (D-065 / N-091).
+
+**⚠️ The one data-exception to N-090, and it is not a loophole.** N-090 says every skinnable setting — **including gaps, sizing, grid tracks and layout** — lives in `skin.css`. A split's **`sizes[]` are not a skin setting: they are DATA from the layout descriptor**, authored by the user's dock layout and round-tripping to disk. They therefore ride an **inline** `style="flex: {n} 1 0"` on each child — the `led` `--led-colour` / `meter` `--meter-fill` precedent (a data-driven value goes inline; the skin owns the *shape*). Everything else — `data-dir` → flex-direction, gaps, borders, min-sizes, the leaf's `overflow: auto` — stays in `skin.css`. **The test is authorship: if a *skinner* would retune it, it is skin; if the *user's saved layout* determines it, it is data.**
+
+*New `core` component (`region-shell`, the 32nd); `region-node` internal, non-cataloguing. No prop/wire/protocol change → no `DECISIONS.md` touch (D-103/D-107 extension).*
+
+---
+
+### N-094 — the `<style>` ground truth: **N-031's L1 was never empty**, and N-090 is what squeezes it (M-RP6.1f)
+
+**Recorded because two agents got it wrong in one milestone, in opposite directions.**
+
+The M-RP6.1f runbook (Chat) asserted that a scoped `<style>` in `region-shell.svelte` *“would be the first component-local CSS in the codebase.”* **That is false.** Clair caught it — correctly — but her supporting evidence (*“message-stream (80), color-picker (222), separator (22)”*) **was itself wrong** and was checked rather than trusted (Rule 5).
+
+**Ground truth, grepped 2026-07-11:**
+
+| file | `<style>` |
+|---|---|
+| `message-stream.svelte` | **REAL — 32 lines** (257–288): scroll / stacking / pill placement |
+| `separator.svelte` | **`<style></style>` — EMPTY** |
+| `sb-cell.svelte` | **`<style></style>` — EMPTY** |
+| `color-picker.svelte` | **none at all** — its own line-27 comment says *“No component `<style>`”* |
+
+So **exactly one** shipped component carries a non-empty `<style>`.
+
+**The accurate rule (and it is better than the false one).** N-031's CSS source stack was **always three layers**: `modern-normalize.css` (L0) → a **per-component structural `<style>` (L1, rarely used)** → `skin.css` (L2, all appearance). **L1 was never forbidden — it was rare.** `message-stream` is its one live user, and for a defensible reason (the scroll/stacking/pill-anchor structure that makes the component *work*, not how it *looks*).
+
+**What changed is N-090, not N-031.** Joe's J-498 rule widened *skinnable* to include **gaps, spacing, sizing, grid tracks and layout** — which is most of what L1 used to be reached for. **L1 is now squeezed to almost nothing**, and `region-shell` correctly shipped with **zero** `<style>`.
+
+**The right question is therefore never “would this be the first `<style>`?”** — it is: **“could a skinner want to retune this?”** If yes → `skin.css`, no exceptions. If it is load-bearing *structure* that would break the component if removed → L1 is legal, rare, and must be justified in the file.
+
+*Correction to a runbook claim + a correction to a handback's evidence. No code change. Layering note — sits with N-023 / N-025 / N-031 / N-090.*
+
+---
+
+### N-095 — a **null layout blanks the centre**: region-dock §9's *“never crash”* holds, its *“fall back to default”* does **not** (M-RP6.1f)
+
+**Found by an accident, kept because the accident was informative.** Restoring the live layout after the drop tests, Chat **guessed** the DEV handle's shape (`__XGEN_LAYOUT__.default` — it is actually `{current, set}`) and thereby pushed **`null`** into the live layout. Rather than reload and move on, it was grounded:
+
+**A null / absent layout unmounts `region-shell` entirely → a blank centre.** Measured (real client 9222): registry **30 → 21**, `region-shell` **out of the DOM**, `.app-center` with **0 children** — and **no crash, no document scroll**. The teardown is clean.
+
+**So half of region-dock §9 holds and half does not:**
+- *“never crash on a stale tree”* — **✅ holds.**
+- *“on unrecoverable mismatch → **fall back to default***” — **❌ does not.** Today it falls back to **nothing**.
+
+**Deliberately NOT fixed at 6.1f, and the reason is a rule this project already enforces.** `loadLayout()` returns a constant and **cannot** return null — so a `?? DEFAULT_LAYOUT` guard today would be an **unreachable branch shipped in a closed milestone**, which is *exactly* the D-065 / N-091 argument used in the same milestone to keep the `tabs` branch out. **An agent does not get to invoke a rule against one branch and exempt itself on another.** The fallback also belongs to the **loader** — parse a real file, find it missing / corrupt / schema-stale, recover — which is **M-RP7.3's** code and does not exist yet.
+
+**→ Pinned to M-RP7.3's DoD, concretely, so it cannot evaporate:**
+
+> *A missing / corrupt / schema-stale layout file falls back to `DEFAULT_LAYOUT`, never to a blank centre — and the fallback is **exercised** (feed it a corrupt file), not asserted.*
+
+**This is N-091's shape a second time.** There, the leg nobody ran was *“where does the dialog render?”*. Here, it is *“what if there is no layout?”*. **Write the leg down while you know why it matters; run it when it can actually fail.**
+
+**(b) The client's substitute for the orphan leg.** Per N-092a the sampler's `domCount` / 0-orphans check is **not expressible** in the real client (the debug bridge is state-only). The client-side proxy that *is* expressible, and that this milestone used: **drive the registry through churn (drop → tabs → mismatch → restore) and prove it returns EXACTLY to baseline** (30 → … → 30). A leaked registration or a ghost mount shows up as a baseline that does not come back.
+
+*Harness / method note + a named carry-over. No code change.*
+
+---
+
 ## How to use this file
 
 - New notes go under the current date heading, indexed `N-NNN` continuing the numbering.

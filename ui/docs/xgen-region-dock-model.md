@@ -1,8 +1,8 @@
 # XGen UI — Region / Dock Model
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-09  
+> **Last updated**: 2026-07-11  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -48,7 +48,7 @@ LayoutNode =
 Layout = { version: number, root: LayoutNode }
 ```
 
-- **Config-grid renderer (A, M-RP6.1+):** renders a restricted subset — `split` only, fixed `sizes`, no runtime mutation. Rearranging = editing the descriptor (or a dev toggle).
+- **Config-grid renderer (A, M-RP6.1+): ✅ BUILT at M-RP6.1f (J-499)** — `region-shell` (`core`, the **32nd**). Renders a restricted subset: **`leaf` + `split` only**, fixed `sizes`, **no runtime mutation**. Rearranging = editing the descriptor (or the DEV `__XGEN_LAYOUT__` handle). A **`tabs` node is DROPPED with a DEV warn** (renderer B owns tabs — an unfed branch would be an unverified branch, D-065/N-091). A `leaf` whose `widgetId` the registry cannot resolve is **DROPPED** — the same prop-injected `widgets: Record<widgetId, Component>` shape `message.svelte` already shipped (W-13 reconcile; **one mechanism, not two** — N-093). A `split` whose children all drop collapses; a `sizes`/`children` length mismatch degrades to equal weights + a warn. **It never throws** — see §9's stale-tree rule, and its one live gap in the note there. `sizes[]` ride an **inline `flex: {n} 1 0`** (descriptor **data**, not skin — the one carve-out from N-090).
 - **Dock engine renderer (B, M-RP7):** renders the full tree, supports `tabs`, and **mutates the tree** on drag-drop (hover-to-plug-in) + splitter resize.
 
 Because both read one descriptor, a widget appearing/disappearing = a node inserted/removed; a region moving = a subtree relocated. No component inside a region is aware of which renderer is active.
@@ -73,7 +73,15 @@ A custom widget that ships `providesRegion` inserts itself into the registry on 
 
 ## 5. Selection bus
 
-A shell primitive the regions share: **one active selection** across the layout `{ regionId, entity: EntityDescriptor }`. R8 (inspector) reads it to render the selected object's parameter rows; R1/R2 write it on row activation; `entity-context-menu` reads the same selection. Introduced with the region shell (M-RP6.1), consumed from M-RP6.2.
+A shell primitive the regions share: **one active selection** across the layout `{ regionId, entity: EntityDescriptor }`. R8 (inspector) reads it to render the selected object's parameter rows; R1/R2 write it on row activation; `entity-context-menu` reads the same selection.
+
+**✅ BUILT at M-RP6.1f (J-499)** — `ui/common/lib/stores/selection.svelte.ts` (a new `stores/` folder): `{ regionId, entity } | null` with `current` / `set(regionId, entity)` / `clear()`, plus a DEV `__XGEN_SEL__` handle. Verified: `null → set → replace → clear` (**one selection, never a list**).
+
+**It is a `$common` store by NECESSITY, not convenience.** Both consumers — **R8** and **`entity-context-menu`** — are widgets living in `ui/common/…/widgets/`, and **W-3 forbids a `common` widget from importing a shell dep**. A shell-local bus would be **structurally unconsumable** by the very components it exists for. *(Recorded so the home is never “tidied” back into the shell.)*
+
+**The shape is FINAL at one meaning.** There is exactly **one** selection concept — the *entity* selection. The shelf's minus-button was deliberately killed (`docs/xgen-widget-surfaces-phase0.md` S-6) precisely because it would have forced a **second** (widget/leaf) selection bus, with the permanent hazard that clicking a *room* arms a *delete-panel* button. **Do not reintroduce a second bus.**
+
+**⚠️ No WRITER exists yet** (W-8 honesty — the phase-limit is surfaced, not hidden). The first writer lands with R3 at **M-RP6.1g**; the first reader with R8 at **M-RP6.1h**.
 
 ## 6. Constraint additions to the widget tier
 
@@ -108,7 +116,15 @@ The live layout descriptor (§3) is saved to disk and restored on start. Layout 
 - On load, reconcile the saved tree against the current registry: **drop nodes with unknown `widgetId`** (removed/uninstalled widget), **re-inject missing `system` widgets** (W-13 — a saved layout can never lose the Composer), then re-flow.
 - **`version` bump + migrate** only for descriptor **schema** changes (node shape). Prop/name drift on the same id is the widget's own concern, not a layout concern. On unrecoverable mismatch → fall back to default, never crash on a stale tree.
 
-**Sequencing.** Contract is free now (`version` in the descriptor; the verbs are layout-shaped siblings of the M-RP6.1 read/write verbs). M-RP6.1 may stub `get_layout` (returns default) at no cost. Baseline auto-save/load lands at **M-RP7.3**; named layouts + manager widget at **M-RP7.6** (after renderer B can produce varied layouts worth naming).
+> **⚠️ GAP, measured at M-RP6.1f (J-499 / N-095) — half of that last rule is not yet true.** A **null / absent** layout **unmounts `region-shell` entirely → a blank centre** (measured: registry 30→21, shell out of the DOM, `.app-center` empty). So *“never crash on a stale tree”* ✅ **holds** — but *“fall back to default”* ❌ **does not**: today it falls back to **nothing**.
+>
+> **Deliberately not fixed at 6.1f:** `loadLayout()` returns a constant and **cannot** return null, so a `?? DEFAULT_LAYOUT` guard would be an **unreachable branch in a closed milestone** — the same D-065/N-091 argument that kept the `tabs` branch out. The fallback belongs to the **loader** (parse a real file → find it missing/corrupt/schema-stale → recover), which is **M-RP7.3's** code.
+>
+> **Pinned to M-RP7.3's DoD:** *a missing / corrupt / schema-stale layout file falls back to `DEFAULT_LAYOUT`, never to a blank centre — and the fallback is **exercised** (feed it a corrupt file), not asserted.*
+
+**Sequencing.** Contract is free now (`version` in the descriptor; the verbs are layout-shaped siblings of the M-RP6.1 read/write verbs). Baseline auto-save/load lands at **M-RP7.3**; named layouts + manager widget at **M-RP7.6** (after renderer B can produce varied layouts worth naming).
+
+**⚠️ The `get_layout` stub was RESOLVED AS “NO RUST” at M-RP6.1f (J-499, D2)** — correcting this section's earlier *“M-RP6.1 may stub `get_layout`”* provision. A Rust command returning a hardcoded default would either **duplicate the descriptor type in Rust** (the **D-067 drift surface** this project exists to eliminate) or return an opaque blob Rust does not own — theatre for one call site. **The seam lives in the frontend** as `async loadLayout()`, today returning `DEFAULT_LAYOUT`. At **M-RP7.3** only its *body* becomes `invoke('get_layout')`, and **Rust persists the tree as an opaque blob** (the `get_substitutions` shape — *the webview owns the live tree, Rust persists it*), so **Rust never learns the node shape**. One function, one swap, zero drift.
 
 ---
 

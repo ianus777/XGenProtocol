@@ -8,6 +8,56 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-497 — M-RP6.1e-C2 `get_about_info` (xgen-common::about + build_info rustc + Svelte lockfile read): built + CDP-verified in the real client; M-RP6.1e-C2 CLOSED
+
+**Doc-bridge (D-074 second commit).** Clair's feat (code-only, 7 files) is already pushed = commit `50b5640` (commit 1); this entry + the paired canonical records = commit 2. **M-RP6.1e-C2 CLOSED** — the second step of the three-way M-RP6.1e-C split (J-496). **The Rust half: no UI.** Verify was the **real client (9222)** — the sampler is a `tauri`+`tauri-build`-only crate with no `xgen-common`/protocol deps and structurally cannot host this command (D-097).
+
+**What landed.** The read path for everything in Joe's About that the frontend cannot see: build date, commit, Rust/Tauri/Svelte versions, platform, app directory, data/config paths. Seven files, scope-clean (`xgen-common/{build.rs, src/build_info.rs, src/about.rs, src/lib.rs}` + `xgen-client/{build.rs, Cargo.toml, src/desktop.rs}`) — **no `ui/**`, no `ops.rs`** (About-info is not a protocol verb; it has no node round-trip, no mutation, no CLI meaning, and must never grow D-092's four arms).
+
+**The headline is what did NOT get built.** Chat's *own* first design for this milestone was **wrong in three places**, and grounding the code before writing the runbook caught all three (§2.0 of the runbook, placed deliberately first so Clair read the corrections before the design):
+
+1. **`xgen-common::build_info` ALREADY EXISTED** — and already emitted `BUILD_TIMESTAMP` + `BUILD_GIT_HASH` (its `build.rs` already shelled `git rev-parse --short HEAD`), already consumed in ~6 places (`--version`, `print_banner`, `ops::StatusResult`, `ClientState.version`/`.build`). The original plan — "add a `build.rs` to `xgen-client` emitting Built + SHA" — would have created a **second build-metadata surface**: precisely the **D-067 drift surface** this project exists to eliminate. **Corrected: reuse it.** The Q4 lock ("Built = date + short SHA") turned out to be **already implemented**.
+2. **The Svelte version is not in `package.json`** — it declares a **caret range** (`"svelte": "^5"`), not a version. The original plan ("build.rs reads package.json") would have rendered **`^5`** in the About box. The resolved **`5.55.5`** lives in the **committed** `ui/client/package-lock.json` (confirmed via `git ls-files`). **Corrected: read the lockfile.**
+3. **A new `#[tauri::command]` needs NO capability grant.** Capabilities gate **`core:`/plugin** commands, not app-defined ones — `get_state`/`get_pacing_state`/`get_substitutions`/`set_substitutions`/`quit` all run today against a `capabilities/default.json` carrying only `core:default` + `process:default` + `core:window:allow-start-resize-dragging`. **J-495's capability lesson was specific to `core:window:*`**; carrying it forward here would have added a meaningless permission. **Corrected: no capability change.** *(This is the honest inverse of J-495: there, a missing grant was the catch. The lesson is not "always add a grant" — it is "ground the permission model per command class.")*
+
+Also grounded before design: **`tauri::VERSION` exists** (`pub const VERSION: &str = env!("CARGO_PKG_VERSION")`, resolved **2.11.1**) → no build.rs needed for it; **`data_dir` was not managed state** (only `ConfigPath` was).
+
+**Design as shipped (B2, Joe-locked).** `build_info` gained **exactly one** field — `RUSTC_VERSION`, emitted from the **existing** `xgen-common/build.rs` via `rustc -V` (no new dependency; the same `std::process::Command` shape the `git` call already used) — **one build-info surface, and the node inherits it free**. New `xgen-common::about`: a shared **`AboutInfo`** environment block (name · version · link · built · commit · rustc · tauri · svelte · platform · app_dir · data_dir · config_path) with **paths and app facts passed in, never derived inside common**, plus the typed per-app **`ClientAboutInfo { common, … }`** wrapper. **`xgen-common` gained no `tauri` dependency** (it is the protocol-layer crate — the Tauri version is read in the shell as `tauri::VERSION` and passed in; the same rule that keeps `core` app-agnostic). The Tauri command in `desktop.rs` is a **thin wrapper** over one canonical `collect()` — the `get_substitutions` shape.
+
+**The trap that would have passed a lazy verify.** `AboutInfo.version` **must** be the *client's own* `env!("CARGO_PKG_VERSION")`, **not** `build_info::VERSION` (which is **xgen-common's** version). **Both are `0.10.3` today** — so the wrong wiring produces a value that *looks* perfectly correct and proves **nothing**. The runbook therefore demanded proof **from the source line, not the value**. Clair supplied exactly that: the call site passes `env!("CARGO_PKG_VERSION")`, compiler-expanded **in the `xgen-client` crate**. The second named failure signature — a returned `svelte: "^5"` — did not fire either (`5.55.5`).
+
+**CDP verification — REAL CLIENT 9222 (Rule 2, real output). Chat independently re-drove the read on a fresh launch (Rule 5).**
+- **The returned JSON** (Chat's own `invoke('get_about_info')`, wrapped under `{"common":{…}}` — the `ClientAboutInfo` seam):
+  ```
+  {"name":"XGen Client","version":"0.10.3","link":"https://www.alchemydump.com",
+   "built":"2026-07-11 08:42:12 UTC","commit":"50b5640",
+   "rustc":"rustc 1.95.0 (59807616e 2026-04-14)","tauri":"2.11.1","svelte":"5.55.5",
+   "platform":"windows x86_64",
+   "app_dir":"C:\\cargo-targets\\XGenProtocol\\debug",
+   "data_dir":"C:\\Users\\Joe\\AppData\\Local\\XGenProtocol",
+   "config_path":"C:\\Users\\Joe\\AppData\\Local\\XGenProtocol\\xgen-client_config.toml"}
+  ```
+- **Every field checked against something external** (Clair): `commit` = `git rev-parse --short HEAD` **exact** · `rustc` = real `rustc -V` · `tauri` = `Cargo.lock` · `svelte` = `package-lock.json` · `platform` real · all three paths `Test-Path` **True** (the config file exists).
+- **§2.4 demonstrated live, not merely asserted.** Clair's read showed `commit:31d9d0a` / `built:08:25:27`; **Chat's later read showed `commit:50b5640` / `built:08:42:12`.** That is **not a discrepancy** — it is the documented mechanism working: her feat moved HEAD, `.git/HEAD` changed, `build.rs` re-ran, the stamp advanced. **`commit` is the field that exactly identifies a build**; `built` is the last compile. C3 renders the pair together so the two read truthfully.
+- **No permission denial** — `errCount:0`, `errs:[]` → the command works with **no capability grant**, confirming correction (3) empirically rather than by argument.
+- **Registries (measured, not predicted — Rule 5).** Client's own registry **7** — Chat re-measured the exact ids: `menu-bar#app-menubar`, `menu#app-menubar__file`, `status-bar#app-statusbar`, `status-indicator#…` + its `__led`/`__label`, `paragraph#center-placeholder`. **Sampler catalogue 313, unchanged** — grounded **by scope**: `git show --stat 50b5640` = 7 files, **zero `ui/**`**, so no code reached the sampler (an honest grounding, not a re-measurement theatre).
+- **Tests (Clair)** — workspace `cargo test`: **1507 passed, 0 failed, 62 ignored** (5 new `about` tests among them). **`vite build`** clean, 138 modules (unchanged — C2 touched no frontend).
+
+**Joe's observation, answered.** *"I don't see a Help menu in the client's UI"* — **correct, and expected.** C2 is the Rust half and ships **no UI whatsoever** (scope-clean = no `ui/**`). The client registry proves it: `menu#app-menubar__file` is the **only** menu. Help→About is **C3**.
+
+**Four deviations — flagged, not absorbed (Rule 6).**
+1. **`AboutParams` struct instead of ~7 positional `String` args to `collect()`.** Every passed-in field is a `String`, so positional call sites could transpose silently. A named struct is the safer shape. **Accepted** — a judgment call squarely inside the runbook's "`collect(params…)`" latitude, and the right one.
+2. **`NodeAboutInfo` NOT declared.** §3 left it to Clair's call ("only if it costs nothing"). She left it to **M-RP7.x**, reasoning that a node wrapper today would **guess** the node's extension fields (listen port, peer count, node XGID, federation role) with **no node-side `collect()` call site to validate them against**. **Accepted, and it is the better call** — the client wrapper earns its keep as a *proven* seam; the node's should land with the node's real About.
+3. **`ClientAboutInfo` kept as the zero-extension wrapper** — per §2.2's explicit instruction, and Clair concurred: the typed seam keeps the command's return type stable when the first client-only field lands.
+4. **`name` / `link` literals were not specified by the runbook.** Clair chose **`"XGen Client"`** + **`"https://www.alchemydump.com"`**, grounded in the global config's App-About convention. **These are shell-supplied and WILL be rendered in the About box — flagged for Joe at C3**, where the final About text is tuned.
+
+**Records.** `docs/xgen-client-frame-phase0.md` (§6 + §10.4 — C2 ✅). `docs/ROADMAP.md`. `CLAUDE.md` PLAY (head J-496→J-497). `tasks/M_RP6_1E_C2_ABOUT_INFO.md` → COMPLETED. This entry. **`ui/docs/*` deliberately untouched** — no component was built and there is **no UI-side lesson** to record; the runbook explicitly said not to invent an N-note for a Rust milestone (D-065). Component registry unchanged (**313**). **No new D** (D-107 extension). Clair feat = commit 1 (pushed `50b5640`); this doc-bridge = commit 2. Not pushed — Joe pushes.
+
+**Next-active.** **M-RP6.1e-C3** — the **Help→About assembly**: the Help menu (`help.about`, **no accelerator** — F1 conventionally means Help *contents*) → the **2nd populated menu**, i.e. the first real `menu-bar` roving Left/Right · the `dialog` (C1) mounted and fed by `get_about_info` (C2) · the logo assets (`_hda` canonical mark, client + node; `_hd_small` reserved ≤16px). **The N-086 shared-W-2 extraction stays NOT-TRIGGERED** (J-496 verdict): Help is a second *instance* of the `menu` machine, not a second *shape*. Verify **real client 9222**; the client's own registry will grow from 7 — **measure it**.
+
+
+---
+
 ## Entry J-496 — M-RP6.1e-C1 `dialog` core (31st `core`; native `<dialog>` + `showModal()`, no W-2 machine): built + CDP-verified in the sampler; M-RP6.1e-C1 CLOSED
 
 **Doc-bridge (D-074 second commit).** Clair's feat (code-only, 3 files) is already pushed = commit `4f35d87` (commit 1); this entry + the paired canonical records = commit 2. **M-RP6.1e-C1 CLOSED** — the first step of the **three-way M-RP6.1e-C split** locked this session (**C1** `dialog` core, sampler, no Rust · **C2** `get_about_info` — `xgen-common::about` + `build.rs` metadata + the Tauri read command, real client · **C3** Help→About assembly, real client). Verify was **sampler 9422** (the component is a pure di container with no shell or window effect — D-097 puts it in the sampler, unlike 6.1e-B).

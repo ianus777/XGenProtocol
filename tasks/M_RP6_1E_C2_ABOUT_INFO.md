@@ -1,6 +1,6 @@
 # M-RP6.1e-C2 — `get_about_info` (xgen-common::about + build_info + Tauri read command) build runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -211,6 +211,30 @@ The sampler **cannot** host this: it is a `tauri`+`tauri-build`-only crate with 
 2. **Chat — doc-bridge commit**: `JOURNAL.md` (J-series) · `CLAUDE.md` PLAY · `docs/ROADMAP.md` · `docs/xgen-client-frame-phase0.md` (§6 / §10.4 — C2 ✅) · `ui/docs/xgen-ui-notes.md` (N-090 **only if** there is a UI-side lesson; this is a Rust milestone, so possibly none — **do not invent one**) · this file → **COMPLETED**.
 
 Joe pushes both. Chat never pushes.
+
+---
+
+## 8. Close record (J-497)
+
+**M-RP6.1e-C2 CLOSED.** Feat `50b5640` (Clair, code-only, **7 files, exactly §3** — scope-clean: no `ui/**`, no `ops.rs`); doc-bridge = this commit (D-074).
+
+**§2.0 held on every point.** All three corrections were re-confirmed against disk before a line was written; **no fourth wrong assumption surfaced** (the §5 Rule-3 escape hatch was not needed).
+
+- **Both named failure signatures stayed silent.** `version` proved from the **source line** (`env!("CARGO_PKG_VERSION")` expanded in the `xgen-client` crate) — not from the value, which is `0.10.3` either way and would have proved nothing. `svelte` came back **`5.55.5`**, not `^5`.
+- **Every field checked externally** (§4 leg 3): `commit` = `git rev-parse --short HEAD` exact · `rustc` = real `rustc -V` · `tauri` **2.11.1** = `Cargo.lock` · `svelte` **5.55.5** = lockfile · all three paths `Test-Path` **True**.
+- **§4 leg 4** — `errCount:0` → **§2.0 (3) proven empirically**: the command works with **no capability grant**.
+- **§4 leg 5** — client registry **7**; sampler catalogue **313**. Both measured, neither predicted. *(Chat re-measured the client registry independently and grounded the sampler figure **by scope** — 7 files, zero `ui/**`.)*
+- **§4 leg 1** — workspace `cargo test` **1507 passed / 0 failed / 62 ignored** (5 new `about` tests). **§4 leg 6** — `vite build` clean, 138 modules.
+- **§2.4 demonstrated live** — Clair's read: `commit:31d9d0a` / `built:08:25:27`. Chat's later read: `commit:50b5640` / `built:08:42:12`. **Not a discrepancy** — the feat moved HEAD, `build.rs` re-ran, the stamp advanced. Exactly the documented behaviour.
+
+**Four deviations — flagged, not absorbed (Rule 6), all accepted:**
+
+1. **`AboutParams` named struct** instead of ~7 positional `String` args to `collect()`. Every passed-in field is a `String`, so positional call sites could **transpose silently**. Inside the runbook's `collect(params…)` latitude, and the safer shape.
+2. **`NodeAboutInfo` NOT declared** (§3 item 3 left this to Clair's call). Deferred to **M-RP7.x**: a node wrapper today would **guess** the node's extension fields with **no node-side `collect()` call site to validate them against**. The client wrapper earns its keep as a *proven* seam; the node's should land with the node's real About. **The better call.**
+3. **`ClientAboutInfo` kept as the zero-extension wrapper** — per §2.2, and Clair concurred.
+4. **`name` / `link` literals** — the runbook specified none. Clair chose **`"XGen Client"`** / **`"https://www.alchemydump.com"`**. **These render in the About box → OPEN FOR JOE at C3.**
+
+**Next: M-RP6.1e-C3** — Help→About assembly (Help menu + the C1 `dialog` fed by this C2 data + logo assets). **There is no Help menu in the client yet — by design; C2 shipped no UI.** Render `Built` **with** `commit` (the commit is what identifies a build).
 
 ---
 

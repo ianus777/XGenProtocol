@@ -59,3 +59,6 @@ ui/sampler/node_modules/
 
 # CDP verification screenshots (local eye-checks, not tracked)
 ui/docs/_shots/
+
+# Windows launcher shortcuts (machine-specific: the .lnk hardcodes an absolute target path)
+*.lnk

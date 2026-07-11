@@ -1,8 +1,8 @@
 # XGen Client — App Frame (Menu-bar + Status-bar) Phase-0
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-10  
+> **Last updated**: 2026-07-11  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -124,7 +124,7 @@ Frame first (safe order), then the original center body. Each step gets its own 
 - **M-RP6.1d** — `menu-bar` minimal (File→Exit → shell Exit command).
 - **M-RP6.1e** — **client frame consolidation, split A/B/C (J-493).** See §10.
   - **M-RP6.1e-A** ✅ **DONE (J-494)** — `status-bar` (`core`; `sb-cell` + `separator`s + resize-grip seam + `--fs-s1`/`--fs-s2`; **left cell `status-indicator`, right cell grip**). Sampler-cell + CDP green (registry 299→309, 0 orphans, both accents); grip seam inert-but-fires, accent-neutral. N-087.
-  - **M-RP6.1e-B (next-active)** — real-client frame consolidation (9222): status-bar mounted bottom; `.state-indicator` → `status-indicator`; grip → `startResizeDragging`; **center-only scroll**; remove center logo + redundant Quit; window-config flips (`resizable:true`, menu-bar drag-region, 900×600 / min 640×400).
+  - **M-RP6.1e-B** ✅ **DONE (J-495)** — real-client frame consolidation (9222): status-bar mounted bottom; `.state-indicator` → `status-indicator`; grip → `startResizeDragging`; **center-only scroll**; center logo + redundant Quit removed; window resizable 900×600 / min 640×400. **Window went `decorations: true` mid-milestone** (Joe) — the drag-region provision is **withdrawn**, frameless is **deferred to M-RP8**; see the revised §10.3. Client registry 7, 0 orphans; sampler unchanged 309. **+N-088** (the `#app` no-height latent bug).
   - **M-RP6.1e-C** — `dialog`/`modal` `core` + **Help→About** (2nd menu; About holds name/version/authors/logo).
 - **M-RP6.1f** — center region-shell scaffold (renderer A reads the `Layout` descriptor, `get_layout` stub → default, placeholder leaves) + selection bus primitive. *Fixture-only.*
 - **M-RP6.1g** — R3 Self/connection live: `get_self_state` read verb + scoped `app.emit('self-state', …)` push + webview `listen`; renders `entity-item`(self) + `status` + `led`; the status-bar connection cell reads the same signal. *Real client 9222 + node 9322 — closes F-1 read half.*
@@ -170,18 +170,33 @@ Joe's "consolidation of the app's main UI" = migrate the legacy hand-rolled chro
 | `<Button id=quit>` | removed — File→Exit is the exit (D-065 cleanup) | 6.1e-B |
 | `#core-ui-pane` / `.app-body` | the center pane (the **only** scroller); placeholder leaf until 6.1f | 6.1e-B |
 
-### 10.3 Window-config decisions (locked “by recomms,” J-493)
+### 10.3 Window-config decisions — **REVISED at build (J-495)**
 
-- **`resizable: true`** — flip it on.
-- **Drag-to-move** — make the **menu-bar strip a drag region** (`data-tauri-drag-region` on the bar background; interactive `<button>` triggers override, so clicks still open menus). Restores window-move on a frameless window.
-- **Default + min size** — default **900×600** (a real main window), **min 640×400** (composition floor). Tunable in the 6.1e-B runbook.
-- **Resize mechanic v1** — frameless → the OS draws no resize borders, so **SE-grip `startResizeDragging` is the resize affordance** (Joe's “grip on the right of the status-bar”). Full invisible-edge-drag on all four edges is deferred polish (D-065).
+**As shipped (M-RP6.1e-B, J-495):**
+
+- **`resizable: true`** — flipped on. *(Unchanged from the J-493 lock.)*
+- **`decorations: true`** — **the native title bar is ON.** *(This REVERSES the J-493 frameless lock — see the note below.)*
+- **Default + min size** — **900×600**, **min 640×400**. *(Unchanged.)* *Known wrinkle (logged, not fixed): at DPR 1.25 these land as **physical** px → 720×480 CSS on screen; the 900×600 **logical** intent is not literally met at scaled DPI.*
+- **Both config files** — `tauri.conf.json` **and** `xgen-client/cdp.dev.conf.json` carry the window block. The `--config` overlay **replaces the `windows` array wholesale**, so a flip in one without the other leaves the **debug** window (9222 — the surface every CDP verify runs on) at the old geometry. **Any future window-config change touches both files.**
+- **Capabilities** — Tauri v2's `core:window:default` is **getters-only**. `start_resize_dragging` needs an explicit `core:window:allow-start-resize-dragging` grant (present). `allow-start-dragging` was added for the drag region and then **removed** with it.
+- **Move** — the **native title bar** (OS-provided). The J-493 `data-tauri-drag-region` provision is **WITHDRAWN**.
+- **Resize** — **native edges** (OS-provided) **plus** the status-bar SE grip, which **stays wired** to `startResizeDragging('SouthEast')` as a supplementary corner affordance.
+
+**Why frameless was deferred (Joe, 2026-07-11).** A frameless window during development has **no window controls and no way to move it** — a real practical cost paid on every build-run cycle, for a chrome decision whose payoff only arrives at polish time. So native decorations are adopted as a **temporary development affordance**. **This is a deferral, not an abandonment:** the frameless / custom-chrome endpoint stands, filed as **M-RP8 — `title-bar` `core` + frameless restore**, scheduled **after the widget grid is live on BOTH apps** (by then the client and node frames are structurally identical, so it is one component and two mounts rather than building it twice).
+
+**The honest technical finding that shaped this.** The intuition “just customise the native bar — extra buttons, immune to OS theming” does **not** survive contact with Win32: a native caption can have its **colours** changed (Win11 DWM attributes; **silently ignored on Win10**) and nothing else — **extra buttons are impossible**, and geometry/glyphs stay OS-owned. The Discord-style bar people picture **is** a custom (frameless) title bar. There is no cheap middle option; an interim DWM colour-tint was considered and **rejected** as work we would delete. So the choice is binary and correctly sequenced: **native now (free, disposable), custom later (one milestone, no rework)**.
+
+**Joe's rule, locked:** **no native elements within the window's main pane.** The native chrome is the OS title bar and nothing else — which is why the SE grip **stays** even though native edges now resize.
+
+**Why keeping the grip is what makes M-RP8 cheap.** The `onResizeGrip → startResizeDragging` seam is the only genuinely risky part of going frameless, and it is **already built, granted, and proven end-to-end** (J-495: real drag, window 720×480 → 743×470, zero permission denials). Keeping it live and exercised means M-RP8 never has to rebuild it — a seam that stays wired cannot rot. What M-RP8 adds is only: a `title-bar` `core` component (drag-region root + title + minimise/maximise/close seams, the same shape as `onResizeGrip`), 4 `icons.ts` glyphs, `decorations:false` in both apps, and the `allow-start-dragging` grant back.
+
+**Note for the M-RP8 builder (learned the hard way, J-495).** The custom title-bar must own its **own** drag-region root. It **cannot** ride the menu-bar's strip: the `core` skin sets `.menu-bar { width: 100% }` (it is designed as a full-width bar with its own background + border), and Tauri drags **only when the event target itself carries `data-tauri-drag-region`** — never an ancestor. The 6.1e-B attempt to shrink the bar and drag on a wrapper worked, but was reverted with the pivot; do not rediscover it.
 
 ### 10.4 The split
 
 - **6.1e-A `status-bar` core** — the component (§4.5): `sb-cell` + `separator` + `onResizeGrip?` seam + `--fs-s1`/`--fs-s2`. Left cell hosts a `status-indicator`, right the grip. **Sampler-cell + CDP** (grip inert there). *✅ DONE (J-494) — registry 299→309, 0 orphans, accent-neutral, N-087.*
-- **6.1e-B client frame consolidation** — real-client assembly (9222, no sampler): the §10.2 migration + the §10.3 window flips + center-only scroll (M-RP4.9/J-466 flex-column). *Real client only. Next-active.*
-- **6.1e-C `dialog`/`modal` core + Help→About** — build `dialog` (flagged J-432); add the Help menu (§4.1); About = name/version/authors/hi-res logo (version from the real build, not hardcoded). The 2nd-menu shared-W-2 extraction decision lands here.
+- **6.1e-B client frame consolidation** — real-client assembly (9222, no sampler): the §10.2 migration + the §10.3 window flips + center-only scroll (M-RP4.9/J-466 flex-column). *✅ DONE (J-495) — client registry 7 (0 orphans), sampler unchanged 309; native-title-bar pivot (§10.3 revised); `#app` no-height latent bug found + fixed (N-088).*
+- **6.1e-C `dialog`/`modal` core + Help→About** — build `dialog` (flagged J-432); add the Help menu (§4.1). The 2nd-menu shared-W-2 extraction decision lands here. **About scope grew (Joe, 2026-07-11, per a reference screenshot):** name · version · a **link** · hi-res logo · **Built** date · Rust/Tauri/Svelte versions · Platform · app directory · data/config paths · a **Close** button (not "OK"). Everything below "Built" is **invisible to the frontend** — build metadata and filesystem paths need a **new Tauri read verb (`get_about_info`)**. So 6.1e-C is `dialog` **+ real Rust work**, not a component-only milestone; its runbook must scope both. *Next-active.*
 
 This is a **sequence lock within the already-Phase-0'd frame arc** (D-107) — no new Phase-0, no new D. Per-milestone runbooks written as each opens (6.1e-A first).
 

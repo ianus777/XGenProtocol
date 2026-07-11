@@ -1,12 +1,28 @@
 # M-RP6.1e-B — Real-client frame consolidation (status-bar mount · state-indicator migration · resize · center-only scroll)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+## 0a. Closing note (J-495) — what actually shipped vs what was locked
+
+**Milestone CLOSED — all DoD legs green with real output (J-495).** Client registry **7** (`count===unique===domCount`, 0 orphans both directions, `button#quit` gone); getter G `{leftCount:1, rightCount:1, hasGrip:true}`; led `var(--err)` = `rgb(138,42,42)` — **not black** (D1 proof); window `resizable:true` / `decorated:true` / 900×600 (**Catch-1 proof**); centre-only scroll proven by CDP height-injection (centre 0→500, doc 0, chrome held constant); menus still open/close with 0 orphans; **zero permission denials**; grip resize proven by a **real drag** (720×480 → 743×470); `vite build` clean 138 modules; Ctrl+Q exit `defaultPrevented` + process gone. Sampler catalogue registry **unchanged 309**. Feat `8f401bd`.
+
+**Three deviations from this runbook, all recorded rather than absorbed (Rule 6):**
+
+1. **⚠️ `decorations: true` — the native-title-bar pivot (Joe, mid-milestone).** **D6 was reversed, D2 fully deleted, D3 demoted.** A frameless window during development has no window controls and no way to move it; native decorations were adopted as a **temporary development affordance**. The frameless endpoint **stands** — deferred to **M-RP8** (`title-bar` `core` + frameless restore, after the widget grid is live on both apps). The grip **stays wired** (`grip=true` + `allow-start-resize-dragging`) precisely so M-RP8 never has to rebuild the resize seam. `allow-start-dragging` was added for D2 and then **removed** with it. → `docs/xgen-client-frame-phase0.md` §10.3 **revised** (v1.4→v1.5) — the design record now matches reality; do not read §10.3's pre-J-495 form as current.
+2. **D2's premise was wrong anyway.** The runbook assumed the `menu-bar` sits at intrinsic width leaving a bare strip to drag. It does not — the `core` skin sets `.menu-bar { width: 100% }` (it is *designed* as a full-width bar), and Tauri drags **only when the event target itself carries `data-tauri-drag-region`**, never an ancestor. Clair realised D2's intent from `app.css` alone (no `core`/skin touch), and the pivot then reverted it. **The lesson is preserved for M-RP8:** a custom title-bar must own its **own** drag-region root.
+3. **Two `app.css` lines beyond §4's spec, both in-scope and both necessary.** `#app { height: 100% }` — the Svelte mount div had **no height rule anywhere**, so `.app-frame{height:100%}` collapsed to content height and the status-bar floated mid-window; masked for the project's life by the old content-sized 420×260 window (→ **N-088**, a genuine latent bug, not a workaround). Plus the transient menu-bar width-override block from (2), net-reverted by the pivot.
+
+**Also logged, not fixed:** at DPR 1.25 the configured 900×600 lands as **physical** px → the window is 720×480 CSS px on screen; the 900×600 **logical** intent is not literally met at scaled DPI.
+
+**Filed out of this milestone:** **M-RP8** (`title-bar` + frameless restore) · **M-RP7.x** (node app inherits the frame, after 6.1f) · **M-RP6.1e-B1** (no-select chrome — global `user-select:none` in skin L2, opt-in `text` on editable natives + `.paragraph`, since the message body must stay copyable). **Next-active: M-RP6.1e-C** — `dialog` `core` + Help→About, which now also needs a **new Tauri read verb (`get_about_info`)**: build metadata and filesystem paths are invisible to the frontend, so 6.1e-C is `dialog` **+ real Rust work**.
 
 ---
 

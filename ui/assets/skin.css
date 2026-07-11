@@ -1020,16 +1020,29 @@ html, body {
 }
 
 /* --------------------------------------------------
- * About dialog body (.about-*) — the client's Help->About box (M-RP6.1e-C3). GRAPHICAL layer
- *   only (colour + type); block layout lives in the client app.css. Two type tiers: the upper
- *   identity block unified to --fs-1 (the name carries hierarchy through weight, not size), the
- *   Version..Config block one size on BOTH key and value, the smaller --fs-0 (Joe). Shell-owned
- *   classes, but appearance belongs in the one skin file (N-025); harmless where unused.
+ * About dialog body (.about-*) — the client's Help->About box (M-RP6.1e-C3). The FULL skinnable
+ *   presentation — layout AND type — keyed by class in the one skin file (N-025); all skinnable
+ *   settings live here, not in the shell's app.css (Joe). Two type tiers: the upper identity block
+ *   unified to --fs-1 (name carries hierarchy through weight, not size); the Version..Config block
+ *   one size on BOTH key and value, the smaller --fs-0. Gaps shrunk for compactness. Shell-owned
+ *   classes; harmless where the About box isn't mounted.
  * -------------------------------------------------- */
+.about { display: flex; flex-direction: column; gap: var(--sp-3); }
+.about-head { display: flex; align-items: center; gap: var(--sp-3); }
+.about-head > .image { width: 96px; height: 96px; flex: 0 0 auto; }
+.about-id { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
 .about-name .label { color: var(--t); font-size: var(--fs-1); font-weight: 700; }
 .about-by { color: var(--t3); font-size: var(--fs-1); }
 .about-id .link { font-size: var(--fs-1); }
+.about-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0;
+  align-items: baseline;
+}
 .about-grid dt { color: var(--t3); font-size: var(--fs-0); }
+.about-grid dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .about-grid dd .label { font-size: var(--fs-0); }
 
 /* --------------------------------------------------

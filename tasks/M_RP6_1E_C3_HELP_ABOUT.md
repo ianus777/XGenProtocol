@@ -1,6 +1,6 @@
 # M-RP6.1e-C3 — Help→About assembly (Help menu + About dialog + logo) build runbook
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -9,6 +9,8 @@
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 For Clair. **Third and final step** of M-RP6.1e-C (Phase-0 J-488 / D-107 / `docs/xgen-client-frame-phase0.md` §4.1, §6, §10.4). Design **locked by Joe** this session (design walk; F1 + F2 confirmed "by your recomm").
+
+**v1.1 — Chat review amendments (A1–A5, Joe-locked).** The design locks (**D1–D6, F1, F2**) are **unchanged**. Amended after grounding the runbook against the shipped component contracts: **A1** the About CSS home (§2.2, §3) · **A2** the website-link null-guard (§2.2) · **A3** the `label`-as-value semantic stretch recorded, not papered over (§2.2) · **A4** the OS-browser leg's honest proof shape (§4) · **A5** a File→Exit / Ctrl+Q regression leg (§4). Prop name settled: **`onOpenLink`**.
 
 **The C-split:** C1 `dialog` core ✅ CLOSED (J-496) · C2 `get_about_info` ✅ CLOSED (J-497) · **C3 Help→About assembly ← this runbook.**
 
@@ -71,10 +73,21 @@ Shape:
 ### 2.2 Rows: core components where they fit + shell CSS grid (D2)
 
 - **logo** → `<Image src={logoUrl} alt="XGen" id="about-logo" />`, CSS-sized ~96–128px (about-dialog skin, not `image`'s job).
-- **website** → `<Link href={c?.link} text={c?.link ?? ''} external={true} onclick={handleLink} id="about-link" />` (F1 wiring in §2.5).
+- **website (A2 — AMENDED, null-guarded)** → `link` types **both `href` and `text` as REQUIRED** (non-optional, no default), and `text=""` trips link's own DEV "no accessible name" warn. So `c?.link` must **not** be passed straight through (in browser-dev / pre-fetch it is `undefined` → an href-less `<a>` + a DEV warn). Render it conditionally:
+
+  ```svelte
+  {#if c?.link}
+    <Link href={c.link} text={c.link} external={true} onclick={onOpenLink} id="about-link" />
+  {:else}
+    <Label text="—" id="about-link" />
+  {/if}
+  ```
+
+  (F1 wiring in **§2.6**. `external` stays `true` — the onclick preventDefaults the `target=_blank` path, but the real `href` + safe `rel` are retained for a11y and right-click-open, exactly as link.svelte prescribes.)
 - **"Developed by Alchemy Dump"** (F2) → a **static shell literal** (plain skin text), NOT a field on `AboutInfo`. Joe-confirmed: company, never the personal name. Do **not** reopen C2's Rust to add a company field.
 - **metadata values** (dynamic) → each a `<Label>` with a **stable id** so verify reads it from the registry getter (the UI-side analogue of C2's field-by-field truth check). Keys ("Built", "Rust", …) are **plain skin text** (static chrome, not data — they don't register).
-- **layout** → a 2-column CSS grid (`key | value`) in the about-dialog skin (`<style>` local, or a keyed `.about-*` rule — match the shell's existing style approach; `app_client.svelte` uses `app.css`/skin tokens, so prefer a scoped `<style>` in `about-dialog.svelte` for the About-specific grid).
+  **Semantic stretch — recorded, not papered over (A3, Joe-locked).** `label`'s root is the native `<label>`, whose job is to *caption a control*; here ~nine of them carry **data** and name nothing — label.svelte's own "a standalone `<label>` with no control is valid-but-inert, a tolerated edge", taken ×9. It is kept **deliberately**: putting the values in the registry is precisely what makes the §4 field-by-field truth check possible (plain text would be unverifiable). Do not silently swap to `paragraph`. **If C3 surfaces no other UI lesson, this is the N-090 note** (together with the opener consumer-wiring pattern for `link`).
+- **layout (A1 — AMENDED)** → a 2-column CSS grid (`key | value`), keyed `.about-*`, living in **`ui/client/src/app.css`**. **NOT** a scoped `<style>` block in `about-dialog.svelte` — that would be the **first component-local CSS in the codebase** (N-023/N-025: the type-class comes from `envelope`, appearance lives in a removable layer, never inside the component). `app.css` is headed *"shell chrome ONLY"* (N-031) and already holds `.app-frame` / `.app-center` / the pane pins; the About grid is exactly that kind of shell chrome. **Tokens only** (`--s*`, `--t*`, `--rad*`, `--fs-*`) — no colour/size literals.
 
 Null-guard every value: `{c?.version ?? '—'}` (browser-dev / pre-fetch shows em-dashes, never crashes — the `get_state`-failure precedent).
 
@@ -160,16 +173,17 @@ The `<Link onclick={handleAboutLink}>` preventDefaults and routes to `openUrl` �
 ## 3. Files to touch (indicative — Clair confirms exact paths)
 
 **UI:**
-1. `ui/client/src/about-dialog.svelte` — **new**: the About body (§2.1–2.3), wraps core `dialog`.
+1. `ui/client/src/about-dialog.svelte` — **new**: the About body (§2.1–2.3), wraps core `dialog`. **No `<style>` block** (A1).
 2. `ui/client/src/app_client.svelte` — Help menu + `help.about` command + `aboutOpen` state + mount `<AboutDialog>` + `get_about_info` on mount + `handleAboutLink` (§2.4–2.6).
-3. `ui/assets/logo_client_hda.png` — **new** (copied master, canonical).
-4. `ui/assets/logo_client_hd_small.png` — **new** (copied master, reserved).
-5. `ui/client/package.json` (+`package-lock.json`) — `@tauri-apps/plugin-opener` (§2.6).
+3. `ui/client/src/app.css` — the `.about-*` grid rules (**A1**; shell chrome, token-only).
+4. `ui/assets/logo_client_hda.png` — **new** (copied master, canonical).
+5. `ui/assets/logo_client_hd_small.png` — **new** (copied master, reserved).
+6. `ui/client/package.json` (+`package-lock.json`) — `@tauri-apps/plugin-opener` (§2.6).
 
 **Rust/config (F1 footprint):**
-6. `xgen-client/Cargo.toml` — `tauri-plugin-opener = "2"`.
-7. `xgen-client/capabilities/default.json` — opener permission (§2.6, ground the identifier).
-8. `xgen-client/src/desktop.rs` — `.plugin(tauri_plugin_opener::init())`.
+7. `xgen-client/Cargo.toml` — `tauri-plugin-opener = "2"`.
+8. `xgen-client/capabilities/default.json` — opener permission (§2.6, ground the identifier).
+9. `xgen-client/src/desktop.rs` — `.plugin(tauri_plugin_opener::init())`.
 
 **NOT this milestone / do NOT touch:** `get_about_info` / `about.rs` / `build_info` (C2 — closed; no new field, no company field — F2 is a shell literal) · `dialog.svelte` (C1 — closed) · any `ops.rs` · the node app · the sampler.
 
@@ -187,11 +201,13 @@ Run `run-client.ps1 -Debug`. The sampler cannot host this (no `get_about_info`, 
 2. **`vite build`** — clean (**quote module count**; it will change from C2's 138 — new component + logo import + opener import).
 3. **Help→About opens the dialog** — CDP: resolve `help.about` (or click the About item) → the dialog is a **real modal**: `el.matches(':modal') === true` (the C1 load-bearing leg — `showModal()` reflects the `open` attribute, so only `:modal` proves it). Quote it.
 4. **Body renders the C2 data** — read each `about-*` label getter over CDP and check the value is the **real** `get_about_info` field (not `—`): `version` 0.10.3, `built · commit` pair, `rustc`/`tauri` 2.11.1/`svelte` 5.55.5/`platform`/the three paths. This is the UI-side field-by-field truth check.
-5. **F1 — the website link opens the OS browser** — click `about-link`; confirm the **OS default browser** navigates to `alchemydump.com` (eye-check / process check), **not** an in-app blank webview. Quote the `errCount:0` / no `permissionDenials` (the opener capability is correctly granted). *This is the "see it function" Joe asked for.*
+5. **F1 — the website link opens the OS browser (A4 — the honest proof shape).** An OS-browser handoff **cannot be synthesised or asserted over CDP** — there is no in-page consequence to read. So this leg is proven the way the J-495 resize-grip was: **Joe's eye + Chat's measured consequence.** (a) **Joe clicks** `about-link` and confirms the **OS default browser** opened `alchemydump.com`; (b) **Chat measures** that the webview did **NOT** navigate and did **NOT** spawn a blank in-app tab (`location.href` unchanged), and quotes `errCount:0` / **no `permissionDenials`** — the proof that the opener grant is real rather than silently failing. Report it as **human-verified + measured**, never as CDP-verified (Rule 1).
 6. **F2 — "Developed by Alchemy Dump"** renders; the **personal name does NOT appear** anywhere in the box (grep the rendered DOM text — Rule 2).
 7. **Close paths** — the Close button AND Esc both close (`open:false`, `:modal` gone), and **About re-opens** afterward (the C1 reconciliation proof — if the prop had lied, re-open would be a no-op).
 8. **First real menu-bar roving Left↔Right** — two menus now exist (File, Help): ArrowRight/ArrowLeft move roving focus between the triggers; Home/End jump. Quote the `menu-bar` getter `activeIndex` moving 0↔1.
 9. **Client registry grew — MEASURE it** (Rule 5, never predict). Enumerate what registered (`about` + `about__close` + `about-logo` + `about-link` + the `about-*` value labels) and quote `count===unique===domCount`, **0 orphans both directions**. Note: because the dialog body is always mounted (C1), the count is **stable across open/close** — measure once. Sampler catalogue **unchanged 313** (grounded by scope — no sampler file touched).
+
+10. **Regression (A5) — the frame still works now that two menus exist.** `File→Exit` still dispatches `app.exit`, and **Ctrl+Q** still fires it (the `menus` array grew and `commandTable` gained a key — prove neither broke). One check each.
 
 **PS 5.1 / harness (N-086, N-089):** wrap CDP eval returns as a **JSON object**; single-expression evals are the reliable form; a read after a thrown eval is **inconclusive, not a failure**. `__TAURI_INTERNALS__.invoke` is non-configurable — don't stub it. **Window-config unchanged** this milestone, so no `cdp.dev.conf.json` twin-edit needed — but if anything touches the window block, both files.
 
@@ -209,12 +225,13 @@ Run `run-client.ps1 -Debug`. The sampler cannot host this (no `get_about_info`, 
 
 ## 6. Definition of Done
 
-- [ ] `ui/client/src/about-dialog.svelte` — new; wraps core `dialog`; logo (`image`) + website (`link`) + "Developed by Alchemy Dump" literal + the §2.3 metadata grid; every value a `<Label>` with a stable `about-*` id; null-guarded.
+- [ ] `ui/client/src/about-dialog.svelte` — new; wraps core `dialog`; logo (`image`) + website (`link`) + "Developed by Alchemy Dump" literal + the §2.3 metadata grid; every value a `<Label>` with a stable `about-*` id; null-guarded. The website `link` is **conditionally rendered** (**A2** — `href`/`text` are required props). The `.about-*` grid CSS lives in **`app.css`**; the component carries **no `<style>` block** (**A1**).
 - [ ] Help menu (`help.about`, **no accelerator**) + `commandTable['help.about']` flips `aboutOpen`; `<AboutDialog>` mounted in the frame; `get_about_info` fetched **on mount**.
 - [ ] **Built + commit render together** in one row (`date · shortSHA`).
-- [ ] F1 — website link opens the **OS browser** via `tauri-plugin-opener` (Cargo + package.json + capability + `desktop.rs` `.plugin()`); narrowest capability grant; `errCount:0`. **Demonstrated functioning** (Joe's ask).
+- [ ] F1 — website link opens the **OS browser** via `tauri-plugin-opener` (Cargo + package.json + capability + `desktop.rs` `.plugin()`); narrowest capability grant; `errCount:0`. **Demonstrated functioning** (Joe's ask), reported as **human-verified + measured**, not CDP-verified (**A4**).
 - [ ] F2 — "Developed by Alchemy Dump" renders; **no personal name** anywhere in the box.
 - [ ] Logo masters copied to `ui/assets/` (`logo_client_hda.png` wired, `logo_client_hd_small.png` reserved-unwired). Node masters untouched.
+- [ ] **Regression (A5)** — File→Exit still dispatches `app.exit` and Ctrl+Q still fires it, with two menus mounted.
 - [ ] Workspace `cargo test` green — **count quoted from real output**. `vite build` clean — **module count quoted**.
 - [ ] All §4 verify legs run against the **real client 9222**, actual quoted output: `:modal` open, field-by-field body truth check, link→OS-browser, Close+Esc+re-open, File↔Help roving, registry measured (count===unique===domCount, 0 orphans both ways), sampler catalogue 313 unchanged.
 - [ ] Client registry **measured**, not predicted; enumerated. C2's baked `name`/`link` literals confirmed rendering (KEEP, Joe).

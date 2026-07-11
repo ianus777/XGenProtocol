@@ -986,6 +986,11 @@ html, body {
 
 .dialog {
   box-sizing: border-box;
+  /* Centre the modal in the viewport. showModal() puts the dialog in the top layer with the UA
+   * `position:fixed; inset:0`, but a global margin reset zeroes the UA `margin:auto` that would
+   * otherwise centre it — so it pins top-left. Restore `auto` (M-RP6.1e-C3 follow-up; a C1 gap:
+   * C1 verified :modal/focus/backdrop but not position). Definite width + inset:0 → both axes. */
+  margin: auto;
   min-width: 280px;
   max-width: min(92vw, 440px);
   padding: var(--sp-4);

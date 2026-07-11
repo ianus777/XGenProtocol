@@ -43,14 +43,19 @@ body { margin: 0; }
  * chrome (N-031), so it lives here, not in a component <style> block (A1). Tokens only — no
  * colour/size literals. The core `dialog` owns the panel surface, padding and Close footer; this
  * only arranges the identity head + the key/value metadata grid. */
-.about { display: flex; flex-direction: column; gap: var(--sp-4); }
+.about { display: flex; flex-direction: column; gap: var(--sp-3); }
 
-.about-head { display: flex; align-items: center; gap: var(--sp-4); }
+/* Upper block: gaps shrunk; ONE unified size (--fs-1) across name/company/link — the name
+ * keeps hierarchy through weight, not size (Joe: "unify font size in the upper point"). */
+.about-head { display: flex; align-items: center; gap: var(--sp-3); }
 .about-head > .image { width: 96px; height: 96px; flex: 0 0 auto; }
 .about-id { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
-.about-name .label { color: var(--t); font-size: var(--fs-2); font-weight: 700; }
-.about-by { color: var(--t3); font-size: var(--fs-0); }
+.about-name .label { color: var(--t); font-size: var(--fs-1); font-weight: 700; }
+.about-by { color: var(--t3); font-size: var(--fs-1); }
+.about-id .link { font-size: var(--fs-1); }
 
+/* Version→Config block: ONE size on BOTH sides, the smaller --fs-0 (Joe: "same font size,
+ * both sides, prefer smaller one"); tight rows. */
 .about-grid {
   display: grid;
   grid-template-columns: max-content 1fr;
@@ -60,3 +65,4 @@ body { margin: 0; }
 }
 .about-grid dt { color: var(--t3); font-size: var(--fs-0); }
 .about-grid dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.about-grid dd .label { font-size: var(--fs-0); }

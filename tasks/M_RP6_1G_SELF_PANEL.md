@@ -1,6 +1,6 @@
 # M-RP6.1g — R3 Self / connection: the first real system widget
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -9,6 +9,13 @@
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 Canonical runbook for **M-RP6.1g**. Design walked + **Joe-locked 2026-07-11** (D1–D7). Chat's lane: this runbook. Clair's lane: implementation + design closes.
+
+**✅ SHIPPED — M-RP6.1g CLOSED (J-500). Feat `84b482a`** (code-only, 7 files, +302/−38 — the §3 list exactly; amended from `967ad51`, which is orphaned). All §6 legs V1–V10 **re-driven by Chat** (Rule 5) on the real client 9222 with real output; recorded in J-500.
+
+**Delivered-vs-runbook delta (Rule 6 — the runbook was wrong twice, and both were Chat's):**
+1. **§5.2's prop shape `{regionId, id}` was WRONG.** `region-node` passes a leaf **only** `regionId`. Resolved to `id = \`region-${regionId}\`` — which is the *better* answer anyway (it matches the seven `section#region-*` placeholders, so the delta reads as a clean **swap in place**). *§5.2's own “ground what `region-node` passes” hedge is what caught it.*
+2. **§4.1's “DEV assert” for the XGID mismatch was wrong.** Clair shipped `tracing::warn!` instead — a `debug_assert!` would **panic the running client** on a legitimate stale-state divergence, turning a diagnostic into an outage. §4.1's actual requirement (*“flag it, don't paper over it”*) is satisfied. **Never fired.**
+3. **⚠️ A post-verify amendment (Joe-locked):** V5 exposed that the panel **wrote** the bus and never **read it back** — `entity-item.selected` was a **constant false**, stranding the already-shipped `.entity-item[data-selected]` skin rule. Fixed by deriving `selected` from the bus (`self-panel.svelte` only, no skin change). → **N-097**.
 
 ---
 

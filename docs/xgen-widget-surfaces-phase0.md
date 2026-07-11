@@ -1,6 +1,6 @@
 # XGen Client — Widget Surfaces, Shelves & the UI-State Store: Phase-0
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -63,7 +63,7 @@ Same argument that keeps the menu-bar outside the descriptor (D-107: *"File→Ex
 
 ### S-2 — One component, two mounts
 
-**`shelf`** is a single `core` component (the **32nd**), mounted twice with `position: 'top' | 'bottom'`. The mounts differ **only in who populates them**. Do not build two components. *(Same reasoning as M-RP8's `title-bar`: one component, two apps.)*
+**`shelf`** is a single `core` component (**ordinal assigned at build — `region-shell` took the 32nd slot at J-499; do not pre-book a number**), mounted twice with `position: 'top' | 'bottom'`. The mounts differ **only in who populates them**. Do not build two components. *(Same reasoning as M-RP8's `title-bar`: one component, two apps.)*
 
 ### S-3 — A shelf is an ordered STRIP, not a grid
 
@@ -224,14 +224,19 @@ Bound it **now**, on paper, before it becomes a junk drawer:
 
 ## 7. Build order
 
+**⚠️ RELABELLED (J-500, Joe-locked — the primes are GONE).** v1.0 numbered this arc `6.1g′ / 6.1g″ / 6.1h′ / 6.1h″`, which **collided** with the frame arc's own `6.1g` (R3) and `6.1h` (R8). Primed labels are a symptom of an arc written *around* an occupied slot, and they would make every future grep for “6.1g” hit **two different milestones**. The frame arc keeps **6.1g** (R3 ✅ J-500) and **6.1h** (R8); this arc takes **6.1i–l**.
+
 | # | milestone | scope |
 |---|---|---|
-| 1 | **M-RP6.1f** | **grid scaffold** — descriptor + renderer A + placeholder leaves + selection bus. **Independent of this doc. Next-active.** |
-| 2 | *(this doc)* | **Phase-0 lock** — Joe walks §6, then the §8 records move. |
-| 3 | **M-RP6.1g′** | **`shelf` core** (32nd) — ordered strip, `position: top\|bottom`, faces, roving toolbar machine, `commandId` dispatch. Sampler-verified. + 3 glyphs. |
-| 4 | **M-RP6.1g″** | **mount both shelves** in the real client. Bottom → real commands. **Top → empty** (pinning undecided). Verify 9222. |
-| 5 | **M-RP6.1h′** | **UI-state store** — session state + named states + window geometry (absorbs M-RP-WINSTATE) + the clamp + the unit decision. |
-| 6 | **M-RP6.1h″** | **widget manager** — add / remove / configure; the home of destruction (S-6). |
+| 1 | **M-RP6.1f** ✅ | **grid scaffold** — descriptor + renderer A + placeholder leaves + selection bus. **DONE (J-499).** Independent of this doc. |
+| — | **M-RP6.1g** ✅ | *(frame arc)* R3 self-panel — the first real **system widget** + the bus's **first writer**. **DONE (J-500).** Not this doc's work, but it proved the thing this doc depends on: **a region widget can be fed only through a `$common` store** (N-096). **A shelf face's data will have the same constraint.** |
+| 2 | *(this doc)* | **Phase-0 lock** — Joe walks §6, then the §8 records move. **← STILL OPEN. Nothing below can start.** |
+| 3 | **M-RP6.1i** | **`shelf` core** — ordered strip, `position: top\|bottom`, faces, roving toolbar machine, `commandId` dispatch. Sampler-verified. + 3 glyphs. *(was `6.1g′`)* |
+| 4 | **M-RP6.1j** | **mount both shelves** in the real client. Bottom → real commands. **Top → empty** (pinning undecided). Verify 9222. *(was `6.1g″`)* |
+| 5 | **M-RP6.1k** | **UI-state store** — session state + named states + window geometry (absorbs M-RP-WINSTATE) + the clamp + the unit decision. *(was `6.1h′`)* |
+| 6 | **M-RP6.1l** | **widget manager** — add / remove / configure; the home of destruction (S-6). *(was `6.1h″`)* |
+
+*The `shelf` was called “the 32nd `core`” in v1.0. **It is not** — `region-shell` took the 32nd slot at M-RP6.1f (J-499). The shelf's ordinal is assigned when it is actually built; **do not pre-book a number** (Rule 5 applies to counts in designs too).*
 
 **The shelf must not be folded into 6.1f.** 6.1f is grid-only and already locked; the shelf depends on a surface model that does not exist until this doc is locked. **Build the shelf before the model and you build the wrong shelf.**
 

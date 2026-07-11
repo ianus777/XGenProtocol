@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.74  
+> Version: 0.75  
 > Date: May 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -1977,6 +1977,69 @@ So **exactly one** shipped component carries a non-empty `<style>`.
 **(b) The client's substitute for the orphan leg.** Per N-092a the sampler's `domCount` / 0-orphans check is **not expressible** in the real client (the debug bridge is state-only). The client-side proxy that *is* expressible, and that this milestone used: **drive the registry through churn (drop → tabs → mismatch → restore) and prove it returns EXACTLY to baseline** (30 → … → 30). A leaked registration or a ghost mount shows up as a baseline that does not come back.
 
 *Harness / method note + a named carry-over. No code change.*
+
+---
+
+### N-096 — the first real **system widget**: a region widget can receive **nothing but `regionId`**, so store-mediation is FORCED (M-RP6.1g)
+
+`self-panel` (R3) is the first widget to occupy a **leaf of the layout descriptor** — the first real consumer of renderer A's prop-injected `widgets: Record<widgetId, Component>` registry (J-499/N-093). One registry-map entry was swapped (`widgetRegistry.self` → `SelfPanel`); the other seven placeholders were untouched. **That is the whole point of the registry shape: a clean swap in place, no rewrite.**
+
+**The structural finding, and it binds every future region widget:**
+
+> **`region-node` mounts a leaf with `regionId` and NOTHING ELSE. A region widget cannot receive shell props.**
+
+Combine that with **W-3** (*a `common` widget must never import a shell dep*) and the conclusion is forced, not chosen:
+
+> **Everything a region widget needs must be store-mediated. There is no other channel.**
+
+So the shell's `STATE_COLOURS` / `PULSING_STATES` maps **had to** relocate into `$common` (`stores/self-state.svelte.ts`). The `status-bar` (shell chrome, prop-fed `core`) and the `self-panel` (a `common` widget) now read the **same map** and the **same connection signal**: **one channel, two views** — literally, not as a slogan. *(This was not a tidy-up. It is the shape R1/R2/R4–R8 all inherit.)*
+
+**The relocation was proven PURE, not assumed** (the N-090 discipline): both leds measured `rgb(45,122,58)` before and after. *A cross-file move should be a no-op, and “should” is not a verification.*
+
+**Leaf-id convention (adopt it for every region widget).** The widget derives **`id = `region-${regionId}``**, so R3 registers as `self-panel#region-self` with children `region-self__section` / `__item` / `__item__avatar` / `__status` / `__status__led` / `__status__label` — the **same** convention the seven `section#region-*` placeholders already use. The registry delta then reads as a swap (`−section#region-self`, `+the widget subtree`) rather than as noise. *The runbook's `{regionId, id}` prop shape was **wrong** (Chat's error, grounded away by Clair — the runbook's own “ground what `region-node` passes” hedge is what caught it).*
+
+**Registry:** client **30 → 36** (net **+6**). `self-panel` is the **3rd widget** (after `substitutions-editor` and `entity-context-menu`) — **not** a `core` catalogue cell, so the **sampler catalogue is unchanged**; a widget's home is `ui/common/…/widgets/` and its verify home is the **real client** (D-097).
+
+*Sits with N-093 (the reused drop-shape), W-3, W-12/W-13, D-103.*
+
+---
+
+### N-097 — a bus **writer** with a matching skin affordance **must read the bus back** — or `selected` is an unfed branch stranding shipped CSS (M-RP6.1g)
+
+**Found in the verify pass, and it was ours.** `self-panel` shipped as the selection bus's first **writer**. V5 proved the write — and then showed:
+
+> `entity-item#region-self__item` reported **`selected: false` while the bus carried that exact entity.**
+
+The panel **wrote** the bus and never **read it back**, so `selected` in its aggregate getter was a **constant false**: an **unfed field** shipped in a milestone about to close.
+
+**And it was worse than a dead field.** Grounding `skin.css` showed **`.entity-item[data-selected]` already existed** (line 2105, shipped with `entity-item` at M-RP5.1) — a **fully skinned affordance that no client code could reach.** The gold selection bar had been sitting there, unreachable, since M-RP5.1.
+
+**The rule this violates is one we had already enforced twice in the same arc:** *an unfed branch is an unverified branch* — used to keep the `tabs` branch out of renderer A (J-499/D-065), and used again to **refuse** the unreachable null-layout guard (N-095). **An agent does not get to invoke a rule against one branch and exempt itself on another.**
+
+**Fix (two lines, `self-panel.svelte` only, NO skin change — the rule was already there):**
+
+```
+const selected = $derived(selection.current?.entity.id === descriptor.id);
+```
+passed to `entity-item` and published in G. **The panel is now the bus's writer AND its first reader.**
+
+**→ The general rule, for every region widget that writes the bus:**
+
+> **If a component has a `selected` prop and the skin has a `[data-selected]` rule, the writer MUST derive `selected` from the bus.** Otherwise the getter lies (a constant), the affordance is stranded, and a click mutates a store while **moving nothing on screen** — which is not a working writer, it is an **untested** one.
+
+**🔑 And the leg that proves it is the PAINTED PIXEL, not the attribute.** `[data-selected]="true"` only says the attribute reflected. What was actually measured: `box-shadow: rgb(154,106,48) 2px 0 0 inset` (the gold `--accent` bar) and the background lifting `rgb(28,31,36)` → `rgb(42,47,56)`, both reverting on `clear`. **This is N-091's shape a third time** — *“verified” is only as wide as the legs you ran, and a state flag is not a render.*
+
+*Feat amended `967ad51` → `84b482a`. Sits with N-091, N-095, D-065.*
+
+---
+
+### N-098 — harness + git method notes (M-RP6.1g)
+
+- **Dev-mode `invoke` latency is ~500–800 ms.** The two-step CDP **fire → read** pattern (`window.__X = null; invoke(…).then(r => window.__X = r)` then a second eval) needs a settle **longer than 400 ms**. A read that comes back `null` at 400 ms is **inconclusive, not a failure** — re-read before concluding anything.
+- **A “one-shot” leg may not be one.** The unregistered `get_self_state` render looked unrepeatable once `register` had written `xgen-client_state.json`. It was recovered **without relaunching**: `whoami` re-reads the file **per invoke**, so moving the file aside and back drives both outcomes in the **same process, on the same keypair** — a *stronger* proof than two separate launches, because only one variable moved. **Before accepting that a leg is unrepeatable, ask what the code actually re-reads.**
+- **The amend-after-push merge phantom.** Amending an already-pushed commit made GitHub Desktop force-update the remote and then begin a **stale merge of the now-orphaned SHA**, surfacing a phantom conflict. `git merge --abort` was the fix — the remote already held the correct commit. Recorded so it is not re-diagnosed as a real conflict.
+
+*Harness / method note. No code change.*
 
 ---
 

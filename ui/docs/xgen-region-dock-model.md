@@ -1,6 +1,6 @@
 # XGen UI — Region / Dock Model
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -81,7 +81,13 @@ A shell primitive the regions share: **one active selection** across the layout 
 
 **The shape is FINAL at one meaning.** There is exactly **one** selection concept — the *entity* selection. The shelf's minus-button was deliberately killed (`docs/xgen-widget-surfaces-phase0.md` S-6) precisely because it would have forced a **second** (widget/leaf) selection bus, with the permanent hazard that clicking a *room* arms a *delete-panel* button. **Do not reintroduce a second bus.**
 
-**⚠️ No WRITER exists yet** (W-8 honesty — the phase-limit is surfaced, not hidden). The first writer lands with R3 at **M-RP6.1g**; the first reader with R8 at **M-RP6.1h**.
+**✅ THE BUS HAS A WRITER (M-RP6.1g / J-500).** R3's `self-panel` writes it on `entity-item` activation — verified in the real client: `clear → null` → click → `{regionId:"self", entity:{kind:"identity", id:"xgen://pubkey/ed25519:VtLICf…KHGc", name:"Joe"}}` → `clear → null`. **One selection, never a list.**
+
+**🔑 And a writer must READ THE BUS BACK — learned the hard way (N-097).** `self-panel` first shipped as a write-only writer, and the verify pass caught `entity-item.selected` sitting at **`false` while the bus carried that exact entity**: a **constant-false getter field**, stranding the **already-shipped** `.entity-item[data-selected]` skin rule (M-RP5.1) that **no client code could reach**. **An unfed branch is an unverified branch** — the same rule that keeps `tabs` out of renderer A. Fixed by deriving `selected` from the bus, so the panel is the bus's **writer AND its first reader**, and the selection **paints** (measured: the gold `--accent` bar, not merely the attribute).
+
+> **Standing rule for every region that writes the bus:** if the component it renders has a `selected` prop and the skin has a `[data-selected]` rule, **derive `selected` from `selection.current`**. A click that mutates the store and moves nothing on screen is not a working writer — it is an untested one.
+
+The first **cross-region** reader is **R8 (inspector)** at **M-RP6.1h**.
 
 ## 6. Constraint additions to the widget tier
 

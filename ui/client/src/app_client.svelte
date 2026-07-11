@@ -6,15 +6,20 @@
   import AboutDialog from './about-dialog.svelte';
   import { loadLayout, widgetRegistry } from './layout-default';
   import { substitutions } from '$common/components/processor/store.svelte';
-  // Load the selection bus (M-RP6.1f, D3) so its module runs and installs the DEV __XGEN_SEL__ handle —
-  // the ONLY way the bus is CDP-drivable this milestone (there is no UI writer yet, W-8). The shell is the
-  // bus's host; its real consumers (R8 inspector / entity-context-menu) wire in at 6.1h+.
+  // The self-state store (M-RP6.1g, D3) — ONE channel, TWO views: the shell WRITES it below (the existing
+  // state listen + get_state + a once get_self_state invoke), and BOTH the status-bar (here) AND the
+  // self-panel widget READ it. STATE_COLOURS/PULSING_STATES relocated here (they were shell-local; the
+  // widget needs them and cannot receive shell props — W-3).
+  import { selfState, STATE_COLOURS, PULSING_STATES } from '$common/stores/self-state.svelte';
+  // The selection bus (M-RP6.1f, D3): its first real writer is now the self-panel widget (D5). This
+  // side-effect import keeps the DEV __XGEN_SEL__ handle installed for CDP; the shell is the bus's host,
+  // its readers (R8 inspector / entity-context-menu) wire in at 6.1h+.
   import '$common/stores/selection.svelte';
   import { KeymapRegistry } from '$common/keymap/registry';
   import { accelerator } from '$common/keymap/accelerator';
 
-  // Initial state before the first Tauri event arrives.
-  let currentState = $state({ state: 'INITIALISING', label: 'Initialising' });
+  // Connection state now lives in the self-state store (D3 — one source, two views); no shell-local
+  // mirror. The store seeds itself to INITIALISING until the first Tauri event arrives.
   let unlisten;
 
   // About dialog (M-RP6.1e-C3): the get_about_info payload (build metadata + paths), fetched once
@@ -90,14 +95,20 @@
       const { listen } = await import('@tauri-apps/api/event');
       const { invoke } = await import('@tauri-apps/api/core');
 
-      // Subscribe to live state changes.
+      // Subscribe to live state changes — write the SAME store the status-bar and the self-panel read
+      // (D3). No new emit channel: this is the existing `xgen-client-state-changed` (D1).
       unlisten = await listen('xgen-client-state-changed', (event) => {
-        currentState = event.payload;
+        selfState.setConnection(event.payload);
       });
 
       // Fetch the current state immediately — handles the case where the startup
-      // sequence ran before this listener was registered.
-      currentState = await invoke('get_state');
+      // sequence ran before this listener was registered (pre-listener race, already solved).
+      selfState.setConnection(await invoke('get_state'));
+
+      // M-RP6.1g — self-identity (D1/D2). Static per session (no in-app registration exists), so fetched
+      // ONCE here (the get_about_info shape). Inside the same try so the browser-dev/no-Tauri path keeps
+      // working. Unregistered → registered:false + a real keypair-derived XGID (rendered honestly, D6).
+      selfState.setIdentity(await invoke('get_self_state'));
 
       // M-RP4.2 — hydrate the user-owned substitution pairs from the client
       // TOML ([substitutions] rules). The store parses + validates (Tier-2);
@@ -139,23 +150,11 @@
     }
   }
 
-  // ── Connection state → colour (D1) ────────────────────────────────────────────────────────
-  // The legacy dotColor() switch, now a literal map handed to status-bar's `states` prop; the
-  // legacy isPulsing() as an explicit array. ALL 11 client lifecycle states are enumerated —
-  // `led`'s unknown sentinel is BLACK (#000000), so an unenumerated state changes colour
-  // visibly rather than falling back silently to the legacy `default: var(--t4)`. The sentinel
-  // is the honest signal (Rule 5 / led contract); no fallback branch.
-  const STATE_COLOURS = {
-    SETUP: 'var(--t4)',            CLOSING: 'var(--t4)',
-    INITIALISING: 'var(--t3)',
-    CONNECTING: 'var(--inf)',      AUTHENTICATING: 'var(--inf)',     RECONNECTING: 'var(--inf)',
-    READY: 'var(--ok)',
-    DEGRADED_AUTH: 'var(--pr)',    DEGRADED_FEDERATION: 'var(--pr)', DEGRADED_NODE: 'var(--pr)',
-    DISCONNECTED: 'var(--err)',
-  };
-  const PULSING_STATES = ['INITIALISING', 'CONNECTING', 'AUTHENTICATING', 'RECONNECTING'];
+  // STATE_COLOURS / PULSING_STATES relocated to `$common/stores/self-state.svelte` (D3) — the widget
+  // needs them and cannot receive shell props, so the shell now IMPORTS the same map it reads for the
+  // status-bar (one map, two views). The relocation is a pure move (V7 — colour byte-identical).
 
-  // ── Resize-grip wiring (D3) ────────────────────────────────────────────────────────────────
+  // ── Resize-grip wiring ─────────────────────────────────────────────────────────────────────
   // The status-bar's SE grip exposes `onResizeGrip?` and drives Tauri's startResizeDragging
   // (SE = width+height). The window is now OS-decorated (native title bar + native edge resize),
   // so the grip is a supplementary corner affordance — a conventional explicit resize handle at
@@ -193,9 +192,9 @@
     (D1); the SE grip is a supplementary corner resize affordance (D3). -->
   <StatusBar
     states={STATE_COLOURS}
-    state={currentState.state}
-    pulse={PULSING_STATES.includes(currentState.state)}
-    caption={currentState.label}
+    state={selfState.connection.state}
+    pulse={PULSING_STATES.includes(selfState.connection.state)}
+    caption={selfState.connection.label}
     onResizeGrip={handleResizeGrip}
     id="app-statusbar"
   />

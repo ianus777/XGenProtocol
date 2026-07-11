@@ -9,16 +9,20 @@
 import type { Component } from 'svelte';
 import type { Layout } from '$core/components/layout/types';
 import RegionPlaceholder from './region-placeholder.svelte';
+import SelfPanel from '$common/components/widgets/self-panel.svelte';
 
 // All 8 D-103 region ids (region-dock §2), in the default row order.
 export const REGION_IDS = [
   'spaces', 'rooms', 'self', 'room-header', 'stream', 'composer', 'members', 'inspector',
 ] as const;
 
-// The registry map (D6): all 8 ids → the SAME placeholder. Each real widget later replaces one entry.
-export const widgetRegistry: Record<string, Component> = Object.fromEntries(
-  REGION_IDS.map((id) => [id, RegionPlaceholder]),
-);
+// The registry map: every id → the placeholder, then each real widget replaces ONE entry as it lands
+// (M-RP6.1g swaps `self` → SelfPanel — the first real leaf; this is exactly what renderer A's
+// prop-injected registry was built for, N-093). The remaining 7 stay placeholders until their milestones.
+export const widgetRegistry: Record<string, Component> = {
+  ...Object.fromEntries(REGION_IDS.map((id) => [id, RegionPlaceholder])),
+  self: SelfPanel,
+};
 
 // DEFAULT_LAYOUT (D8) — exercises row + col + nesting, all 8 regions, NO unknown id, NO tabs (a broken
 // default is not a test fixture; the drop/tabs/mismatch paths are driven at verify via __XGEN_LAYOUT__).

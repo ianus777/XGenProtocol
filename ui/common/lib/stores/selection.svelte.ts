@@ -12,9 +12,10 @@
 // The `EntityDescriptor` import is TYPE-ONLY from `$core` (§0.2 — `entity-context-menu` already imports
 // this type from `$core` on shipped precedent; erased at build, so no layering line is crossed).
 //
-// HONEST PHASE-LIMIT (W-8): at M-RP6.1f there is NO UI writer — R1/R2 don't exist yet (they land 6.1g+).
-// The bus is therefore driven ONLY via the DEV `__XGEN_SEL__` handle below. This is a real phase-limit,
-// stated not faked: the store is complete, its producers are not built.
+// FIRST WRITER (M-RP6.1g, D5): the `self-panel` widget's identity `entity-item` calls `selection.set()` on
+// activation — R3 is the bus's first real producer, retiring the 6.1f "no UI writer" phase-limit. R1/R2 add
+// more writers as they land; R8 (inspector) + `entity-context-menu` are the readers (6.1h+). The DEV
+// `__XGEN_SEL__` handle below stays for CDP-driving the bus directly.
 
 import type { EntityDescriptor } from '$core/components/data-dependent/types';
 
@@ -40,8 +41,8 @@ export const selection = {
   },
 };
 
-// DEV-only CDP handle (mirrors __XGEN_SUBS__ / __XGEN_PROC__, N-024). At 6.1f this is the ONLY way to
-// drive the bus (no writer yet, above). Dead-code-eliminated in a production build.
+// DEV-only CDP handle (mirrors __XGEN_SUBS__ / __XGEN_PROC__, N-024) — for driving/reading the bus at
+// verify. Dead-code-eliminated in a production build.
 if (import.meta.env.DEV && typeof window !== 'undefined') {
   (window as unknown as { __XGEN_SEL__?: unknown }).__XGEN_SEL__ = selection;
 }

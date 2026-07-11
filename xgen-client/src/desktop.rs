@@ -146,6 +146,89 @@ fn get_about_info(
     xgen_common::about::ClientAboutInfo { common }
 }
 
+/// The "Self / connection" identity block for R3 (M-RP6.1g). A thin **shell read**
+/// (the `get_about_info` shape) — NOT a D-092 four-armed verb: no node round-trip,
+/// no mutation, no CLI meaning, so it never grows those arms and never touches
+/// `ops.rs`. `NodeSelfState` is deliberately NOT declared (the J-497 `NodeAboutInfo`
+/// precedent — a node wrapper today would guess fields with no call site to
+/// validate them against; it lands with the node's real Self at M-RP7.x).
+#[derive(serde::Serialize)]
+struct SelfStateInfo {
+    /// `false` when `xgen-client_state.json` is absent (the Tauri shell has never
+    /// `register`ed) — rendered honestly, not faked (D-065 / W-8).
+    registered: bool,
+    /// From the KEYPAIR, so it is present even when unregistered — the field that
+    /// proves the command is live (a `null` here means the keypair read is wrong).
+    identity_id: Option<String>,
+    display_name: Option<String>,
+    home_node: Option<String>,
+    spaces_joined: usize,
+}
+
+/// Read the self-identity + registration facts for R3 (M-RP6.1g, D2). A thin
+/// wrapper composing two EXISTING readers — no new projection surface:
+///   1. `ClientIdentity::load` derives the identity XGID from the keypair alone
+///      (no registration, no node);
+///   2. `ops::whoami` reads `xgen-client_state.json` for the registration facts
+///      — `Err` (file absent) is NOT an error to the webview, it is
+///      `registered: false`.
+/// The data dir comes from managed `DataDir` (never re-derived). No `app.emit`,
+/// no resident: the live connection flip is the resident's job (M-RP6.6, D7) —
+/// this closes only the *read shape* of gate finding F-1.
+#[tauri::command]
+fn get_self_state(data: tauri::State<DataDir>) -> SelfStateInfo {
+    let data_dir = data.0.clone();
+
+    // 1. XGID from the keypair — present even when unregistered.
+    let keypair_path = data_dir.join("xgen-client_keypair.enc");
+    let keypair_xgid = crate::session::ClientIdentity::load(&keypair_path)
+        .ok()
+        .map(|ci| ci.identity_id.to_string());
+
+    // 2. Registration facts. `whoami` never touches `session` — it only reads the
+    //    on-disk state file — so a throwaway `SessionState` with an EMPTY home_node
+    //    satisfies the `&mut` borrow. No config read for a value nothing consumes.
+    let mut session = crate::session::SessionState::new(String::new(), data_dir.clone());
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir: &data_dir,
+        node_override: None,
+    };
+
+    match crate::ops::whoami(&mut ctx) {
+        Ok(w) => {
+            // Prefer the keypair-derived XGID (it IS the identity); `whoami`'s is a
+            // cached copy. If they disagree, flag it (Rule 1) rather than paper over
+            // it — a `warn!` not a `debug_assert!`, so a stale state file logs the
+            // divergence instead of panicking a running UI.
+            let cached = w.identity_id.to_string();
+            if let Some(kp) = keypair_xgid.as_deref() {
+                if kp != cached {
+                    tracing::warn!(
+                        keypair = %kp,
+                        cached = %cached,
+                        "get_self_state: keypair XGID differs from state-file XGID"
+                    );
+                }
+            }
+            SelfStateInfo {
+                registered: true,
+                identity_id: keypair_xgid.or(Some(cached)),
+                display_name: Some(w.display_name).filter(|s| !s.is_empty()),
+                home_node: Some(w.home_node.to_string()).filter(|s| !s.is_empty()),
+                spaces_joined: w.spaces_joined,
+            }
+        }
+        Err(_) => SelfStateInfo {
+            registered: false,
+            identity_id: keypair_xgid,
+            display_name: None,
+            home_node: None,
+            spaces_joined: 0,
+        },
+    }
+}
+
 #[tauri::command]
 fn quit(app: AppHandle) {
     emit_state(&app, ClientLifecycleState::Closing);
@@ -335,7 +418,8 @@ pub fn run(
             quit,
             get_substitutions,
             set_substitutions,
-            get_about_info
+            get_about_info,
+            get_self_state
         ])
         .run(tauri::generate_context!())
         .expect("error while running xgen-client desktop shell");

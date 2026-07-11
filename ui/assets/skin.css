@@ -2543,3 +2543,43 @@ html, body {
 .jump-to-latest:hover {
   background: var(--s5);
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * region shell (.region-*) — renderer A's centre grid (M-RP6.1f). ALL of its layout lives here, not in
+ *   a component <style> (N-090 — skinnable includes gaps, sizing, tracks, overflow, layout; Joe-locked
+ *   J-498). The ONE thing the skin does NOT own is a split child's `flex` weight, which is DATA from the
+ *   descriptor and rides an inline `flex: {n} 1 0` (the --led-colour / --meter-fill precedent).
+ *
+ *   The min-height/min-width:0 on EVERY nested flex level is the flexbox-blowout fix (D5): without it a
+ *   deep leaf forces the document to scroll instead of the leaf. `.region-leaf` is the ONLY scroller
+ *   (overflow:auto). ACCENT-NEUTRAL — a dock grid is chrome, not accent-themed (--accent never enters),
+ *   so it reads identically client↔node; the 1px gap over the split's --s5 background draws the hairline
+ *   seams between tiles. ── */
+.region-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+/* the resolved root (a split, or a degenerate single leaf) fills the shell */
+.region-shell > .region-split,
+.region-shell > .region-leaf {
+  flex: 1;
+}
+.region-split {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  gap: 1px;
+  background: var(--s5); /* shows through the 1px gaps as hairline seams between tiles */
+}
+.region-split[data-dir="row"] { flex-direction: row; }
+.region-split[data-dir="col"] { flex-direction: column; }
+/* the leaf — the scroller (D5); background is the panel surface the placeholder section sits on */
+.region-leaf {
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  box-sizing: border-box;
+  background: var(--s);
+}

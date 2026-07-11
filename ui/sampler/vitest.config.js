@@ -20,7 +20,10 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['../common/lib/**/*.test.ts'],
+    // `$common` value-objects (keymap) + the `$core` pure layout walk (M-RP6.1f `resolve.test.ts`).
+    // The layout module is `core` (D4 — the node inherits renderer A), so its unit test lives beside it
+    // in `ui/core`; the harness scans both trees.
+    include: ['../common/lib/**/*.test.ts', '../core/lib/**/*.test.ts'],
     environment: 'node',
   },
 });

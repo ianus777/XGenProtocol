@@ -2,9 +2,14 @@
   import { onMount, onDestroy } from 'svelte';
   import MenuBar from '$core/components/data-independent/menu-bar.svelte';
   import StatusBar from '$core/components/data-independent/status-bar.svelte';
-  import Paragraph from '$core/components/data-independent/paragraph.svelte';
+  import RegionShell from '$core/components/layout/region-shell.svelte';
   import AboutDialog from './about-dialog.svelte';
+  import { loadLayout, widgetRegistry } from './layout-default';
   import { substitutions } from '$common/components/processor/store.svelte';
+  // Load the selection bus (M-RP6.1f, D3) so its module runs and installs the DEV __XGEN_SEL__ handle —
+  // the ONLY way the bus is CDP-drivable this milestone (there is no UI writer yet, W-8). The shell is the
+  // bus's host; its real consumers (R8 inspector / entity-context-menu) wire in at 6.1h+.
+  import '$common/stores/selection.svelte';
   import { KeymapRegistry } from '$common/keymap/registry';
   import { accelerator } from '$common/keymap/accelerator';
 
@@ -16,6 +21,20 @@
   // on mount (static per session), and the open state flipped by Help→About.
   let aboutInfo = $state(null);
   let aboutOpen = $state(false);
+
+  // Centre region layout (M-RP6.1f). Seeded by `await loadLayout()` on mount (D2 — async so M-RP7.3 is a
+  // one-line swap to invoke('get_layout')). Shell-local this milestone (D7 — the shell is the only
+  // consumer; the widget-manager/shelf promotion to a $common store is reserved, not built).
+  let layout = $state(null);
+
+  // DEV-only CDP handle (N-024 idiom) so the verify pass can drive the drop / tabs / mismatch paths
+  // (§5.3): push a test layout, read region-shell's getter G. Dead-code-eliminated in a release build.
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    window.__XGEN_LAYOUT__ = {
+      get current() { return layout; },
+      set(l) { layout = l; },
+    };
+  }
 
   // ── Keymap wiring (M-RP6.1d — the 6.1c-deferred shell half) ──────────────────────────────
   // Windows is the only shipped target; the keymap objects take `platform` as a parameter (no
@@ -62,6 +81,11 @@
 
   onMount(async () => {
     window.addEventListener('keydown', onKeydown);
+
+    // Seed the centre layout (D2). Not Tauri, never throws, so it runs OUTSIDE the try that swallows the
+    // no-Tauri (browser dev preview) case — the grid must render even without a backend.
+    layout = await loadLayout();
+
     try {
       const { listen } = await import('@tauri-apps/api/event');
       const { invoke } = await import('@tauri-apps/api/core');
@@ -157,11 +181,12 @@
 <div class="app-frame">
   <MenuBar {menus} platform={PLATFORM} onCommand={runCommand} id="app-menubar" />
 
+  <!-- The centre region shell (M-RP6.1f): renderer A reads the Layout descriptor and tiles placeholder
+    leaves. It FILLS .app-center (no whole-grid scroll, D5) — each leaf owns its own scroll. -->
   <main class="app-center">
-    <Paragraph
-      text="No layout mounted — the center region shell lands at M-RP6.1f."
-      id="center-placeholder"
-    />
+    {#if layout}
+      <RegionShell {layout} widgets={widgetRegistry} id="region-root" />
+    {/if}
   </main>
 
   <!-- The connection light + caption migrate here from the retired hand-rolled .state-indicator

@@ -1,6 +1,6 @@
 # XGen Client — Widget Surfaces, Shelves & the UI-State Store: Phase-0
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -214,11 +214,32 @@ Bound it **now**, on paper, before it becomes a junk drawer:
 
 ## 6. OPEN FOR JOE
 
-1. **Settings' own surface.** Settings is now a widget — but **which surface?** A grid leaf? Its own `window`? A modal `dialog` (built at C1)? Discord uses a full-screen overlay. **This is the first widget whose surface is genuinely non-obvious, and the natural first customer for the `window` kind.**
+> **⚠️ VOCABULARY, LOCKED 2026-07-11 — read before this section.** **tile** = a PLACE (a box in the grid; one `leaf` = one tile) · **region** = a widget's FULL CONTENT SURFACE occupying a tile (it names *which widget*, not where — `regionId === widgetId` in shipped code) · **face** = a widget's COMPACT HANDLE on a shelf (icon + badge + a `commandId` click) · **window** = its own OS window · **slot** = Ch6 §6.8.3's *named, fixed* attachment point (a **different** placement model — do not merge). **A `tabs` node is ONE TILE holding SEVERAL REGIONS** — the sentence that proves the two words are not synonyms. **A face is NOT "the static one"** — both are interactive; a region **IS** the widget rendered, a face is a **handle to** it (S-4 forbids panels/forms/editors on a face). Full table: `ui/docs/xgen-region-dock-model.md` §0.
+
+1. **Settings' own surface.** Settings is now a widget — but **which surface?** A grid leaf (a tile)? Its own `window`? A modal `dialog` (built at C1)? Discord uses a full-screen overlay. **This is the first widget whose surface is genuinely non-obvious, and the natural first customer for the `window` kind.**
+
+   **✅ PARTIALLY ANSWERED (Joe, 2026-07-11) — the REGISTRY half is settled; Settings' own surface is still open.**
+   - **The plugin list is ONE PANE with TWO ENTRY POINTS.** It lives inside Settings' structure; the **bottom-shelf gear opens the SAME pane** — not a simplified twin. *(Joe: “I have no problem to put it together and the shelf's icon-button can retrieve the same pane that is within the main setting's structure.”)* This is **S-2's “one component, two mounts”** and **S-7's one-dispatch-two-triggers**, applied to the manager. **A cut-down popup twin is explicitly REJECTED** — two surfaces for one registry drift, and the popup would be the one carrying the destructive buttons with the least context (**S-6**).
+   - **NAME: “plugin list”.** Ch6 §6.8.5 calls it the **Module List**; this doc called it the **Widget Manager**. **Same object, and “plugin” is the better word** — it covers **headless** plugins with no UI at all, which “widget manager” silently excludes. *(Joe: “module and widget is the plugin in the two areas: system and ui.”)*
+   - **Built-ins ARE listed — distinguished, and NOT removable.** Ch6 §6.8.5 already draws the **`[system]` / `[user]` mode badge** on every entry: **that is W-13, pre-figured in Ch6 before the widget tier existed.** `self-panel` / `inspector-panel` list as `[system]`, configurable + redockable, **Remove disabled**.
+   - **STILL OPEN:** what surface **Settings itself** gets (grid tile / `window` / chrome screen). **⚠️ And note the surface vocabulary cannot currently express Ch6 §6.8.5's *“a screen of its own”*** — there is no `screen` kind. That is part of the §9 taxonomy Phase-0, not a decision to take in passing.
+
 2. **`temperature-indicator`'s identity.** ⏸️ POSTPONED as a *visible* dd-widget (room heat as a `meter` fill), but since described as *functional / not seen directly*. **Two different widgets. Which is it?** *Do not let it quietly become both.*
+
+   **✅ ANSWERED (Joe, 2026-07-11) — and the question was built on a false premise, which grounding exposed.**
+   - **⚠️ IT IS NOT A COMPUTATION. IT IS A RENDERER OF AN EXISTING PROTOCOL PROPERTY.** Temperature is **spec §3.7.13 (Status: complete)** + **Ch6 §6.12** + **D-061**: reserved `meta_atts` keys **`xgen.room_temperature`** / **`xgen.member_temperature`** (floats `[0,1]`), a threshold table, buckets `cool|warm|hot|fiery`. **The math is a plugin on the Room's home Node, deliberately outside the protocol.** Ch6 §6.12.1: the values are **opaque** — *“the client does not know how they were computed, does not attempt to re-derive them, and treats them as authoritative.”*
+   - **The moral question this doc raised was ALREADY ANSWERED by the protocol:** §3.7.13.3 ships **`member_temperature_visibility: moderator | everyone | self_only`** on Space state. And member heat is **accumulated overpass of the Space's own pacing rules** (§3.7.12 / D-060) — a measure against a rule the Space set for itself, **not** a reputation score.
+   - **Client Rust ALREADY EXISTS:** `xgen-client/src/temperature.rs` — `TemperatureUpdate {space_id, room_id, subject_id, temperature, state}`, the `__room__` sentinel, bucket derivation, a `temperature_update` Tauri event, **and a DOM contract**: `data-temp-state` + `--xgen-room-temperature` / `--xgen-member-temperature`.
+   - **Identity, therefore: a `$common` STORE fed by the existing `temperature_update` event, rendered as CONTENT inside other widgets** (room heat → R2 rows / R4 header; member heat → R7 rows / message rows). **Content inside a host is not a surface (§3.2) → it spends NO surface, and it is NOT a dockable panel.**
+   - **⚠️ THE `meter` + W-11-dd-socket FRAMING IS WITHDRAWN, NOT CARRIED FORWARD.** It predates Ch6 §6.12's `data-temp-state` contract and predates the widget tier itself — *“the first bird”*, named before any of the conventions it was described in existed (Joe). **Re-derive at kickoff against the shipped contract; do not inherit the old mechanism.**
+   - **GATE (deferred):** live messaging (**M-RP6.3** + R5 on live data) **AND** a home-node plugin that actually publishes values — `NoOpTemperaturePlugin` returns `None` today, **so there is nothing to render.** *That second half is a node/plugin arc, not a UI one — the M-RP6.6 shape again: a UI milestone cannot manufacture a source that does not exist.*
+   - **BINDING UNTIL THEN: no milestone reserves a heat slot or reads a heat store.** R2 / R4 / R7 ship without it.
+
 3. **§4.5** — what else belongs in a UI state (room, scroll, theme)?
 4. **Top-shelf pinning mechanism** — how does a user pin a favourite (manager checkbox? drag? a `+` on the shelf)? *Deliberately unanswered; the top-shelf mounts **empty** until this is decided — no dead controls (D-065).*
 5. **Glyph provenance** — `gear` / `diskette` / `load` need licence-clean sources (the open M-RP-ICON-ADOPT question).
+
+**Status: items 1 (partly) and 2 are LOCKED. Items 1 (Settings' own surface), 3, 4, 5 remain OPEN — M-RP6.1i–l stay gated.**
 
 ---
 
@@ -250,6 +271,35 @@ Bound it **now**, on paper, before it becomes a junk drawer:
 - `docs/xgen-client-frame-phase0.md` → the centre pane gains top-shelf / bottom-shelf as frame chrome.
 
 *Nothing above is edited until Joe locks §6 — Phase-0 proposes, Joe locks, then the specs move (D-069).*
+
+---
+
+## 9. ⚠️ NEW OPEN ITEM — the plugin taxonomy Phase-0 (filed 2026-07-11, gates M-RP6.1l)
+
+Grounding **Ch6 §6.8** during the §6 walk surfaced a collision this document did not know about. **Nothing shipped is wrong — the two SPECS disagree.**
+
+**Ch6 §6.8.3 already defines three Module UI Forms: Headless · Widget · Window.** This doc's surface set (`region | shelf | window | none`) is — in hindsight — **a re-derivation of that list, made without consulting it.** They agree on *headless* and *window*, and **diverge exactly where placement lives**.
+
+**And "widget" means two different things:**
+
+| | **Ch6 §6.8.3 widget** | **D-102 widget** (shipped) |
+|---|---|---|
+| what | HTML in an **isolated webview** | a **Svelte component**, in-process |
+| talks to | its module backend over a **local WebSocket** | a **`$common` store** |
+| placed by | a **named slot** (`room.sidebar.bottom`, `global.statusbar`, …) | a **`region`** in the D-103 descriptor — dockable |
+| authored by | a third party, any language, **package + manifest** | us, in the client tree |
+
+**→ So there are TWO PLACEMENT MODELS: Ch6's fixed named-slot inventory, and D-103's free dockable descriptor.**
+
+**Joe's reconciliation frame (and it is the right one):** *“module and widget is the plugin in the two areas: system and ui.”* **One plugin, one list, several UI forms.** The work is **alignment**, not a choice between them.
+
+**What the Phase-0 must answer** (spanning **D-036** · **D-102** · **D-103**):
+1. Is a D-102 widget a **module**? Does a module **contribute** one? Or are they distinct species that merely share a registry?
+2. Do the **slot inventory** and the **layout descriptor** unify, coexist, or does one retire?
+3. Does the surface vocabulary need a **`screen`** kind? *(Ch6 §6.8.5 says the plugin list is “a screen of its own” — and `region | shelf | window | none` cannot express that. This is what blocks §6 item 1's remainder: **Settings' own surface**.)*
+4. What does the plugin list render for a **built-in** with no package, no manifest and no socket? *(Joe: listed, distinguished, **no Remove button** — Ch6's `[system]` badge is already exactly this, and it is **W-13 pre-figured**.)*
+
+**Does NOT block M-RP6.1i / M-RP6.1j** — the `shelf` core and its two mounts are pure UI and depend on none of this. **DOES block M-RP6.1l** (the plugin list must list both species) and **M-RP7.4** (custom-widget-contributed regions — which *is* Ch6's slot mechanism under another name).
 
 ---
 

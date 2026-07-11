@@ -133,6 +133,8 @@ DOM: circle/square + initials + hashed colour + badge
 | M-RP5.3 | `entity-context-menu` | widget | the 100% read; consumes `EntityDescriptor` |
 | M-RP5.4 | `temperature-indicator` | widget | consumes `meter` via the W-11 dd-socket |
 
+> **⚠️ WITHDRAWN (2026-07-11, J-502).** The `meter` + W-11-dd-socket mechanism above is **wrong** — it was written before Ch6 §6.12 was consulted. Temperature is an **existing protocol property** (spec §3.7.13 · Ch6 §6.12 · D-061): the home Node's plugin computes it, the client treats the value as **opaque**, and `xgen-client/src/temperature.rs` already ships the `temperature_update` event + the `data-temp-state` DOM contract. **Real shape: a `$common` store + a skin contract, rendered as content — no `meter`, no dd-socket, no surface.** See `docs/xgen-widget-surfaces-phase0.md` §6.2.
+
 Kind-4 `use:render` stays deferred (D-065). `temperature-indicator` unblocks once a dd-consumer + the descriptor socket exist.
 
 ---

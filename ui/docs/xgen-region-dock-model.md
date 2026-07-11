@@ -1,6 +1,6 @@
 # XGen UI — Region / Dock Model
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -9,6 +9,30 @@
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 The main client UI panel is a **layout of dockable regions**. This doc locks the model so the two renderers — a lean config-grid now (M-RP6.1+) and an owned Maya-style dock engine later (M-RP7) — read the **same** layout descriptor, making the dock engine a *renderer upgrade*, not a region rewrite. Crystallises into **D-103**. Extends the `widget` tier (`xgen-widget-tier.md`, D-102) with the region-provider seam (W-12) and the system-lock (W-13).
+
+---
+
+## 0. Vocabulary — LOCKED (2026-07-11, Joe)
+
+Five words, five distinct things. They were used interchangeably before this lock; they are not interchangeable. **Every future UI doc, runbook and record uses them as defined here.**
+
+| term | what it is | shipped anchor |
+|---|---|---|
+| **tile** | **A PLACE** — a box in the grid. One `leaf` node in the §3 `Layout` descriptor = **one tile**. It has position, a size weight, and (at renderer B) a drag handle. | *currently unnamed in code* — the skin calls it `.region-leaf`. **Cosmetic debt**: rename when renderer B makes tiles draggable, **not before** (it would churn a shipped selector for no behaviour). |
+| **region** | **A WIDGET'S FULL CONTENT SURFACE**, occupying a tile. **It names WHICH widget, not where** — R3 *is* Self/connection wherever it is docked. | `regionId` — and in shipped code **`regionId === widgetId`** (`region-node.svelte`: `<W regionId={node.widgetId} />`). Leaf-id convention `region-${regionId}` (N-096). |
+| **face** | **A WIDGET'S COMPACT HANDLE** on a shelf: icon + optional badge + **a click that dispatches a `commandId`**. | `xgen-widget-surfaces-phase0.md` **S-4 / S-7**. |
+| **window** | a widget's **own OS window**. | surfaces §3; Ch6 §6.8.3's **Window** UI form. |
+| **slot** | **Ch6 §6.8.3's NAMED, FIXED attachment point** (`room.sidebar.bottom`, `global.statusbar`, …) — a **different placement model** from the dockable descriptor. | Ch6 §6.8.3. **⚠️ DO NOT MERGE with `region`** — see §11. |
+
+**🔑 The sentence that proves tile ≠ region — and it is why both words must exist:**
+
+> **A `tabs` node is ONE TILE holding SEVERAL REGIONS** (renderer B).
+
+That is unsayable if the two are synonyms. One box, three widgets, three surfaces.
+
+**⚠️ `face` is NOT "the static one".** Both a region and a face are **interactive** — a face is a button with a live badge (S-7: it dispatches a `commandId` into the same command table a menu item uses). **The axis is purpose, not liveness:** a **region IS the widget, rendered**; a **face is a HANDLE TO it**. S-4 forbids a face from being a shrunken region — *"No panels. No forms. No embedded editors."* — precisely so the shelf never becomes a second dock and no widget author has to be responsive across two wildly different geometries.
+
+**The surface rule is unchanged (surfaces §3.3): a widget has AT MOST ONE surface.** So **a face implies no tile.** *(This is the rule that a "static-vs-interactive" reading would quietly erode — people would reasonably expect a widget to have both.)*
 
 ---
 
@@ -152,6 +176,31 @@ The client window is a **BorderPane**: a fixed **top pane** (menu-bar), a fixed 
 - **Relationship to §1.** “Every region is a widget” still holds for the **center**. The frame is not a region; it is the window shell the center layout sits inside. The two are complements: descriptor-driven dockable center + fixed frame chrome.
 
 See `docs/xgen-client-frame-phase0.md` for the full frame Phase-0 and the frame-first M-RP6.1 build order. Crystallised as **D-107**.
+
+---
+
+## 11. ⚠️ OPEN — two "widgets" and two placement models (filed 2026-07-11, gates M-RP6.1l)
+
+**Grounding Ch6 §6.8 surfaced a genuine collision. Nothing shipped is wrong; the two SPECS disagree, and the disagreement lands at the plugin list.**
+
+**Ch6 §6.8.3 — Module UI Forms** (D-036) already defines three: **Headless** · **Widget** · **Window**. But **Ch6's "widget" is not D-102's widget**:
+
+| | **Ch6 §6.8.3 widget** | **D-102 widget** (what is shipped) |
+|---|---|---|
+| what | an HTML file in an **isolated webview** | a **Svelte component**, in-process |
+| talks to | its **module backend over a local WebSocket** | a **`$common` store** |
+| placed by | a **named slot** from a fixed inventory (`room.sidebar.bottom`, `room.toolbar`, `room.message.decorator`, `space.header`, `node.dashboard.widget`, `global.statusbar`) | a **`region`** in the §3 `Layout` descriptor — **dockable, user-rearrangeable** |
+| authored by | a third party, in any language, as a **package + manifest** | us, in the client tree |
+
+`self-panel` and `inspector-panel` are **D-102 widgets**: no webview, no socket, no slot, no manifest.
+
+**So there are TWO PLACEMENT MODELS in the project:** Ch6's **fixed named-slot inventory** and D-103's **free dockable descriptor**. `xgen-widget-surfaces-phase0.md`'s surface set (`region | shelf | window | none`) is, in hindsight, a **re-derivation of Ch6 §6.8.3** made without consulting it — they agree on *headless* and *window* and diverge **exactly where placement lives**.
+
+**This is a D-067 drift surface sitting in the SPECS, not the code.** It does not block **M-RP6.1i/j** (the `shelf` core + its mounts are pure UI). **It does block M-RP6.1l** (the plugin list must list **both** species) and **M-RP7.4** (custom-widget-contributed regions — which is Ch6's slot mechanism under another name).
+
+**Joe's reconciliation frame (2026-07-11), and it is the right one:** *"module and widget is the plugin in two areas: system and ui."* **One plugin, one list, several UI forms.** So the work is **aligning** the region model with Ch6's slot model — **not choosing between them**, and not renaming one into the other.
+
+**→ Filed as a taxonomy Phase-0** (D-071: subsystem audits precede dependent milestones), spanning **D-036** (modules) · **D-102** (widget tier) · **D-103** (this doc). It must answer: is a D-102 widget a module? does a module *contribute* one? do the slot inventory and the descriptor unify, coexist, or does one retire?
 
 ---
 

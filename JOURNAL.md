@@ -8,6 +8,48 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-502 — Vocabulary lock (tile / region / face / slot) + surfaces §6 partial lock; the plugin taxonomy gap FOUND — design/records-only, no code
+
+**Design + records only. No code. Registry unchanged (client 38, sampler catalogue 313).** A §6 walk of `docs/xgen-widget-surfaces-phase0.md` that produced **more corrections than answers** — which is the point of a Phase-0 gate (D-071).
+
+**🔑 THE SESSION'S REAL OUTPUT: A CONCEPT I "RE-DERIVED" WAS ALREADY SPECIFIED, COMPLETE, AND SHIPPED.**
+
+Walking §6.2 (`temperature-indicator`'s identity), Chat reasoned from first principles that heat must be *“a decaying accumulator the widget computes”*, that it *“must never be a protocol field”*, and that per-member heat raised *“a moral question Joe must decide”*. Joe's reply was one line: **“we have already written it — look in the chapters.”**
+
+**Every one of those three claims was false, and the truth was in the tree:**
+
+1. **Temperature IS a protocol property.** Spec **§3.7.13, Status: complete** — reserved `meta_atts` keys `xgen.room_temperature` / `xgen.member_temperature` (floats `[0,1]`), a threshold table, buckets `cool|warm|hot|fiery`.
+2. **The client computes NOTHING.** Ch6 **§6.12.1**: the values are **opaque** — *“the client does not know how they were computed, does not attempt to re-derive them, and treats them as authoritative.”* The math is a **plugin on the Room's home Node**, deliberately outside the protocol (**D-061**).
+3. **The “moral question” was already answered by the protocol.** §3.7.13.3 ships **`member_temperature_visibility: moderator | everyone | self_only`** on Space state. And member heat is **accumulated overpass of the Space's own pacing rules** (§3.7.12 / **D-060**) — a measure against a rule the Space set for itself, **not** a reputation score. *A materially better design than the one Chat was worried about.*
+
+And there is **shipped Rust on both sides**: `xgen-node/src/plugins/temperature.rs` (the `TemperaturePlugin` trait + `NoOpTemperaturePlugin`) and `xgen-client/src/temperature.rs` (`TemperatureUpdate`, the `__room__` sentinel, bucket derivation, a `temperature_update` Tauri event, **and a DOM contract**: `data-temp-state` + `--xgen-room-temperature` / `--xgen-member-temperature`).
+
+**⚠️ This is Chat's SIXTH grounding miss of this arc and by far the worst.** The others were details inside a runbook (J-497 ×3, J-498, J-499, J-500, J-501). **This one nearly had Joe lock a design decision that contradicts a *complete* spec section, a shipped decision (D-061), and two shipped Rust modules.** The lesson is sharper than *“read the source”*: **a concept I cannot remember is not a concept that does not exist — and “let me re-derive it” is not grounding, it is invention wearing grounding's clothes.** Joe caught it by knowing his own documents.
+
+**✅ §6.2 CLOSED (Joe).** `temperature-indicator` is **a RENDERER of an existing protocol property, not a computation**: a `$common` store fed by the existing `temperature_update` event + the shipped `data-temp-state` skin contract, rendered as **CONTENT inside other widgets** (room heat → R2/R4; member heat → R7/message rows). **Content inside a host is not a surface (§3.2) → it spends NO surface and is NOT a dockable panel.** **The `meter` + W-11-dd-socket framing is WITHDRAWN, not carried forward** — it predates Ch6 §6.12, the widget tier, the dd-socket and the region model. *(Joe: it was **“the first bird”** — named before any of the conventions it was described in existed. **The deferral is why it never hardened wrong.**)* **Gate: live messaging (M-RP6.3 + R5 live) AND a non-no-op node plugin** — `NoOpTemperaturePlugin` returns `None` today, **so there is literally nothing to render**. *That second half is a node/plugin arc — the M-RP6.6 shape again: **a UI milestone cannot manufacture a source that does not exist**.* **Binding: no milestone reserves a heat slot or reads a heat store.** Three stale records **corrected in place, not deleted** (widget-tier §6 · dd-entity-avatar-phase0 · components registry).
+
+**🔑 VOCABULARY LOCKED (Joe) — four words, four things, and we had been using them interchangeably.** Joe: *“you start to use word region systematically, i used it un-systematically”* — then proposed **tile**, and it turned out to be the **missing** word rather than a better synonym:
+
+| term | what it is |
+|---|---|
+| **tile** | **a PLACE** — a box in the grid; one `leaf` in the D-103 descriptor = one tile |
+| **region** | a widget's **full CONTENT surface**, occupying a tile — **it names WHICH widget, not where** |
+| **face** | a widget's **compact HANDLE** on a shelf: icon + badge + a `commandId` click (S-4/S-7) |
+| **window** | its own OS window |
+| **slot** | **Ch6 §6.8.3's named, FIXED attachment point** — a **different placement model**; do not merge |
+
+**`region` is IDENTITY, not location — and the shipped code settles it:** `region-node.svelte` mounts `<W regionId={node.widgetId} />`, so **`regionId === widgetId`**. R3 *is* Self/connection wherever it is docked. **The sentence that proves tile ≠ region:** *a `tabs` node is **ONE TILE holding SEVERAL REGIONS*** (renderer B) — unsayable if they are synonyms. **And `face` is NOT “the static one”** (Chat nearly agreed to that, and it is wrong): S-4/S-7 make a face **a button with a live badge**. **The axis is purpose, not liveness** — a region **IS** the widget rendered; a face is a **handle to** it. *That distinction is load-bearing: §3.3's “one surface per widget” means **a face implies NO tile**, and a “static vs interactive” reading would quietly erode it.* → **N-100**; canonical table = region-dock §0.
+
+**✅ §6.1 PARTIALLY CLOSED (Joe) — the registry half.** **The plugin list is ONE PANE with TWO ENTRY POINTS**: it lives in Settings' structure, and the **bottom-shelf gear opens the same pane** — **not** a cut-down twin. *(That is **S-2's “one component, two mounts”** + **S-7's one-dispatch-two-triggers**, applied to the manager; a simplified popup carrying the destructive buttons with the least context is exactly what **S-6** exists to prevent.)* **NAME = “plugin list”** — Ch6 §6.8.5 calls it the *Module List*, surfaces called it the *Widget Manager*; **same object**, and *plugin* is the better word because it covers **headless** plugins with no UI at all. *(Joe: **“module and widget is the plugin in the two areas: system and ui”**.)* **Built-ins are listed, distinguished, and NOT removable** — and **Ch6 §6.8.5 already drew that**: a `[system]` / `[user]` **mode badge** on every entry. **That is W-13, pre-figured in Ch6 before the widget tier existed.** **Still open: what surface *Settings itself* gets.**
+
+**⚠️ NEW OPEN ITEM — THE PLUGIN TAXONOMY GAP (filed; gates M-RP6.1l).** Grounding Ch6 §6.8 exposed a collision **in the specs, not the code**: **Ch6 §6.8.3 already defines three Module UI Forms — Headless · Widget · Window** — and **Ch6's “widget” is NOT D-102's widget.** Ch6's is **HTML in an isolated webview**, talking to its module backend over a **local WebSocket**, placed by a **named slot** from a fixed inventory (`room.sidebar.bottom`, `global.statusbar`, …). D-102's is a **Svelte component**, in-process, fed by a **`$common` store**, placed by a **dockable region** in the D-103 descriptor. `self-panel` / `inspector-panel` are the latter: **no webview, no socket, no slot, no manifest.** **→ There are TWO PLACEMENT MODELS in the project**, and surfaces-Phase-0's `region | shelf | window | none` is — in hindsight — **a re-derivation of Ch6 §6.8.3 made without consulting it** (they agree on *headless* and *window*, and diverge **exactly where placement lives**). **This is a D-067 drift surface sitting in the specs.** It does **not** block **M-RP6.1i/j** (the `shelf` core + mounts are pure UI); it **does** block **M-RP6.1l** (the plugin list must list both species) and **M-RP7.4**. **Joe's reconciliation frame is the right one — one plugin, one list, several UI forms — so the work is ALIGNMENT, not a choice between them.** → filed as a **taxonomy Phase-0** spanning **D-036 / D-102 / D-103** (region-dock §11 · surfaces §9).
+
+**Records.** `ui/docs/xgen-region-dock-model.md` **v1.6** (**§0 vocabulary — LOCKED** · **§11** the taxonomy gap) · `ui/docs/xgen-ui-notes.md` **+N-100** · `docs/xgen-widget-surfaces-phase0.md` **v1.2** (§6.1 partial · **§6.2 CLOSED** · **§9** new open item) · `ui/docs/xgen-widget-tier.md` + `docs/xgen-dd-entity-avatar-phase0.md` + `ui/docs/xgen-ui-components.md` **v0.71** (the withdrawn `meter`/dd-socket mechanism, corrected in place) · `docs/ROADMAP.md` · `CLAUDE.md`. **No new D** (D-036 / D-102 / D-103 / D-107 extension) — *and a D-number for the vocabulary is Joe's call, deliberately not taken unilaterally.*
+
+**§6 still OPEN — M-RP6.1i–l stay gated:** Settings' own surface (← needs the taxonomy Phase-0: the vocabulary **cannot express Ch6's “a screen of its own”**) · §4.5 UI-state contents · top-shelf pinning · glyph provenance. Also open: **M-RP6.6 client resident** · M-RP6.1e-B1 · M-RP7.x · M-RP7.3 (N-095) · M-RP8 · M-RP-ICON-ADOPT.
+
+---
+
 ## Entry J-501 — M-RP6.1h R8 Selection info: the selection bus's first CROSS-REGION reader; **M-RP6.1h CLOSED** — the read loop closes end-to-end
 
 **Doc-bridge (D-074 second commit).** Clair's feat is already pushed = commit `c4346bf` (code-only, **3 files, +143**); this entry + the paired canonical records = commit 2. **M-RP6.1h CLOSED.**

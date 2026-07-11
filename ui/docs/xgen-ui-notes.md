@@ -2073,6 +2073,36 @@ The leg "passed" while measuring **nothing at all**. The same trap produced a sp
 
 ---
 
+### N-100 — the **vocabulary lock**: tile ≠ region ≠ face ≠ slot (2026-07-11, design)
+
+**Four words had been used interchangeably. They are four different things, and the confusion was ours — Joe used them loosely in conversation, and the code hardened *one* of them into shipped ids while the docs kept drifting on the rest.**
+
+| term | what it is |
+|---|---|
+| **tile** | **A PLACE** — a box in the grid. One `leaf` node in the D-103 `Layout` descriptor = **one tile**. Position, size weight, and (at renderer B) a drag handle. |
+| **region** | **A WIDGET'S FULL CONTENT SURFACE**, occupying a tile. **It names WHICH widget, not where.** |
+| **face** | **A WIDGET'S COMPACT HANDLE** on a shelf — icon + optional badge + a click that **dispatches a `commandId`** (S-4 / S-7). |
+| **window** | a widget's own OS window. |
+| **slot** | **Ch6 §6.8.3's named, FIXED attachment point** (`room.sidebar.bottom`, `global.statusbar`, …). **A different placement model. Do not merge with `region`.** |
+
+**🔑 `region` is IDENTITY, not location — and the shipped code says so.** `region-node.svelte` mounts a leaf as `<W regionId={node.widgetId} />`: **`regionId === widgetId`.** R3 *is* Self/connection **wherever it is docked**. The registry entries are the proof: `self-panel#region-self`, `inspector-panel#region-inspector`. *The intuition “a region is a place you put a tile” is backwards — and it is the reading the code refutes.*
+
+**🔑 The sentence that proves tile ≠ region, and it is why both words must exist:**
+
+> **A `tabs` node is ONE TILE holding SEVERAL REGIONS** (renderer B).
+
+Unsayable if they are synonyms. One box, three widgets, three surfaces.
+
+**⚠️ `face` is NOT “the static one” — a tempting reading, and wrong.** S-4 defines a face as **icon + badge + a click**, and S-7 makes that click a **`commandId` dispatch into the same command table a menu item uses**. **A face is a button with a live badge.** **The axis is PURPOSE, not liveness:** a **region IS the widget, rendered**; a **face is a HANDLE TO it**. S-4 forbids *“panels, forms, embedded editors”* on a face precisely so **the shelf never becomes a second dock** and no widget author must be responsive across two wildly different geometries.
+
+**And the surface rule depends on getting this right** (surfaces §3.3): **a widget has AT MOST ONE surface → a face implies NO tile.** A “static view vs interactive view” reading would quietly erode that — people would reasonably expect a widget to have **both**.
+
+**Cosmetic debt, deliberately NOT paid now:** the skin calls the tile `.region-leaf`. Correct under the old vocabulary, wrong under this one. **Rename when renderer B makes tiles draggable** — churning a shipped selector for zero behaviour, mid-arc, is exactly the kind of change that buys nothing and risks something. *(And the closed records J-499–J-501 quote `region-*` ids as **measured CDP values**; historical entries stand unchanged, so a rename would leave a permanent seam in the record. Worth paying once, at the right moment, not now.)*
+
+*Canonical table: `ui/docs/xgen-region-dock-model.md` §0. Design/vocabulary note. No code change.*
+
+---
+
 ## How to use this file
 
 - New notes go under the current date heading, indexed `N-NNN` continuing the numbering.

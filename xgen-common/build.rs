@@ -26,6 +26,18 @@ fn main() {
         .unwrap_or_else(|| "unknown".to_string());
     println!("cargo:rustc-env=BUILD_GIT_HASH={}", git_hash);
 
+    // Rust toolchain version (`rustc -V`), falls back to "unknown". Same shape
+    // as the git-hash shell-out above — one build-metadata surface (M-RP6.1e-C2).
+    // The node inherits this const for free; no per-app build.rs duplicates it.
+    let rustc_version = Command::new("rustc")
+        .arg("-V")
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+    println!("cargo:rustc-env=BUILD_RUSTC_VERSION={}", rustc_version);
+
     // Re-run only when git HEAD changes
     println!("cargo:rerun-if-changed=../.git/HEAD");
     println!("cargo:rerun-if-changed=../.git/refs/");

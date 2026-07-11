@@ -8,6 +8,9 @@
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const BUILD_TIMESTAMP: &str = env!("BUILD_TIMESTAMP");
 pub const GIT_HASH: &str = env!("BUILD_GIT_HASH");
+/// Rust toolchain that compiled this crate, e.g. "rustc 1.95.0 (… 2026-04-14)".
+/// Emitted by `build.rs` (`rustc -V`); "unknown" if the shell-out fails.
+pub const RUSTC_VERSION: &str = env!("BUILD_RUSTC_VERSION");
 
 // Version format: [state].[section].[session].[build]
 //   state:   0 = building, 1 = Phase 1+2 complete

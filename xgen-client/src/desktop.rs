@@ -43,6 +43,12 @@ struct Pacing(Arc<Mutex<PacingManager>>);
 /// at launch. Mirrors the `CurrentState`/`Pacing` managed-state pattern.
 struct ConfigPath(PathBuf);
 
+/// Resolved Tier-1 data directory for this instance (M-RP6.1e-C2). Held as
+/// managed state so `get_about_info` reports the real path without re-deriving
+/// it as `config_path.parent()` — a derivation that would silently break if the
+/// config filename ever moved. Sibling of `ConfigPath`.
+struct DataDir(PathBuf);
+
 fn emit_state(app: &AppHandle, state: ClientLifecycleState) {
     let canonical = state.as_canonical();
     tracing::info!(lifecycle_state = canonical, "lifecycle transition");
@@ -111,6 +117,33 @@ fn get_substitutions(config: tauri::State<ConfigPath>) -> String {
 #[tauri::command]
 fn set_substitutions(rules: String, config: tauri::State<ConfigPath>) -> std::result::Result<(), String> {
     app::write_substitutions_section(&config.0, &rules).map_err(|e| e.to_string())
+}
+
+/// Returns the "About" environment block for the About dialog (M-RP6.1e-C2).
+/// A thin wrapper over `xgen_common::about::collect` — no logic here (the
+/// `get_substitutions` shape). Build metadata (`built`/`commit`/`rustc`) comes
+/// from `build_info`; the app facts are supplied here because `xgen-common` has
+/// no `tauri`/JS dependency:
+///   - `version` is **`xgen-client`'s own** `CARGO_PKG_VERSION` — deliberately
+///     NOT `build_info::VERSION` (that is xgen-common's; both are 0.10.3 today);
+///   - `tauri` = `tauri::VERSION`; `svelte` = the resolved version emitted by
+///     this crate's `build.rs` from the committed `package-lock.json`.
+/// Paths come from managed state (`DataDir`/`ConfigPath`), not re-derived.
+#[tauri::command]
+fn get_about_info(
+    config: tauri::State<ConfigPath>,
+    data: tauri::State<DataDir>,
+) -> xgen_common::about::ClientAboutInfo {
+    let common = xgen_common::about::collect(xgen_common::about::AboutParams {
+        name: "XGen Client".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        link: "https://www.alchemydump.com".to_string(),
+        tauri: tauri::VERSION.to_string(),
+        svelte: env!("XGEN_SVELTE_VERSION").to_string(),
+        data_dir: data.0.display().to_string(),
+        config_path: config.0.display().to_string(),
+    });
+    xgen_common::about::ClientAboutInfo { common }
 }
 
 #[tauri::command]
@@ -274,12 +307,17 @@ pub fn run(
     // data_dir the startup sequence uses (`run_startup` line ~139).
     let config_path = ConfigPath(data_dir.join("xgen-client_config.toml"));
 
+    // M-RP6.1e-C2 — the data dir itself, so `get_about_info` reports the real
+    // path rather than deriving it from the config path.
+    let data_dir_state = DataDir(data_dir.clone());
+
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .manage(shared_state)
         .manage(PipeShutdown(shutdown_tx))
         .manage(pacing_manager)
         .manage(config_path)
+        .manage(data_dir_state)
         .setup(move |app| {
             let handle = app.handle().clone();
             let dir = data_dir.clone();
@@ -295,7 +333,8 @@ pub fn run(
             get_pacing_state,
             quit,
             get_substitutions,
-            set_substitutions
+            set_substitutions,
+            get_about_info
         ])
         .run(tauri::generate_context!())
         .expect("error while running xgen-client desktop shell");

@@ -5,6 +5,7 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
+pub mod about;
 pub mod aicontrol;
 pub mod build_info;
 pub mod canonical;

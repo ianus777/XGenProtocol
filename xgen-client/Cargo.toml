@@ -16,6 +16,10 @@ path = "src/lib.rs"
 # tauri-build reads tauri.conf.json at compile time so the desktop module's
 # `generate_context!()` macro can resolve. Required by D-062.
 tauri-build = { version = "2", features = [] }
+# M-RP6.1e-C2 — build.rs parses ui/client/package-lock.json for the resolved
+# Svelte version (a crude string scan of a lockfile is fragile). Already a
+# runtime dependency below.
+serde_json = "1"
 
 [dependencies]
 xgen-common = { path = "../xgen-common" }

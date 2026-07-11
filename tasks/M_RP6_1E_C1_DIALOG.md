@@ -1,6 +1,6 @@
 # M-RP6.1e-C1 — `dialog` core (native `<dialog>` + `showModal()`) build runbook
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -154,6 +154,24 @@ The sampler is the correct surface: `dialog` is a pure di component with no shel
 2. **Chat — doc-bridge commit**: `JOURNAL.md` (J-series) · `CLAUDE.md` PLAY · `ui/docs/xgen-ui-components.md` (registry, 31st `core`) · `ui/docs/xgen-ui-notes.md` (N-089) · `docs/ROADMAP.md` · `docs/xgen-client-frame-phase0.md` §6/§10.4 (6.1e-C1 ✅) · this file → **COMPLETED**.
 
 Joe pushes both. Chat never pushes.
+
+---
+
+## 8. Close record (J-496)
+
+**M-RP6.1e-C1 CLOSED.** `dialog` built + CDP-verified (sampler 9422, both accents). Feat `4f35d87` (Clair, code-only, 3 files); doc-bridge = this commit (D-074).
+
+- **Registry 309→313 (+4)** — `dialog#default` · `dialog#labelled` · `button#default__close` · `button#labelled__close`; `count===unique===domCount` 313/313/313; **0 orphans both directions**. Independently re-measured by Chat on a fresh launch (Rule 5).
+- **§4 leg 3 (`:modal`) held** — `isModal:true`. And it earned its place: `openAttr:true` was measured **while correctly modal**, because `showModal()` reflects the attribute itself. The attribute could never have discriminated the downgrade.
+- **§2.4 write-back proven from both ends** — Clair: trusted `Input.dispatchKeyEvent` Escape. Chat: element-first `close()` → getter `open:false` → **re-click trigger → reopens** (`isModal:true`), impossible if the prop had lied `true`.
+- **§2.6 registry stability held** — 313 open === 313 closed.
+- **§5 Rule-6 grounding:** `::backdrop` custom-property inheritance **not** relied on → literal `rgba(0,0,0,0.55)` scrim; `:modal` support confirmed before being made load-bearing; `use:envelope` on `<dialog>` a non-event.
+- **Deviation (Rule 6, flagged not absorbed):** §2.3 specified `title` as required; shipped as **`title?`** defaulting to `''` with a conditional header (the `section` precedent). **Accepted as the shipped contract** — strictly more robust, never reached by About, G still reports `title` verbatim. Recorded in J-496 / N-089 rather than retrofitted here.
+- **Build:** `vite build` clean, **167 modules** (166→167). Scope-clean (no `xgen-client/**`, no `ui/client/**`, no Rust).
+
+→ **N-089** · components registry **v0.66** · frame-phase0 §6/§10.4 · ROADMAP v4.65 · **no new D** (D-107 extension). **The N-052 `modal`/`dialog` deferral (logged M-RP2.21) is closed.**
+
+**Next: M-RP6.1e-C2** — `get_about_info` (`xgen-common::about` B2 + `build.rs` metadata + managed `data_dir` + the Tauri command; **real Rust**, verified real client 9222).
 
 ---
 

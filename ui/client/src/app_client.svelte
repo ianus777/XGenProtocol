@@ -1,11 +1,11 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import Button from '$core/components/data-independent/button.svelte';
   import MenuBar from '$core/components/data-independent/menu-bar.svelte';
+  import StatusBar from '$core/components/data-independent/status-bar.svelte';
+  import Paragraph from '$core/components/data-independent/paragraph.svelte';
   import { substitutions } from '$common/components/processor/store.svelte';
   import { KeymapRegistry } from '$common/keymap/registry';
   import { accelerator } from '$common/keymap/accelerator';
-  import AppLogo from './assets/logo_client_64.png';
 
   // Initial state before the first Tauri event arrives.
   let currentState = $state({ state: 'INITIALISING', label: 'Initialising' });
@@ -86,49 +86,63 @@
     }
   }
 
-  function dotColor(state) {
-    switch (state) {
-      case 'SETUP':
-      case 'CLOSING':       return 'var(--t4)';
-      case 'INITIALISING':  return 'var(--t3)';
-      case 'CONNECTING':
-      case 'AUTHENTICATING':
-      case 'RECONNECTING':  return 'var(--inf)';
-      case 'READY':         return 'var(--ok)';
-      case 'DEGRADED_AUTH':
-      case 'DEGRADED_FEDERATION':
-      case 'DEGRADED_NODE': return 'var(--pr)';
-      case 'DISCONNECTED':  return 'var(--err)';
-      default:              return 'var(--t4)';
-    }
-  }
+  // ── Connection state → colour (D1) ────────────────────────────────────────────────────────
+  // The legacy dotColor() switch, now a literal map handed to status-bar's `states` prop; the
+  // legacy isPulsing() as an explicit array. ALL 11 client lifecycle states are enumerated —
+  // `led`'s unknown sentinel is BLACK (#000000), so an unenumerated state changes colour
+  // visibly rather than falling back silently to the legacy `default: var(--t4)`. The sentinel
+  // is the honest signal (Rule 5 / led contract); no fallback branch.
+  const STATE_COLOURS = {
+    SETUP: 'var(--t4)',            CLOSING: 'var(--t4)',
+    INITIALISING: 'var(--t3)',
+    CONNECTING: 'var(--inf)',      AUTHENTICATING: 'var(--inf)',     RECONNECTING: 'var(--inf)',
+    READY: 'var(--ok)',
+    DEGRADED_AUTH: 'var(--pr)',    DEGRADED_FEDERATION: 'var(--pr)', DEGRADED_NODE: 'var(--pr)',
+    DISCONNECTED: 'var(--err)',
+  };
+  const PULSING_STATES = ['INITIALISING', 'CONNECTING', 'AUTHENTICATING', 'RECONNECTING'];
 
-  function isPulsing(state) {
-    return ['INITIALISING', 'CONNECTING', 'AUTHENTICATING', 'RECONNECTING'].includes(state);
+  // ── Resize-grip wiring (D3) ────────────────────────────────────────────────────────────────
+  // The status-bar's SE grip exposes `onResizeGrip?` and drives Tauri's startResizeDragging
+  // (SE = width+height). The window is now OS-decorated (native title bar + native edge resize),
+  // so the grip is a supplementary corner affordance — a conventional explicit resize handle at
+  // the bottom-right — not the sole resize path it was under the original frameless design.
+  // Lazy-imported inside the handler — the exact handleQuit pattern, so the browser-dev preview
+  // (no Tauri) keeps working. 'SouthEast' is a valid ResizeDirection string literal (confirmed
+  // against @tauri-apps/api window.d.ts — no enum import needed).
+  async function handleResizeGrip() {
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      await getCurrentWindow().startResizeDragging('SouthEast');
+    } catch (e) {
+      console.error('Resize drag failed:', e);
+    }
   }
 </script>
 
-<!-- Fixed frame: the top-pane menu-bar (frame chrome, OUTSIDE the Layout descriptor — region-dock
-  model §2) over the centered content body. 6.1e adds the bottom status-bar, 6.1f the center region. -->
+<!-- Fixed BorderPane frame (M-RP6.1e-B): the full-width menu-bar and the bottom status-bar are
+  frame chrome, OUTSIDE the future Layout descriptor (region-dock model §2 — File→Exit can never
+  be docked away), below the OS-native title bar. The center is the ONLY scroller (D5) and holds
+  a placeholder until 6.1f. Window move + min/max/close come from the native title bar (Joe's
+  pivot away from the original frameless design), so there is no in-app drag region. -->
 <div class="app-frame">
   <MenuBar {menus} platform={PLATFORM} onCommand={runCommand} id="app-menubar" />
 
-  <div class="app-body">
-    <main id="core-ui-pane">
-      <img id="app-logo" src={AppLogo} alt="XGen Client" />
+  <main class="app-center">
+    <Paragraph
+      text="No layout mounted — the center region shell lands at M-RP6.1f."
+      id="center-placeholder"
+    />
+  </main>
 
-      <div class="state-indicator">
-        <span
-          class="state-dot"
-          class:pulse={isPulsing(currentState.state)}
-          style="background-color: {dotColor(currentState.state)}"
-        ></span>
-        <span class="state-label">{currentState.label}</span>
-      </div>
-
-      <!-- Additive: the existing Quit button stays intact (D-065). File→Exit is the new civilized
-        exit; ripping the working button is scope creep — a later cleanup removes the redundant one. -->
-      <Button label="Quit" onclick={handleQuit} id="quit" />
-    </main>
-  </div>
+  <!-- The connection light + caption migrate here from the retired hand-rolled .state-indicator
+    (D1); the SE grip is a supplementary corner resize affordance (D3). -->
+  <StatusBar
+    states={STATE_COLOURS}
+    state={currentState.state}
+    pulse={PULSING_STATES.includes(currentState.state)}
+    caption={currentState.label}
+    onResizeGrip={handleResizeGrip}
+    id="app-statusbar"
+  />
 </div>

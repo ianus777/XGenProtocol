@@ -3,10 +3,12 @@
     "windows": [
       {
         "title": "XGen Client",
-        "width": 420,
-        "height": 260,
-        "decorations": false,
-        "resizable": false,
+        "width": 900,
+        "height": 600,
+        "minWidth": 640,
+        "minHeight": 400,
+        "decorations": true,
+        "resizable": true,
         "center": true,
         "additionalBrowserArgs": "--remote-debugging-port=9222"
       }

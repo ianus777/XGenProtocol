@@ -1779,6 +1779,46 @@ html, body {
   gap: var(--sp-2);
 }
 
+/* ── inspector-panel (.inspector-*) — R8 Selection info, the SECOND real system widget (M-RP6.1h) and
+ * the selection bus's first cross-region reader. ALL skinnable presentation — frame, the avatar head,
+ * and the key/value grid tracks/gaps — lives here (N-090 / N-094: the component ships ZERO <style>; the
+ * question is never "would this be the first <style>?" but "could a skinner retune this?"). The kv grid
+ * REUSES the `.about-grid` shape (skin ~1037) — NOT a shared `.kv-grid` extraction (only the second
+ * recurrence; D-069's bar is four — flagged for the fourth). Accent-neutral: the avatar colour is
+ * seed-derived, not --accent, so the panel reads identically client↔node. ── */
+.inspector-panel {
+  padding: var(--sp-2);
+}
+.inspector-panel .section-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.inspector-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.inspector-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--sp-0) var(--sp-3);
+  margin: 0;
+  align-items: baseline;
+}
+.inspector-grid dt {
+  color: var(--t3);
+  font-size: var(--fs-0);
+}
+.inspector-grid dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.inspector-grid dd .label {
+  font-size: var(--fs-0);
+}
+
 /* ── section (di, M-RP2.31) — a collapsible DISCLOSURE container. Root <section>. Bordered box:
  * a SOLID header band (--s2, the future bg-colour/picture-mod target) over a padded body. Header
  * = title + optional right-pinned badge (+ a de-chromed toggle button when collapsible). The

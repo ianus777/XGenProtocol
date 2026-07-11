@@ -10,6 +10,7 @@ import type { Component } from 'svelte';
 import type { Layout } from '$core/components/layout/types';
 import RegionPlaceholder from './region-placeholder.svelte';
 import SelfPanel from '$common/components/widgets/self-panel.svelte';
+import InspectorPanel from '$common/components/widgets/inspector-panel.svelte';
 
 // All 8 D-103 region ids (region-dock §2), in the default row order.
 export const REGION_IDS = [
@@ -22,6 +23,7 @@ export const REGION_IDS = [
 export const widgetRegistry: Record<string, Component> = {
   ...Object.fromEntries(REGION_IDS.map((id) => [id, RegionPlaceholder])),
   self: SelfPanel,
+  inspector: InspectorPanel,
 };
 
 // DEFAULT_LAYOUT (D8) — exercises row + col + nesting, all 8 regions, NO unknown id, NO tabs (a broken

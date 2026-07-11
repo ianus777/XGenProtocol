@@ -1,6 +1,6 @@
 # XGen UI — Region / Dock Model
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -87,7 +87,13 @@ A shell primitive the regions share: **one active selection** across the layout 
 
 > **Standing rule for every region that writes the bus:** if the component it renders has a `selected` prop and the skin has a `[data-selected]` rule, **derive `selected` from `selection.current`**. A click that mutates the store and moves nothing on screen is not a working writer — it is an untested one.
 
-The first **cross-region** reader is **R8 (inspector)** at **M-RP6.1h**.
+**✅ AND THE BUS NOW HAS A CROSS-REGION READER (M-RP6.1h / J-501) — THE LOOP IS CLOSED.** R8's `inspector-panel` reads `selection.current` and renders the selected entity's rows (Kind · Name · ID · **Source** · Flags). Verified in the real client: click R3's `entity-item` → the rendered `<dd>` text matches the bus payload exactly (the **painted text**, not the getter — N-097).
+
+**🔑 The proof that mattered was NOT the R3 click.** Driving `__XGEN_SEL__` **directly** with a `space` and a `room` — **regions that have no writer at all** — R8 rendered them anyway (avatar shape flipping circle/square/hexagon, `Source` flipping to `spaces`/`rooms`). **That is what proves R8 reads the BUS and not R3.** A reader wired to one producer is indistinguishable from a reader wired to the bus until you feed it from somewhere the producer cannot reach.
+
+> **Standing rule for every region that READS the bus:** prove it against a `regionId` **no writer produces**. Otherwise you have verified a point-to-point link and called it a bus.
+
+R1/R2 land as the next writers, and they will find the reader already there — and already proven against their `regionId`s.
 
 ## 6. Constraint additions to the widget tier
 

@@ -1,6 +1,6 @@
 # M-RP6.1h — R8 Selection info: the inspector, the bus's first cross-region reader
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-11  
 > Language: English  
@@ -11,6 +11,20 @@
 Canonical runbook for **M-RP6.1h**. Design-walked by Chat and **locked under Joe's explicit autonomy grant (2026-07-11)** — D1–D8 below. Chat's lane: this runbook + the CDP verify + the doc-bridge. Clair's lane: implementation + design closes.
 
 **The milestone in one line:** R3 writes `{regionId, entity}` → **R8 renders that entity's rows**. The read loop closes end-to-end, and the selection bus gets its first **cross-region** reader.
+
+**✅ SHIPPED — M-RP6.1h CLOSED (J-501). Feat `c4346bf`** (code-only, **3 files, +143** — the §1 list exactly). All §5 legs **V1–V8 re-driven by Chat** (Rule 5) on the real client 9222 with real output; recorded in J-501.
+
+**Delivered-vs-runbook delta (Rule 6):**
+
+1. **⚠️ §5's V4 literal was WRONG — Chat's error, Clair caught it.** The runbook asserted `{kind:'space', flags:{isDm:true}}` → **square**. **Ground truth** (`entity-avatar.svelte:56-62`, read at close): `room → hexagon` · `space && !isDm → square` · **else circle** — the source comment says it outright: *"DM space = circle (people-shaped)"*. **A DM space is a CIRCLE.** Chat **grounded this against the code rather than accepting the flag on trust**; Clair had driven all three cases (DM→circle+flags, room→hexagon, non-DM→square+e2e), so both sub-claims — the shape-flip **and** the D4 flags row — are honestly proven and the milestone is unaffected. **Only the runbook's label was wrong.** *The §0 hedge ("if the code contradicts me, the code wins and you flag it") is what caught it — for the second milestone running.*
+
+2. **⚠️ A PHANTOM GREEN was produced during the verify and thrown away — Chat's, and it is the milestone's real method lesson.** The first V7 accent leg **set the bus and read the DOM in the same eval**; Svelte renders on the **effect tick**, so both reads returned `null` and the check reported **`accentNeutral: true` by comparing `null === null`**. **A leg that cannot SEE its subject has not passed it.** Re-driven across two evals with a `readable` assertion **first**. The same trap produced a spurious `count:42` after `clear()`; re-read separately → **38**. → **N-099**. **Future runbooks: any leg that compares two reads must FIRST assert both reads are non-null.**
+
+3. **Both §2 build calls came back GROUNDED and were accepted:** `variant="labeled"` draws shape + seed + initials only (`<figcaption>` reserved-unused) → **the Name row is not a duplicate, kept**; and the flags true-branch **is** drivable via `__XGEN_SEL__` → **exercised at V4, so the row ships verified rather than merely reachable**.
+
+4. **Clair verified BEFORE committing** (her request, granted). No D-074 breach — commit 1 stayed code-only — and it removed the reason to amend, which is what produced the J-500 amend-after-push merge phantom. **Good instinct; adopt it.**
+
+5. **Her process miss, self-reported:** she overwrote the untracked `inspector-panel.svelte` with a `Write` before reading it. `git diff HEAD` confirms the committed result is the minimal verified 3-file scope — **a session-open discipline note, not a defect.**
 
 ---
 
@@ -120,7 +134,17 @@ Sampler is structurally irrelevant here (no frame, no bus, no shell). **Single-e
 - **V3 — 🔑 THE MILESTONE. The loop closes.** Click R3's `entity-item` → R8 renders: `kind:identity`, the **real keypair-derived XGID**, the name, `Source: self`.
   **⚠️ The leg is the RENDERED TEXT read out of the DOM — not the getter.** N-097, third recurrence: *a state flag is not a render.* Read the `<dd>` label text nodes and compare them to the bus payload.
   Also: **R3's own gold `[data-selected]` bar still paints** (no regression).
-- **V4 — R8 does not depend on R3.** Drive the bus directly: `__XGEN_SEL__.set('spaces', {kind:'space', id:'…', name:'…', flags:{isDm:true}})` and again with `kind:'room'`. Prove: the avatar's `data-shape` flips (**square** / **hexagon**), `Source` flips to `spaces`/`rooms`, and **the flags row renders** (`rowCount` 4 → 5, `isDm` in the text). **This is the proof R8 reads THE BUS, not R3** — and it is the only leg that exercises D4.
+- **V4 — R8 does not depend on R3.** Drive the bus directly with **three** descriptors and prove `data-shape` + `Source` + the flags row each time. **This is the proof R8 reads THE BUS, not R3** — and it is the only leg that exercises D4.
+
+  **⚠️ CORRECTED IN PLACE (J-501) — this runbook's original shape literal was WRONG (Chat's error).** It said a **DM space → square**. **Ground truth, `entity-avatar.svelte:56-62`:** `room → hexagon` · `space && !isDm → square` · **else circle** (the source comment: *"DM space = circle (people-shaped)"*). The correct cases:
+
+  | descriptor | shape | flags row |
+  |---|---|---|
+  | `{kind:'space', flags:{isDm:true}}` → `spaces` | **circle** (people-shaped) | `isDm`, `rowCount 5` |
+  | `{kind:'room'}` → `rooms` | **hexagon** | absent, `rowCount 4` |
+  | `{kind:'space', flags:{e2e:true}}` → `spaces` | **square** (non-DM) | `e2e`, `rowCount 5` |
+
+  All three drive the flags row **in both directions** (present ↔ absent), which is what makes D4's branch *verified* rather than merely reachable.
 - **V5 — Clear → empty; registry returns EXACTLY to baseline.** `__XGEN_SEL__.clear()` → G `{hasSelection:false}`, the row ids gone, `__empty` back, **and the enumerated id set is identical to V2's**. *(The client bridge is state-only — this exact-return is the ONLY orphan proxy available, N-092a.)*
 - **V6 — Geometry (N-091, a REQUIRED leg for anything layout-class).** `docNoScroll` true; the R8 leaf **self-scrolls** while the document does not (inject tall content, then restore); the members/inspector column holds its `sizes [1,1]`.
 - **V7 — Skin.** The `.inspector-*` rules **in cascade** (stylesheet-rule inspection, N-042 — `getComputedStyle` is not the method for this); **zero component `<style>`** (grep the file); accent behaviour **measured** under an injected `--accent2` swap.

@@ -2043,6 +2043,36 @@ passed to `entity-item` and published in G. **The panel is now the bus's writer 
 
 ---
 
+### N-099 — the **same-tick phantom green**: a leg that cannot SEE its subject has not passed it (M-RP6.1h)
+
+**Chat produced a false PASS during the 6.1h verify and threw it away.** Recorded because the failure mode is silent, self-confirming, and would have entered a canonical record as a real green.
+
+**What happened.** The V7 accent-neutrality leg **set the selection bus and read the DOM in the same CDP eval**:
+
+```
+__XGEN_SEL__.set(...);            // arms the render
+before = read();                  // <- runs BEFORE Svelte's effect flush
+inject --accent2; after = read();
+return { accentNeutral: before.dt === after.dt };   // true
+```
+
+**Svelte 5 flips state synchronously but renders on the EFFECT TICK** (the J-495 finding, restated). So the panel had not rendered yet, **both reads returned `null`**, and the comparison reported:
+
+> **`accentNeutral: true` — by comparing `null === null`.**
+
+The leg "passed" while measuring **nothing at all**. The same trap produced a spurious `count: 42` immediately after a `clear()` (the unmount had not flushed either); re-read in a separate eval → **38**.
+
+**The two rules, and the second one is the general one:**
+
+1. **A state mutation and its DOM read MUST be separate evals.** Click / `set()` / `clear()` in one; read in the next. *(Clair independently hit and documented this in the same milestone — two agents, one tick.)*
+2. **🔑 A LEG MUST ASSERT IT CAN SEE ITS SUBJECT BEFORE IT COMPARES.** The re-driven leg carries a `readable: before.dt !== null && before.fill !== null` field **alongside** the verdict, so a null can never masquerade as a match. **An equality check over two absent values is not a pass — it is a leg that never ran.**
+
+**This is the N-091 family, third variant.** N-091: *"verified" is only as wide as the legs you ran.* N-097: *a state flag is not a render — the painted pixel is the leg.* **N-099: a leg that reads `null` and compares it to `null` reports green while proving nothing.** All three are the same disease: **a check whose subject is absent still returns an answer, and the answer is always the flattering one.**
+
+*Harness / method note. No code change. Sits with N-091, N-097, N-098.*
+
+---
+
 ## How to use this file
 
 - New notes go under the current date heading, indexed `N-NNN` continuing the numbering.

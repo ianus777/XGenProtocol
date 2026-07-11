@@ -1020,6 +1020,19 @@ html, body {
 }
 
 /* --------------------------------------------------
+ * About dialog body (.about-*) — the client's Help->About box (M-RP6.1e-C3). GRAPHICAL layer
+ *   only (colour + type); block layout lives in the client app.css. Two type tiers: the upper
+ *   identity block unified to --fs-1 (the name carries hierarchy through weight, not size), the
+ *   Version..Config block one size on BOTH key and value, the smaller --fs-0 (Joe). Shell-owned
+ *   classes, but appearance belongs in the one skin file (N-025); harmless where unused.
+ * -------------------------------------------------- */
+.about-name .label { color: var(--t); font-size: var(--fs-1); font-weight: 700; }
+.about-by { color: var(--t3); font-size: var(--fs-1); }
+.about-id .link { font-size: var(--fs-1); }
+.about-grid dt { color: var(--t3); font-size: var(--fs-0); }
+.about-grid dd .label { font-size: var(--fs-0); }
+
+/* --------------------------------------------------
  * password-field (.password-field)
  *   The SECOND di COMPOSITE (M-RP2.23) + the home for the reveal toggle. Root IS
  *   <div class="password-field">. Skin lays out textfield (field) + a TRANSPARENT icon-only reveal

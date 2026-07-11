@@ -50,6 +50,7 @@
   import ConverterField from '$core/components/data-independent/converter-field.svelte';
   import Meter from '$core/components/data-independent/meter.svelte';
   import Section from '$core/components/data-independent/section.svelte';
+  import Dialog from '$core/components/data-independent/dialog.svelte'; // 31st core, di composite modal (M-RP6.1e-C1)
   import EntityAvatar from '$core/components/data-dependent/entity-avatar.svelte'; // first dd-atomic (M-RP5.0)
   import EntityItem from '$core/components/data-dependent/entity-item.svelte'; // first dd-composite (M-RP5.1)
   import Status from '$core/components/data-dependent/status.svelte'; // self-status dd-atomic (M-RP5.1a)
@@ -177,6 +178,10 @@
   // color-picker (M-RP2.29) — string bind:value #rrggbbaa; seeded with the per-shell accents (padded ff).
   let cpDefault = $state('#9a6a30ff');
   let cpDisabled = $state('#2a6090ff');
+  // dialog (M-RP6.1e-C1): closed on mount; the s-note triggers below flip these to open.
+  let dlgDefault = $state(false);
+  let dlgLabelled = $state(false);
+  let dlgClosed = $state(0); // onClose spy for CDP (fires on button + Esc)
   const tagOptions = ['important', 'work', 'personal', 'urgent', 'later'];
   const cbOptions = [
     { value: 'online', label: 'Online', status: 'active' },
@@ -714,6 +719,26 @@
       <div class="s-cells">
         <div class="s-cell"><span class="s-id">color-picker#default</span><ColorPicker bind:value={cpDefault} id="default" /></div>
         <div class="s-cell"><span class="s-id">color-picker#disabled</span><ColorPicker bind:value={cpDisabled} id="disabled" disabled /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">dialog (onClose fired: {dlgClosed})</div>
+      <div class="s-cells">
+        <div class="s-cell">
+          <span class="s-id">dialog#default</span>
+          <button type="button" class="s-note" onclick={() => (dlgDefault = true)}>Open dialog</button>
+          <Dialog title="Confirm action" bind:open={dlgDefault} id="default" onClose={() => dlgClosed++}>
+            This is a modal dialog. Close it with the button below or the Esc key — the backdrop does not dismiss.
+          </Dialog>
+        </div>
+        <div class="s-cell">
+          <span class="s-id">dialog#labelled</span>
+          <button type="button" class="s-note" onclick={() => (dlgLabelled = true)}>Open (custom label)</button>
+          <Dialog title="About XGen" bind:open={dlgLabelled} closeLabel="Done" id="labelled" onClose={() => dlgClosed++}>
+            A dialog exercising a non-default closeLabel ("Done", not the "Close" default).
+          </Dialog>
+        </div>
       </div>
     </div>
   </div>

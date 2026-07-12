@@ -7,6 +7,7 @@
   import AboutDialog from './about-dialog.svelte';
   import UistateSaveDialog from './uistate-save-dialog.svelte';
   import UistateLoadDialog from './uistate-load-dialog.svelte';
+  import PluginsDialog from './plugins-dialog.svelte';
   import { uiStateStore } from './uistate.svelte';
   import { loadLayout, widgetRegistry } from './layout-default';
   import { substitutions } from '$common/components/processor/store.svelte';
@@ -36,6 +37,10 @@
   let saveOpen = $state(false);
   let loadOpen = $state(false);
 
+  // Plugin list dialog (M-RP6.1l). The gear shelf face opens this; it mounts the `plugin-list` widget
+  // ($common) — a READ-ONLY list of the client's own compiled plugins (there is no node-plugin verb).
+  let pluginsOpen = $state(false);
+
   // Centre region layout (M-RP6.1f). Seeded by `await loadLayout()` on mount (D2 — async so M-RP7.3 is a
   // one-line swap to invoke('get_layout')). Shell-local this milestone (D7 — the shell is the only
   // consumer; the widget-manager/shelf promotion to a $common store is reserved, not built).
@@ -61,10 +66,12 @@
   const commandTable = {
     'app.exit': handleQuit,
     'help.about': () => (aboutOpen = true),
-    // M-RP6.1k — the diskette/load faces resolve here (the seam wired live at 6.1j now has real
-    // entries). `widget.manager` (the gear) stays absent → the gear stays disabled until 6.1l.
+    // M-RP6.1k — the diskette/load faces resolve here.
     'uistate.save': () => (saveOpen = true),
     'uistate.load': () => (loadOpen = true),
+    // M-RP6.1l — the gear resolves here. This entry existing is what lets the gear enable (below);
+    // the 6.1j countdown is now discharged — no shelf face is disabled.
+    'widget.manager': () => (pluginsOpen = true),
   };
   function runCommand(commandId) {
     commandTable[commandId]?.();
@@ -97,16 +104,16 @@
     },
   ];
 
-  // ── Shelves (M-RP6.1j — mount the shipped shelf, J-508; M-RP6.1k — enable the UI-state faces) ──
+  // ── Shelves (M-RP6.1j — mount the shipped shelf, J-508; M-RP6.1k — UI-state faces; M-RP6.1l — gear) ──
   // The bottom (system) strip's faces — shell-local (D5, the layout-default D7 precedent; the shell is
-  // the only consumer, no $common store). The countdown from 6.1j, one step advanced (W-8):
-  //   6.1k (this milestone) — diskette/load ENABLED; their `uistate.*` commands now exist in the table.
-  //   6.1l — enables gear once widget.manager enters the table.
+  // the only consumer, no $common store). The 6.1j countdown is now DISCHARGED (M-RP6.1l):
+  //   6.1k — diskette/load ENABLED; their `uistate.*` commands exist in the table.
+  //   6.1l (this milestone) — gear ENABLED; `widget.manager` now exists in the table. NO face is disabled.
   // RENAMED layout.save/layout.load → uistate.save/uistate.load (D-114): the store is NOT a layout — it
   // holds geometry, and will hold shelf/theme/room; `layout.*` would be a lie by M-RP6.2. There is no
   // uistate.saveAs — one diskette, one dialog, two outcomes (overwrite the active state, or a new name).
   const SHELF_BOTTOM = [
-    { icon: 'gear', label: 'Plugins', command: 'widget.manager', disabled: true },
+    { icon: 'gear', label: 'Plugins', command: 'widget.manager', disabled: false },
     { icon: 'diskette', label: 'Save UI state', command: 'uistate.save', disabled: false },
     { icon: 'load', label: 'Load UI state', command: 'uistate.load', disabled: false },
   ];
@@ -258,9 +265,9 @@
     {/if}
   </main>
 
-  <!-- Bottom shelf (M-RP6.1j / M-RP6.1k): system commands, above the status-bar. diskette + load are
-    now ENABLED (their uistate.* commands exist); gear stays disabled (an honest phase-limit, W-8,
-    keyboard-reachable via aria-disabled) until 6.1l wires widget.manager. -->
+  <!-- Bottom shelf (M-RP6.1j / M-RP6.1k / M-RP6.1l): system commands, above the status-bar. All three
+    faces are now ENABLED (their commands exist in the table) — the 6.1j countdown is discharged, no
+    shelf face is disabled. -->
   <Shelf position="bottom" items={SHELF_BOTTOM} ariaLabel="System" onCommand={runCommand} id="app-shelf-bottom" />
 
   <!-- The connection light + caption migrate here from the retired hand-rolled .state-indicator
@@ -282,4 +289,8 @@
     the diskette/load shelf faces (uistate.save / uistate.load). -->
   <UistateSaveDialog bind:open={saveOpen} onSave={handleUistateSave} />
   <UistateLoadDialog bind:open={loadOpen} onLoad={handleUistateLoad} />
+
+  <!-- Plugin list modal (M-RP6.1l). Same always-mounted top-layer posture; opened by the gear shelf
+    face (widget.manager). A READ-ONLY list of the client's own compiled plugins. -->
+  <PluginsDialog bind:open={pluginsOpen} />
 </div>

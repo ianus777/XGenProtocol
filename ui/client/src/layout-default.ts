@@ -9,21 +9,27 @@
 import type { Component } from 'svelte';
 import type { Layout } from '$core/components/layout/types';
 import RegionPlaceholder from './region-placeholder.svelte';
-import SelfPanel from '$common/components/widgets/self-panel.svelte';
-import InspectorPanel from '$common/components/widgets/inspector-panel.svelte';
+import { CLIENT_PLUGINS } from '$common/plugins/registry';
 
 // All 8 D-103 region ids (region-dock §2), in the default row order.
 export const REGION_IDS = [
   'spaces', 'rooms', 'self', 'room-header', 'stream', 'composer', 'members', 'inspector',
 ] as const;
 
-// The registry map: every id → the placeholder, then each real widget replaces ONE entry as it lands
-// (M-RP6.1g swaps `self` → SelfPanel — the first real leaf; this is exactly what renderer A's
-// prop-injected registry was built for, N-093). The remaining 7 stay placeholders until their milestones.
+// The registry map is DERIVED from CLIENT_PLUGINS (M-RP6.1l, D2): every region id → the placeholder,
+// then each plugin with `surface: 'region'` replaces ONE entry with its component. A widget is in the
+// grid BECAUSE it is a registered region plugin — one source (the registry), two readers (this map +
+// the plugin-list widget), the N-096 shape. The literal `self: SelfPanel, inspector: InspectorPanel`
+// lines are gone; today the derive yields exactly those two (self-panel M-RP6.1g, inspector-panel
+// M-RP6.1h). The remaining 6 regions stay placeholders — a placeholder is scaffolding, not a plugin,
+// and it is not listed.
 export const widgetRegistry: Record<string, Component> = {
   ...Object.fromEntries(REGION_IDS.map((id) => [id, RegionPlaceholder])),
-  self: SelfPanel,
-  inspector: InspectorPanel,
+  ...Object.fromEntries(
+    CLIENT_PLUGINS.filter((p) => p.surface === 'region' && p.regionId && p.component).map(
+      (p) => [p.regionId as string, p.component as Component],
+    ),
+  ),
 };
 
 // DEFAULT_LAYOUT (D8) — exercises row + col + nesting, all 8 regions, NO unknown id, NO tabs (a broken

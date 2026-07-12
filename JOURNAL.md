@@ -1,10 +1,69 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-11  
+> **Last updated:** 2026-07-12  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-504 — The GLYPH BANK: a glyph is a SKIN TOKEN. CSS `d:` PROBED and PROVEN on the real client; the CSS layer model gets a canonical doc; TWO drifts filed — design/probe/records-only, no code
+
+**Design + CDP probe + records only. No code. Registry unchanged (client 38, sampler catalogue 313).** Joe opened with a proposal, not a task: *"we do have couples of them already in component, but they are there hardcoded. i propose a library or a bank"* — modelled on a Java `SvgGlyph.GEAR_ICON` enum. **Grounding turned it into a different question, and then a probe answered it with numbers.**
+
+**🔑 THE FIND — THE BANK ALREADY EXISTED. TWICE. AND THE LOSS IT WAS MEANT TO PREVENT HAD ALREADY HAPPENED.**
+
+**Measured, 21 distinct glyphs, FOUR mechanisms across TWO layers:** **A** `icons.ts` → `icon.svelte`, `<path d>`, fill, `--icon-tint` (**3**) · **B** `skin.css` **`mask-image`** data-URIs, mostly stroke (**11 declarations / 10 distinct**) · **C** `skin.css` **`background-image`** data-URIs with **colour baked into the URI** (**7** — the 5 `textfield[type=]` insets, the `select` arrow, `--ea-spark`) · **D** `img-placeholder.svg` as `src` — **and re-inlined a second time** as a data-URI at `app_sampler.svelte:402`.
+
+**And every skin glyph token was declared INSIDE its own component's class selector — not one at `:root`.** `skin.css` said so deliberately: *"icon-data vars scoped here (no global token)."* **Two consequences, both measured, both bad:**
+1. **`--tri` / `--tri-open` are declared TWICE** — `.combobox` (1232-33) and `.section` (1829-30), where the section's own comment says ***"REUSES combobox's masked glyphs"* and then re-declares them.** *The exact failure Joe's question was aimed at, already sitting in the tree.*
+2. **🔑 A component-scoped custom property is a PRIVATE VARIABLE, not a theme surface.** A theme author cannot redraw *"the eye"* — they must know **which component scopes it** and redefine each shared glyph **N times**. ***Component-scoping half-defeated the very skinnability it was chosen for.*** That is the sentence that decided the design.
+
+**⚠️ AND `docs/xgen-icon-adoption.md` v0.1 §1 WAS WRONG ABOUT THE *WHERE*.** It said the glyphs were *"currently inline `<svg>` inside their field components."* **Grepped every live `.svelte`: ZERO inline `<svg>` in any field component** (only `icon.svelte`, and one sampler demo URI). **A doc written from memory rather than from the tree** — the arc's standing lesson, landing on a *document* this time instead of a design. **The milestone's shape changed with the correction:** not *"extract inline SVG from components"* but ***"reconcile four mechanisms across two layers."***
+
+**✅ JOE'S PRINCIPLE WAS RIGHT, AND CHAT'S FIRST RECOMMENDATION WAS WRONG.** Joe: *"i think that this is better plan than to hardcode them to source code. they can be redefined by skin change."* Chat had proposed **"registry `d` attribute as the default + skin override as a fallback layer"** — and **withdrew it under push-back**: that is **two defaults for one glyph**, a **second source of truth for geometry** (**D-067 drift wearing a safety vest**), insuring against a browser that **cannot occur**. **Geometry lives in the skin. Only in the skin.** *(Chat's own deviation, flagged rather than absorbed — Rule 6.)*
+
+**✅ THE MODEL — LOCKED (Joe) → D-108.**
+
+> **`core` owns the NAME (identity = content). The skin owns the SHAPE (geometry = appearance).**
+> **A glyph is a SKIN TOKEN — the same species as `--accent2`.** A component says *which* glyph; the skin says *what it looks like*. **A component never writes geometry, for the same reason it never writes a colour** (N-025 / N-090, applied to glyphs).
+
+**Source (hand):** `ui/assets/icons/*.svg` + `icons.manifest.json` (**licence per glyph → a glyph with no licence FAILS THE BUILD** — the BSL→GPL gate becomes structural, not a periodic audit). **The `.svg` files never ship.** **Generated:** `glyphs.generated.css` → `:root { --glyph-gear: path('…'); --glyph-gear-url: url("data:…") }` (**the bank, and the runtime default**) + `icons.generated.ts` → `type IconName` (**names only, no geometry** — a typo is a compile error). **Two token forms, and they are NOT redundant:** `path()` is consumable **only** by `d:`, and `<select>`/`<input>` have **no child to hang a `<path>` on** while **N-020 forbids wrapping the root** — so native roots take `--glyph-*-url`.
+
+**🔑 CDP PROBE — REAL CLIENT 9222. Chat drove every leg; non-destructive; exact baseline return (38 → 38, 0 probe nodes, root var cleared).** *Every claim below is a measurement. Rule 5.*
+- **CSS `d:` works in WebView2.** `<path>` with **no `d` attribute** + `d: path('M5 5h14v14H5z')` → `getBBox()` **14×14 @ (5,5)**, **`getTotalLength()` = 56** (= 4×14, the true perimeter). **The geometry engine, not merely the computed string** — N-097's rule (*the painted pixel is the leg*) applied to SVG.
+- **`d: var(--glyph-x)` resolves** through a `:root` token — identical 14×14 / 56.
+- **🔑 `var()` RESOLVES INSIDE A CUSTOM-PROPERTY VALUE.** An inline `style="--g: var(--glyph-gear)"` on the `<svg>` root feeds **ONE generic skin rule** `.icon path { d: var(--g) }` → **one rule serves the entire icon system.** The `data-glyph` per-glyph-rule fallback is **dead**.
+- **Multi-path + per-path independent fill, from that one rule:** p1 = 14×14 / len **56** / **magenta** · p2 = 20×20 / len **64.72** / **green**. → **multi-colour marks stay `icon`s. D-096 NOT re-opened** (the palette glyph does not become an `image`).
+- **A LATER STYLESHEET REDRAWS THE GLYPH — through the indirection.** p1 → diamond: len **56 → 56.57** (= 4·√200, exact) · p2 **untouched** (64.72) · **the inline style unchanged**. ***Whole-glyph theme replacement, on a real `<path>`, with zero component change.***
+- **`-url` form from a `:root` token on a native root:** resolved on a real `<select>` (159-char data-URI).
+- **`d` attribute + CSS `d:` together → CSS WINS** (attribute still `"M5 5h14v14H5z"`, rendered geometry the triangle). *This is the leg that made the rejected fallback **possible** — and it is exactly why it had to be **rejected on principle** rather than on capability.*
+
+**Three of the five v0.1 open questions DISSOLVED, none of them by argument:** **§3b** multi-colour → stays an `icon` (a mask can *never* do per-path fills) · **§3c** stroke-vs-fill → an ordinary skin property on `.icon path`, **`icon` gains no new prop** · **§3e** the combo triangle → folds, **and the `--tri` duplicate dies as a side-effect.** **§3f provenance** → structural (manifest + build failure). **§3a** → settled: the *"is per-theme glyph replacement a goal?"* framing was **moot — route (B) was already shipped for 13 glyphs, without a decision.**
+
+**✅ THE LAYER SKETCH — Joe: *"pls write this structure sketch in some record, even in some chapter. it is crucial."*** He is right, and grounding showed **why** it is crucial. → **NEW canonical doc `ui/docs/xgen-css-layer-model.md` v1.0** (the *appearance* sibling of `xgen-region-dock-model.md`, which owns *layout*):
+
+```
+theme-*.css            ← custom skin. May redefine --accent2 AND --glyph-gear. Identical mechanism.
+───────────────────
+skin.css               ← default skin, hand-written  ┐ ONE LAYER,
+glyphs.generated.css   ← default skin, machine-made ┘ split by WHO WRITES IT
+───────────────────
+xgen-normalize / modern-normalize   ← reset, not skin
+```
+
+**The split between the two default-skin files is TOOLING, not architecture** — *you never mix a generated block into a 98 KB file a human edits live over HMR.* **A theme overrides a glyph exactly the way it overrides a colour. The cascade IS the mechanism; there is no second machinery.** *(Rejected: putting the bank in `app.css` — **three** `app.css` files → triplication; it loads **after** `skin.css` → cascade inverted; and N-031 scopes it to shell chrome.)*
+
+**⚠️ DRIFT 1 FILED — Ch6 §6.2's CSS LAYER ARCHITECTURE IS STALE vs THE CODE.** D-057/D-058 specify `base.css` → `tokens.css` → `skin-dark.css` → `components/`. **Shipped:** no `tokens.css` exists (tokens live in `skin.css`) · `skin.css`, not `skin-dark.css` · and Ch6's **"each `.svelte` file carries its own `<style>` block"** is the **exact OPPOSITE** of **N-025 / N-031 / N-090**. **A D-067 drift surface sitting in a SPEC CHAPTER** — *and it is why a sketch buried in a note would have lost the argument to Ch6.* **Ch6 NOT amended: a spec-chapter touch is a Joe-lock.** Recorded in the canonical doc §4/§6 so the drift is **visible instead of latent**.
+
+**⚠️ DRIFT 2 / TRUST SURFACE FILED — THE SPACE-THEME GLYPH-OVERRIDE BAN.** Under D-108 a theme redraws **any** glyph — **including a lock, a warning, or a verified mark**. **Ch6 §6.3's Layer 3 is a Space theme declared by the SPACE OWNER via a `state.space_theme` EVENT — attacker-supplied CSS arriving over the wire**, in a protocol whose premise is verified identity. **Recommendation: glyph tokens are EXCLUDED from the Space-overridable subset** (app/user themes may redraw glyphs; **a Space may not**). ***And this is not a new decision surface:*** **Ch6 §6.3 already carries the open question *"Which specific CSS tokens may a Space owner override?"***, and Session 1 filed *"Permitted Space theme override token list"* for the second pass. **This supplies the first entry on a list Ch6 already says must exist.** *(The wider question — what else arbitrary Space-owner CSS can do — is Ch6's, not the bank's. Flagged, not solved.)*
+
+**⚠️ Also recorded, not fixed:** **`theme-*.css` does not exist yet.** Ch6 §6.3's three-layer cascade is **specified but unbuilt**. What is locked is that **the bank is SHAPED so a theme layer can override it when it lands** — **no milestone may claim theming works.** And **`DECISIONS.md` has drifted from newest-first** (D-089, D-091, D-094 and **all** of D-099–D-107 are appended at the *bottom*); D-108/D-109 **follow the de-facto shipped pattern** rather than silently re-sorting a 4,076-line record. **Flagged, not fixed.**
+
+**Records.** **NEW `ui/docs/xgen-css-layer-model.md` v1.0** · `docs/xgen-icon-adoption.md` **v0.1 → v1.0** (§1 inventory **corrected to the measured 21**; §3 settled by measurement) · `ui/docs/xgen-ui-notes.md` **v0.76 +N-101** · `DECISIONS.md` **+D-108** (the glyph bank) **+D-109** (the Chromium/WebView2 `d:` platform dependency — *taken deliberately, named, and NOT hedged; the WebKit exit is the `-url` form the bank **already emits**, so a port is a renderer swap, not a rewrite — the D-103 one-source-two-renderers shape again*) · `docs/ROADMAP.md` v4.73 · `CLAUDE.md`.
+
+**No code moved.** M-RP-ICON-ADOPT stays **gated behind the frame arc — it does not jump the queue.** Its Phase-0 is now **classification + provenance, not re-litigation**: classify all 21 (fill / stroke / multi-colour / native-root), licence-source every one, lock the manifest record + generator contract.
 
 ---
 

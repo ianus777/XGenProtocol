@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.75  
+> Version: 0.76  
 > Date: May 2026  
-> **Last updated**: 2026-07-11  
+> **Last updated**: 2026-07-12  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -2100,6 +2100,36 @@ Unsayable if they are synonyms. One box, three widgets, three surfaces.
 **Cosmetic debt, deliberately NOT paid now:** the skin calls the tile `.region-leaf`. Correct under the old vocabulary, wrong under this one. **Rename when renderer B makes tiles draggable** — churning a shipped selector for zero behaviour, mid-arc, is exactly the kind of change that buys nothing and risks something. *(And the closed records J-499–J-501 quote `region-*` ids as **measured CDP values**; historical entries stand unchanged, so a rename would leave a permanent seam in the record. Worth paying once, at the right moment, not now.)*
 
 *Canonical table: `ui/docs/xgen-region-dock-model.md` §0. Design/vocabulary note. No code change.*
+
+---
+
+### N-101 — the **glyph bank**: a glyph is a SKIN TOKEN, not source code; CSS `d:` + `:root` + one rule (2026-07-12, design + CDP probe)
+
+**Design/probe session. No code.** Joe: *"we do have couples of them already in component, but they are there hardcoded. i propose a library or a bank."* The bank turned out to already exist — **twice** — and the walk found the loss it was meant to prevent had **already happened**. → **D-108** (the model) · **D-109** (the platform dependency) · canonical doc **`ui/docs/xgen-css-layer-model.md`** v1.0.
+
+**🔑 THE MEASURED FIND — TWO BANKS, FOUR MECHANISMS, AND A DUPLICATE ALREADY IN THE TREE.** 21 distinct glyphs: **A** `icons.ts` `<path d>` registry (3, fill, `--icon-tint`) · **B** `skin.css` `mask-image` data-URIs (11 declarations / 10 distinct, mostly stroke) · **C** `skin.css` `background-image` data-URIs with **colour baked in** (7 — the 5 `textfield[type=]` insets, the `select` arrow, `--ea-spark`) · **D** `img-placeholder.svg` as `src` (**re-inlined a second time** at `app_sampler.svelte:402`).
+
+**And EVERY skin.css glyph token was declared inside its own component's selector — none at `:root`.** `skin.css` said so on purpose: *"icon-data vars scoped here (no global token)."* **Two consequences, both measured:** **`--tri`/`--tri-open` are declared TWICE** (`.combobox` 1232-33 · `.section` 1829-30 — and the section comment says *"REUSES combobox's masked glyphs"* **then re-declares them**); and **a component-scoped custom property is a private variable, NOT a theme surface** — a theme author cannot redraw *"the eye"* without knowing which component scopes it, and must redefine each shared glyph N times. ***Component-scoping half-defeated the very skinnability it was chosen for.***
+
+**⚠️ AND `docs/xgen-icon-adoption.md` v0.1 §1 WAS WRONG ABOUT THE *WHERE*** — it said the glyphs were *"currently inline `<svg>` inside their field components."* **Grepped: ZERO inline `<svg>` in any field component** (only `icon.svelte` and one sampler demo URI). A doc written from memory, not from the tree. *The arc's standing lesson, landing on a doc this time instead of a design.*
+
+**✅ THE MODEL (Joe-locked).** **`core` owns the NAME (identity = content); the skin owns the SHAPE (geometry = appearance).** A glyph is a **skin token** — same species as `--accent2`. Source of truth = `ui/assets/icons/*.svg` + `icons.manifest.json` (**licence per glyph → a glyph with no licence FAILS THE BUILD**); codegen emits **`glyphs.generated.css`** (`:root { --glyph-gear: path('…'); --glyph-gear-url: url("data:…") }` — the bank, the runtime default) and **`icons.generated.ts`** (`type IconName` — **names only, no geometry**, so a typo is a compile error). **The `.svg` files never ship.**
+
+**CDP PROBE — real client 9222, non-destructive, exact baseline (38 → 38, 0 probe nodes). Every claim below is a measurement, not a reading.**
+- **CSS `d:` works in WebView2.** `<path>` with **no `d` attribute** + `d: path('M5 5h14v14H5z')` → bbox **14×14 @ (5,5)**, **`getTotalLength()` = 56** (= 4×14 — *the geometry engine, not just the computed string; N-097's rule applied to SVG*).
+- **`d: var(--glyph-x)` resolves**, and **`var()` resolves INSIDE a custom-property value** — so an inline `style="--g: var(--glyph-gear)"` on the `<svg>` root feeds **ONE generic skin rule** `.icon path { d: var(--g) }`. **Not one rule per glyph.** The `data-glyph` per-glyph-rule fallback is **dead**.
+- **Multi-path + per-path fill, from that one rule:** p1 = 14×14 / len 56 / **magenta**, p2 = 20×20 / len 64.72 / **green**. → **multi-colour glyphs stay `icon`s; D-096 is NOT re-opened** (adoption §3b **dissolved**).
+- **A later stylesheet redefines the token and the geometry follows:** len **56 → 56.57** (= 4·√200, a diamond's exact perimeter) · the other path **untouched** · **the inline style unchanged**. *Whole-glyph theme replacement, on a real `<path>`, with no component change.*
+- **`-url` form from a `:root` token on a native root:** resolved on a real `<select>` (159-char data-URI) — the `<select>`/`<input>` cases have **no child to hang a path on** and **N-020 forbids wrapping the root**, so the two token forms are **not redundant**.
+- **Stroke-vs-fill is a skin property on `.icon path`, not a component prop** → adoption §3c **dissolved; `icon` gains no new API.**
+
+**❌ ONE IDEA RAISED AND DROPPED — the `d`-attribute fallback.** The probe showed **CSS `d:` overrides a present `d` attribute** (attribute still `"M5 5h14v14H5z"`, rendered geometry the triangle). That made *"ship geometry as an attribute AND let the skin override it"* **possible** — and Chat recommended it for one turn. **It is wrong: two defaults for one glyph = a second source of truth for geometry (D-067 drift wearing a safety vest), hedging against a browser that cannot occur** (Tauri is always Chromium — **D-109**). **Joe pushed back; the recommendation was withdrawn.** **Geometry lives in the skin. Only in the skin.**
+
+**⚠️ AND THE PROBE EXPOSED A TRUST SURFACE — filed, not solved.** A theme can redraw **any** glyph, **including a lock, a warning, or a verified mark**. **Ch6 §6.3's Layer 3 is a Space theme declared by the Space owner via a `state.space_theme` EVENT — i.e. attacker-supplied CSS arriving over the wire.** **Recommendation: glyph tokens are EXCLUDED from the Space-overridable subset** (app/user themes may redraw glyphs; **a Space may not**). *Not a new decision surface: **Ch6 §6.3 already asks "Which specific CSS tokens may a Space owner override?"** and Session 1 filed *"Permitted Space theme override token list"* for the second pass — **this supplies the first entry on a list Ch6 already says must exist.***
+
+**⚠️ SECOND DRIFT FOUND WHILE GROUNDING — Ch6 §6.2's CSS layer architecture (D-057/D-058) is STALE vs the code**, on three counts: **no `tokens.css` exists** (tokens live in `skin.css`) · **`skin.css`, not `skin-dark.css`** · and **"each `.svelte` file carries its own `<style>` block"** is the **OPPOSITE** of N-025 / N-031 / N-090. **Ch6 NOT amended** — a spec-chapter touch is a Joe-lock. Recorded in `xgen-css-layer-model.md` §4/§6 so the drift is **visible instead of latent**.
+
+*Canonical model: `ui/docs/xgen-css-layer-model.md` §0 (the layer sketch, Joe-locked) · §2 (the bank) · §5 (the probe evidence table). Design + probe only. No code moved.*
 
 ---
 

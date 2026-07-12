@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-09  
+> **Last updated:** 2026-07-12  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -4074,3 +4074,63 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 **Scope.** Frame concept + the component prerequisites + the frame-first M-RP6.1 re-sequence. Design-only at lock (J-488); each component gets its own design lock + runbook when its sub-milestone opens. Verify graduates from the sampler to the real client app (the sampler cannot reach a node; D-097) — three-layer: pure unit / real-client-offline / real-client + node.
 
 **Relationship:** D-103 (extends it with the frame concept — the frame is the non-dockable complement of the center layout) · D-102/W-12/W-13 (the frame is deliberately NOT a widget) · D-096 (clears `icon` as its own component) · D-095 (frame containers are `core`) · D-056 (window-effects shell-wired, above components) · D-065 (minimal-now, grow-by-accretion).
+
+---
+
+## D-108 — The glyph bank: a glyph is a SKIN TOKEN, not source code; `core` owns the NAME, the skin owns the SHAPE
+
+**Date:** 2026-07-12 · **Layer:** UI appearance (M-RP-ICON-ADOPT / CSS layer model) · **Ref:** N-101, N-020, N-025, N-031, N-090, D-096, D-067, D-109 · **Canonical doc:** `ui/docs/xgen-css-layer-model.md` v1.0
+
+**The problem, measured — not assumed.** 21 distinct glyphs lived in **four mechanisms across two layers**: 3 as `<path d>` strings in a TS registry (`icons.ts` → `icon.svelte`, fill, `--icon-tint`); 10 as `mask-image` data-URIs in `skin.css` (mostly stroke); 7 as `background-image` data-URIs in `skin.css` with the **colour baked into the URI**; 1 as an `.svg` file consumed by `src` — **and re-inlined a second time** as a data-URI in `app_sampler.svelte:402`.
+
+**And every `skin.css` glyph token was declared inside its own component's class selector — none at `:root`.** `skin.css` stated the intent explicitly: *"icon-data vars scoped here (no global token)."* **Two measured consequences:**
+1. **`--tri` / `--tri-open` are declared TWICE** — `.combobox` (1232-33) and `.section` (1829-30), where the section's own comment says *"REUSES combobox's masked glyphs"* **and then re-declares them**. *The loss this decision exists to prevent had already occurred.*
+2. **A component-scoped custom property is a private variable, NOT a theme surface.** A theme author cannot redraw *"the eye"* — they must know which component scopes it and redefine each shared glyph N times. **Component-scoping half-defeated the skinnability it was chosen for.**
+
+**Decision.** **A glyph is a skin token — the same species as `--accent2`.**
+
+> **`core` owns the NAME (identity = content). The skin owns the SHAPE (geometry = appearance).**
+>
+> A component says *which* glyph. The skin says *what it looks like*. **A component never writes geometry, for the same reason it never writes a colour.** (N-025 / N-090, applied to glyphs.)
+
+- **Source of truth (hand):** `ui/assets/icons/*.svg` (24×24, geometry only, no colour) + `ui/assets/icons/icons.manifest.json` (paint / stroke-width / **source + licence per glyph**). **The `.svg` files never ship** — they are authoring source.
+- **Generated:** `ui/assets/glyphs.generated.css` → `:root { --glyph-gear: path('…'); --glyph-gear-url: url("data:…") }` — **the bank, and the runtime default**. And `ui/core/.../icons.generated.ts` → `type IconName = 'gear' | …` — **names only, no geometry**.
+- **Two token forms, and they are NOT redundant.** `path()` is consumable **only** by the CSS `d:` property. `<select>` and `<input>` have **no child element to hang a `<path>` on**, and **N-020 forbids wrapping the root** — so native roots consume `--glyph-*-url` via `background-image` / `mask`.
+- **Layering (D-108's structural half):** `glyphs.generated.css` loads at **L1.5** — after the normalizes, **before `skin.css`**. **`skin.css` + `glyphs.generated.css` are ONE layer** (the default skin), split by **who writes it** — you never mix a generated block into a 98 KB file a human edits live over HMR. A later `theme-*.css` overrides **any** token — colour or glyph — **by the cascade, with no second machinery**.
+- **Component wiring:** `<Icon name="gear"/>` → `<path>` with **no `d` attribute** + inline `--g: var(--glyph-gear)` → **ONE** skin rule for the whole system: `.icon path { d: var(--g); fill: var(--icon-tint, currentColor) }`.
+
+**Guards (each failure mode dies structurally, not by discipline).** Typo → build error (`IconName` union). Duplicate name → build error (generator). **Glyph with no licence → build error** (the BSL→GPL gate becomes structural, not a periodic audit). Missing token at runtime → empty `<path>` + DEV-warn, **the behaviour `icon.svelte` already ships** for an unknown name (the W-13 unknown-id-drop precedent) — no throw, no new failure mode. Re-drawing a glyph nobody knew existed → the **sampler glyph-grid** renders the whole bank; *you cannot redraw a glyph you can see.*
+
+**Consequences that closed open questions (all measured; evidence table in the canonical doc §5).**
+- **`var()` resolves inside a custom-property value** → **one** skin rule, not one per glyph. The `data-glyph` per-glyph-rule fallback is **dead**.
+- **Multi-path glyphs carry per-path independent fills** → **multi-colour marks stay `icon`s. D-096 is NOT re-opened** (the palette glyph does not become an `image`).
+- **Stroke-vs-fill is a skin property on `.icon path`** → **`icon` gains no new prop.** The deferred "stroke variant" question dissolves.
+- **`icons.ts` retires as a geometry store.** Its name half survives as the generated `IconName` union — **Joe's Java `SvgGlyph.GEAR_ICON` enum, split along the line the project already draws.**
+
+**❌ Explicitly rejected — the `d`-attribute fallback.** The probe showed CSS `d:` **overrides** a present `d` attribute, which made *"ship geometry as an attribute AND let the skin override it"* technically possible, and Chat recommended it for one turn. **Rejected: it is two defaults for one glyph — a second source of truth for geometry (D-067 drift), hedging against a browser that cannot occur (D-109).** **Geometry lives in the skin. Only in the skin.**
+
+**Relationship:** D-109 (the platform dependency this rests on) · D-096 (cleared `icon` as its own component — **not re-opened**) · D-067 (the drift this eliminates, and the reason the fallback was rejected) · N-020 (atomic roots — why native roots need the `-url` form) · N-025 / N-031 / N-090 (skin owns appearance; this is that rule applied to geometry) · D-071 (the Phase-0 classification pass still gates implementation).
+
+**Scope.** Model only. **No code moved at lock.** Implementation is M-RP-ICON-ADOPT, gated behind the frame arc; its Phase-0 classifies all 21 glyphs (fill / stroke / multi-colour / native-root) and licence-sources every one.
+
+---
+
+## D-109 — CSS `d:` geometry is a DELIBERATE Chromium/WebView2 platform dependency, recorded rather than assumed
+
+**Date:** 2026-07-12 · **Layer:** UI platform (M-RP-ICON-ADOPT) · **Ref:** D-108, N-101, Ch6 §6.1 · **Canonical doc:** `ui/docs/xgen-css-layer-model.md` §5–§6
+
+**The dependency.** D-108's glyph bank puts SVG path geometry in the skin via the CSS **`d:`** property (`.icon path { d: var(--g) }`). **`d:` is a Chromium property.** It is not supported by Firefox or Safari/WebKit. **D-108 does not work on a non-Chromium engine.**
+
+**Why this is acceptable, and why it is nonetheless recorded.** Ch6 §6.1 locks **Tauri**, which renders in the OS-native webview — **WebView2 (Chromium) on Windows**, the Phase-1/Phase-2 target. The dependency is therefore satisfied by the shipped platform, today, on the only target that exists. **But it is a real constraint on a real axis** (Ch6 §6.1 also names macOS/Linux for Phase 2, where Tauri uses **WebKit** — *and there `d:` does not work*). A dependency this load-bearing must be **written down at the moment it is taken**, not discovered by a future macOS build.
+
+**Decision.** **Take the dependency, name it, and do not hedge it.**
+- The XGen client is a **Chromium-engine desktop application** for glyph-rendering purposes. This is stated, not implied.
+- **No fallback is shipped** (see D-108's rejected `d`-attribute fallback). A fallback would cost a permanent second source of truth for geometry to insure against a case that does not currently exist — **and if the macOS/Linux WebKit port ever lands, the honest fix is the `-url` (mask) form, which the bank ALREADY EMITS for every glyph.** The insurance is already in the bank; it does not need to be in the DOM.
+
+**🔑 That last point is what makes the dependency safe rather than reckless.** D-108's two-form emission (`path()` **and** `url()`) was adopted for the native-root cases — but it means **every glyph in the bank already has a Chromium-independent representation.** A WebKit port re-points `.icon path { d: … }` at a `mask` on a `<span>`; the **bank, the names, the manifest, the licences, and every call site stay identical.** The port is a renderer swap, not a rewrite — the same "one descriptor, two renderers" shape D-103 already uses.
+
+**Measured, not assumed** (real client 9222, WebView2): a `<path>` with **no `d` attribute** styled by `d: path('M5 5h14v14H5z')` → `getBBox()` **14×14**, `getTotalLength()` **56** (= 4×14, the true perimeter — the geometry engine, not merely the computed string). Indirection (`d: var(--glyph-x)`) and theme override through it both resolve. Full evidence table: canonical doc §5.
+
+**Relationship:** D-108 (the model that rests on this) · Ch6 §6.1 (Tauri + native webview; the source of the constraint **and** of the Phase-2 macOS/Linux exposure) · D-067 (why no in-DOM fallback) · D-103 (the one-source-two-renderers precedent that makes the WebKit exit cheap).
+
+**Scope.** A recorded platform dependency. No code. **Re-open if and when a WebKit target becomes real** — the exit is specified above and costs no call-site churn.

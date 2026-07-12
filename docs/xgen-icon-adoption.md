@@ -1,90 +1,94 @@
-# M-RP-ICON-ADOPT — Icon adoption / glyph consolidation (milestone, theory-open)
+# M-RP-ICON-ADOPT — Icon adoption / glyph consolidation
 > **Status**: PENDING  
-> Version: 0.1  
+> Version: 1.0  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-09  
+> **Last updated**: 2026-07-12  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
-Backlog milestone (not the current task — parked behind the M-RP6.1 frame arc). Goal: retire the inline hardcoded field glyphs in favour of the `icon` component (M-RP6.1a) + its registry, so every glyph is **one system**: tint-skinnable, CDP-inspectable, single provenance. **Theory is deliberately unresolved below** — the milestone shape is provisional pending Joe's decisions on §3.
+Backlog milestone (not the current task — parked behind the M-RP6.1 frame arc). Goal: consolidate **every** glyph in the project into **one bank**, so a glyph is a **skin token** — named by the component, drawn by the skin, replaceable by a theme, licensed at build time.
 
-Milestone number **TBD** — candidate slot after the frame arc / live-wiring (M-RP6.x). Wants its own D-071 Phase-0 (touches ~6 existing field components).
+**⚠️ v1.0 supersedes v0.1 on two counts.** v0.1's §1 was **wrong about where the glyphs live**, and its §3 theory is now **settled by measurement, not opinion** — a CDP probe on the real client (2026-07-12) answered every open question, and three of them dissolved. The model is locked as **D-108**; the platform dependency is **D-109**. Canonical model doc: **`ui/docs/xgen-css-layer-model.md`**.
 
 ---
 
-## 1. Inventory (embedded glyphs to consolidate)
+## 1. Inventory — MEASURED (2026-07-12), correcting v0.1
 
-Currently inline `<svg>` inside their field components:
+**⚠️ v0.1 said the glyphs were *"currently inline `<svg>` inside their field components."* They are not, and never were.** A grep of every live `.svelte` outside `node_modules` for `<svg|<path|viewBox` returns **`icon.svelte` (7) and `app_sampler.svelte` (2, a demo data-URI) — nothing else.** **Zero inline `<svg>` in any field component.** They all live in `skin.css`.
 
-| Glyph | Home component | Likely style | State |
+That correction changes the milestone's shape: this is **not** "extract inline SVG from components." It is **"reconcile four mechanisms across two layers."**
+
+**21 distinct glyphs, 4 mechanisms:**
+
+| # | Mechanism | Where | Glyphs |
 |---|---|---|---|
-| mail envelope | email text-field | outline (stroke?) | static |
-| calendar | date-picker | fill/stroke? | static |
-| clock | time-picker | fill/stroke? | static |
-| gear | (settings) | fill, multi-path | static |
-| palette | color-picker | **multi-colour** | static |
-| eye / eye-off | password-field | stroke? | **2-state toggle** |
-| file / browse | file-field | fill/stroke? | static |
-| chevron + caret-down | combo-box | **CSS triangle (`--tri`), not svg** | static |
+| **A** | `<path d>` from a TS registry, **fill**, `--icon-tint` | `icons.ts` → `icon.svelte` | **3** — `caret-down` `dot` `square` |
+| **B** | **`mask-image`** data-URI, currentColor / background-color, mostly **stroke** | `skin.css` — **11 declarations, 10 distinct** | `--eye` `--eye-off` `--star` `--drop` `--tri`×2 `--tri-open`×2 `--chip-x` `--tag-gear` `--pal` `--drop-i` |
+| **C** | **`background-image`** data-URI, **colour baked into the URI** (`%23e6e6e6`) | `skin.css` — **7** | `textfield[type=]` ×5 (search/email/url/tel/password) · `select` arrow · `--ea-spark` |
+| **D** | **`.svg` file** as `src` | `ui/assets/img-placeholder.svg` | 1 — *and it is **duplicated** as an inline data-URI at `app_sampler.svelte:402`* |
+| **—** | **OUT OF SCOPE** — OS/window icons | `xgen-{client,node,sampler}/icons/icon.ico`, `logo/*.ico` | named here so they are not re-litigated |
 
-Exact styles are a Phase-0 audit output, not assumed here.
+**🔑 THE FINDING THAT DECIDES THE MILESTONE — every skin.css glyph token is declared INSIDE its own component's class selector. None at `:root`.**
 
-## 2. What's already solved vs what isn't
+```css
+.password-field { --eye: … }    .combobox { --tri: … }
+.chip           { --chip-x: … } .section  { --tri: … }   ← the DUPLICATE
+```
 
-- **Tint (colour): solved.** Any glyph routed through `icon` inherits `fill: var(--icon-tint, currentColor)` — colour-skinnable the moment a field renders `<Icon>` instead of an inline `<svg>`. No new mechanism needed.
-- **Shape (geometry): the open question.** Where does the path data live, and can a *theme* redraw it — see §3.
+`skin.css` says it deliberately: *"icon-data vars scoped here (no global token)."* **Two consequences, both measured:**
 
-## 3. Theory — the aspects to think through
+1. **`--tri` / `--tri-open` are declared TWICE** (combobox 1232-33, section 1829-30). The section's own comment says *"REUSES combobox's masked glyphs"* — **and then re-declares them.** *The loss this milestone exists to prevent has already happened.*
+2. **A component-scoped custom property is a private variable, not a theme surface.** A theme author cannot redraw *"the eye"* — they must know **which component scopes it**, and redefine each shared glyph **N times**. **Component-scoping half-defeated the skinnability it was meant to serve.** Scale to a 40-glyph set and a theme becomes unwritable.
 
-### 3a. Shape-skinnability: three technical routes
-- **(A) Registry `d`-strings (current 6.1a model).** Shape lives in `icons.ts`; component renders `<path d=…>`. Pro: shape = content, matches the L2 rule ("skin owns appearance, not content"); CDP-inspectable; tree-shaken. Con: a theme can't swap the *glyph itself* from skin.css (only its colour).
-- **(B) CSS `mask-image` (data-URI glyph + `background: var(--tint)`).** Glyph as a mask in skin.css; colour via background. Pro: a **theme could ship its own glyph set** entirely in skin.css. Con: not real DOM `<path>` (no per-path control, weaker CDP story), pushes *content* into skin.css.
-- **(C) CSS `d: path("…")` property (Chromium/WebView2 supports it).** A `<path>` whose geometry is overridden from CSS. Pro: real element + theme-swappable geometry. Con: same L2 violation (shape in skin.css); niche, brittle across path formats.
+## 2. The locked model (D-108)
 
-**Crux question for Joe:** *Is per-theme glyph replacement an actual goal?* If **no** → **(A)** wins outright (shape stays registry/content, skin.css stays appearance-only). If **yes** (a theme can reskin the whole icon set, not just recolour) → **(B)** is the only clean route, and it means consciously relaxing the "skin.css = appearance only" line for glyphs. My lean is **(A)** — consistent iconography + themeable colour is almost always what's wanted; whole-glyph theme swaps are rare and costly — but this is yours to settle.
+Full specification: **`ui/docs/xgen-css-layer-model.md`** §2–§3. In brief:
 
-### 3b. Multi-colour glyphs break the single-tint model (biggest aspect)
-The palette / colour-picker icon is inherently multi-hued. `fill: var(--icon-tint)` forces one colour. Options:
-- **(i)** Registry entries may carry per-path baked fills; `--icon-tint` applies only to paths that *don't* specify one. Keeps them in `icon`, but they're no longer purely tintable.
-- **(ii)** Multi-token glyphs: each path → its own `var(--icon-slotN)`. Powerful, more complex.
-- **(iii)** **Re-open D-096:** a genuinely pictorial multi-colour mark may be an **`image`, not an `icon`** — the exact axis D-096 draws. The palette icon might simply belong to `image`. Worth deciding per-glyph, not globally.
+> **A glyph is a SKIN TOKEN. `core` owns the NAME (identity = content); the skin owns the SHAPE (geometry = appearance).**
 
-### 3c. Stroke vs fill
-`icon` is fill-only today (stroke variant deferred, D-065 / N-083). Several field glyphs (eye, outline mail) are likely stroke-based. Adoption forces the **stroke-variant** decision: add a `stroke` mode to `icon` (`stroke: var(--icon-tint); fill:none`), or re-author those glyphs as fill. Phase-0 classifies each; the extension (if any) locks before adoption.
+- **Source of truth:** `ui/assets/icons/*.svg` + `icons.manifest.json` (**hand**; carries licence per glyph). **Never ships.**
+- **Generated:** `ui/assets/glyphs.generated.css` → `:root { --glyph-gear: path('…'); --glyph-gear-url: url("data:…") }` — **the bank, the runtime default**; and `icons.generated.ts` → `type IconName = 'gear' | …` — **names only, no geometry.**
+- **Component path:** `<Icon name="gear"/>` → `<path>` with **no `d` attribute** + inline `--g: var(--glyph-gear)`; **ONE** skin rule: `.icon path { d: var(--g) }`.
+- **Native-root path** (`<select>`, `<input>` — no child to hang a path on, N-020): `background-image: var(--glyph-x-url)`.
+- **Theme override:** a later `:root` redeclaration. **Identical mechanism to `--accent2`.**
 
-### 3d. Stateful glyphs (eye/eye-off)
-Trivial but note the pattern: two registry entries (`eye` / `eye-off`), and the **component** swaps `name` off its own state — the skin never toggles state. Same pattern for any future 2-state glyph.
+## 3. Theory — SETTLED by measurement (was §3 "open")
 
-### 3e. Chevron/caret reconciliation
-Combo-box draws its triangle via a **CSS `--tri` triangle**, not an svg glyph. Options: fold into the registry as real glyphs for one unified system, or leave the CSS triangle as-is (it's cheap and not really an icon). Decide fold-vs-leave; not free either way.
+Every v0.1 question, and what the probe did to it. Evidence table: `xgen-css-layer-model.md` §5.
 
-### 3f. Provenance / licence (audit gate)
-BSL→GPL means every shipped glyph needs a clean licence. Where did the 8 embedded svgs originate? A permissive set (Lucide MIT, Material Apache-2.0, Heroicons MIT) is fine **with attribution**; unknown-origin glyphs must be re-sourced or re-drawn. This is a hard Phase-0 gate, not optional.
+| v0.1 question | Status |
+|---|---|
+| **§3a** Shape-skinnability: registry `d`-strings **(A)** vs CSS `mask-image` **(B)** vs CSS `d: path()` **(C)** | **✅ (C), and the framing was moot.** v0.1 asked *"is per-theme glyph replacement a goal?"* — **route (B) was already shipped for 13 glyphs**, without a decision. **CSS `d:` works in WebView2** (measured), **and `d: var(--token)` resolves**, so shape can live in the skin **on a real `<path>` element** — real DOM, per-path control, CDP-inspectable, *and* theme-replaceable. **(C) gives what (A) and (B) each gave only half of.** |
+| **§3b** Multi-colour glyphs (the palette mark) break the single-tint model — baked fills / multi-token / **reclassify as `image` (D-096)**? | **✅ DISSOLVED. It stays an `icon`.** N `<path>` children, each `d: var(--glyph-pal-N)` **and its own fill token** — measured: two paths, two geometries, two independent fills, from one generic rule. **A mask can never do this.** **D-096 is NOT re-opened.** |
+| **§3c** Add a `stroke` mode to `icon`, or re-author stroke glyphs as fill? | **✅ DISSOLVED. Neither.** With real `<path>` children, `fill` / `stroke` / `stroke-width` are **ordinary skin properties** on `.icon path`. **`icon` gains no new prop.** |
+| **§3d** Stateful glyphs (eye / eye-off) | **Unchanged and trivial:** two names in the bank; the **component** swaps `name` off its own state. The skin never toggles state. |
+| **§3e** Chevron/caret: fold the CSS triangle into the registry, or leave it? | **✅ FOLD.** `--tri` / `--tri-open` become ordinary `:root` tokens. **The duplicate dies as a side-effect.** |
+| **§3f** Provenance / licence (BSL→GPL audit gate) | **✅ STRUCTURAL, not periodic.** Licence + source live in `icons.manifest.json`, **per glyph**. **A glyph with no licence entry fails the build.** No audit can forget what the compiler enforces. |
 
-## 4. Provisional milestone shape (pending §3)
+**❌ One idea raised mid-walk and DROPPED — the `d`-attribute fallback.** The probe showed CSS `d:` **overrides** a present `d` attribute (leg 4), which made "ship geometry as an attribute *and* let the skin override it" *possible*. **It is not right.** It would be **two defaults for one glyph** — a second source of truth for geometry (**D-067 drift wearing a safety vest**) — hedging against a browser that cannot occur (Tauri is always Chromium; **D-109**). **Geometry lives in the skin. Only in the skin.**
 
-- **Phase-0 (D-071 audit):** enumerate every embedded glyph across field components; classify each fill/stroke/multi-colour; licence-source each (§3f); decide per-glyph **icon-vs-image** (D-096, §3b); resolve §3a–3e. Output: the locked adoption spec + any `icon` extensions.
-- **Phase-1:** extract glyphs into `icons.ts`; land any Phase-0-approved `icon` extensions (stroke mode / multi-fill).
-- **Phase-2:** per-field adoption — mail · date · time · gear · palette · file · eye — field-by-field, each CDP-verified against its prior render.
-- **Phase-3:** chevron/caret reconcile (only if §3e = fold).
-- **Gate:** starts after the frame arc is functional; not before.
+## 4. Milestone shape
 
-## 5. Explicit open questions for Joe
+- **Phase-0 (D-071 audit).** Classify all 21: fill / stroke / multi-colour / native-root. **Licence-source every one** (§3f). Confirm the per-glyph re-emit of the 5 baked-colour `%23e6e6e6` insets as `currentColor` masks. Lock the `Glyph` manifest record shape and the generator contract. *(The model itself is already locked — D-108. Phase-0 is classification + provenance, not re-litigation.)*
+- **Phase-1.** `icons.manifest.json` + the generator; `glyphs.generated.css` + `icons.generated.ts` emitted; the L1.5 import lands in all three `main.js`. **`--tri` dedup falls out.** `icons.ts` retires as a geometry store.
+- **Phase-2.** Migrate consumers: the 10 mask glyphs → `<Icon>` / `var(--glyph-*-url)`; the 6 native-root glyphs → `var(--glyph-*-url)`; the `app_sampler.svelte:402` duplicate of `img-placeholder.svg` dies. **Each CDP-verified against its prior render** (N-097: the painted pixel is the leg).
+- **Phase-3.** Sampler **glyph-grid** page — the bank renders itself from the `IconName` union, with names + licences. *You cannot redraw a glyph you can see.*
+- **Gate:** starts after the frame arc is functional. **Unchanged — this does not jump the queue.**
 
-1. Per-theme glyph replacement — a goal? (decides §3a A-vs-B).
-2. Palette/multi-colour marks — `icon` with baked fills, multi-token, or reclassify as `image`? (§3b).
-3. Add a `stroke` mode to `icon`, or re-author stroke glyphs as fill? (§3c).
-4. Fold the combo-box CSS triangle into the registry, or leave it? (§3e).
-5. Provenance of the 8 current glyphs — known-permissive, or need re-sourcing? (§3f).
+## 5. Open — for Joe
+
+1. **🔑 The Space-theme glyph-override ban.** Under D-108 a theme redraws **any** glyph — including a **lock**, a **warning**, a **verified** mark. **Ch6 §6.3's Layer 3 is a Space theme declared by the Space owner via a `state.space_theme` EVENT — attacker-supplied CSS arriving over the wire.** **Recommendation: glyph tokens are EXCLUDED from the Space-overridable subset.** App/user themes may redraw glyphs; **a Space may not.** *This is not a new decision surface — Ch6 §6.3 already carries the open question "Which specific CSS tokens may a Space owner override?", and Session 1 filed "Permitted Space theme override token list" for the second pass. **This supplies the first entry on a list Ch6 already says must exist.***
+2. **Ch6 §6.2 amendment** — the chapter's four-layer CSS architecture (D-057/D-058) is **stale vs the code** on three counts (no `tokens.css`; `skin.css` not `skin-dark.css`; **"each `.svelte` carries its own `<style>` block"** is the *opposite* of N-025/N-031/N-090). Filed in `xgen-css-layer-model.md` §4/§6. **A spec-chapter touch — Joe-lock required. Not done unilaterally.**
+3. **Generator host** — a Vite plugin vs a standalone `npm run glyphs` prestep. Phase-1 detail; no architectural weight.
 
 ## 6. Non-goals / deferred
 
-- No CSS-side shape (routes B/C) unless §3a Q1 = yes.
-- No work starts before the frame arc is functional.
-- `temperature-indicator` and other post-frame widgets are separate (M-RP6.5).
+- **No theming ships here.** `theme-*.css` does not exist; Ch6 §6.3's cascade is specified but unbuilt. This milestone makes the bank **shaped for** a theme layer — **no milestone may claim theming works.**
+- `temperature-indicator` and other post-frame widgets stay separate (⏸️ — mechanism withdrawn at J-502; the node plugin is a no-op, so there is nothing to render).
+- OS/window `.ico` icons stay out of scope.
 
 ---
 
-*Draft — theory open. Milestone number + phase locks pending Joe's §5 answers.*
+*Model locked (D-108/D-109). Phase locks + milestone number pending the Phase-0 classification pass.*

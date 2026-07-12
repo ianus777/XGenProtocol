@@ -1,6 +1,6 @@
 # M-RP-ICON-ADOPT — Icon adoption / glyph consolidation
 > **Status**: PENDING  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -92,6 +92,7 @@ Both items raised at v1.0 were **locked the same day**.
 ## 6. Non-goals / deferred
 
 - **No theming ships here.** `theme-*.css` does not exist; Ch6 §6.3's cascade is specified but unbuilt. This milestone makes the bank **shaped for** a theme layer — **no milestone may claim theming works.**
+- **Trust surfaces are NOT this milestone's** — **D-110** (a Space may re-colour, not re-draw) and **D-111** (a client must not fetch a host chosen by someone else; outbound URL resolution is **node-side**) both landed the same day and both bind future code, but neither ships here. *(v1.2 correction: an earlier list named `url()` fetches as an open glyph-adjacent risk. **It is not one** — D-110's colour-only allowlist rejects a `url()` outright. Retracted.)*
 - `temperature-indicator` and other post-frame widgets stay separate (⏸️ — mechanism withdrawn at J-502; the node plugin is a no-op, so there is nothing to render).
 - OS/window `.ico` icons stay out of scope.
 

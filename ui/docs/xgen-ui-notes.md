@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.77  
+> Version: 0.78  
 > Date: May 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -2163,9 +2163,41 @@ The key `color_primary` is on the allowlist. The **value** redraws the lock. **M
 
 A component that could style itself would be **a second place appearance lives** — and a skin could then never *fully* re-skin it. **D-058 had it exactly inverted.**
 
-**Still open, flagged not solved:** the exact colour-token allowlist (enumerated when the theme layer is built) · whether a user may disable Space themes entirely (*rec: yes, and cheap — Layer 3 is a scoped, droppable overlay by construction*) · **the WIDER Space-owner-content trust surface** (`url()` fetches, font substitution, module widgets under D-036) — **D-110 closes the glyph hole, not the category.**
+**Still open, flagged not solved:** the exact colour-token allowlist (enumerated when the theme layer is built) · whether a user may disable Space themes entirely (*rec: yes, and cheap — Layer 3 is a scoped, droppable overlay by construction*).
 
-*Canonical: Ch6 §6.3.1 / §6.3.2 · `ui/docs/xgen-css-layer-model.md` v1.1 §6 · D-110. Design + records only. No code moved.*
+> **⚠️ AMENDED same-day (N-103 / D-111 / J-506).** This note originally ended by listing **"`url()` fetches, font substitution"** among the wider open surfaces. **Both were WRONG and are retracted:** under **D-110's own colour-only allowlist**, `CSS.supports('color', 'url(…)')` is **false** — a `url()` **cannot enter a Space theme at all** — and **fonts are bundled in the binary** (Ch6 §6.2, *"without runtime internet dependency"*). **A threat named from pattern-recognition instead of from the tree, two turns after the same mistake.** → the real property became **D-111** (see **N-103**). **What genuinely remains: D-036 module widgets** — third-party HTML in an isolated webview, CSP/sandboxing still open at Ch6 §6.8.8. **Bigger than glyphs and themes combined.**
+
+*Canonical: Ch6 §6.3.1 / §6.3.2 · `ui/docs/xgen-css-layer-model.md` v1.2 §6 · D-110. Design + records only. No code moved.*
+
+---
+
+### N-103 — a hash cannot name a host: the beacon the protocol already made UNSAYABLE — and the one row that invites it back (2026-07-12, D-111)
+
+**Design/records only. No code.** Joe asked one question — ***"do you want to say that url() is a security risk?"*** — and the honest answer was **no**. **The claim collapsed under one grep, and the collapse is the note.**
+
+**⚠️ THE RETRACTION FIRST. N-101 and N-102 listed "`url()` fetches" among the open Space-owner trust surfaces. IT IS NOT ONE.** Under **D-110's own colour-only allowlist**, every value is validated with `CSS.supports('color', v)` — and `CSS.supports('color', 'url(https://evil/x)')` is **false**. **A `url()` cannot enter a Space theme at all.** I named a threat that the document I had just written already forecloses. **Font substitution likewise: fonts are BUNDLED in the binary** (Ch6 §6.2, *"without runtime internet dependency"*). **Two overclaims in two turns on one topic — the same shape as the J-502 temperature miss: the project had already solved it, and I reasoned about it instead of looking.**
+
+**🔑 BUT THE GROUNDING THAT KILLED THE CLAIM FOUND THE REAL INVARIANT — AND FOUND THAT THE PROTOCOL HAD ALREADY WON IT.**
+
+> **Any mechanism where the client fetches a URL chosen by SOMEONE ELSE turns the client into a BEACON** — disclosing the reader's **IP** and the **timing of their read** to a host of the **sender's** choosing. **XGen publishes your XGID by design. It does NOT publish your network location.**
+
+**Grepped, and every avenue is already shut — structurally:**
+- **`message.image` / `message.file` carry `xgen://hash/sha256:<64-hex>`** — **a CONTENT ADDRESS, not a location** (`xgen-core/src/blob_store.rs`: `blob_ref = hash_uri(bytes)`, same scheme as `event_id`; federation-native (M12, J-389); per-blob client-encrypted before upload (M12-D5); the store is *"content-blind by construction"*).
+- **Fonts bundled** (Ch6 §6.2). **No HTTP client in any crate** (no `reqwest`/`hyper`/`ureq` in xgen-client / xgen-core / xgen-node). **Space themes cannot carry a URL** (D-110).
+
+> ### 🔑 A HASH CANNOT NAME A HOST.
+>
+> **The beacon is not *blocked* by content-addressing — it is made UNSAYABLE.** There is no field in which *"over there"* could be written. *That is a materially stronger property than a filter, and it was already there. Content-addressing was chosen for integrity; it bought privacy for free — and nobody had written that down.*
+
+**⚠️ THE ONE ROW THAT INVITES IT BACK: `link previews`** — Ch2's **"Client decisions — implementation freedom"** table. Nothing built; it is an *example* of what the protocol deliberately does not dictate. **But a client that renders a preview by fetching the URL out of a message hands the SENDER the reader's IP and read-time — on every message, invisibly.** In a system that content-addressed its blobs and bundled its fonts *precisely* to prevent that, **"implementation freedom" was doing quiet work in that row.**
+
+**✅ D-111 (Joe-locked): link previews — and any rendering that resolves an outbound URL — are fetched NODE-SIDE, never client-side.** The **Node already talks to the world; the Client deliberately does not.** One fetch per link, not one per reader; **the sender learns nothing about who read the message or when.** **Freedom preserved:** *whether* to show previews and *how* they look stay the client's business. **Only the fetch LOCATION is fixed** — because *it is not a rendering decision; it is a privacy boundary wearing a rendering decision's clothes.* → **Ch2 v1.3** (the note under the table; its `> Version:` line was also missing its mandatory two trailing spaces — fixed).
+
+**🔑 THE LESSON, AND IT IS ABOUT LISTS, NOT ABOUT URLs:** **a threat list padded with a foreclosed item is WORSE than a short one** — it trains the reader to skim, and the real entry gets skimmed with it. **Retract, don't hedge.** *The list is now short and every item on it is live — and the one that matters is the one I had buried at the end.*
+
+**⚠️ WHAT ACTUALLY REMAINS, and it is the biggest of all: D-036 MODULE WIDGETS.** Third-party HTML in an **isolated webview**, talking to its backend over a local WebSocket. **CSP and sandboxing are still an OPEN question** (Ch6 §6.8.8, filed at Session 2, untouched since). **A webview that can fetch is a bigger surface than every glyph, theme token and blob reference combined** — and unlike them, **it has no structural foreclosure at all.** Ch6's, not the UI track's. **Filed, not solved.**
+
+*Records: `DECISIONS.md` **+D-111** · `docs/xgen_ch2_architecture.md` **v1.3** · D-110 amended (the wrong "wider surface" line, corrected in place) · N-101/N-102 amended. No code moved.*
 
 ---
 

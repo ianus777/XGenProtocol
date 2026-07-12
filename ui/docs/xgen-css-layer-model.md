@@ -1,6 +1,6 @@
 # XGen UI — CSS Layer Model
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -252,7 +252,7 @@ Ch6 §6.3's cascade is: XGen default → **application theme** (operator/user) �
 1. **`theme-*.css` does not exist.** Ch6 §6.3's cascade is **specified and entirely unbuilt** — `state.space_theme` appears in **no Rust, TypeScript, or Svelte** (grepped 2026-07-12). What is locked is that **the bank is SHAPED so the theme layer can override it when it lands**. **No milestone may claim theming works**, and **none may ship a Layer-3 applier that does not implement Ch6 §6.3.2 in full.**
 2. **The exact colour-token allowlist** (names + count) — enumerated when the theme layer is built.
 3. **Can a user disable Space themes entirely** (accessibility)? *Recommendation: yes, and it is cheap — Layer 3 is a scoped, droppable overlay by construction.*
-4. **The WIDER Space-owner-content trust surface** — `url()` fetches, font substitution, module widgets (D-036). **D-110 closes the glyph hole, not the category.** Ch6's, not the glyph bank's. **Flagged, not solved.**
+4. **The WIDER Space-owner-content trust surface.** **⚠️ RETRACTED IN PART (v1.2):** v1.1 listed *"`url()` fetches"* here. **That was wrong — under D-110 a `url()` cannot enter** (colour-only allowlist + `CSS.supports('color', v)` rejects it). Retracted rather than left to pad a real list. **The property it gestured at is real and is now its own decision — D-111: a client MUST NOT fetch a host chosen by someone else** (outbound URL resolution is **node-side, never client-side**). *And the protocol already forecloses it almost everywhere: `message.image` carries `xgen://hash/sha256:…` — **a content address, not a location. A hash cannot name a host.*** **What genuinely remains: D-036 module widgets** — third-party HTML in an isolated webview, whose CSP/sandboxing is still an open Ch6 §6.8.8 question. **A webview that can fetch is a bigger surface than every glyph and theme token combined.** Ch6's, not this doc's.
 5. **Per-glyph classification** of the 21 (fill / stroke / multi-colour / native-root) + licence-sourcing — the M-RP-ICON-ADOPT Phase-0 output.
 
 ---

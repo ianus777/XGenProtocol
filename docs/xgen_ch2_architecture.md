@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 2: Architecture
 > **Status:** ACTIVE  
-> Version: 1.2
+> Version: 1.3  
 > Date: April 2026  
-> **Last updated**: 2026-06-18  
+> **Last updated**: 2026-07-12  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -2370,6 +2370,16 @@ This distinction is important for third-party client developers. Some behaviours
 | Presence indicator style | Coloured dot, text label, none |
 | Thread display in room.text | Inline preview, side panel, separate view |
 | Contact list organisation | How meta-atts are surfaced visually |
+
+> **⚠️ ONE CONFORMANCE RULE CUTS ACROSS THIS TABLE — A CLIENT MUST NOT FETCH A HOST CHOSEN BY SOMEONE ELSE.** (Added 2026-07-12, D-111.)
+>
+> **The rest of the protocol already forecloses this, deliberately.** A `message.image` / `message.file` reference is **`xgen://hash/sha256:<64-hex>`** — a **content address, not a location** (`xgen-core/src/blob_store.rs`; blobs are federation-native, client-encrypted, content-blind). **A hash cannot name a host**, so no message can make a client reach out to an arbitrary server. Fonts are **bundled in the binary**, explicitly *"without runtime internet dependency"* (Ch6 §6.2). No XGen crate carries an HTTP client.
+>
+> **`link previews` in the row above is the one entry that quietly invites it back in.** A client that renders a preview by **fetching the URL out of a message** hands the **sender** the reader's **IP address** and the **exact time they read it** — a beacon, on every message, chosen by the person who sent it. **XGen publishes your XGID by design; it does NOT publish your network location.** A client-side preview fetch adds a channel the protocol deliberately excludes, and it is invisible to the reader.
+>
+> **Therefore: link previews (and any other rendering that resolves an outbound URL) are fetched NODE-SIDE, never client-side.** The Node already talks to the world; the Client deliberately does not. The Node fetches, strips, caches, and serves the preview — so every member of a Room gets one preview, one fetch, and **the sender learns nothing about who read it or when.**
+>
+> **Implementation freedom is preserved** — *whether* to show previews, and *how* they look, remain entirely the client's business. **Only the fetch location is fixed, and it is fixed because it is not a rendering decision — it is a privacy boundary wearing a rendering decision's clothes.**
 
 ---
 

@@ -4170,6 +4170,45 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 
 **🔑 Locked BEFORE implementation, deliberately.** Grepped 2026-07-12: **`state.space_theme` appears in no Rust, no TypeScript, no Svelte.** The theming cascade is **specified and entirely unbuilt**. D-110 lands before the first line of it is written — the cheapest moment a trust boundary can ever be set, and a case where the project's *"subsystem audits precede dependent milestones"* discipline (D-071) paid out in advance rather than in arrears.
 
-**Relationship:** D-108 (made this urgent — a glyph is a skin token, so a theme can redraw it; and D-110 in turn constrains D-108's generator) · Ch6 §6.3 (the cascade this governs; §6.3.1/§6.3.2 written at this lock) · Ch6 §6.13 (the AI badge — a spoofable mark) · D-057 (the readability/accessibility intent behind the layout ban) · D-036 (module UI forms — a related third-party-content trust surface, **not** closed by this).
+**Relationship:** D-108 (made this urgent — a glyph is a skin token, so a theme can redraw it; and D-110 in turn constrains D-108's generator) · **D-111 (the sibling boundary: a client must not fetch a host chosen by someone else — it closes the *category* this decision's records wrongly claimed `url()` belonged to)** · Ch6 §6.3 (the cascade this governs; §6.3.1/§6.3.2 written at this lock) · Ch6 §6.13 (the AI badge — a spoofable mark) · D-057 (the readability/accessibility intent behind the layout ban) · D-036 (module UI forms — a related third-party-content trust surface, **not** closed by this).
 
-**Scope.** Specification + trust boundary. **No code.** Binding on any future Layer-3 applier and on D-108's generator. **Open and NOT closed here:** the exact colour-token allowlist (names + count — enumerated when the theme layer is built); whether a user may disable Space themes entirely (recommendation: yes, and it is cheap — Layer 3 is a scoped, droppable overlay by construction); and the **wider** question of what else Space-owner-supplied content can do (`url()` fetches, font substitution, module widgets under D-036) — **that is Ch6's, not the glyph bank's, and it is flagged, not solved.**
+**Scope.** Specification + trust boundary. **No code.** Binding on any future Layer-3 applier and on D-108's generator. **Open and NOT closed here:** the exact colour-token allowlist (names + count — enumerated when the theme layer is built); whether a user may disable Space themes entirely (recommendation: yes, and it is cheap — Layer 3 is a scoped, droppable overlay by construction).
+
+> **⚠️ AMENDED 2026-07-12 (same day, D-111 / J-506) — this decision's original "wider surface" paragraph was WRONG and is corrected.** It read: *"the wider question of what else Space-owner-supplied content can do (`url()` fetches, font substitution, module widgets under D-036)."* **`url()` fetches and font substitution do not belong on that list:** under **this very decision** the allowlist is colour-only and every value is validated (`CSS.supports('color', v)`), so **a `url()` cannot enter a Space theme at all** — and fonts are **bundled in the binary** (Ch6 §6.2, *"without runtime internet dependency"*). **A threat named without checking the tree, in the same document that forecloses it.** The real property became **D-111** (a client must not fetch a host chosen by someone else). **What genuinely remains open is D-036 module widgets** — third-party HTML in an isolated webview, CSP/sandboxing still an open Ch6 §6.8.8 question. **That one is bigger than glyphs and themes combined, and it is Ch6's.**
+
+---
+
+## D-111 — A client MUST NOT fetch a host chosen by someone else: outbound URL resolution (link previews) is NODE-side, never client-side
+
+**Date:** 2026-07-12 · **Layer:** Client conformance / privacy boundary (Ch2 "Client decisions") · **Ref:** D-110, M12 (blob store), Ch2 §"Client decisions — implementation freedom", Ch6 §6.2 (bundled fonts), Ch3 §600 · **Journal:** J-506
+
+**How this was found — by trying to justify a claim and failing.** D-110's records listed *"`url()` fetches"* among the still-open Space-owner trust surfaces. Challenged to defend it, the claim **collapsed**: under D-110 the Space-theme allowlist is colour-only and every value is validated (`CSS.supports('color', v)`), so `url(…)` **cannot enter**. It was a familiar-looking threat shape asserted without checking the tree — **the second such overclaim in two turns**, and it is retracted.
+
+**But the grounding that killed it surfaced the real property, and the real property is worth a decision.**
+
+**🔑 The invariant, stated:**
+
+> **Any mechanism where the client fetches a URL chosen by someone else turns the client into a BEACON** — it discloses the reader's **IP address** and the **timing of their read** to a host of the sender's choosing.
+>
+> **XGen publishes your XGID by design. It does NOT publish your network location.** A fetch primitive silently adds a channel the protocol deliberately excludes — and it does so against a **Space owner or a message sender**, not a distant third party.
+
+**🔑 The protocol already forecloses this almost everywhere — structurally, not by mitigation. That was deliberate and it should be named.**
+
+- **`message.image` / `message.file` carry `xgen://hash/sha256:<64-hex>`** — a **content address, not a location** (`xgen-core/src/blob_store.rs`: `blob_ref = hash_uri(bytes)`, the same scheme as `event_id`; blobs are federation-native (M12, J-389), per-blob client-encrypted before upload (M12-D5), and the store is *"content-blind by construction"*). **A hash cannot name a host.** The beacon is not *blocked* here — it is **unsayable**. There is no field in which "over there" could be written.
+- **Fonts are bundled in the binary** — Ch6 §6.2, explicitly *"without runtime internet dependency."*
+- **No XGen crate carries an HTTP client** (no `reqwest` / `hyper` / `ureq` in xgen-client, xgen-core, xgen-node).
+- **Space themes cannot carry a URL** (D-110: colour-only allowlist + value validation).
+
+**⚠️ The one place it survives: `link previews`, listed in Ch2's "Client decisions — implementation freedom" table.** Nothing is built; it is an *example* of what the protocol deliberately does not dictate. **But it is precisely where a well-meaning client re-opens the channel** — and it would do so on **every message**, invisibly to the reader, in a system that content-addressed its blobs specifically to prevent it.
+
+**Decision.**
+
+> **Link previews — and any other rendering that resolves an outbound URL — are fetched NODE-SIDE, never client-side.**
+
+The **Node already talks to the world; the Client deliberately does not.** The Node fetches, strips, caches and serves the preview. Consequences: **one fetch per link, not one per reader**; **the sender learns nothing about who read the message or when**; and the client keeps its property of never opening a connection it was not configured to open.
+
+**Implementation freedom is preserved and the table is not weakened.** *Whether* to show previews, and *how* they look, remain entirely the client's business. **Only the fetch location is fixed** — because it is **not a rendering decision. It is a privacy boundary wearing a rendering decision's clothes.**
+
+**Relationship:** D-110 (the sibling boundary — a Space owner may re-colour, not re-draw; **this one closes the *category* D-110 explicitly did not**) · M12 / `blob_store.rs` (content-addressing, the structural precedent this decision generalises) · Ch6 §6.2 (bundled fonts — the same instinct, taken earlier) · Ch2 "Thin Client Principle" (a thin client that phones arbitrary hosts is not thin) · **D-036** (module widgets in isolated webviews — **NOT closed by this**; CSP/sandboxing remains an open Ch6 §6.8.8 question, and a webview that can fetch is a bigger surface than any of the above).
+
+**Scope.** A client-conformance rule + a named invariant. **No code.** Binding on any future link-preview or outbound-URL-resolving feature. **Open and NOT closed here:** module-widget webview sandboxing / CSP (D-036, Ch6 §6.8.8) — **the largest remaining instance of the same property, and it belongs to Ch6, not here.**

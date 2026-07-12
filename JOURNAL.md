@@ -8,6 +8,53 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-506 — A HASH CANNOT NAME A HOST: the `url()` claim RETRACTED, the real invariant found, D-111 locked — design/records-only, no code
+
+**Design + records only. No code. Registry unchanged (client 38, sampler catalogue 313).** Joe asked **one question** — ***"do you want to say that url() is a security risk?"*** — and the honest answer was **no**. **The claim collapsed under one grep. The collapse is the entry.**
+
+**⚠️ THE RETRACTION, FIRST AND PLAINLY.** J-504, J-505, N-101 and N-102 all listed **"`url()` fetches"** (and font substitution) among the open Space-owner trust surfaces. **NEITHER IS ONE.**
+- **Under D-110's OWN colour-only allowlist, every value is validated with `CSS.supports('color', v)` — and `CSS.supports('color', 'url(https://evil/x)')` is FALSE. A `url()` cannot enter a Space theme at all.**
+- **Fonts are BUNDLED in the binary** — Ch6 §6.2, explicitly *"without runtime internet dependency."*
+
+**I named a threat that the document I had just written already forecloses.** **This is the SECOND overclaim in two turns on one topic** (the first: calling a key→value token map *"attacker-supplied CSS"*). **Same shape as the J-502 temperature miss — the project had already solved it, and I reasoned about it instead of looking.** *Joe caught both by asking a single flat question rather than accepting the frame.*
+
+**🔑 BUT THE GREP THAT KILLED THE CLAIM FOUND THE REAL INVARIANT — AND FOUND THAT THE PROTOCOL HAD ALREADY WON IT.**
+
+> **Any mechanism where the client fetches a URL chosen by SOMEONE ELSE turns the client into a BEACON** — disclosing the reader's **IP address** and the **exact time they read** to a host of the **sender's** choosing.
+>
+> **XGen publishes your XGID by design. It does NOT publish your network location.** A fetch primitive silently adds a channel the protocol deliberately excludes — and it does so against a **Space owner or a message sender**, not a distant third party.
+
+**Every avenue is already shut — and shut STRUCTURALLY, not by filtering:**
+- **`message.image` / `message.file` carry `xgen://hash/sha256:<64-hex>`.** Grounded in `xgen-core/src/blob_store.rs`: `blob_ref = hash_uri(bytes)`, **the same scheme as `event_id`**; blobs are **federation-native** (M12, CLOSED J-389), **per-blob client-encrypted before upload** (M12-D5), and the store is *"content-blind by construction"*. **It is a CONTENT ADDRESS, NOT A LOCATION.**
+- **No HTTP client in any crate** — no `reqwest` / `hyper` / `ureq` in xgen-client, xgen-core, xgen-node.
+- **Fonts bundled** (Ch6 §6.2). **Space themes cannot carry a URL** (D-110).
+
+> ### 🔑 A HASH CANNOT NAME A HOST.
+>
+> **The beacon is not *blocked* by content-addressing — it is made UNSAYABLE.** There is no field in which *"over there"* could be written. **That is a materially stronger property than any filter**, and **it was already there.** *Content-addressing was taken for **integrity**; it bought **privacy** for free — and nobody had written that down. The best finding of the session is a property the project already had.*
+
+**⚠️ THE ONE ROW THAT INVITES IT BACK IN: `link previews`.** Ch2's **"Client decisions — implementation freedom"** table lists *"Markdown flavour, emoji rendering, **link previews**"*. Nothing is built — it is an *example* of what the protocol deliberately does not dictate. **But a client that renders a preview by fetching the URL out of a message hands the SENDER every reader's IP and read-time — invisibly, on every message.** In a system that content-addressed its blobs and bundled its fonts *precisely* to prevent that, **"implementation freedom" was doing quiet work in that row.**
+
+**✅ D-111 (Joe-locked).**
+
+> **Link previews — and ANY rendering that resolves an outbound URL — are fetched NODE-SIDE, NEVER client-side.**
+
+**The Node already talks to the world; the Client deliberately does not.** The Node fetches, strips, caches, serves. **One fetch per link, not one per reader** — and **the sender learns nothing about who read the message or when.** **Implementation freedom is preserved and the table is not weakened:** *whether* to show previews and *how* they look stay entirely the client's business. **Only the fetch LOCATION is fixed** — because *it is not a rendering decision. It is a privacy boundary wearing a rendering decision's clothes.*
+
+**🔑 THE STANDING LESSON, AND IT IS ABOUT LISTS, NOT ABOUT URLs:**
+
+> **A threat list padded with a foreclosed item is WORSE than a short one.** It trains the reader to skim — and the **real** entry gets skimmed along with the fake one. **Retract; do not hedge.**
+
+*The open list is now short, and every item on it is live. And the item that actually matters was the one I had buried at the end of the padded version.*
+
+**⚠️ WHAT ACTUALLY REMAINS — AND IT DWARFS EVERY GLYPH, TOKEN AND BLOB REFERENCE COMBINED: D-036 MODULE WIDGETS.** Third-party HTML in an **isolated webview**, talking to its module backend over a local WebSocket. **CSP and sandboxing are STILL AN OPEN QUESTION** — Ch6 §6.8.8, *filed at Session 2 (April 2026) and untouched since*. **Unlike blobs (content-addressed), themes (allowlisted) and glyphs (banned), a module webview has NO structural foreclosure at all** — it is arbitrary third-party markup with a network stack. **Ch6's, not the UI track's. Filed, not solved — and it should not stay filed much longer.**
+
+**Records.** `DECISIONS.md` **+D-111** · **D-110 amended in place** (its "wider surface" paragraph named `url()` and fonts — **corrected, not deleted**) · `docs/xgen_ch2_architecture.md` **v1.2 → v1.3** (the conformance note under the *Client decisions* table; **its `> Version:` header line was also missing the two mandatory trailing spaces — fixed**) · `ui/docs/xgen-ui-notes.md` **v0.78 +N-103**, with **N-101 and N-102 amended in place** · `ui/docs/xgen-css-layer-model.md` **v1.2** (§7 retraction) · `docs/xgen-icon-adoption.md` **v1.2** · `docs/ROADMAP.md` **v4.75** · `CLAUDE.md`.
+
+**No code moved.**
+
+---
+
 ## Entry J-505 — D-110: a Space may re-COLOUR, not re-DRAW. Ch6 §6.2 REWRITTEN, §6.3 ANSWERED after 3 months open; a key allowlist alone is THEATRE — design/records-only, no code
 
 **Design + records only. No code. Registry unchanged (client 38, sampler catalogue 313).** Two Joe-locks, both in one line each. On the ban: *"yes, changing glyphs in space has to be baned, perhaps except color change"*. On the chapter: *"those were concepts waiting for real context to specify more. so it needs to be corrected."* **Both were the right call, and grounding the second one produced a finding sharper than the first.**

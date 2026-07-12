@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.80  
+> Version: 0.81  
 > Date: May 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -2244,6 +2244,45 @@ page   XGen Client                  http://localhost:5173/
 ```
 
 The symptom is a bare **`EVAL ERROR: Uncaught`** (there is no `window.__XGEN_DEBUG__` in the DevTools page) — **it does not fail loudly, it silently evaluates against the wrong document.** **Fix (one line):** filter the target on the scheme as well as the type — `Where-Object { $_.type -eq 'page' -and $_.url -like 'http*' }`. **Anyone debugging with DevTools open will hit this**, and the failure mode looks like a broken bridge rather than a wrong target.
+
+---
+
+### N-106 — when two specs disagree, the older one is usually not WRONG, it is NARROWER — and "Rust never learns the shape" needed a carve-out, not an exception (2026-07-12, M-RP6.1k design lock / J-510 → D-114 / D-115)
+
+**The setup.** M-RP6.1k opened with a known collision: `xgen-region-dock-model.md` §9 said layout persistence lands at **M-RP7.3** (auto) and **M-RP7.6** (named), in `xgen-client_layout.json` / `xgen-client_layouts.json`, behind **five verbs**. `xgen-widget-surfaces-phase0.md` §4 — **Joe-locked at J-503** — said a **UI-state store** lands at **6.1k**, in `xgen-client_uistate.json`, holding layout **and geometry and shelf and collapsed and theme and the open room**. *They are not obviously the same object, and they may be two stores.*
+
+**🔑 The finding, and it is a general one.** **They were never two objects.** §9 is the **earlier draft of the same idea**, written when the layout was the only thing anyone intended to persist — **before** window geometry, the shelf, or a named-workspace concept existed. **It is not wrong. It is NARROWER.** And that distinction changes what you do with it: **you do not overturn it, you DEMOTE it.** §9's identity + reconcile rules (`widgetId` durable · drop unknown · re-inject `system` · `version`+migrate) are **exactly right** — they simply become the **`layout` KEY's** rules **inside** the one store, rather than a file's. Only its **filenames**, its **five verbs** and its *"the layout manager is itself a widget"* line die.
+
+> **The general rule worth keeping: a spec written earlier is a spec written with less of the system in view. Read it as a narrower TRUE thing, not a competing FALSE one — and then ask which of its clauses were about the SCOPE (die) and which were about the SUBSTANCE (survive).** *Overturning it wholesale would have thrown away four correct reconcile rules along with two obsolete filenames.*
+
+**🔑 The second finding, and it is the sharper one: a rule can be RIGHT and still not be UNIFORM.** J-499 D2 established, correctly and expensively: ***Rust persists an OPAQUE blob and never learns the node shape*** — because a `get_layout` command would have **duplicated the descriptor type in Rust**, the D-067 drift the project exists to kill. Surfaces §4 inherited the rule wholesale.
+
+**But §4.2 makes the monitor-work-area clamp MANDATORY — and only Rust can read a work area, or apply a window rect before the webview exists.** *A clamp Rust cannot perform is not a clamp.* So the rule, applied uniformly, **forbids the thing the same document requires**.
+
+**The resolution is not an exception to J-499 — it is J-499 applied one level deeper (D-114):**
+
+| half of the file | form | why |
+|---|---|---|
+| `geometry` | **TYPED Rust struct** | a type **Rust already owns** and the **webview cannot** |
+| everything else | **opaque `serde_json::Value`** | a type **the webview owns** and Rust must **never duplicate** |
+
+> ### **Rust owns what only Rust can do, and stays blind to what the webview owns.**
+> **The original rule was never "Rust must not have types." It was "Rust must not have a SECOND COPY of someone else's type."** *(A rule that gets quoted without asking which side of it each new thing falls on has stopped being a rule and become a superstition. The tell is that it starts forbidding things nobody had a reason to forbid.)*
+
+**Free consequence worth stating, because it is why the blob shape is right rather than merely permitted:** an opaque value **round-trips UNKNOWN KEYS**. So every future key (shelf favourites, theme, last room, collapsed) is **additive with zero Rust change**, and a key written by a newer binary **survives** a read-write cycle through an older one.
+
+**⚠️ Third: FIVE OF THE SIX Joe-locked §4.5 keys have NO LIVE SOURCE in the shipped client.** Grepped, not assumed — only **window geometry** has a feeder today. **`layout` is a const**; **shelf favourites** wait on the (still-open) pinning question; **`collapsed`** has **zero `collapsible` props anywhere in `ui/client`**; **theme** has no `theme-*.css` at all (D-110); **last open room** has no room selection until M-RP6.2. → **6.1k ships `geometry` + `layout` and RESERVES NOTHING.**
+
+> **An empty `theme: null` key is the `tabs`-branch / N-091 shape AT FILE SCALE.** *A key nothing writes is a key nobody has round-tripped* — and it will be discovered to be wrong by the milestone that finally tries to use it. **§4.5 locked what BELONGS in a UI state; D-065 governs WHEN each one gets built. Those are different questions, and a design doc listing six keys is not a licence to emit six keys.**
+
+**⚠️ Fourth — a deferral outlived its premise, and nearly outlived it silently.** **N-095** pinned *"a missing/corrupt/schema-stale layout falls back to `DEFAULT_LAYOUT`, never a blank centre — **exercised**, not asserted"* to **M-RP7.3**. The reasoning was **correct**: `loadLayout()` **could not return null**, so the guard would be an **unreachable branch in a closed milestone** (the same rule that kept `tabs` out of renderer A).
+
+**M-RP6.1k is the milestone that KILLS that premise** — it is precisely where `loadLayout()` stops returning a constant and starts parsing a real file. **Leaving the DoD at 7.3 would have meant 7.3 closing a hole 6.1k opened.**
+
+> ### **A deferral is valid only as long as its premise holds. When the premise dies, the deferral dies with it — it does not quietly inherit a new one.**
+> **Practical form: every deferral should record WHY, not just WHEN** — because the *why* is the only thing that can later be checked against reality. N-095 recorded its why (*"`loadLayout()` cannot return null"*), which is the entire reason this was catchable **by reading**, not by a bug report.
+
+**Fifth, small and cheap: `layout.save` / `layout.load` → `uistate.save` / `uistate.load`.** The faces shipped at 6.1j carrying `layout.*`, **but the store is not a layout** — it holds geometry, and will hold shelf/theme/room. `layout.*` would be a lie by M-RP6.2. **Two lines, corrected in the window between the face existing and the command existing.** *Same instinct as S-5's "pin a face" over "add a widget": the cost of naming it right is one edit today and an explanation forever after.*
 
 ---
 

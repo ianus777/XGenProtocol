@@ -1,6 +1,6 @@
 # XGen UI — Region / Dock Model
 > **Status**: ACTIVE  
-> Version: 1.7  
+> Version: 1.8  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -135,6 +135,20 @@ D-102 (the `widget` tier this extends with a layout seam) · W-11 dd-socket (the
 
 ## 9. Layout persistence
 
+> ### ⚠️ AMENDED 2026-07-12 (J-510 / **D-114**) — READ THIS BEFORE THE SECTION BELOW. **THERE IS ONE STORE, AND IT IS NOT A LAYOUT STORE.**
+>
+> **This section is the earlier, narrower draft.** It was written when the layout was the only thing anyone intended to persist — **before** window geometry, the shelf, or a named-workspace concept existed. `docs/xgen-widget-surfaces-phase0.md` §4 (Joe-locked, J-503) then specified a **UI-state store** holding layout **and** geometry **and** shelf favourites **and** collapsed state **and** theme **and** the last open room. **They were never two objects.**
+>
+> **🔒 D-114 — ONE store: `xgen-client_uistate.json`.** Two files would mean two lifecycles, two clamps, two reconcile rules and two migration paths for **one user-visible act** — the **D-067** drift this project exists to eliminate.
+>
+> **What in this section SURVIVES, verbatim** — it simply becomes the **`layout` key's own** internal rule inside the one store, not a file of its own: **`widgetId` is the durable identity** · **drop unknown `widgetId`** · **re-inject missing `system` widgets** (W-13) · **`version` + migrate on schema change only** · *the webview owns the live tree, Rust persists it* (the `get_substitutions` shape).
+>
+> **What is SUPERSEDED:** the filenames **`xgen-client_layout.json` / `xgen-client_layouts.json`** · the five verbs **`list_layouts` / `save_layout` / `load_layout` / `delete_layout` / `rename_layout`** (→ **`get_ui_state` / `set_ui_state`**, two verbs, one store) · *"the layout manager is itself a widget"* (under **D-112** it is **content inside Settings** — content-within-a-widget is **not a surface**, surfaces §3.2).
+>
+> **⚠️ AND THE "OPAQUE BLOB" RULE DOES NOT HOLD UNIFORMLY — D-114's carve-out.** §4.2's monitor-work-area **clamp is mandatory**, and **only Rust can read a work area or apply a rect before the webview exists**. **A clamp Rust cannot perform is not a clamp.** → **`geometry` is a TYPED Rust struct; everything else stays an opaque `serde_json::Value`.** That is J-499's rule *applied*, not excepted: **Rust owns what only Rust can do, and stays blind to what the webview owns.** Unit: **physical px** (**D-115**, N-092b — measured twice).
+>
+> **⚠️ AND THE TIMELINE MOVED.** *"Auto-save/load lands at M-RP7.3; named layouts + manager at M-RP7.6"* — **both are pulled forward into M-RP6.1k**, because **S-8** locked manual **named** UI states as *permanent, not a stopgap*, and the bottom shelf's `diskette`/`load` faces dispatch them. **N-095's fallback DoD comes with them** (see below).
+
 The live layout descriptor (§3) is saved to disk and restored on start. Layout is a **local UI preference** — stored in the client config dir (Tauri `app_config_dir()`), never federated, per-device.
 
 **Baseline — one active layout (auto).**
@@ -158,7 +172,9 @@ The live layout descriptor (§3) is saved to disk and restored on start. Layout 
 >
 > **Pinned to M-RP7.3's DoD:** *a missing / corrupt / schema-stale layout file falls back to `DEFAULT_LAYOUT`, never to a blank centre — and the fallback is **exercised** (feed it a corrupt file), not asserted.*
 
-**Sequencing.** Contract is free now (`version` in the descriptor; the verbs are layout-shaped siblings of the M-RP6.1 read/write verbs). Baseline auto-save/load lands at **M-RP7.3**; named layouts + manager widget at **M-RP7.6** (after renderer B can produce varied layouts worth naming).
+> **⚠️ N-095 IS NO LONGER PINNED TO M-RP7.3 — IT MOVES TO M-RP6.1k (D-115).** The deferral's premise was that `loadLayout()` **cannot return null**, so the guard would be an unreachable branch. **M-RP6.1k is the milestone that kills that premise** — it is where `loadLayout()` stops returning a constant and starts parsing a real file. Leaving the DoD at 7.3 would mean **7.3 closing a hole 6.1k opened**. *A deferral is valid only as long as its premise holds; when the premise dies, the deferral dies with it — it does not quietly inherit a new one.*
+
+**Sequencing.** **⚠️ SUPERSEDED (D-114 / D-115, J-510) — auto-save/load AND named states BOTH land at M-RP6.1k, in ONE store. Original text kept as history:** Contract is free now (`version` in the descriptor; the verbs are layout-shaped siblings of the M-RP6.1 read/write verbs). Baseline auto-save/load lands at **M-RP7.3**; named layouts + manager widget at **M-RP7.6** (after renderer B can produce varied layouts worth naming).
 
 **⚠️ The `get_layout` stub was RESOLVED AS “NO RUST” at M-RP6.1f (J-499, D2)** — correcting this section's earlier *“M-RP6.1 may stub `get_layout`”* provision. A Rust command returning a hardcoded default would either **duplicate the descriptor type in Rust** (the **D-067 drift surface** this project exists to eliminate) or return an opaque blob Rust does not own — theatre for one call site. **The seam lives in the frontend** as `async loadLayout()`, today returning `DEFAULT_LAYOUT`. At **M-RP7.3** only its *body* becomes `invoke('get_layout')`, and **Rust persists the tree as an opaque blob** (the `get_substitutions` shape — *the webview owns the live tree, Rust persists it*), so **Rust never learns the node shape**. One function, one swap, zero drift.
 

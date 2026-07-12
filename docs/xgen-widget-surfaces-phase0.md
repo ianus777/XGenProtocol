@@ -1,6 +1,6 @@
 # XGen Client — Widget Surfaces, Shelves & the UI-State Store: Phase-0
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -92,8 +92,10 @@ The bottom-shelf is **system**, and in this dev phase carries:
 | glyph | command | meaning |
 |---|---|---|
 | `gear` | `widget.manager` | open the widget manager (add / remove / configure) |
-| `diskette` | `layout.save` / `layout.saveAs` | save the current UI state, or save it under a name |
-| *(load)* | `layout.load` | load a **named** UI state |
+| `diskette` | ~~`layout.save` / `layout.saveAs`~~ → **`uistate.save`** | save the current UI state, or save it under a name (**one command, one dialog, two outcomes** — there is no `saveAs` id) |
+| *(load)* | ~~`layout.load`~~ → **`uistate.load`** | load a **named** UI state |
+
+> **⚠️ RENAMED 2026-07-12 (Joe-locked, J-510).** The faces shipped at M-RP6.1j carrying `layout.save` / `layout.load`. **But the store is NOT a layout** (D-114) — it holds **geometry**, and will hold shelf / theme / room. `layout.*` would be a lie by M-RP6.2. **Two lines, corrected before the commands existed rather than after.** *The same rule as this section's own “pin a face, don't add a widget”, applied to itself.*
 
 ### S-6 — There is NO minus button
 
@@ -157,6 +159,29 @@ This separates *"where does this thing dock?"* from *"what is drawn inside it?"*
 ---
 
 ## 4. The UI-state store — and the absorption of M-RP-WINSTATE
+
+> ### ✅ LOCKED 2026-07-12 (Joe, J-510) — **D-114** (one store; geometry typed, the rest opaque) + **D-115** (physical px; clamp; N-095 relocated). **M-RP6.1k is now a runbook, not a design.**
+>
+> **⚠️ THE COLLISION THAT HAD TO BE GROUNDED FIRST — and grounding settled it without a single re-derivation.** `ui/docs/xgen-region-dock-model.md` §9 described a **layout-only** store (`xgen-client_layout.json` → `xgen-client_layouts.json`, five verbs, auto at 7.3 / named at 7.6). This §4 describes a **UI-state** store. **They are not two objects: §9 is the earlier, narrower draft**, written before geometry, the shelf or a named-workspace concept existed. **→ ONE store (D-114).** §9's identity/reconcile rules survive **verbatim** as the `layout` key's own; its filenames, its five verbs and its *"layout manager is a widget"* line are **superseded** (region-dock **v1.8**).
+>
+> **🔑 THE CARVE-OUT — §4's own "opaque blob" inheritance CANNOT hold uniformly, and §4.2 is what breaks it.** The monitor-work-area **clamp is mandatory**, and **only Rust can read a work area, or apply a rect before the webview exists**. **A clamp Rust cannot perform is not a clamp.** → **`geometry` is a TYPED Rust struct; every other key is an opaque `serde_json::Value` Rust round-trips verbatim.** This is **J-499's rule applied, not excepted**: J-499 rejected `get_layout` because Rust would have had to **duplicate a type the webview owns** — geometry is the **opposite case**, a type **Rust already owns and the webview cannot**. ***Rust owns what only Rust can do, and stays blind to what the webview owns.*** Free consequence: an opaque value **preserves unknown keys**, so every future key is additive with **no Rust change**.
+>
+> **⚠️ AND THE FINDING THAT SHAPES THE MILESTONE — grepped, not assumed: FIVE OF THE SIX §4.5 KEYS HAVE NO LIVE SOURCE TODAY.**
+>
+> | §4.5 key | feeder in the shipped client? |
+> |---|---|
+> | **window geometry** | ✅ **YES** — resize grip + native decorations; the user moves it every session |
+> | **grid layout** | ⚠️ a **const** (`DEFAULT_LAYOUT`) — no user mutation until renderer B (M-RP7.1/7.2) |
+> | shelf favourites | ❌ pinning is §6 ④, **still open**; the top strip mounts empty |
+> | collapsed / expanded | ❌ **zero `collapsible` props anywhere in `ui/client`** — the 8 leaves are non-collapsible `section`s |
+> | theme | ❌ `theme-*.css` **does not exist** (D-110) |
+> | last open space + room | ❌ no room selection until **M-RP6.2** |
+>
+> **→ M-RP6.1k ships the STORE with the keys that have a feeder: `geometry` + `layout`. IT RESERVES NOTHING.** An empty `theme: null` key is the **`tabs`-branch / N-091 shape at file scale** — *an unfed branch is an unverified branch*, and a key nothing writes is a key nobody has round-tripped. **Each remaining key is added BY THE MILESTONE THAT CREATES ITS SOURCE** — which the opaque blob makes free. *(This is §4.5 honoured, not narrowed: §4.5 locked what BELONGS in a UI state; D-065 governs WHEN each one is built.)*
+>
+> **⚠️ N-095's DoD MOVES HERE FROM M-RP7.3 (D-115).** Its deferral's premise was that `loadLayout()` **cannot return null**. **6.1k is the milestone that kills that premise** — it is where `loadLayout()` stops returning a constant and starts parsing a real file. **7.3 would otherwise be closing a hole 6.1k opened.**
+>
+> **Naming, locked:** the commands are **`uistate.save` / `uistate.load`**, not `layout.*` (the S-5 table is corrected above). **The store is not a layout** — it holds geometry, and will hold shelf/theme/room. *The same reasoning that made S-5 say "pin a face" rather than "add a widget": name it right now, or spend years explaining it.* Cost: **two lines**. **There is no `uistate.saveAs`** — one diskette, one dialog, two outcomes.
 
 Joe: *"save and load named ui states, we can put there what we need, counting present window position and dimensions."*
 
@@ -317,7 +342,7 @@ Bounded **on paper, before it became a junk drawer** — and grounding turned tw
 | 2 | *(this doc)* | **Phase-0 lock** — **✅ LOCKED 2026-07-12 (J-507).** §6 walked; ①②③ closed, ⑤ struck, **only ④ (top-shelf pinning) open — and it gates nothing.** The §8 records have moved. **M-RP6.1i–l may start.** |
 | 3 | **M-RP6.1i** | **`shelf` core** — ordered strip, `position: top\|bottom`, faces, roving toolbar machine, `commandId` dispatch. Sampler-verified. + 3 glyphs. *(was `6.1g′`)* |
 | 4 | **M-RP6.1j** | **mount both shelves** in the real client. Bottom → real commands. **Top → empty** (pinning undecided). Verify 9222. *(was `6.1g″`)* |
-| 5 | **M-RP6.1k** | **UI-state store** — session state + named states + window geometry (absorbs M-RP-WINSTATE) + the clamp + the unit decision. *(was `6.1h′`)* |
+| 5 | **M-RP6.1k** | ✅ **LOCKED 2026-07-12 (D-114 / D-115, J-510)** — **four legs, VISIBLE FIRST:** **A** save + load **dialogs** (shell-local, the `about-dialog` precedent) + **both commands enter `commandTable`** + **`diskette`/`load` flip ENABLED**, against an in-memory store → *the milestone's UI is on screen and correctable before any plumbing exists* · **B** Rust `get_ui_state`/`set_ui_state` + `xgen-client_uistate.json`; `loadLayout()` body swap; **N-095 fallback EXERCISED** · **C** window geometry: save on `CloseRequested` + debounced move/resize, restore + **work-area clamp EXERCISED** (physical px, D-115) · **D** named states carry geometry (§4.2) + session key + CDP verify → close. **Keys shipped: `geometry` + `layout` ONLY — nothing reserved.** Real client 9222 only (**no sampler cells**; the catalogue must stay **328**, and that is a verify leg). `cargo test` **must move** — the honest signal that Rust landed. *(original scope line:)* **UI-state store** — session state + named states + window geometry (absorbs M-RP-WINSTATE) + the clamp + the unit decision. *(was `6.1h′`)* |
 | 6 | **M-RP6.1l** | **widget manager** — add / remove / configure; the home of destruction (S-6). *(was `6.1h″`)* |
 
 *The `shelf` was called “the 32nd `core`” in v1.0. **It is not** — `region-shell` took the 32nd slot at M-RP6.1f (J-499). The shelf's ordinal is assigned when it is actually built; **do not pre-book a number** (Rule 5 applies to counts in designs too).*

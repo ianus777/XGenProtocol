@@ -4294,3 +4294,62 @@ The **Node already talks to the world; the Client deliberately does not.** The N
 
 **Relationship:** D-036 (module architecture — the widget/window forms this puts a floor under) · **D-111** (the beacon invariant — **this is the one channel D-111 explicitly could not close**; now closed) · **D-110** (colour-not-geometry; the allowlist-never-denylist rule, and the trust-chrome lesson) · **D-112** (the taxonomy — locked together) · D-071 (audits precede dependent milestones).
 
+---
+
+## D-114 — ONE UI-state store: geometry is TYPED in Rust, everything else is an OPAQUE blob
+
+**Date:** 2026-07-12 · **Layer:** Client UI persistence · **Ref:** D-067, D-101, D-103, D-107 · **Journal:** J-510 · **Phase-0:** `docs/xgen-widget-surfaces-phase0.md` §4 (Joe-locked J-503) · **Milestone:** M-RP6.1k
+
+**🔑 Two specs described the persistence of the client's UI, and they were never two objects.** `ui/docs/xgen-region-dock-model.md` §9 specified a **layout-only** store (`xgen-client_layout.json`, widening to `xgen-client_layouts.json` at M-RP7.6, five verbs `list/save/load/delete/rename_layout`). `docs/xgen-widget-surfaces-phase0.md` §4 specified a **UI-state** store (`xgen-client_uistate.json`) holding layout *and* geometry *and* shelf favourites *and* collapsed state *and* theme *and* the last open room, with two lifecycles (session / named). **§9 is simply the earlier and narrower draft** — written when the layout was the only thing anyone intended to persist, and before window geometry, the shelf, or a named-workspace concept existed.
+
+**Decision: ONE store. `xgen-client_uistate.json`.** Two files would mean **two lifecycles, two clamps, two reconcile rules and two migration paths for one user-visible act** ("put my app back how I left it") — the D-067 drift surface this project exists to eliminate, self-inflicted and entirely avoidable. `docs/xgen-widget-surfaces-phase0.md` §8 had **already recorded the outcome in writing** at J-507 (*"M-RP-WINSTATE stays ⏸️ → absorbed by the §4 UI-state store at M-RP6.1k"*); this makes it binding.
+
+**§9 is AMENDED, not overturned — and the amendment is a demotion, not a deletion.** What **survives verbatim** and becomes the *layout key's own* internal rule inside the one store: **`widgetId` is the durable identity** (the display name is a mutable label) · **drop nodes with unknown `widgetId`** · **re-inject missing `system` widgets** (W-13 — a saved state can never lose the Composer) · **`version` bump + migrate for schema changes only**. What is **superseded**: the two **filenames**, the **five layout verbs**, and *"the layout manager is itself a widget"* (under D-112/§3.2 that is **content inside Settings**, not a surface of its own).
+
+**🔑 THE CARVE-OUT, AND IT IS THE REAL CONTENT OF THIS DECISION. §4 inherited J-499 D2's rule — *Rust persists an opaque blob and never learns the node shape* — and that rule CANNOT hold uniformly, because §4.2's clamp is MANDATORY.** Only Rust can read the **monitor work area**; only Rust can **apply a window rect before the webview exists** (apply it later and the window visibly jumps). **A clamp Rust cannot perform is not a clamp.**
+
+**→ One file, two halves, and the line is principled rather than pragmatic:**
+
+| half | form | why |
+|---|---|---|
+| **`geometry`** | a **typed Rust struct** (`x`, `y`, `width`, `height`, `maximized`) | **only Rust can do it** — the OS-window domain. Rust must *understand* it to clamp it. |
+| **everything else** (`layout` today; shelf / collapsed / theme / room as their sources land) | an **opaque `serde_json::Value`**, round-tripped verbatim | the descriptor type stays in **exactly one place (TS)**. Rust never parses it → **zero D-067**. |
+
+**The split is the *original* J-499 rule applied honestly, not an exception to it.** J-499 rejected `get_layout` because it would have forced Rust to **duplicate a type the webview owns**. Geometry is the **opposite case**: it is a type **Rust already owns** and the webview *cannot*. **Rust owns what only Rust can do; Rust stays blind to what the webview owns.** *(A rule that is stated once and applied without asking which side of it each thing falls on is how a rule becomes a superstition.)*
+
+**Free consequence, and it is why the blob is the right shape:** an opaque value **preserves unknown keys**, so a key added by a later milestone survives a round-trip through an older binary, and every future key is **additive with no Rust change**.
+
+**Verbs:** `get_ui_state` / `set_ui_state` — the shipped `get_substitutions` / `set_substitutions` shape. The frontend `loadLayout()` D2 seam swaps its **body**, never its call shape (which is exactly what it was written for at J-499).
+
+**Binding:** no milestone may create a second UI-persistence file. **Geometry is UI state, never user config** — it does not enter `xgen-client_config.toml` (§4.4), and it is therefore **not subject to D-101's clean-slate-on-start** (which wipes the *config* only). *The UI-state store is the project's first deliberately persistent user-facing state — that is a feature, and it must be stated rather than discovered.*
+
+**Relationship:** D-067 (the drift this prevents) · D-101 (clean-slate — config only; the store is out of scope, deliberately) · D-103 (the layout descriptor whose persistence this is) · D-107 (frame chrome outside the descriptor) · **D-115** (the unit) · M-RP-WINSTATE (**absorbed** — see D-115).
+
+---
+
+## D-115 — Window geometry is stored in PHYSICAL pixels, and the restored rect is clamped to the monitor work area
+
+**Date:** 2026-07-12 · **Layer:** Client UI persistence · **Ref:** D-114 · **Journal:** J-510 (measured J-495, J-498 — N-092b) · **Milestone:** M-RP6.1k (**absorbs M-RP-WINSTATE**)
+
+**M-RP-WINSTATE's deciding criterion fires here, and it was written down at J-498 precisely so nobody would re-argue it:** *"At kickoff, did the widget grid produce a persistent UI-state store? **YES → B** (own it: geometry becomes ~five keys in the existing store; no new dependency, one lifecycle). **NO → A** (`tauri-plugin-window-state`)."* **It did. → B.** **No `tauri-plugin-window-state`.** M-RP-WINSTATE **ceases to be a milestone** and becomes a facet of the D-114 store. *(The criterion worked exactly as designed: a question answered by evidence rather than re-litigated by whoever happened to be in the seat.)*
+
+**The unit question, settled (N-092b, and it was measured twice, not reasoned):** the Tauri window config is applied in **physical** px — J-495 (900×600 config → 720×480 CSS) and J-498 (1240×1080 → 993×865 CSS at DPR 1.25).
+
+**Decision: store PHYSICAL pixels.** Three reasons, and the first is decisive:
+
+1. **A rect can only be compared to a monitor work area in the same unit**, and Tauri's `work_area()` is physical. **A logical rect makes the mandatory clamp unimplementable** — the clamp is not a nicety we could trade against tidiness.
+2. The shipped `tauri.conf.json` `width`/`height` **already mean physical px**, so nothing changes meaning mid-flight.
+3. Restore happens **before the webview exists**; there is no DPR to convert with at the moment it is needed.
+
+**Mandatory, and both must be EXERCISED rather than asserted (the N-095 DoD shape):**
+
+- **Clamp, don't refuse (§4.2):** if the saved rect **intersects no current monitor's work area** → **discard the geometry, fall back to default size + centre**. The unplugged-second-monitor case: a rect saved on an ultrawide must never throw the window off-screen on a laptop. **Verified by writing an off-screen rect into the store and launching** — not by reading the branch.
+- **A missing / corrupt / schema-stale store falls back to defaults, never to a blank window and never to a blank centre.**
+
+**⚠️ N-095's DoD MOVES from M-RP7.3 to M-RP6.1k, and this is not a scope grab.** N-095 pinned *"a missing/corrupt/schema-stale layout falls back to `DEFAULT_LAYOUT`, never a blank centre — exercised, not asserted"* to **M-RP7.3**, on the correct grounds that `loadLayout()` **could not return null** and the guard would have been an **unreachable branch in a closed milestone** (the same argument that kept the `tabs` branch out of renderer A). **M-RP6.1k is the milestone that makes it reachable** — it is where `loadLayout()` stops returning a constant and starts parsing a real file. **Leaving the DoD at 7.3 would mean 7.3 closing a hole 6.1k opened.** *A deferral is valid only as long as its premise holds; when the premise dies, the deferral dies with it — it does not quietly inherit a new one.*
+
+**Consequence:** the `1240×1080` first-launch default is **now genuinely a first-launch default** — remembered geometry overrides it. Do not tune it.
+
+**Relationship:** **D-114** (the store this is a key in) · N-092b (the measurement) · N-095 (the fallback DoD, relocated here) · M-RP-WINSTATE (**absorbed, ⬛ SUPERSEDED**) · M-RP8 (frameless + custom title-bar — changes *how* the window is dragged, **not** what is stored).
+
+

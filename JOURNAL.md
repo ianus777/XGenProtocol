@@ -8,6 +8,117 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-510 — M-RP6.1k design lock: two specs, one store — and "Rust never learns the shape" turns out to need a carve-out, not an exception
+
+**Design-only. NO CODE.** Joe locked the walk in full ("you have an autonomy in this part — do as you propose"). Records moved: **D-114** + **D-115** · `ROADMAP.md` **v4.80** · `CLAUDE.md` PLAY · `ui/docs/xgen-region-dock-model.md` **v1.8** · `docs/xgen-widget-surfaces-phase0.md` **v1.5** · `ui/docs/xgen-ui-notes.md` **v0.81** (**N-106**) · runbook `tasks/M_RP6_1K_UISTATE_STORE.md` → Clair.
+
+---
+
+## ⚠️ THE COLLISION WAS REAL. IT WAS ALSO NOT A CONTRADICTION.
+
+The kickoff brief named it and said: *do not assume; grep and reconcile.* Two specs described who persists the client's UI:
+
+| | `xgen-region-dock-model.md` §9 | `xgen-widget-surfaces-phase0.md` §4 (Joe-locked J-503) |
+|---|---|---|
+| object | **layout only** | **UI state** (layout · geometry · shelf · collapsed · theme · room) |
+| file | `xgen-client_layout.json` → `xgen-client_layouts.json` | `xgen-client_uistate.json` |
+| verbs | `list` / `save` / `load` / `delete` / `rename_layout` (**5**) | one store, two lifecycles |
+| when | auto **7.3** · named **7.6** | **6.1k** |
+
+**🔑 They were never two objects. §9 is the EARLIER, NARROWER DRAFT** — written when the layout was the only thing anyone intended to persist, **before** window geometry, the shelf, or a named-workspace concept existed. And surfaces §8 **had already written the outcome down at J-507**: *"M-RP-WINSTATE stays ⏸️ → absorbed by the §4 UI-state store at M-RP6.1k."* The brief's instruction — **look first** — is the whole reason this took a grep instead of an argument.
+
+> ### **A spec written earlier is a spec written with less of the system in view. Read it as a NARROWER TRUE thing, not a COMPETING FALSE one.**
+> **And then ask which of its clauses were about SCOPE (they die) and which were about SUBSTANCE (they survive).** §9's identity + reconcile rules — **`widgetId` is durable · drop unknown ids · re-inject missing `system` widgets (W-13) · `version` + migrate on schema change** — are **exactly right**, and they simply become the **`layout` KEY's** rules **inside** the one store. Only the **filenames**, the **five verbs**, and *"the layout manager is itself a widget"* die. **Overturning §9 wholesale would have thrown away four correct rules along with two obsolete filenames.**
+
+**🔒 D-114 — ONE store: `xgen-client_uistate.json`.** Two files = two lifecycles, two clamps, two reconciles, two migration paths **for one user-visible act**. Self-inflicted **D-067**.
+
+---
+
+## 🔑 THE ENTRY'S REAL FINDING: A RULE CAN BE RIGHT AND STILL NOT BE UNIFORM
+
+J-499 D2 established — correctly, and at cost — that ***Rust persists an OPAQUE blob and never learns the node shape***: a `get_layout` command would have **duplicated the descriptor type in Rust**, the exact **D-067** drift this project exists to kill. Surfaces §4 inherited that rule **wholesale**.
+
+**But §4.2's monitor-work-area clamp is MANDATORY — and only Rust can read a work area, or apply a window rect before the webview exists** (apply it later and the window visibly jumps).
+
+**So the rule, applied uniformly, forbids the thing the same document requires.** *A clamp Rust cannot perform is not a clamp.*
+
+**The resolution is not an exception to J-499. It is J-499 applied one level deeper:**
+
+| half of the file | form | why |
+|---|---|---|
+| **`geometry`** | a **TYPED Rust struct** (`x,y,w,h,maximized`) | a type **Rust already owns** and the **webview cannot** |
+| **everything else** | an **opaque `serde_json::Value`**, round-tripped verbatim | a type **the webview owns** and Rust must **never duplicate** |
+
+> ### **RUST OWNS WHAT ONLY RUST CAN DO, AND STAYS BLIND TO WHAT THE WEBVIEW OWNS.**
+> **The original rule was never "Rust must not have types." It was "Rust must not have a SECOND COPY of someone else's type."** *A rule quoted without asking which side of it each new thing falls on has stopped being a rule and become a superstition — and the tell is that it starts forbidding things nobody had a reason to forbid.*
+
+**Free, and it is why the blob is the right shape rather than merely a permitted one:** an opaque value **round-trips UNKNOWN KEYS** → every future key is **additive with zero Rust change**, and a key written by a newer binary **survives** a read-write cycle through an older one.
+
+**Verbs: `get_ui_state` / `set_ui_state`** — the shipped `get_substitutions` / `set_substitutions` shape. The frontend `loadLayout()` D2 seam swaps its **body**, never its call shape. *It was written that way at J-499 for exactly this moment, and it paid.*
+
+---
+
+## ⚠️ FIVE OF THE SIX Joe-LOCKED §4.5 KEYS HAVE NO LIVE SOURCE. GREPPED, NOT ASSUMED.
+
+| §4.5 key | feeder in the shipped client? |
+|---|---|
+| **window geometry** | ✅ **YES** — resize grip + native decorations; the user moves it every session |
+| **grid layout** | ⚠️ a **const** (`DEFAULT_LAYOUT`) — no user mutation until renderer B (7.1/7.2) |
+| shelf favourites | ❌ pinning (surfaces §6 ④) is **still open**; the top strip mounts empty |
+| collapsed / expanded | ❌ **ZERO `collapsible` props anywhere in `ui/client`** — the 8 leaves are non-collapsible `section`s |
+| theme | ❌ `theme-*.css` **does not exist** (D-110) |
+| last open space + room | ❌ no room selection until **M-RP6.2** |
+
+**→ 6.1k ships `geometry` + `layout`, AND RESERVES NOTHING.**
+
+> **An empty `theme: null` key is the `tabs`-branch / N-091 shape AT FILE SCALE.** *A key nothing writes is a key nobody has round-tripped* — and its wrongness will be discovered by the milestone that finally tries to use it. **§4.5 locked what BELONGS in a UI state; D-065 governs WHEN each one gets built. A design doc listing six keys is not a licence to emit six keys.**
+
+---
+
+## 🔒 D-115 — THE M-RP-WINSTATE CRITERION FIRED, AND NOBODY HAD TO RE-ARGUE IT
+
+Written down at **J-498**, precisely so this moment would cost a grep instead of a debate: *"At kickoff, did the widget grid produce a persistent UI-state store? **YES → B** · **NO → A**."*
+
+**It did. → B.** Own it. **`tauri-plugin-window-state` is NOT taken.** M-RP-WINSTATE → **⬛ SUPERSEDED, absorbed.**
+
+**Unit settled: PHYSICAL px** (N-092b — **measured twice**, J-495 and J-498). **The decisive reason is not tidiness: a rect can only be compared to a monitor work area in the same unit, and Tauri's `work_area()` is physical. A logical rect makes the mandatory clamp UNIMPLEMENTABLE.** (Also: the shipped `tauri.conf.json` already means physical px, so nothing changes meaning mid-flight; and restore happens **before the webview exists**, so there is no DPR to convert with at the moment it is needed.)
+
+---
+
+## ⚠️ A DEFERRAL OUTLIVED ITS PREMISE — AND NEARLY DID SO SILENTLY
+
+**N-095** pinned to **M-RP7.3**: *"a missing / corrupt / schema-stale layout falls back to `DEFAULT_LAYOUT`, never a blank centre — **exercised**, not asserted."* **The reasoning was correct**: `loadLayout()` **could not return null**, so the guard would have been an **unreachable branch in a closed milestone** — the same rule that kept `tabs` out of renderer A.
+
+**M-RP6.1k is the milestone that KILLS that premise.** It is precisely where `loadLayout()` stops returning a constant and starts parsing a real file. **Leaving the DoD at 7.3 would have meant 7.3 closing a hole 6.1k opened.**
+
+> ### **A DEFERRAL IS VALID ONLY AS LONG AS ITS PREMISE HOLDS. WHEN THE PREMISE DIES, THE DEFERRAL DIES WITH IT — IT DOES NOT QUIETLY INHERIT A NEW ONE.**
+> **Practical form: a deferral must record its WHY, not just its WHEN** — the *why* is the only part that can later be checked against reality. **N-095 recorded its why**, which is the entire reason this was catchable **by reading** rather than by a bug report. *(The inverse is the real hazard: a deferral that says only "do this at 7.3" survives every premise change, forever, unexamined.)*
+
+---
+
+## The rest of the lock
+
+**Renamed, at a cost of two lines, in the one window where it is free: `layout.save` / `layout.load` → `uistate.save` / `uistate.load`.** The faces shipped at 6.1j carrying `layout.*` — **but the store is not a layout**; it holds geometry, and will hold shelf / theme / room. `layout.*` would be a lie by M-RP6.2. **The commands do not exist yet, so this costs nothing today and an explanation forever after.** *Same instinct as S-5's “pin a face” over “add a widget”.* **No `uistate.saveAs` id** — one diskette, one dialog, two outcomes.
+
+**Legs — VISIBLE FIRST, per Joe's standing brief (*see the UI early, correct it while the milestone is open*):**
+
+| leg | scope |
+|---|---|
+| **A** | save + load **dialogs** (shell-local, the `about-dialog` precedent) + **both commands enter `commandTable`** + **`diskette`/`load` FLIP ENABLED**, against an **in-memory** store. **The milestone's entire UI is on screen and correctable before one line of plumbing exists.** |
+| **B** | Rust `get_ui_state` / `set_ui_state` + `xgen-client_uistate.json` + the `loadLayout()` body swap + **N-095 EXERCISED** (corrupt file → `DEFAULT_LAYOUT`, never a blank centre) |
+| **C** | window geometry: save on `CloseRequested` + debounced move/resize; restore + **work-area clamp EXERCISED** (write an off-screen rect, launch, watch it centre) |
+| **D** | named states carry geometry (§4.2) + session key + reconcile + CDP verify → close |
+
+**Verification frame.** Real client **9222 only** — no sampler cells; **the sampler catalogue must stay 328, and that is a leg**. Client registry baseline **46**, and per **N-105** it is read **QUIESCENT** or not at all. **`cargo test` MUST MOVE from 1507/0/62** — the *inverse* of the 6.1i/6.1j leg where *identical-to-baseline* **proved** the no-Rust claim. **Rule 5 stands: Chat re-drives every non-destructive leg, no exceptions** — the last five handbacks (J-498, J-499, J-500, J-508, J-509) each had a right conclusion and a wrong figure, and **there has never been a signal telling you which number is the bad one.**
+
+**✅ Debt cleared (Chat's own drift, caught after the J-509 push).** ROADMAP and CLAUDE.md still read *"Still open for Joe: Settings' own surface"*. **It is not open — D-112 closed it** (Settings takes `surface: window`; no `screen` kind was added). Both lines fixed. ***A closed decision that keeps advertising itself as open is a record that trains its readers to distrust it.*** **The only thing still open for Joe is top-shelf pinning (surfaces §6 ④) — and it gates nothing.**
+
+**Not smuggled in, and named so they stay out of the milestone:** top-shelf pinning · M-RP6.6 client resident (the real F-1 close) · the read-marker protocol gap · M-RP-FOCUS · M-RP-ROVING · M-RP6.1e-B1 · M-RP7.x · M-RP8 · M-RP-ICON-ADOPT · `temperature-indicator` ⏸️. **A View/Widgets menu is NOT built here** — S-7 makes it free later, and "free later" is not "now".
+
+**Lanes (D-074):** this is Chat's design walk + canonical runbook. **Clair's commit is code-only (commit 1); Chat's doc-bridge is commit 2. Joe pushes both. Chat never pushes.** *(The lane slipped at J-498 and J-508; it held at J-509. Keep it holding.)*
+
+---
+
 ## Entry J-509 — THE REGISTRY BREATHES: the shelves mount in the real client, and a "baseline correction" turns out to be a menu left open
 
 **M-RP6.1j ✅ CLOSED. A MOUNT, not a build — 2 files, +30 (`app_client.svelte` + `app.css`). No `core`, no `skin.css`, no glyph, no sampler, no Rust, no `commandTable`.** Feat **`96a5a60`** [Clair, code-only — **the D-074 lane held this time**, after slipping at J-498 and J-508].

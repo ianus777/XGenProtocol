@@ -8,6 +8,96 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-511 — M-RP6.1k CLOSED: the UI-state store ships — and the milestone's only user-facing defect was an honesty note that had stopped being honest
+
+**M-RP6.1k ✅ CLOSED.** Two code-only commits [Clair]: **`8902efa`** (the milestone — 10 files, +892/−17) + **`fdccdb2`** (the stale-note fix — 3 files, +6/−8). **The D-074 lane held for the third milestone running.** Design was locked design-only at **J-510** (**D-114** + **D-115**); this is the implementation and its verification.
+
+**What shipped.** The client's **UI-state store** — one file, `xgen-client_uistate.json`, two lifecycles (session + **named** states), holding the **grid layout** and the **window geometry**. **M-RP-WINSTATE is absorbed and gone.** The bottom shelf's `diskette` and `load` faces are **enabled**, and their commands do real, persistent work. **`gear` stays disabled — the countdown continues into 6.1l.**
+
+**Legs, in the order Joe asked for them — VISIBLE FIRST.** **A** the two dialogs + both commands into `commandTable` + both faces flipped, against an **in-memory** store (handed back for Joe's eyes, then reshaped on his feedback: comboboxes on both dialogs) · **B** Rust `get_ui_state`/`set_ui_state` + the file + the `loadLayout()` body swap + **N-095 exercised** · **C** window geometry, physical px, save-on-move + `CloseRequested`, restore **before `show()`**, work-area clamp · **D** named states carry the rect through the same clamp → close.
+
+---
+
+## 🔑 THE ENTRY'S REAL FINDING: A PHASE-LIMIT NOTE IS A COUNTDOWN TOO
+
+Leg A shipped a **correct W-8 honesty note**, painted in the Save dialog:
+
+> *“Session-only for now — not yet written to disk.”*
+
+**True at Leg A, and exactly the posture this project demands** — the `substitutions-editor` / `self-panel` precedent: *render the phase-limit honestly rather than fake the capability.*
+
+**Then Legs B, C and D shipped persistence, and nobody swept the note.** The milestone arrived at close-out with a store that survives a relaunch, geometry that saves and clamps, and named states that carry a window rect — **while the app told the user their workspace was not being saved.** Chat caught it in the **painted DOM** during the Rule-5 re-drive, and read the two named states off the disk in the same minute to prove the contradiction rather than argue it.
+
+> ### **A STALE HONESTY NOTE IS STILL A FALSE STATEMENT — and it is WORSE than a missing one, because it was written by someone being careful, so the next reader trusts it.**
+>
+> **The milestone's own discipline already contained the rule and failed to generalise it.** 6.1j bound: ***the disabled face is a COUNTDOWN, not a resting state*** — no milestone closes leaving its own face disabled. **A W-8 disclosure is the same object.** The face got swept **because the DoD named it**. The note got missed **because nothing named it**.
+>
+> ### **RULE (N-109): no milestone closes leaving its own UI asserting a phase-limit it has since removed. Sweep the CLAIMS, not just the code. And when a leg ships a disclosure, write its REMOVAL into the DoD of the leg that lifts the limit.**
+
+**Fourth in a family that keeps paying:** N-091 (*“verified” is only as wide as the legs you ran*) · N-097 (a constant `false` stranded a shipped skin rule) · N-099 (a leg that reported green by comparing `null === null`) · and now this. **All four are one species: an earlier state's truth left standing after a later state killed it.**
+
+**Cost of the fix: 4 lines.** *The cheapest defect in the milestone was the only one that would have reached a human.* Fixed in `fdccdb2`; the sweep for surviving Leg-A claims was **re-driven by Chat, not accepted** — the two remaining `in-memory` comments describe the **corrupt-fallback runtime state** (N-095) and are accurate.
+
+---
+
+## The decisions, realised in code — checked against the source, not the report
+
+**D-114 — ONE store, and the carve-out is literal.** `get_ui_state -> String` / `set_ui_state(json: String)`: a **raw-string opaque round-trip**. **There are zero descriptor types in the Rust crate** — the only `widgetId` anywhere in `xgen-client` is a raw string literal *inside* `write_then_read_round_trips_verbatim`, which is the **proof of opacity, not a breach of it**. `WindowGeometry {x, y, width, height, maximized}` is the **only** typed part, reached by a separate typed read-modify-write on `session.geometry`.
+
+> ***Rust owns what only Rust can do, and stays blind to what the webview owns.*** **Held, exactly as locked.**
+
+**D-115 — physical px, clamp, N-095 relocated.** Corroborated independently at verify: 1475 CSS × DPR 1.25 = 1844 inner-physical against 1859 outer on disk (the delta is the window frame). Clamp exercised by writing an off-screen rect and launching. **`tauri-plugin-window-state` was not taken.**
+
+**RESERVE NOTHING — held, and visible on disk.** The store's top-level keys are **exactly** `version`, `session`, `named`, `active`. No `theme`, no `shelf`, no `collapsed`, no `room`. *Five of the six §4.5 keys still have no feeder, and the store does not pretend otherwise.* **D-101 untouched** — `clean_slate_config` still wipes config only; the UI-state store is the project's **first deliberately persistent user-facing state**, by design.
+
+---
+
+## Measured (Rule 5 — Chat re-drove every leg; not one number was taken on report)
+
+| leg | result |
+|---|---|
+| client registry, **quiescent, empty store** | **55** (`count === unique === 55`) — **MEASURED, not derived** |
+| **N-108 breathing** | **55 → save → 59 → delete → 55** — proven as a **transition in ONE session**, exact return, zero leaks |
+| `cargo test --workspace` | **1517 / 0 / 62** (from **1507**; **+10**, the ten named tests) — summed programmatically, not hand-counted |
+| `vite build` | **165 modules** · `npm test` **41** |
+| sampler catalogue | **328 UNCHANGED** — grounded **by scope**: zero `ui/core/**`, zero `ui/sampler/**` across **both** commits |
+| faces | `uistate.save` + `uistate.load` **`disabled:false`**; `widget.manager` **still `true`** |
+| dialogs | **`:modal` true** — measured on `:modal`, never the `open` attribute (J-496) |
+| geometry | split ratios **`[1,2,7,2]` exact at a THIRD distinct width** (1475 CSS); `docNoScroll`; leafCount 8, dropped 0 |
+| **N-095 corrupt** | corrupt store → `DEFAULT_LAYOUT`, region-shell **present**, **no blank centre** — the J-499 30→21 failure **proven absent** |
+| unknown-key | an injected `probeKey` **survived the app's own write-back** |
+| **N-107 two-writer** | emptying `named` left **`session.geometry` byte-intact on disk** |
+| skin / accent | zero component-local `<style>`; CSS in `skin.css` (N-090); accent-neutral |
+
+**Two legs Chat ran that were in nobody's matrix:**
+
+1. **Loading a named state with NO `geometry` key.** The disk had grown exactly such a state (`001`, saved before Leg C existed) — *real data outran the fixtures inside one session*. Result: window rect **unchanged**, region-shell present, registry exact. **Both guards held** (`if (s?.layout)` / `if (s?.geometry)`), and the J-499 blank-centre trap was **designed around and cited by name in the comment** before it was ever hit.
+2. **Delete is two-step** — the button re-labels to **“Confirm delete”** before it destroys. **S-6's spirit (*destruction is deliberate, never one click*) honoured inside the dialog**, and it was never in the DoD.
+
+**And the “static gates need the apps down” rule stopped being folklore:** `cargo test` with the client up fails in 15 s with `failed to remove file .../xgen-client.exe`. **The running app holds the binary.** Measured, so it never has to be re-litigated.
+
+---
+
+## Deviations (Rule 6 — flagged, not absorbed)
+
+- **Shell-local `.svelte.ts` store**, not an inline `$state` in `app_client` as the runbook said. **The better call** — it is the exact seam Leg B swapped persistence into. Joe accepted.
+- **Comboboxes on both dialogs** (Joe, mid-flight; `select` was offered for Load and declined).
+- **Autofocus focus-catcher** (`tabindex="-1"` on `.uistate`) so `showModal()` does not land focus on the combobox and pop its dropdown. CDP-confirmed collapsed-on-open.
+- **The core `dialog`'s single-button footer is suppressed** for the uistate dialogs via `:has()`, so Save/Delete/Cancel sit on one line. **Consequence, recorded rather than hidden: the core's `__close` button stays mounted-but-hidden and still registers.** → **FILED, NOT BUILT: a footer snippet slot on the `dialog` core** (removes the `:has()` hack *and* the hidden `__close`). **Correctly kept out of 6.1k** — a `core` change inside a shell milestone is exactly what makes a registry delta unreadable. **Its own milestone.**
+- **`quit`-command geometry save — a genuine find, made in verification.** `app.exit` (Ctrl+Q / File→Exit) does **not** reliably fire `CloseRequested`, so the window-event saver would have **silently lost the final rect on that path**. The X-button path was always covered. *Found because someone drove the app, not because someone read the code.*
+
+---
+
+## Records + what's next
+
+**+N-107** (two writers, one file → read-modify-write on both sides) · **+N-108** (the registry breathes with **store contents** — extends N-105; **6.1l's baseline is 55**) · **+N-109** (the stale phase-limit note). **No new D** (D-114/D-115 implemented as written). **No new `core` component** — the dialogs are shell-local, so the components registry and the sampler catalogue are untouched.
+
+**NEXT-ACTIVE = M-RP6.1l — the widget manager / plugin list. Its DoD flips `gear`.** Under **D-112** it is **one pane, two entry points** (inside Settings' structure; the shelf gear opens the *same* pane, never a cut-down twin), it lists **built-ins as `[system]` with Remove disabled** (W-13), and it is **the home of destruction** (S-6). **No face is enabled before its command exists, and no milestone closes leaving its own face disabled** — `gear` is the last one standing.
+
+**Still open, named so they stay out:** the `dialog` footer slot · session-**layout** auto-save (**no feeder until renderer B** — RESERVE NOTHING held) · top-shelf pinning (surfaces §6 ④, gates nothing) · M-RP-FOCUS · M-RP-ROVING · M-RP6.6 client resident · the read-marker protocol gap · M-RP7.x · M-RP8 · `temperature-indicator` ⏸️.
+
+---
+
 ## Entry J-510 — M-RP6.1k design lock: two specs, one store — and "Rust never learns the shape" turns out to need a carve-out, not an exception
 
 **Design-only. NO CODE.** Joe locked the walk in full ("you have an autonomy in this part — do as you propose"). Records moved: **D-114** + **D-115** · `ROADMAP.md` **v4.80** · `CLAUDE.md` PLAY · `ui/docs/xgen-region-dock-model.md` **v1.8** · `docs/xgen-widget-surfaces-phase0.md` **v1.5** · `ui/docs/xgen-ui-notes.md` **v0.81** (**N-106**) · runbook `tasks/M_RP6_1K_UISTATE_STORE.md` → Clair.

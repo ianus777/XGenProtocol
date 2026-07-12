@@ -1,12 +1,19 @@
 # M-RP6.1k — the UI-state store (session + named states + window geometry)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+> **✅ COMPLETED 2026-07-12 — J-511. Commits `8902efa` (milestone) + `fdccdb2` (the stale-note fix). Do not re-execute.**
+> **All 13 DoD legs measured** (Chat re-drove every one; no number taken on report). Client registry **55 quiescent empty-store** → **59** with a saved state · `cargo test` **1517/0/62** · `vite build` **165** · `npm test` **41** · sampler catalogue **328 unchanged**.
+> **⚠️ The one defect, and the lesson the next runbook must carry (N-109):** Leg A's honest W-8 note (*“Session-only — not yet written to disk”*) **survived Legs B/C/D**, so the app told users their workspace was not being saved **while it was**. **This runbook's own §5 said Leg A must “say so in the UI” — and never said WHO REMOVES IT.** → **A W-8 disclosure is a COUNTDOWN, exactly like a disabled face; the face survived only because the DoD named it. When a leg ships a disclosure, write its REMOVAL into the DoD of the leg that lifts the limit.**
+> **Two legs nobody wrote down, found at verify:** loading a named state with **no `geometry` key** (the disk grew one mid-milestone — *real data outran the fixtures*) → both guards held; and **Delete is two-step** (“Confirm delete”) — S-6's *destruction is deliberate*, honoured but never specified.
+> **Filed, not built:** a **footer snippet slot on the `dialog` core** (would remove the `:has()` footer-suppress hack + the mounted-but-hidden `__close`). Its own milestone.
+> **🟢 Next: M-RP6.1l — the widget manager. Its DoD flips `gear`, the last disabled face. Baseline: client registry 55, quiescent, EMPTY STORE (N-108 — state which store state you counted in).**
 
 Build the client's **UI-state store** — one file, two lifecycles (session + **named** states), holding the **grid layout** and the **window geometry**. Absorbs **M-RP-WINSTATE**. Its DoD **flips the `diskette` and `load` shelf faces to enabled**.
 

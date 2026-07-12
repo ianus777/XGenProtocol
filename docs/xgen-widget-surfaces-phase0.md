@@ -1,6 +1,6 @@
 # XGen Client — Widget Surfaces, Shelves & the UI-State Store: Phase-0
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -159,6 +159,11 @@ This separates *"where does this thing dock?"* from *"what is drawn inside it?"*
 ---
 
 ## 4. The UI-state store — and the absorption of M-RP-WINSTATE
+
+> ### ✅ SHIPPED 2026-07-12 — **M-RP6.1k CLOSED (J-511**, commits `8902efa` + `fdccdb2`). The store is real, and every DoD leg was measured.
+> **Shipped:** `xgen-client_uistate.json` · session + **named** states · **`geometry` + `layout` ONLY — nothing reserved** (top-level keys on disk are exactly `version`/`session`/`named`/`active`) · `get_ui_state`/`set_ui_state` as **raw-string opaque round-trips** with **zero descriptor types in Rust** · `WindowGeometry` the only typed part · **physical px**, work-area clamp **exercised** · **N-095 exercised** (corrupt → `DEFAULT_LAYOUT`, no blank centre) · `diskette`/`load` **enabled** as `uistate.save`/`uistate.load` · **`tauri-plugin-window-state` NOT taken**.
+> **⚠️ AND THE ONE DEFECT IT SHIPPED WITH — N-109, worth reading before the next milestone writes a W-8 note.** Leg A painted an honest phase-limit (*“Session-only — not yet written to disk”*). **Legs B/C/D removed the limit and nobody swept the claim**, so the app spent the milestone **telling users their workspace was not being saved while it was**. ***A stale honesty note is still a false statement — and worse than a missing one, because it was written by someone being careful.*** **A W-8 disclosure is a COUNTDOWN, exactly like a disabled face** — and the face survived only because the **DoD named it**. → **When a leg ships a disclosure, write its REMOVAL into the DoD of the leg that lifts the limit.**
+> **Still true and still unbuilt:** the five keys with no feeder (§4.5) land **with the milestones that create their sources** — `shelf` (④ pinning) · `theme` (D-110) · `collapsed` · `room` (M-RP6.2) · and **session `layout` auto-save** (no user mutation until renderer B).
 
 > ### ✅ LOCKED 2026-07-12 (Joe, J-510) — **D-114** (one store; geometry typed, the rest opaque) + **D-115** (physical px; clamp; N-095 relocated). **M-RP6.1k is now a runbook, not a design.**
 >

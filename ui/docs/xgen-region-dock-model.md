@@ -1,6 +1,6 @@
 # XGen UI — Region / Dock Model
 > **Status**: ACTIVE  
-> Version: 1.8  
+> Version: 1.9  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -134,6 +134,9 @@ R1/R2 land as the next writers, and they will find the reader already there — 
 D-102 (the `widget` tier this extends with a layout seam) · W-11 dd-socket (the data seam; W-12 is its layout sibling) · D-095 (the `ui/{...}` tier split) · D-056 (one shared command layer — the dock engine is shell-level, above components) · D-065 (build-when-consumed; renderer A before B so tiles prove content before they become draggable). All-widgets framing locked by Joe (2026-07-07).
 
 ## 9. Layout persistence
+
+> ### ✅ SHIPPED 2026-07-12 (M-RP6.1k, J-511 — commits `8902efa` + `fdccdb2`). **The store exists. `xgen-client_uistate.json`, one file, two lifecycles.**
+> `get_ui_state` / `set_ui_state` are **raw-string opaque round-trips** — **there are ZERO descriptor types in the Rust crate**, exactly as D-114 required. `WindowGeometry` is the only typed part. **`geometry` + `layout` are the only keys shipped; nothing is reserved.** The `diskette` / `load` faces are live (`uistate.save` / `uistate.load`). **N-095's fallback is exercised** (corrupt store → `DEFAULT_LAYOUT`, never a blank centre). **See also N-107** — two writers, one file: **read-modify-write on BOTH sides**, or one silently eats the other's keys.
 
 > ### ⚠️ AMENDED 2026-07-12 (J-510 / **D-114**) — READ THIS BEFORE THE SECTION BELOW. **THERE IS ONE STORE, AND IT IS NOT A LAYOUT STORE.**
 >

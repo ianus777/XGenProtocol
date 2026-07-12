@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.81  
+> Version: 0.82  
 > Date: May 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -2283,6 +2283,63 @@ The symptom is a bare **`EVAL ERROR: Uncaught`** (there is no `window.__XGEN_DEB
 > **Practical form: every deferral should record WHY, not just WHEN** — because the *why* is the only thing that can later be checked against reality. N-095 recorded its why (*"`loadLayout()` cannot return null"*), which is the entire reason this was catchable **by reading**, not by a bug report.
 
 **Fifth, small and cheap: `layout.save` / `layout.load` → `uistate.save` / `uistate.load`.** The faces shipped at 6.1j carrying `layout.*`, **but the store is not a layout** — it holds geometry, and will hold shelf/theme/room. `layout.*` would be a lie by M-RP6.2. **Two lines, corrected in the window between the face existing and the command existing.** *Same instinct as S-5's "pin a face" over "add a widget": the cost of naming it right is one edit today and an explanation forever after.*
+
+---
+
+### N-107 — two writers, one file: read-modify-write on BOTH sides, or one of them silently eats the other's keys (2026-07-12, M-RP6.1k / J-511)
+
+**The shape.** `xgen-client_uistate.json` has **two writers by design** (D-114): **Rust** owns `session.geometry` (only Rust can read a work area or apply a rect), and the **webview** owns `layout` / `named` / `active` (Rust must never learn the descriptor shape). *One file, two owners, neither of which understands the other's half.*
+
+**The trap is obvious once stated and invisible while coding:** a writer that serialises *its own model* and writes the file **erases everything it does not model**. Rust would blow away every named state on a window move; the frontend would blow away the geometry on every save. **Both would look correct in isolation, and both would pass a single-writer test.**
+
+**The fix is symmetric and it is the whole pattern: READ-MODIFY-WRITE ON BOTH SIDES.** Rust reads the file, merges `session.geometry`, writes it back. The frontend reads the file, merges `named`/`active`, writes it back. **Neither serialises a whole-file model it does not own.**
+
+> **This is the concrete form of the rule the runbook stated abstractly: *a read-modify-write must not drop a key it does not recognise*.** And it generalises past this file: **any format with more than one writer must be merged, never replaced** — the moment a writer's model is narrower than the file, whole-file serialisation is data loss wearing a save button's clothes.
+
+**Proven on disk, not argued (Chat re-drove it, Rule 5):** deleting the last named state through the Load dialog emptied `named` to `{}` and set `active` to `null` — **and `session.geometry` survived the write, byte-intact.** The frontend's delete never touched a key it did not own. *(And the free consequence D-114 predicted holds: an injected unknown key survives the app's own write-back, so every future UI-state key is additive with zero Rust change.)*
+
+---
+
+### N-108 — the registry breathes with STORE CONTENTS, not just with menu state (2026-07-12, M-RP6.1k / J-511 — extends N-105)
+
+**N-105 said: assert the UI is QUIESCENT before you count** — because `menu` / `combobox` / `tag-select` / `color-picker` / `entity-context-menu` register children **while open**, and a count taken with a popup open is off by the size of the popup.
+
+**M-RP6.1k adds a second axis, and it is quieter and therefore worse.** The Load dialog's picker, Load and Delete controls sit inside **`{#if entries.length}`** — so they exist **only when the store has at least one named state**. The client's quiescent registry is therefore:
+
+| store | quiescent count |
+|---|---|
+| **empty** (`named: {}`) | **55** |
+| ≥ 1 named state | **59** (+4: `combobox#uistate-load-pick` · `textfield#uistate-load-pick__input` · `button#uistate-load-go` · `button#uistate-load-del`) |
+
+> ### **A baseline that depends on a DATA FILE is a baseline that can be wrong on a machine where nothing is wrong.**
+> **Assert what is IN THE STORE, not merely that the popups are shut.** Two engineers on two machines, both with a quiescent UI, both honest, will read **55** and **59** — and per **N-105** the one who disagrees with the record will be tempted to “correct” it. *This is J-509's phantom one layer down: there the hidden variable was an open menu; here it is a JSON file nobody thought of as part of the measurement apparatus.*
+
+**Measured as a TRANSITION, in one session, rather than inferred from two launches (which is the stronger proof and cost nothing extra):** **55 → save → 59 → delete → 55.** Exact return to baseline, zero leaks. *A number derived by arithmetic (59 − 4) was refused entry to the record until it had been seen.*
+
+**→ M-RP6.1l inherits 55 (empty store), and must state which store state it counted in.**
+
+---
+
+### N-109 — a phase-limit note is a COUNTDOWN too: the honest disclosure that outlived its phase and became a lie (2026-07-12, M-RP6.1k / J-511 — the defect that blocked close)
+
+**What happened.** M-RP6.1k shipped **Leg A** (dialogs, in-memory store) with a **correct W-8 honesty note** painted in the Save dialog:
+
+> *“Session-only for now — not yet written to disk.”*
+
+**True at Leg A. Exactly the posture the project asks for** — the `substitutions-editor` / `self-panel` precedent: *render the phase-limit honestly rather than faking the capability.*
+
+**Then Legs B, C and D shipped persistence — and nobody swept the note.** The milestone closed its report with a store that round-trips through a relaunch, geometry that saves and clamps, and named states that carry a window rect — **while the app told the user their workspace was not being saved.** Verification caught it on the **painted DOM**, and the disk was holding two named states at the time.
+
+> ### **A STALE HONESTY NOTE IS STILL A FALSE STATEMENT — and it is WORSE than a missing one, because it was written by someone being careful, so the next reader trusts it.**
+> **The milestone's own discipline already had the rule and did not generalise it.** 6.1j bound: ***the disabled face is a COUNTDOWN, not a resting state*** — no milestone closes leaving its own face disabled. **A W-8 phase-limit note is the same object**: a claim that is true *for one leg* and must die with that leg. The face got swept because the DoD named it. **The note got missed because nothing named it.**
+>
+> ### **RULE: no milestone closes leaving its own UI asserting a phase-limit it has since removed. Sweep the CLAIMS, not just the code.**
+
+**The family this belongs to — and it is now four deep:** **N-097** (the panel wrote the bus and never read it back → a constant `false` stranded a shipped skin rule) · **N-099** (a leg that compared `null === null` and reported green) · **N-091** (*“verified” is only ever as wide as the legs you ran*) · and now this. **Every one is the same species: an earlier state's truth left standing after a later state killed it.** The code moved; the assertion did not.
+
+**Cost of the fix: 4 lines** (one `<p>`, three comments). **Cost of missing it: a user who trusts the app when it says their work is not saved.** *The cheapest defect in the milestone was the only one that would have reached a human.*
+
+**Corollary, and it is the operational bit:** when a leg ships a phase-limit disclosure, **write the removal into the DoD of the leg that lifts the limit** — the same way the disabled face was DoD-bound. **A disclosure with no owner is a disclosure that will be true exactly once.**
 
 ---
 

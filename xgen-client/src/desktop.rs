@@ -18,7 +18,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewWindow, WindowEvent};
 
 use crate::app;
 use crate::lifecycle::{make_state_event, ClientLifecycleState, ClientStateEvent};
@@ -49,6 +49,11 @@ struct ConfigPath(PathBuf);
 /// config filename ever moved. Sibling of `ConfigPath`.
 struct DataDir(PathBuf);
 
+/// The UI-state store filename (M-RP6.1k). Sibling of `xgen-client_config.toml` in the data dir;
+/// resolved via the managed `DataDir` so the path is never re-derived (D-114). Deliberately NOT
+/// config — persistent, and NOT wiped by D-101 clean-slate-on-start.
+const UI_STATE_FILE: &str = "xgen-client_uistate.json";
+
 fn emit_state(app: &AppHandle, state: ClientLifecycleState) {
     let canonical = state.as_canonical();
     tracing::info!(lifecycle_state = canonical, "lifecycle transition");
@@ -57,6 +62,96 @@ fn emit_state(app: &AppHandle, state: ClientLifecycleState) {
         *stored = payload.clone();
     }
     let _ = app.emit("xgen-client-state-changed", &payload);
+}
+
+// ── Window geometry save/restore (M-RP6.1k, Leg C — D-114 typed carve-out, D-115) ───────────────
+//
+// Only Rust can read a monitor work area or apply a window rect before the webview is shown, so
+// geometry is the one part of the UI-state store Rust owns. Physical px throughout (D-115) — no DPR
+// conversion. The pure logic (parse / read-modify-write merge / clamp decision) lives in `app.rs` and
+// is unit-tested; this half is the Tauri glue that queries monitors + the live window.
+
+/// Throttle for move/resize saves: at most one disk write per ~500ms so a drag doesn't hammer the
+/// file, while a crash loses at most the last ~500ms. `CloseRequested` bypasses this (authoritative).
+static LAST_GEOM_WRITE: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
+fn geometry_throttle_ok() -> bool {
+    let mut last = LAST_GEOM_WRITE.lock().unwrap();
+    let now = std::time::Instant::now();
+    let ok = last.map_or(true, |t| now.duration_since(t) >= std::time::Duration::from_millis(500));
+    if ok {
+        *last = Some(now);
+    }
+    ok
+}
+
+/// The live window's current outer rect (physical px) + maximized flag, or None if it can't be read.
+fn current_geometry(win: &WebviewWindow) -> Option<app::WindowGeometry> {
+    let maximized = win.is_maximized().unwrap_or(false);
+    let pos = win.outer_position().ok()?;
+    let size = win.outer_size().ok()?;
+    Some(app::WindowGeometry {
+        x: pos.x,
+        y: pos.y,
+        width: size.width,
+        height: size.height,
+        maximized,
+    })
+}
+
+/// Apply a geometry to the live window THROUGH the D-115 clamp: if it is off EVERY current monitor's
+/// work area it is NOT applied (the window keeps its current placement) — never restored off-screen
+/// (the unplugged-monitor / laptop-vs-ultrawide case). Shared by session restore (`restore_geometry`,
+/// applied before show → config default on discard) and named-state load (`apply_window_geometry`).
+fn apply_geometry_clamped(win: &WebviewWindow, geom: &app::WindowGeometry) {
+    let work_areas: Vec<(i32, i32, u32, u32)> = win
+        .available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .map(|m| {
+            let wa = m.work_area();
+            (wa.position.x, wa.position.y, wa.size.width, wa.size.height)
+        })
+        .collect();
+    if work_areas.is_empty() || !app::geometry_on_any_workarea(geom, &work_areas) {
+        tracing::info!("window geometry is off-screen — not applied (D-115 clamp)");
+        return;
+    }
+    if geom.maximized {
+        let _ = win.maximize();
+        return;
+    }
+    let _ = win.set_position(PhysicalPosition::new(geom.x, geom.y));
+    let _ = win.set_size(PhysicalSize::new(geom.width, geom.height));
+}
+
+/// Restore the SESSION geometry, applied BEFORE `show()` so there is no visible jump (the window is
+/// created hidden via `visible:false`). No saved geometry, or an off-screen rect → the config default
+/// + centre (via the clamp inside `apply_geometry_clamped`).
+fn restore_geometry(win: &WebviewWindow, store_path: &std::path::Path) {
+    if let Some(geom) = app::read_session_geometry(store_path) {
+        apply_geometry_clamped(win, &geom);
+    }
+}
+
+/// Persist geometry on move/resize (throttled) and on close (authoritative). `write_session_geometry`
+/// is a read-modify-write, so it never clobbers the webview's layout / named states / unknown keys.
+fn on_geometry_event(event: &WindowEvent, win: &WebviewWindow, store_path: &std::path::Path) {
+    match event {
+        WindowEvent::CloseRequested { .. } => {
+            if let Some(g) = current_geometry(win) {
+                let _ = app::write_session_geometry(store_path, &g);
+            }
+        }
+        WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
+            if geometry_throttle_ok() {
+                if let Some(g) = current_geometry(win) {
+                    let _ = app::write_session_geometry(store_path, &g);
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 // ── Tauri commands ─────────────────────────────────────────────────────────────
@@ -117,6 +212,45 @@ fn get_substitutions(config: tauri::State<ConfigPath>) -> String {
 #[tauri::command]
 fn set_substitutions(rules: String, config: tauri::State<ConfigPath>) -> std::result::Result<(), String> {
     app::write_substitutions_section(&config.0, &rules).map_err(|e| e.to_string())
+}
+
+/// Returns the raw UI-state store JSON (M-RP6.1k, Leg B) from `<data_dir>/xgen-client_uistate.json`.
+/// The `get_substitutions` shape — a thin wrapper over the app-layer file read. Rust NEVER parses the
+/// blob (D-114: the layout is the webview's, opaque; only `geometry` becomes a typed struct, at Leg C,
+/// where the clamp needs it). Empty string when the store is absent OR unreadable, so the webview's
+/// `loadLayout()` falls back to `DEFAULT_LAYOUT` (N-095). App-defined command → no capability grant
+/// (J-497 — grounded: `get_substitutions` et al. run with none).
+#[tauri::command]
+fn get_ui_state(data: tauri::State<DataDir>) -> String {
+    app::load_ui_state(&data.0.join(UI_STATE_FILE))
+}
+
+/// Writes the raw UI-state store JSON back (M-RP6.1k, Leg B — the `set_substitutions` shape). The
+/// webview owns the blob and sends it verbatim; Rust writes it verbatim (opaque round-trip, D-114 —
+/// unknown keys survive). Returns `Err(String)` to the webview on a write failure rather than losing
+/// the store (D-065).
+#[tauri::command]
+fn set_ui_state(json: String, data: tauri::State<DataDir>) -> std::result::Result<(), String> {
+    app::write_ui_state(&data.0.join(UI_STATE_FILE), &json).map_err(|e| e.to_string())
+}
+
+/// Returns the live window's current geometry (M-RP6.1k, Leg D) so the webview can embed it in a NAMED
+/// UI state on save (§4.2 — a named state carries the arrangement AND the window rect). App-defined
+/// command → no capability grant (J-497). None if the window / rect can't be read.
+#[tauri::command]
+fn get_window_geometry(app: AppHandle) -> Option<app::WindowGeometry> {
+    app.get_webview_window("main").and_then(|w| current_geometry(&w))
+}
+
+/// Applies a geometry to the live window THROUGH the D-115 clamp (M-RP6.1k, Leg D) — used when loading a
+/// named UI state, so "Reading" restores its window rect too, and an off-screen saved rect is ignored
+/// rather than throwing the window off-screen. Rust-side set_position/set_size → NO capability grant
+/// (the restore path already does this; capabilities gate JS→Rust IPC, not Rust→runtime calls).
+#[tauri::command]
+fn apply_window_geometry(app: AppHandle, geom: app::WindowGeometry) {
+    if let Some(win) = app.get_webview_window("main") {
+        apply_geometry_clamped(&win, &geom);
+    }
 }
 
 /// Returns the "About" environment block for the About dialog (M-RP6.1e-C2).
@@ -232,6 +366,17 @@ fn get_self_state(data: tauri::State<DataDir>) -> SelfStateInfo {
 #[tauri::command]
 fn quit(app: AppHandle) {
     emit_state(&app, ClientLifecycleState::Closing);
+    // M-RP6.1k Leg D — save the final window geometry before exiting. Ctrl+Q / File→Exit reach here via
+    // app.exit, which does NOT reliably fire WindowEvent::CloseRequested, so without this the
+    // on_window_event saver would miss the last position on the keyboard/menu-quit path (the X-button
+    // path IS covered by CloseRequested). write_session_geometry is a read-modify-write → it preserves
+    // the layout / named states / unknown keys.
+    if let Some(win) = app.get_webview_window("main") {
+        if let Some(g) = current_geometry(&win) {
+            let store_path = app.state::<DataDir>().0.join(UI_STATE_FILE);
+            let _ = app::write_session_geometry(&store_path, &g);
+        }
+    }
     // Signal the pipe server to shut down before exiting.
     let _ = app.state::<PipeShutdown>().0.send(true);
     write_session_footer(ExitReason::Shutdown);
@@ -410,6 +555,23 @@ pub fn run(
             tauri::async_runtime::spawn(async move {
                 run_startup(handle, dir, pn, rx).await;
             });
+
+            // M-RP6.1k Leg C — restore window geometry BEFORE the window is shown (created hidden via
+            // `visible:false`), then show it, then install the save-on-move/resize/close hook. The
+            // clamp keeps it on-screen (D-115). `.or_else` is a defensive fallback in case the main
+            // window's label is ever not "main" — the window must ALWAYS be shown.
+            let store_path = data_dir.join(UI_STATE_FILE);
+            if let Some(win) = app
+                .get_webview_window("main")
+                .or_else(|| app.webview_windows().into_values().next())
+            {
+                restore_geometry(&win, &store_path);
+                let _ = win.show();
+                let saver_win = win.clone();
+                win.on_window_event(move |event| {
+                    on_geometry_event(event, &saver_win, &store_path);
+                });
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -418,6 +580,10 @@ pub fn run(
             quit,
             get_substitutions,
             set_substitutions,
+            get_ui_state,
+            set_ui_state,
+            get_window_geometry,
+            apply_window_geometry,
             get_about_info,
             get_self_state
         ])

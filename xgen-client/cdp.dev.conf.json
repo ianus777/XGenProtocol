@@ -10,6 +10,7 @@
         "decorations": true,
         "resizable": true,
         "center": true,
+        "visible": false,
         "additionalBrowserArgs": "--remote-debugging-port=9222"
       }
     ]

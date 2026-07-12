@@ -279,6 +279,108 @@ pub fn write_substitutions_section(config_path: &Path, rules: &str) -> Result<()
     Ok(())
 }
 
+/// Read the raw UI-state store JSON (M-RP6.1k, Leg B) from `xgen-client_uistate.json`.
+///
+/// The store is an OPAQUE blob to Rust — round-tripped as a string, NEVER parsed here (D-114: the
+/// layout is the webview's; only `geometry` becomes a typed Rust struct, at Leg C, where the
+/// work-area clamp actually needs it). Fails soft to `""` when the file is absent OR unreadable — the
+/// webview's `loadLayout()` falls back to `DEFAULT_LAYOUT` on an empty/corrupt payload (N-095), so a
+/// read error must never crash the shell (the `load_substitutions_section` fail-soft precedent).
+///
+/// NOT config: the UI-state store is the project's first deliberately persistent user-facing state,
+/// so it is NOT touched by D-101 clean-slate-on-start (which wipes `xgen-client_config.toml` only).
+pub fn load_ui_state(store_path: &Path) -> String {
+    std::fs::read_to_string(store_path).unwrap_or_default()
+}
+
+/// Write the raw UI-state store JSON back (M-RP6.1k, Leg B — the effect half, symmetric with
+/// `load_ui_state`). The webview owns the blob's shape and sends it verbatim; Rust writes it verbatim
+/// (opaque round-trip, the `set_substitutions` shape) — so a key a newer binary adds survives a
+/// write-back through an older one. Returns `Err` on a write failure rather than losing the store
+/// silently (D-065). Non-strict on shape by design: Rust does not validate JSON it does not own.
+pub fn write_ui_state(store_path: &Path, json: &str) -> Result<()> {
+    std::fs::write(store_path, json).context("failed to write UI-state store")?;
+    Ok(())
+}
+
+// ── Window geometry (M-RP6.1k, Leg C — D-114's typed carve-out, D-115) ───────────────────────────
+//
+// Geometry is the ONE part of the UI-state store Rust owns, because only Rust can read a monitor work
+// area or apply a window rect before the webview exists (D-114). It is stored in PHYSICAL px (D-115 —
+// the only unit a rect can be compared to `work_area()` in). Everything else in the store stays an
+// opaque JSON value Rust round-trips verbatim: the read/write helpers below touch ONLY `session.geometry`
+// and leave `named`, `active`, `layout` and any unknown key untouched (read-modify-write).
+
+/// The saved window rect, physical px (D-115). `maximized` is stored so a maximized window restores
+/// maximized rather than to its pre-maximize rect.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct WindowGeometry {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    #[serde(default)]
+    pub maximized: bool,
+}
+
+/// Read the SESSION window geometry from the store, or `None` if absent / corrupt / not present
+/// (M-RP6.1k, Leg C). The store is parsed as an opaque `serde_json::Value`; ONLY `session.geometry` is
+/// typed (D-114 — Rust owns geometry, stays blind to the rest). Never panics — a bad store just means
+/// "no saved geometry", and the window opens at the config default.
+pub fn read_session_geometry(store_path: &Path) -> Option<WindowGeometry> {
+    let text = std::fs::read_to_string(store_path).ok()?;
+    let root: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let geom = root.get("session")?.get("geometry")?;
+    serde_json::from_value(geom.clone()).ok()
+}
+
+/// Merge the SESSION window geometry into the store, PRESERVING every other key (M-RP6.1k, Leg C —
+/// D-114's read-modify-write). Reads the current store as an opaque Value (or a minimal skeleton when
+/// absent / corrupt), sets `session.geometry`, and writes it back. This is what lets Rust (geometry)
+/// and the webview (layout / named states) share ONE file without clobbering each other — Rust never
+/// drops a key it does not recognise. Physical px, verbatim.
+pub fn write_session_geometry(store_path: &Path, geom: &WindowGeometry) -> Result<()> {
+    let skeleton = || serde_json::json!({ "version": 1, "session": null, "named": {}, "active": null });
+    let mut root: serde_json::Value = std::fs::read_to_string(store_path)
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .filter(serde_json::Value::is_object)
+        .unwrap_or_else(skeleton);
+
+    let obj = root.as_object_mut().expect("root is an object");
+    // Ensure `session` is an object we can attach geometry to (it starts life as null).
+    let session = obj.entry("session").or_insert_with(|| serde_json::json!({}));
+    if !session.is_object() {
+        *session = serde_json::json!({});
+    }
+    session
+        .as_object_mut()
+        .expect("session is an object")
+        .insert("geometry".into(), serde_json::to_value(geom).context("serialise geometry")?);
+
+    let text = serde_json::to_string(&root).context("serialise UI-state store")?;
+    std::fs::write(store_path, text).context("write UI-state store")?;
+    Ok(())
+}
+
+/// AABB overlap between a saved rect and a work area (all physical px). Touching-by-a-pixel counts as
+/// on-screen.
+fn rect_overlaps(g: &WindowGeometry, wx: i32, wy: i32, ww: u32, wh: u32) -> bool {
+    let (gx1, gy1) = (g.x.saturating_add(g.width as i32), g.y.saturating_add(g.height as i32));
+    let (wx1, wy1) = (wx.saturating_add(ww as i32), wy.saturating_add(wh as i32));
+    g.x < wx1 && gx1 > wx && g.y < wy1 && gy1 > wy
+}
+
+/// D-115 clamp DECISION (pure, so it is unit-testable without a window). `true` = the saved rect
+/// overlaps at least one monitor's work area, so it is safe to restore; `false` = it is off every
+/// screen (e.g. an ultrawide layout opened on a laptop, or an unplugged second monitor) → the caller
+/// discards it and falls back to the config default + centre, so the window is never lost off-screen.
+pub fn geometry_on_any_workarea(geom: &WindowGeometry, work_areas: &[(i32, i32, u32, u32)]) -> bool {
+    work_areas
+        .iter()
+        .any(|&(wx, wy, ww, wh)| rect_overlaps(geom, wx, wy, ww, wh))
+}
+
 /// Serialise a fresh client config from defaults, seeded with the starter
 /// substitution pack (M-RP4.2 §4d). `keypair_path` is recorded in
 /// `[paths].keypair_path`; `ai` is the optional `[ai]` section (None on the
@@ -6462,5 +6564,150 @@ mod m_rp4_2_substitutions_tests {
             !config_path.exists(),
             "no config is created on a genuine first run (SETUP detection preserved)"
         );
+    }
+}
+
+#[cfg(test)]
+mod m_rp6_1k_uistate_tests {
+    //! M-RP6.1k Leg B — `load_ui_state` / `write_ui_state`. The store is an OPAQUE blob to Rust: it
+    //! is round-tripped verbatim and never parsed here (D-114). Coverage: an absent file fails soft to
+    //! `""` (never panics — the loadLayout DEFAULT_LAYOUT fallback, N-095); a write→read round-trips
+    //! the exact bytes; UNKNOWN keys survive a round-trip (the opaque-blob guarantee); and even a
+    //! corrupt (non-JSON) file is read back verbatim rather than crashing (Rust does not validate a
+    //! shape it does not own — the webview's loadLayout falls back on the corrupt payload).
+    use super::*;
+
+    /// Absent store file → empty string, no panic (the `load_substitutions_section` fail-soft shape).
+    #[test]
+    fn absent_store_reads_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dir.path().join("xgen-client_uistate.json");
+        assert_eq!(load_ui_state(&store), "");
+    }
+
+    /// A written blob reads back byte-for-byte (opaque round-trip).
+    #[test]
+    fn write_then_read_round_trips_verbatim() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dir.path().join("xgen-client_uistate.json");
+        let blob = r#"{"version":1,"session":{"layout":{"version":1,"root":{"type":"leaf","widgetId":"self"}}},"named":{},"active":null}"#;
+        write_ui_state(&store, blob).expect("write succeeds");
+        assert_eq!(load_ui_state(&store), blob);
+    }
+
+    /// UNKNOWN keys (a key a newer binary added — e.g. `theme`, or a nested future field) survive a
+    /// write→read round-trip untouched: Rust round-trips the string and never drops what it does not
+    /// recognise. This is the whole reason the blob is opaque (D-114).
+    #[test]
+    fn unknown_keys_survive_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dir.path().join("xgen-client_uistate.json");
+        let blob = r#"{"version":1,"theme":"dark","named":{"s1":{"name":"Reading","updated_at":"2026-07-12T00:00:00Z","state":{"layout":{},"futureKey":42}}},"active":"s1"}"#;
+        write_ui_state(&store, blob).expect("write succeeds");
+        let read = load_ui_state(&store);
+        assert_eq!(read, blob);
+        // Prove the specific unknown keys are still present in the read-back bytes.
+        assert!(read.contains(r#""theme":"dark""#));
+        assert!(read.contains(r#""futureKey":42"#));
+    }
+
+    /// A corrupt (non-JSON) file is read back verbatim, NOT parsed and NOT panicked on — Rust does
+    /// not own the shape, so it does not validate it; the webview's loadLayout() catches the bad
+    /// payload and falls back to DEFAULT_LAYOUT (N-095, exercised in the real client).
+    #[test]
+    fn corrupt_file_reads_back_verbatim_without_panic() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dir.path().join("xgen-client_uistate.json");
+        std::fs::write(&store, "this is not valid json {{{").unwrap();
+        assert_eq!(load_ui_state(&store), "this is not valid json {{{");
+    }
+
+    /// Overwriting an existing store replaces it wholesale (the webview owns the merge; Rust just
+    /// writes what it is given).
+    #[test]
+    fn write_overwrites_existing() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dir.path().join("xgen-client_uistate.json");
+        write_ui_state(&store, r#"{"version":1,"named":{"a":1}}"#).unwrap();
+        write_ui_state(&store, r#"{"version":1,"named":{}}"#).unwrap();
+        assert_eq!(load_ui_state(&store), r#"{"version":1,"named":{}}"#);
+    }
+
+    // ── Leg C — window geometry (D-114 typed carve-out / D-115) ──────────────────────────────────
+
+    fn geom(x: i32, y: i32, w: u32, h: u32) -> WindowGeometry {
+        WindowGeometry { x, y, width: w, height: h, maximized: false }
+    }
+
+    /// Geometry written into an absent store round-trips: a skeleton is created, `session.geometry`
+    /// set, and it reads back typed. Physical px, verbatim.
+    #[test]
+    fn geometry_round_trips_into_absent_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dir.path().join("xgen-client_uistate.json");
+        let g = geom(100, 200, 1240, 1080);
+        write_session_geometry(&store, &g).unwrap();
+        assert_eq!(read_session_geometry(&store), Some(g));
+    }
+
+    /// The geometry write is a READ-MODIFY-WRITE: it preserves `named`, `active` AND unknown keys —
+    /// Rust owns geometry and stays blind to (but keeps) the rest (D-114).
+    #[test]
+    fn geometry_write_preserves_named_and_unknown_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dir.path().join("xgen-client_uistate.json");
+        write_ui_state(
+            &store,
+            r#"{"version":1,"session":{"layout":{"v":1}},"named":{"s1":{"name":"R"}},"active":"s1","theme":"dark"}"#,
+        )
+        .unwrap();
+
+        write_session_geometry(&store, &geom(10, 20, 800, 600)).unwrap();
+
+        let root: serde_json::Value = serde_json::from_str(&load_ui_state(&store)).unwrap();
+        // Geometry landed under session.
+        assert_eq!(root["session"]["geometry"]["x"], 10);
+        assert_eq!(root["session"]["geometry"]["width"], 800);
+        // Everything else survived, including session.layout, the named map, active, and the unknown key.
+        assert_eq!(root["session"]["layout"]["v"], 1);
+        assert_eq!(root["named"]["s1"]["name"], "R");
+        assert_eq!(root["active"], "s1");
+        assert_eq!(root["theme"], "dark");
+    }
+
+    /// No geometry present / corrupt / absent → None (never panics; the window opens at the default).
+    #[test]
+    fn read_geometry_absent_is_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dir.path().join("xgen-client_uistate.json");
+        assert_eq!(read_session_geometry(&store), None); // absent file
+        write_ui_state(&store, r#"{"version":1,"session":null,"named":{}}"#).unwrap();
+        assert_eq!(read_session_geometry(&store), None); // session has no geometry
+        write_ui_state(&store, "not json {{{").unwrap();
+        assert_eq!(read_session_geometry(&store), None); // corrupt
+    }
+
+    /// D-115 clamp: a rect overlapping a work area is restorable; one off every screen is discarded.
+    #[test]
+    fn clamp_keeps_on_screen_discards_off_screen() {
+        // A single 1920×1080 monitor at the origin.
+        let monitors = [(0i32, 0i32, 1920u32, 1080u32)];
+        // Fully on-screen.
+        assert!(geometry_on_any_workarea(&geom(100, 100, 800, 600), &monitors));
+        // Partially on-screen (top-left corner in view) still counts.
+        assert!(geometry_on_any_workarea(&geom(1900, 1060, 400, 300), &monitors));
+        // Far off-screen (the unplugged-ultrawide / off-screen case) → discard.
+        assert!(!geometry_on_any_workarea(&geom(-9999, -9999, 800, 600), &monitors));
+        assert!(!geometry_on_any_workarea(&geom(5000, 5000, 800, 600), &monitors));
+    }
+
+    /// The clamp checks EVERY monitor: a rect off the primary but on a second monitor is restorable.
+    #[test]
+    fn clamp_accepts_a_second_monitor() {
+        let monitors = [(0i32, 0i32, 1920u32, 1080u32), (1920, 0, 1920, 1080)];
+        // On the second monitor only.
+        assert!(geometry_on_any_workarea(&geom(2000, 100, 800, 600), &monitors));
+        // Off both.
+        assert!(!geometry_on_any_workarea(&geom(-9999, -9999, 800, 600), &monitors));
     }
 }

@@ -51,9 +51,35 @@ export const DEFAULT_LAYOUT: Layout = {
 };
 
 /**
- * Load the active layout. D2 seam: async so M-RP7.3 becomes a one-line body swap to `invoke('get_layout')`
- * (Rust persists the tree as an opaque blob — it never learns the node shape). Returns the default today.
+ * Load the active layout (M-RP6.1k, Leg B — the D2 seam BODY swap, J-499). Reads the persisted
+ * UI-state store via `get_ui_state`, pulls the SESSION arrangement's `layout` key, and falls back to
+ * `DEFAULT_LAYOUT` on ANY of: no-Tauri (browser dev), an absent/empty store, a corrupt (unparseable)
+ * store, or a present-but-malformed layout. It NEVER returns null — a null layout unmounts
+ * `region-shell` → a blank centre (measured at J-499, registry 30→21). That is exactly N-095's
+ * fallback, whose DoD moved to this milestone (D-115): recover to DEFAULT, EXERCISED not asserted.
+ *
+ * (The session layout is written at Leg D; until then this always falls to DEFAULT — but the SEAM now
+ * parses a real file, which is what makes N-095's guard reachable here rather than an unreachable
+ * branch at M-RP7.3.)
  */
 export async function loadLayout(): Promise<Layout> {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const raw = await invoke<string>('get_ui_state');
+    if (raw && raw.trim()) {
+      const store = JSON.parse(raw);
+      const layout = store?.session?.layout;
+      if (isValidLayout(layout)) return layout;
+    }
+  } catch (_) {
+    // no-Tauri OR corrupt store → DEFAULT (N-095). A read/parse error must never blank the centre.
+  }
   return DEFAULT_LAYOUT;
+}
+
+/** Minimal shape guard so a malformed persisted layout falls back instead of unmounting the shell. */
+function isValidLayout(l: unknown): l is Layout {
+  if (!l || typeof l !== 'object') return false;
+  const o = l as { version?: unknown; root?: unknown };
+  return typeof o.version === 'number' && !!o.root && typeof o.root === 'object';
 }

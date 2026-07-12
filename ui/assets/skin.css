@@ -90,7 +90,7 @@ html, body {
   display: inline-block;
   min-height: var(--ctl-h);
   padding: var(--sp-1) var(--sp-4);
-  margin: var(--sp-1) var(--sp-2);
+  margin: var(--sp-0) var(--sp-1);
   background: var(--s4);
   border: 1px solid var(--s5);
   border-radius: var(--rad);
@@ -1044,6 +1044,29 @@ html, body {
 .about-grid dt { color: var(--t3); font-size: var(--fs-0); }
 .about-grid dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .about-grid dd .label { font-size: var(--fs-0); }
+
+/* --------------------------------------------------
+ * UI-state dialogs (.uistate-*) — the client's COMPACT Save/Load UI-state boxes (M-RP6.1k). Shell
+ * chrome dressed HERE, not in app.css (N-090: gaps / sizing / layout are skinnable → skin.css). The
+ * dialogs OWN their action bar: the `dialog` core's fixed single-button footer is SUPPRESSED for these
+ * (scoped `:has(.uistate)`) so Save/Load/Delete + Cancel sit on ONE line in `.uistate-actions`. Type is
+ * --fs-0 throughout (Joe: compact). Cancel is ALWAYS rendered in the body (the footer is gone) so an
+ * empty Load box can still be dismissed.
+ * -------------------------------------------------- */
+.dialog:has(.uistate) { padding: var(--sp-3); min-width: 0; }
+.dialog:has(.uistate) .dialog-title { font-size: var(--fs-1); margin-bottom: var(--sp-2); }
+.dialog:has(.uistate) .dialog-footer { display: none; } /* replaced by .uistate-actions in the body */
+
+.uistate { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 260px; }
+.uistate:focus { outline: none; } /* the tabindex=-1 focus-catcher must not paint an outline */
+.uistate-note { color: var(--t3); font-size: var(--fs-0); }
+.uistate-warn { color: var(--warn); font-size: var(--fs-0); }
+/* The name field / picker is a combobox: its input and dropdown rows ride --fs-0 (compact). */
+.uistate .textfield, .uistate .combobox-list { font-size: var(--fs-0); }
+
+/* One-line action bar, right-aligned. Save box: Save · Cancel. Load box: Load · Delete · Cancel. */
+.uistate-actions { display: flex; align-items: center; gap: var(--sp-1); justify-content: flex-end; margin-top: var(--sp-1); }
+.uistate-actions .button { font-size: var(--fs-0); }
 
 /* --------------------------------------------------
  * password-field (.password-field)

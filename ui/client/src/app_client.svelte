@@ -5,6 +5,9 @@
   import Shelf from '$core/components/data-independent/shelf.svelte';
   import RegionShell from '$core/components/layout/region-shell.svelte';
   import AboutDialog from './about-dialog.svelte';
+  import UistateSaveDialog from './uistate-save-dialog.svelte';
+  import UistateLoadDialog from './uistate-load-dialog.svelte';
+  import { uiStateStore } from './uistate.svelte';
   import { loadLayout, widgetRegistry } from './layout-default';
   import { substitutions } from '$common/components/processor/store.svelte';
   // The self-state store (M-RP6.1g, D3) — ONE channel, TWO views: the shell WRITES it below (the existing
@@ -27,6 +30,11 @@
   // on mount (static per session), and the open state flipped by Help→About.
   let aboutInfo = $state(null);
   let aboutOpen = $state(false);
+
+  // UI-state Save/Load dialogs (M-RP6.1k, Leg A). The diskette/load shelf faces open these; the
+  // store is in-memory (session-only) this leg — Rust persistence lands at Leg B.
+  let saveOpen = $state(false);
+  let loadOpen = $state(false);
 
   // Centre region layout (M-RP6.1f). Seeded by `await loadLayout()` on mount (D2 — async so M-RP7.3 is a
   // one-line swap to invoke('get_layout')). Shell-local this milestone (D7 — the shell is the only
@@ -53,6 +61,10 @@
   const commandTable = {
     'app.exit': handleQuit,
     'help.about': () => (aboutOpen = true),
+    // M-RP6.1k — the diskette/load faces resolve here (the seam wired live at 6.1j now has real
+    // entries). `widget.manager` (the gear) stays absent → the gear stays disabled until 6.1l.
+    'uistate.save': () => (saveOpen = true),
+    'uistate.load': () => (loadOpen = true),
   };
   function runCommand(commandId) {
     commandTable[commandId]?.();
@@ -85,18 +97,18 @@
     },
   ];
 
-  // ── Shelves (M-RP6.1j — mount the shipped shelf, J-508) ──────────────────────────────────────
+  // ── Shelves (M-RP6.1j — mount the shipped shelf, J-508; M-RP6.1k — enable the UI-state faces) ──
   // The bottom (system) strip's faces — shell-local (D5, the layout-default D7 precedent; the shell is
-  // the only consumer, no $common store). Commands are DECLARED here but the faces mount DISABLED (D4):
-  // the command ids do NOT exist in commandTable yet (D2) — a registered id that resolves to nothing is
-  // a worse lie than a disabled button. The countdown, per milestone (W-8):
-  //   6.1k enables diskette/load once layout.save / layout.load enter the table;
-  //   6.1l enables gear once widget.manager enters the table.
-  // onCommand={runCommand} is wired NOW (D3) so each follow-up is one table entry + one disabled flip.
+  // the only consumer, no $common store). The countdown from 6.1j, one step advanced (W-8):
+  //   6.1k (this milestone) — diskette/load ENABLED; their `uistate.*` commands now exist in the table.
+  //   6.1l — enables gear once widget.manager enters the table.
+  // RENAMED layout.save/layout.load → uistate.save/uistate.load (D-114): the store is NOT a layout — it
+  // holds geometry, and will hold shelf/theme/room; `layout.*` would be a lie by M-RP6.2. There is no
+  // uistate.saveAs — one diskette, one dialog, two outcomes (overwrite the active state, or a new name).
   const SHELF_BOTTOM = [
     { icon: 'gear', label: 'Plugins', command: 'widget.manager', disabled: true },
-    { icon: 'diskette', label: 'Save UI state', command: 'layout.save', disabled: true },
-    { icon: 'load', label: 'Load UI state', command: 'layout.load', disabled: true },
+    { icon: 'diskette', label: 'Save UI state', command: 'uistate.save', disabled: false },
+    { icon: 'load', label: 'Load UI state', command: 'uistate.load', disabled: false },
   ];
 
   onMount(async () => {
@@ -133,6 +145,10 @@
       // M-RP6.1e-C3 — About data (build metadata + Rust/Tauri/Svelte versions + paths). Static
       // per session, so fetched once here; the dialog reads it synchronously.
       aboutInfo = await invoke('get_about_info');
+
+      // M-RP6.1k Leg B — hydrate the persistent UI-state store from disk (get_ui_state). The
+      // Save/Load dialogs read it reactively; a corrupt/absent store leaves it empty (N-095).
+      await uiStateStore.hydrate();
     } catch (_) {
       // Running outside Tauri (browser dev preview) — state stays at placeholder.
     }
@@ -162,6 +178,40 @@
       await openUrl(aboutInfo?.common?.link ?? 'https://www.alchemydump.com');
     } catch (err) {
       console.error('Open link failed:', err);
+    }
+  }
+
+  // ── UI-state Save/Load (M-RP6.1k) ───────────────────────────────────────────────────────────
+  // A named UI state carries the ARRANGEMENT: layout + window geometry (§4.2). The dialogs never reach
+  // into `layout` themselves (the about/loadLayout seam shape). Geometry is RUST's (physical px, typed):
+  // SAVE fetches the live rect and carries it OPAQUELY in the state (the shell never interprets it);
+  // LOAD hands it back to Rust, which re-applies it through the same D-115 clamp. No-Tauri (browser dev)
+  // → layout only. $state.snapshot detaches the tree so the stored copy is not a live proxy.
+  async function tauriInvoke(cmd, args) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke(cmd, args);
+  }
+  async function handleUistateSave(name) {
+    let geometry;
+    try {
+      geometry = await tauriInvoke('get_window_geometry');
+    } catch (_) {
+      // browser-dev / no-Tauri → save layout only.
+    }
+    uiStateStore.save(name, { layout: $state.snapshot(layout), ...(geometry ? { geometry } : {}) });
+  }
+  async function handleUistateLoad(id) {
+    const s = uiStateStore.load(id);
+    // Guard: only apply a real layout — never assign undefined/null (that unmounts region-shell →
+    // blank centre, the J-499/N-095 failure). A state saved without a layout key is left as-is.
+    if (s?.layout) layout = s.layout;
+    // Restore the named state's window rect through the same clamp (Rust owns geometry's meaning).
+    if (s?.geometry) {
+      try {
+        await tauriInvoke('apply_window_geometry', { geom: s.geometry });
+      } catch (_) {
+        // browser-dev / no-Tauri → skip the window move.
+      }
     }
   }
 
@@ -208,9 +258,9 @@
     {/if}
   </main>
 
-  <!-- Bottom shelf (M-RP6.1j): system commands, sitting above the status-bar. All three faces mount
-    DISABLED (D4) — a visibly disabled control is an honest phase-limit (W-8), keyboard-reachable via
-    aria-disabled (not native disabled). Their commands enter commandTable at 6.1k/6.1l. -->
+  <!-- Bottom shelf (M-RP6.1j / M-RP6.1k): system commands, above the status-bar. diskette + load are
+    now ENABLED (their uistate.* commands exist); gear stays disabled (an honest phase-limit, W-8,
+    keyboard-reachable via aria-disabled) until 6.1l wires widget.manager. -->
   <Shelf position="bottom" items={SHELF_BOTTOM} ariaLabel="System" onCommand={runCommand} id="app-shelf-bottom" />
 
   <!-- The connection light + caption migrate here from the retired hand-rolled .state-indicator
@@ -227,4 +277,9 @@
   <!-- The About modal (M-RP6.1e-C3). A top-layer <dialog> — DOM position doesn't affect stacking;
     opened by Help→About (help.about → aboutOpen). Always mounted (closed = display:none). -->
   <AboutDialog bind:open={aboutOpen} info={aboutInfo} onOpenLink={handleAboutLink} />
+
+  <!-- UI-state Save/Load modals (M-RP6.1k). Same always-mounted top-layer posture as About; opened by
+    the diskette/load shelf faces (uistate.save / uistate.load). -->
+  <UistateSaveDialog bind:open={saveOpen} onSave={handleUistateSave} />
+  <UistateLoadDialog bind:open={loadOpen} onLoad={handleUistateLoad} />
 </div>

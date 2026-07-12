@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.76  
+> Version: 0.77  
 > Date: May 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -2130,6 +2130,42 @@ Unsayable if they are synonyms. One box, three widgets, three surfaces.
 **⚠️ SECOND DRIFT FOUND WHILE GROUNDING — Ch6 §6.2's CSS layer architecture (D-057/D-058) is STALE vs the code**, on three counts: **no `tokens.css` exists** (tokens live in `skin.css`) · **`skin.css`, not `skin-dark.css`** · and **"each `.svelte` file carries its own `<style>` block"** is the **OPPOSITE** of N-025 / N-031 / N-090. **Ch6 NOT amended** — a spec-chapter touch is a Joe-lock. Recorded in `xgen-css-layer-model.md` §4/§6 so the drift is **visible instead of latent**.
 
 *Canonical model: `ui/docs/xgen-css-layer-model.md` §0 (the layer sketch, Joe-locked) · §2 (the bank) · §5 (the probe evidence table). Design + probe only. No code moved.*
+
+---
+
+### N-102 — a Space may re-COLOUR, not re-DRAW: the glyph ban (D-110), and why a key allowlist alone is THEATRE (2026-07-12, design)
+
+**Design/records only. No code.** The same-day sequel to N-101. Joe, on the ban: *"yes, changing glyphs in space has to be baned, perhaps except color change"* — and on Ch6: *"those were concepts waiting for real context to specify more. so it needs to be corrected."* Both locked. → **D-110** · **Ch6 v0.5 (§6.2 rewritten, §6.3.1/§6.3.2 new)** · `xgen-css-layer-model.md` **v1.1**.
+
+**🔑 THE RULE.** **A Space may re-COLOUR. A Space may not re-DRAW, and may not re-LAYOUT.** Colour tokens — **including the glyph tint** — are permitted: *the mark keeps its meaning; only its hue changes*. **Geometry (`--glyph-*`, `--glyph-*-url`) is banned. Layout/metrics banned. Everything not on the allowlist is banned by default — allowlist, never denylist.**
+
+**Why it is a TRUST decision.** Ch6 §6.3's Layer 3 is a theme **declared by a Space OWNER, delivered over the wire** in a `state.space_theme` Event. Under **D-108** a theme redraws **any** glyph. Unrestricted, a Space owner could redraw a **lock**, a **warning**, a **verified** mark, or the **AI badge** (Ch6 §6.13) — making a hostile Space look trustworthy, or a human member look like a bot. **Icon spoofing, in a protocol whose premise is verified identity.**
+
+**⚠️ CORRECTING J-504 / N-101, WHICH OVERSTATED THE THREAT.** They called Layer 3 *"attacker-supplied CSS arriving over the wire."* **It is not CSS.** Ch6 §6.2's event shape is a **key→value token MAP** (`"color_primary": "#4f6ef7"`), scalar values, named keys. The threat is **narrower** than stated — *and the correction made the real problem visible:*
+
+**🔑 A KEY ALLOWLIST ALONE IS THEATRE.** If the client applies the map by **building a stylesheet with string concatenation**, a malicious **VALUE** escapes its own declaration and injects arbitrary CSS — **defeating the key allowlist completely**:
+
+```
+"color_primary": "red; } :root { --glyph-lock: path('M0 0h24v24H0z'); } /*"
+```
+
+The key `color_primary` is on the allowlist. The **value** redraws the lock. **Mandatory mitigation, both halves required: apply via `element.style.setProperty(key, value)` — the CSSOM cannot break out of a declaration — AND validate the value first (`CSS.supports('color', value)`). Never interpolate a wire-supplied value into a `<style>` text node.** Plus **scope**: Layer-3 overrides apply only inside the active Space's subtree — never at `:root`, never to app chrome. **All three rules required; any one alone is insufficient.**
+
+**🔑 AND THE BAN BINDS THE GENERATOR BACK — a normative constraint on D-108.** **`--glyph-*-url` MUST be emitted COLOUR-FREE** (a `currentColor` mask, colour from a **separate** token). *A data-URI with colour **baked into it fuses colour and geometry into ONE token** — so a Space permitted to change that token's colour would thereby be permitted to **redraw** it, and the ban would be **unenforceable on exactly those glyphs**.* **The re-emit of the seven baked-colour glyphs (`%23e6e6e6`: the 5 `textfield[type=]` insets, the `select` arrow, `--ea-spark`) is now a SECURITY REQUIREMENT, not a Phase-0 tidy-up.** *A trust rule reaching back into a build step is an unusual shape, and worth remembering: **an access rule is only real if the data model can express the distinction it draws.***
+
+**✅ LOCKED BEFORE IMPLEMENTATION — grounded, not assumed.** Grepped: **`state.space_theme` appears in NO Rust, NO TypeScript, NO Svelte.** The theming cascade is **specified and entirely unbuilt**. **D-110 lands before the first line of it is written** — the cheapest moment a trust boundary can ever be set. *(D-071's "audits precede dependent milestones" paying out **in advance** rather than in arrears, for once.)*
+
+**✅ Ch6 §6.2 CORRECTED (the N-101 drift, closed).** The pre-Phase-1 four-layer model did not survive: **`tokens.css` never built** · **`skin-dark.css` → `skin.css`** · **the glyph bank added as L1.5** · and the reversal that matters — **component `<style>` blocks are FORBIDDEN, not required** (N-025/N-031/N-090). **D-057/D-058 superseded in PART, not deleted** — intent survives (minimal reset, 13px/1.35, 4px unit, no hardcoded values), file structure does not. Also corrected: the stale `xgen-ui-shared/` tree → the **D-095** split.
+
+**🔑 The reversal, stated as a principle, because it reads backwards until you see it:**
+
+> **The rule that makes skinning TOTAL is the rule that forbids the component from participating in it.**
+
+A component that could style itself would be **a second place appearance lives** — and a skin could then never *fully* re-skin it. **D-058 had it exactly inverted.**
+
+**Still open, flagged not solved:** the exact colour-token allowlist (enumerated when the theme layer is built) · whether a user may disable Space themes entirely (*rec: yes, and cheap — Layer 3 is a scoped, droppable overlay by construction*) · **the WIDER Space-owner-content trust surface** (`url()` fetches, font substitution, module widgets under D-036) — **D-110 closes the glyph hole, not the category.**
+
+*Canonical: Ch6 §6.3.1 / §6.3.2 · `ui/docs/xgen-css-layer-model.md` v1.1 §6 · D-110. Design + records only. No code moved.*
 
 ---
 

@@ -8,6 +8,56 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-505 — D-110: a Space may re-COLOUR, not re-DRAW. Ch6 §6.2 REWRITTEN, §6.3 ANSWERED after 3 months open; a key allowlist alone is THEATRE — design/records-only, no code
+
+**Design + records only. No code. Registry unchanged (client 38, sampler catalogue 313).** Two Joe-locks, both in one line each. On the ban: *"yes, changing glyphs in space has to be baned, perhaps except color change"*. On the chapter: *"those were concepts waiting for real context to specify more. so it needs to be corrected."* **Both were the right call, and grounding the second one produced a finding sharper than the first.**
+
+**✅ D-110 — THE RULE, AND IT IS A TRUST BOUNDARY, NOT A STYLE PREFERENCE.**
+
+> ### A Space may **re-COLOUR**. A Space may **not re-DRAW**, and may **not re-LAYOUT**.
+
+**Colour** — including the **glyph tint** — **✅ permitted**: *the mark keeps its meaning; only its hue changes.* **Geometry** (`--glyph-*`, `--glyph-*-url`) **❌ banned.** **Layout / metrics ❌ banned** (readability, accessibility, and displacement attacks). **Everything not on the allowlist ❌ banned by default — allowlist, NEVER denylist.**
+
+**Why.** Ch6 §6.3's cascade is XGen default → application theme → **Space theme**. Layers 1-2 are ours and the user's. **Layer 3 is not — it is declared by a Space OWNER and arrives over the wire in a `state.space_theme` Event.** Under **D-108** a theme redraws **any** glyph. **Unrestricted, a Space owner could redraw a lock, a warning, a verified mark, or the AI badge (Ch6 §6.13)** — making a hostile Space look trustworthy, or a human member look like a bot. **Icon spoofing, in a protocol whose entire premise is verified identity.** *Joe's "except color change" carve-out is exactly right and load-bearing: recolouring was what Space theming was **for**, and it never touches meaning.*
+
+**🔑 GROUNDING THE CHAPTER CORRECTED MY OWN RECORD — AND THE CORRECTION FOUND THE REAL HOLE.**
+
+**J-504 and N-101 called Layer 3 *"attacker-supplied CSS arriving over the wire."* That was OVERSTATED.** Ch6 §6.2's event shape is a **key→value token MAP** — named keys, scalar values (`"color_primary": "#4f6ef7"`), **not a stylesheet**. The threat is **narrower** than I wrote. **Corrected in D-110 and N-102 rather than left standing.**
+
+**And the narrowing is what exposed the actual danger:**
+
+> ### ⚠️ A KEY ALLOWLIST ALONE IS THEATRE.
+
+If the client applies the map by **building a stylesheet with string concatenation**, a malicious **VALUE** escapes its own declaration and injects arbitrary CSS — **defeating the key allowlist completely**:
+
+```
+"color_primary": "red; } :root { --glyph-lock: path('M0 0h24v24H0z'); } /*"
+```
+
+**The key is on the allowlist. The value redraws the lock.** **MANDATORY MITIGATION, all three, any one alone insufficient:** **(1)** allowlist the **key**; **(2)** **validate the value** (`CSS.supports('color', v)`) **and apply via `element.style.setProperty()`** — **the CSSOM cannot break out of a declaration**; **never interpolate a wire-supplied value into a `<style>` text node**; **(3)** **scope** to the active Space's subtree — never `:root`, never app chrome. Written into **new Ch6 §6.3.2**.
+
+**🔑 AND THE BAN REACHES BACK AND CONSTRAINS THE GENERATOR — an unusual shape worth remembering.** **`--glyph-*-url` MUST be emitted COLOUR-FREE** (a `currentColor` mask, colour from a **separate** token). *A data-URI with colour **baked into it fuses colour and geometry into ONE token** — so a Space permitted to change that token's colour would thereby be permitted to **redraw** it, and **the ban would be unenforceable on exactly those glyphs**.* **The re-emit of the seven `%23e6e6e6` glyphs (the 5 `textfield[type=]` insets, the `select` arrow, `--ea-spark`) is now a SECURITY REQUIREMENT, not a Phase-0 tidy-up** — it moves from *"classify per glyph"* to **"mandatory for all seven."**
+
+> **The generalisable lesson: an ACCESS RULE is only real if the DATA MODEL can express the distinction it draws.** A policy that says *"colour yes, shape no"* is vapour if colour and shape live in the same token. **The trust decision rewrote a build step.**
+
+**✅ LOCKED BEFORE IMPLEMENTATION — grounded, not assumed.** Grepped the whole tree: **`state.space_theme` appears in NO Rust, NO TypeScript, NO Svelte.** Ch6 §6.3's cascade is **specified and entirely unbuilt**. **D-110 lands before the first line of it is written** — the cheapest moment a trust boundary can ever be set. *(D-071 — "subsystem audits precede dependent milestones" — paying out **in advance** for once, rather than in arrears.)* **Binding: no milestone may claim theming works, and none may ship a Layer-3 applier that does not implement §6.3.2 in full.**
+
+**✅ Ch6 §6.2 REWRITTEN (Ch6 v0.5, Session 10) — the J-504 drift, closed.** Joe was right that these were first-pass concepts awaiting real context. Phase-1 gave them the context; the chapter now describes the code:
+- **`tokens.css` was NEVER BUILT.** A separate "vocabulary, not values" layer earned nothing — tokens live in `skin.css` beside the rules that consume them.
+- **`skin-dark.css` → `skin.css`.** One skin; dark/light is a **theme-layer** concern, not a filename.
+- **A layer was ADDED the original had no concept of: the glyph bank (L1.5, D-108).**
+- **🔑 THE REVERSAL — component `<style>` blocks are FORBIDDEN, not required.** D-058 mandated them. **N-025/N-031/N-090 forbid them: a component ships ZERO CSS.**
+
+> **And it reads backwards until you see it: THE RULE THAT MAKES SKINNING TOTAL IS THE RULE THAT FORBIDS THE COMPONENT FROM PARTICIPATING IN IT.** A component that could style itself would be **a second place appearance lives** — and a skin could then never *fully* re-skin it. **D-058 had it exactly inverted.**
+
+**D-057/D-058 are superseded IN PART, not deleted** — their **intent survives intact** (the minimal reset over a generic normalize; the 13px/1.35 root scale; the 4px spacing unit; no hardcoded values in components). Their **file structure and the component-`<style>` rule do not.** Also corrected in-chapter: the stale `xgen-ui-shared/` folder tree → the **D-095** split, and the component-independence paragraph.
+
+**Records.** `docs/xgen_ch6_client_design.md` **v0.4 → v0.5** (§6.2 CSS Layer Architecture **rewritten** · folder tree + component-independence corrected · §6.2 Theming override-list answered · **NEW §6.3.1** the subset **+ §6.3.2** enforcement · **Session 10** log) · `DECISIONS.md` **+D-110** · `ui/docs/xgen-css-layer-model.md` **v1.0 → v1.1** (§4 drift **closed** · §6 the ban · §2.2 the normative colour-free constraint) · `ui/docs/xgen-ui-notes.md` **v0.77 +N-102** · `docs/xgen-icon-adoption.md` **v1.1** (§5 both items **CLOSED**; Phase-0's re-emit now mandatory) · `docs/ROADMAP.md` **v4.74** · `CLAUDE.md`.
+
+**No code moved.** **Still open, flagged not solved:** the exact colour-token allowlist (enumerated when the theme layer is built) · whether a user may disable Space themes entirely (*rec: yes — cheap, since Layer 3 is a scoped, droppable overlay by construction*) · **the WIDER Space-owner-content trust surface** — `url()` fetches, font substitution, module widgets under **D-036**. **D-110 closes the glyph hole, NOT the category.**
+
+---
+
 ## Entry J-504 — The GLYPH BANK: a glyph is a SKIN TOKEN. CSS `d:` PROBED and PROVEN on the real client; the CSS layer model gets a canonical doc; TWO drifts filed — design/probe/records-only, no code
 
 **Design + CDP probe + records only. No code. Registry unchanged (client 38, sampler catalogue 313).** Joe opened with a proposal, not a task: *"we do have couples of them already in component, but they are there hardcoded. i propose a library or a bank"* — modelled on a Java `SvgGlyph.GEAR_ICON` enum. **Grounding turned it into a different question, and then a probe answered it with numbers.**

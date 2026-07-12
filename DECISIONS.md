@@ -4134,3 +4134,42 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 **Relationship:** D-108 (the model that rests on this) · Ch6 §6.1 (Tauri + native webview; the source of the constraint **and** of the Phase-2 macOS/Linux exposure) · D-067 (why no in-DOM fallback) · D-103 (the one-source-two-renderers precedent that makes the WebKit exit cheap).
 
 **Scope.** A recorded platform dependency. No code. **Re-open if and when a WebKit target becomes real** — the exit is specified above and costs no call-site churn.
+
+---
+
+## D-110 — Space-theme override subset: a Space may re-COLOUR; it may NOT re-DRAW and may NOT re-LAYOUT
+
+**Date:** 2026-07-12 · **Layer:** Client trust surface / theming (Ch6 §6.3) · **Ref:** D-108, D-109, D-057, D-036, N-101, N-102, Ch6 §6.2 / §6.3.1 / §6.3.2 / §6.13 · **Journal:** J-505
+
+**The question, and how old it is.** Ch6 §6.2 has said since Session 1 (April 2026) that *"only a defined subset of tokens may be overridden by a Space theme"*, and §6.3 filed the open question *"Which specific CSS tokens may a Space owner override?"* for the second pass. **It was never answered.** D-108 made it urgent.
+
+**Why it is a TRUST decision, not a styling one.** Ch6 §6.3's theming cascade has three layers: XGen default → **application theme** (operator/user) → **Space theme**. Layers 1 and 2 are ours and the user's. **Layer 3 is not: it is declared by a Space OWNER and arrives over the wire in a `state.space_theme` Event.** Under **D-108** a theme can redraw **any glyph** (a glyph is now a skin token, and a theme overrides a glyph exactly as it overrides a colour). **So an unrestricted Layer 3 lets a Space owner redraw a lock, a warning, a verified mark, or the AI badge (§6.13)** — making a hostile Space look trustworthy, or a human member look like a bot. **Icon spoofing, served from the wire, in a protocol whose entire premise is verified identity.**
+
+**Decision (Joe, 2026-07-12).**
+
+> ### A Space may **re-COLOUR**. A Space may **not re-DRAW**, and may **not re-LAYOUT**.
+
+| Token class | Space override | Why |
+|---|---|---|
+| **Colour** — `--accent*`, surface / text / border, **and the glyph tint** (`--icon-tint`) | **✅ PERMITTED** | Brand identity — what Space theming was *for*. A Space may re-tint a glyph freely: **the mark keeps its meaning; only its hue changes.** |
+| **Geometry** — `--glyph-*`, `--glyph-*-url` (D-108) | **❌ BANNED** | **The mark IS the meaning.** Redrawing it is spoofing, not branding. |
+| **Layout / metrics** — spacing, radius, type scale, sizes | **❌ BANNED** | Readability + accessibility (the original D-057 intent), and it forecloses displacement attacks (hiding or moving a control by resizing it). |
+| **Anything not on the allowlist** | **❌ BANNED by default** | **Allowlist, never denylist.** A token added tomorrow is banned until someone decides otherwise. |
+
+**🔑 Consequence 1 — the split constrains D-108's GENERATOR, normatively.** A data-URI with a colour **baked into it** fuses colour and geometry into a single token. Permitting a Space to change that token's colour would therefore *necessarily* permit it to redraw the glyph — **the ban would be unenforceable on exactly those glyphs.** **Therefore `--glyph-*-url` MUST be emitted colour-free** (a `currentColor` mask), with colour supplied by a **separate** colour token. *This retires the seven glyphs currently shipping with `%23e6e6e6` baked into the URI (the 5 `textfield[type=]` insets, the `select` arrow, `--ea-spark`) — the Phase-0 re-emit is now a **security requirement**, not a tidy-up.*
+
+**🔑 Consequence 2 — A KEY ALLOWLIST ALONE IS THEATRE.** A Space theme is a key→value **map**, not a stylesheet (Ch6 §6.2's event shape: named keys, scalar values). *(Correcting an overstatement in J-504, which called it "attacker-supplied CSS": it is an attacker-supplied token **map**. The threat is narrower — and the mitigation is sharper.)* **But if the client builds a stylesheet by string concatenation, a malicious VALUE escapes its declaration and injects arbitrary CSS — defeating the key allowlist completely:**
+
+```
+"color_primary": "red; } :root { --glyph-lock: path('M0 0h24v24H0z'); } /*"
+```
+
+**Mandatory mitigation, both parts required:** apply each override via **`element.style.setProperty(key, value)`** — the CSSOM **cannot break out of a declaration** — **and** validate the value first (`CSS.supports('color', value)`), rejecting anything not well-formed for its type. **Never interpolate a wire-supplied value into a `<style>` text node.** Plus **scope**: Layer-3 overrides apply only within the active Space's subtree — never at `:root`, never to application chrome (menu-bar, status-bar, Space list).
+
+**Enforcement is CLIENT-side.** A Node does not police theme content; a malicious client can ignore all of this, and that is acceptable — the attack this closes is a **Space owner attacking the Space's own members through a conforming client**. The three rules (allowlist the key · validate the value + CSSOM · scope the application) are a **conformance requirement on the client**, and **all three are required — any one alone is insufficient.**
+
+**🔑 Locked BEFORE implementation, deliberately.** Grepped 2026-07-12: **`state.space_theme` appears in no Rust, no TypeScript, no Svelte.** The theming cascade is **specified and entirely unbuilt**. D-110 lands before the first line of it is written — the cheapest moment a trust boundary can ever be set, and a case where the project's *"subsystem audits precede dependent milestones"* discipline (D-071) paid out in advance rather than in arrears.
+
+**Relationship:** D-108 (made this urgent — a glyph is a skin token, so a theme can redraw it; and D-110 in turn constrains D-108's generator) · Ch6 §6.3 (the cascade this governs; §6.3.1/§6.3.2 written at this lock) · Ch6 §6.13 (the AI badge — a spoofable mark) · D-057 (the readability/accessibility intent behind the layout ban) · D-036 (module UI forms — a related third-party-content trust surface, **not** closed by this).
+
+**Scope.** Specification + trust boundary. **No code.** Binding on any future Layer-3 applier and on D-108's generator. **Open and NOT closed here:** the exact colour-token allowlist (names + count — enumerated when the theme layer is built); whether a user may disable Space themes entirely (recommendation: yes, and it is cheap — Layer 3 is a scoped, droppable overlay by construction); and the **wider** question of what else Space-owner-supplied content can do (`url()` fetches, font substitution, module widgets under D-036) — **that is Ch6's, not the glyph bank's, and it is flagged, not solved.**

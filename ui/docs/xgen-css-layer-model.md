@@ -1,6 +1,6 @@
 # XGen UI — CSS Layer Model
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -8,9 +8,11 @@
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
-The canonical, **shipped** CSS layer model for the XGen UI. This doc exists because the model is load-bearing for everything downstream — theming, the glyph bank, component authoring rules — and because **Ch6 §6.2's four-layer CSS architecture (D-057/D-058) no longer describes what shipped** (§4). Where this doc and Ch6 §6.2 disagree, **this doc describes the code**.
+The canonical, **shipped** CSS layer model for the XGen UI. This doc exists because the model is load-bearing for everything downstream — theming, the glyph bank, component authoring rules.
 
-Crystallises into **D-108** (the glyph bank) and **D-109** (the platform dependency). Companion to `xgen-region-dock-model.md` (which owns *layout*); this doc owns *appearance*.
+Crystallises into **D-108** (the glyph bank), **D-109** (the platform dependency) and **D-110** (the Space-theme override subset). Companion to `xgen-region-dock-model.md` (which owns *layout*); this doc owns *appearance*.
+
+> **v1.1 (2026-07-12):** the two drifts filed at v1.0 are **CLOSED**. **Ch6 §6.2's CSS Layer Architecture has been REWRITTEN** against this model (Ch6 v0.5, Session 10) — it is no longer stale, and it no longer contradicts N-025/N-031/N-090. **Ch6 §6.3's Space-theme override question is ANSWERED** — **D-110: a Space may re-COLOUR; it may not re-DRAW and may not re-LAYOUT.** §4 and §6 below are updated accordingly, and **§2.2 gains a normative constraint that D-110 imposes back onto the generator.**
 
 ---
 
@@ -102,6 +104,8 @@ Before the bank, glyphs lived in **four** mechanisms across **two** layers, with
 
 `path()` is only consumable by `d:`. **That is why the two forms are not redundant** — and why hand-maintaining them is forbidden (§2.4).
 
+> **🔑 NORMATIVE (D-110, v1.1) — `--glyph-*-url` MUST be emitted COLOUR-FREE** (a `currentColor` mask; colour supplied by a **separate** colour token). **This is a security requirement, not a style preference.** D-110 permits a Space theme to change a glyph's **colour** but bans it from changing a glyph's **geometry**. A data-URI with colour **baked into it fuses colour and geometry into one token** — so a Space permitted to change that token's colour would thereby be permitted to **redraw** it, and the ban would be **unenforceable on exactly those glyphs**. *This makes the Phase-0 re-emit of the seven baked-colour glyphs (the 5 `textfield[type=]` insets, the `select` arrow, `--ea-spark` — all currently carrying `%23e6e6e6`) **mandatory**, not cosmetic.*
+
 ### 2.3 The source of truth
 
 ```
@@ -184,18 +188,25 @@ A theme is a CSS file loaded **after** the bank:
 
 **Identical mechanism for a colour and a glyph.** Cascade: later wins. Every consumer follows — the `<Icon>` in the menu, the shelf face, the `<select>` arrow. **No `.svelte` file moves.**
 
-## 4. ⚠️ Relationship to Ch6 §6.2 — a NAMED DRIFT, not a silent one
+## 4. Relationship to Ch6 — the drift is CLOSED (v1.1)
 
-**Ch6 §6.2 "CSS Layer Architecture" (D-057/D-058) describes a four-layer model that did not survive Phase-1 implementation.** Ch6 is explicit that it is a **first pass** to be corrected by a second pass after Phase-1 experience; this is that correction, and it is recorded rather than quietly applied.
+**Ch6 §6.2's CSS Layer Architecture has been rewritten against this model** (Ch6 **v0.5**, Session 10, 2026-07-12). It is no longer stale. Recorded here because the *shape* of the correction is the useful part:
 
-| Ch6 §6.2 (pre-Phase-1) | Shipped (measured 2026-07-12) |
+| Ch6 §6.2 as originally written (pre-Phase-1, D-057/D-058) | What shipped — and what Ch6 now says |
 |---|---|
-| `base.css` → `tokens.css` → `skin-dark.css` → `components/` | `modern-normalize` → `xgen-normalize` → **`glyphs.generated.css`** → `skin.css` → `app.css` |
-| **`tokens.css` is its own layer** | **No `tokens.css` exists.** Tokens live in `skin.css`. |
-| `skin-dark.css` | `skin.css` (one skin; the dark/light split is unbuilt) |
-| **"Each `.svelte` file carries its own `<style>` block"** | **N-025 forbids component-local CSS. N-031: `app.css` is shell chrome only. N-090: every skinnable setting lives in `skin.css`.** The shipped rule is the *opposite* of Ch6's. |
+| `base.css` → `tokens.css` → `skin-dark.css` → `components/` | resets → **glyph bank** → `skin.css` → (`theme-*.css`), with `app.css` as shell chrome |
+| **`tokens.css` is its own layer** | **Never built.** Tokens live in `skin.css`. |
+| `skin-dark.css` | `skin.css` — one skin; dark/light is a **theme-layer** concern, not a filename |
+| **"Each `.svelte` file carries its own `<style>` block"** | **🔑 THE REVERSAL: component `<style>` is FORBIDDEN** (N-025/N-031/N-090). A component ships **zero** CSS. |
+| *(no concept of a glyph layer)* | **L1.5, the glyph bank** (D-108) |
 
-**⚠️ Ch6 §6.2 is NOT amended by this doc.** Amending a spec chapter is a Joe-lock, and it is filed as an open item (§6). Until then: **this doc describes the code; Ch6 §6.2 describes an intention that the code superseded.** Anyone reading Ch6 §6.2 for the CSS layer model is reading a stale record — that is exactly the D-067 drift surface the project exists to eliminate, and it is now visible instead of latent.
+**🔑 The reversal is worth stating as a principle, because it reads backwards until you see it:**
+
+> **The rule that makes skinning TOTAL is the rule that forbids the component from participating in it.**
+
+A component that could style itself would be a **second place appearance lives** — and a skin could then never fully re-skin it. D-058 had it exactly inverted.
+
+**D-057/D-058 are superseded in part, not deleted.** Their *intent* survives intact — the minimal reset (not a generic normalize), the 13px/1.35 root scale, the 4px spacing unit, no hardcoded values in components. Their **file structure and the component-`<style>` rule do not.**
 
 ## 5. Evidence — the CDP probe (real client 9222, 2026-07-12)
 
@@ -219,12 +230,30 @@ The model above is **not** derived from documentation. Every claim below was mea
 - **Stroke-vs-fill is a skin property, not a component prop** (`.icon path { stroke: … }`) — **§3c dissolved; `icon` gains no new API.**
 - **The `d`-attribute-as-fallback idea was DROPPED** (leg 4 made it *possible*, not *right*): it would be a **second source of truth for geometry** — D-067 drift wearing a safety vest — guarding against a browser that cannot occur (§6/D-109). **Geometry lives in the skin. Only in the skin.**
 
-## 6. ⚠️ Open — filed, not solved
+## 6. Theming — and the one thing a Space may NOT do (D-110)
 
-1. **Ch6 §6.2 amendment** (§4). The chapter's CSS layer architecture is stale vs the code. Needs a Joe-lock; it is a spec-chapter touch.
-2. **🔑 The Space-theme glyph-override ban.** **Ch6 §6.3 already carries the open question *"Which specific CSS tokens may a Space owner override?"*** (and Session 1 filed *"Permitted Space theme override token list"* for the second pass). **This model supplies the first entry on that list, and it is a trust question, not a styling one:** under §3.3 a theme can redraw **any** glyph — including a **lock**, a **warning**, or a **verified** mark. Ch6 §6.3's Layer 3 is a **Space theme declared by the Space owner via a `state.space_theme` EVENT** — i.e. **attacker-supplied CSS arriving over the wire**. **Glyph tokens MUST be excluded from the Space-overridable subset.** App and user themes may redraw glyphs; **a Space may not.** *(The wider question — what else arbitrary Space-owner CSS can do, `url()` fetches, layout displacement — is Ch6's, not the glyph bank's. Flagged, not solved.)*
-3. **`theme-*.css` does not exist yet.** Ch6 §6.3's three-layer cascade (app default → user choice → Space override) is **specified but unbuilt**. What is locked here is that **the glyph bank is SHAPED so the theme layer can override it when it lands** — not that theming ships. **No milestone may claim theming works.**
-4. **Per-glyph re-emit of the 5 baked-colour `%23e6e6e6` insets** as `currentColor` masks — a Phase-0 classification output (§3.2).
+**🔑 A theme can redraw ANY glyph (§3.3). That is the feature — and, at Layer 3, the danger.**
+
+Ch6 §6.3's cascade is: XGen default → **application theme** (operator/user) → **Space theme**. Layers 1 and 2 are ours and the user's. **Layer 3 is not — it is declared by a Space OWNER and arrives over the wire** in a `state.space_theme` Event. Unrestricted, a Space owner could redraw a **lock**, a **warning**, a **verified** mark, or the **AI badge** (Ch6 §6.13) — making a hostile Space look trustworthy, or a human look like a bot.
+
+> ### D-110: A Space may **re-COLOUR**. A Space may **not re-DRAW**, and may **not re-LAYOUT**.
+
+- **✅ Colour** (incl. the glyph **tint**, `--icon-tint`) — permitted. *The mark keeps its meaning; only its hue changes.*
+- **❌ Geometry** (`--glyph-*`, `--glyph-*-url`) — **banned. The mark IS the meaning.**
+- **❌ Layout / metrics** — banned (readability, accessibility, and displacement attacks).
+- **❌ Everything else** — **banned by default. Allowlist, never denylist.**
+
+**Enforcement is client-side and has THREE parts — all required.** Full spec: **Ch6 §6.3.2**. In brief: **allowlist the key** · **validate the value AND apply it via `element.style.setProperty()`** (a key allowlist alone is theatre — string-concatenating a stylesheet lets a malicious *value* escape its declaration and inject arbitrary CSS) · **scope it** to the active Space's subtree, never `:root`, never app chrome.
+
+**And it constrains this doc's own generator** — see the normative note in §2.2: `--glyph-*-url` must be **colour-free**, or the colour-yes/geometry-no split is unenforceable.
+
+## 7. Still open — filed, not solved
+
+1. **`theme-*.css` does not exist.** Ch6 §6.3's cascade is **specified and entirely unbuilt** — `state.space_theme` appears in **no Rust, TypeScript, or Svelte** (grepped 2026-07-12). What is locked is that **the bank is SHAPED so the theme layer can override it when it lands**. **No milestone may claim theming works**, and **none may ship a Layer-3 applier that does not implement Ch6 §6.3.2 in full.**
+2. **The exact colour-token allowlist** (names + count) — enumerated when the theme layer is built.
+3. **Can a user disable Space themes entirely** (accessibility)? *Recommendation: yes, and it is cheap — Layer 3 is a scoped, droppable overlay by construction.*
+4. **The WIDER Space-owner-content trust surface** — `url()` fetches, font substitution, module widgets (D-036). **D-110 closes the glyph hole, not the category.** Ch6's, not the glyph bank's. **Flagged, not solved.**
+5. **Per-glyph classification** of the 21 (fill / stroke / multi-colour / native-root) + licence-sourcing — the M-RP-ICON-ADOPT Phase-0 output.
 
 ---
 

@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 6: Client Design
 > **Status**: ACTIVE  
-> Version: 0.4  
+> Version: 0.5  
 > Date: May 2026  
-> **Last updated**: 2026-06-14  
+> **Last updated**: 2026-07-12  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -56,14 +56,21 @@ In Phase 2, the CLI shell (`main.rs`) is replaced by the Tauri entry point. `lib
 XGenProtocol/
   xgen-node/              ← Rust backend (Node binary)
   xgen-client/            ← Rust backend (Client binary)
-  xgen-ui-shared/         ← shared design system + Svelte components
-    base.css              ← always-loaded app normalize (D-057, D-058)
-    tokens.css            ← CSS variable values (color, spacing, type)
-    skin-dark.css         ← default visual skin; self-contained (D-057)
-    components/           ← independently-editable Svelte components
-  xgen-node-ui/           ← Svelte frontend for Node admin UI
-  xgen-client-ui/         ← Svelte frontend for Client UI
+  ui/                     ← the UI tree — mirrors the crate workspace (D-095)
+    assets/               ← the shared APPEARANCE layer (see CSS Layer Architecture below)
+      modern-normalize.css  ← vendored reset, pristine (L0)
+      xgen-normalize.css    ← the XGen floor (L0.5)
+      glyphs.generated.css  ← THE GLYPH BANK — :root { --glyph-* }, GENERATED (L1.5, D-108)
+      skin.css              ← the DEFAULT SKIN — all appearance (L2, N-090)
+      icons/                ← *.svg + icons.manifest.json — glyph authoring source (never ships)
+    common/               ← shared substrate (envelope / logic / debug / stores)
+    core/                 ← the GPL reference component library
+    client/               ← Svelte frontend for the Client UI (src/app.css = shell chrome ONLY, N-031)
+    node/                 ← Svelte frontend for the Node admin UI (src/app.css = shell chrome ONLY)
+    sampler/              ← dev-only component sampler (mirror-exempt, D-095)
 ```
+
+> **⚠️ AMENDED 2026-07-12 (second pass).** The original tree named `xgen-ui-shared/` with `base.css` / `tokens.css` / `skin-dark.css` / `components/`. **That structure was never built.** Phase-1 implementation replaced it with the **D-095 tier split** shown above, which mirrors the crate workspace. The layer *intent* of D-057/D-058 survives; the **file names, the layer count, and the component-`<style>` rule do not** — see the amended CSS Layer Architecture below.
 
 The Tauri build process bundles the Svelte frontend into the Rust binary at compile time. The frontend assets are embedded in the executable — no separate asset folder, no web server. The executable extracts and serves the frontend from memory when the application window opens.
 
@@ -214,7 +221,7 @@ Two levels of theming exist:
 }
 ```
 
-Only a defined subset of tokens may be overridden by a Space theme — the ones that affect brand identity without affecting readability or accessibility. The permitted override list is specified in Chapter 6 second pass.
+**🔑 The permitted override subset is now DEFINED — see §6.3. In one line: a Space may re-COLOUR, but may not re-DRAW and may not re-LAYOUT. (D-110)**
 
 ### Shared Component Inventory
 
@@ -232,7 +239,9 @@ Only a defined subset of tokens may be overridden by a Space theme — the ones 
 - `TierBadge` — visual indicator of Space Auth Tier (1–4)
 - `NodeStatusIndicator` — connection state, federation health
 
-**Component independence principle:** each Svelte component in `xgen-ui-shared/components/` is self-contained. Components consume tokens from `tokens.css` via CSS custom properties and call Rust via `invoke()` — they do not import from each other. A developer editing `MessageBubble.svelte` has no dependency on `MemberListItem.svelte` and no risk of cascading breakage. This independence is the property that makes module UI development predictable and makes the component library extensible without central coordination.
+**Component independence principle:** each component in `ui/core/` and `ui/common/` is self-contained. Components consume tokens via CSS custom properties and call Rust via `invoke()` — they do not import from each other. A developer editing one component has no dependency on another and no risk of cascading breakage. This independence is the property that makes module UI development predictable and makes the component library extensible without central coordination.
+
+> **⚠️ AMENDED 2026-07-12 (second pass).** The original text said components *"consume tokens from `tokens.css`"* and carry their own `<style>` blocks. **Neither is true.** There is **no `tokens.css`** — tokens live in `skin.css`. And **N-025 forbids component-local CSS entirely**: a component ships **zero** `<style>`; **all** appearance is `skin.css`, keyed by the component's type-class (**N-090**). Independence is preserved by the *class contract*, not by co-located styles. See the amended CSS Layer Architecture below.
 
 The component boundary maps to a named slot in the XGen UI shell. The slot inventory (§6.8.3) is the canonical reference for which components are independently injectable.
 
@@ -240,75 +249,89 @@ The component boundary maps to a named slot in the XGen UI shell. The slot inven
 
 ### CSS Layer Architecture
 
-The `xgen-ui-shared/` folder implements a four-layer CSS architecture. Each layer has one job. The layers load in order; each can override the previous. Decision record: D-057, D-058.
+> **⚠️ AMENDED 2026-07-12 (second pass — this section is REWRITTEN against the shipped code).** The original four-layer model (`base.css` → `tokens.css` → `skin-dark.css` → component `<style>` blocks, D-057/D-058) **was a pre-implementation design and did not survive Phase 1.** Three of its four layers changed. **What follows describes the code.** *The superseded model is preserved in the Session 4 log entry and in D-057/D-058; it is not deleted, but it is no longer normative.*
+>
+> **What changed, and why:**
+> - **`tokens.css` was never built.** A separate "vocabulary, not values" layer earned nothing in practice — tokens live in `skin.css` alongside the rules that consume them. One file, one place to look.
+> - **`skin-dark.css` → `skin.css`.** There is one skin today. The dark/light split is a **theme-layer** concern (§6.3), not a filename.
+> - **🔑 Component `<style>` blocks are FORBIDDEN, not required.** This is the reversal that matters. D-058 said each component carries its own `<style>`. **Shipped rule (N-025 / N-031 / N-090): a component ships ZERO CSS. ALL appearance lives in `skin.css`, keyed by the component's type-class.** A component that could style itself would be a second place appearance lives — and a skin could then never fully re-skin it. *The rule that makes skinning total is the rule that forbids the component from participating in it.*
+> - **A new layer was added:** the **glyph bank** (L1.5), which did not exist as a concept in the original model (D-108).
+
+The **appearance** of both applications is one stack. Each layer has one job; the layers load in order; each can override the previous. **The cascade is the entire override mechanism — there is no second machinery.**
+
+**Canonical reference: `ui/docs/xgen-css-layer-model.md`.** Decision records: **D-108** (the glyph bank), **D-110** (the Space-theme override subset). Superseded in part: D-057, D-058.
 
 ```
-Layer 1 — base.css        (always loaded, skin-independent)
-Layer 2 — tokens.css      (CSS variable values — colors, spacing, type)
-Layer 3 — skin-dark.css   (visual identity — bundles own token overrides)
-Layer 4 — components/     (Svelte component <style> blocks)
+theme-*.css            ← CUSTOM SKIN — the override layer (§6.3). NOT YET BUILT.
+                         May redefine --accent2 AND --glyph-gear. Identical mechanism.
+───────────────────
+skin.css               ← default skin, HAND-written    ┐ ONE LAYER — the DEFAULT SKIN,
+glyphs.generated.css   ← default skin, MACHINE-written ┘ split by WHO WRITES IT
+───────────────────
+xgen-normalize.css     ← RESET, not skin
+modern-normalize.css   ← RESET, not skin (vendored, pristine)
 ```
 
-**Layer 1 — `base.css` (always loaded)**
+**Shipped import chain** (`ui/client/src/main.js` and its node/sampler siblings):
 
-`base.css` is the application-level foundation. It loads unconditionally, before any skin. It has one job: establish the structural baseline that gives the application a coherent compact visual character even if no skin is present.
+```js
+import '$assets/modern-normalize.css';   // L0    reset
+import '$assets/xgen-normalize.css';     // L0.5  the XGen floor
+import '$assets/glyphs.generated.css';   // L1.5  THE GLYPH BANK
+import '$assets/skin.css';               // L2    the default skin
+import './app.css';                       //       shell chrome ONLY (N-031)
+```
 
-What `base.css` covers — exactly and no more:
+**Layer 0 / 0.5 — the resets (`modern-normalize.css`, `xgen-normalize.css`)**
 
-- Universal box-model reset (`*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }`)
-- Root type scale: `html { font-size: 13px; line-height: 1.35; }` (D-058)
-- Minimal resets for browser-aggressive elements only: `button`, `input`, `a` — strip default browser appearance so components can restyle them from scratch
-- `body { -webkit-font-smoothing: antialiased; }` — subpixel rendering
+A cross-browser reset plus the XGen structural floor: box model, root type scale (13px / 1.35, **D-058 — unchanged and still correct**), and minimal resets for browser-aggressive elements. **No colour, no visual opinion.** *(D-057's rejection of a full generic normalize is upheld; only the file names changed.)*
 
-`base.css` does not contain colors, font names, spacing values, or any visual opinion. It is approximately 50 lines. It is stable — it changes rarely, if ever.
+**Degradation:** the resets alone yield a legible, structured, colourless interface — not raw unstyled HTML. **This is unchanged from D-057 and remains the intended failure mode.**
 
-**Why not a standard browser normalize?** A browser normalize like Normalize.css is written for the full HTML element set — paragraphs, blockquotes, tables, form elements in all their varieties. The XGen UI is a Svelte component application. It does not use most of those elements. Importing a full normalize introduces hundreds of lines of rules that apply to elements that do not exist in the application, increasing CSS surface area and specificity complexity for no benefit. `base.css` resets only the elements the application actually uses. (D-057)
+**Layer 1.5 — `glyphs.generated.css` (THE GLYPH BANK — new, D-108)**
 
-**Degradation behaviour:** if a skin fails to load, the application renders with `base.css` only — a compact, structured interface with clean box model and readable proportions, but no colors or visual identity. This is a legible degraded state, not raw unstyled HTML. (D-057 — corrects D-041's "reset coupled to skin" statement)
+Every glyph in the application, as a token, declared **once**, at `:root`:
 
-**Layer 2 — `tokens.css`**
-
-CSS custom property definitions. Two categories:
-
-*Spacing scale* (D-058) — named steps derived from 4px root unit:
 ```css
---xgen-space-1:  4px;
---xgen-space-2:  8px;
---xgen-space-3:  12px;
---xgen-space-4:  16px;
---xgen-space-6:  24px;
---xgen-space-8:  32px;
---xgen-space-12: 48px;
---xgen-space-16: 64px;
+:root {
+  /* gear — lucide, ISC */
+  --glyph-gear:     path('M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z');
+  --glyph-gear-url: url("data:image/svg+xml,%3Csvg…%3E");
+}
 ```
 
-The 4px base unit is the standard used by Discord, Slack, and VS Code. It enables systematic accessibility rescaling — multiply all spacing tokens by 1.5 and the layout scales coherently.
+**`core` owns the NAME (identity = content). The skin owns the SHAPE (geometry = appearance).** A component says *which* glyph (`<Icon name="gear"/>`); the skin says *what it looks like*. **A component never writes geometry, for the same reason it never writes a colour.**
 
-*Typography tokens* (D-058):
+- **Generated, never hand-edited.** Source of truth is `ui/assets/icons/*.svg` + `icons.manifest.json` (which carries **source + licence per glyph**). A glyph with no licence entry **fails the build** — the BSL→GPL obligation becomes structural rather than a periodic audit.
+- **Two token forms per glyph, and they are not redundant.** `--glyph-x` (a `path()`) is consumed by the CSS **`d:`** property on a `<path>` child — the `icon` component. `--glyph-x-url` (a data-URI) is consumed by `background-image` / `mask` on **native roots** (`<select>`, `<input>`), which have no child element to hang a `<path>` on.
+- **⚠️ `--glyph-*-url` MUST be emitted colour-free** (a `currentColor` mask, not a baked-in fill). *This is not a cosmetic preference — it is what makes D-110's colour-yes / geometry-no split **enforceable**. A data-URI with colour baked into it fuses colour and geometry into one token, and a Space permitted to change its colour would thereby be permitted to redraw it.*
+- **Platform dependency (D-109):** the CSS `d:` property is **Chromium-only**. Tauri uses **WebView2 (Chromium) on Windows** — the current target — so the dependency is satisfied. **It is taken deliberately and named here, not left implicit.** A future WebKit (macOS/Linux) port re-points the icon component at the **`-url` mask form the bank already emits** — a renderer swap, not a rewrite; the bank, the names, the manifest and every call site are unchanged.
+
+**Layer 2 — `skin.css` (THE DEFAULT SKIN)**
+
+**All** appearance: the token values (colour, spacing, type, radius, motion) **and** every component's look, keyed by type-class. **N-090: "every skinnable setting lives in `skin.css`" — and "skinnable" is not merely colour and type.**
+
+`skin.css` and `glyphs.generated.css` are **one layer** — the default skin. The split is **tooling, not architecture**: one file is hand-edited (live, over HMR); the other is machine-rewritten whenever a glyph is added. *You never mix a generated block into a file a human edits.*
+
+**Without the default skin the application is unusable.** It ships inside the binary and is not user-facing.
+
+**Layer 3 — `theme-*.css` (the override layer — §6.3). NOT YET BUILT.**
+
+A theme is a CSS file loaded **after** the default skin. It redefines tokens at `:root`; the cascade does the rest.
+
 ```css
---xgen-font-size-xs:   0.77rem;   /* ~10px — timestamps, below-caption */
---xgen-font-size-sm:   0.85rem;   /* 11px — captions, secondary labels */
---xgen-font-size-base: 1rem;      /* 13px — body, set by base.css html rule */
---xgen-font-size-lg:   1.15rem;   /* 15px — prominent labels */
---xgen-font-size-xl:   1.38rem;   /* 18px — large display text */
---xgen-line-height-tight:   1.2;
---xgen-line-height-base:    1.35;
---xgen-line-height-relaxed: 1.55;
+/* theme-brutalist.css */
+:root {
+  --accent2:    #ff0000;                  /* recolours the app     */
+  --glyph-gear: path('M4 4h16v16H4z');    /* redraws EVERY gear    */
+}
 ```
 
-Typography is component-scoped. Component `<style>` blocks set font-size and line-height for their own elements using these tokens. No global font-size cascade rules beyond the `html` root set in `base.css`. (D-058)
+**A theme overrides a glyph exactly the way it overrides a colour.** No special case, no second mechanism. *(Which is precisely why §6.3 must state which of these a **Space owner** is allowed to do — see D-110.)*
 
-Color token names are defined in `tokens.css` as empty custom properties; their values are set by the active skin. This means `tokens.css` is skin-independent — it defines the vocabulary, not the values.
+**Shell chrome — `ui/{client,node,sampler}/src/app.css`**
 
-**Layer 3 — `skin-dark.css` (default skin)**
-
-The skin file does two things: it provides all color token values, and it declares its own font family. The skin is self-contained — it can be replaced wholesale by substituting a different `.css` file. No skin-specific logic lives outside the skin file.
-
-The default skin is `skin-dark.css`. The fallback chain on skin failure: requested skin → `skin-dark.css` → base.css only (legible degraded state). (D-041, D-057)
-
-**Layer 4 — `components/`**
-
-Each `.svelte` file in `components/` carries its own `<style>` block. Component styles consume only tokens from layers 1–3 via `var(--xgen-*)` references. No hardcoded pixel values, no hardcoded color values, no cross-component style imports anywhere. (D-058)
+**Not skin.** The per-app frame skeleton and the per-app accent (gold client / blue node). **N-031: shell chrome ONLY.** It loads last, *above* the skin — which is exactly why the glyph bank cannot live here (three copies, and the cascade would be inverted).
 
 ---
 
@@ -316,7 +339,7 @@ Each `.svelte` file in `components/` carries its own `<style>` block. Component 
 
 *Preliminary — full specification in Chapter 6 second pass.*
 
-**Note on terminology:** §6.2 describes a four-layer *CSS architecture* (base → tokens → skin → components). Section 6.3 describes a separate, application-level *theming cascade* — three levels at which CSS token values can be overridden at runtime. These are different concepts. The CSS architecture is a build-time file structure; the theming cascade is a runtime layering of token value overrides. The CSS architecture enables the theming cascade, but they should not be conflated.
+**Note on terminology:** §6.2 describes the *CSS layer architecture* — a **build-time file structure** (resets → glyph bank → skin → theme). This section describes the *theming cascade* — a **runtime layering of token-value overrides**. They are different concepts. The CSS architecture **enables** the theming cascade; they should not be conflated. *(Amended 2026-07-12: the original note said "four-layer" and named `base` → `tokens` → `skin` → `components`. See the §6.2 amendment.)*
 
 Three-layer theming cascade, each layer overriding the previous:
 
@@ -330,10 +353,49 @@ Layer 3 — Space theme             (declared by Space owner in state.space_them
 
 The client applies Layer 3 overrides only within the active Space context. Switching Spaces switches the active theme. The Room view inherits the Space theme; the global Space list uses the application theme.
 
-**Open questions for second pass:**
-- Which specific CSS tokens may a Space owner override?
-- Can a user disable Space themes entirely (accessibility preference)?
+---
+
+### 6.3.1 The Space-theme override subset — SPECIFIED (D-110, 2026-07-12)
+
+> *This resolves the second-pass open question — **"Which specific CSS tokens may a Space owner override?"** — and it is a **trust** decision, not a styling one.*
+
+**⚠️ Why this is a security boundary and not a preference.** Layers 1 and 2 are **ours** and **the user's**. **Layer 3 is not.** A Space theme is **declared by a Space owner and arrives over the wire in a `state.space_theme` Event.** In a protocol whose entire premise is verified identity, **a Space owner who can redraw a glyph can redraw a lock, a warning, a verified mark, or the AI badge (§6.13)** — and make a hostile Space look trustworthy, or a trustworthy member look like a bot. **Icon spoofing, served from the wire.**
+
+**🔑 THE RULE, IN ONE LINE:**
+
+> ### A Space may **re-COLOUR**. A Space may **not re-DRAW**, and may **not re-LAYOUT**.
+
+| Token class | Space override | Rationale |
+|---|---|---|
+| **Colour** — `--accent*`, surface / text / border colours, and the **glyph tint** (`--icon-tint`) | **✅ PERMITTED** | Brand identity. This is what Space theming was **for**. A Space may re-tint a glyph freely — **the mark keeps its meaning, and only its hue changes.** |
+| **Geometry** — **`--glyph-*` and `--glyph-*-url`** (D-108) | **❌ BANNED** | **The mark IS the meaning.** Redrawing it is spoofing, not branding. |
+| **Layout / metrics** — spacing, radius, type scale, sizes | **❌ BANNED** | Readability + accessibility (the original D-057 intent), and it prevents displacement attacks (moving or hiding a control by resizing it). |
+| **Anything not on the allowlist** | **❌ BANNED by default** | **Allowlist, never denylist.** A token added tomorrow is banned until someone decides otherwise. |
+
+**🔑 The colour/geometry split must be ENFORCEABLE, and that constrains the glyph bank.** A data-URI with a colour **baked into it** fuses colour and geometry into a single token — so permitting a Space to change that token's colour would *necessarily* permit it to redraw the glyph. **Therefore `--glyph-*-url` MUST be emitted colour-free** (a `currentColor` mask), with colour supplied by a **separate** colour token. **This is a normative requirement on D-108's generator, not a cosmetic one.** *(It also retires the seven glyphs currently shipping with `%23e6e6e6` baked in.)*
+
+### 6.3.2 Enforcement — the client, not the sender
+
+**A Space theme is a key→value token MAP, not a stylesheet.** The `content` object of `state.space_theme` is exactly the JSON shown in §6.2 — named keys, scalar values. **The client never receives, and must never accept, raw CSS from a Space.** Enforcement is entirely client-side; a Node does not police theme content.
+
+Three rules, and **all three are required** — any one alone is insufficient:
+
+1. **Allowlist the KEY.** Only keys on the §6.3.1 colour allowlist are applied. Every other key — including any `--glyph-*` — is **silently dropped**. Unknown keys are dropped, not passed through (open-enum tolerance applies to *reading* the event, not to *applying* it).
+2. **⚠️ VALIDATE THE VALUE — and apply it via CSSOM, never by string concatenation.** *A key allowlist alone is theatre.* If the client builds a stylesheet by concatenating strings, a **malicious value escapes its declaration and injects arbitrary CSS**, defeating the key allowlist completely:
+
+   ```
+   "color_primary": "red; } :root { --glyph-lock: path('M0 0h24v24H0z'); } /*"
+   ```
+
+   **Mitigation, both parts mandatory:** apply each override with **`element.style.setProperty(key, value)`** — the CSSOM cannot break out of a declaration — **and** validate the value first (e.g. `CSS.supports('color', value)`), rejecting anything that is not a well-formed value of the expected type. **Never interpolate a wire-supplied value into a `<style>` text node.**
+3. **Scope it.** Layer-3 overrides apply **only** within the active Space's subtree — never at `:root`, and never to application chrome (menu-bar, status-bar, the Space list).
+
+**Remaining second-pass open questions:**
+- Can a user disable Space themes entirely (accessibility preference)? *(Recommendation: yes — and the switch should be trivial, since Layer 3 is a scoped, droppable overlay by construction.)*
 - Does the Node admin UI support Space theme previewing?
+- The exact colour-token allowlist (names + count) — to be enumerated when the theme layer is built.
+
+> **⚠️ STATUS: none of §6.3 is implemented.** `state.space_theme` appears **nowhere in the code** — no Rust, no TypeScript, no Svelte. **The theming cascade is specified and unbuilt.** D-110 is therefore locked *before* the first line is written, which is the cheapest moment to lock it. **No milestone may claim theming works, and no milestone may ship a Layer-3 applier that does not implement §6.3.2 in full.**
 
 ---
 
@@ -1551,3 +1613,15 @@ Component independence principle documented: each component in `components/` is 
 
 ### Session 9 — 2026-06-14 (JozefN)
 **Covered:** §6.16 The `self` thread (Saved Messages) written as the M11 close deliverable (D-021). Documents the self-DM shape (shape B): a personal single-user thread reusing the user's existing registered identity as both DM endpoints — not a separate account, no second keypair, no new registration. Never federated / never broadcast by structural inheritance of `DmFederationNotAllowed`; reachable from any client authenticated as the user (their own devices; Node-resident, not device-local); attachments inherited at M12, text-first at M11. Boundary recorded: no new wire type, event kind, or reject code — the entire protocol/applier delta is a construction-time guard skipping the vestigial self-invite when invitee == creator, plus a thin client `self` convenience verb and "Saved Messages" label. D-021 reconciled (relaxed the pre-machinery "never registered" clause; spirit preserved). No Phase 2 protocol implications. Header bumped to 0.4 / 2026-06-14.
+
+
+### Session 10 — 2026-07-12 (JozefN)
+**Covered:** §6.2 **CSS Layer Architecture REWRITTEN against the shipped code**, and §6.3's oldest open question **answered** (D-110). Both were first-pass concepts written before Phase 1; Phase 1 gave them real context, and they were corrected rather than left to drift.
+
+**§6.2 amendments.** The pre-implementation four-layer model (`base.css` → `tokens.css` → `skin-dark.css` → component `<style>` blocks; D-057/D-058) **did not survive implementation — three of its four layers changed.** Corrections: **`tokens.css` was never built** (tokens live in `skin.css`); **`skin-dark.css` → `skin.css`** (one skin; dark/light is a *theme-layer* concern, not a filename); and the reversal that matters — **component `<style>` blocks are FORBIDDEN, not required** (N-025 / N-031 / N-090: a component ships **zero** CSS; **all** appearance is `skin.css`, keyed by type-class — *the rule that makes skinning total is the rule that forbids the component from participating in it*). A **new layer** was added that the original model had no concept of: the **glyph bank** (L1.5, **D-108**) — `glyphs.generated.css`, `:root { --glyph-* }`, generated from `ui/assets/icons/*.svg` + a licence manifest, where **`core` owns the NAME and the skin owns the SHAPE**. The stale `xgen-ui-shared/` folder tree and the component-independence paragraph were corrected to the **D-095 tier split**. **D-057/D-058 are superseded in part, not deleted** — their *intent* (minimal reset, 13px/1.35 root scale, 4px spacing unit, no hardcoded values in components) survives intact; their **file structure and component-`<style>` rule do not.** Canonical reference: **`ui/docs/xgen-css-layer-model.md`**.
+
+**§6.3 — the Space-theme override subset SPECIFIED (D-110), and it is a TRUST decision, not a styling one.** The question *"Which specific CSS tokens may a Space owner override?"* has been open since Session 1. **D-108 made it urgent:** a theme can now redraw **any** glyph, and **Layer 3 is a theme declared by a Space OWNER and delivered over the wire** — so an unrestricted Layer 3 would let a Space owner **redraw a lock, a warning, a verified mark, or the AI badge (§6.13)**, making a hostile Space look trustworthy or a human look like a bot. **The rule (Joe): a Space may re-COLOUR; a Space may not re-DRAW and may not re-LAYOUT.** Colour tokens (including the glyph **tint**) are permitted — *the mark keeps its meaning, only its hue changes*; **geometry (`--glyph-*`, `--glyph-*-url`) and layout/metrics are banned**; **everything not on the allowlist is banned by default** (allowlist, never denylist).
+
+**New §6.3.1 / §6.3.2 written.** Two consequences that are **normative, not cosmetic**: **(1)** `--glyph-*-url` **must be emitted colour-free** (a `currentColor` mask) — a data-URI with colour baked in **fuses colour and geometry into one token**, so permitting a colour change would necessarily permit a redraw; this is what makes the split *enforceable*, and it retires the seven glyphs currently shipping with `%23e6e6e6` baked in. **(2) A key allowlist alone is theatre.** A Space theme is a key→value **map**, not a stylesheet — but if a client builds a stylesheet by **string concatenation**, a malicious *value* escapes its declaration and injects arbitrary CSS, defeating the key allowlist entirely (worked example given in §6.3.2). **Mandatory mitigation: apply via `element.style.setProperty()` (the CSSOM cannot break out of a declaration) AND validate the value type (`CSS.supports`); never interpolate a wire-supplied value into a `<style>` text node.** Plus scoping: Layer-3 overrides apply only within the active Space's subtree — never at `:root`, never to application chrome.
+
+**Grounded, not assumed:** `state.space_theme` was grepped across the whole tree and appears in **no Rust, TypeScript, or Svelte** — the theming cascade is **specified and entirely unbuilt**. **D-110 is therefore locked before the first line of it is written**, which is the cheapest possible moment. Recorded: no milestone may claim theming works, and none may ship a Layer-3 applier that does not implement §6.3.2 in full. Header bumped to 0.5 / 2026-07-12. Decision records: **D-108** (glyph bank), **D-109** (Chromium `d:` platform dependency), **D-110** (this). Journal: J-504 / J-505.

@@ -1,6 +1,6 @@
 # M-RP-ICON-ADOPT — Icon adoption / glyph consolidation
 > **Status**: PENDING  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -71,17 +71,23 @@ Every v0.1 question, and what the probe did to it. Evidence table: `xgen-css-lay
 
 ## 4. Milestone shape
 
-- **Phase-0 (D-071 audit).** Classify all 21: fill / stroke / multi-colour / native-root. **Licence-source every one** (§3f). Confirm the per-glyph re-emit of the 5 baked-colour `%23e6e6e6` insets as `currentColor` masks. Lock the `Glyph` manifest record shape and the generator contract. *(The model itself is already locked — D-108. Phase-0 is classification + provenance, not re-litigation.)*
+- **Phase-0 (D-071 audit).** Classify all 21: fill / stroke / multi-colour / native-root. **Licence-source every one** (§3f). **⚠️ MANDATORY, not optional (D-110): re-emit all seven baked-colour glyphs as `currentColor` masks** — the colour/geometry split must be *enforceable* or the Space ban is void on exactly those glyphs. Lock the `Glyph` manifest record shape and the generator contract. *(The model itself is already locked — D-108/D-110. Phase-0 is classification + provenance, not re-litigation.)*
 - **Phase-1.** `icons.manifest.json` + the generator; `glyphs.generated.css` + `icons.generated.ts` emitted; the L1.5 import lands in all three `main.js`. **`--tri` dedup falls out.** `icons.ts` retires as a geometry store.
 - **Phase-2.** Migrate consumers: the 10 mask glyphs → `<Icon>` / `var(--glyph-*-url)`; the 6 native-root glyphs → `var(--glyph-*-url)`; the `app_sampler.svelte:402` duplicate of `img-placeholder.svg` dies. **Each CDP-verified against its prior render** (N-097: the painted pixel is the leg).
 - **Phase-3.** Sampler **glyph-grid** page — the bank renders itself from the `IconName` union, with names + licences. *You cannot redraw a glyph you can see.*
 - **Gate:** starts after the frame arc is functional. **Unchanged — this does not jump the queue.**
 
-## 5. Open — for Joe
+## 5. ✅ CLOSED (was "Open — for Joe")
 
-1. **🔑 The Space-theme glyph-override ban.** Under D-108 a theme redraws **any** glyph — including a **lock**, a **warning**, a **verified** mark. **Ch6 §6.3's Layer 3 is a Space theme declared by the Space owner via a `state.space_theme` EVENT — attacker-supplied CSS arriving over the wire.** **Recommendation: glyph tokens are EXCLUDED from the Space-overridable subset.** App/user themes may redraw glyphs; **a Space may not.** *This is not a new decision surface — Ch6 §6.3 already carries the open question "Which specific CSS tokens may a Space owner override?", and Session 1 filed "Permitted Space theme override token list" for the second pass. **This supplies the first entry on a list Ch6 already says must exist.***
-2. **Ch6 §6.2 amendment** — the chapter's four-layer CSS architecture (D-057/D-058) is **stale vs the code** on three counts (no `tokens.css`; `skin.css` not `skin-dark.css`; **"each `.svelte` carries its own `<style>` block"** is the *opposite* of N-025/N-031/N-090). Filed in `xgen-css-layer-model.md` §4/§6. **A spec-chapter touch — Joe-lock required. Not done unilaterally.**
-3. **Generator host** — a Vite plugin vs a standalone `npm run glyphs` prestep. Phase-1 detail; no architectural weight.
+Both items raised at v1.0 were **locked the same day**.
+
+1. **✅ The Space-theme glyph-override ban → D-110.** **A Space may re-COLOUR; a Space may not re-DRAW and may not re-LAYOUT.** Colour tokens (including the glyph **tint**) are permitted — *the mark keeps its meaning, only its hue changes*. **Geometry (`--glyph-*`, `--glyph-*-url`) is banned**, as is layout/metrics; **everything not on the allowlist is banned by default.** Specified in **Ch6 §6.3.1 / §6.3.2**, which also answers the second-pass question Ch6 had carried open since Session 1. **Locked before a single line of theming exists** — `state.space_theme` appears in no Rust, TS or Svelte.
+
+   > **🔑 AND IT BINDS THIS MILESTONE.** D-110 imposes a **normative constraint back onto the generator**: **`--glyph-*-url` MUST be emitted COLOUR-FREE** (a `currentColor` mask; colour from a **separate** token). A data-URI with colour **baked in fuses colour and geometry into one token** — so a Space permitted to change its colour would thereby be permitted to **redraw** it. **The re-emit of the seven baked-colour glyphs (the 5 `textfield[type=]` insets, the `select` arrow, `--ea-spark` — all carrying `%23e6e6e6`) is now a SECURITY REQUIREMENT, not a Phase-0 tidy-up.** It moves from "classify per glyph" to **"mandatory for all seven."**
+
+2. **✅ Ch6 §6.2 amended → Ch6 v0.5, Session 10.** The CSS Layer Architecture is **rewritten against the shipped code**: `tokens.css` never existed; `skin-dark.css` → `skin.css`; the glyph bank added as L1.5; and the reversal that matters — **component `<style>` blocks are FORBIDDEN, not required** (N-025/N-031/N-090). D-057/D-058 **superseded in part, not deleted** — their intent survives, their file structure does not.
+
+3. **Generator host** — a Vite plugin vs a standalone `npm run glyphs` prestep. **Still open.** Phase-1 detail; no architectural weight.
 
 ## 6. Non-goals / deferred
 

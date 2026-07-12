@@ -96,7 +96,12 @@ try {
         if ($up) {
             try {
                 $targets = (Invoke-WebRequest -Uri "http://127.0.0.1:$port/json" -UseBasicParsing -TimeoutSec 3).Content | ConvertFrom-Json
-                $page = $targets | Where-Object { $_.type -eq 'page' } | Select-Object -First 1
+                # Filter on the SCHEME as well as the type (N-105): an open DevTools window is
+                # ITSELF a `page` target (devtools://…), and it sorts FIRST. Attaching to it does not
+                # fail loudly — it silently evaluates against the wrong document, and every
+                # `window.__XGEN_DEBUG__` read comes back as a bare `EVAL ERROR: Uncaught`, which
+                # reads like a broken bridge rather than a wrong target. Only http(s) pages are ours.
+                $page = $targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'http*' } | Select-Object -First 1
                 if ($page) { $wsUrl = $page.webSocketDebuggerUrl; $pageUrl = $page.url; break }
             } catch { }
         }

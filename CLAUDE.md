@@ -64,6 +64,8 @@ These rules exist because fabricated results have occurred. A summary that says 
 
 **Rule 7 — Definition of Done is a checklist, not a formality.** Every task file ends with a Definition of Done checklist. Each item must be independently verified before being marked complete. Mark items complete only when confirmed with actual output or observation.
 
+**Rule 8 — A milestone ID never travels alone.** Every milestone designation is written as **`ID — short title`**, everywhere: chat, runbooks, JOURNAL, CLAUDE.md, ROADMAP, commit subjects, kickoffs, handoffs. Not `M-RP6.2` but **`M-RP6.2 — R1 Spaces + R2 Rooms on real KnownSpace`**. Not `M-RP6.1l` but **`M-RP6.1l — the plugin list`**. **A bare ID is a token you have to look up; a title is a thing you can object to.** The rule exists because of M-RP6.1l: the designation said nothing about the work, so its **shape was only visible ex-post, after it had shipped** — and by then an objection costs a milestone instead of a sentence. **The title is what makes disagreement possible BEFORE the work exists**, which is the whole point of a design walk. Binding on Chat Claude, Clair, and every canonical record. *(Joe, 2026-07-12. **Historical entries are NOT rewritten** — same posture as the J-001–J-064 agent-name convention: the record is the record.)*
+
 | Situation | Correct behaviour |
 |---|---|
 | Command succeeds | Quote actual output in journal |
@@ -72,6 +74,7 @@ These rules exist because fabricated results have occurred. A summary that says 
 | Ambiguous instruction | Ask Joe, do not assume |
 | Verification step fails | Stop, report, do not write success summary |
 | Unknown test count | Run `cargo test` and quote output — never invent a number |
+| Writing a milestone ID | Append its short title: `M-RP6.2 — R1 Spaces + R2 Rooms`, never a bare ID |
 
 ---
 

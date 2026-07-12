@@ -1,12 +1,22 @@
 # M-RP6.1l — The Plugin List (the gear, the last disabled face)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+> ## ✅ CLOSED 2026-07-12 (J-513) — commit `1dc5849`. Chat re-drove every leg (Rule 5); all of Clair's numbers reproduced.
+>
+> **⚠️ TWO CORRECTIONS TO THIS RUNBOOK — recorded here so it is never read as still-current:**
+>
+> **① §2 D6 is SUPERSEDED (Joe, 2026-07-12).** *“No Remove/Disable/Launch/Settings — the absent slot ships ABSENT, not faked”* was **too blunt**: it collapsed a **dead control** (grey because the verb was never built — it lies by implying the capability exists) with **W-13 RENDERED** (grey because the plugin's **own descriptor** says so — *a disabled `Remove` on a `[system]` row **IS** the information, and Ch6 §6.8.5 drew exactly that*). **🔒 THE RULE: every button's state DERIVES from the descriptor, never hardcoded, and a control is disabled only for a reason TRUE OF THAT PLUGIN and legible to the user.** The action row is **M-RP6.1m — ⏸️ POSTPONED**: four buttons, **zero live feeders**.
+>
+> **② §6 V2's literal `aria-disabled="false"` was WRONG.** `shelf-face.svelte` renders `aria-disabled={disabled || undefined}` — the attribute is **absent when enabled**, `"true"` only when disabled, and **never `"false"`**. Clair caught it against the source; Chat re-confirmed it on the live DOM.
+>
+> **And the finding that outlives the milestone: it should not have been built yet.** 6.1j's countdown carried a **schedule** beside its guard, and that schedule pulled this milestone ahead of the working grid. → ***A countdown names WHO discharges a disabled face — never WHEN.*** Full record: **J-513**.
 
 **Design walk + lock: Chat Claude, 2026-07-12 (J-512). Joe: *"you have an autonomy in this part. do as you propose."*** Implementation: Clair. Chat re-drives every non-destructive verify leg (Rule 5). Clair's commit = **code only**; Chat's doc-bridge = commit 2 (D-074). **Joe pushes both.**
 

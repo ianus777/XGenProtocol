@@ -2343,6 +2343,24 @@ The symptom is a bare **`EVAL ERROR: Uncaught`** (there is no `window.__XGEN_DEB
 
 ---
 
+### N-110 — a SELECTOR that cannot see its subject reports a clean-looking nothing (2026-07-12, M-RP6.1l / J-513 — the N-099 family, one layer down)
+
+**Chat's own verify defect, caught by Chat, recorded because it will recur.** Re-driving M-RP6.1l over CDP, two evals were written against **`#app-shelf-bottom`** and **`dialog#plugins`** — but **the components carry `data-debug-id`, NOT `id`** (the `envelope` action stamps `data-debug-id="type#id"`; nothing writes an `id` attribute).
+
+**Neither failed loudly.** The first returned **`{"faces": []}`** — *an empty array is a perfectly well-formed answer, and it looks exactly like a measurement of a shelf with no faces.* The second threw a bare **`EVAL ERROR: Uncaught`** (`querySelector` → `null` → `.matches()` on null). **Neither entered anything**: the empty array was disbelieved and grounded against the real DOM, and the throw was treated as **inconclusive, not a failure** (J-496's rule).
+
+> ### **N-099 said: *a check whose subject is absent still returns an answer, and the answer is always the flattering one.* N-110 is the same trap one layer down: it is not the CHECK that is absent — it is the SELECTOR that never found the subject, and the empty result is indistinguishable from a real negative.**
+>
+> **`faces: []` and “the shelf has no faces” are the same JSON.** A missing element does not announce itself; it **degrades into a plausible zero**.
+
+**The discipline, and it already existed in the same session:** the accent-neutrality leg of this very milestone asserted **`readable: true`** (element count > 0) *before* it asserted anything about the elements — and it was trustworthy because of that. **The shelf leg lacked that guard, and that is the whole difference.** → **ASSERT THE SUBJECT IS READABLE BEFORE YOU ASSERT ANYTHING ABOUT IT.** A leg that reports `0`, `[]`, `null` or `false` must first prove it *found* what it was looking at, or the number is not a measurement — it is the absence of one, wearing a measurement's clothes.
+
+**Harness debt (filed):** `cdp-debug.ps1` / `tasks/CDP_DEBUG_HARNESS.md` must state that **the registry and the DOM key on `data-debug-id`, never `id`** — the `#id` selector reflex is natural, silent, and will be repeated by the next seat.
+
+*(Family: **N-091** · **N-097** · **N-099** · **N-109** · N-110 — every one of them a check, a claim, or now a *lookup* that returned something confident about a subject it never actually had.)*
+
+---
+
 ## How to use this file
 
 - New notes go under the current date heading, indexed `N-NNN` continuing the numbering.

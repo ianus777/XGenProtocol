@@ -8,6 +8,89 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-513 — M-RP6.1l CLOSED: the plugin list ships — and the milestone's real finding is that it should not have been built yet
+
+**M-RP6.1l ✅ CLOSED.** One code-only commit [Clair]: **`1dc5849`** (6 files, +272/−17). Design was locked design-only at **J-512**; this is the implementation, its verification, and **two corrections that matter more than the milestone**. **The 6.1j countdown is discharged — no shelf face in the app is disabled.**
+
+**What shipped.** The **first plugin registry in the project** — `ui/common/lib/plugins/registry.ts`, a frontend artefact carrying **D-112's three axes (`host` · `delivery` · `surface`) in code for the first time**. `widgetRegistry` now **DERIVES** from it: *a widget is in the grid because it is a registered plugin with `surface: region`.* On top of it, a **read-only pane** (the 5th widget, `kind: system`, `surface: none`) in a shell-local modal, opened by the gear. **Three honest rows, `[system]` badge, no faked verbs.** The grounding held all the way through: **there was no registry to enumerate, so the milestone created the first one** — it did not project one out of Rust (J-499's rule; the inverse of D-114's geometry).
+
+---
+
+## ⚠️ CORRECTION 1 — A COUNTDOWN NAMES *WHO* FLIPS A FACE, NEVER *WHEN*
+
+**This milestone was built too early, and the record is why.** 6.1j wrote: *“no face is enabled before its command exists, **and no milestone closes leaving its own face disabled** — 6.1k flips `diskette`/`load`, 6.1l flips `gear`.”*
+
+**Those are two different rules wearing one sentence.** The first is a real guard: **never enable a control that resolves to nothing.** The second is a **schedule** — and it was smuggled in beside the guard, unexamined, and it **pulled a milestone forward because a face was waiting**, not because the product needed it. Joe, plainly: *“I honestly thought we would grey the widget manager till we have a working grid.”* **He was right, and the schedule was Chat's.**
+
+> ### **A disabled face with a NAMED OWNER is honest indefinitely. A countdown names WHO discharges it — it must never name WHEN, because that turns a guard into a deadline and lets the shelf drive the roadmap.**
+
+**Kept, because it is not nothing:** the derive. `widgetRegistry ← CLIENT_PLUGINS` is the seam every future region drops into, and it is verified. **The sequencing that produced it is not something to be pleased about.**
+
+---
+
+## ⚠️ CORRECTION 2 — D6 IS SUPERSEDED (Joe, 2026-07-12). A GREYED BUTTON IS NOT ONE THING.
+
+J-512's **D6** refused Remove/Disable/Launch/Settings outright (*“no verb exists → the absent slot ships ABSENT, not faked”*). **Too blunt — it collapsed two controls that look identical on screen and are opposites:**
+
+- **Grey because the verb was never built** → a **dead control**. It lies by implying the capability exists.
+- **Grey because the plugin's OWN DESCRIPTOR says so** → **not a missing feature — that is W-13, RENDERED.** A disabled **Remove** on a `[system]` row **is the information.** Ch6 §6.8.5 drew exactly that, and it was right.
+
+> ### **🔒 THE RULE (Joe-locked): every button's state is DERIVED FROM THE DESCRIPTOR, never hardcoded — and a control is disabled only for a reason that is TRUE OF THAT PLUGIN and legible to the user.**
+> **Remove** → disabled ⇸ `kind === 'system'` (W-13) · confirm-on-click for `custom` (S-6) · **Disable** → disabled ⇸ `kind === 'system'` · **Launch** → rendered **only iff** `surface === 'window'` (element-absent, not greyed — Ch6 §6.8.5's own rule) · **Settings** → disabled ⇸ `!hasSettings`.
+>
+> **⚠️ And `Settings` is the honest-looking trap:** today it would be grey because **we never built a settings mechanism**, not because these plugins have none. **Same grey, different truth.** → `hasSettings` goes **on the descriptor**, and **the milestone that makes it true owes the button a target, written into its own DoD** (N-109 discipline).
+
+**→ M-RP6.1m (the action row) is FILED and ⏸️ POSTPONED, not next.** Count the feeders: **Settings** — no settings mechanism · **Launch** — no `window` plugin · **Disable** — no disable verb · **Remove** — no `custom` plugin to remove. **Four buttons, ZERO live sources.** That is *precisely* the 6.1k finding (*five of six §4.5 keys have no feeder*) and it takes the same answer: **each control lands with the milestone that creates its source.** *The design is recorded so nobody re-derives it; the build waits.*
+
+---
+
+## 🔍 SURFACED IN SEARCH, NOT IN CODE — two records nobody was reading
+
+**⚠️ N-007 (`ui/docs/xgen-ui-notes.md`, 2026-06-02) — filed, marked *“graduates into Ch6 + the module-framework milestone”*, and IT NEVER GRADUATED.** *“Every module needs a UI representation in both apps — including **system** modules”*: install / enable / disable / select · **status / health** · **a warnings home** (the vanilla EventStore's *“storage heavy — install the engine module”* operator contract *“needs a UI home so it isn't only a log line”*). Written as *“a first-class question, not an afterthought.”* **Neither the taxonomy Phase-0 nor J-512 cited it.** **The shipped plugin list satisfies roughly a third of it.** *A note that files an obligation and is never graduated is a note the project has decided to forget slowly.*
+
+**⚠️ THE SETTINGS-MECHANISM COLLISION — FILED, DELIBERATELY NOT DECIDED.** Two rival answers for *what a plugin's settings UI actually is*, and they have never been put side by side: **(A)** Ch6 §6.8.2/§6.8.5 — `settings_schema`, a JSON-Schema fragment ***“rendered automatically in the module list settings panel”*** (zero lines exist); **(B)** surfaces §3.2 + widget-tier — ***“Settings is a widget, and it hosts other widgets as content”***, i.e. the plugin supplies **its own component** — **and B is SHIPPED** (`substitutions-editor`, M-RP4.3, the first widget ever built). **§6.8 predates what was built, and it loses again — the same species the taxonomy Phase-0 found.** **D-112 fixed classification and placement; it never asked how a plugin's settings get DRAWN.** **Joe: these are visions waiting for real context — it does not need to be yet another widget system.** **BINDING: nothing is built toward either until the grid works. No milestone may quietly pick one.**
+
+---
+
+## MEASURED — Chat re-drove every leg (Rule 5); not one number taken on report
+
+**Every one of Clair's numbers reproduced exactly** — the second handback this arc that did (J-501 the other), *recorded because the ones that did not are also recorded*.
+
+| leg | measured |
+|---|---|
+| baseline | **67** · `count === unique` · **QUIESCENT** (`menuish: []`) · **EMPTY STORE** — verified **on disk**: `named: {}` (N-108: a baseline that depends on a data file must state which data it stood on) |
+| the +12 from 55 | **enumerated, not derived**: 9 × `label#plugin-list__*` + `plugin-list#plugin-list` + `dialog#plugins` + `button#plugins__close` |
+| gear | **enabled**, dispatches `widget.manager` → **`:modal` true** (on `:modal`, never the `open` attribute — J-496) |
+| getter G | `{count:3, systemCount:3, customCount:0}` |
+| mount/close | **67 open === 67 closed** (always-mounted dialog); close → **exact 67**, `open:false` reconciled (the C1 write-back holding) |
+| **painted DOM** | **Inspector Panel · Plugin List · Self Panel** — alphabetical (D8), 3 × `[system]`, axes `client · compiled · region\|none`; **`btns: 0`** inside the pane (read-only, proven on the render) |
+| **the derive (D2)** | `leafCount:8`, `droppedCount:0`, `unsupportedCount:0`, depth 3; **`self-panel#region-self` + `inspector-panel#region-inspector` still REAL widgets** (the derive did not silently drop them back to placeholders); split ratios **`[1,2,7,2]` EXACT at winW 1727 — a FOURTH distinct width**; `docNoScroll` true |
+| accent | 29 elements sampled, **`readable: true`** (the subject was SEEN — not a `null === null` phantom, N-099), **0 diffs** under a magenta `--accent`/`--accent2` inject |
+| static (apps DOWN) | **`cargo test` 1517/0/62 — IDENTICAL to baseline** (summed programmatically), exit 0 → ***proves*** the no-Rust claim · `vite build` **168** (from 165) · `npm test` **41** · scope: `git show --stat 1dc5849` = **zero `ui/core/**`, zero `ui/sampler/**`, no Rust** → **sampler catalogue 328 unchanged, by scope** |
+
+**🔑 Client registry baseline is now 67 — quiescent, EMPTY store. The next milestone must cite that, and must say which store state it counted in.**
+
+---
+
+## Deviations — flagged, not absorbed (Rule 6). Both are CHAT'S.
+
+**① The runbook's V2 literal was WRONG, and Clair caught it against the source.** V2 demanded `aria-disabled="false"` on the enabled gear. **`shelf-face.svelte:74` renders `aria-disabled={disabled || undefined}`** — the attribute is **absent** when enabled and `"true"` only when disabled; **it is never `"false"`.** Her measured `ariaDisabled: null` + `nativeDisabled: false` is the correct enabled state, **re-confirmed by Chat against the live DOM**. *Same species as J-501's DM-square slip: a runbook literal that grounding against the source corrects.* The substantive leg (gear → `:modal` dialog) is unaffected.
+
+**② ⚠️ CHAT'S OWN VERIFY DEFECT — A SELECTOR THAT CANNOT SEE ITS SUBJECT REPORTS A CLEAN-LOOKING NOTHING.** Chat twice wrote CDP selectors against **`#app-shelf-bottom`** and **`dialog#plugins`** — but **the components carry `data-debug-id`, NOT `id`**. The first returned **`faces: []`** (an empty array that *looks like a measurement*); the second **threw a bare `EVAL ERROR: Uncaught`**. **Neither entered anything** — both were grounded against the real DOM and re-run, and the throw was treated as **inconclusive, not a failure** (J-496). → **N-110: this is the N-099 family one layer down** — N-099 was *a check whose subject is absent still returns an answer*; this is *a **selector** whose subject is absent does the same, and returns the flattering shape.* **Assert the subject is readable BEFORE you assert anything about it** (the same `readable:true` guard that made the accent leg trustworthy is what the shelf leg lacked). **Harness debt: `cdp-debug.ps1`'s doc must say the registry keys on `data-debug-id`, because the id-selector reflex is going to recur.**
+
+---
+
+## Records
+
+`tasks/M_RP6_1L_PLUGIN_LIST.md` → **COMPLETED** · CLAUDE.md PLAY · `docs/ROADMAP.md` **v4.83** · `ui/docs/xgen-ui-components.md` (**`plugin-list` = the 5th widget**, not a `core` cell; **sampler catalogue unchanged 328**) · `ui/docs/xgen-ui-notes.md` **+N-110**. **No new D. No new `core`.**
+
+**Filed, unchanged:** **M-RP6.1m** ⏸️ (the action row — four buttons, zero feeders) · **M-RP-SETTINGS** · **M-RP-PLUGINS-NODE** · the **`dialog` footer-snippet slot** · **N-007's ungraduated obligation** · the **settings-mechanism collision** · M-RP-ROVING · M-RP-FOCUS · top-shelf pinning · M-RP6.6 · the read-marker gap · `temperature-indicator` ⏸️.
+
+> ### 🟢 **NEXT-ACTIVE = M-RP6.2 — R1 Spaces + R2 Rooms on real `KnownSpace`. BACK TO THE GRID.**
+> *The plugin list, its action row, Settings, and the node-module verb all queue behind working regions. **The shelf does not drive the roadmap.***
+
+---
+
 ## Entry J-512 — M-RP6.1l DESIGN LOCKED: the plugin list — and the grounding found there is no registry to enumerate
 
 **Design/records-only. NO CODE. Registry unchanged (55, quiescent, empty store).** Joe granted autonomy (*"you have an autonomy in this part. do as you propose"*) and the proposal was adopted as-is. Runbook `tasks/M_RP6_1L_PLUGIN_LIST.md` (ACTIVE) handed to Clair. **No new D — this is a D-112 extension.**

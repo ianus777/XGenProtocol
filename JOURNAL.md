@@ -8,6 +8,82 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-509 — THE REGISTRY BREATHES: the shelves mount in the real client, and a "baseline correction" turns out to be a menu left open
+
+**M-RP6.1j ✅ CLOSED. A MOUNT, not a build — 2 files, +30 (`app_client.svelte` + `app.css`). No `core`, no `skin.css`, no glyph, no sampler, no Rust, no `commandTable`.** Feat **`96a5a60`** [Clair, code-only — **the D-074 lane held this time**, after slipping at J-498 and J-508].
+
+**What shipped.** The `shelf` (J-508) mounted into the real client frame: a **top** strip (**empty** → `[data-empty]` → collapses to height 0, but **registered anyway**, N-053 — so pinning is a **one-line population** later) and a **bottom** strip (three faces: `gear`→`widget.manager`, `diskette`→`layout.save`, `load`→`layout.load`, **all `disabled`**). Frame-column pin `.app-frame > .shelf { flex: 0 0 auto; }` in **`app.css`**, following the shipped `.menu-bar` / `.status-bar` lines.
+
+**🔒 THE DECISION THAT MAKES THE MILESTONE HONEST: `commandTable` WAS NOT TOUCHED.** The three commands **do not exist** — `widget.manager` is 6.1l; `layout.save`/`layout.load` act on the named UI states 6.1k's store creates.
+
+> **A registered command id that resolves to nothing is a WORSE LIE than a disabled button.** It reads as *wired* to every future reader and no-ops forever. **A visibly disabled control is an honest phase-limit (W-8)** — the `self-panel` posture (`registered:false` rendered honestly rather than faked).
+
+**But the `onCommand` seam IS wired live**, so **6.1k and 6.1l are each ONE table entry + ONE `disabled` flip** — and the disabled-but-**keyboard-reachable** state was proven at 6.1i, so this milestone **inherits** it rather than debuting it. *(That is the entire reason `aria-disabled` was chosen over native `disabled`: a natively-disabled `<button>` is not focusable, and an all-disabled bottom shelf would have been **invisible to the keyboard**.)* **Binding, DoD-bound: no face is enabled before its command exists, and no milestone closes leaving its own face disabled.** The disabled state is a **countdown**, not a resting state — and it is visible in the app, which is the best possible reminder.
+
+---
+
+## 🔑 THE ENTRY'S REAL FINDING: A NUMBER THAT DISAGREES WITH THE RECORD IS A HYPOTHESIS, NOT A DISCOVERY
+
+The impl seat measured the client registry at **47**, found **39** pre-existing where the record says **38** (J-501), and — carefully, in good faith, flagging it as her own — **recommended correcting the canonical baseline to 39.**
+
+**Re-driven (Rule 5), the count is 46, and 38 was right all along.** The mechanism was **proven, not argued**:
+
+```
+BEFORE    : {"n":46}
+MENU OPEN : {"n":47, menuItems:["menu-item#app-menubar__file-exit"]}
+AFTER     : {"n":46}
+```
+
+**A `menu-item` registers on OPEN and unregisters on CLOSE** — shipped, verified behaviour since **J-492**. Her own **leg 6** roved **File↔Help**. **The registry was read with a popup open, and the phantom was exactly +1.**
+
+> ### THE REGISTRY IS NOT A CONSTANT. IT BREATHES.
+> **Assert the UI is QUIESCENT before you count.** Every **owned-popup** component registers children while open — `menu` · `combobox` · `tag-select` · `color-picker` (whose `__hue`/`__alpha` ranges register **only while open**, J-452) · `entity-context-menu`. **Read `openIndex === -1` first, in a SEPARATE eval.**
+> **`dialog` is the exception that proves it:** a closed `<dialog>` is `display:none`, **not unmounted** (J-496) — so the About box's **14** entries are *always* there. **Some components leave; some stay. You cannot know the total without knowing which state you are in.**
+
+**⚠️ AND NOTE WHAT THE "CORRECTION" WOULD HAVE COST.** It would have written a **wrong** baseline into a canonical record **and retroactively impugned a correct one** — the worst of both, and the kind of damage that compounds silently, because every later delta would have been measured from a fiction. ***The first thing to test, when a number disagrees with the record, is the measurement.***
+
+**This is the N-099 family, third variant.** N-099 was *a null masquerading as a match*; this is **a transient masquerading as a baseline**. Same root: **a check whose subject is in the wrong state still returns an answer, and the answer is always the plausible one.**
+
+*Her delta — **+8** — was exactly right, and independently confirmed: 2 `shelf#` + 3 `shelf-face#` + 3 `icon#…__icon`. **The conclusion was sound and the figure was not. Recorded as such, because that is now the fifth time this arc, and the pattern is the point.*** → **N-105**.
+
+---
+
+**⚠️ SECOND FINDING — A HARNESS TRAP THAT FAILS QUIETLY, AND IT IS FIXED.** Chat's first eval returned a bare **`EVAL ERROR: Uncaught`**. **Not a broken bridge — the wrong page.**
+
+```
+page   DevTools - localhost:5173/   devtools://devtools/bundled/devtools_app.html?…   ← attached HERE
+page   XGen Client                  http://localhost:5173/
+```
+
+**`cdp-debug.ps1` took the FIRST `page` target — and an open DevTools window is ITSELF a page target**, and it sorts first. It does not fail loudly; **it silently evaluates against the wrong document**, and the symptom reads like a dead debug bridge. **Fixed (one line, its own tooling commit):** the target filter now tests the **scheme** as well as the type (`type -eq 'page' -and url -like 'http*'`). **Proven with DevTools still open** — the same command that failed now attaches to `http://localhost:5173/` and returns `{n:46, quiescent:true, shelfFamily:8}`.
+
+---
+
+**CDP-verified, real client 9222 — Chat re-drove EVERY leg (Rule 5; the sampler has no frame, D-097):**
+
+- **Registry 38 → 46 (+8)**, `count === unique`, **enumerated**, **and read QUIESCENT** (`openIndex === -1` asserted first — the leg this entry exists to teach).
+- **⚠️ GEOMETRY — the milestone's real risk, and it came out green.** Two new fixed rows entered the `.app-frame` flex column, which is exactly where the two scars bite: **N-088** (`#app` carried no height rule for the project's entire life — masked until something first had to pin to an edge) and **J-499** (`min-height:0` must ride **every** nested flex level or the blowout puts the scrollbar on the **document**). Measured: **`docNoScroll` true** (864 === 864) · the frame fills the window · the region grid still **fills** `.app-center` · **split ratios `[1,2,7,2]` EXACT at winW 992 — a different width than any prior measurement, which is a stronger proof than reproducing a number** · a leaf still **self-scrolls** while the document stays pinned.
+- **The collapsed top strip:** in the registry, `data-empty="true"`, **painted height 0**, and **`borderBottomWidth: 0px`** — **on the computed style, not the attribute** (N-097). *A zero-height strip with a 1px hairline under the menu-bar is precisely the sort of thing that ships.*
+- **The bottom strip is real:** 28.8px, right-aligned, three faces, **flush above the status-bar** (botBottom 844 = statusBar top 844).
+- **Disabled, in the real frame:** all three `aria-disabled="true"` + **`nativeDisabled: false`** + **keyboard-reachable** (rove lands, `activeElement` moves); clicking is **inert and does not throw** — *D2's proof: the seam is live and the table is honestly empty.*
+- **The menu-bar was not shadowed** by two new toolbars entering the document (File↔Help roving intact; the `Ctrl+Q` hint present).
+- **Static gates:** `vite build` **160** · `npm test` **41** · `cargo test` **1507 / 0 / 62 — identical to baseline**, *which proves the no-Rust claim rather than asserting it* · `git show --stat` = **2 files**.
+- **N-092a honoured — the orphan leg was NOT run and no weaker leg was substituted for it.** The client bridge is **state-only** (no DOM handle), so `domCount`/orphans is a **sampler** capability; and this milestone has **no churn**, so there is not even a return-to-baseline proxy. **Said plainly rather than papered over.**
+
+**Deviations — flagged, not absorbed (Rule 6):**
+1. **⚠️ The baseline "correction" (above) — rejected on measurement.** Her delta stands; her baseline does not.
+2. **The runbook's folder assumption was WRONG — Chat's error, Clair's catch.** §4 implied `layout/`; the shipped `shelf` lives in **`data-independent/`**, beside `MenuBar`/`StatusBar` — which is **correct** (a shelf is chrome, not a grid node). **The code won.** *The "if the code contradicts me, the code wins" hedge has now caught **four** errors, and two of them were mine.*
+3. **N-099 recurred in her own harness — and she caught it.** A same-eval read of the reflected `tabindex` returned a **stale** array (Svelte reflects on the effect flush). Re-driven across two evals. **No wrong number entered the record.** She also caught her own second error: `focus()` moves DOM focus but **does not** sync the shelf's internal `activeIndex` — only arrow keys do.
+4. **Live `Ctrl+Q` → quit not re-run** — destructive, proven at J-492, and out of scope by construction (the shelf/menu keydown handlers consume only arrow/Home/End and never `stopPropagation` a `Ctrl+Q`). **Named, not silently skipped.**
+
+**Ordinal (Joe-locked):** `shelf`/`shelf-face` stay **33rd / 34th**. The frame **menu trio** (J-492) was never ordinal-numbered and is **not retro-counted** — it is frame chrome and is not in the sampler catalogue, and renumbering a shipped record to fix a cosmetic count is exactly the churn D-069 exists to prevent.
+
+**Records.** `JOURNAL` J-509 · `ui/docs/xgen-ui-notes.md` **v0.80 +N-105** · `docs/xgen-client-frame-phase0.md` **v2.2** (§6: 6.1i + 6.1j) · `docs/ROADMAP.md` **v4.79** · `CLAUDE.md`. **Components registry UNTOUCHED — no component was built** (D-065: an N-note is not invented for a milestone that has no component lesson, and a registry is not bumped for a mount). **No new D** (D-107 / D-112 extension). Tooling: the `cdp-debug.ps1` target filter, **its own commit**.
+
+**Next-active: M-RP6.1k — the UI-state store** (session state + **named** states + window geometry, absorbing M-RP-WINSTATE) — and **its DoD includes flipping `diskette` + `load` to enabled.** Then **M-RP6.1l** (widget manager; flips `gear`). Still open: **top-shelf pinning** (surfaces §6 ④ — gates nothing; the strip mounts empty) · **M-RP6.6 client resident** (Rust; **no part of it enters a UI milestone**) · the **read-marker protocol gap** · **M-RP-FOCUS** · **M-RP-ROVING** · M-RP6.1e-B1 · M-RP7.x · M-RP8 · M-RP-ICON-ADOPT · `temperature-indicator` ⏸️.
+
+---
+
 ## Entry J-508 — M-RP6.1i `shelf` + `shelf-face` core (ordered command strip + faces) — sampler-verified, code + doc-bridge, no Rust
 
 **Two commits (D-074).** Feat = code only (8 files, +353, `git show --stat`-clean: no `ui/client/**`, no `ui/node/**`, no Rust). This doc-bridge carries the records. **Joe pushes both; Chat never pushes.** Every count below is **measured** (Rule 5) — Chat re-drove every non-destructive CDP leg itself in the real sampler under `tauri dev` (9422), both accents.

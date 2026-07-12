@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.79  
+> Version: 0.80  
 > Date: May 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -2212,6 +2212,38 @@ A component that could style itself would be **a second place appearance lives**
 **3. The glyph trap: a `fill="none"` bounding rect renders as a SOLID SQUARE.** Material Icons source SVGs ship two paths — the glyph and a transparent `M0 0h24v24H0z` bounding rect with `fill="none"`. `icons.ts` renders **every** path with `fill: currentColor` (no per-path fill), so copying the rect would paint a filled 24×24 square **over** the glyph. Only the glyph subpath goes into the registry; the rect is dropped. This dovetails with **D-110** (colour-free geometry) — the same discipline for a different reason: geometry only, colour from the tint. *When a source SVG's paths are colour-differentiated, a colour-blind registry (one `fill` for all paths) inherits only the geometry that was meant to be filled — drop the `fill="none"` scaffolding.*
 
 **Also (verify-method):** `window.__XGEN_DEBUG__.get(id)` returns `{type, state}` **directly** — `state` is the getter output; there is **no `.get()` method** on the result. And the synthetic-`KeyboardEvent` Enter path is **untrusted** (does not fire a native `<button>`'s activation default, J-496) — so a face's keyboard activation is verified at the `onclick` convergence point via `.click()`, not via a synthetic Enter. **Roving is `menu-bar`'s LINEAR rove COPIED** (D3) — with `shelf` this is roving-tabindex's 4th independent implementation (`entity-panel`/`menu-bar`/`menu`/`shelf`, D-069's bar met); the shared-helper extraction is **M-RP-ROVING**, its own milestone, not a rider here.
+
+---
+
+### N-105 — a registry count is only meaningful in a QUIESCENT UI — and an open DevTools window is a `page` target (2026-07-12, M-RP6.1j / J-509)
+
+**Two verify-method findings, both caught while re-driving Clair's legs (Rule 5). Neither is a defect in the shipped code; both would have put a wrong number into a canonical record.**
+
+**1. 🔑 THE REGISTRY IS NOT A CONSTANT — IT BREATHES. Count only when the UI is QUIESCENT.**
+
+The impl seat reported the client registry as **47**, with **39** pre-existing, and recommended *"correcting"* the canonical baseline from **38** (J-501) to 39. **Re-driven, the count is 46 — and the baseline of 38 was right all along.** The mechanism was **proven, not argued**:
+
+```
+BEFORE    : {"n":46}
+MENU OPEN : {"n":47, menuItems:["menu-item#app-menubar__file-exit"]}
+AFTER     : {"n":46}
+```
+
+**A `menu-item` registers on OPEN and unregisters on CLOSE** (J-492 — the shipped, verified behaviour). The report's own leg 6 roved **File↔Help**, so the registry was read **with a popup open**, inflating it by exactly **+1**.
+
+> **THE RULE: assert the UI is quiescent BEFORE you count.** Any **owned-popup** component registers children while open — `menu` · `combobox` · `tag-select` · `color-picker` (whose `__hue`/`__alpha` ranges register **only while open**, J-452) · `entity-context-menu`. **Read `openIndex === -1` (or the equivalent) first, in a SEPARATE eval.**
+> **`dialog` is the exception and proves the point:** a closed `<dialog>` is `display:none`, **not unmounted**, so its 14 About entries are *always* present (J-496). **Some components leave; some stay. You cannot know the total without knowing which state you are in.**
+
+**⚠️ And note what the "correction" would have cost:** it would have written a **wrong** baseline into the record **and retroactively impugned a correct one**. *A number that disagrees with the record is not automatically a discovery — it is a hypothesis, and the first thing to test is the measurement.* **This is the N-099 family again** (a check whose subject is in the wrong state still returns an answer) — the third variant: **not a null masquerading as a match, but a transient masquerading as a baseline.**
+
+**2. ⚠️ HARNESS TRAP — `cdp-debug.ps1` attaches to the FIRST `page` target, and an open DevTools window IS a page target.**
+
+```
+page   DevTools - localhost:5173/   devtools://devtools/bundled/devtools_app.html?…   ← the script attached HERE
+page   XGen Client                  http://localhost:5173/
+```
+
+The symptom is a bare **`EVAL ERROR: Uncaught`** (there is no `window.__XGEN_DEBUG__` in the DevTools page) — **it does not fail loudly, it silently evaluates against the wrong document.** **Fix (one line):** filter the target on the scheme as well as the type — `Where-Object { $_.type -eq 'page' -and $_.url -like 'http*' }`. **Anyone debugging with DevTools open will hit this**, and the failure mode looks like a broken bridge rather than a wrong target.
 
 ---
 

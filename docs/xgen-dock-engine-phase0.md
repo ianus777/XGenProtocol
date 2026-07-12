@@ -1,6 +1,6 @@
 # XGen Client — The Dock Engine (Renderer B): Phase-0
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -79,24 +79,60 @@ Layout = { version: number, root: LayoutNode }
 - Optional → **an absent key means expanded**, so **every layout already on disk stays valid** and a migrate is a no-op today. The `version` bump is still taken, because §9's migrate path has **never been exercised** and this is its first honest customer.
 - **`collapsed` is a property of the TILE (the `leaf` node), not of the widget.** The widget does not know it is folded; it is simply not rendered. *(A widget that could observe its own fold state would be a widget that could fight it.)*
 
-### 4.1 ⚠️ Fold and the two split directions — **OPEN, Joe's call (appearance)**
+### 4.1 🔒 A TILE COLLAPSES ALONG ITS PARENT SPLIT'S AXIS — SETTLED (Joe, 2026-07-12)
 
-Fold-to-one-line is a **height** concept, and the tree has two directions:
+**The question that forced it:** fold-to-one-line is a **height** concept, but the tree has two directions. `spaces` sits in a **`row`** split, whose children are **full-height by definition** — a row split divides *width*. **A stripe-tall box in a row split would leave empty space below it**, and §7.1 locks *no holes, rectangles only*. **Folding a row-parented tile to stripe HEIGHT is geometrically unsayable.**
 
-- **A tile in a `col` split** (`rooms` · `self` · `room-header` · `stream` · `composer` · `members` · `inspector`): unambiguous. It stops taking its `flex` weight, becomes fixed at stripe height, siblings re-share.
-- **A tile in a `row` split** (`spaces` — a full-height column): **what is "one line tall" here?** Either it stays full-height and merely empties (pointless), or it collapses **sideways** into a narrow vertical strip with a rotated title — **a second folded form, not the same one.**
+**And Joe's own constraint is what settles it:** *"we have to not forget that there is a possibility that a custom widget has to be — or better, to be — folded."* **If fold worked only in `col` splits, a widget's foldability would depend on where it happens to sit** — drag it left and it loses its fold button. **That is not a widget property; that is an accident of placement.**
 
-**Two honest readings, and it is an appearance question:**
-1. **Fold is offered only where the parent is a `col` split** — the fold button is *absent* on a row-parented tile (element-absent, not greyed — J-500's precedent).
-2. **A row-parented tile folds sideways** — we own a second folded chrome (rotated stripe).
+> **🔒 THE RULE: a tile collapses along its PARENT SPLIT'S AXIS.**
+> - parent `col` (divides height) → collapse **height** → **horizontal stripe**.
+> - parent `row` (divides width) → collapse **width** → **vertical strip, rotated title**.
 
-**Not decided here. Brought to Joe at M-RP7.1 with both drawn.**
+**One rule. Fold is available EVERYWHERE, ALWAYS — including any custom widget, wherever it lands.** No hole is ever created: the tile still fills its parent's **cross-axis**.
+
+**🔑 And `collapsed` stays ONE BOOLEAN.** The **direction is DERIVED from the parent's `dir`, never stored.** *(A stored direction would be a second source of truth that goes stale the moment the tile is dragged — D-067 in miniature.)* **Free consequence: drag a folded tile from a column into a row and it RE-ORIENTS ITSELF.** That is a verify leg at M-RP7.4, and it is the kind of property that either works by construction or is a nightmare — **this one works by construction.**
+
+**Cost:** a second *rendering* of the stripe (rotated). It is the **same component** with `data-axis`, and under **N-090 the rotation is SKIN, not code** — so it costs Joe a look to approve and costs the architecture nothing. **What the rotated strip CONTAINS is §4.3.**
+
+**And the raster question resolved with it (Joe):** *"one line — I meant a line of grid, the smallest dimension in the raster. If we will not have such a constraint, it folds to the height of the region's title bar."* **We have no pixel raster** (§7 — the raster is a *quantum on the weights*, not a lattice of rows). **→ folded = STRIPE SIZE.** Which is exactly §4.2: **fold IS the minimum.**
 
 ### 4.2 Fold supplies the minimum tile size — for free
 
-A tile can never be shorter than its own stripe, **because that is what folded means.** So **no `minSize` field enters the descriptor.** One concept, two jobs.
+A tile can never be smaller **along its parent's axis** than its own stripe, **because that is what folded means.** So **no `minSize` field enters the descriptor.** One concept, two jobs.
 
 > **🔒 A splitter drag that would push a tile below stripe height STOPS. It does not auto-fold.** Auto-fold makes a *resize* secretly a *state change*, and the user cannot tell what they did. **Fold is a button.** The two verbs stay separate.
+
+### 4.3 🔒 The folded side strip = the TITLE BAR, ROTATED (Joe, 2026-07-12)
+
+Joe: *"it has to contain something for the user's orientation and overview — everything that is in the title bar, rotated 90°."*
+
+**Same content, same component, same DOM order: grip · title · fold.** Nothing dropped, nothing substituted. *(An icon-instead-of-name was considered and **rejected**: a plugin has a `name`, it does **not** have a glyph — that is `M-RP-ICON-ADOPT` work, and it would make the **folded** form say **less** than the unfolded one.)*
+
+### 4.3.1 ⚠️ THE ROTATION DIRECTION IS CULTURAL — A TOKEN, NOT A DECISION
+
+**Book spines split the world.** English-language spines read **top-to-bottom** (a **CW** rotation — tilt your head *right*). German / French / Czech / Slovak / Russian spines read **bottom-to-top** (**CCW** — head *left*). **Hardcoding either would be quietly wrong for half the users.**
+
+> **🔒 DEFAULT: CW (the English convention). Joe-locked.** *It is the default because something has to be, **not because it is correct** — do not later read it as a design position and defend it.*
+
+**It is ONE `skin.css` property.** `writing-mode` rotates the **flex axis** along with the text, so the strip's internal order stays coherent in both directions with **zero component branches**:
+
+| | text reads | grip | chevron |
+|---|---|---|---|
+| **CW** (`vertical-rl`) — **default** | top-to-bottom | **top** | **bottom** |
+| **CCW** (`vertical-rl` + `rotate(180deg)`) | bottom-to-top | **bottom** | **top** |
+
+**The component writes the DOM order ONCE. The skin picks the direction.** *(N-090's payoff again: an appearance question that would have been a component fork is one CSS property. **And the verify leg PROVES it is a token — inject the other direction, re-measure, the order inverts with zero component change.** If that leg fails, we built a fork and called it a token.)*
+
+**⏸️ Making it a USER SETTING is FILED, NOT BUILT.** Joe wants it in custom settings; **it cannot be one yet, and inventing a home would repeat a defect already named.** **There is no settings mechanism** (J-513 filed the Ch6-`settings_schema`-vs-plugin-component collision as **deliberately undecided**, binding: *nothing is built toward either until the grid works*), and **`theme-*.css` does not exist** (D-110). By the **J-503 test** (*would you expect it to follow you to another device?*) reading direction is a **preference — a sibling of `theme`** — and **`theme` is a §4.5 key M-RP6.1k deliberately did NOT ship** (**RESERVE NOTHING**). **→ it lands WITH the milestone that creates the `theme` key. This arc reserves NO key, NO prop, NO control for it.**
+
+**🔑 The project's FIRST localisation-shaped decision — and the codebase already had the right instinct:** `Accelerator` takes **`platform` as a PARAMETER, default `'win'`, and never sniffs `navigator`** (M-RP6.1c). **Same shape: a token, never sniffed. No locale system is built and none is needed.**
+
+### 4.3.2 🔒 A folded tile shows NO resize triangle
+
+**A folded tile has no resizable dimension of its own.** Its collapsed axis is pinned at stripe size **by definition** (§4.2), and its cross-axis belongs to its **parent**, not to it.
+
+**→ the corner grip is ELEMENT-ABSENT when `collapsed`, not greyed.** *(J-500: the absent slot ships **ABSENT, not faked**. J-513: a control is disabled only for a reason **true of that thing** — "you cannot resize this" is not a **state** of the triangle, it is the **absence of the verb**.)*
 
 ---
 
@@ -230,7 +266,7 @@ Joe: *"can we in this phase create just empty regions without context with full 
 
 ## 13. Filed, NOT in this arc
 
-**`tabs`** (§3 — a position, not a deferral; re-opening it is an explicit act) · **`M-RP-ROVING`** — extract the roving-tabindex helper (no 5th consumer now) · **`M-RP-ENTITY-DRAG`** — dragging content, not regions (§8) · **tear-off to a real OS window** (behind **M-RP8** — a torn-off region is a `decorations:false` `WebviewWindow` whose **title bar IS the tile stripe**, S-2's *one component, two mounts*; it also needs the descriptor to **record floating regions**, or W-13's re-inject silently re-docks them — **a second schema change, not free**) · **`M-RP-SETTINGS`** · **`M-RP6.1m`** — the plugin row action surface · **`M-RP-FOCUS`** · **`M-RP6.6`** — client resident · the `dialog` footer-snippet slot · N-007's ungraduated obligation · the settings-mechanism collision · the read-marker protocol gap · `temperature-indicator` ⏸️.
+**`tabs`** (§3 — a position, not a deferral; re-opening it is an explicit act) · **`M-RP-ROVING`** — extract the roving-tabindex helper (no 5th consumer now) · **`M-RP-ENTITY-DRAG`** — dragging content, not regions (§8) · **`M-RP-ENTITY-PANEL-RESPONSIVE`** — an entity list fills any rectangle (§15) · **tear-off to a real OS window** (behind **M-RP8** — a torn-off region is a `decorations:false` `WebviewWindow` whose **title bar IS the tile stripe**, S-2's *one component, two mounts*; it also needs the descriptor to **record floating regions**, or W-13's re-inject silently re-docks them — **a second schema change, not free**) · **`M-RP-SETTINGS`** · **`M-RP6.1m`** — the plugin row action surface · **`M-RP-FOCUS`** · **`M-RP6.6`** — client resident · the `dialog` footer-snippet slot · N-007's ungraduated obligation · the settings-mechanism collision · the read-marker protocol gap · `temperature-indicator` ⏸️.
 
 ---
 
@@ -240,6 +276,22 @@ Joe: *"can we in this phase create just empty regions without context with full 
 - `ui/docs/xgen-widget-tier.md` → **W-13's *"may collapse"* finally has a mechanism**; and a region widget's root **is not a titled `Section`**.
 - `DECISIONS.md` → **a new D for §3 (no tabs / no join) and §4 (`collapsed` on the leaf)** — a Joe-lock, not taken unilaterally.
 - `docs/ROADMAP.md` → the five legs + M-RP7.6.
+
+## 15. ⏸️ FILED — `M-RP-ENTITY-PANEL-RESPONSIVE`: an entity list fills any rectangle
+
+Joe (2026-07-12): *"Spaces — and identities also — is a list of entities: groups and avatars. This set of entities can populate various types of rectangular space: horizontal row, vertical column, or a square."* **And: a region has no shape — it sits on whatever rectangle it is stretched into.**
+
+**✅ He is right, and it is a real gap in no record.** **GROUNDED, not assumed:** `entity-panel` is a **vertical `<ul role="listbox">` and nothing else** — `entity-item variant="row"` is **hardcoded**, roving is **ArrowUp/Down only**, there is **no orientation prop, no wrap, no grid**, and there are **ZERO CSS container queries in the entire project**.
+
+**🔑 BUT IT IS THE CONTENT TIER, NOT THE DOCK TIER — and that boundary is load-bearing.** The dock hands a tile **a rectangle**. What a widget does with that rectangle is **the widget's business**. **The dock must never learn that `spaces` prefers to be tall** — the moment it does, the layout engine starts holding opinions about content and D-103's premise inverts (*"no component inside a region is aware of which renderer is active"*).
+
+**Mechanism: CSS container queries → which under N-090 is SKIN, not component code.** Narrow-tall → column · short-wide → row · squarish → wrapped avatar grid. **The widget writes zero layout code and Joe retunes the breakpoints without a component edit.** *(WebView2 supports `@container` natively — the same engine bet as `d:`, D-109. **Verify, do not assume.**)*
+
+**⚠️ AND "IT IS ALL SKIN" IS ONLY HALF TRUE — the real cost is the ROVE, and roving is component code.** Column → Arrow Up/Down · row → Arrow Left/Right · **wrapped grid → 2-D roving**. **A 2-D rove is NOT a fifth copy of the linear machine — it is a DIFFERENT machine**, and the project has none (`entity-panel` / `menu-bar` / `menu` / `shelf` are **all linear**). *It also makes `M-RP-ROVING` interesting again — not as a copy-extraction, but because the extraction target just grew a second shape.*
+
+**Open (appearance, Joe's):** in a grid form, does a row still show its **name**, or is it **avatar-only**? (`entity-item variant="row"` is hardcoded; a grid almost certainly wants a different variant.)
+
+> **🔒 THIS ARC RESERVES NOTHING FOR IT** — no orientation prop, no aspect hook, no placeholder. *A key nothing writes is a key nobody has round-tripped* (the M-RP6.1k finding, applied). **Trigger: AFTER the grid works** — the dock arc is precisely what makes an arbitrary tile aspect *reachable*, so it is the thing that creates this milestone's source.
 
 ---
 

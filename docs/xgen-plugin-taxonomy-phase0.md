@@ -1,6 +1,6 @@
 # XGen — Plugin Taxonomy Phase-0 (and the module-UI sandbox boundary)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -12,7 +12,15 @@ The D-071 Phase-0 for the plugin taxonomy — filed at `ui/docs/xgen-region-dock
 
 **Gates:** M-RP6.1l (the plugin list must list every species) · surfaces §6 item ① (Settings' own surface) · M-RP7.4 (custom-widget-contributed regions).
 
-**Status of the decisions below.** Joe delegated this walk (2026-07-12: *"you have autonomy in this part; do as you propose"*). The decisions in §4–§10 are therefore **taken**, not merely proposed — but each carries its reasoning in the open, and **any one of them reverses on one word.** Canonical records (DECISIONS.md, Ch6, widget-tier, region-dock, surfaces) do **not** move until Joe reads this doc and says so (D-069).
+> ## ✅ LOCKED 2026-07-12 (Joe: *"lock all by your recomms"*) — J-507
+>
+> **All five open items in §13 were locked as recommended.** Crystallised as **D-112** (the taxonomy) and **D-113** (the packaged-UI sandbox), **locked together** — *you cannot classify a thing while leaving open what it is allowed to do.* **Records moved:** Ch6 **v0.6** (§6.8.3 amended · slot table **STALE** · §6.8.7 **corrected** · **§6.8.8 three of five CLOSED**, incl. the widget-sandboxing question **open since April 2026**) · widget-tier **v1.3** · region-dock **v1.7** (§11 closed) · surfaces **v1.4** (§9 closed · §6 ① closed · ⑤ struck) · ROADMAP.
+>
+> **→ M-RP6.1i–l are UNGATED.** Only surfaces §6 ④ (top-shelf pinning) remains open, and it gates nothing.
+
+**How this walk was authorised.** Joe delegated it (2026-07-12: *"you have autonomy in this part; do as you propose"*), then locked the result. The decisions in §4–§10 carry their reasoning in the open, and **any one of them still reverses on one word** — the sharpest being §9 (`window` vs a `screen` kind for Settings), which is a **product** choice, not a structural one.
+
+**This document is now HISTORY, not a live proposal.** The **binding** records are **D-112 / D-113** in `DECISIONS.md`. This Phase-0 is kept because **the grounding is the argument** — the decisions read as obvious only once you have seen what the code already said.
 
 ---
 
@@ -281,14 +289,14 @@ Every other content channel in XGen has a **structural** foreclosure — not a f
 
 ---
 
-## 13. Open for Joe — five reversals, one word each
+## 13. ✅ The five — ALL LOCKED (Joe, 2026-07-12: *"lock all by your recomms"*)
 
-1. **The three axes** (host · delivery · surface). *If this is wrong, everything below it is wrong.*
-2. **Slots survive as CONTENT ANCHORS, not a second placement model** — and `message.details` is the shipped proof that we already built one.
-3. **Settings = `window`; no `screen` kind** — *unless* you want the Discord full-overlay shape, in which case `screen` is a fifth surface kind (§9).
-4. **S-1 — no network in a packaged module UI.** **The load-bearing one.** Everything else in §10 follows from it.
-5. **S-7 — packaged plugins are structurally unloadable until the floor ships.** *Costs nothing today; forecloses everything later.*
+1. ✅ **The three axes** (host · delivery · surface). → **D-112**.
+2. ✅ **Slots survive as CONTENT ANCHORS, not a second placement model** — `message.details` is the shipped proof we already built one. → **D-112**; Ch6's slot table marked **STALE**.
+3. ✅ **Settings = `window`; no `screen` kind.** *The one that is a product call, not a structural one — the **Discord full-window overlay** is what this forecloses, and reversing it costs exactly one word in the surface enum.*
+4. ✅ **S-1 — no network in a packaged module UI.** The load-bearing one. → **D-113**; **closes Ch6 §6.8.8**.
+5. ✅ **S-7 — packaged plugins are structurally unloadable until the floor ships.** *Cost nothing today; forecloses everything later.*
 
 ---
 
-*Plugin taxonomy Phase-0. Design only — no code, no canonical record moved. Crystallises into D-112 (taxonomy) + D-113 (packaged-UI sandbox) on Joe's lock.*
+*Plugin taxonomy Phase-0. Design only — no code. **LOCKED 2026-07-12 (J-507) → D-112 (taxonomy) + D-113 (packaged-UI sandbox).** Kept as the reasoning of record; the binding text is in `DECISIONS.md`.*

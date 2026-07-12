@@ -1,8 +1,8 @@
 # XGen UI — Region / Dock Model
 > **Status**: ACTIVE  
-> Version: 1.6  
+> Version: 1.7  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-11  
+> **Last updated**: 2026-07-12  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -179,7 +179,25 @@ See `docs/xgen-client-frame-phase0.md` for the full frame Phase-0 and the frame-
 
 ---
 
-## 11. ⚠️ OPEN — two "widgets" and two placement models (filed 2026-07-11, gates M-RP6.1l)
+## 11. ✅ CLOSED — two "widgets" and two placement models (filed 2026-07-11 · **CLOSED 2026-07-12, D-112 / J-507**)
+
+> ### ✅ RESOLVED. **There was never a second placement model.**
+>
+> **The taxonomy Phase-0 is `docs/xgen-plugin-taxonomy-phase0.md`; the decision is D-112.** In one line:
+>
+> **A plugin is ONE thing with THREE axes — `host` (node = *system* · client = *ui*) · `delivery` (`compiled` · `service` · `packaged`) · `surface` (`none` · `region` · `shelf` · `window`).** *"Module" and "widget" are not two species — they are `host = node` and `host = client`.* **And `xgen-common/src/module.rs` (SE-D2) already said exactly that, in code, before this section was written.**
+>
+> **🔑 The slot inventory is NOT a rival placement model — it is a CONTAINMENT list, and half of it is regions anyway.** Split Ch6's table against surfaces §3.2 (*content inside another widget is not a surface*): `node.dashboard.widget` / `room.sidebar.*` are **regions** (tiles); `room.toolbar` / `room.message.decorator` / `space.header` / `global.statusbar` are **content anchors inside a host widget**. **The containment mechanism ALREADY SHIPS** — `message.svelte` takes `details: WidgetMount[]`, resolves against a prop-injected registry and drops unknown ids (W-13, M-RP5.5). ***`room.message.decorator` is `message.details` under another name.***
+>
+> **→ ONE placement model (this document's descriptor) + ONE containment model (host-declared `WidgetMount[]` anchors).** Ch6's slot table is marked **STALE** (Ch6 v0.6) — guessed in April against a Room view that does not exist. The real anchor inventory is **regenerated from the widgets that actually exist** at M-RP7.4. **A slot is declared by the HOST, never requested by the guest** — that is the anti-drift property, and it is why the two mechanisms can coexist without a second registry.
+>
+> **Also settled here:** Settings takes **`surface: window`** — **no `screen` kind is added** (surfaces §6 item ① CLOSED). And the **`packaged` delivery class carries a trust floor before it carries a line of code** (**D-113**: no network, own origin, no Tauri IPC, never holds the key, no trust chrome, deny-by-default caps — **and it may not load until that floor ships**).
+>
+> **M-RP6.1l and M-RP7.4 are UNGATED by this closure.** *The original text is kept below, unedited — it is the record of the gap, and the finding only reads as a finding next to it.*
+
+---
+
+### 11.1 The gap as originally filed (2026-07-11) — kept as history
 
 **Grounding Ch6 §6.8 surfaced a genuine collision. Nothing shipped is wrong; the two SPECS disagree, and the disagreement lands at the plugin list.**
 
@@ -201,6 +219,8 @@ See `docs/xgen-client-frame-phase0.md` for the full frame Phase-0 and the frame-
 **Joe's reconciliation frame (2026-07-11), and it is the right one:** *"module and widget is the plugin in two areas: system and ui."* **One plugin, one list, several UI forms.** So the work is **aligning** the region model with Ch6's slot model — **not choosing between them**, and not renaming one into the other.
 
 **→ Filed as a taxonomy Phase-0** (D-071: subsystem audits precede dependent milestones), spanning **D-036** (modules) · **D-102** (widget tier) · **D-103** (this doc). It must answer: is a D-102 widget a module? does a module *contribute* one? do the slot inventory and the descriptor unify, coexist, or does one retire?
+
+> **✅ Answered 2026-07-12 (D-112).** **Is a D-102 widget a module?** — it **is a plugin with `host = client`**; "module" was only ever the `host = node` word. **Do they unify or retire?** — **neither: they are different mechanisms** (placement vs containment) and **both survive**. *The question assumed a contest that did not exist.*
 
 ---
 

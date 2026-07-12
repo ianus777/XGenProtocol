@@ -1,8 +1,8 @@
 # XGen UI — The `widget` Tier
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-07  
+> **Last updated**: 2026-07-12  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -11,6 +11,24 @@
 Formal definition of the `widget` tier — the Level-2, behaviour-carrying, pluggable assembly unit. Promotes the N-059 concept-lock (name + placement + home + one-tier-+-Phase, Joe-locked J-445) to a checkable specification. Crystallises into **D-102**.
 
 **Provisional status (D-065).** This is **v1.0, first-instance-provisional**. The constraint set is drawn against the six closed di composites (N-054, N-060–N-066), not against a built widget. The first buildable widget — `substitutions-editor` (M-RP4.3) — dogfoods the spec and may surface a constraint needing amendment, exactly as `tag-select` amended N-064. The spec firms once an instance proves it.
+
+> ## 🔑 v1.3 — A WIDGET IS A PLUGIN WITH `host = client` (D-112, 2026-07-12)
+>
+> **This tier is not a parallel universe to the module system. It is one half of it.** `xgen-common/src/module.rs` (SE-D2) already said so, in code, before this doc existed: *"there is one unified handshake mechanism; the code term `kind` carries the system/ui distinction — a **module** is a *system* plugin (`host = node`), a **plugin** is a *ui* plugin (`host = client`)."*
+>
+> **A plugin has three orthogonal axes (D-112):**
+>
+> | axis | values |
+> |---|---|
+> | **host** | `node` (the **system** area) · `client` (the **ui** area) |
+> | **delivery** | `compiled` · `service` · `packaged` |
+> | **surface** *(client only)* | `none` · `region` · `shelf` · `window` — **at most one** (W-12) |
+>
+> **Every widget in this document is `host = client, delivery = compiled`** — a Svelte component in our own tree, composed from `core`, fed by a `$common` store. **The whole W-1…W-13 constraint set is the `compiled` client contract**, and it should be read that way.
+>
+> **⚠️ Ch6 §6.8.3's "widget" is a DIFFERENT delivery class** — `packaged`: third-party HTML in an **isolated webview**, talking to its backend over a **local WebSocket**, shipped with a **manifest**. **It is not this tier and W-1…W-13 do not govern it.** It is governed by **D-113**: **no network, own origin, no Tauri IPC, never holds the key, may not draw trust chrome, deny-by-default capabilities — and it may not load at all until that floor ships (S-7).**
+>
+> **🔒 The rule that keeps them apart: a `compiled` widget is TRUSTED BY CONSTRUCTION (it is our binary); a `packaged` one is NEVER TRUSTED.** Do not let a future "widget registry" (W-9) quietly accept the second under the first's rules.
 
 **FIRMED at v1.1 (M-RP4.3, 2026-07-04).** The first widget shipped and verified two-layer (pure → sampler; persistence → real shell, seam-only). No W-clause was wrong; two were *firmed* with real-world detail: **W-3** (a `common` widget cannot import a shell dep — shell I/O is host-injected via a callback, not a bare `invoke`) and **W-8** (the first-run-no-config caveat). The spec stands; these are firmings, not rewrites.
 
@@ -75,7 +93,8 @@ Each clause is phrased so a candidate widget is yes/no conformant.
 - **W-9 — Representation.** A widget is an ordinary Svelte component (no `<component>` element exists) — a `.svelte` file in `ui/common/lib/components/widgets/`, marked Level-2 via `envelope` (optional tier arg / reflected `data-tier="widget"`) so `ids()` and the sampler's WIDGET tab partition it from composites. **Connection v1 = static import + placement** (`import`, `<WidgetName …/>`). A **widget registry + dynamic mount** (declarative `widget-id → component` placement — the true plugin-discovery layer) is **reserved**, triggered when dd-components give it a first consumer (D-065/D-069).
 - **W-10 — Plugin contract.** The explicit seam a host relies on: mount lifecycle · one aggregate getter · store-mediated I/O · declared Phase + capability. A widget is swappable behind this contract exactly as a protocol plugin is.
 - **W-11 — dd-socket.** A widget MAY expose typed **dd-slots**. Each slot = a `$common` **store handle** (read + optional write-back) + a **named mount point**. The slot is **source-agnostic** (N-057): the widget owns the store, a dd-component binds to it, and *who backs the store* (protocol vs literal) is the shell's job. **The dd-component binds to the store, never to widget internals.** This is the socket defined ahead of any dd-component so that when one is built it plugs in with zero widget rework.
-- **W-12 — a widget owns exactly one region.** A widget MAY own a dockable **region** (a named surface in the layout descriptor). W-11 is the *data* seam; W-12 is its *layout* sibling. Every region-owning widget maps to exactly one surface. See `xgen-region-dock-model.md` (D-103).
+- **W-12 (amended v1.3) — a widget has AT MOST ONE SURFACE.** A widget MAY declare exactly one of: **`region`** (a leaf in the D-103 layout descriptor) · **`shelf`** (a compact **face**) · **`window`** (its own OS window). It may declare **none** (**headless** — it computes into a store and is never seen; *you reach its output, not it*). **It may never declare two** — so **a shelf face implies no tile**. W-11 is the *data* seam; W-12 is its *layout* sibling. See `xgen-widget-surfaces-phase0.md` §3.3 and `xgen-region-dock-model.md` (D-103).
+  - **🔑 Content rendered INSIDE another widget is NOT a surface — it is content** (surfaces §3.2). `substitutions-editor` renders inside Settings and therefore **spends no surface and never needed one**. **This is also the mechanism Ch6 §6.8.3's "slots" actually describe**, and it **already ships**: a host widget declares named `WidgetMount[]` anchors and **drops unknown ids** (W-13) — `message.details` **is** `room.message.decorator` under another name (D-112). **A slot is declared by the HOST, never requested by the guest.**
 - **W-13 — `system` widgets are non-removable.** Widgets carry a `kind`: `system` (built-in regions R1–R8: pre-installed, always in the default layout, configurable + redockable but never fully closed) or `custom` (install/remove; MAY also provide a region). Prevents a user closing the Composer with no way back.
 
 > **Reframe (v1.2, D-103).** Every UI **region is a widget** — the client panel is a layout of dockable widgets (`system` R1–R8 + `custom`). The di/dd grid stays the **content** tier; **widgets are the dockable surfaces that host content**, so a custom widget can contribute a new dockable region. Renderers: config-grid (A) now → owned dock engine (B) at M-RP7, both reading one serializable layout descriptor. Full model in `xgen-region-dock-model.md`.

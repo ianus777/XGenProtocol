@@ -1,8 +1,8 @@
 # XGen Client — Widget Surfaces, Shelves & the UI-State Store: Phase-0
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-11  
+> **Last updated**: 2026-07-12  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -297,9 +297,12 @@ Bounded **on paper, before it became a junk drawer** — and grounding turned tw
    **✅ CLOSED (Joe, 2026-07-11 — J-503). See §4.5 / §4.6 / §4.7.** Two of the three sub-questions turned out to be **different questions than they were asked as**. **IN:** layout · shelf favourites · geometry · collapsed/expanded · **last open space+room** (session-only, with an **exercised** reconcile fallback) · **theme** (per-device, and **only the user-choice layer** — Ch6 already has an app theme **and** a `state.space_theme` **protocol event**). **OUT:** **scroll position** — not deferred-because-hard but **the wrong home**: a pixel offset is meaningless in this stream (prepend / edit / grouping recompute / resize / *and the messages are not even loaded on relaunch*), the sound mechanism is an **anchor + backfill** (sync work), and the in-session case is an **in-memory `Map<roomId, anchorEventId>`** landing with M-RP6.2. **OUT + FILED:** **read/unread markers** — Ch6 renders unread counts with **no protocol mechanism behind them**; a local-only marker would never sync and would become a **second source of truth**. **A named UI state carries the ARRANGEMENT, not the open room** (§4.1).
 
 4. **Top-shelf pinning mechanism** — how does a user pin a favourite (manager checkbox? drag? a `+` on the shelf)? *Deliberately unanswered; the top-shelf mounts **empty** until this is decided — no dead controls (D-065).*
-5. **Glyph provenance** — `gear` / `diskette` / `load` need licence-clean sources (the open M-RP-ICON-ADOPT question).
+5. ~~**Glyph provenance** — `gear` / `diskette` / `load` need licence-clean sources.~~ **❌ STRUCK 2026-07-12 — NOT A DESIGN QUESTION.** **Verified against `docs/xgen-icon-adoption.md` §3f (not assumed):** under **D-108** *"licence + source live in `icons.manifest.json`, **per glyph** — a glyph with no licence entry **fails the build**."* **No audit can forget what the compiler enforces.** What remains is **mechanically sourcing** gear / diskette / load — **a task inside M-RP-ICON-ADOPT, not a decision blocking anything.**
 
-**Status: items 2 and 3 are CLOSED; item 1 is PARTLY closed (the registry half). Items 1 (Settings' own surface — ← blocked on the §9 taxonomy Phase-0), 4 and 5 remain OPEN — M-RP6.1i–l stay gated.**
+**✅ Status (2026-07-12, D-112 / D-113 / J-507): items ① ② ③ CLOSED · item ⑤ STRUCK. ① Settings takes `surface: window` — NO `screen` kind is added** (the `window` form already exists and has a second consumer: a `packaged` plugin's Launch button; *Ch6 §6.8.5's "a screen of its own" is prose, not a surface kind*). **⚠️ Foreclosed knowingly:** the **Discord full-window overlay** shape — that would be a fifth surface kind, and it must be a **lock, never a drift**.
+
+> ### **ONLY ④ (top-shelf pinning) REMAINS OPEN — and it gates NOTHING.**
+> The top shelf mounts **empty** until it is answered (no dead controls, D-065). **M-RP6.1i–l are UNGATED.**
 
 ---
 
@@ -311,7 +314,7 @@ Bounded **on paper, before it became a junk drawer** — and grounding turned tw
 |---|---|---|
 | 1 | **M-RP6.1f** ✅ | **grid scaffold** — descriptor + renderer A + placeholder leaves + selection bus. **DONE (J-499).** Independent of this doc. |
 | — | **M-RP6.1g** ✅ | *(frame arc)* R3 self-panel — the first real **system widget** + the bus's **first writer**. **DONE (J-500).** Not this doc's work, but it proved the thing this doc depends on: **a region widget can be fed only through a `$common` store** (N-096). **A shelf face's data will have the same constraint.** |
-| 2 | *(this doc)* | **Phase-0 lock** — Joe walks §6, then the §8 records move. **← STILL OPEN. Nothing below can start.** |
+| 2 | *(this doc)* | **Phase-0 lock** — **✅ LOCKED 2026-07-12 (J-507).** §6 walked; ①②③ closed, ⑤ struck, **only ④ (top-shelf pinning) open — and it gates nothing.** The §8 records have moved. **M-RP6.1i–l may start.** |
 | 3 | **M-RP6.1i** | **`shelf` core** — ordered strip, `position: top\|bottom`, faces, roving toolbar machine, `commandId` dispatch. Sampler-verified. + 3 glyphs. *(was `6.1g′`)* |
 | 4 | **M-RP6.1j** | **mount both shelves** in the real client. Bottom → real commands. **Top → empty** (pinning undecided). Verify 9222. *(was `6.1g″`)* |
 | 5 | **M-RP6.1k** | **UI-state store** — session state + named states + window geometry (absorbs M-RP-WINSTATE) + the clamp + the unit decision. *(was `6.1h′`)* |
@@ -332,9 +335,29 @@ Bounded **on paper, before it became a junk drawer** — and grounding turned tw
 
 *Nothing above is edited until Joe locks §6 — Phase-0 proposes, Joe locks, then the specs move (D-069).*
 
+> **✅ DONE 2026-07-12 (J-507).** All four moved, plus the ones §9 forced: `xgen-widget-tier.md` **v1.3** (W-12 amended + the **delivery axis**) · **D-112 + D-113** (a new D-series, not a D-102 amendment — the surface model turned out to be one face of a **plugin-wide** taxonomy) · `docs/ROADMAP.md` · `docs/xgen_ch6_client_design.md` **v0.6** (§6.8.3 amended, slot table **STALE**, §6.8.7 **corrected**, §6.8.8 **three of five CLOSED**) · `ui/docs/xgen-region-dock-model.md` **v1.7** (§11 closed). **M-RP-WINSTATE stays ⏸️→ absorbed by the §4 UI-state store at M-RP6.1k**; the frame-phase0 shelf note lands with **M-RP6.1j**, when the shelves are actually mounted (D-065 — records follow the build, not the plan).
+
 ---
 
-## 9. ⚠️ NEW OPEN ITEM — the plugin taxonomy Phase-0 (filed 2026-07-11, gates M-RP6.1l)
+## 9. ✅ CLOSED — the plugin taxonomy Phase-0 (filed 2026-07-11 · **CLOSED 2026-07-12, D-112 / D-113 / J-507**)
+
+> ### ✅ RESOLVED — and this document's own §3.2 clause is what resolved it.
+>
+> **Phase-0:** `docs/xgen-plugin-taxonomy-phase0.md`. **Decisions: D-112** (taxonomy) **+ D-113** (the packaged-UI sandbox) — **locked together**, because *you cannot classify a thing while leaving open what it is allowed to do*.
+>
+> **🔑 One plugin, THREE axes:** **`host`** (`node` = *system* · `client` = *ui*) · **`delivery`** (`compiled` · `service` · `packaged`) · **`surface`** (`none` · `region` · `shelf` · `window`). **"Module" and "widget" are not two species** — and **`xgen-common/src/module.rs` already said so in code**, before either spec was written.
+>
+> **🔑 This doc's surface set was NOT a bad re-derivation of Ch6 — it was the RIGHT list, and §3.2 was the missing half.** Split Ch6's slot table against *"content inside another widget is not a surface"*: `node.dashboard.widget` / `room.sidebar.*` are **regions**; `room.toolbar` / `room.message.decorator` / `space.header` / `global.statusbar` are **content anchors**. **The anchor mechanism ALREADY SHIPS** (`message.details: WidgetMount[]`, unknown-id drop, W-13) — ***`room.message.decorator` is `message.details` under another name.*** → **ONE placement model + ONE containment model. Nothing retires; nothing competes.**
+>
+> **🔑 A THIRD species that neither list had:** the **Auth Module is `delivery: service`** — `AuthModuleXgid` + `endpoint_url` + revocation (**not** the Window-form package Ch6 §6.8.7 claims; **corrected in Ch6 v0.6**).
+>
+> **🔒 And the sandbox (D-113): the boundary is DELIVERY, not "widget".** `self-panel` needs no CSP; a compiled Rust engine needs no CSP. **A `packaged` module UI has NO NETWORK (S-1)** — which makes **D-111's beacon unsayable inside a module** — plus own origin, no Tauri IPC, never holds the key, **no trust chrome**, deny-by-default caps, **and S-7: it cannot load at all until that floor ships.**
+>
+> **→ M-RP6.1l and M-RP7.4 are UNGATED.** *The original filing is kept below, unedited.*
+
+---
+
+### 9.1 The item as originally filed (2026-07-11) — kept as history
 
 Grounding **Ch6 §6.8** during the §6 walk surfaced a collision this document did not know about. **Nothing shipped is wrong — the two SPECS disagree.**
 

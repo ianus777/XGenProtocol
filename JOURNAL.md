@@ -8,6 +8,82 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-507 — THE CODE HAD ALREADY ANSWERED IT: the plugin taxonomy closed (D-112) and the module-UI sandbox floor locked (D-113) — design/records-only, no code
+
+**Design + records only. No code. Registry unchanged (client 38, sampler catalogue 313).** The D-071 taxonomy Phase-0, with **two required outputs** — the taxonomy and the sandbox — **locked together, because you cannot classify a thing while leaving open what the thing you are classifying is allowed to do.** Joe delegated the walk (*"you have autonomy in this part… do as you propose"*), then locked all five recommendations (*"lock all by your recomms"*).
+
+**🔑 THE SESSION'S REAL OUTPUT, AND IT IS THE SAME LESSON AGAIN — BUT THIS TIME THE GREP RAN FIRST.**
+
+> **The reconciliation frame Joe stated on 2026-07-11 — *"module and widget is the plugin in the two areas: system and ui"* — was ALREADY IN THE CODE, VERBATIM, IN A FILE NOBODY IN THIS ARC HAD OPENED.**
+
+`xgen-common/src/module.rs` (**SE-D2**, the Storage-Engine / Plugin-Framework milestone):
+
+> *"There is one unified handshake mechanism; the code term **`kind`** carries the system/ui distinction: a **module** is a *system* plugin (`host = node`), a **plugin** is a *ui* plugin (`host = client`)."*
+
+It also ships **slot/impl identity** (`ModuleKindId` / `ModuleImplId` — **UUIDv4, never `Xgid`**: *"a module GUID is local, developer-assigned, and never crosses the wire"*) and a **trust posture**: *"the descriptor is a **const in the plugin's own code** — there is **no manifest file** … metadata is **authoritative**, location is **never trusted**."*
+
+*After seven grounding misses — and two in J-505/J-506 alone — the rule was applied **before** the design instead of after the pushback. It cost one `search_files` call and it reshaped the entire arc.*
+
+**⚠️ HONEST LIMIT, STATED IN THE RECORD RATHER THAN GLOSSED:** the shipped `Descriptor` struct is `{kind_id, impl_id, name, assurance}` — there is **no `host` field, no `kind` field, no `ui_form` field**, and `assurance` is storage-engine-specific. **The vocabulary is shipped; the fields are not.** D-112 *extends* a real spine — it does not describe fields that already exist.
+
+**🔑 AND THE GREP FOUND A THIRD SPECIES THAT NEITHER SPEC LISTED.** `xgen-core/src/auth/module_registry.rs`: an **Auth Module is a protocol principal** — `AuthModuleXgid` (the 7th XGID flavour) + an **`endpoint_url`** + a Node-side **trusted registry with revocation** (block-only, A2-D1), its key **recovered from the XGID itself** (AMR-D3). **It is a network service.** **Ch6 §6.8.7 calls it *"the reference implementation of a Window-form module"* — the shipped code says otherwise, and §6.8.7 is now corrected in place.** Also grounded: **zero `xgen-module.json` anywhere**; no manifest loader, no `modules/` scan; and `temperature.rs` **itself** leaves its loader open (*"dynamic libraries, WASM, external process"*).
+
+> ### 🔑 SO THE DRIFT WAS NEVER "Ch6 vs D-102". IT WAS **§6.8 vs EVERYTHING THAT WAS ACTUALLY BUILT.**
+>
+> §6.8 was written **Session 2, April 2026** — before the plugin spine, the Auth Module registry, the widget tier, the region model and `WidgetMount`. **Four later artefacts converged on a different shape and none of them consulted it.** **It is the outlier, and it is the section that moved.** *(The J-502 "first bird" shape a second time — a section named before every convention it would live among existed. **The deferral is why nothing hardened wrong.**)*
+
+**✅ D-112 — ONE PLUGIN, THREE AXES.** **`host`** (`node` = the *system* area · `client` = the *ui* area) · **`delivery`** (`compiled` · `service` · `packaged`) · **`surface`** (`none` · `region` · `shelf` · `window`, at most one). ***"Module" and "widget" are not two species.*** **The `delivery` axis is the one nobody had, and it is where trust lives:** `compiled` (const descriptor, our binary — **everything shipped**) · `service` (own XGID, own endpoint — **the Auth Module**) · `packaged` (third-party code + manifest — **zero lines exist**).
+
+**🔑 THE SLOT INVENTORY DOES NOT RETIRE — AND IT WAS NEVER A RIVAL PLACEMENT MODEL. WE HAD ALREADY BUILT IT.** Split Ch6's table against **this project's own** surfaces §3.2 clause (*content inside another widget is not a surface*): `node.dashboard.widget` / `room.sidebar.*` are **regions** (tiles); `room.toolbar` / `room.message.decorator` / `space.header` / `global.statusbar` are **content anchors inside a host widget**. And the anchor mechanism **already ships**: `message.svelte` takes **`details: WidgetMount[]`**, resolves against a prop-injected registry and **drops unknown ids** (W-13, M-RP5.5 / J-478).
+
+> ### ***`room.message.decorator` IS `message.details` UNDER ANOTHER NAME.***
+> **Nobody noticed, because one was written in April and the other in July.** → **ONE placement model** (the D-103 descriptor) **+ ONE containment model** (host-declared `WidgetMount[]` anchors). **A slot is declared by the HOST, never requested by the guest** — that is the anti-drift property, and it is why both mechanisms coexist without a second registry. Ch6's table is marked **STALE** (guessed against a Room view that does not exist); the real anchor inventory is **regenerated from the widgets that actually exist** at M-RP7.4.
+
+**Also settled:** the **manifest is reconciled, not merged** — a compiled `Descriptor` is **authoritative**, a `packaged` manifest is **untrusted input** (it *declares*; the host *enforces*); **they must never become one type.** **Settings takes `surface: window`; NO `screen` kind is added** — the `window` form already exists and has a second consumer, and *Ch6 §6.8.5's "a screen of its own" is prose, not a surface kind*. **⚠️ Foreclosed knowingly:** the Discord full-window overlay shape — **a product choice, reversible on one word, and it must be a lock, never a drift.**
+
+---
+
+## 🔒 D-113 — THE SANDBOX, AND THE REFRAME IS THE WHOLE DECISION
+
+**Ch6 §6.8.8 has asked since Session 2 (April 2026): *"Widget sandboxing: what CSP and iframe sandboxing apply?"***
+
+> ### **But `self-panel` needs no CSP. A compiled Rust storage engine needs no CSP.**
+> ### **Nothing about *being a widget* is dangerous. Being `delivery: packaged` is.**
+>
+> **The question was attached to the WRONG NOUN for three months** — and a widget-shaped rule could never have covered a packaged module's **window**, which is the same risk in a different frame.
+
+**Why it is the largest open surface in the project.** Every other content channel has a **structural foreclosure**, not a filter: **blobs are content-addressed — a hash cannot name a host** (D-111) · **a Space theme is a colour-only allowlist — a colour cannot be a `url()`** (D-110) · **glyphs are banned from Space override** · **fonts are bundled**. **A `packaged` module UI has NONE of them** — arbitrary third-party markup and script **with a network stack**.
+
+**✅ THE FLOOR. Foreclose; do not filter.**
+
+> **S-1 — A PACKAGED MODULE UI IS A WEBVIEW WITH NO NETWORK.** Its only egress is the local IPC channel to its **own backend**, which runs on the Node/Client **we** ship. `default-src 'none'; … connect-src <its own local channel>; frame-ancestors 'none'`. **No `http:` / `https:` scheme is reachable at all.**
+>
+> **🔑 This makes D-111's beacon UNSAYABLE inside a module — exactly as it is unsayable in a message. The same structural property, taken a second time.**
+
+**S-2** packaged assets, never fetched (*the bundled-fonts rule, generalised — a packaged asset cannot phone home*) · **S-3** own webview, **own origin**, **no Tauri IPC**, no host DOM, no sight of another module · **S-4** **the module never holds the key** — `identity_mode: user` is **consent, not key handover**: the module *requests*, **our Rust signs, per event** (*a module that can sign as you at will is not a module — it is you*) · **S-5** **a module UI may not draw trust chrome** — bounded, attributed frame; **never** the identity / verified / **AI-badge (§6.13)** zone (*icon spoofing does not become acceptable because the spoofer arrived as a package instead of a theme* — **D-110's lesson, generalised beyond CSS**) · **S-6** capabilities **deny-by-default, allowlist never denylist** · **S-7** **no `packaged` plugin loads until S-1…S-6 ship.**
+
+**🔑 LOCKED AGAINST ZERO CODE, DELIBERATELY — BECAUSE THAT IS THE CHEAPEST MOMENT A TRUST BOUNDARY CAN EVER BE SET.** `state.space_theme` was locked before a line of it existed (D-110); `delivery: packaged` is in the same position **today** — no manifest, no loader, no webview. **S-7 therefore costs nothing and forecloses everything**, and **the first packaged module that ever loads will load into a floor that already exists.** *(D-071 paying out **in advance** rather than in arrears — twice in three sessions.)*
+
+**And it closes two more of §6.8.8's five in passing** — **module signing** (mandatory for `packaged` · meaningless for `compiled` · **already solved** for `service`, since an Auth Module **is** its key) and **module permissions** (host-side, deny-by-default). ***Two open questions dissolving the moment an axis exists is the sign the axis is real.*** Only **hot-loading** and **module-to-module** remain — and **S-3 already forecloses the UI half of the latter.**
+
+**⚠️ NAMED AND NOT SOLVED (so it cannot be smuggled in later):** the **`compiled` plugin LOADING mechanism** is still open in `temperature.rs` itself. **A dynamic library is not a sandbox** — if the loader ever becomes `dlopen`, that plugin carries `compiled`-trust with **none** of `compiled`'s review, and this taxonomy would be quietly lying. **Whichever loader is chosen must land on the delivery axis, and if it admits third-party code it inherits D-113.**
+
+---
+
+**✅ VERIFIED, NOT ASSUMED (the briefing asked; the answer is yes).** Surfaces §6 item ⑤ (**glyph licence provenance**) has been **dissolved by D-108** — `docs/xgen-icon-adoption.md` §3f: *"licence + source live in `icons.manifest.json`, **per glyph** — a glyph with no licence entry **fails the build**."* **No audit can forget what the compiler enforces.** What remains is **mechanically sourcing** gear / diskette / load — a task, not a decision. **⑤ STRUCK.**
+
+> ### → **surfaces §6: ① ② ③ CLOSED · ⑤ STRUCK · ONLY ④ (top-shelf pinning) REMAINS — AND IT GATES NOTHING. M-RP6.1i–l ARE UNGATED.**
+
+**Tooling (Rule 3, logged not absorbed).** The Windows-MCP **PowerShell tool timed out and did not recover** for the first half of the session (4-minute hang, no result). The Phase-0 was grounded **entirely through the Filesystem MCP** — **every claim in it comes from a file that was read, none from a `Select-String` that could not be run.** The tool recovered later and the commit was verified with it (`git show --stat` = one file, scope-clean).
+
+**Records.** **`DECISIONS.md` +D-112 +D-113** (appended at the bottom, following the shipped D-099…D-111 pattern — **a 4,000-line record is not silently re-sorted**) · **D-111 amended in place** (its *"open and NOT closed here"* module-widget note now points at D-113) · `docs/xgen-plugin-taxonomy-phase0.md` **v1.1, Status COMPLETED** · `docs/xgen_ch6_client_design.md` **v0.5 → v0.6** (§6.8.3 amended · slot table **STALE** · §6.8.7 **corrected** · §6.8.8 **3 of 5 CLOSED** · Session 11 logged) · `ui/docs/xgen-widget-tier.md` **v1.3** (W-12 amended + the delivery axis; *a widget is a plugin with `host = client`*) · `ui/docs/xgen-region-dock-model.md` **v1.7** (§11 CLOSED) · `docs/xgen-widget-surfaces-phase0.md` **v1.4** (§9 CLOSED · §6 ① CLOSED · ⑤ STRUCK · build-order + records-to-move updated) · `docs/ROADMAP.md` **v4.76**.
+
+**No code moved.** Feat `bfc570a` was the Phase-0 doc alone (1 file, +294, scope-verified by `git show --stat`); this doc-bridge carries the records.
+
+**Next-active: M-RP6.1i — the `shelf` core.** Still open: **④ top-shelf pinning** (gates nothing; the top shelf mounts empty) · **M-RP6.6 client resident** (the real F-1 close — Rust; **no part of it enters a UI milestone**) · the **read-marker protocol gap** (no UI milestone may fake it) · M-RP6.1e-B1 · M-RP7.x · M-RP7.3 (N-095) · M-RP8 · M-RP-ICON-ADOPT · `temperature-indicator` ⏸️.
+
+---
+
 ## Entry J-506 — A HASH CANNOT NAME A HOST: the `url()` claim RETRACTED, the real invariant found, D-111 locked — design/records-only, no code
 
 **Design + records only. No code. Registry unchanged (client 38, sampler catalogue 313).** Joe asked **one question** — ***"do you want to say that url() is a security risk?"*** — and the honest answer was **no**. **The claim collapsed under one grep. The collapse is the entry.**

@@ -1,6 +1,6 @@
 # XGen Protocol — Chapter 6: Client Design
 > **Status**: ACTIVE  
-> Version: 0.5  
+> Version: 0.6  
 > Date: May 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -663,6 +663,16 @@ my-module/
 
 ### 6.8.3 Module UI Forms
 
+> **⚠️ AMENDED 2026-07-12 (D-112 / J-507) — READ THIS BEFORE THE THREE FORMS BELOW. This section was written in Session 2 (April 2026), before the plugin spine (`xgen-common/src/module.rs`), the Auth Module registry, the widget tier (D-102), the region model (D-103) and `WidgetMount` existed. Every one of them converged on a different shape, and none of them consulted it. It is corrected in place, not deleted.**
+>
+> **1. A plugin is ONE thing with THREE axes** (D-112): **`host`** (`node` = the *system* area · `client` = the *ui* area — already the words in `module.rs`) · **`delivery`** (`compiled` · `service` · `packaged`) · **`surface`** (`none` · `region` · `shelf` · `window` — at most one). ***"Module" and "widget" are not two species. They are `host = node` and `host = client` on one plugin.*** One plugin, one list, several UI forms.
+>
+> **2. "Widget" below means a `packaged` third-party UI — NOT the shipped in-process Svelte widget** (D-102: `self-panel`, `inspector-panel`, `substitutions-editor`). Those have **no webview, no socket, no slot and no manifest**; they are plugins with `host = client, delivery = compiled, surface = region`.
+>
+> **3. Placement vs containment.** The *slot* list below is **not** a placement model. Half of it is **regions** (tiles in the D-103 layout descriptor) and half is **content anchors inside a host widget** — and *content inside another widget is not a surface*. The containment mechanism **already ships**: `message.svelte` takes `details: WidgetMount[]`, resolves against a prop-injected registry, and drops unknown ids (W-13, M-RP5.5). ***`room.message.decorator` is `message.details` under another name.***
+>
+> **4. 🔒 A `packaged` module UI has NO NETWORK** (**D-113 / S-1**), and **no `packaged` plugin may load at all until the D-113 floor ships (S-7).**
+
 Three UI forms, declared in the manifest. A single module package may declare more than one.
 
 **Headless**
@@ -680,7 +690,9 @@ Widget modules declare their target slot in the manifest:
 "widget_slot": "room.sidebar.bottom"
 ```
 
-**Defined injection slots (preliminary — full inventory in second pass):**
+**Defined injection slots — ⚠️ STALE (D-112). Kept as history; NOT a placement model, and NOT the inventory to build against.**
+
+*This table was guessed in April 2026 against a Room view that does not exist in the shipped UI. Per D-112 it splits along the placement/containment line — `node.dashboard.widget` and `room.sidebar.*` are **regions** (tiles in the layout descriptor); `room.toolbar`, `room.message.decorator`, `space.header` and `global.statusbar` are **content anchors** declared by a host widget. **A slot is declared by the HOST, never requested by the guest.** The real anchor inventory is **regenerated from the widgets that actually exist** at M-RP7.4 — it is never copied forward from here.*
 
 | Slot name | Location |
 |---|---|
@@ -693,6 +705,8 @@ Widget modules declare their target slot in the manifest:
 | `global.statusbar` | A small indicator in the application status bar |
 
 The XGen shell renders widget slots as named placeholder elements. A widget module fills its declared slot. If no module occupies a slot, the slot is invisible. Multiple modules targeting the same slot stack vertically.
+
+> **⚠️ Superseded in mechanism by D-112** — the shipped equivalent is a **host-declared `WidgetMount[]` anchor** with an **unknown-id drop** (W-13), which is exactly this behaviour (*"if no module occupies a slot, the slot is invisible"*) implemented in the client tree. The *intent* survives; the fixed global inventory does not.
 
 **Window**
 
@@ -781,6 +795,8 @@ This means the network learns about module capabilities automatically through th
 
 ### 6.8.7 Auth Module as a Module
 
+> **⚠️ CORRECTED 2026-07-12 (D-112 / J-507) — this section is FACTUALLY WRONG against the shipped code, and the correction matters because it names a third species.** The Auth Module is **`delivery: service`** — a **protocol principal**: `xgen-core/src/auth/module_registry.rs` ships `AuthModuleRecord { module_id: AuthModuleXgid, endpoint_url, … }` in a Node-side **trusted registry with revocation** (block-only, A2-D1), its Ed25519 key **recovered from the XGID itself** (AMR-D3, derive-don't-store). **It has no manifest, no package in `modules/`, and no webview.** It is **not** "the reference implementation of a Window-form module", and it does **not** *"use the same manifest format and the same module list entry as any third-party module"*. A separate operator-facing verification-flow UI may later be a `window` plugin **on top of** it — but the module itself is a **network service**. *(The Communication / Identity-mode / Capability points below still hold.)*
+
 The XGen Auth Module (spec 3.8) is the reference implementation of a Window-form module. It demonstrates all three aspects of the module architecture:
 
 - **Communication:** subscribes to `identity.register` Events, responds via `auth.verify_request` / `trust_assertion` (existing spec 3.8.2 interface)
@@ -794,11 +810,16 @@ The Auth Module shipping with XGen as a built-in is not special — it uses the 
 
 ### 6.8.8 Open Questions for Phase 2 Implementation
 
-- **Hot-loading:** Can modules be installed and activated without restarting the Node/Client? Phase 3 consideration.
-- **Module signing:** Should module packages be cryptographically signed by their authors? Required for institutional deployments. Phase 2 design question.
-- **Module permissions:** Beyond `identity_mode`, should modules declare what Node data they can access (identity registry, space state, federation registry)? Phase 2 design question.
-- **Widget sandboxing:** Widget webviews must be isolated from each other and from the main application. What CSP and iframe sandboxing apply? Phase 2 implementation question.
-- **Module-to-module communication:** Can two modules communicate directly, or only via Events? Phase 2 design question.
+> **✅ THREE OF THE FIVE ARE NOW CLOSED (2026-07-12 — D-112 / D-113 / J-507)** — and they closed **together**, because they were one question wearing three hats: *what is a plugin allowed to do, and how do we know?* **The answer is the `delivery` axis** (`compiled` · `service` · `packaged`), **not the widget shape.**
+
+- **Hot-loading:** Can modules be installed and activated without restarting the Node/Client? Phase 3 consideration. **— STILL OPEN.**
+- **Module signing:** ~~Should module packages be cryptographically signed by their authors?~~ **✅ ANSWERED (D-112).** **Mandatory for `delivery: packaged`.** **Meaningless for `compiled`** (it is our build — the descriptor is a const in our own code). **Already solved for `service`** — an Auth Module **is** its key (`module_id.pubkey()`, AMR-D3).
+- **Module permissions:** ~~Beyond `identity_mode`, should modules declare what Node data they can access?~~ **✅ ANSWERED (D-113, S-6).** **Yes — declared in the manifest, enforced HOST-SIDE, DENY-BY-DEFAULT. Allowlist, never denylist.** The **manifest declares; the host enforces** — a manifest is **untrusted input**, never an authoritative descriptor (D-112).
+- **Widget sandboxing:** ~~Widget webviews must be isolated from each other and from the main application. What CSP and iframe sandboxing apply?~~ **✅ CLOSED (D-113) — open since Session 2, April 2026.**
+  - **🔑 The question was attached to the wrong noun.** `self-panel` needs no CSP; a compiled Rust storage engine needs no CSP. **Nothing about *being a widget* is dangerous — being `delivery: packaged` is.** The floor therefore covers a packaged module's **window** exactly as its **widget**.
+  - **S-1 — a packaged module UI is a webview with NO NETWORK.** Its only egress is the local IPC channel to its own backend, which runs on the Node/Client **we** ship. `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src <its own local channel>; frame-ancestors 'none'; form-action 'none'`. **No `http:` / `https:` scheme is reachable at all** — which makes **D-111's beacon unsayable inside a module**, exactly as it is unsayable in a message.
+  - **S-2** packaged assets, never fetched · **S-3** own webview, own origin, **no Tauri IPC exposure**, no host DOM, no sight of another module · **S-4** the module **never holds the key** (`identity_mode: user` = **consent, not key handover**: the module *requests*, our Rust *signs, per event*) · **S-5** **a module UI may not draw trust chrome** — bounded, attributed frame; **never** the identity / verified / **AI-badge (§6.13)** zone · **S-6** deny-by-default capabilities · **S-7** **no `packaged` plugin loads until S-1…S-6 ship.**
+- **Module-to-module communication:** Can two modules communicate directly, or only via Events? Phase 2 design question. **— STILL OPEN.** *(Note: **S-3 already forecloses the UI half** — two module webviews cannot see each other. The open question is the **backend** half.)*
 
 ---
 
@@ -1624,4 +1645,22 @@ Component independence principle documented: each component in `components/` is 
 
 **New §6.3.1 / §6.3.2 written.** Two consequences that are **normative, not cosmetic**: **(1)** `--glyph-*-url` **must be emitted colour-free** (a `currentColor` mask) — a data-URI with colour baked in **fuses colour and geometry into one token**, so permitting a colour change would necessarily permit a redraw; this is what makes the split *enforceable*, and it retires the seven glyphs currently shipping with `%23e6e6e6` baked in. **(2) A key allowlist alone is theatre.** A Space theme is a key→value **map**, not a stylesheet — but if a client builds a stylesheet by **string concatenation**, a malicious *value* escapes its declaration and injects arbitrary CSS, defeating the key allowlist entirely (worked example given in §6.3.2). **Mandatory mitigation: apply via `element.style.setProperty()` (the CSSOM cannot break out of a declaration) AND validate the value type (`CSS.supports`); never interpolate a wire-supplied value into a `<style>` text node.** Plus scoping: Layer-3 overrides apply only within the active Space's subtree — never at `:root`, never to application chrome.
 
-**Grounded, not assumed:** `state.space_theme` was grepped across the whole tree and appears in **no Rust, TypeScript, or Svelte** — the theming cascade is **specified and entirely unbuilt**. **D-110 is therefore locked before the first line of it is written**, which is the cheapest possible moment. Recorded: no milestone may claim theming works, and none may ship a Layer-3 applier that does not implement §6.3.2 in full. Header bumped to 0.5 / 2026-07-12. Decision records: **D-108** (glyph bank), **D-109** (Chromium `d:` platform dependency), **D-110** (this). Journal: J-504 / J-505.
+**Grounded, not assumed (Session 10):** `state.space_theme` was grepped across the whole tree and appears in **no Rust, TypeScript, or Svelte** — the theming cascade is **specified and entirely unbuilt**. **D-110 is therefore locked before the first line of it is written**, which is the cheapest possible moment. Recorded: no milestone may claim theming works, and none may ship a Layer-3 applier that does not implement §6.3.2 in full. Header bumped to 0.5 / 2026-07-12. Decision records: **D-108** (glyph bank), **D-109** (Chromium `d:` platform dependency), **D-110** (this). Journal: J-504 / J-505.
+
+
+### Session 11 — 2026-07-12 (JozefN)
+**Covered:** §6.8 **Module Architecture aligned against the shipped code** (D-112) and **§6.8.8's widget-sandboxing question CLOSED after three months** (D-113). Like Session 10, both were first-pass concepts written before Phase 1 — and this time the grounding found that **the code had already answered the question the chapter was still asking.**
+
+**The collision that opened the arc.** Ch6 §6.8.3's *widget* (HTML in an isolated webview, a local WebSocket, a named slot, a third-party manifest) and the shipped D-102 *widget* (a Svelte component, in-process, a `$common` store, a dockable region) are **not the same thing**, and the two specs had drifted into **two placement models** — a D-067 drift surface sitting in the **specs**, not the code.
+
+**🔑 Grounding reframed it completely.** `xgen-common/src/module.rs` (**SE-D2**) — the **plugin spine already exists**, and its own doc comment already carries the reconciliation frame **verbatim**: *"There is one unified handshake mechanism; the code term `kind` carries the system/ui distinction: a **module** is a *system* plugin (`host = node`), a **plugin** is a *ui* plugin (`host = client`)."* It also ships slot/impl GUIDs (**UUIDv4, never `Xgid`** — a module GUID never federates) and the trust posture *"the descriptor is a **const in the plugin's own code** — there is **no manifest file**; metadata is authoritative, location is never trusted."* Meanwhile `xgen-core/src/auth/module_registry.rs` revealed a **third species neither spec listed**: the **Auth Module is a network service** (`AuthModuleXgid` + `endpoint_url` + revocation), **not** the Window-form package §6.8.7 claims. And **no `xgen-module.json` exists anywhere** — no manifest loader, no `modules/` scan.
+
+> **So the drift was never "Ch6 vs D-102". It was §6.8 vs everything that was actually built.** §6.8 predates the plugin spine, the Auth Module registry, the widget tier, the region model and `WidgetMount`. **It is the outlier, and it is the section that moved.**
+
+**§6.8.3 amended — one plugin, three axes (D-112):** **`host`** (node = system · client = ui) · **`delivery`** (`compiled` · `service` · `packaged`) · **`surface`** (`none` · `region` · `shelf` · `window`, at most one). **"Module" and "widget" are not two species.** The **slot table is marked STALE**: half of it is **regions** (tiles in the D-103 descriptor) and half is **content anchors inside a host widget** — and *content inside another widget is not a surface*. **The containment mechanism already ships:** `message.svelte` takes `details: WidgetMount[]` and drops unknown ids (W-13). ***`room.message.decorator` is `message.details` under another name.*** The real anchor inventory is **regenerated from the widgets that exist**, at M-RP7.4 — never copied forward from a table guessed in April.
+
+**§6.8.7 corrected — factually wrong against the code.** The Auth Module is `delivery: service`, not a Window-form package. **§6.8.8: three of five questions closed** — *module signing* (mandatory for `packaged`, meaningless for `compiled`, already solved for `service`) · *module permissions* (host-side, **deny-by-default, allowlist never denylist**) · and **widget sandboxing (D-113)**.
+
+**🔒 §6.8.8's sandbox question was attached to the WRONG NOUN for three months.** `self-panel` needs no CSP; a compiled Rust storage engine needs no CSP. **Nothing about *being a widget* is dangerous — being `delivery: packaged` is.** Every other content channel in XGen has a **structural foreclosure** (blobs are content-addressed — *a hash cannot name a host*, D-111; a Space theme is a colour-only allowlist — *a colour cannot be a `url()`*, D-110; fonts are bundled). **A packaged module UI had none.** The floor (**D-113**): **S-1 — no network at all** (its only egress is the local IPC channel to its own backend), which makes **D-111's beacon unsayable inside a module** · S-2 packaged assets · S-3 own origin, no Tauri IPC · **S-4 the module never holds the key** (`identity_mode: user` = consent, **not** key handover) · **S-5 no trust chrome** (never the identity / verified / AI-badge zone — D-110's icon-spoofing lesson, generalised beyond CSS) · S-6 deny-by-default capabilities · **S-7 no `packaged` plugin loads until S-1…S-6 ship.**
+
+**Locked before implementation, again (D-071 paying out in advance).** `delivery: packaged` has **zero lines** today — no manifest, no loader, no webview — so **S-7 costs nothing and forecloses everything**, and the first packaged module that ever loads will load into a floor that already exists. Header bumped to 0.6 / 2026-07-12. Phase-0: `docs/xgen-plugin-taxonomy-phase0.md`. Decision records: **D-112** (taxonomy), **D-113** (packaged-UI sandbox). Journal: J-507.

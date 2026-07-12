@@ -40,6 +40,7 @@
   import Link from '$core/components/data-independent/link.svelte';
   import StatusIndicator from '$core/components/data-independent/status-indicator.svelte';
   import StatusBar from '$core/components/data-independent/status-bar.svelte'; // status-bar di composite (M-RP6.1e-A)
+  import Shelf from '$core/components/data-independent/shelf.svelte'; // ordered command strip (M-RP6.1i)
   import PasswordField from '$core/components/data-independent/password-field.svelte';
   import StarRating from '$core/components/data-independent/star-rating.svelte';
   import FileFieldComposite from '$core/components/data-independent/file-field.svelte';
@@ -169,6 +170,24 @@
   // counter spy makes the onResizeGrip callback CDP-observable on pointerdown (the real
   // startResizeDragging wiring is 6.1e-B, real client).
   let sbGripFired = $state(0);
+  // shelf (M-RP6.1i) — the ordered command strip. onCommand writes the dispatched commandId into a
+  // DOM probe ([data-probe]) so the CDP can read it back (DoD leg 4: click/Enter → the commandId).
+  // The three faces carry the REAL frame commands they will serve in the client (6.1k/6.1l): gear →
+  // widget.manager, diskette → layout.save, load → layout.load. Enabled here (a test-bed);
+  // disabled-in-the-client is 6.1j's separate, honest story.
+  let shelfLastCommand = $state('');
+  const shelfBottomItems = [
+    { icon: 'gear', label: 'Widget manager', command: 'widget.manager' },
+    { icon: 'diskette', label: 'Save layout', command: 'layout.save' },
+    { icon: 'load', label: 'Load layout', command: 'layout.load' },
+  ];
+  // one disabled face among enabled — the disabled branch exercised HERE, so 6.1j inherits a
+  // proven state (activation inert; still keyboard-reachable).
+  const shelfMixedItems = [
+    { icon: 'gear', label: 'Widget manager', command: 'widget.manager' },
+    { icon: 'diskette', label: 'Save layout', command: 'layout.save', disabled: true },
+    { icon: 'load', label: 'Load layout', command: 'layout.load' },
+  ];
   // tag-select (M-RP2.28) — string[] bind:value. default seeds 4 (proves +N overflow at
   // COLLAPSE_AT=3); max caps at 2 (3rd pick no-ops + data-full dim); create allows freeform.
   let tsDefault = $state(['important', 'work', 'personal', 'urgent']);
@@ -666,6 +685,16 @@
       <div class="s-cells">
         <div class="s-cell" style="flex:0 0 340px"><span class="s-id">status-bar#default</span><div style="width:340px"><StatusBar states={ledStates} state="ON" caption="Connected" id="default" onResizeGrip={() => sbGripFired++} /></div></div>
         <div class="s-cell" style="flex:0 0 340px"><span class="s-id">status-bar#secondary</span><div style="width:340px"><StatusBar states={ledStates} state="ERR" pulse caption="Reconnecting" secondaryText="v0.10.3" id="secondary" onResizeGrip={() => sbGripFired++} /></div></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">shelf</div>
+      <div class="s-cells">
+        <div class="s-cell" style="flex:0 0 220px"><span class="s-id">shelf#bottom</span><div style="width:220px"><Shelf items={shelfBottomItems} position="bottom" ariaLabel="System commands" onCommand={(c) => (shelfLastCommand = c)} id="bottom" /></div></div>
+        <div class="s-cell" style="flex:0 0 220px"><span class="s-id">shelf#mixed</span><div style="width:220px"><Shelf items={shelfMixedItems} position="bottom" ariaLabel="Mixed shelf" onCommand={(c) => (shelfLastCommand = c)} id="mixed" /></div></div>
+        <div class="s-cell" style="flex:0 0 220px"><span class="s-id">shelf#top-empty</span><div style="width:220px"><Shelf items={[]} position="top" ariaLabel="Favourites" id="top-empty" /></div></div>
+        <div class="s-cell"><span class="s-id">lastCommand</span><output data-probe="shelf-last-command">{shelfLastCommand}</output></div>
       </div>
     </div>
 

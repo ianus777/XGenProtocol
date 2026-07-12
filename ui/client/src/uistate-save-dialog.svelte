@@ -1,5 +1,5 @@
 <script>
-  // uistate-save-dialog — SHELL-LOCAL (M-RP6.1k, Leg A). The Save UI-state box: it wraps the core
+  // uistate-save-dialog — SHELL-LOCAL (M-RP6.1k). The Save UI-state box: it wraps the core
   // `dialog` (C1) exactly as `about-dialog` does, and drives the shell-local `uiStateStore`. Lives in
   // ui/client/ — NOT ui/core/ — because it composes shell state; `core` stays app-agnostic.
   //
@@ -8,8 +8,8 @@
   // state names. This replaces the earlier textfield + inline list (more compact, one control).
   //
   // No <style> block: the type-class comes from `envelope` on the composed controls; the box layout is
-  // shell chrome dressed in ui/assets/skin.css keyed `.uistate-*` (N-090). Session-only, and SAID SO in
-  // the note (W-8): at Leg A the store is in-memory, nothing is written to disk yet.
+  // shell chrome dressed in ui/assets/skin.css keyed `.uistate-*` (N-090). The store PERSISTS to
+  // xgen-client_uistate.json (Leg B): saving here writes to disk + carries the window geometry (Leg D).
   import Dialog from '$core/components/data-independent/dialog.svelte';
   import Combobox from '$core/components/data-independent/combobox.svelte';
   import Button from '$core/components/data-independent/button.svelte';
@@ -60,8 +60,6 @@
     first Tab still reaches it. -->
   <!-- svelte-ignore a11y_autofocus -->
   <div class="uistate" tabindex="-1" autofocus>
-    <p class="uistate-note">Session-only for now — not yet written to disk.</p>
-
     <Combobox
       bind:value={name}
       options={optionNames}

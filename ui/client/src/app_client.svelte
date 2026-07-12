@@ -31,8 +31,8 @@
   let aboutInfo = $state(null);
   let aboutOpen = $state(false);
 
-  // UI-state Save/Load dialogs (M-RP6.1k, Leg A). The diskette/load shelf faces open these; the
-  // store is in-memory (session-only) this leg — Rust persistence lands at Leg B.
+  // UI-state Save/Load dialogs (M-RP6.1k). The diskette/load shelf faces open these; the store
+  // PERSISTS to xgen-client_uistate.json (Rust get/set_ui_state) and named states carry window geometry.
   let saveOpen = $state(false);
   let loadOpen = $state(false);
 

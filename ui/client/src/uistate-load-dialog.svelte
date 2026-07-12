@@ -1,5 +1,5 @@
 <script>
-  // uistate-load-dialog — SHELL-LOCAL (M-RP6.1k, Leg A). The Load UI-state box: wraps the core
+  // uistate-load-dialog — SHELL-LOCAL (M-RP6.1k). The Load UI-state box: wraps the core
   // `dialog` (C1) and drives the shell-local `uiStateStore`. Same posture as `uistate-save-dialog` —
   // composes core, dresses via `.uistate-*` in skin.css (N-090), carries no <style>.
   //

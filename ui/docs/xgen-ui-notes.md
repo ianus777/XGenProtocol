@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.78  
+> Version: 0.79  
 > Date: May 2026  
 > **Last updated**: 2026-07-12  
 > Language: English  
@@ -2198,6 +2198,20 @@ A component that could style itself would be **a second place appearance lives**
 **⚠️ WHAT ACTUALLY REMAINS, and it is the biggest of all: D-036 MODULE WIDGETS.** Third-party HTML in an **isolated webview**, talking to its backend over a local WebSocket. **CSP and sandboxing are still an OPEN question** (Ch6 §6.8.8, filed at Session 2, untouched since). **A webview that can fetch is a bigger surface than every glyph, theme token and blob reference combined** — and unlike them, **it has no structural foreclosure at all.** Ch6's, not the UI track's. **Filed, not solved.**
 
 *Records: `DECISIONS.md` **+D-111** · `docs/xgen_ch2_architecture.md` **v1.3** · D-110 amended (the wrong "wider surface" line, corrected in place) · N-101/N-102 amended. No code moved.*
+
+---
+
+### N-104 — the `shelf` / `shelf-face` pattern: a toolbar's roving copy, a disabled-but-reachable face, and the glyph trap that renders a solid square (2026-07-12, M-RP6.1i / J-508)
+
+**Two `core` di components (33rd `shelf` + 34th `shelf-face`), sampler-verified.** The `shelf` is the ordered `role="toolbar"` command strip framing the widget grid; `shelf-face` is its native-`<button>` leaf composing `icon`. Three durable findings:
+
+**1. The face is `menu-trigger`, not `button`.** The shipped `button` core renders `{label}` **text only** — no children snippet, no icon child, **no tabindex** (grounded). A face is icon-only and its tabindex is owned by the strip (roving). So — exactly like `menu-trigger` inside `menu.svelte` — the face owns its **own** `<button>` because the ARIA role and roving live in the parent. *A component that needs a child slot or a parent-owned tabindex cannot reuse `button`; it composes its own native element.*
+
+**2. `aria-disabled`, NOT native `disabled`, and this one is load-bearing.** A natively-disabled `<button>` **is not focusable**. At M-RP6.1j every bottom-shelf face is disabled (their commands don't exist yet, W-8) — native `disabled` would leave the strip with **no focusable element**: invisible to Tab, dead to the arrow keys. So a face uses `aria-disabled` (the `menu-item` precedent) + a **guarded `onclick`** (native Enter/Space route through the click, so the ONE guard covers both) + skin on `[aria-disabled="true"]`. **CDP-proven: keyboard-reachable while disabled** (rove lands on it, `nativeDisabled:false`) **and inert on activation** (click leaves the probe unchanged). *A disabled state that must remain announced/reachable is `aria-disabled` + a guarded handler, never the native attribute — the native attribute is a stronger claim than "this is unavailable right now."*
+
+**3. The glyph trap: a `fill="none"` bounding rect renders as a SOLID SQUARE.** Material Icons source SVGs ship two paths — the glyph and a transparent `M0 0h24v24H0z` bounding rect with `fill="none"`. `icons.ts` renders **every** path with `fill: currentColor` (no per-path fill), so copying the rect would paint a filled 24×24 square **over** the glyph. Only the glyph subpath goes into the registry; the rect is dropped. This dovetails with **D-110** (colour-free geometry) — the same discipline for a different reason: geometry only, colour from the tint. *When a source SVG's paths are colour-differentiated, a colour-blind registry (one `fill` for all paths) inherits only the geometry that was meant to be filled — drop the `fill="none"` scaffolding.*
+
+**Also (verify-method):** `window.__XGEN_DEBUG__.get(id)` returns `{type, state}` **directly** — `state` is the getter output; there is **no `.get()` method** on the result. And the synthetic-`KeyboardEvent` Enter path is **untrusted** (does not fire a native `<button>`'s activation default, J-496) — so a face's keyboard activation is verified at the `onclick` convergence point via `.click()`, not via a synthetic Enter. **Roving is `menu-bar`'s LINEAR rove COPIED** (D3) — with `shelf` this is roving-tabindex's 4th independent implementation (`entity-panel`/`menu-bar`/`menu`/`shelf`, D-069's bar met); the shared-helper extraction is **M-RP-ROVING**, its own milestone, not a rider here.
 
 ---
 

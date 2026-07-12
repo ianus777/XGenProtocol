@@ -8,6 +8,64 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-512 — M-RP6.1l DESIGN LOCKED: the plugin list — and the grounding found there is no registry to enumerate
+
+**Design/records-only. NO CODE. Registry unchanged (55, quiescent, empty store).** Joe granted autonomy (*"you have an autonomy in this part. do as you propose"*) and the proposal was adopted as-is. Runbook `tasks/M_RP6_1L_PLUGIN_LIST.md` (ACTIVE) handed to Clair. **No new D — this is a D-112 extension.**
+
+---
+
+## 🔑 THE FINDING: THE PLUGIN LIST HAS NOTHING TO LIST, AND SAYING SO IS THE MILESTONE
+
+The walk opened on the one question the handoff insisted be grounded rather than guessed: **what does the list actually LIST today?** Grepped, not remembered:
+
+- **`xgen-common/src/module.rs`** ships `Descriptor { kind_id, impl_id, name, assurance }` — **no `host`, no `delivery`, no `surface` field.** The **vocabulary** is shipped; the **fields are not** (the taxonomy Phase-0 said so in its own honest-limit note, and it is still true). Its **only** consumer is `xgen-core/src/dag/store.rs` (`STORAGE_ENGINE_KIND_ID` + the `InMemoryEventStore` descriptor) — **node-side, and no Tauri verb exposes it.**
+- **Zero `xgen-module.json` anywhere.** No manifest loader, no `modules/` scan, no local WebSocket server in the client.
+- The **Auth Module registry** is node-side (`delivery: service`); `temperature.rs` is node-side and `NoOp`. **The client has a verb for none of them.**
+- `ui/common/lib/components/widgets/` holds **4 files** — but **only TWO are mounted in the client**: `widgetRegistry` maps 8 region ids → 6 × `RegionPlaceholder`, `self` → `SelfPanel`, `inspector` → `InspectorPanel`. **`substitutions-editor` and `entity-context-menu` are imported NOWHERE in `ui/client`** (sampler-only).
+- **W-13's `kind: system` is a spec word with ZERO code.** No widget declares a kind, a name, a version, or a descriptor.
+
+> ### **So M-RP6.1l does not ENUMERATE a registry. It CREATES the first one — in TS, in the frontend — and it lists exactly what is real.**
+>
+> ***A list that fakes a universal registry is worse than three honest rows.*** **Third instance of one shape:** J-500's *"there is no resident"* · J-502's temperature find · this. **A UI milestone cannot manufacture a source that does not exist.**
+
+---
+
+## The lock
+
+**D1 — the registry becomes an ARTEFACT.** New `ui/common/lib/plugins/registry.ts`: a typed `PluginDescriptor` + `CLIENT_PLUGINS`. **This is D-112's three axes (`host` · `delivery` · `surface`) in code for the first time.** **No Rust** — J-499's rule applied, not excepted: *Rust owns what only Rust can do*, and a plugin descriptor is a type **the webview owns**. (Contrast D-114's geometry: a type **Rust** owns and the webview cannot.)
+
+**D2 — `widgetRegistry` is DERIVED from it.** A widget is in the grid **because it is a registered plugin with `surface: region`**. One source, two readers (the N-096 shape). The 6 unbuilt regions keep `RegionPlaceholder` — **a placeholder is scaffolding, not a plugin, and it is not listed.**
+
+**D3 — the pane's own surface is `none`, and that is not a dodge.** Per surfaces §3.2 + D-112: **Settings** takes `surface: window`; the plugin list is **content inside it** and therefore **spends no surface**. Which means *any* host can mount it **without the pane lying about what it is**.
+
+**🔒 D4 — THE SCOPE FORK, and it was the real decision: SETTINGS DOES NOT EXIST, and 6.1l does not build it.** D-112 says the gear opens a pane *inside Settings' structure* — but there is **no Settings window**. The pane ships with a **shell-local modal host** (the `about-dialog` / `uistate-*-dialog` precedent) as its **first** entry point; **`M-RP-SETTINGS` becomes its SECOND mount** — which is *literally* **S-2's "one component, two mounts"**, so **nothing built here is thrown away**. A grid tile was **rejected by D-112 §9** (*dock the plugin manager into a 200px column, then remove the widget that removes widgets*); a real second Tauri window now is a **frame arc** (own Vite entry, chrome, registry, CDP target, geometry) that would bury the visible part behind plumbing — against Joe's standing brief.
+
+**D5 — THREE honest rows:** `self-panel` · `inspector-panel` · `plugin-list` (**it lists itself**). **NOT** `substitutions-editor` / `entity-context-menu` — **the client never instantiates them**, and registering an unmounted plugin is **the unfed-branch shape (N-091)**. They enter the registry **at the milestone that mounts them**.
+
+**D6 — READ-ONLY rows. No Remove / Disable / Launch / Settings buttons.** There is **no remove verb, no disable verb, no launch verb, no settings schema**. A permanently-disabled control with **no countdown milestone behind it** is exactly what 6.1j forbade — and **J-500's precedent is explicit: the absent slot ships ABSENT, not faked.** What ships is the **`[system]` badge**, which is **Ch6 §6.8.5's own drawing = W-13 made visible**. **S-6 says destruction lives *here*; it does not say it lives here *now*.**
+
+**⚠️ D7 — NO W-8 PHASE-LIMIT NOTE ANYWHERE IN THE PANE. An N-109 pre-empt, written into the runbook as binding.** A read-only list of what is loaded is **not a false statement about anything** → **there is nothing to sweep at close.** And if any leg finds it needs a disclosure, **its removal goes into the DoD of the leg that lifts the limit, in the same edit that adds it.** *(N-109 cost 4 lines to fix and was the only defect in 6.1k that would have reached a human. The cheapest way to honour it is to ship no claim that can go stale.)*
+
+**D9 — the dialog uses the STOCK core footer.** If the `:has()` suppression hack from 6.1k is reached for again, **that is the second independent recurrence** and the `dialog` footer-snippet-slot extraction stops being optional — **its own milestone, never a rider** (a `core` change inside a shell milestone is what makes a registry delta unreadable).
+
+---
+
+## Verify contract set for the build (Rule 5 / N-105 / N-108)
+
+**Baseline: client registry 55 — quiescent, EMPTY STORE, and the milestone must SAY SO.** ⚠️ **The `plugin-list` rows register at MOUNT, not on open** (a closed `<dialog>` is `display:none`, **not unmounted**) → **the baseline moves the moment Leg A lands, and the new one must be MEASURED, not derived.** `cargo test` **MUST stay 1517/0/62 IDENTICAL** — the inverse of 6.1k's leg: *identical proves no Rust landed*. Sampler catalogue **328 unchanged, by scope**. Legs, visible-first per Joe's standing brief: **A** pane + dialog + `commandTable` + **the gear flips** (hand back for Joe's eyes) · **B** the derive · **C** CDP verify → close.
+
+**Its DoD discharges the 6.1j countdown: after 6.1l, no face in the app is disabled.**
+
+---
+
+## Filed, NOT built
+
+**`M-RP-SETTINGS`** (Settings as a `surface: window` plugin — the pane's second mount, and `substitutions-editor`'s first client mount) · **`M-RP-PLUGINS-NODE`** (a read verb exposing `host: node` plugins to the client — **Rust/protocol, the M-RP6.6 shape**; until it lands the list is honestly client-only) · the **`dialog` footer-snippet slot** · M-RP-ROVING · M-RP-FOCUS · top-shelf pinning (surfaces §6 ④) · M-RP6.6 client resident · the read-marker gap · `temperature-indicator` ⏸️.
+
+**Records moved:** `tasks/M_RP6_1L_PLUGIN_LIST.md` (new, ACTIVE) · `CLAUDE.md` (PLAY) · `docs/ROADMAP.md` (v4.82). **No new D. No code.**
+
+---
+
 ## Entry J-511 — M-RP6.1k CLOSED: the UI-state store ships — and the milestone's only user-facing defect was an honesty note that had stopped being honest
 
 **M-RP6.1k ✅ CLOSED.** Two code-only commits [Clair]: **`8902efa`** (the milestone — 10 files, +892/−17) + **`fdccdb2`** (the stale-note fix — 3 files, +6/−8). **The D-074 lane held for the third milestone running.** Design was locked design-only at **J-510** (**D-114** + **D-115**); this is the implementation and its verification.

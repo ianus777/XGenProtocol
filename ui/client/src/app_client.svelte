@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import MenuBar from '$core/components/data-independent/menu-bar.svelte';
   import StatusBar from '$core/components/data-independent/status-bar.svelte';
+  import Shelf from '$core/components/data-independent/shelf.svelte';
   import RegionShell from '$core/components/layout/region-shell.svelte';
   import AboutDialog from './about-dialog.svelte';
   import { loadLayout, widgetRegistry } from './layout-default';
@@ -82,6 +83,20 @@
       label: 'Help',
       items: [{ label: 'About', command: 'help.about' }],
     },
+  ];
+
+  // ── Shelves (M-RP6.1j — mount the shipped shelf, J-508) ──────────────────────────────────────
+  // The bottom (system) strip's faces — shell-local (D5, the layout-default D7 precedent; the shell is
+  // the only consumer, no $common store). Commands are DECLARED here but the faces mount DISABLED (D4):
+  // the command ids do NOT exist in commandTable yet (D2) — a registered id that resolves to nothing is
+  // a worse lie than a disabled button. The countdown, per milestone (W-8):
+  //   6.1k enables diskette/load once layout.save / layout.load enter the table;
+  //   6.1l enables gear once widget.manager enters the table.
+  // onCommand={runCommand} is wired NOW (D3) so each follow-up is one table entry + one disabled flip.
+  const SHELF_BOTTOM = [
+    { icon: 'gear', label: 'Plugins', command: 'widget.manager', disabled: true },
+    { icon: 'diskette', label: 'Save UI state', command: 'layout.save', disabled: true },
+    { icon: 'load', label: 'Load UI state', command: 'layout.load', disabled: true },
   ];
 
   onMount(async () => {
@@ -180,6 +195,11 @@
 <div class="app-frame">
   <MenuBar {menus} platform={PLATFORM} onCommand={runCommand} id="app-menubar" />
 
+  <!-- Top shelf (M-RP6.1j): user favourites. Mounts EMPTY (D1) → [data-empty] → the skin collapses it
+    to height 0 (no stray hairline under the menu-bar). Registered (N-053) so pinning is a one-line
+    population later (surfaces §6 ④, gates nothing). aria-label distinguishes the two toolbars. -->
+  <Shelf position="top" items={[]} ariaLabel="Favourites" onCommand={runCommand} id="app-shelf-top" />
+
   <!-- The centre region shell (M-RP6.1f): renderer A reads the Layout descriptor and tiles placeholder
     leaves. It FILLS .app-center (no whole-grid scroll, D5) — each leaf owns its own scroll. -->
   <main class="app-center">
@@ -187,6 +207,11 @@
       <RegionShell {layout} widgets={widgetRegistry} id="region-root" />
     {/if}
   </main>
+
+  <!-- Bottom shelf (M-RP6.1j): system commands, sitting above the status-bar. All three faces mount
+    DISABLED (D4) — a visibly disabled control is an honest phase-limit (W-8), keyboard-reachable via
+    aria-disabled (not native disabled). Their commands enter commandTable at 6.1k/6.1l. -->
+  <Shelf position="bottom" items={SHELF_BOTTOM} ariaLabel="System" onCommand={runCommand} id="app-shelf-bottom" />
 
   <!-- The connection light + caption migrate here from the retired hand-rolled .state-indicator
     (D1); the SE grip is a supplementary corner resize affordance (D3). -->

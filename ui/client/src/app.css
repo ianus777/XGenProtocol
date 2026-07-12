@@ -43,3 +43,8 @@ body { margin: 0; }
 .app-center { flex: 1; min-height: 0; overflow: hidden; padding: 0; display: flex; }
 
 .app-frame > .status-bar { flex: 0 0 auto; }
+
+/* The shelves (M-RP6.1j) are fixed frame rows — the same kind of thing as the menu-bar and status-bar,
+ * so the same pin. Top shelf sits under the menu-bar, bottom shelf above the status-bar; the region grid
+ * fills what remains. All shelf *appearance* is skin.css (L2, N-090) — this is the only shelf line here. */
+.app-frame > .shelf { flex: 0 0 auto; }

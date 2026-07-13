@@ -20,7 +20,6 @@
   import { selfState, STATE_COLOURS, PULSING_STATES } from '$common/stores/self-state.svelte';
   import { selection } from '$common/stores/selection.svelte';
   import type { EntityDescriptor } from '$core/components/data-dependent/types';
-  import Section from '$core/components/data-independent/section.svelte';
   import EntityItem from '$core/components/data-dependent/entity-item.svelte';
   import StatusIndicator from '$core/components/data-independent/status-indicator.svelte';
 
@@ -66,22 +65,23 @@
   });
 </script>
 
+<!-- M-RP7.1 (D3): the <Section title="Self"> wrapper is UNWRAPPED — the tile frame draws the title now,
+  so a Section here would be a second title. The rows render directly; `section#region-self__section`
+  leaves the registry, the item/status children keep their own ids. -->
 <div class="self-panel" data-tier="widget" use:envelope={{ name: 'self-panel', id, debug }}>
-  <Section title="Self" id={cid('section')}>
-    <EntityItem
-      {descriptor}
-      variant="card"
-      {secondary}
-      {selected}
-      onActivate={() => selection.set(regionId, descriptor)}
-      id={cid('item')}
-    />
-    <StatusIndicator
-      states={STATE_COLOURS}
-      state={conn.state}
-      pulse={PULSING_STATES.includes(conn.state)}
-      caption={conn.label}
-      id={cid('status')}
-    />
-  </Section>
+  <EntityItem
+    {descriptor}
+    variant="card"
+    {secondary}
+    {selected}
+    onActivate={() => selection.set(regionId, descriptor)}
+    id={cid('item')}
+  />
+  <StatusIndicator
+    states={STATE_COLOURS}
+    state={conn.state}
+    pulse={PULSING_STATES.includes(conn.state)}
+    caption={conn.label}
+    id={cid('status')}
+  />
 </div>

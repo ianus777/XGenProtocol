@@ -1,28 +1,43 @@
 <script lang="ts">
   // region-node — the INTERNAL recursion part of renderer A (M-RP6.1f). NOT a catalogued component:
   // it carries NO `use:envelope`, so it registers NOTHING into window.__XGEN_DEBUG__ (the `sb-cell` /
-  // N-064 opt-out). A per-node registry getter would be pure ordinal noise — the meaningful registry
-  // entries are `region-shell` (one aggregate getter, §4) + each leaf's own component (`section#region-*`).
+  // N-064 opt-out). The meaningful registry entries are `region-shell` (one aggregate getter, §4) + each
+  // leaf's own `region-tile` (M-RP7.1) + the widget the tile hosts.
   //
   // It renders ONE resolved node:
-  //   - `leaf`  → a `.region-leaf` scroll box (D5 — the leaf is the scroller) hosting the widgetId's
-  //               component from the injected registry (the `message.svelte` widgets-registry shape, §0.1).
+  //   - `leaf`  → a `region-tile` (M-RP7.1) framing the widgetId's component from the injected registry.
+  //               The tile owns the chrome (stripe · fold · dead grips) and the scroll box (D5, ex-leaf).
   //   - `split` → a `.region-split` flex box; `dir` rides `data-dir` (the skin reads it — flex-direction
   //               is layout = skin, N-090), and each child gets its descriptor weight as an INLINE
-  //               `flex: {n} 1 0` (the ONE skin exception: `sizes[]` is DATA, so it rides inline like
-  //               `--led-colour` / `--meter-fill`; gaps/mins/overflow stay in skin.css, D4).
+  //               `flex: {n} 1 0` (the ONE skin exception: `sizes[]` is DATA — now applied by the tile
+  //               itself for a leaf, still here for a nested split; gaps/mins/overflow stay in skin.css).
+  //
+  // AXIS (M-RP7.1, D8): a split passes its OWN `dir` down to each child as `axis` — the parent split's
+  // direction, which is the axis a leaf collapses along. A leaf reflects it as the tile's `data-axis`.
+  // The root node (called from region-shell with no `axis`) defaults to `col` (a top-level degenerate
+  // leaf collapses to a horizontal stripe — the common case).
   import type { Component } from 'svelte';
   import type { ResolvedNode } from './resolve';
   import RegionNode from './region-node.svelte'; // self-import recursion (Svelte 5; no <svelte:self>)
+  import RegionTile from './region-tile.svelte';
 
   let {
     node,
     widgets,
+    titles = {},
+    onFold,
+    axis,
     flex,
   }: {
     node: ResolvedNode;
     widgets: Record<string, Component>;
-    /** Descriptor weight from the parent split; applied inline to THIS node's root (skin exception, D4). */
+    /** widgetId → display title (D2); resolved by the shell from CLIENT_PLUGINS + REGION_NAMES. */
+    titles?: Record<string, string>;
+    /** Fold toggle seam threaded to every tile (D6). */
+    onFold?: (regionId: string, collapsed: boolean) => void;
+    /** The PARENT split's `dir` — the axis this node collapses along (D8). Undefined at the root. */
+    axis?: 'row' | 'col';
+    /** Descriptor weight from the parent split; applied inline (skin exception, D4). */
     flex?: number;
   } = $props();
 
@@ -30,16 +45,23 @@
 </script>
 
 {#if node.type === 'leaf'}
-  {@const W = widgets[node.widgetId]}
-  <div class="region-leaf" style={flexStyle}>
-    {#if W}
+  <RegionTile
+    regionId={node.widgetId}
+    title={titles[node.widgetId] ?? node.widgetId}
+    collapsed={node.collapsed}
+    axis={axis ?? 'col'}
+    {flex}
+    {onFold}
+  >
+    {#if widgets[node.widgetId]}
+      {@const W = widgets[node.widgetId]}
       <W regionId={node.widgetId} />
     {/if}
-  </div>
+  </RegionTile>
 {:else}
   <div class="region-split" data-dir={node.dir} style={flexStyle}>
     {#each node.children as child, i (i)}
-      <RegionNode node={child} {widgets} flex={node.sizes[i]} />
+      <RegionNode node={child} {widgets} {titles} {onFold} axis={node.dir} flex={node.sizes[i]} />
     {/each}
   </div>
 {/if}

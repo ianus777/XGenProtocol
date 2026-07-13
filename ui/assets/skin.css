@@ -48,6 +48,14 @@
   /* Line-height (shared by controls + prose) */
   --lh: 1.5;
 
+  /* Region-tile fold rotation (M-RP7.1, D8.1) — the folded side-strip's reading direction. CW default
+   * (0deg, English book-spine); CCW = 180deg (bottom-to-top: DE/FR/CZ/SK/RU). A CULTURAL TOKEN, not a
+   * decision (D8.1a) — it becomes a user/theme setting when the theme key ships. It lives at :root, NOT on
+   * .region-tile, precisely so a :root/theme/documentElement override REACHES it: a local default on
+   * .region-tile out-specifies an inherited value and silently shadows any override (grounded — that trap
+   * cost a re-verify). .region-tile merely CONSUMES var(--region-fold-rotate). */
+  --region-fold-rotate: 0deg;
+
   /* Focus ring — accent-tinted (Q5 focus policy: accent). --accent2 is set
    * per-shell in app.css; --t3 is the neutral fallback if no shell accent. */
   --focus-ring: 0 0 0 2px var(--s2), 0 0 0 4px var(--accent2, var(--t3));
@@ -2770,7 +2778,7 @@ html, body {
 }
 /* the resolved root (a split, or a degenerate single leaf) fills the shell */
 .region-shell > .region-split,
-.region-shell > .region-leaf {
+.region-shell > .region-tile {
   flex: 1;
 }
 .region-split {
@@ -2782,11 +2790,138 @@ html, body {
 }
 .region-split[data-dir="row"] { flex-direction: row; }
 .region-split[data-dir="col"] { flex-direction: column; }
-/* the leaf — the scroller (D5); background is the panel surface the placeholder section sits on */
-.region-leaf {
+
+/* ──────────────────────────────────────
+ * region-tile (.region-tile*) — the tile frame (M-RP7.1). The chrome moved widget → renderer, so ALL of
+ *   its appearance is skin (D9 / N-090): stripe thickness, grips, triangle, the folded/rotated form and
+ *   hover states are ALL here — Joe retunes the whole look with zero component edit. The tunable
+ *   dimensions are the local custom properties below. Accent-NEUTRAL chrome (the region-shell / status-bar
+ *   no-accent precedent). PROVISIONAL (Joe live-tunes via HMR).
+ *
+ *   The tile is a flex child of a split (its `flex` weight rides inline — the N-090 DATA exception,
+ *   region-node). Internally a column: a fixed STRIPE + a growing BODY (the scroller, ex-.region-leaf, D5).
+ *   FOLD (D8): [data-collapsed] pins the tile to stripe size (flex:0 0 auto wins because the component
+ *   OMITS the inline flex weight while collapsed); the tile still fills its parent's cross-axis via the
+ *   split's default align-items:stretch, so NO HOLE is left. For a ROW-axis fold the stripe rotates to a
+ *   vertical side strip (writing-mode) — CW default, CCW via --region-fold-rotate (D8.1, a token). A
+ *   folded tile shows NO resize triangle (D8.2 — the {#if !collapsed} makes it element-absent). ── */
+.region-tile {
+  /* ── tunable tokens (Joe) ── */
+  --region-stripe: 22px;        /* stripe thickness: height (horizontal) / width (folded vertical) */
+  --region-grip: 14px;          /* move-grip square */
+  --region-resize: 12px;        /* SE resize triangle */
+  /* --region-fold-rotate is declared at :root (D8.1a) so a theme override reaches it — CONSUMED below,
+   * never re-declared here (a local default would shadow the override). */
+
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  position: relative;           /* anchors the absolute SE resize grip */
+  box-sizing: border-box;
+  background: var(--s);         /* the panel surface (ex-.region-leaf) */
+  overflow: hidden;             /* the BODY scrolls, not the tile */
+}
+/* Folded: shrink to stripe size along the collapse axis (the component omits the inline flex weight while
+ * collapsed, so this rule wins). Cross-axis fill comes from the parent split's align-items:stretch. */
+.region-tile[data-collapsed] { flex: 0 0 auto; }
+
+/* The stripe — a fixed horizontal bar [move-grip · title · fold]. --s2 band, --s5 hairline, dense text. */
+.region-tile-stripe {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+  height: var(--region-stripe);
+  padding: 0 var(--sp-1) 0 0;
+  background: var(--s2);
+  border-bottom: 1px solid var(--s5);
+  font-size: var(--fs-0);
+  color: var(--t2);
+}
+/* Move grip — PAINTED + DEAD this leg (drag = M-RP7.4). A neutral --t4 handle; NO move cursor (no claim).
+ * `inline-size` (NOT physical `width`) sizes the handle along the flex MAIN axis in BOTH orientations:
+ * horizontal stripe → 14px wide × full-height (stretch); folded vertical strip (writing-mode: vertical-rl)
+ * → 14px tall × full-width. Physical `width` collapsed the grip to 0 on the vertical axis (a real fold bug). */
+.region-tile-move {
+  flex: none;
+  align-self: stretch;
+  inline-size: var(--region-grip);
+  background: var(--t4);
+  cursor: default;
+}
+.region-tile-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Fold button — the ONE live control. A skin-drawn chevron (::before), flipped 180° on [data-collapsed]. */
+.region-tile-fold {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--t3);
+}
+.region-tile-fold::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-1px) rotate(45deg);  /* down-chevron (expanded → click to fold) */
+}
+.region-tile[data-collapsed] .region-tile-fold::before {
+  transform: translateY(1px) rotate(225deg);   /* up-chevron (folded → click to unfold) */
+}
+.region-tile:hover .region-tile-fold { color: var(--t2); }
+
+/* The body — the scroller (D5, ex-.region-leaf). Padding so an unwrapped widget body isn't flush. */
+.region-tile-body {
+  flex: 1;
   min-height: 0;
   min-width: 0;
   overflow: auto;
   box-sizing: border-box;
-  background: var(--s);
+  padding: var(--sp-2);
+}
+
+/* SE resize triangle — the reused status-bar clip-path grip (D7), flush in the corner. PAINTED + DEAD:
+ * pointer-events:none → no cursor, no claim (resize = M-RP7.2). Element-absent when folded (D8.2). */
+.region-tile-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: var(--region-resize);
+  height: var(--region-resize);
+  background: var(--t4);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+}
+
+/* Folded along a ROW axis → the stripe rotates to a vertical side strip (D8.1). writing-mode rotates the
+ * flex axis WITH the text, so [move · title · fold] stay top-to-bottom (CW default). --region-fold-rotate
+ * flips to CCW (bottom-to-top) with ZERO component change — the "it is a token, not a fork" proof (V3b). */
+.region-tile[data-axis="row"][data-collapsed] .region-tile-stripe {
+  writing-mode: vertical-rl;
+  transform: rotate(var(--region-fold-rotate));
+  flex: 1;                      /* fill the tile height (the stripe is the only child while folded) */
+  height: auto;
+  width: var(--region-stripe);
+  border-bottom: none;
+  border-right: 1px solid var(--s5);
+}
+
+/* Placeholder body (the six not-yet-built regions) — muted filler text in the tile body. */
+.region-placeholder {
+  color: var(--t3);
+  font-size: var(--fs-0);
 }

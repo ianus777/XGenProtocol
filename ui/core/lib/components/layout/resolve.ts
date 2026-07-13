@@ -18,7 +18,9 @@ import type { Layout, LayoutNode } from './types';
 
 /** The walked tree with unresolvable nodes removed. `tabs` never appears — renderer A drops it. */
 export type ResolvedNode =
-  | { type: 'leaf'; widgetId: string }
+  // `collapsed` is carried through VERBATIM (M-RP7.1, D5): the walk does not interpret it, the renderer
+  // does. A collapsed leaf still resolves (it is a folded tile, NOT a drop) — so `leafCount` is unchanged.
+  | { type: 'leaf'; widgetId: string; collapsed?: boolean }
   | { type: 'split'; dir: 'row' | 'col'; sizes: number[]; children: ResolvedNode[] };
 
 export interface ResolveResult {
@@ -47,7 +49,8 @@ export function resolveLayout(layout: Layout | null | undefined, knownIds: Set<s
     if (node.type === 'leaf') {
       if (knownIds.has(node.widgetId)) {
         leafIds.push(node.widgetId);
-        return { type: 'leaf', widgetId: node.widgetId };
+        // Carry `collapsed` through verbatim (D5) — a folded leaf is still a resolved, counted leaf.
+        return { type: 'leaf', widgetId: node.widgetId, collapsed: node.collapsed };
       }
       dropped.push(node.widgetId); // rule 2
       return null;

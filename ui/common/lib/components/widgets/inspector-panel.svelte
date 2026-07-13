@@ -23,7 +23,6 @@
   // stays reserved-unused), so the Name row below is NOT a duplicate.
   import { envelope } from '$common/components/base/envelope';
   import { selection } from '$common/stores/selection.svelte';
-  import Section from '$core/components/data-independent/section.svelte';
   import Label from '$core/components/data-independent/label.svelte';
   import Paragraph from '$core/components/data-independent/paragraph.svelte';
   import EntityAvatar from '$core/components/data-dependent/entity-avatar.svelte';
@@ -64,38 +63,38 @@
   });
 </script>
 
+<!-- M-RP7.1 (D3): the <Section title="Selection"> wrapper is UNWRAPPED — the tile frame draws the title
+  now. The rows render directly; `section#region-inspector__section` leaves the registry, the avatar/label
+  children keep their own ids. Root stays mounted (clear → exact return to baseline, the N-092a proxy). -->
 <div class="inspector-panel" data-tier="widget" use:envelope={{ name: 'inspector-panel', id, debug }}>
-  <Section title="Selection" id={cid('section')}>
-    {#if sel}
-      <!-- Header: the avatar renders kind→shape + id→seed + initials (no name, grounded). -->
-      <div class="inspector-head">
-        <EntityAvatar descriptor={sel.entity} variant="labeled" id={cid('avatar')} />
-      </div>
-      <!-- Rows (D3, the About `<dl>` shape): keys plain `<dt>`, values registry-visible `Label`. -->
-      <dl class="inspector-grid">
-        <dt>Kind</dt>
-        <dd><Label text={sel.entity.kind} id={cid('kind')} /></dd>
+  {#if sel}
+    <!-- Header: the avatar renders kind→shape + id→seed + initials (no name, grounded). -->
+    <div class="inspector-head">
+      <EntityAvatar descriptor={sel.entity} variant="labeled" id={cid('avatar')} />
+    </div>
+    <!-- Rows (D3, the About `<dl>` shape): keys plain `<dt>`, values registry-visible `Label`. -->
+    <dl class="inspector-grid">
+      <dt>Kind</dt>
+      <dd><Label text={sel.entity.kind} id={cid('kind')} /></dd>
 
-        <dt>Name</dt>
-        <!-- honest absence, the About guard — never a fake name -->
-        <dd><Label text={sel.entity.name ?? '—'} id={cid('name')} /></dd>
+      <dt>Name</dt>
+      <!-- honest absence, the About guard — never a fake name -->
+      <dd><Label text={sel.entity.name ?? '—'} id={cid('name')} /></dd>
 
-        <dt>ID</dt>
-        <dd><Label text={sel.entity.id} id={cid('id')} /></dd>
+      <dt>ID</dt>
+      <dd><Label text={sel.entity.id} id={cid('id')} /></dd>
 
-        <dt>Source</dt>
-        <!-- the field that makes R8 visibly a CROSS-REGION reader (the writer's regionId) -->
-        <dd><Label text={sel.regionId} id={cid('source')} /></dd>
+      <dt>Source</dt>
+      <!-- the field that makes R8 visibly a CROSS-REGION reader (the writer's regionId) -->
+      <dd><Label text={sel.regionId} id={cid('source')} /></dd>
 
-        {#if hasFlags}
-          <dt>Flags</dt>
-          <dd><Label text={flagNames.join(', ')} id={cid('flags')} /></dd>
-        {/if}
-      </dl>
-    {:else}
-      <!-- Empty state = the `entity-panel` pattern (D5): a composed Paragraph. Root + section stay
-        mounted (clear → exact return to baseline is the honest orphan proxy, N-092a). -->
-      <Paragraph text="Nothing selected" id={cid('empty')} />
-    {/if}
-  </Section>
+      {#if hasFlags}
+        <dt>Flags</dt>
+        <dd><Label text={flagNames.join(', ')} id={cid('flags')} /></dd>
+      {/if}
+    </dl>
+  {:else}
+    <!-- Empty state = the `entity-panel` pattern (D5): a composed Paragraph. -->
+    <Paragraph text="Nothing selected" id={cid('empty')} />
+  {/if}
 </div>

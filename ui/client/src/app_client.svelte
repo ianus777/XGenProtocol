@@ -9,7 +9,7 @@
   import UistateLoadDialog from './uistate-load-dialog.svelte';
   import PluginsDialog from './plugins-dialog.svelte';
   import { uiStateStore } from './uistate.svelte';
-  import { loadLayout, widgetRegistry } from './layout-default';
+  import { loadLayout, widgetRegistry, REGION_TITLES } from './layout-default';
   import { substitutions } from '$common/components/processor/store.svelte';
   // The self-state store (M-RP6.1g, D3) — ONE channel, TWO views: the shell WRITES it below (the existing
   // state listen + get_state + a once get_self_state invoke), and BOTH the status-bar (here) AND the
@@ -53,6 +53,25 @@
       get current() { return layout; },
       set(l) { layout = l; },
     };
+  }
+
+  // ── Fold (M-RP7.1, D6) ───────────────────────────────────────────────────────────────────────
+  // The tile's fold button toggles the descriptor's `collapsed`. Held in MEMORY this leg — the session
+  // feeder that PERSISTS `session.layout` is M-RP7.5 (D6). A pure rebuild (not an in-place proxy mutation)
+  // so we never mutate the shared DEFAULT_LAYOUT const, and the reassignment triggers the shell to
+  // re-resolve. `__XGEN_LAYOUT__.current` reflects the new tree immediately (the CDP fold proof).
+  function setLeafCollapsed(node, widgetId, collapsed) {
+    if (node.type === 'leaf') {
+      return node.widgetId === widgetId ? { ...node, collapsed } : node;
+    }
+    if (node.type === 'split') {
+      return { ...node, children: node.children.map((c) => setLeafCollapsed(c, widgetId, collapsed)) };
+    }
+    return node; // tabs (untouched — renderer A drops it anyway)
+  }
+  function handleFold(regionId, collapsed) {
+    if (!layout) return;
+    layout = { ...layout, root: setLeafCollapsed(layout.root, regionId, collapsed) };
   }
 
   // ── Keymap wiring (M-RP6.1d — the 6.1c-deferred shell half) ──────────────────────────────
@@ -261,7 +280,7 @@
     leaves. It FILLS .app-center (no whole-grid scroll, D5) — each leaf owns its own scroll. -->
   <main class="app-center">
     {#if layout}
-      <RegionShell {layout} widgets={widgetRegistry} id="region-root" />
+      <RegionShell {layout} widgets={widgetRegistry} titles={REGION_TITLES} onFold={handleFold} id="region-root" />
     {/if}
   </main>
 

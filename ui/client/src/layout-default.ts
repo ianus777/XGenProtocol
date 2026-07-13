@@ -16,6 +16,32 @@ export const REGION_IDS = [
   'spaces', 'rooms', 'self', 'room-header', 'stream', 'composer', 'members', 'inspector',
 ] as const;
 
+// Region display names (region-dock §2) — MOVED here from region-placeholder.svelte (M-RP7.1, D2). A
+// second copy of a name map is a D-067 drift surface, so it lives in ONE place and both the (unwrapped)
+// placeholder body and the tile title read it. These are the fallback titles for the SIX regions that are
+// NOT plugins; `self`/`inspector` ARE plugins and take their `CLIENT_PLUGINS` name instead (below).
+export const REGION_NAMES: Record<string, string> = {
+  spaces: 'R1 · Spaces',
+  rooms: 'R2 · Rooms',
+  self: 'R3 · Self / connection',
+  'room-header': 'R4 · Room header',
+  stream: 'R5 · Message stream',
+  composer: 'R6 · Composer',
+  members: 'R7 · Members',
+  inspector: 'R8 · Selection info',
+};
+
+// The tile-title map (M-RP7.1, D2): `plugin.name ?? REGION_NAMES[id] ?? id`, resolved ONCE here and
+// threaded through region-shell → region-node → region-tile. A placeholder is scaffolding, not a plugin
+// (M-RP6.1l/D5) and is NOT in CLIENT_PLUGINS, so the plugin `name` wins only for the two real region
+// widgets (self → "Self Panel", inspector → "Inspector Panel"); the other six fall to REGION_NAMES.
+const PLUGIN_NAMES: Record<string, string> = Object.fromEntries(
+  CLIENT_PLUGINS.filter((p) => p.surface === 'region' && p.regionId).map((p) => [p.regionId as string, p.name]),
+);
+export const REGION_TITLES: Record<string, string> = Object.fromEntries(
+  REGION_IDS.map((id) => [id, PLUGIN_NAMES[id] ?? REGION_NAMES[id] ?? id]),
+);
+
 // The registry map is DERIVED from CLIENT_PLUGINS (M-RP6.1l, D2): every region id → the placeholder,
 // then each plugin with `surface: 'region'` replaces ONE entry with its component. A widget is in the
 // grid BECAUSE it is a registered region plugin — one source (the registry), two readers (this map +
@@ -34,8 +60,11 @@ export const widgetRegistry: Record<string, Component> = {
 
 // DEFAULT_LAYOUT (D8) — exercises row + col + nesting, all 8 regions, NO unknown id, NO tabs (a broken
 // default is not a test fixture; the drop/tabs/mismatch paths are driven at verify via __XGEN_LAYOUT__).
+// `version: 2` (M-RP7.1, D5 / DoD 3) — the first schema bump since D-103 (leaf `collapsed`). The migrate
+// is a no-op: `collapsed` is optional, so a persisted v1 layout is a valid v2 layout (absent = expanded)
+// and `loadLayout`'s numeric-version guard already accepts it — a v1 store loads without transformation.
 export const DEFAULT_LAYOUT: Layout = {
-  version: 1,
+  version: 2,
   root: {
     type: 'split', dir: 'row', sizes: [1, 2, 7, 2], children: [
       { type: 'leaf', widgetId: 'spaces' },

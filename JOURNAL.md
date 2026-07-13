@@ -8,6 +8,101 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-516 — M-RP7.1b CLOSED: the fold axis is the user's, splits shrink-wrap, holes have a floor — and the project's migrate path finally RAN, twelve months after it was first written down
+
+**M-RP7.1b — the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor ✅ CLOSED.** Two code commits [Clair]: **`0f25e50`** (9 files, +331/−92) + **`14eb4d8`** (the `.region-title-buttons` wrapper, markup only). One appearance-fix commit [Chat, on Joe's review]. **Zero Rust · zero `ui/sampler` · zero `ui/node`** — verified by diffstat, not asserted.
+
+**Design was locked at J-515. Chat re-drove EVERY leg on the real client (Rule 5); not one number below was taken on report.**
+
+### What shipped
+
+**`collapsed` stopped being a flag and became a DIRECTION.** `FoldAxis = 'width' | 'height'`, **stored** — because it is **user intent, and user intent is not derivable from anything.** `version: 3`. The **along/across mode** stays **derived** (a fact about the tree, so it can go stale; the direction is a fact about the user, so it cannot). **The tile reflects `data-collapsed` · `data-axis` · `data-fold-mode`, and the SKIN does the rest** — `along` ⇒ `flex: 0 0 auto` and siblings absorb; `across` ⇒ the tile **keeps** its inline weight, takes `align-self: flex-start`, and **a hole opens**.
+
+**🔒 THE SPLIT SHRINK-WRAP (§4.4) — the part Joe did not ask for and the part that solved his screenshot.** A split whose children are **all folded ACROSS its own axis** collapses to their folded size and **returns its weight to its siblings by the `flex` they already have.** **Measured: the left column went 215px → 22px, and the freed 2/12 redistributed across the remaining three at EXACTLY `1:7:2`** (`127 / 888 / 254` against a computed `126.9 / 888.3 / 253.8`). **The hole closed to ZERO in the case Joe actually hit.** **The descriptor was never touched** — `rootSizes [1,2,7,2]`, `colSizes [3,1]` throughout. **Weights are not mutated by folding; they are ignored while folded and honoured again on unfold.**
+
+**⚠️ And it deliberately does NOT fire on a MIXED fold** (`[<]` + `[v]`): the column stays 215px wide and a 193px hole opens. **Verified reachable, and KEPT.** *The user asked for two different things and gets a column that fits neither. The raster explains it. **No magic, no guessing what they meant.***
+
+### 🔑 THE MIGRATE RAN. FOR THE FIRST TIME. EVER.
+
+**Grounded before the runbook was written: `migrate` DID NOT EXIST.** The word appeared **only in comments** (`types.ts:16-17`, `layout-default.ts:63`). **`version` had been bumped TWICE and there had never been a migrate FUNCTION at all.** *A path described in three documents and implemented in none is not a path; it is a plan.*
+
+**`migrateLayout` is now real** — `v2 → v3`: each `collapsed: true` leaf reads its parent's `dir` and gets the explicit direction (**the old derived rule, made honest**). **Six vitest cases, fed with hand-built `v2` trees** — both parent kinds, the root case, `false → key deleted`, idempotence, and garbage → default-never-throw.
+
+> **⚠️ Clair's hand-back said the live leg was NOT drivable** (`__XGEN_LAYOUT__.set()` bypasses the migrate). **It IS drivable, and Chat drove it:** plant a `v2` named state, then drive the **REAL Load dialog** — shelf face → combobox → Load → `handleUistateLoad` → `migrateLayout`. **Measured: `version 2→3` · `spaces` (ROW parent) → `'width'` · `rooms` (COL parent) → `'height'` · `self` (no key) → KEY STILL ABSENT, not `false`.** *A branch you cannot reach through the product is a branch you have not tested — and the way to reach it was three clicks, not a new harness.*
+
+**🔑 Two properties fell out of the live run that no test would have shown:**
+1. **A migrated v2 layout is HOLE-FREE BY CONSTRUCTION.** Both migrated tiles render `foldMode: "along"` — because the **old derived rule only ever folded ALONG the parent axis.** **Nobody's saved workspace can come back from this schema change with a hole in it.**
+2. **The migrate NEVER REWRITES THE STORED STATE.** It is a **read-path transform**: the saved record stays `v2` on disk forever and re-migrates on every load. **Idempotent, non-destructive, and it never silently edits a file the user wrote.**
+
+### ⚠️ THE DEVIATION — FLAGGED BY CLAIR (Rule 6), BLESSED, AND IT WAS THE RUNBOOK'S BUG
+
+`migrateLayout(raw, **fallback**)` — not the runbook §4's bare `migrateLayout(raw)`. **The runbook said it should fall back to `DEFAULT_LAYOUT`** — but **`resolve.ts` is `core` and `DEFAULT_LAYOUT` is SHELL-LOCAL.** Chat's runbook would have made **`core` import the client's default tree: a second source of truth for the default, which is the exact D-067 drift the J-499 grounding killed.** **She injected it from the shell instead and preserved N-095's never-null.** **The deviation is correct and the runbook was wrong.** *(Rule 6 earned its keep: an implementer who absorbs a bad instruction silently ships the architect's mistake.)*
+
+### 🔒 CONVENTION A — and the label was never true of the build (Joe, on review)
+
+Joe locked *"convention B (disclosure)"* at J-515. **He ran it, and found the vertical chevron pointing the wrong way.** He was right, and the reason is sharper than a wrong rotation:
+
+> **WE NEVER SHIPPED CONVENTION B.** The **WIDTH** button was **always convention A** (open `<` = *"I will go LEFT"*; B would have pointed `>`, at the content). **Only the HEIGHT button spoke disclosure** (open `v` = *"my body is below"*) — taken straight from Joe's original `[<][V]` sketch, **which mixes the two conventions in a single stripe.** **And the skin comment sitting directly above the rotations already described convention A, correctly.** ***The label was wrong, the prose was right, and one rotation value contradicted both.***
+
+**🔒 THE RULE NOW, no exceptions: THE CHEVRON ALWAYS POINTS WHERE THE REGION WILL GO IF YOU PRESS IT** — enabled or disabled, folded or not. Unfolded `<` / `^`; folded, the live button points **back** (`>` / `v`); **the disabled button keeps its open glyph, still truthfully naming what it WOULD do.** **The fix was TWO ROTATION VALUES SWAPPED. The width button was never wrong.**
+
+**→ N-116.** *Re-reading the chapter would never have caught this: **the chapter was self-consistent and the CODE was not.** M-RP7.1's arc slot said its purpose was "this is where Joe sees it and corrects the appearance" — and for the second milestone running, that slot has paid for the whole leg.*
+
+**And `.region-title-buttons` got its gap** — `--region-fold-gap: 0` in the tile's tunable-token block. **⚠️ `gap: 0` alone would have been DEAD:** the span shipped `display: inline`, where **`gap` is INERT** — **and an inert knob IS a reservation** (§4.3.1: *RESERVE NOTHING*). **`display: inline-flex` is what makes it a control.** *The test: can Joe change the value today and see the render move? Yes. Then it is a knob with a declared default, not a placeholder.*
+
+### ⏸️ `M-RP-SKIN` — THE APPEARANCE PASS. FILED (Joe, 2026-07-13)
+
+Joe: ***"majority of graphical elements will be changed or updated after ui mechanics completion."***
+
+**🔑 This is the NAMED DISCHARGER for every `PROVISIONAL` marker in the grid arc** — the hole raster, the chevrons, the stripe/grip/triangle sizing, the folded strip's form. **The countdown rule, satisfied at ARC scale instead of per-element: WHO = Joe, WHICH MILESTONE = `M-RP-SKIN`.** *It is not a deferral of a decision. **You cannot tune an appearance whose mechanics are still moving underneath it.** Every provisional in this arc now points somewhere; none of them points at nothing.*
+
+### MEASURED — Chat re-drove all of it
+
+| gate | result |
+|---|---|
+| `npm test` (**`ui/sampler`**) | **49** (43 → 49; **+6 migrate**) |
+| `vite build` (**`ui/client`**) | **168 modules**, clean |
+| `cargo test --workspace` | **1517 / 0 / 62 — IDENTICAL.** 56 terminators asserted; **run twice.** *The inverse leg: identical PROVES no Rust landed.* |
+| sampler catalogue | **328** — launched and counted, unchanged |
+| client registry | **67** — quiescent, empty store, **no selection**, nothing folded |
+| ratios | `[1,2,7,2]` **exact at 1291px** (a 7th distinct width) |
+
+**CDP legs, all reproduced:** `[v]` in a `col` → **along** (h:22 stripe, width kept, sibling absorbs to 785, `flex` omitted, no hole) · `[<]` in a `col` → **across** (w:22 strip, h:202 kept, `align-self:flex-start`, **`flex` KEPT**, **193px hole**, raster painted, **tile opaque**) · `[<]` on **both** → **shrink-wrap** (215→22, `flex` omitted, **hole 0**, `1:7:2` exact) · **mixed** → no false shrink-wrap · **buttons** (unused one `aria-disabled="true"` **with `tabIndex:0`** — keyboard-reachable, native `disabled:false`; **clicking it is a true no-op**; the used one's `aria-disabled` is **ABSENT, not `"false"`**; unfold → **exactly 67**, key **deleted**) · **migrate live** · **the bus survives the fold** (self folded ACROSS, inspector still renders `kind:'identity'`, `rowCount:4` — *an unfed branch is an unverified branch, and this is the arc's only proof the mechanics do not lean on their content*) · **accent-neutral** (byte-identical under magenta, `readable:true` asserted first) · **no double-rotation** (stripe `vertical-rl`, glyph angles **identical** inside the rotated strip: 315°/225°).
+
+### 🔑 A FOURTH REGISTRY AXIS — AND IT LIVES ON DISK (N-115)
+
+Found while chasing an unexpected count: **ONE SAVED UI STATE ADDS EXACTLY +4 TO THE REGISTRY.** Measured by id-diff, not inferred:
+
+```
+textfield#uistate-load-pick__input · combobox#uistate-load-pick
+button#uistate-load-go            · button#uistate-load-del
+```
+
+The Load dialog's picker and its two action buttons are **element-absent when there is nothing to pick** — **which is CORRECT** (J-500's own posture) — and materialise the moment one state exists.
+
+> **`67` is only true on a machine with ZERO saved UI states. One click on the diskette and the client reads 71 FOREVER.** Every later baseline would then be off by 4 **on a machine where nothing is wrong** — **N-108's exact shape, except the "data file" is one the USER writes with a button in the UI.**
+>
+> **⚠️ And `71` is now AMBIGUOUS: selection-active = 71. Zero-selection + one-saved-state = 71. Same number, two causes.**
+
+**Axes now: quiescence (N-105) · store contents (N-108) · selection (N-112) · named-state count (N-115).**
+
+**⚠️ One anomaly, HONESTLY UNRESOLVED and deliberately not chased (Joe: *"we will see if this issue will generate problems in the future. leave it right now"*).** On **one** client launch the registry read **71** with **Joe's real identity auto-selected** (real pubkey — not Chat's probe entity). **Three subsequent fresh launches all rested at 67 with no selection.** `self-panel` selects on `onActivate` (a click), never on mount — so **something activated it, and Chat could not establish what.** **Filed, not explained. No cause is invented here.** *It does, though, VALIDATE N-112 rather than dent it: one click on the self-panel moves the baseline by 4.*
+
+### ⚠️ TWO OF CHAT'S OWN CHECKS LIED THIS SESSION — neither was the build's fault (N-117)
+
+1. A `FAILED|panicked` grep over the cargo log matched **`0 failed`** case-insensitively → **58 phantom failures** against a suite with zero.
+2. **The accent-neutrality leg CLICKED and READ in ONE eval.** Svelte had not flushed, so the "before" read was the **PRE-fold DOM** — and the comparison ran across **two different fold states**. **Chat nearly recorded a false accent-leak.** *N-099 says split the state-change and the DOM-read across two evals. This is the near-miss that proves it, and Chat broke its own rule to produce it.*
+
+### Still NOT locked
+
+**⚠️ NO FOLD `D`.** Joe's word at J-515 was *"honestly i have to see it in practice."* **He has now seen it, and has not asked for the lock.** **Phase-0 v1.4 carries the design; `DECISIONS.md` carries what Joe has decided.** **D-116 still stands alone.**
+
+**Filed, not touched:** recursive shrink-wrap (a split of splits) · the rotation-direction user setting · the **`mergeClasses` dedupe sweep** (N-113 — seen again live this session: the load dialog renders `class="combobox combobox"`) · persistence (**M-RP7.5**) · the grid lock (**M-RP7.6**) · **`M-RP-SKIN`**.
+
+**🟢 NEXT-ACTIVE = M-RP7.2 — splitter resize on the seam.**
+
+---
+
 ## Entry J-515 — M-RP7.1b DESIGN LOCKED: the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor — and the milestone that found it was the one whose whole job was to be looked at
 
 **🟢 M-RP7.1b — the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor. DESIGN LOCKED 2026-07-13 (Joe).** Runbook `tasks/M_RP7_1B_FOLD_AXIS.md` · `docs/xgen-dock-engine-phase0.md` → **v1.3** (§4.1 rewritten · §4.3 amended · **new §4.4 + §4.5** · §7.1 amended · §11 renumbered). **⚠️ NO NEW `D`, AND THAT IS THE POINT — see below.**

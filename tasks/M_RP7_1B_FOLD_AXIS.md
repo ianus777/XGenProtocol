@@ -1,12 +1,32 @@
 # M-RP7.1b — the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor
-> **Status**: PENDING  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-13  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+## ✅ CLOSE (J-516) — what actually happened
+
+**Shipped:** `0f25e50` + `14eb4d8` [Clair] + the appearance fix [Chat]. **9 files, zero Rust, zero sampler, zero node** (diffstat-verified). **Chat re-drove every leg (Rule 5).**
+
+**⚠️ §4 OF THIS RUNBOOK WAS WRONG, AND CLAIR CAUGHT IT.** It specified `migrateLayout(raw): Layout` falling back to `DEFAULT_LAYOUT` — **but `resolve.ts` is `core` and `DEFAULT_LAYOUT` is SHELL-LOCAL.** That would have made **`core` import the client's default tree: a second source of truth, the exact D-067 drift the J-499 grounding killed.** She flagged it (Rule 6) and shipped `migrateLayout(raw, **fallback**)`, injected from the shell, N-095's never-null preserved. **The deviation is BLESSED and the runbook was the defect.** ***Rule 6 earned its keep: an implementer who silently absorbs a bad instruction ships the architect's mistake.***
+
+**⚠️ §10's leg 6 said the live migrate was not drivable. It WAS.** The way in was **the product itself**: plant a `v2` named state → **shelf face → combobox → Load** → `handleUistateLoad` → `migrateLayout`. **Measured live: `version 2→3` · `spaces` (ROW parent) → `'width'` · `rooms` (COL parent) → `'height'` · `self` → key still ABSENT.** ***A branch you cannot reach through the product is a branch you have not tested — and it was three clicks, not a new harness.***
+
+**🔒 The chevron convention flipped on Joe's review: CONVENTION A (direction of travel), not B.** **⚠️ And "convention B" was never true of the build — the WIDTH button was always A; only the HEIGHT button spoke disclosure, from Joe's original `[<][V]` sketch, which mixes the two.** The fix was **two rotation values swapped**. → **N-116.**
+
+**Also landed:** `.region-title-buttons` → `display: inline-flex` + `gap: var(--region-fold-gap)` (**`0`**, in the tile's tunable-token block). **⚠️ `gap: 0` alone would have been DEAD** — on the shipped `display: inline` a `gap` is **inert**, and **an inert knob IS a reservation** (§4.3.1). **The `inline-flex` is what makes it a control.**
+
+**MEASURED (Chat, all re-driven):** registry **67** (quiescent · empty store · no selection · nothing folded · **zero saved UI states**) · `cargo test` **1517/0/62 IDENTICAL** (56 terminators, run twice) · `npm test` **49** · `vite build` **168** · sampler catalogue **328** · ratios `[1,2,7,2]` exact at **1291px** · shrink-wrap **215→22px**, freed 2/12 redistributed at **exactly `1:7:2`**, **hole 0** · mixed fold → **no false shrink-wrap** (193px hole, kept) · the **bus survives the fold** · **accent-neutral** · **no double-rotation**.
+
+**🔑 NEW, found during the re-drive: N-115 — ONE SAVED UI STATE ADDS +4 TO THE REGISTRY, AND IT PERSISTS TO DISK.** `67` is only true with **zero** saved UI states. **`71` is now ambiguous** — it is both "selection active" and "one saved state". **N-117** — two of Chat's own checks lied (a case-insensitive grep; a click-and-read in one eval). ***Both times the liar was the instrument, not the build.***
+
+**⚠️ NO FOLD `D` LOCKED.** Joe has now seen it run and has not asked for one. **D-116 still stands alone.**
 
 ---
 

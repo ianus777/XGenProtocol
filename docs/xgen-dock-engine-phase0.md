@@ -1,6 +1,6 @@
 # XGen Client — The Dock Engine (Renderer B): Phase-0
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-13  
 > Language: English  
@@ -109,9 +109,28 @@ Layout = { version: number, root: LayoutNode }
 >
 > **→ DoD: the migrate is EXERCISED in vitest against a HAND-BUILT `v2` tree with `collapsed: true` leaves under BOTH a `row` parent and a `col` parent.** **Fed, not asserted** — the N-091 rule applied to the one branch in this codebase that has never once run.
 
-**Appearance (Joe's, §0):** the two glyphs are **one chevron, rotated** — the fold button is already an **empty `<button>`** whose chevron the **skin** paints, so this costs **zero new icons**. ⚠️ **But the glyph is now LOAD-BEARING** — with one button a chevron could indicate *state*; with two it must indicate *which way*. **Joe locked convention B (disclosure — what ships today): `[<]` / `[v]` when open, flipping to `[>]` / `[^]` when folded.**
+**Appearance (Joe's, §0):** the two glyphs are **one chevron, rotated** — the fold button is already an **empty `<button>`** whose chevron the **skin** paints, so this costs **zero new icons**. ⚠️ **But the glyph is now LOAD-BEARING** — with one button a chevron could indicate *state*; with two it must indicate *which way*.
 
-> **⚠️ THE DOUBLE-ROTATION TRAP — name it before it bites.** A width-folded strip is the title bar under `writing-mode: vertical-rl`, which **rotates the whole stripe, INCLUDING ITS BUTTONS.** So a `[<]` glyph inside a rotated strip **is already turned by 90° for free.** **The skin must not rotate it a second time.** *(§4.3's "same content, same DOM order" survived the one-button design because a lone chevron's orientation carried no meaning. It does now.)*
+> ### 🔒 **CONVENTION A — DIRECTION OF TRAVEL. LOCKED (Joe, 2026-07-13, after seeing it run.)**
+> **THE CHEVRON ALWAYS POINTS WHERE THE REGION WILL GO IF YOU PRESS IT** — enabled or disabled, folded or not. **One rule, no exceptions.**
+>
+> | state | `[width]` | `[height]` |
+> |---|---|---|
+> | **unfolded** | `<` (135°) — *I will go LEFT* | `^` (225°) — *I will go UP* |
+> | **folded-height** | `<` (135°), **disabled** — still names what it WOULD do | `v` (45°) — *I will come back DOWN* |
+> | **folded-width** | `>` (−45°) — *I will come back RIGHT* | `^` (225°), **disabled** |
+>
+> *(Base `::before` = a 6×6 box with right+bottom borders. 45° = `v` · 135° = `<` · 225° = `^` · −45° = `>`.)*
+
+**⚠️ v1.3 RECORDED "convention B (disclosure)" AND THAT LABEL WAS NEVER TRUE OF THE BUILD.** Joe's original sketch was `[<][V]`, which **mixes the two conventions in one stripe** — and the code shipped exactly that mix. **The WIDTH button was ALWAYS convention A** (open `<` = *travel*; B would have pointed `>`, at the content). **Only the HEIGHT button spoke disclosure** (open `v` = *"my body is below"*). **Two languages, one stripe, and the skin comment sitting directly above the rotations already described convention A correctly.** *The label was wrong, the prose was right, and one rotation value contradicted both.*
+
+> **→ THE FIX WAS TWO ROTATION VALUES SWAPPED. THE WIDTH BUTTON WAS NEVER WRONG.** *(And this is what M-RP7.1's arc slot was FOR — "this is where Joe sees it and corrects the appearance." It caught a mixed metaphor that no amount of re-reading the chapter would have surfaced, because **the chapter was self-consistent and the CODE was not**.)*
+
+**🔒 The two buttons sit in `.region-title-buttons` — ONE addressable unit** (Joe, 2026-07-13), `display: inline-flex`, `gap: var(--region-fold-gap)`, **`--region-fold-gap: 0`** in the tile's tunable-token block. **Zero because the chevron glyphs are SQUARE (16×16) and already carry their own optical spacing; a narrower glyph would need a real value.**
+
+> **⚠️ `gap: 0` IS A KNOB, NOT A RESERVATION — and only because of the `inline-flex`.** On the shipped `display: inline` default a `gap` would have been **INERT**, and **an inert knob IS a reservation** (§4.3.1 — *RESERVE NOTHING*). **The test: can Joe change the value today and see the render move? Yes.** → it is a live control with a declared default. *(It also fixes the stripe's own gap landing between the TITLE and the span rather than between the buttons — the wrapper is now a single box.)*
+
+> **⚠️ THE DOUBLE-ROTATION TRAP — named before it bit, and it did not bite.** A width-folded strip is the title bar under `writing-mode: vertical-rl`, which **rotates the whole stripe, INCLUDING ITS BUTTONS.** **A border-box `::before` is NOT rotated by `writing-mode`** — so the chevron's `transform` is the ONLY rotation on the glyph. **Measured: the angles inside the rotated strip are IDENTICAL to the unrotated case (315° / 225°).** *(§4.3's "same content, same DOM order" survived the one-button design because a lone chevron's orientation carried no meaning. It does now.)*
 
 ### 4.1-H — Original §4.1, kept as history. ⚠️ **SUPERSEDED (Joe, 2026-07-13). Its claim *"No hole is ever created"* is FALSE — see §4.5 and N-111.**
 
@@ -332,13 +351,21 @@ Joe: *"can we in this phase create just empty regions without context with full 
 | # | milestone | scope |
 |---|---|---|
 | 1 | **✅ M-RP7.1 — the tile frame: stripe, grip, fold** | **CLOSED J-514** (`4c2f886`). Chrome moved widget → renderer. `collapsed` entered the descriptor (`version: 2`, migrate a no-op). The eight `Section` roots unwrapped. **Joe saw it — and the appearance review produced §4.1/§4.4/§4.5, which is exactly what this leg was for.** |
-| 1b | **🟢 M-RP7.1b — the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor** | **NEW.** Two fold buttons (§4.1) · the direction stored on the leaf · along-fold absorbs / across-fold holes · **the split shrink-wrap (§4.4)** · **the raster under the holes (§4.5)** · `v2 → v3` **and the FIRST REAL MIGRATE, exercised in vitest**. **⚠️ Before 7.2** — it re-opens the descriptor and **7.2 must not carry a schema change**. **⚠️ And §4.4 ships WITH §4.1, never after it: two buttons without the shrink-wrap is a thin strip beside a huge hole — STRICTLY WORSE than today.** *Shipping the disease and the cure a week apart is how a bad appearance gets defended.* |
-| 2 | **M-RP7.2 — splitter resize on the seam** | The 1px `.region-split` gap becomes a drag handle. Weights snap to the quantum. Pure `sizes[]` arithmetic — the cheapest real mechanic, **and it lands the trusted-mouse-event harness the rest of the arc needs.** |
+| 1b | **✅ M-RP7.1b — the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor** | **CLOSED J-516** (`0f25e50` + `14eb4d8` [Clair] + the appearance fix [Chat]). Two fold buttons (§4.1) · `collapsed` is now a **DIRECTION** (`'width' \| 'height'`) · along-fold absorbs / across-fold holes · **the split shrink-wrap (§4.4)** · **the raster under the holes (§4.5)** · `v2 → v3` and **`migrateLayout` CREATED — the first migrate this project has ever run**, exercised in vitest AND driven live through the real Load dialog. **Convention A locked after Joe saw it run.** |
+| 2 | **🟢 M-RP7.2 — splitter resize on the seam** | The 1px `.region-split` gap becomes a drag handle. Weights snap to the quantum. Pure `sizes[]` arithmetic — the cheapest real mechanic, **and it lands the trusted-mouse-event harness the rest of the arc needs.** |
 | 3 | **M-RP7.3 — the mutation algebra (pure)** | The new module beside `resolve.ts`: `move` · `fold` · `resize`, remove → collapse-degenerate → insert → re-normalise. **Vitest, no DOM, no gestures.** |
 | 4 | **M-RP7.4 — drag to dock: grip, edge bands** | The algebra gets a pointer. Four edge bands per tile, inert centre. **⚠️ A HOLE IS NOT A DROP TARGET (§4.5).** **Where the arc's real cost lives.** |
 | 5 | **M-RP7.5 — the session layout feeder** | The grid finally **writes `session.layout`** — see §12. |
 | 6 | **M-RP7.6 — the grid lock: freeze arrangement, keep function** | **NEW (Joe, 2026-07-13).** A 4th bottom-shelf face freezing fold + resize + drag; **normal function untouched.** **⚠️ IT CANNOT SHIP EARLIER — TODAY IT WOULD GUARD NOTHING** (drag and resize do not exist; a lock over one verb is a button whose whole meaning is a promise — the painted-dead chrome this project keeps refusing). **Three grounded costs:** ① **it is the FIRST STATEFUL shelf face** — grepped: `shelf-face` has `active` (roving) and `disabled` (guard) and **NO pressed/toggle concept**, so `aria-pressed` is a real change to a **shipped `core`**; ② **`locked` wants to live in `session`, where RUST writes `geometry` and the frontend writes `layout`** — **N-107 one level deeper: that object must be merged PER-KEY, never replaced** → **it lands AFTER M-RP7.5**; ③ **"lock the top shelf too" locks an EMPTY BOX today** — `app_client.svelte:277` mounts it `items={[]}` and the skin collapses it to height 0; **there is no pinning verb** → the top shelf joins the day favourites exist. |
 | 7 | **M-RP7.7 — node app inherits the frame + grid** | *(the long-filed bare `M-RP7.x`, numbered per Rule 8; **renumbered from 7.6 at J-515**.)* Lands **after** the arc, so it inherits a **working** grid rather than building the frame twice. |
+
+> ### ⏸️ **`M-RP-SKIN` — THE APPEARANCE PASS. FILED 2026-07-13 (Joe): *"majority of graphical elements will be changed or updated after UI mechanics completion."***
+>
+> **🔑 THIS IS THE NAMED DISCHARGER FOR EVERY `PROVISIONAL` MARKER IN THIS ARC**, and it is the reason none of them is a countdown that needs its own. The hole raster (§4.5) · the fold chevrons · the stripe/grip/triangle sizing · the folded strip's form — **all ship provisional ON PURPOSE and are all tuned in one pass, once the mechanics are done and there is something real to look at.**
+>
+> *This is the countdown rule satisfied at ARC scale rather than per-element: **WHO** = Joe, **WHICH MILESTONE** = `M-RP-SKIN`. It is NOT a deferral of a decision — it is the recognition that **you cannot tune an appearance whose mechanics are still moving underneath it.** Every provisional in the grid arc points here; none of them points at nothing.*
+>
+> **⚠️ It is a SKIN pass — `skin.css` and tokens only** (N-090 / N-025). If it turns out to need a component change, that is a FINDING, not a licence: **the component change is its own milestone.**
 
 ---
 

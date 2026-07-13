@@ -1,6 +1,6 @@
 # XGen UI — Region / Dock Model
 > **Status**: ACTIVE  
-> Version: 2.0  
+> Version: 2.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-13  
 > Language: English  
@@ -65,22 +65,53 @@ A single registry holds all region-owning widgets: the static system set (R1–R
 A serializable tree. Leaves reference widgets by id; splits and tabs compose them. This single structure is the contract both renderers honour, and it round-trips to disk (save/restore layouts).
 
 ```
+FoldAxis  = "width" | "height"                                   // ← M-RP7.1b: a DIRECTION, not a flag
+
 LayoutNode =
-  | { type: "leaf",  widgetId: string, collapsed?: boolean }   // ← + collapsed (M-RP7.1)
+  | { type: "leaf",  widgetId: string, collapsed?: FoldAxis }    // ← collapsed (M-RP7.1 → 7.1b)
   | { type: "split", dir: "row" | "col", sizes: number[], children: LayoutNode[] }
-  | { type: "tabs",  active: number, children: LayoutNode[] }  // still typed, still DROPPED
-Layout = { version: number, root: LayoutNode }
+  | { type: "tabs",  active: number, children: LayoutNode[] }    // still typed, still DROPPED
+Layout = { version: number, root: LayoutNode }                   // version: 3
 ```
 
-> ### ✅ **SCHEMA DELTA — `collapsed?: boolean` ON A LEAF (M-RP7.1, J-514). `version: 2`.** The **first schema change since D-103**, and **exactly one field**.
+> ### 🔒 **SCHEMA — `collapsed?: FoldAxis` ON A LEAF. `version: 3` (M-RP7.1b, J-516).**
 >
-> - **Optional → an absent key means expanded**, so **every layout already on disk stays valid** and **migrate is a NO-OP**. The `version` bump is taken anyway, because §9's migrate path had **never been exercised** and this is its first honest customer. *(It still has not run. It is bumped twice now and has migrated nothing — see §9.)*
-> - **`collapsed` is a property of the TILE (the `leaf`), NOT of the widget.** The widget does not know it is folded; it is simply not rendered. ***A widget that could observe its own fold state would be a widget that could fight it.***
-> - **🔒 D-116 (Joe, 2026-07-13) — THE DOCK REARRANGES; IT NEVER JOINS.** A target tile is an **ADDRESS**, not a container: **no centre drop-zone** (a tile's centre is inert), **no tabs are ever produced**, **no docked/undocked mode**. **`tabs` stays TYPED and stays DROPPED** — the door is **shut, not locked**: zero cost, zero schema change if it is ever wanted, and **re-opening it is an EXPLICIT act, never a rider on a drag milestone.**
+> **`collapsed` names WHAT IS COLLAPSED, not where the strip goes** — because the strip's position is **not a free choice**: it parks at the tile's **leading edge**. `'width'` ⇒ a vertical strip at the left. `'height'` ⇒ a horizontal stripe at the top. **Absent ⇒ expanded.**
 >
-> **⚠️ AND THE FOLD AXIS IS NOT SETTLED HERE.** M-RP7.1 shipped `collapsed` as a boolean with the fold **axis DERIVED from the parent split's `dir`**. **Joe superseded that at J-515** — the axis becomes the **user's choice** (two buttons: fold-to-left / fold-to-top), which turns `collapsed` into a **direction**, not a flag. **That is `M-RP7.1b — the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor`, and it carries the `v2 → v3` bump and the FIRST REAL MIGRATE.** **No fold `D` is locked until it has been built and Joe has looked at it** (his words: *"honestly i have to see it in practice"*). → **Do not treat the `collapsed: boolean` above as final. It is one milestone old and already superseded in design.**
+> **🔑 It is `'width' | 'height'` and NOT `'left' | 'top'`, deliberately.** *A direction vocabulary invites a fourth value later (`'right'`, `'bottom'`), and the lock is **two axes, not four directions**. **Name the thing you mean and the wrong extension stops being sayable.***
 >
-> **⚠️ AND FOLD CREATES HOLES — measured, not predicted (J-514).** Fold **every** child of a split and the split **under-fills**: empty space opens that no sibling can absorb. **This contradicts the dock Phase-0 §4.1's *"No hole is ever created"***, which reasoned about a single tile's **cross** axis and was silent about the **main** one. **§7.1's *"no holes, rectangles only"* is AMENDED (J-515): rectangles only; HOLES ARE LEGAL and are painted as a system area.** **A hole is INERT — it is NOT a drop target** (it has no address; D-116). *A proof about one node is not a proof about the tree.*
+> **THE AXIS IS THE USER'S, AND IT IS STORED — because it is user INTENT, and user intent is not derivable from anything.** *(M-RP7.1 derived it from the parent split and stored nothing. **The technique was not the error; applying it to the wrong field was.** A fact about the TREE can go stale → derive it. A fact about WHAT THE USER ASKED FOR cannot → store it.)*
+>
+> **The ALONG/ACROSS mode stays DERIVED** at render, from `collapsed` + the parent split's `dir`:
+> - **ALONG** the parent's dividing axis (`'height'` in a `col`) → `flex: 0 0 auto` → **siblings absorb** → **no hole**.
+> - **ACROSS** it (`'width'` in a `col`) → the tile **KEEPS** its inline weight, takes `align-self: flex-start`, collapses only its **cross** dimension → **nobody can absorb the freed space** → **a HOLE**.
+>
+> **`collapsed` is a property of the TILE, NOT of the widget.** The widget does not know it is folded; it is simply not rendered. ***A widget that could observe its own fold state would be a widget that could fight it.***
+
+> ### 🔒 **A SPLIT SHRINK-WRAPS WHEN ALL ITS CHILDREN FOLD ACROSS IT (M-RP7.1b §4.4). DERIVED, NEVER STORED.**
+> **Fold is a LEAF verb. A split's size is a SPLIT property, living in the PARENT's `sizes[]`.** A leaf verb **cannot reach** a split property — so folding every child of a column could never make the column narrower. **→ a split whose children are ALL folded ACROSS its own axis takes `flex: 0 0 auto` and its siblings absorb the freed weight by the `flex` they already have.**
+>
+> **Measured (J-516):** the left column **215px → 22px**, the freed `2/12` redistributed across the remaining three at **exactly `1:7:2`**, **hole 0**. **`sizes[]` is NEVER MUTATED** — weights are *ignored* while folded and *honoured again* on unfold.
+>
+> **❌ `collapsed` on a SPLIT node was REJECTED:** a leaf takes its title from `CLIENT_PLUGINS.name`; **a split has NO NAME** → it would need a name field, a naming UI, and **chrome on every split, nested, forever** = **a group container promoted back to a MAIN FORM**, the exact thing the chrome collision (§4 / dock §5) killed.
+>
+> **⚠️ Scope: LEAVES only.** A split containing a nested split does **not** shrink-wrap. **Recursive shrink-wrap is FILED, not built.** **⚠️ And a MIXED fold deliberately does NOT shrink-wrap** — the split stays wide and a hole opens. **Kept.** *The user asked for two different things and gets a container that fits neither. **No magic, no guessing what they meant.***
+
+> ### ⚠️ **HOLES ARE LEGAL, PAINTED, AND INERT. §7.1's "no holes" IS RETIRED (Joe, 2026-07-13).**
+> **Rectangles only; holes are legal and are painted as a SYSTEM AREA** (a background on the split container — the hole is **flex leftover space, not an element**; zero new DOM, one skin rule). **🔒 A HOLE IS NOT A DROP TARGET** — **a target tile is an ADDRESS (D-116), and a hole has NO ADDRESS.** Want a tile there? **Drop on the EDGE of the tile above it.** *(Allow drops into holes and we have quietly built free 2-D placement and **retired the tree** — which means retiring this descriptor, not extending it.)*
+>
+> **⚠️ D-116 IS NOT WEAKENED:** its ground is Joe's constraint (*"never mixing or joining"*), **not** the geometry. *Correct the rhetoric; do not touch the decision.*
+
+> ### ✅ **`migrateLayout` — THE FIRST MIGRATE THIS PROJECT HAS EVER RUN (M-RP7.1b).**
+> **⚠️ Before this milestone, `migrate` DID NOT EXIST.** The word appeared **only in comments**; `version` had been bumped **TWICE** and there was **no function at all**. ***A path described in three documents and implemented in none is not a path; it is a plan.***
+>
+> **`v2 → v3`:** each `collapsed: true` leaf reads its **parent's `dir`** and gets the explicit direction — **the old derived rule, made honest** (`row` → `'width'`, `col` → `'height'`, root → `'height'`). `false`/absent → **the key is DELETED, never written as `false`**. `v3+` → returned untouched (idempotent). Unreadable → the injected fallback; **it never throws** (N-095 — *recover to the default, never to a blank centre*).
+>
+> **🔑 It takes the fallback as a PARAMETER (`migrateLayout(raw, fallback)`).** `resolve.ts` is **`core`**; `DEFAULT_LAYOUT` is **SHELL-LOCAL**. **Core cannot own a default tree without becoming a second source of truth for it — the exact D-067 drift the J-499 grounding killed.** **The shell injects it.**
+>
+> **🔑 Two properties, both only visible on the LIVE run:** **① a migrated `v2` layout is HOLE-FREE BY CONSTRUCTION** — the old derived rule only ever folded **ALONG**, so **no saved workspace can come back from this schema change with a hole in it.** **② the migrate NEVER REWRITES THE STORED STATE** — it is a **read-path transform**; the saved record stays `v2` on disk and re-migrates on every load. **It never silently edits a file the user wrote.**
+>
+> **⚠️ AND A LAYOUT CAN BE ON DISK ALREADY:** `app_client.svelte` has been persisting layouts inside **NAMED UI STATES** since M-RP6.1k. §12's *"nothing writes `session.layout`"* is **true**, and it was **read as "nothing writes a layout"**, which is **false**. ***A true sentence in a chapter is not a true sentence about the codebase.***
 
 - **Config-grid renderer (A, M-RP6.1+): ✅ BUILT at M-RP6.1f (J-499)** — `region-shell` (`core`, the **32nd**). Renders a restricted subset: **`leaf` + `split` only**, fixed `sizes`, **no runtime mutation**. Rearranging = editing the descriptor (or the DEV `__XGEN_LAYOUT__` handle). A **`tabs` node is DROPPED with a DEV warn** (renderer B owns tabs — an unfed branch would be an unverified branch, D-065/N-091). A `leaf` whose `widgetId` the registry cannot resolve is **DROPPED** — the same prop-injected `widgets: Record<widgetId, Component>` shape `message.svelte` already shipped (W-13 reconcile; **one mechanism, not two** — N-093). A `split` whose children all drop collapses; a `sizes`/`children` length mismatch degrades to equal weights + a warn. **It never throws** — see §9's stale-tree rule, and its one live gap in the note there. `sizes[]` ride an **inline `flex: {n} 1 0`** (descriptor **data**, not skin — the one carve-out from N-090).
 - **Dock engine renderer (B, M-RP7):** renders the full tree, supports `tabs`, and **mutates the tree** on drag-drop (hover-to-plug-in) + splitter resize.

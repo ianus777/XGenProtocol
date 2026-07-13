@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.83  
+> Version: 0.84  
 > Date: May 2026  
 > **Last updated**: 2026-07-13  
 > Language: English  
@@ -2430,6 +2430,78 @@ A folded leaf takes `flex: 0 0 auto` and its **siblings absorb the freed space**
 *(This is **N-099** — *a check whose subject is absent still returns an answer, and the answer is always the flattering one* — lifted from the eval to the process. The subject was **a run that no longer existed**, and its corpse was still legible. **Assert the subject is COMPLETE before asserting anything about it.**)*
 
 **And a second tooling trap from the same session, same shape:** **the client CDP bridge WRAPS getters** — `get(id)` returns `{type, state}`. Read `get(id).foo` and you get **`null` for every field** — which looks **exactly** like a component that mounted and failed to bind. The correct read is **`get(id).state.foo`**. *A wrapper you forgot about does not throw; it hands you a perfectly-shaped nothing.*
+
+---
+
+### N-115 — the registry breathes with the NAMED-UI-STATE COUNT, and that count LIVES ON DISK (2026-07-13, M-RP7.1b / J-516 — the fourth axis, and the only one a USER can move)
+
+**N-105:** count only when **quiescent**. **N-108:** the registry breathes with the **store contents**. **N-112:** it breathes with the **selection state**. **N-115 is the fourth — and it is the dangerous one, because it PERSISTS.**
+
+**Found by accident, while chasing an unexpected `71` during the M-RP7.1b re-drive. Measured by ID-DIFF, not inferred:**
+
+> ### **ONE SAVED UI STATE ADDS EXACTLY +4 TO THE CLIENT REGISTRY.**
+>
+> ```
+> textfield#uistate-load-pick__input · combobox#uistate-load-pick
+> button#uistate-load-go            · button#uistate-load-del
+> ```
+
+**The Load dialog's picker and its two action buttons are ELEMENT-ABSENT when there is nothing to pick** — **and that is CORRECT** (J-500: *the absent slot ships absent, not faked* — a picker with nothing to pick, and a Load button that can load nothing, are **missing verbs**, not disabled ones). **They materialise the moment one saved state exists.**
+
+**→ `67` IS ONLY TRUE ON A MACHINE WITH ZERO SAVED UI STATES.** **Click the diskette once and the client reads `71` forever.** Every later milestone's baseline comparison is then **off by four on a machine where nothing is wrong** — **N-108's exact shape, except the "data file" is one the USER writes with a button in the UI.**
+
+> ### **⚠️ AND THE COLLISION IS VICIOUS: `71` IS NOW AMBIGUOUS.**
+> **selection active → 71.** **zero selection + one saved state → 71.** **Same number. Two causes. Neither visible in the number.**
+
+> ### **→ THE RULE: a baseline states QUIESCENCE + STORE + SELECTION + FOLD + SAVED-STATE-COUNT, or it is a number, not a measurement.**
+
+*(**⚠️ One anomaly is FILED and DELIBERATELY UNEXPLAINED** (Joe: *"we will see if this issue will generate problems in the future. leave it right now"*). One client launch rested at **71** with **Joe's real identity auto-selected** — the real pubkey, not a probe entity. **Three subsequent fresh launches all rested at 67 with no selection.** `self-panel` selects on `onActivate` — **a click, never a mount** — so **something activated it and the cause was NOT established. No cause is invented here.** It does, though, **validate** N-112 rather than dent it: **one click on the self-panel moves the baseline by four.**)*
+
+---
+
+### N-116 — a SELF-CONSISTENT chapter cannot catch a MIXED METAPHOR in the code (2026-07-13, M-RP7.1b / J-516 — the chevron)
+
+**The dock Phase-0 recorded that Joe had locked *"convention B (disclosure)"* for the fold chevrons.** He ran the build and said the **vertical** chevron pointed the wrong way. **He was right — and the reason is much worse than a wrong rotation.**
+
+> ### **THE BUILD NEVER SPOKE CONVENTION B. IT SPOKE BOTH AT ONCE.**
+> - The **WIDTH** button was **always convention A** — open `<` = *"I will go LEFT"* (**direction of travel**). Convention B would have pointed `>`, **at the content**.
+> - Only the **HEIGHT** button spoke **disclosure** — open `v` = *"my body is below"*.
+>
+> **Two languages. One stripe. Four glyphs, and only one of them was wrong.**
+
+**The origin is traceable to a single character.** Joe's original sketch was **`[<][V]`** — which **already mixed the conventions** — and the implementer took the glyphs from the sketch while the label came from the walk. **Neither party was careless: each did exactly what the record said.**
+
+**🔑 AND THE CODE COMMENT DIRECTLY ABOVE THE ROTATIONS ALREADY DESCRIBED CONVENTION A, CORRECTLY** — *"the button points the way it will fold when OPEN, and flips to the unfold direction when THAT axis is folded."* ***The label was wrong, the prose was right, and one rotation value contradicted both — in the same twelve lines.***
+
+> ### **→ THE RULE: GREPPING THE CHAPTER CANNOT FIND THIS CLASS OF DEFECT. The chapter was self-consistent. The CODE was not.**
+>
+> **This is the exact complement to the grounding discipline** (*"a concept you cannot remember is not a concept that does not exist"*). **Grounding protects you from re-inventing what the record already says. It gives you NOTHING against a record that says the right thing while the code does something else.** ***Only running it finds that — and only a person who did not write either one will see it.***
+
+**🔒 The fix was TWO ROTATION VALUES SWAPPED. The width button was never wrong.** The rule now: **the chevron always points where the region will GO if you press it** — enabled or disabled, folded or not; **the disabled button keeps its open glyph, still truthfully naming what it WOULD do.**
+
+*(**M-RP7.1's arc table said its purpose was "this is where Joe sees it and corrects the appearance." For the SECOND milestone running, that slot has paid for the whole leg** — M-RP7.1 gave up the hole (N-111), M-RP7.1b gave up this. **A "look at it" milestone is not a courtesy. It is a verification instrument, and it finds the class of bug that no other instrument can reach.**)*
+
+---
+
+### N-117 — a state change and a DOM read in ONE eval reads the PRE-render DOM (2026-07-13, M-RP7.1b / J-516 — the near-miss that proves N-099)
+
+**N-099 says: split the state-change and the DOM-read across TWO evals.** **Chat broke its own rule during the M-RP7.1b re-drive, and nearly wrote a false finding into the record.**
+
+The accent-neutrality leg did this:
+
+```js
+button.click();                          // fold the tile
+return getComputedStyle(el).color;       // ← SAME EVAL. Svelte has NOT flushed.
+```
+
+**The read came back from the PRE-FOLD DOM.** The "after" read, in a later call, came from the **post-fold** DOM. **So the before/after comparison spanned TWO DIFFERENT FOLD STATES** — and duly reported a colour change. **Chat was one step from recording an ACCENT LEAK in a component that is perfectly accent-neutral.**
+
+> ### **→ THE RULE: `click()` and `getComputedStyle()` in one eval are NOT sequential. Svelte's flush is a microtask; the eval returns first. SEPARATE CALLS, ALWAYS — and the reason is not tidiness, it is that the stale read LOOKS LIKE A MEASUREMENT.**
+
+**Same session, same shape, second instance:** a `Select-String -Pattern 'FAILED|panicked'` over a `cargo test` log matched **`0 failed`** — PowerShell regex is **case-insensitive by default** — and reported **58 failures in a suite with zero.**
+
+> ### **🔑 BOTH TIMES, THE LIAR WAS THE CHECK, NOT THE BUILD.**
+> *N-099's family (N-091 · N-097 · N-099 · N-109 · N-110 · N-111 · N-114) is usually about a check pointed at the **wrong subject**. These two are about a check that was **wrong in itself** — and both produced a **plausible, complete-looking, confidently-wrong number**. **When a re-drive turns up a surprise, the FIRST suspect is the instrument.***
 
 ---
 

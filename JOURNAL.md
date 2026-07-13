@@ -8,6 +8,77 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-515 — M-RP7.1b DESIGN LOCKED: the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor — and the milestone that found it was the one whose whole job was to be looked at
+
+**🟢 M-RP7.1b — the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor. DESIGN LOCKED 2026-07-13 (Joe).** Runbook `tasks/M_RP7_1B_FOLD_AXIS.md` · `docs/xgen-dock-engine-phase0.md` → **v1.3** (§4.1 rewritten · §4.3 amended · **new §4.4 + §4.5** · §7.1 amended · §11 renumbered). **⚠️ NO NEW `D`, AND THAT IS THE POINT — see below.**
+
+**Design-only. No code. The runbook goes to Clair.**
+
+### 🔑 The finding was a screenshot
+
+M-RP7.1's own arc table said its purpose was *"this is where Joe sees it and corrects the appearance."* **He did, and it corrected more than the appearance.** He folded two regions, saw the empty band the shipped build leaves behind, and raised three things. **They turned out to be one thing.**
+
+**⚠️ The holes are NOT a consequence of the new design. They are IN THE SHIPPED BUILD.** Phase-0 §4.1 promised *"No hole is ever created"* — **true about a tile's CROSS axis, silent about the MAIN one.** Fold **every** child of a split and the split under-fills. **N-111: a proof about one node is not a proof about the tree** — the §4.1 argument reasoned about a single tile, and **a single tile cannot see its siblings.** *(Sixth in the family: N-091 · N-097 · N-099 · N-109 · N-110 · N-111. The first five are a **check** that saw the wrong subject; this one is a **proof** that saw too small a subject.)*
+
+### 🔒 What Joe locked
+
+**① The fold axis is the USER'S CHOICE — two buttons.** `[<]` folds to the left (collapses **width** → vertical strip); `[v]` folds to the top (collapses **height** → horizontal stripe). **When folded, the unused button is DISABLED and the used one unfolds.** **Two axes, NOT four directions.**
+
+> **What it costs, honestly: §4.1's elegant free property DIES.** *"Drag a folded tile from a column into a row and it re-orients itself"* — gone. **And it is the right trade: that property was elegant for the TREE and SURPRISING for the PERSON.** A user who folds a thing, drags it, and finds it has silently changed shape has not been served by an invariant. **Joe's rule is boring and predictable: I chose left; it stays left.**
+>
+> **And it finishes a sentence §4.1 only half-wrote.** §4.1's stated goal was *"foldability must not be an accident of placement"* — **it made fold AVAILABLE everywhere and left the DIRECTION an accident of the tree.**
+
+**② A split SHRINK-WRAPS when all its children fold ACROSS it (§4.4).** **This is the part Joe did not ask for and it is the part that actually solves his screenshot.**
+
+> **The mechanical fact he was hitting:** the left column is a `col` split with weight **2 of 12** in the outer `row`. **Fold is a LEAF verb. A split's width is a SPLIT property, in the PARENT's `sizes[]`. A leaf verb cannot reach a split property.** → **fold Rooms and Self any way you like and that column is still 2/12 wide.**
+>
+> **❌ The obvious fix was rejected on Joe's own lock:** `collapsed` on a **split** node. A leaf gets its title from `CLIENT_PLUGINS.name`; **a split has NO NAME** → it needs a name field, a UI to set it, and **chrome on every split, nested, forever**. ***That is a group container promoted back to a MAIN FORM*** — the exact thing §5 killed (*"group containers will be contained, but not as a main form"*). **It would undo his own lock to solve a problem his other idea already solves.**
+>
+> **✅ Instead: a split whose children are ALL folded across its own axis shrink-wraps.** Fold Rooms `[<]` and Self `[<]` → every child is strip-wide → **the column shrink-wraps and the `2` goes back to the message stream. And the hole closes with it** — two strips stacked in a strip-wide column leave **no leftover space at all**. **→ the case Joe actually hit produces NO hole under this rule.**
+>
+> **It costs NOTHING NEW:** no descriptor field (**derived from the children** — a stored flag would go stale the instant a child unfolds, **D-067 in miniature, for the second time in one arc**) · no name, no chrome, splits stay invisible · and the mechanic is **byte-for-byte the one a folded leaf already uses** (`flex: 0 0 auto`, siblings absorb). **One rule, two node types.**
+>
+> **⚠️ And it deliberately does NOT fire on mixed folds** (`[<]` + `[v]`): the column stays wide and a hole opens. **Kept.** *The user asked for two different things and gets a column that fits neither. **No magic, no guessing what they meant.***
+
+**③ Holes are LEGAL, PAINTED, and INERT (§4.5).** **§7.1's *"no holes, rectangles only"* is AMENDED — by the man who accepted it on 2026-07-12, in the open, on 2026-07-13.** Now: **rectangles only; holes are legal and are painted as a system area.** Mechanically the hole is **flex leftover space inside a split, not an element** → **the raster is a BACKGROUND on the split container. Zero new DOM, one skin rule.** It ships **provisional** — *you cannot tune a raster under holes you have not seen*.
+
+> ### 🔒 **AND THE LOCK THAT MATTERS FOR M-RP7.4: A HOLE IS INERT. IT IS NOT A DROP TARGET.** D-116 says a target tile is an **ADDRESS**; **a hole has no address.** Want a tile there? **Drop on the EDGE of the tile above it.** ***If we let people drop into holes we have quietly built free 2-D placement and retired the tree*** — which means retiring D-103's descriptor, not extending it.
+>
+> **⚠️ D-116 IS NOT WEAKENED BY ANY OF THIS.** §2 argued *"in a space-filling tree there is no empty space to drop into"* — now only *mostly* true. **But D-116's ground is Joe's constraint (*"never mixing or joining"*), NOT the geometry.** ***Correct the rhetoric; do not touch the decision.*** *(And §7.1's lattice refusal survives untouched for the same reason: **a lattice lets you PUT things in holes; we merely let holes EXIST.**)*
+
+### ⚠️ NO `D` WAS LOCKED, ON JOE'S WORD
+
+Joe: ***"your recomm (c). honestly i have to see it in practice."***
+
+**D-117 was drafted at the Phase-0 walk and is now dead without ever having been written.** And **the replacement is NOT being locked either.** Phase-0 v1.3 carries the design — **that is what a Phase-0 is for.** `DECISIONS.md` carries **what Joe has decided**, and **he has told us he has not.**
+
+> ***A `D` locked for a design its author has said he needs to see first is not a decision. It is a prediction wearing a decision's clothes.*** **→ the fold `D` enters the record after M-RP7.1b ships and Joe has looked at it. D-116 stands alone.**
+
+### 🔑 Two grounded finds that changed the runbook before it was written
+
+**① `migrate` DOES NOT EXIST.** Grepped `ui/**`: the word appears **only in comments** (`types.ts:16-17`, `layout-default.ts:63`). **`version` has been bumped TWICE and there has never been a migrate FUNCTION at all.** → **M-RP7.1b CREATES it, it does not extend it.** *A path described in three documents and implemented in none is not a path; it is a plan.*
+
+**② ⚠️ A LAYOUT CAN ALREADY BE ON DISK — and the Phase-0 said the opposite by accident.** §12 stated *"nothing writes `session.layout`"*, which is **true** — and it was **read as "nothing writes a layout"**, which is **false**. **`app_client.svelte:227` has been persisting layouts inside NAMED UI STATES since M-RP6.1k.** Measured on disk 2026-07-13: `named: {}` — **empty. So migration is free TODAY — BY LUCK, NOT BY DESIGN.** **One click on the diskette lands a `v2` tree with `collapsed` booleans on disk.**
+
+> **→ The answer is not "don't click the diskette." The answer is: WRITE THE REAL MIGRATE.** `v2 → v3`: for each `collapsed: true` leaf, read the parent's `dir` and write the explicit direction — **the old derived rule, made honest.** **~10 lines. And its DoD is that it is EXERCISED in vitest against hand-built `v2` trees under BOTH parent kinds** — **fed, not asserted** (N-091, applied to **the one branch in this codebase that has never once run**).
+
+### The arc, amended (§11)
+
+**✅ M-RP7.1** (CLOSED) · **🟢 M-RP7.1b** (this) · M-RP7.2 — splitter resize on the seam · M-RP7.3 — the mutation algebra (pure) · M-RP7.4 — drag to dock: grip, edge bands · M-RP7.5 — the session layout feeder · **M-RP7.6 — the grid lock: freeze arrangement, keep function** (NEW) · **M-RP7.7 — node app inherits the frame + grid** (was 7.6).
+
+**🔒 M-RP7.1b ships §4.1 AND §4.4 TOGETHER, never apart.** **Two buttons without the shrink-wrap is a thin strip beside a huge hole — STRICTLY WORSE than what ships today.** ***Shipping the disease and the cure a week apart is how a bad appearance gets defended.***
+
+### ⚠️ M-RP7.6 — the grid lock: Joe's 3rd idea, and it CANNOT ship yet
+
+Joe wants a 4th bottom-shelf face that **freezes arrangement while leaving function untouched** — so ordinary use cannot accidentally re-arrange the grid. **Right, and deferred to the END of the arc, because TODAY IT WOULD GUARD NOTHING:** drag does not exist (7.4), resize does not exist (7.2), and **a lock over one verb is a button whose whole meaning is a promise** — the painted-dead chrome this project keeps refusing (J-500 / 6.1j).
+
+**Three costs, grepped not guessed:**
+1. **It is the FIRST STATEFUL SHELF FACE.** `shelf-face` has **`active`** (roving) and **`disabled`** (guard) and **NO pressed/toggle concept.** `aria-pressed` is a **real change to a shipped `core`**.
+2. **`locked` wants to live in `session`** — where **Rust writes `geometry`** and **the frontend writes `layout`**. **N-107 one level deeper: that object must be merged PER-KEY, never replaced.** → **it lands AFTER M-RP7.5.**
+3. **"Lock the top shelf too" locks an EMPTY BOX today** — `app_client.svelte:277` mounts it `items={[]}` and the skin collapses it to height 0. **There is no pinning verb.** → the top shelf joins the day favourites exist.
+
+---
+
 ## Entry J-514 — M-RP7.1 — the tile frame: stripe, grip, fold CLOSED — and the tile that can fold opened a hole the chapter said could not exist
 
 **M-RP7.1 — the tile frame: stripe, grip, fold ✅ CLOSED.** One code-only commit [Clair]: **`4c2f886`** (12 files, +433/−93). Design was locked at the dock-engine Phase-0 walk (`docs/xgen-dock-engine-phase0.md` v1.2); this is the implementation, its verification, and **one finding that cost the arc a new milestone before the next one started.**

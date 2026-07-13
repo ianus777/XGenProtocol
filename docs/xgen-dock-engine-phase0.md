@@ -1,8 +1,8 @@
 # XGen Client — The Dock Engine (Renderer B): Phase-0
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-12  
+> **Last updated**: 2026-07-13  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -79,7 +79,41 @@ Layout = { version: number, root: LayoutNode }
 - Optional → **an absent key means expanded**, so **every layout already on disk stays valid** and a migrate is a no-op today. The `version` bump is still taken, because §9's migrate path has **never been exercised** and this is its first honest customer.
 - **`collapsed` is a property of the TILE (the `leaf` node), not of the widget.** The widget does not know it is folded; it is simply not rendered. *(A widget that could observe its own fold state would be a widget that could fight it.)*
 
-### 4.1 🔒 A TILE COLLAPSES ALONG ITS PARENT SPLIT'S AXIS — SETTLED (Joe, 2026-07-12)
+### 4.1 🔒 THE FOLD AXIS IS THE USER'S CHOICE — TWO BUTTONS (Joe, 2026-07-13). **SUPERSEDES the derived-axis rule below.**
+
+**⚠️ v1.2's §4.1 derived the fold axis from the parent split. It shipped at M-RP7.1, Joe looked at it, and replaced it.** The original is kept below as §4.1-H — **and its central claim, *"No hole is ever created"*, is FALSE. See §4.5.**
+
+> ### 🔒 **THE RULE: an unfolded tile shows TWO fold buttons. The user picks the axis.**
+> - **`[<]` — fold to the LEFT.** Collapses **width** → a **vertical strip** at the tile's leading edge.
+> - **`[v]` — fold to the TOP.** Collapses **height** → a **horizontal stripe** at the tile's top.
+> - **When folded, the button that was NOT used is DISABLED; the one that WAS used unfolds the tile.**
+>
+> **Two axes — NOT four directions.** The strip/stripe parks at the tile's **leading edge** (top for `[v]`, left for `[<]`); the freed space opens on the far side. Four directions would be four buttons and buy nothing.
+
+**Why the derived axis was the wrong call, in Joe's own terms.** v1.2's stated goal was *"foldability must not be an accident of placement"* — **and it only half-solved it.** It made fold *available* everywhere and left the **direction** an accident of the tree. **A user who folds a tile, drags it, and finds it has silently changed shape has not been served by an elegant invariant.** *The re-orient-on-drag property was elegant for the TREE. It was surprising for the PERSON.* Joe's rule is boring and predictable: **I chose left; it stays left.**
+
+**🔑 The descriptor consequence — `collapsed` stops being a flag and becomes a DIRECTION.** The axis is now **stored**, because it is **user intent**, and user intent is not derivable from anything. *(v1.2's D-067 worry — "a stored direction goes stale when the tile is dragged" — was **the wrong worry**: it treated the fold axis as a fact about the tree, which can go stale. It is a fact about **what the user asked for**, which cannot.)*
+
+**🔑 But the tile must still know BOTH.** The skin needs the **user's direction** *and* whether that direction runs **ALONG or ACROSS its parent's axis** — because those two cases lay out completely differently:
+
+| | CSS | space | hole? |
+|---|---|---|---|
+| **ALONG** the parent's axis (e.g. `[v]` in a `col`) | `flex: 0 0 auto` | **siblings absorb the freed space** | **no** |
+| **ACROSS** the parent's axis (e.g. `[<]` in a `col`) | keeps `flex: {n} 1 0`, `align-self: start`, cross-size = strip | **nobody can absorb it** — the freed space runs along an axis the siblings do not divide | **YES** — §4.5 |
+
+**→ the tile reflects the direction (which drives the rotation) AND the along/across mode (which drives absorb-vs-hole).** Both are **derived-at-render from the descriptor + the parent's `dir`** — **only the user's DIRECTION is stored.** *(The mode is a fact about the tree, so it stays derived; the direction is a fact about the user, so it is stored. **The v1.2 rule stored nothing and derived everything; the error was not the technique, it was applying it to the wrong field.**)*
+
+**⚠️ MIGRATION — `v2 → v3`, AND IT IS THE FIRST REAL ONE.** `version` has now been bumped twice and **migrated nothing both times** (§9's migrate path has **never executed**). This bump writes the real thing: **for each `collapsed: true` leaf, read its parent's `dir` and write the equivalent direction** — the old derived rule, made explicit. **~10 lines.**
+
+> **⚠️ AND IT IS NOT DEAD CODE, THOUGH IT LOOKS LIKE IT.** Measured on Joe's disk 2026-07-13: `xgen-client_uistate.json` has **`named: {}`** — **no layout exists anywhere.** So the migrate has **nothing to migrate today — by LUCK, not by design.** `app_client.svelte:227` (`uiStateStore.save(name, { layout: ... })`) **has been persisting layouts since M-RP6.1k**, so **one click on the diskette lands a `v2` tree with `collapsed` booleans on disk.** *(v1.2's §12 said "nothing writes `session.layout`" — true, and it was **read as "nothing writes a layout"**, which is false. The `named` path was never in view.)*
+>
+> **→ DoD: the migrate is EXERCISED in vitest against a HAND-BUILT `v2` tree with `collapsed: true` leaves under BOTH a `row` parent and a `col` parent.** **Fed, not asserted** — the N-091 rule applied to the one branch in this codebase that has never once run.
+
+**Appearance (Joe's, §0):** the two glyphs are **one chevron, rotated** — the fold button is already an **empty `<button>`** whose chevron the **skin** paints, so this costs **zero new icons**. ⚠️ **But the glyph is now LOAD-BEARING** — with one button a chevron could indicate *state*; with two it must indicate *which way*. **Joe locked convention B (disclosure — what ships today): `[<]` / `[v]` when open, flipping to `[>]` / `[^]` when folded.**
+
+> **⚠️ THE DOUBLE-ROTATION TRAP — name it before it bites.** A width-folded strip is the title bar under `writing-mode: vertical-rl`, which **rotates the whole stripe, INCLUDING ITS BUTTONS.** So a `[<]` glyph inside a rotated strip **is already turned by 90° for free.** **The skin must not rotate it a second time.** *(§4.3's "same content, same DOM order" survived the one-button design because a lone chevron's orientation carried no meaning. It does now.)*
+
+### 4.1-H — Original §4.1, kept as history. ⚠️ **SUPERSEDED (Joe, 2026-07-13). Its claim *"No hole is ever created"* is FALSE — see §4.5 and N-111.**
 
 **The question that forced it:** fold-to-one-line is a **height** concept, but the tree has two directions. `spaces` sits in a **`row`** split, whose children are **full-height by definition** — a row split divides *width*. **A stripe-tall box in a row split would leave empty space below it**, and §7.1 locks *no holes, rectangles only*. **Folding a row-parented tile to stripe HEIGHT is geometrically unsayable.**
 
@@ -99,7 +133,7 @@ Layout = { version: number, root: LayoutNode }
 
 ### 4.2 Fold supplies the minimum tile size — for free
 
-A tile can never be smaller **along its parent's axis** than its own stripe, **because that is what folded means.** So **no `minSize` field enters the descriptor.** One concept, two jobs.
+A tile can never be smaller **along its FOLD axis** than its own stripe, **because that is what folded means.** So **no `minSize` field enters the descriptor.** One concept, two jobs. *(v1.2 read "along its PARENT'S axis" — corrected at v1.3: the fold axis is now the user's, §4.1.)*
 
 > **🔒 A splitter drag that would push a tile below stripe height STOPS. It does not auto-fold.** Auto-fold makes a *resize* secretly a *state change*, and the user cannot tell what they did. **Fold is a button.** The two verbs stay separate.
 
@@ -107,7 +141,9 @@ A tile can never be smaller **along its parent's axis** than its own stripe, **b
 
 Joe: *"it has to contain something for the user's orientation and overview — everything that is in the title bar, rotated 90°."*
 
-**Same content, same component, same DOM order: grip · title · fold.** Nothing dropped, nothing substituted. *(An icon-instead-of-name was considered and **rejected**: a plugin has a `name`, it does **not** have a glyph — that is `M-RP-ICON-ADOPT` work, and it would make the **folded** form say **less** than the unfolded one.)*
+**Same content, same component, same DOM order: grip · title · `[<]` · `[v]`.** Nothing dropped, nothing substituted — **and with two buttons this rule now does REAL work: both buttons stay PRESENT when folded** (one disabled), so the rotated strip's content is identical to the unfolded stripe's. *(An icon-instead-of-name was considered and **rejected**: a plugin has a `name`, it does **not** have a glyph — that is `M-RP-ICON-ADOPT` work, and it would make the **folded** form say **less** than the unfolded one.)*
+
+> **⚠️ THE DISABLED BUTTON IS CORRECT HERE, AND THE PROJECT'S OWN RULE SAYS SO.** J-513: *a control is disabled only for a reason **true of that thing**.* **"This region is already folded the other way" IS a true state of that button** — unlike §4.3.2's triangle, where the verb simply **does not exist**. **So: the triangle is ABSENT; the unused fold button is DISABLED.** *Same milestone, two different answers, and the difference is not aesthetic — one is a missing verb, the other is a live verb in a state that forbids it.* **It is NOT a countdown** (N-109) — nothing later "discharges" it; it flips back the moment the tile unfolds.
 
 ### 4.3.1 ⚠️ THE ROTATION DIRECTION IS CULTURAL — A TOKEN, NOT A DECISION
 
@@ -133,6 +169,52 @@ Joe: *"it has to contain something for the user's orientation and overview — e
 **A folded tile has no resizable dimension of its own.** Its collapsed axis is pinned at stripe size **by definition** (§4.2), and its cross-axis belongs to its **parent**, not to it.
 
 **→ the corner grip is ELEMENT-ABSENT when `collapsed`, not greyed.** *(J-500: the absent slot ships **ABSENT, not faked**. J-513: a control is disabled only for a reason **true of that thing** — "you cannot resize this" is not a **state** of the triangle, it is the **absence of the verb**.)*
+
+### 4.4 🔒 A SPLIT SHRINK-WRAPS WHEN ALL ITS CHILDREN FOLD ACROSS IT (Joe-locked, 2026-07-13)
+
+**The problem §4.1 alone does NOT solve, and it is the one Joe actually saw on screen.**
+
+In the shipped tree the left column is a `col` split with weight **2 of 12** in the outer `row`. **Fold Rooms and Self any way you like and that column is STILL 2/12 wide.** Because:
+
+> **Fold is a LEAF verb. A split's width is a SPLIT property, living in the PARENT's `sizes[]`. A leaf verb cannot reach a split property.**
+
+The only verbs that touch `sizes[]` are **resize** (§6 / M-RP7.2) and **move** (M-RP7.4). **So without this section, §4.1's `[<]` would give the user a thin strip beside a HUGE hole — strictly worse than what ships today.**
+
+**Two ways out were considered. One was rejected on Joe's own lock.**
+
+**❌ Rejected — `collapsed` on a SPLIT node.** Fold the column itself. **Fatal, and grounded:** a leaf gets its title from `CLIENT_PLUGINS.name`; **a split has NO NAME.** So it needs a name field, a UI to set it, and **chrome (stripe + grip + buttons) on splits** — and once splits have stripes, **every split has a stripe, nested, forever.** **That is a group container promoted back to a MAIN FORM** — the exact thing Joe killed at §5: *"group containers will be contained, but **not as a main form**."* ***It would undo his own lock to solve a problem his other idea already solves.***
+
+> ### 🔒 **✅ THE RULE: a split whose children are ALL folded ACROSS the split's own axis SHRINK-WRAPS to its children's folded size.**
+> The freed weight **returns to the parent's siblings by the same `flex` they already use.** Unfold **one** child → the split **re-inflates, weights intact.**
+
+**Fold Rooms `[<]` and Self `[<]`: every child of that `col` is now strip-wide → the column shrink-wraps → the `2` goes back to the message stream.** *(And the hole closes with it — two vertical strips stacked in a strip-wide column leave **no leftover space at all**. → **the case Joe actually hit produces NO hole under this rule.**)*
+
+**🔑 What it costs: NOTHING NEW.**
+- **No descriptor field.** It is **DERIVED from the children** — a stored *"this column is collapsed"* flag would go stale the instant a child unfolds. **D-067 in miniature, and it would be the second time in one arc.**
+- **No name, no chrome, no grip on splits.** **Splits stay invisible. Group containers stay contained.**
+- **No new mechanism.** A shrink-wrapped split takes `flex: 0 0 auto` and its siblings absorb — **byte-for-byte the mechanic a folded leaf already uses. One rule, two node types.**
+
+**⚠️ And it does NOT always fire, which is correct.** Fold Rooms `[<]` and Self `[v]` — **mixed** — and the column **cannot** shrink-wrap: it stays wide and a hole opens. **Keep that.** *The user asked for two different things and gets a column that fits neither. The raster (§4.5) explains it. **No magic, no guessing what they meant.***
+
+**Open mechanic (Chat's, per §0):** whether a shrink-wrapped split makes **its** parent shrink-wrap. The rule recurses by its own test. **Settled in the runbook, not re-derived in chat.**
+
+---
+
+### 4.5 🔒 HOLES ARE LEGAL, PAINTED, AND INERT (Joe-locked, 2026-07-13)
+
+**⚠️ HOLES ARE NOT NEW AND THEY ARE NOT A CONSEQUENCE OF §4.1. THEY ARE IN THE SHIPPED BUILD.** §4.1-H claimed *"No hole is ever created"*; **it reasoned about a single tile's CROSS axis and was silent about the MAIN one.** Fold **every** child of a split — as Joe did, with Rooms and Self — and **the split under-fills.** **N-111: a proof about one node is not a proof about the tree.**
+
+> ### 🔒 **§7.1's *"no holes, rectangles only"* IS AMENDED: RECTANGLES ONLY; HOLES ARE LEGAL AND ARE PAINTED AS A SYSTEM AREA.**
+> Joe accepted *"no holes"* explicitly on 2026-07-12. **He is retiring it explicitly on 2026-07-13.** *A lock is only retired by the person who set it, in the open.*
+
+**Mechanically the hole is `flex` leftover space INSIDE a split — it is not an element.** → **the raster is a BACKGROUND on the split container**, showing through wherever no tile covers it. **Zero new DOM. One skin rule.** *(Caveat to verify: tiles must be opaque, or the raster bleeds through them.)*
+
+**The appearance is Joe's** (§0 / N-090): a soft fine raster reading *"system area — no functionality here"*. **It ships PROVISIONAL** — plain and obviously placeholder — because **you cannot tune a raster under holes you have not seen.** Retuning it costs **a skin edit and zero component change**.
+
+> ### 🔒 **AND THE LOCK THAT MATTERS FOR M-RP7.4: A HOLE IS INERT. IT IS NOT A DROP TARGET.**
+> **D-116: a target tile is an ADDRESS. A hole has NO ADDRESS.** Want a tile there? **Drop on the EDGE of the tile above it.** ***If we let people drop into holes we have quietly built free 2-D placement and retired the tree*** — which means retiring D-103's descriptor, not extending it (§7.1).
+>
+> **⚠️ D-116 ITSELF IS NOT WEAKENED.** §2 argued *"in a space-filling tree there is no empty space to drop into"* — now only *mostly* true. **But D-116's ground is Joe's constraint (*"never mixing or joining"*), NOT the geometry.** ***Correct the rhetoric; do not touch the decision.***
 
 ---
 
@@ -198,7 +280,12 @@ The dilemma Joe posed (*absolute grid → regions can fall off-display · relati
 **Quantum resolution and the drawn guides are appearance → Joe's.** Chat's proposal: a fixed per-split denominator, coarse enough to read in the JSON, fine enough to feel continuous.
 
 ### 7.1 What we are NOT building, and it is a real choice
-A fixed **M×N cell lattice** (Grafana / react-grid-layout) is right when tiles are **independent cards that may leave holes**. Ours is a **space-filling tree**: **no holes, rectangles only, everything always fills** — and *insert-a-split-here* is only well-defined **because** it is a tree. Going lattice means **retiring D-103's descriptor**, not extending it. **Joe accepted "no holes, rectangles only" explicitly (2026-07-12).**
+
+> ### ⚠️ **AMENDED 2026-07-13 (Joe) — "NO HOLES" IS RETIRED. "RECTANGLES ONLY" IS NOT.** Fold creates holes and **always did** (§4.5 / N-111 — it is in the shipped build). **The rule is now: RECTANGLES ONLY; HOLES ARE LEGAL and are PAINTED as a system area; A HOLE IS INERT and is NOT A DROP TARGET.** **The lattice is still not built, and the reason is UNCHANGED and does not depend on the holes clause** — see below.
+
+A fixed **M×N cell lattice** (Grafana / react-grid-layout) is right when tiles are **independent cards** placed at free coordinates. Ours is a **space-filling tree**: **rectangles only, every tile fills its slot** — and *insert-a-split-here* is only well-defined **because** it is a tree. Going lattice means **retiring D-103's descriptor**, not extending it.
+
+**🔑 The amendment does NOT re-open the lattice, and it is worth being precise about why.** A hole in our model is **not a free coordinate** — it is **leftover flex space inside a split that is still a rectangle**, produced by a **fold**, and **nothing can be placed in it** (§4.5). *A lattice lets you PUT things in holes. We merely let holes EXIST.* **The tree survives intact because the hole is INERT** — the moment a hole became addressable, the lattice argument would be live again.
 
 ---
 
@@ -236,19 +323,22 @@ Joe: *"can we in this phase create just empty regions without context with full 
 
 ---
 
-## 11. Arc — five legs, visible first
+## 11. Arc — the legs, visible first
 
 **⚠️ This SUPERSEDES region-dock §7's renderer-B numbering.** §7's `7.3 save/restore layouts` **already shipped** (M-RP6.1k, D-114). §7's `7.4 custom-widget regions` and `7.5 tear-off` move out of the arc.
 
+**⚠️ AMENDED 2026-07-13 (J-515): `M-RP7.1b` inserted; the grid lock added as `M-RP7.6`; node-inherit renumbered `M-RP7.6 → M-RP7.7`.**
+
 | # | milestone | scope |
 |---|---|---|
-| 1 | **M-RP7.1 — the tile frame: stripe, grip, fold** | Chrome moves widget → renderer. `collapsed` enters the descriptor (**first schema bump since D-103**; `version` + migrate). The eight `Section` roots are unwrapped. **Nothing moves yet.** **This is where Joe sees it and corrects the appearance.** |
+| 1 | **✅ M-RP7.1 — the tile frame: stripe, grip, fold** | **CLOSED J-514** (`4c2f886`). Chrome moved widget → renderer. `collapsed` entered the descriptor (`version: 2`, migrate a no-op). The eight `Section` roots unwrapped. **Joe saw it — and the appearance review produced §4.1/§4.4/§4.5, which is exactly what this leg was for.** |
+| 1b | **🟢 M-RP7.1b — the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor** | **NEW.** Two fold buttons (§4.1) · the direction stored on the leaf · along-fold absorbs / across-fold holes · **the split shrink-wrap (§4.4)** · **the raster under the holes (§4.5)** · `v2 → v3` **and the FIRST REAL MIGRATE, exercised in vitest**. **⚠️ Before 7.2** — it re-opens the descriptor and **7.2 must not carry a schema change**. **⚠️ And §4.4 ships WITH §4.1, never after it: two buttons without the shrink-wrap is a thin strip beside a huge hole — STRICTLY WORSE than today.** *Shipping the disease and the cure a week apart is how a bad appearance gets defended.* |
 | 2 | **M-RP7.2 — splitter resize on the seam** | The 1px `.region-split` gap becomes a drag handle. Weights snap to the quantum. Pure `sizes[]` arithmetic — the cheapest real mechanic, **and it lands the trusted-mouse-event harness the rest of the arc needs.** |
 | 3 | **M-RP7.3 — the mutation algebra (pure)** | The new module beside `resolve.ts`: `move` · `fold` · `resize`, remove → collapse-degenerate → insert → re-normalise. **Vitest, no DOM, no gestures.** |
-| 4 | **M-RP7.4 — drag to dock: grip, edge bands** | The algebra gets a pointer. Four edge bands per tile, inert centre. **Where the arc's real cost lives.** |
+| 4 | **M-RP7.4 — drag to dock: grip, edge bands** | The algebra gets a pointer. Four edge bands per tile, inert centre. **⚠️ A HOLE IS NOT A DROP TARGET (§4.5).** **Where the arc's real cost lives.** |
 | 5 | **M-RP7.5 — the session layout feeder** | The grid finally **writes `session.layout`** — see §12. |
-
-**M-RP7.6 — node app inherits the frame + grid** (the long-filed *"M-RP7.x node frame inheritance"*, now numbered per Rule 8) lands **after** the arc, so it inherits a **working** grid rather than building the frame twice.
+| 6 | **M-RP7.6 — the grid lock: freeze arrangement, keep function** | **NEW (Joe, 2026-07-13).** A 4th bottom-shelf face freezing fold + resize + drag; **normal function untouched.** **⚠️ IT CANNOT SHIP EARLIER — TODAY IT WOULD GUARD NOTHING** (drag and resize do not exist; a lock over one verb is a button whose whole meaning is a promise — the painted-dead chrome this project keeps refusing). **Three grounded costs:** ① **it is the FIRST STATEFUL shelf face** — grepped: `shelf-face` has `active` (roving) and `disabled` (guard) and **NO pressed/toggle concept**, so `aria-pressed` is a real change to a **shipped `core`**; ② **`locked` wants to live in `session`, where RUST writes `geometry` and the frontend writes `layout`** — **N-107 one level deeper: that object must be merged PER-KEY, never replaced** → **it lands AFTER M-RP7.5**; ③ **"lock the top shelf too" locks an EMPTY BOX today** — `app_client.svelte:277` mounts it `items={[]}` and the skin collapses it to height 0; **there is no pinning verb** → the top shelf joins the day favourites exist. |
+| 7 | **M-RP7.7 — node app inherits the frame + grid** | *(the long-filed bare `M-RP7.x`, numbered per Rule 8; **renumbered from 7.6 at J-515**.)* Lands **after** the arc, so it inherits a **working** grid rather than building the frame twice. |
 
 ---
 

@@ -116,27 +116,30 @@
     <span class="region-tile-move" aria-hidden="true"></span>
     <span class="region-tile-title">{title}</span>
     <!-- Two fold buttons — the user picks the axis (§4.1). ALWAYS PRESENT (§4.3); DOM order is fixed
-      [move · title · fold-width · fold-height], which now matters (it survives the rotated strip). The
+      [move · title · [fold-width · fold-height]], which now matters (it survives the rotated strip). The
       matching-axis button unfolds; the other-axis button is aria-disabled (NOT native disabled →
-      keyboard-reachable) while folded. Glyph + rotation are skin (N-090). -->
-    <button
-      type="button"
-      class="region-tile-fold"
-      data-fold="width"
-      aria-label={widthState === 'unfold' ? 'Unfold region' : 'Fold region to the left'}
-      aria-expanded={collapsed === undefined}
-      aria-disabled={widthState === 'disabled' || undefined}
-      onclick={() => clickFold('width', widthState)}
-    ></button>
-    <button
-      type="button"
-      class="region-tile-fold"
-      data-fold="height"
-      aria-label={heightState === 'unfold' ? 'Unfold region' : 'Fold region to the top'}
-      aria-expanded={collapsed === undefined}
-      aria-disabled={heightState === 'disabled' || undefined}
-      onclick={() => clickFold('height', heightState)}
-    ></button>
+      keyboard-reachable) while folded. Glyph + rotation are skin (N-090). Both buttons are wrapped in one
+      addressable `.region-title-buttons` span so the skin can target/position them as a group. -->
+    <span class="region-title-buttons">
+      <button
+        type="button"
+        class="region-tile-fold"
+        data-fold="width"
+        aria-label={widthState === 'unfold' ? 'Unfold region' : 'Fold region to the left'}
+        aria-expanded={collapsed === undefined}
+        aria-disabled={widthState === 'disabled' || undefined}
+        onclick={() => clickFold('width', widthState)}
+      ></button>
+      <button
+        type="button"
+        class="region-tile-fold"
+        data-fold="height"
+        aria-label={heightState === 'unfold' ? 'Unfold region' : 'Fold region to the top'}
+        aria-expanded={collapsed === undefined}
+        aria-disabled={heightState === 'disabled' || undefined}
+        onclick={() => clickFold('height', heightState)}
+      ></button>
+    </span>
   </div>
 
   {#if collapsed === undefined}

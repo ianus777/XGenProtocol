@@ -4,16 +4,16 @@
 // all-unknown split collapses · tabs drops + counts · sizes-mismatch degrades · empty/null root survives.
 
 import { describe, it, expect } from 'vitest';
-import { resolveLayout, treeDepth } from './resolve';
+import { resolveLayout, treeDepth, migrateLayout } from './resolve';
 import type { Layout } from './types';
 
 const ALL_IDS = new Set(['spaces', 'rooms', 'self', 'room-header', 'stream', 'composer', 'members', 'inspector']);
 
 // Mirrors the shipped DEFAULT_LAYOUT (D8) — row of four columns, all 8 regions, no unknown id, no tabs.
-// version: 2 (M-RP7.1, D5) — the leaf `collapsed` schema bump; the walk ignores version, so this is a
+// version: 3 (M-RP7.1b) — the leaf `collapsed` FoldAxis schema bump; the walk ignores version, so this is a
 // faithful-mirror cosmetic (the other inline fixtures below stay v1 — arbitrary trees, version-irrelevant).
 const DEFAULT_LAYOUT: Layout = {
-  version: 2,
+  version: 3,
   root: {
     type: 'split', dir: 'row', sizes: [1, 2, 7, 2], children: [
       { type: 'leaf', widgetId: 'spaces' },
@@ -114,12 +114,12 @@ describe('resolveLayout', () => {
     expect(r.dropped).toEqual(['ghost']);
   });
 
-  // M-RP7.1 (D5) — `collapsed` rides through the walk verbatim; the renderer, not the walk, interprets it.
+  // M-RP7.1/7.1b — `collapsed` rides through the walk verbatim; the renderer, not the walk, interprets it.
   it('carries a collapsed leaf through the walk verbatim (folding is not dropping)', () => {
     const layout: Layout = {
-      version: 2,
+      version: 3,
       root: { type: 'split', dir: 'col', sizes: [1, 1], children: [
-        { type: 'leaf', widgetId: 'rooms', collapsed: true },
+        { type: 'leaf', widgetId: 'rooms', collapsed: 'height' },
         { type: 'leaf', widgetId: 'self' },
       ] },
     };
@@ -128,18 +128,79 @@ describe('resolveLayout', () => {
     expect(r.leafIds).toEqual(['rooms', 'self']);
     expect(r.dropped).toEqual([]);
     expect(r.root).toEqual({ type: 'split', dir: 'col', sizes: [1, 1], children: [
-      { type: 'leaf', widgetId: 'rooms', collapsed: true },
+      { type: 'leaf', widgetId: 'rooms', collapsed: 'height' },
       { type: 'leaf', widgetId: 'self', collapsed: undefined }, // absent key ⇒ undefined
     ] });
   });
 
   it('leaves collapsed undefined when the descriptor omits it (absent ⇒ expanded)', () => {
     const r = resolveLayout(DEFAULT_LAYOUT, ALL_IDS);
-    function everyLeaf(n: typeof r.root, f: (leaf: { widgetId: string; collapsed?: boolean }) => void): void {
+    function everyLeaf(n: typeof r.root, f: (leaf: { widgetId: string; collapsed?: string }) => void): void {
       if (!n) return;
       if (n.type === 'leaf') { f(n); return; }
       n.children.forEach((c) => everyLeaf(c, f));
     }
     everyLeaf(r.root, (leaf) => expect(leaf.collapsed).toBeUndefined());
+  });
+});
+
+// M-RP7.1b — migrateLayout is the FIRST exercised migrate this project has run. `collapsed` was a boolean
+// (axis derived from the parent split); v3 makes it an explicit FoldAxis. Fed, not asserted (N-091) —
+// hand-built v2 trees under BOTH parent kinds, plus the root, the drop-false case, idempotency, and garbage.
+describe('migrateLayout (v2 → v3)', () => {
+  // A sentinel fallback (core cannot know the shell's DEFAULT_LAYOUT — it is injected, D2/D4).
+  const FALLBACK: Layout = { version: 3, root: { type: 'leaf', widgetId: 'spaces' } };
+
+  it("upgrades a collapsed:true leaf under a COL parent to 'height' (col divides height → along)", () => {
+    const v2 = { version: 2, root: { type: 'split', dir: 'col', sizes: [1, 1], children: [
+      { type: 'leaf', widgetId: 'rooms', collapsed: true },
+      { type: 'leaf', widgetId: 'self' },
+    ] } };
+    const m = migrateLayout(v2, FALLBACK);
+    expect(m.version).toBe(3);
+    expect(m.root).toEqual({ type: 'split', dir: 'col', sizes: [1, 1], children: [
+      { type: 'leaf', widgetId: 'rooms', collapsed: 'height' },
+      { type: 'leaf', widgetId: 'self' },
+    ] });
+  });
+
+  it("upgrades a collapsed:true leaf under a ROW parent to 'width' (row divides width)", () => {
+    const v2 = { version: 2, root: { type: 'split', dir: 'row', sizes: [1, 1], children: [
+      { type: 'leaf', widgetId: 'spaces', collapsed: true },
+      { type: 'leaf', widgetId: 'rooms' },
+    ] } };
+    const m = migrateLayout(v2, FALLBACK);
+    expect(m.root).toEqual({ type: 'split', dir: 'row', sizes: [1, 1], children: [
+      { type: 'leaf', widgetId: 'spaces', collapsed: 'width' },
+      { type: 'leaf', widgetId: 'rooms' },
+    ] });
+  });
+
+  it("upgrades a collapsed:true leaf at the ROOT to 'height' (no parent → col default)", () => {
+    const v2 = { version: 2, root: { type: 'leaf', widgetId: 'spaces', collapsed: true } };
+    const m = migrateLayout(v2, FALLBACK);
+    expect(m.root).toEqual({ type: 'leaf', widgetId: 'spaces', collapsed: 'height' });
+  });
+
+  it('drops a collapsed:false key (absent ⇒ expanded; never writes false)', () => {
+    const v2 = { version: 1, root: { type: 'leaf', widgetId: 'spaces', collapsed: false } };
+    const m = migrateLayout(v2, FALLBACK);
+    expect(m.root).toEqual({ type: 'leaf', widgetId: 'spaces' });
+    expect('collapsed' in (m.root as object)).toBe(false);
+  });
+
+  it('returns a v3 layout untouched (idempotent — same reference)', () => {
+    const v3: Layout = { version: 3, root: { type: 'split', dir: 'col', sizes: [1, 1], children: [
+      { type: 'leaf', widgetId: 'rooms', collapsed: 'width' },
+      { type: 'leaf', widgetId: 'self' },
+    ] } };
+    expect(migrateLayout(v3, FALLBACK)).toBe(v3);
+  });
+
+  it('falls back to the injected default on garbage (never throws)', () => {
+    expect(migrateLayout(null, FALLBACK)).toBe(FALLBACK);
+    expect(migrateLayout(42, FALLBACK)).toBe(FALLBACK);
+    expect(migrateLayout({ nope: true }, FALLBACK)).toBe(FALLBACK);
+    expect(migrateLayout({ version: 2 }, FALLBACK)).toBe(FALLBACK); // version but no root
   });
 });

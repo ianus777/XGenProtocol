@@ -2786,10 +2786,21 @@ html, body {
   min-height: 0;
   min-width: 0;
   gap: 1px;
-  background: var(--s5); /* shows through the 1px gaps as hairline seams between tiles */
+  /* --s5 base draws the 1px hairline seams through the gaps between tiles. The faint dot grid is the
+   * PROVISIONAL "system area" RASTER (M-RP7.1b, §4.5): it becomes visible only in a HOLE — the flex
+   * leftover space a split under-fills when its children fold ACROSS it. Tiles are OPAQUE (--s), so the
+   * raster never shows through a tile, only where no tile covers the split. Plain + provisional: the
+   * pattern/weight/colour are Joe's to tune (N-090) and he cannot tune it until he has seen holes under it. */
+  background-color: var(--s5);
+  background-image: radial-gradient(var(--s3) 1px, transparent 1px);
+  background-size: 8px 8px;
 }
 .region-split[data-dir="row"] { flex-direction: row; }
 .region-split[data-dir="col"] { flex-direction: column; }
+/* Shrink-wrap (§4.4): a split whose children ALL fold across its own axis drops out of the parent's main
+ * axis (region-node omits the inline weight, so this wins) → it collapses to its children's strip size and
+ * the parent's siblings absorb the freed weight. The mechanic a folded leaf uses, one rule, two node types. */
+.region-split[data-shrinkwrap] { flex: 0 0 auto; }
 
 /* ──────────────────────────────────────
  * region-tile (.region-tile*) — the tile frame (M-RP7.1). The chrome moved widget → renderer, so ALL of
@@ -2800,11 +2811,12 @@ html, body {
  *
  *   The tile is a flex child of a split (its `flex` weight rides inline — the N-090 DATA exception,
  *   region-node). Internally a column: a fixed STRIPE + a growing BODY (the scroller, ex-.region-leaf, D5).
- *   FOLD (D8): [data-collapsed] pins the tile to stripe size (flex:0 0 auto wins because the component
- *   OMITS the inline flex weight while collapsed); the tile still fills its parent's cross-axis via the
- *   split's default align-items:stretch, so NO HOLE is left. For a ROW-axis fold the stripe rotates to a
- *   vertical side strip (writing-mode) — CW default, CCW via --region-fold-rotate (D8.1, a token). A
- *   folded tile shows NO resize triangle (D8.2 — the {#if !collapsed} makes it element-absent). ── */
+ *   FOLD (M-RP7.1b, §4.1): the USER picks the axis via two buttons. `data-collapsed` is the DIMENSION
+ *   collapsed ('width' → vertical strip / 'height' → horizontal stripe); `data-fold-mode` is ALONG the
+ *   parent split's dividing axis (siblings absorb → NO hole) or ACROSS it (freed cross-space → a hole the
+ *   split paints, §4.5). A width fold rotates the stripe to a vertical side strip (writing-mode) — CW
+ *   default, CCW via --region-fold-rotate (D8.1, a token). A folded tile shows NO resize triangle (D8.2 —
+ *   the {#if collapsed === undefined} makes it element-absent). See the FOLD block below. ── */
 .region-tile {
   /* ── tunable tokens (Joe) ── */
   --region-stripe: 22px;        /* stripe thickness: height (horizontal) / width (folded vertical) */
@@ -2822,9 +2834,21 @@ html, body {
   background: var(--s);         /* the panel surface (ex-.region-leaf) */
   overflow: hidden;             /* the BODY scrolls, not the tile */
 }
-/* Folded: shrink to stripe size along the collapse axis (the component omits the inline flex weight while
- * collapsed, so this rule wins). Cross-axis fill comes from the parent split's align-items:stretch. */
-.region-tile[data-collapsed] { flex: 0 0 auto; }
+/* ── FOLD (M-RP7.1b) ── the user picks the axis (two buttons). `data-collapsed` = the DIMENSION collapsed
+ * ('width' → vertical strip / 'height' → horizontal stripe); `data-fold-mode` = whether that runs ALONG the
+ * parent split's dividing axis (siblings absorb → NO hole) or ACROSS it (freed cross-space → a hole, §4.5).
+ *
+ * ALONG: drop out of the parent's main axis entirely (region-node/tile omit the inline weight → this wins);
+ *        the tile shrinks to stripe size and its siblings take the freed space. */
+.region-tile[data-fold-mode="along"] { flex: 0 0 auto; }
+/* ACROSS: the tile KEEPS its inline main-axis flex share; align-self:flex-start stops the parent stretching
+ *        it across, so only the CROSS dimension collapses to stripe size and the rest is left as a hole. */
+.region-tile[data-fold-mode="across"] { align-self: flex-start; }
+/* WIDTH collapse → a vertical side strip: pin the tile's width to stripe size (covers both along & across;
+ * the stripe itself rotates below). HEIGHT collapse needs no width/height rule — the horizontal stripe's own
+ * height (flex:none) is the tile height once the body is gone (along shrinks to it, across pins via
+ * align-self:flex-start + content height). */
+.region-tile[data-collapsed="width"] { width: var(--region-stripe); }
 
 /* The stripe — a fixed horizontal bar [move-grip · title · fold]. --s2 band, --s5 hairline, dense text. */
 .region-tile-stripe {
@@ -2857,7 +2881,12 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Fold button — the ONE live control. A skin-drawn chevron (::before), flipped 180° on [data-collapsed]. */
+/* Fold buttons — TWO now (M-RP7.1b, §4.1): [data-fold="width"] folds to the left, [data-fold="height"]
+ * folds to the top. Each is a skin-drawn border-chevron (::before). Convention B (disclosure): the button
+ * points the way it will fold when OPEN, and flips to the unfold direction when THAT axis is folded. The
+ * OTHER-axis button is aria-disabled while folded → dimmed + no pointer. NO extra rotation is applied inside
+ * the rotated (width-collapsed) strip — the chevron transform below is the ONLY rotation on the glyph, so
+ * the double-rotation trap (§4.1) cannot bite (a border-box ::before is not rotated by writing-mode). */
 .region-tile-fold {
   flex: none;
   width: 16px;
@@ -2871,18 +2900,26 @@ html, body {
   cursor: pointer;
   color: var(--t3);
 }
+.region-tile-fold[aria-disabled="true"] {
+  cursor: default;
+  color: var(--t4);
+  opacity: 0.5;
+}
 .region-tile-fold::before {
   content: "";
   width: 6px;
   height: 6px;
   border-right: 1.5px solid currentColor;
   border-bottom: 1.5px solid currentColor;
-  transform: translateY(-1px) rotate(45deg);  /* down-chevron (expanded → click to fold) */
 }
-.region-tile[data-collapsed] .region-tile-fold::before {
-  transform: translateY(1px) rotate(225deg);   /* up-chevron (folded → click to unfold) */
-}
-.region-tile:hover .region-tile-fold { color: var(--t2); }
+/* Open glyphs: width button = left chevron `<` (rotate 135°); height button = down chevron `v` (rotate 45°). */
+.region-tile-fold[data-fold="width"]::before  { transform: rotate(135deg); }
+.region-tile-fold[data-fold="height"]::before { transform: rotate(45deg); }
+/* Folded on THIS axis → the matching button flips to the unfold direction: width → right `>` (−45°),
+ * height → up `^` (225°). (The other-axis button is disabled and keeps its open glyph.) */
+.region-tile[data-collapsed="width"]  .region-tile-fold[data-fold="width"]::before  { transform: rotate(-45deg); }
+.region-tile[data-collapsed="height"] .region-tile-fold[data-fold="height"]::before { transform: rotate(225deg); }
+.region-tile:hover .region-tile-fold:not([aria-disabled="true"]) { color: var(--t2); }
 
 /* The body — the scroller (D5, ex-.region-leaf). Padding so an unwrapped widget body isn't flush. */
 .region-tile-body {
@@ -2907,14 +2944,16 @@ html, body {
   pointer-events: none;
 }
 
-/* Folded along a ROW axis → the stripe rotates to a vertical side strip (D8.1). writing-mode rotates the
- * flex axis WITH the text, so [move · title · fold] stay top-to-bottom (CW default). --region-fold-rotate
- * flips to CCW (bottom-to-top) with ZERO component change — the "it is a token, not a fork" proof (V3b). */
-.region-tile[data-axis="row"][data-collapsed] .region-tile-stripe {
+/* WIDTH collapse → the stripe rotates to a vertical side strip (M-RP7.1b, §4.1). Keyed on the collapsed
+ * DIMENSION now (was the parent axis), because the user picks it: a width fold is a vertical strip whether
+ * it runs along a row split or across a col split. writing-mode rotates the flex axis WITH the text, so
+ * [move · title · fold-width · fold-height] stay top-to-bottom (CW default); --region-fold-rotate flips to
+ * CCW (bottom-to-top) with ZERO component change — the "it is a token, not a fork" proof (V3b). */
+.region-tile[data-collapsed="width"] .region-tile-stripe {
   writing-mode: vertical-rl;
   transform: rotate(var(--region-fold-rotate));
   flex: 1;                      /* fill the tile height (the stripe is the only child while folded) */
-  height: auto;
+  height: auto;                 /* physical height fills; physical width is pinned to the stripe thickness */
   width: var(--region-stripe);
   border-bottom: none;
   border-right: 1px solid var(--s5);

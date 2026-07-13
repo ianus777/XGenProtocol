@@ -8,6 +8,7 @@
 
 import type { Component } from 'svelte';
 import type { Layout } from '$core/components/layout/types';
+import { migrateLayout } from '$core/components/layout/resolve';
 import RegionPlaceholder from './region-placeholder.svelte';
 import { CLIENT_PLUGINS } from '$common/plugins/registry';
 
@@ -60,11 +61,12 @@ export const widgetRegistry: Record<string, Component> = {
 
 // DEFAULT_LAYOUT (D8) — exercises row + col + nesting, all 8 regions, NO unknown id, NO tabs (a broken
 // default is not a test fixture; the drop/tabs/mismatch paths are driven at verify via __XGEN_LAYOUT__).
-// `version: 2` (M-RP7.1, D5 / DoD 3) — the first schema bump since D-103 (leaf `collapsed`). The migrate
-// is a no-op: `collapsed` is optional, so a persisted v1 layout is a valid v2 layout (absent = expanded)
-// and `loadLayout`'s numeric-version guard already accepts it — a v1 store loads without transformation.
+// `version: 3` (M-RP7.1b) — the first REAL schema bump since D-103 (leaf `collapsed`: boolean → FoldAxis).
+// A persisted v1/v2 layout is upgraded by `migrateLayout` (below): its boolean `collapsed` flags become
+// explicit fold directions using each leaf's parent-split dir — the first exercised migrate this project
+// has ever run (§4.4-migration; N-091 — an unfed branch is an unverified branch).
 export const DEFAULT_LAYOUT: Layout = {
-  version: 2,
+  version: 3,
   root: {
     type: 'split', dir: 'row', sizes: [1, 2, 7, 2], children: [
       { type: 'leaf', widgetId: 'spaces' },
@@ -104,17 +106,13 @@ export async function loadLayout(): Promise<Layout> {
     if (raw && raw.trim()) {
       const store = JSON.parse(raw);
       const layout = store?.session?.layout;
-      if (isValidLayout(layout)) return layout;
+      // `migrateLayout` subsumes the old `isValidLayout` guard AND upgrades a v1/v2 boolean-`collapsed` tree
+      // to v3 (M-RP7.1b). It NEVER returns null (N-095 — a malformed/older layout falls back to DEFAULT, so
+      // the centre never blanks; D-115). DEFAULT_LAYOUT is injected because `core` must not own a default.
+      if (layout) return migrateLayout(layout, DEFAULT_LAYOUT);
     }
   } catch (_) {
     // no-Tauri OR corrupt store → DEFAULT (N-095). A read/parse error must never blank the centre.
   }
   return DEFAULT_LAYOUT;
-}
-
-/** Minimal shape guard so a malformed persisted layout falls back instead of unmounting the shell. */
-function isValidLayout(l: unknown): l is Layout {
-  if (!l || typeof l !== 'object') return false;
-  const o = l as { version?: unknown; root?: unknown };
-  return typeof o.version === 'number' && !!o.root && typeof o.root === 'object';
 }

@@ -14,13 +14,13 @@
 //   5. sizes.length !== children.length         → equal-weight fallback + DEV warn (never throw).
 //   6. depth is unbounded; the walk is recursive.
 
-import type { Layout, LayoutNode } from './types';
+import type { FoldAxis, Layout, LayoutNode } from './types';
 
 /** The walked tree with unresolvable nodes removed. `tabs` never appears — renderer A drops it. */
 export type ResolvedNode =
   // `collapsed` is carried through VERBATIM (M-RP7.1, D5): the walk does not interpret it, the renderer
   // does. A collapsed leaf still resolves (it is a folded tile, NOT a drop) — so `leafCount` is unchanged.
-  | { type: 'leaf'; widgetId: string; collapsed?: boolean }
+  | { type: 'leaf'; widgetId: string; collapsed?: FoldAxis } // boolean → FoldAxis (M-RP7.1b)
   | { type: 'split'; dir: 'row' | 'col'; sizes: number[]; children: ResolvedNode[] };
 
 export interface ResolveResult {
@@ -92,4 +92,58 @@ export function treeDepth(node: ResolvedNode | null): number {
   if (!node) return 0;
   if (node.type === 'leaf') return 1;
   return 1 + node.children.reduce((m, c) => Math.max(m, treeDepth(c)), 0);
+}
+
+// ── migrateLayout (M-RP7.1b) ────────────────────────────────────────────────────────────────────────
+// The FIRST real migrate this project has ever run: `version` was bumped twice (D-103 → 2 → this) and
+// migrated NOTHING both times (§9's path was never exercised). v1/v2 stored a leaf's `collapsed` as a
+// BOOLEAN, with the fold AXIS derived at render from the parent split's `dir` (M-RP7.1). v3 makes the axis
+// EXPLICIT and user-owned (M-RP7.1b): a `col` split divides height → a folded child collapsed 'height'; a
+// `row` split divides width → 'width'. The root has no parent split → 'height' (M-RP7.1's region-node
+// defaulted the root axis to 'col'). It is the old DERIVED rule, made honest — and it must be EXERCISED,
+// not asserted (N-091, applied to the one branch in this codebase that has never once run).
+//
+// ⚠️ DEVIATION FROM RUNBOOK §4 (flagged, not absorbed — Rule 6): the signature takes a `fallback: Layout`
+// rather than the runbook's bare `migrateLayout(raw): Layout`. `resolve.ts` is `core`; the concrete
+// DEFAULT_LAYOUT is SHELL-LOCAL (D2/D4 — the default tree is the client's, and core owning one would be a
+// second source of truth, the exact D-067 drift the J-499 grounding killed). Core cannot know the default,
+// so the shell injects it. The load-bearing property is preserved: it NEVER returns null (N-095 — recover
+// to the default, never a blank centre; D-115). A shape it cannot read returns `fallback`, and it never
+// throws. A v3+ layout is returned untouched (idempotent).
+
+/** Migrate a persisted layout of any prior version to the current v3 shape. Pure, DOM-free, never throws. */
+export function migrateLayout(raw: unknown, fallback: Layout): Layout {
+  try {
+    if (!raw || typeof raw !== 'object') return fallback;
+    const l = raw as { version?: unknown; root?: unknown };
+    if (typeof l.version !== 'number' || !l.root || typeof l.root !== 'object') return fallback;
+    if (l.version >= 3) return raw as Layout; // already current — idempotent, untouched.
+    return { version: 3, root: migrateNode(l.root as LayoutNode, 'col') }; // root: no parent → 'col' → 'height'
+  } catch {
+    return fallback; // unreadable shape → default, never throw (N-095).
+  }
+}
+
+// `parentDir` is the enclosing split's `dir` — 'col' divides height, 'row' divides width. A root leaf uses
+// 'col' → 'height', matching M-RP7.1's region-node root-axis default. Pure: builds fresh nodes, never mutates.
+function migrateNode(node: LayoutNode, parentDir: 'row' | 'col'): LayoutNode {
+  if (node.type === 'leaf') {
+    // v1/v2 `collapsed` was a boolean. `true` ⇒ folded along the parent's dividing axis → explicit FoldAxis.
+    // Anything else (false / absent) ⇒ expanded → DROP the key entirely (never write `false`, never a v2 bool).
+    if ((node as { collapsed?: unknown }).collapsed === true) {
+      const axis: FoldAxis = parentDir === 'row' ? 'width' : 'height';
+      return { type: 'leaf', widgetId: node.widgetId, collapsed: axis };
+    }
+    return { type: 'leaf', widgetId: node.widgetId };
+  }
+  if (node.type === 'split') {
+    return {
+      type: 'split',
+      dir: node.dir,
+      sizes: node.sizes,
+      children: node.children.map((c) => migrateNode(c, node.dir)),
+    };
+  }
+  // tabs — still typed, dropped by renderer A. Recurse for completeness with the inherited parentDir.
+  return { type: 'tabs', active: node.active, children: node.children.map((c) => migrateNode(c, parentDir)) };
 }

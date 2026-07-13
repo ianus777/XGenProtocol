@@ -17,7 +17,7 @@
   // by `.region-*`. The one non-appearance inline is a split child's `flex` weight (DATA, region-node).
   import { envelope } from '$common/components/base/envelope';
   import type { Component } from 'svelte';
-  import type { Layout } from './types';
+  import type { FoldAxis, Layout } from './types';
   import { resolveLayout, treeDepth } from './resolve';
   import RegionNode from './region-node.svelte';
 
@@ -31,7 +31,7 @@
     layout: Layout;
     widgets?: Record<string, Component>; // widgetId → component; an unknown id is dropped by resolveLayout (W-13)
     titles?: Record<string, string>; // widgetId → tile title (M-RP7.1, D2); threaded to each tile
-    onFold?: (regionId: string, collapsed: boolean) => void; // fold seam (M-RP7.1, D6)
+    onFold?: (regionId: string, collapsed: FoldAxis | undefined) => void; // fold seam (M-RP7.1b, D6)
     id?: string;
   } = $props();
 

@@ -9,7 +9,8 @@
   import UistateLoadDialog from './uistate-load-dialog.svelte';
   import PluginsDialog from './plugins-dialog.svelte';
   import { uiStateStore } from './uistate.svelte';
-  import { loadLayout, widgetRegistry, REGION_TITLES } from './layout-default';
+  import { loadLayout, widgetRegistry, REGION_TITLES, DEFAULT_LAYOUT } from './layout-default';
+  import { migrateLayout } from '$core/components/layout/resolve';
   import { substitutions } from '$common/components/processor/store.svelte';
   // The self-state store (M-RP6.1g, D3) — ONE channel, TWO views: the shell WRITES it below (the existing
   // state listen + get_state + a once get_self_state invoke), and BOTH the status-bar (here) AND the
@@ -55,14 +56,21 @@
     };
   }
 
-  // ── Fold (M-RP7.1, D6) ───────────────────────────────────────────────────────────────────────
-  // The tile's fold button toggles the descriptor's `collapsed`. Held in MEMORY this leg — the session
-  // feeder that PERSISTS `session.layout` is M-RP7.5 (D6). A pure rebuild (not an in-place proxy mutation)
-  // so we never mutate the shared DEFAULT_LAYOUT const, and the reassignment triggers the shell to
-  // re-resolve. `__XGEN_LAYOUT__.current` reflects the new tree immediately (the CDP fold proof).
+  // ── Fold (M-RP7.1b, D6) ───────────────────────────────────────────────────────────────────────
+  // The tile's fold buttons set the descriptor's `collapsed` to a FoldAxis ('width'|'height'), or clear it
+  // (unfold). Held in MEMORY this leg — the session feeder that PERSISTS `session.layout` is M-RP7.5 (D6).
+  // A pure rebuild (not an in-place proxy mutation) so we never mutate the shared DEFAULT_LAYOUT const, and
+  // the reassignment triggers the shell to re-resolve. `__XGEN_LAYOUT__.current` reflects the new tree
+  // immediately (the CDP fold proof). On unfold we DELETE the key — absent means expanded, so we never
+  // persist `collapsed: undefined` (matching the descriptor contract and the migrate's drop rule).
   function setLeafCollapsed(node, widgetId, collapsed) {
     if (node.type === 'leaf') {
-      return node.widgetId === widgetId ? { ...node, collapsed } : node;
+      if (node.widgetId !== widgetId) return node;
+      if (collapsed === undefined) {
+        const { collapsed: _drop, ...rest } = node; // unfold → drop the key entirely
+        return rest;
+      }
+      return { ...node, collapsed };
     }
     if (node.type === 'split') {
       return { ...node, children: node.children.map((c) => setLeafCollapsed(c, widgetId, collapsed)) };
@@ -230,7 +238,9 @@
     const s = uiStateStore.load(id);
     // Guard: only apply a real layout — never assign undefined/null (that unmounts region-shell →
     // blank centre, the J-499/N-095 failure). A state saved without a layout key is left as-is.
-    if (s?.layout) layout = s.layout;
+    // A named state saved before M-RP7.1b carries v1/v2 boolean `collapsed`; migrate it (never null;
+    // malformed → DEFAULT, D-115) so an older workspace loads with the correct explicit fold directions.
+    if (s?.layout) layout = migrateLayout(s.layout, DEFAULT_LAYOUT);
     // Restore the named state's window rect through the same clamp (Rust owns geometry's meaning).
     if (s?.geometry) {
       try {

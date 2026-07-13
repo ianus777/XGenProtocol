@@ -15,25 +15,36 @@
   // their dischargers are named (move → M-RP7.4, resize → M-RP7.2). They carry no claim (no role, no
   // tabindex, no hover cursor), so they say nothing to the user that later becomes false.
   //
-  // FOLD, along the parent split's AXIS (D8):
-  //   - parent `col` (divides height) → collapse HEIGHT → the tile shrinks to the horizontal stripe.
-  //   - parent `row` (divides width)  → collapse WIDTH  → the stripe rotates to a vertical side strip.
-  // `collapsed` is ONE boolean; the axis is DERIVED from the parent's `dir` (passed as `axis`), NEVER
-  // stored — a stored direction would go stale the instant the tile is dragged (D-067 in miniature).
-  // Both are reflected as `data-collapsed` / `data-axis` and the SKIN does the rotation (N-090); the
-  // component branches on the axis ONLY to reflect the attribute. The folded strip keeps the SAME content
-  // and DOM order (grip · title · fold) — the skin's one `writing-mode` property picks CW (default) vs CCW.
+  // FOLD — the USER'S CHOICE, TWO BUTTONS (M-RP7.1b, §4.1). `collapsed` names the DIMENSION collapsed
+  // ('width' → vertical strip / 'height' → horizontal stripe), NOT where the strip goes (it parks at the
+  // leading edge). The user picks it, so it is STORED — it is a fact about what they asked for, which cannot
+  // go stale, unlike M-RP7.1's derived axis (a fact about the tree, which could).
+  //
+  // But the tile must still know whether that fold runs ALONG or ACROSS its parent split's axis, because
+  // the two lay out completely differently (§4.1). A `col` split divides height, so folding HEIGHT is ALONG
+  // it (siblings absorb, NO hole); folding WIDTH is ACROSS it (nobody absorbs → a hole, §4.5). `foldMode` is
+  // DERIVED at render from `collapsed` + the parent's `axis` — the direction is stored, the mode is not.
+  //   - along  → drop the tile's main-axis flex share → the skin pins it to stripe size, siblings absorb.
+  //   - across → KEEP the main-axis flex share (inline) → only the cross dimension collapses; the freed
+  //              cross-space becomes a hole the split paints (§4.5).
+  //
+  // Two `<button>`s (`data-fold="width" / "height"`), ALWAYS PRESENT so the rotated strip's content is
+  // identical to the unfolded stripe's (§4.3). When folded, the OTHER-axis button is `aria-disabled`
+  // (the shelf-face/menu-item pattern — NOT native `disabled`, so it stays keyboard-reachable; and NOT a
+  // countdown, N-109 — it flips back the moment the tile unfolds); the MATCHING button unfolds. Appearance
+  // (the two chevron orientations, the rotated strip, CW/CCW via --region-fold-rotate) is ALL skin (N-090).
   //
   // A folded tile shows NO resize triangle (D8.2): a folded tile has no resizable dimension of its own
   // (its collapse axis is pinned at stripe size by definition, its cross-axis belongs to the parent), so
   // the grip is ELEMENT-ABSENT — not greyed (J-500: the absent slot ships absent, not faked).
   import { envelope } from '$common/components/base/envelope';
   import type { Snippet } from 'svelte';
+  import type { FoldAxis } from './types';
 
   let {
     regionId,
     title,
-    collapsed = false,
+    collapsed,
     axis = 'col',
     flex,
     onFold,
@@ -43,28 +54,51 @@
     regionId: string;
     /** Display title from the registry (D2); the widget no longer draws its own. */
     title: string;
-    /** Fold state — render truth (D10). Absent/false ⇒ expanded. */
-    collapsed?: boolean;
-    /** The PARENT split's `dir` (D8). Derived, never stored; drives the collapse axis via the skin. */
+    /** Fold state — render truth (D10). Absent ⇒ expanded; a `FoldAxis` ⇒ the dimension the user folded. */
+    collapsed?: FoldAxis;
+    /** The PARENT split's `dir` (§4.1). Drives `foldMode` (along/across), never the direction itself. */
     axis?: 'row' | 'col';
     /** Descriptor weight from the parent split (the N-090 DATA carve-out — inline, not skin). */
     flex?: number;
-    /** Fold toggle seam — the shell mutates the descriptor (D6). */
-    onFold?: (regionId: string, collapsed: boolean) => void;
+    /** Fold toggle seam — the shell mutates the descriptor (D6). `undefined` ⇒ unfold. */
+    onFold?: (regionId: string, collapsed: FoldAxis | undefined) => void;
     /** The widget body (rendered only while expanded). */
     children?: Snippet;
   } = $props();
 
-  // The inline flex weight (the ONE N-090 exception: `sizes[]` is DATA). It is OMITTED while collapsed so
-  // the skin can pin the tile to stripe size — an inline `flex: {n} 1 0` would out-specify any skin rule,
-  // so a folded tile could never stop growing along its collapse axis (§4.2). Omitting it lets the skin's
-  // `.region-tile[data-collapsed] { flex: 0 0 auto }` take over; the tile still fills its parent's
-  // cross-axis via the split's default `align-items: stretch`, so no hole is ever left.
-  const flexStyle = $derived(!collapsed && flex !== undefined ? `flex: ${flex} 1 0` : undefined);
+  // foldMode — DERIVED, never stored (§4.1). 'along' the parent's dividing axis ⇒ siblings absorb, no hole;
+  // 'across' ⇒ nobody absorbs ⇒ a hole. (A `col` split divides height, so folding height is ALONG it.)
+  const foldMode = $derived<'none' | 'along' | 'across'>(
+    collapsed === undefined
+      ? 'none'
+      : (collapsed === 'height' && axis === 'col') || (collapsed === 'width' && axis === 'row')
+        ? 'along'
+        : 'across',
+  );
 
-  // Getter G (D10) — `collapsed`/`axis` are RENDER TRUTH (what actually painted / reflected), which is
-  // what makes a fold CDP-provable (the `message.detailsCount` precedent).
-  const debug = () => ({ regionId, title, collapsed, axis });
+  // The inline flex weight (the ONE N-090 exception: `sizes[]` is DATA). OMITTED for an ALONG fold so the
+  // skin's `[data-fold-mode="along"] { flex: 0 0 auto }` pins the tile to stripe size and siblings absorb.
+  // KEPT for 'none' AND for an ACROSS fold — an across-folded tile still owns its share of the parent's
+  // MAIN axis; only its CROSS axis collapses (the skin does that via align-self + a cross-size pin, §4.1).
+  const flexStyle = $derived(foldMode !== 'along' && flex !== undefined ? `flex: ${flex} 1 0` : undefined);
+
+  // Per-button state (§4.3): expanded ⇒ each button folds its own axis; folded ⇒ the matching axis unfolds,
+  // the other is disabled. Derived so a re-fold repaints correctly.
+  const widthState = $derived<'fold' | 'unfold' | 'disabled'>(
+    collapsed === undefined ? 'fold' : collapsed === 'width' ? 'unfold' : 'disabled',
+  );
+  const heightState = $derived<'fold' | 'unfold' | 'disabled'>(
+    collapsed === undefined ? 'fold' : collapsed === 'height' ? 'unfold' : 'disabled',
+  );
+
+  function clickFold(dir: FoldAxis, state: 'fold' | 'unfold' | 'disabled'): void {
+    if (state === 'disabled') return;
+    onFold?.(regionId, state === 'fold' ? dir : undefined); // fold this axis, or unfold
+  }
+
+  // Getter G (D10) — `collapsed`/`axis`/`foldMode` are RENDER TRUTH (what actually painted / reflected),
+  // which is what makes a fold CDP-provable (the `message.detailsCount` precedent).
+  const debug = () => ({ regionId, title, collapsed, axis, foldMode });
 </script>
 
 <!-- No literal `class="region-tile"`: `use:envelope` supplies the type-class from `name` (N-023), and
@@ -72,6 +106,7 @@
 <div
   data-axis={axis}
   data-collapsed={collapsed || undefined}
+  data-fold-mode={foldMode !== 'none' ? foldMode : undefined}
   style={flexStyle}
   use:envelope={{ name: 'region-tile', id: `region-${regionId}`, debug }}
 >
@@ -80,17 +115,31 @@
       the drag lands at M-RP7.4 (D7). -->
     <span class="region-tile-move" aria-hidden="true"></span>
     <span class="region-tile-title">{title}</span>
-    <!-- The ONLY live control. Toggles the descriptor's `collapsed` via the shell (D6). -->
+    <!-- Two fold buttons — the user picks the axis (§4.1). ALWAYS PRESENT (§4.3); DOM order is fixed
+      [move · title · fold-width · fold-height], which now matters (it survives the rotated strip). The
+      matching-axis button unfolds; the other-axis button is aria-disabled (NOT native disabled →
+      keyboard-reachable) while folded. Glyph + rotation are skin (N-090). -->
     <button
       type="button"
       class="region-tile-fold"
-      aria-label={collapsed ? 'Unfold region' : 'Fold region'}
-      aria-expanded={!collapsed}
-      onclick={() => onFold?.(regionId, !collapsed)}
+      data-fold="width"
+      aria-label={widthState === 'unfold' ? 'Unfold region' : 'Fold region to the left'}
+      aria-expanded={collapsed === undefined}
+      aria-disabled={widthState === 'disabled' || undefined}
+      onclick={() => clickFold('width', widthState)}
+    ></button>
+    <button
+      type="button"
+      class="region-tile-fold"
+      data-fold="height"
+      aria-label={heightState === 'unfold' ? 'Unfold region' : 'Fold region to the top'}
+      aria-expanded={collapsed === undefined}
+      aria-disabled={heightState === 'disabled' || undefined}
+      onclick={() => clickFold('height', heightState)}
     ></button>
   </div>
 
-  {#if !collapsed}
+  {#if collapsed === undefined}
     <div class="region-tile-body">
       {@render children?.()}
     </div>

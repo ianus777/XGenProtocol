@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-12  
+> **Last updated:** 2026-07-13  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -4351,5 +4351,52 @@ The **Node already talks to the world; the Client deliberately does not.** The N
 **Consequence:** the `1240×1080` first-launch default is **now genuinely a first-launch default** — remembered geometry overrides it. Do not tune it.
 
 **Relationship:** **D-114** (the store this is a key in) · N-092b (the measurement) · N-095 (the fallback DoD, relocated here) · M-RP-WINSTATE (**absorbed, ⬛ SUPERSEDED**) · M-RP8 (frameless + custom title-bar — changes *how* the window is dragged, **not** what is stored).
+
+---
+
+## D-116 — The dock rearranges; it never joins. A target tile is an ADDRESS, not a container
+
+**Date:** 2026-07-13 (Joe-locked; designed at the dock-engine Phase-0 walk, 2026-07-12)
+**Layer:** UI / client — the dock engine (renderer B), M-RP7 arc
+**Reference:** `docs/xgen-dock-engine-phase0.md` §2/§3 · `ui/docs/xgen-region-dock-model.md` §3 (D-103) · J-514
+
+### Joe's constraint
+
+> *"to drag and drop one region on another is just for rearranging purpose. never mixing or joining."*
+
+### The decision
+
+**A region is NEVER put inside another region.** In a space-filling tree there is no empty space to drop *into* — every pixel already belongs to a tile. The tree's only vocabulary is **relative**: *above that one · below that one · left of that one · right of that one.*
+
+> **The drag verb is not "put A into B". It is "insert A here, and *here* is expressed as an EDGE of B."**
+
+**The target is a LOOKUP KEY, not a parent. It receives nothing.**
+
+**This is why drag-to-dock exists at all:** fold changes one tile's size; the splitter changes two tiles' proportions; **neither can say *"I want the composer at the top."*** That sentence needs a **destination**, and in a tree the only destination that exists is *next to something*.
+
+### What follows — and every consequence is SUBTRACTIVE
+
+- **NO centre drop-zone.** Every drop-zone is an **edge band**. The centre of a tile is **inert**, not a target.
+- **NO tabs are ever produced**, and no tab strip is built. **Fold is already the stacking mechanism, and it is the better one:** four folded stripes in a column is a tab strip lying on its side — except **several can be open at once** and **every label is always visible**. ***Tabs is what you reach for when you don't have fold. We have fold.***
+- **NO docked/undocked mode.** A mode was only ever needed to discriminate split-vs-tab. No tab → no discriminator → no mode. *(And it was never a field anyway: **a region is docked iff it appears in the layout tree** — a **query**, not a flag. Two sources of truth for "is this docked" is a **D-067** drift surface.)*
+- **NO `M-RP-ROVING` prerequisite.** A tab strip would have been the **5th** independent roving-tabindex implementation (D-069's four-recurrence bar already met). **It is not built, so the extraction stays filed and stays out of this arc.**
+
+### The door stays SHUT, not LOCKED
+
+`types.ts` **keeps typing `tabs`** and `resolve.ts` **keeps dropping it with a DEV warn**. **Zero cost, zero schema change if it is ever wanted.**
+
+> **⚠️ If a future milestone reaches for tabs, it RE-OPENS THIS DECISION EXPLICITLY — it does not arrive as a rider on a drag milestone.**
+
+### ⚠️ One argument in the Phase-0 was CORRECTED, and the decision was NOT
+
+The Phase-0 §2 argued *"in a space-filling tree there is no empty space to drop into."* **At J-514 fold was found to create holes** (N-111), so that sentence is now only *mostly* true.
+
+**D-116 is untouched by that finding, because its ground is Joe's constraint, not the geometry.** The rhetoric was corrected; the decision stands. **And the finding reinforces one clause:** **a hole is INERT — it is NOT a drop target.** A target tile is an **address**; **a hole has no address.** Want a tile there? **Drop on the EDGE of the tile above it.** *(If drops into holes were allowed, we would have quietly built free 2-D placement and retired the tree — which means retiring D-103's descriptor, not extending it.)*
+
+### ⚠️ What this decision does NOT settle
+
+**The fold axis.** M-RP7.1 shipped `collapsed` as a boolean with the axis **derived from the parent split**. **Joe superseded that design at J-515** — the axis becomes the **user's choice**. **The drafted `D-117` was NOT locked**, on Joe's word: ***"honestly i have to see it in practice."*** → **the fold decision enters this file only after `M-RP7.1b` is built and looked at.** *A decision locked for a design its author has said he needs to see first is a prediction wearing a decision's clothes.*
+
+**Relationship:** **D-103** (the descriptor this constrains) · **D-067** (the drift surface a docked/undocked flag would create) · **D-069** (the roving bar this decision keeps from being met a 5th time) · **N-111** (the hole finding, which corrects §2's argument and not this decision) · **M-RP7.4 — drag to dock: grip, edge bands** (where this becomes code).
 
 

@@ -1,8 +1,8 @@
 # M-RP7.1 — the tile frame: stripe, grip, fold
-> **Status**: PENDING  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-12  
+> **Last updated**: 2026-07-13  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

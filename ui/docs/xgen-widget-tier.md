@@ -1,8 +1,8 @@
 # XGen UI — The `widget` Tier
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-12  
+> **Last updated**: 2026-07-13  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -96,6 +96,14 @@ Each clause is phrased so a candidate widget is yes/no conformant.
 - **W-12 (amended v1.3) — a widget has AT MOST ONE SURFACE.** A widget MAY declare exactly one of: **`region`** (a leaf in the D-103 layout descriptor) · **`shelf`** (a compact **face**) · **`window`** (its own OS window). It may declare **none** (**headless** — it computes into a store and is never seen; *you reach its output, not it*). **It may never declare two** — so **a shelf face implies no tile**. W-11 is the *data* seam; W-12 is its *layout* sibling. See `xgen-widget-surfaces-phase0.md` §3.3 and `xgen-region-dock-model.md` (D-103).
   - **🔑 Content rendered INSIDE another widget is NOT a surface — it is content** (surfaces §3.2). `substitutions-editor` renders inside Settings and therefore **spends no surface and never needed one**. **This is also the mechanism Ch6 §6.8.3's "slots" actually describe**, and it **already ships**: a host widget declares named `WidgetMount[]` anchors and **drops unknown ids** (W-13) — `message.details` **is** `room.message.decorator` under another name (D-112). **A slot is declared by the HOST, never requested by the guest.**
 - **W-13 — `system` widgets are non-removable.** Widgets carry a `kind`: `system` (built-in regions R1–R8: pre-installed, always in the default layout, configurable + redockable but never fully closed) or `custom` (install/remove; MAY also provide a region). Prevents a user closing the Composer with no way back.
+  - **✅ *"never fully closed — they may COLLAPSE"* FINALLY HAS A MECHANISM (M-RP7.1, J-514).** `collapsed?: boolean` on the `leaf` (region-dock §3), rendered by **`region-tile`**'s fold button. **It was a spec word with ZERO code for two months** — the same species as `kind: system` itself, which J-512 found to be a spec word with zero code. *Write a capability into a constraint and it will sit there being true-by-assertion until something forces it.*
+  - **⚠️ *"REDOCKABLE"* IS STILL UNFED** — nothing moves a region yet (**M-RP7.4 — drag to dock: grip, edge bands**). **⚠️ AND *"RETAB"* IS NOW DEAD LETTER — D-116 forbids ever producing a `tabs` node.** The word survives in the older text as history; **no milestone may cite it as a requirement.**
+
+- **🔒 W-14 (new, v1.4 — M-RP7.1 / J-514) — A REGION WIDGET'S ROOT IS NOT A TITLED `Section`. THE TILE OWNS THE CHROME; THE WIDGET RENDERS ITS BODY.** **Grounded, not asserted:** before M-RP7.1 **all eight regions drew their own title header** (`region-placeholder.svelte` → `<Section {title} id={\`region-${regionId}\`}>` for six; `self-panel.svelte:70` and `inspector-panel.svelte:68` for the other two). Adding a tile stripe would have given **every region TWO titles** — and since `section` ships `collapsible` + `collapsed`, a collapsible section inside a foldable tile would have stacked **two fold affordances**.
+  - **This is Joe's own framing arriving as a concrete defect in eight files:** *"regions have main form now as a group container. group containers will be contained, but **not as a main form**."*
+  - **→ The tile frame draws `[grip · title · fold]`. The widget renders its BODY ONLY.** **`section` remains fully legal INSIDE a region body** — *contained, not the main form*, exactly as Joe framed it.
+  - **The title's source already exists:** `CLIENT_PLUGINS` carries `name` (M-RP6.1l). **No new data, no new verb** — the same one-source-two-readers shape as the `widgetRegistry` derive.
+  - **⚠️ Two consequences that are NOT cosmetic:** the registry entries `section#region-*` **disappear** (8 of them) and are replaced by the tile's own registered element — **the client baseline MOVES and is MEASURED, never derived** (N-105/N-108); and the leaf-id convention `id = region-${regionId}` (N-096) **migrates from the `Section` to the tile frame** — it stays the leaf's durable handle, it **changes owner**.
 
 > **Reframe (v1.2, D-103).** Every UI **region is a widget** — the client panel is a layout of dockable widgets (`system` R1–R8 + `custom`). The di/dd grid stays the **content** tier; **widgets are the dockable surfaces that host content**, so a custom widget can contribute a new dockable region. Renderers: config-grid (A) now → owned dock engine (B) at M-RP7, both reading one serializable layout descriptor. Full model in `xgen-region-dock-model.md`.
 

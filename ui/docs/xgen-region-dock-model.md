@@ -1,8 +1,8 @@
 # XGen UI — Region / Dock Model
 > **Status**: ACTIVE  
-> Version: 1.9  
+> Version: 2.0  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-12  
+> **Last updated**: 2026-07-13  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -18,7 +18,7 @@ Five words, five distinct things. They were used interchangeably before this loc
 
 | term | what it is | shipped anchor |
 |---|---|---|
-| **tile** | **A PLACE** — a box in the grid. One `leaf` node in the §3 `Layout` descriptor = **one tile**. It has position, a size weight, and (at renderer B) a drag handle. | *currently unnamed in code* — the skin calls it `.region-leaf`. **Cosmetic debt**: rename when renderer B makes tiles draggable, **not before** (it would churn a shipped selector for no behaviour). |
+| **tile** | **A PLACE** — a box in the grid. One `leaf` node in the §3 `Layout` descriptor = **one tile**. It has position, a size weight, and (at renderer B) a drag handle. | **✅ NAMED IN CODE 2026-07-13 (M-RP7.1, J-514): `region-tile`** — the **35th `core`**. **The cosmetic debt is DISCHARGED and the trigger fired exactly as written** (*"rename when renderer B makes tiles draggable"*): the tile is now a real component with its own chrome, and `.region-leaf` survives only as the **body scroller** inside it. |
 | **region** | **A WIDGET'S FULL CONTENT SURFACE**, occupying a tile. **It names WHICH widget, not where** — R3 *is* Self/connection wherever it is docked. | `regionId` — and in shipped code **`regionId === widgetId`** (`region-node.svelte`: `<W regionId={node.widgetId} />`). Leaf-id convention `region-${regionId}` (N-096). |
 | **face** | **A WIDGET'S COMPACT HANDLE** on a shelf: icon + optional badge + **a click that dispatches a `commandId`**. | `xgen-widget-surfaces-phase0.md` **S-4 / S-7**. |
 | **window** | a widget's **own OS window**. | surfaces §3; Ch6 §6.8.3's **Window** UI form. |
@@ -66,11 +66,21 @@ A serializable tree. Leaves reference widgets by id; splits and tabs compose the
 
 ```
 LayoutNode =
-  | { type: "leaf",  widgetId: string }
+  | { type: "leaf",  widgetId: string, collapsed?: boolean }   // ← + collapsed (M-RP7.1)
   | { type: "split", dir: "row" | "col", sizes: number[], children: LayoutNode[] }
-  | { type: "tabs",  active: number, children: LayoutNode[] }
+  | { type: "tabs",  active: number, children: LayoutNode[] }  // still typed, still DROPPED
 Layout = { version: number, root: LayoutNode }
 ```
+
+> ### ✅ **SCHEMA DELTA — `collapsed?: boolean` ON A LEAF (M-RP7.1, J-514). `version: 2`.** The **first schema change since D-103**, and **exactly one field**.
+>
+> - **Optional → an absent key means expanded**, so **every layout already on disk stays valid** and **migrate is a NO-OP**. The `version` bump is taken anyway, because §9's migrate path had **never been exercised** and this is its first honest customer. *(It still has not run. It is bumped twice now and has migrated nothing — see §9.)*
+> - **`collapsed` is a property of the TILE (the `leaf`), NOT of the widget.** The widget does not know it is folded; it is simply not rendered. ***A widget that could observe its own fold state would be a widget that could fight it.***
+> - **🔒 D-116 (Joe, 2026-07-13) — THE DOCK REARRANGES; IT NEVER JOINS.** A target tile is an **ADDRESS**, not a container: **no centre drop-zone** (a tile's centre is inert), **no tabs are ever produced**, **no docked/undocked mode**. **`tabs` stays TYPED and stays DROPPED** — the door is **shut, not locked**: zero cost, zero schema change if it is ever wanted, and **re-opening it is an EXPLICIT act, never a rider on a drag milestone.**
+>
+> **⚠️ AND THE FOLD AXIS IS NOT SETTLED HERE.** M-RP7.1 shipped `collapsed` as a boolean with the fold **axis DERIVED from the parent split's `dir`**. **Joe superseded that at J-515** — the axis becomes the **user's choice** (two buttons: fold-to-left / fold-to-top), which turns `collapsed` into a **direction**, not a flag. **That is `M-RP7.1b — the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor`, and it carries the `v2 → v3` bump and the FIRST REAL MIGRATE.** **No fold `D` is locked until it has been built and Joe has looked at it** (his words: *"honestly i have to see it in practice"*). → **Do not treat the `collapsed: boolean` above as final. It is one milestone old and already superseded in design.**
+>
+> **⚠️ AND FOLD CREATES HOLES — measured, not predicted (J-514).** Fold **every** child of a split and the split **under-fills**: empty space opens that no sibling can absorb. **This contradicts the dock Phase-0 §4.1's *"No hole is ever created"***, which reasoned about a single tile's **cross** axis and was silent about the **main** one. **§7.1's *"no holes, rectangles only"* is AMENDED (J-515): rectangles only; HOLES ARE LEGAL and are painted as a system area.** **A hole is INERT — it is NOT a drop target** (it has no address; D-116). *A proof about one node is not a proof about the tree.*
 
 - **Config-grid renderer (A, M-RP6.1+): ✅ BUILT at M-RP6.1f (J-499)** — `region-shell` (`core`, the **32nd**). Renders a restricted subset: **`leaf` + `split` only**, fixed `sizes`, **no runtime mutation**. Rearranging = editing the descriptor (or the DEV `__XGEN_LAYOUT__` handle). A **`tabs` node is DROPPED with a DEV warn** (renderer B owns tabs — an unfed branch would be an unverified branch, D-065/N-091). A `leaf` whose `widgetId` the registry cannot resolve is **DROPPED** — the same prop-injected `widgets: Record<widgetId, Component>` shape `message.svelte` already shipped (W-13 reconcile; **one mechanism, not two** — N-093). A `split` whose children all drop collapses; a `sizes`/`children` length mismatch degrades to equal weights + a warn. **It never throws** — see §9's stale-tree rule, and its one live gap in the note there. `sizes[]` ride an **inline `flex: {n} 1 0`** (descriptor **data**, not skin — the one carve-out from N-090).
 - **Dock engine renderer (B, M-RP7):** renders the full tree, supports `tabs`, and **mutates the tree** on drag-drop (hover-to-plug-in) + splitter resize.
@@ -123,8 +133,12 @@ R1/R2 land as the next writers, and they will find the reader already there — 
 
 - **W-12 — a widget owns exactly one region.** Every widget (system or custom) maps to exactly one dockable surface in the layout descriptor. (Promotes the earlier "MAY own a region" to the universal rule.)
 - **W-13 — system widgets are non-removable.** `kind: system` widgets are pre-installed, always present in the default layout, and cannot be uninstalled or fully closed (they may collapse, redock, retab, and be configured). This prevents a user closing the Composer with no way back.
+  - **✅ *"they may COLLAPSE"* FINALLY HAS A MECHANISM (M-RP7.1, J-514):** `collapsed?: boolean` on the leaf (§3), rendered by `region-tile`'s fold button. **It was a spec word with no code for two months.** **⚠️ *"retab"* IS NOW DEAD LETTER — D-116 forbids producing a `tabs` node at all.** The word survives here as history; **no milestone may cite it as a requirement.**
+  - **⚠️ AND §9's *"re-inject missing `system` widgets"* IS STILL UNIMPLEMENTED.** `resolve.ts` drops unknown ids and **never re-injects**. Harmless while nothing can *remove* a leaf — and **the dock arc does not make it reachable either** (`move` relocates, `fold` collapses in place; **no verb removes a region from the tree**). **It stays filed, honestly, as still-unimplemented.** ***A rule the code does not implement is not a rule; it is a comment.***
 
 ## 7. Renderer roadmap
+
+> ### ⚠️ **SUPERSEDED 2026-07-12 — `docs/xgen-dock-engine-phase0.md` §11 OWNS THE RENDERER-B ARC.** This section's numbering is **stale in both directions**: its `7.3 save/restore layouts` **already shipped** (M-RP6.1k, D-114/D-115), and its `7.4 custom-widget regions` / `7.5 tear-off` **moved out of the arc entirely** (tear-off sits behind **M-RP8**, and it needs the descriptor to **record floating regions** — a **second** schema change, not free). **The current arc is:** ✅ **M-RP7.1 — the tile frame: stripe, grip, fold** (CLOSED J-514) · 🟢 **M-RP7.1b — the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor** · **M-RP7.2 — splitter resize on the seam** · **M-RP7.3 — the mutation algebra (pure)** · **M-RP7.4 — drag to dock: grip, edge bands** · **M-RP7.5 — the session layout feeder** · **M-RP7.6 — the grid lock: freeze arrangement, keep function** · **M-RP7.7 — node app inherits the frame + grid**. *Original text kept below as history.*
 
 - **M-RP6.1–6.5** — regions on live data via config-grid renderer **A**; each region built + verified as a system widget (Phase-0 + sampler + CDP). Reads the locked descriptor.
 - **M-RP7 — owned dock engine (renderer B):** 7.1 layout tree + splitters · 7.2 drag + drop-zone overlays (Maya-style hover-to-plug-in) · 7.3 save/restore layouts · 7.4 custom-widget-contributed regions live · 7.5 (stretch) tear-off into separate OS windows (Tauri `WebviewWindow` + cross-window state sync).

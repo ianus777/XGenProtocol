@@ -1,10 +1,44 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-12  
+> **Last updated:** 2026-07-13  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-514 — M-RP7.1 — the tile frame: stripe, grip, fold CLOSED — and the tile that can fold opened a hole the chapter said could not exist
+
+**M-RP7.1 — the tile frame: stripe, grip, fold ✅ CLOSED.** One code-only commit [Clair]: **`4c2f886`** (12 files, +433/−93). Design was locked at the dock-engine Phase-0 walk (`docs/xgen-dock-engine-phase0.md` v1.2); this is the implementation, its verification, and **one finding that cost the arc a new milestone before the next one started.**
+
+**Renderer B has a frame.** `region-tile` — the **35th `core`** (`region-shell` 32nd · `shelf` 33rd · `shelf-face` 34th, Joe-locked J-508) — now frames every leaf: a title **stripe** `[move-grip · title · fold]`, a **body slot** (which is now the scroller, ex-`.region-leaf`), and the **reused `status-bar` SE clip-path triangle**. The **eight `Section` roots are unwrapped** — no widget draws its own title any more, which is Joe's *"group containers will be contained, but not as a main form"* arriving as a concrete edit in eight files (Phase-0 §5). `collapsed?: boolean` entered the leaf; `version: 2`; **migrate is a no-op.** The move grip and the resize triangle are **painted and DEAD** (`aria-hidden`, no handler, no role, no cursor — they carry no claim that later becomes false); their dischargers are named — **move → M-RP7.4 — drag to dock: grip, edge bands**, **resize → M-RP7.2 — splitter resize on the seam**.
+
+**🔑 THE FINDING — FOLD OPENED A HOLE, AND THE CHAPTER HAD ALREADY PROMISED IT COULDN'T.** Phase-0 §4.1, one session old, states: *"No hole is ever created: the tile still fills its parent's cross-axis."* **That sentence is true about the cross axis and silent about the main one.** Fold two leaves in a `col` split with no expanded sibling left and **the split under-fills: a hole opens.** It is not hypothetical and it is not a future risk — **it is in the shipped build**, and Joe found it by *looking at the screen*, which is the only place it was ever going to be found. **Nobody wrote the all-siblings-folded case down, because the argument that produced §4.1 was a geometric one about a single tile, and a single tile cannot see its siblings.** *(A proof about one node is not a proof about the tree. The fifth member of the family — N-091 · N-097 · N-099 · N-109 · this: **a verified claim is only ever as wide as the case that was actually run.**)*
+
+**→ The consequence is a new milestone, not a patch: `M-RP7.1b — the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor`.** Design locked separately at **J-515**; it is the next thing built.
+
+**⚠️ D-116 LOCKED. D-117 DELIBERATELY NOT LOCKED.** D-116 (*the dock rearranges; it never joins — a target tile is an ADDRESS, not a container; no centre drop-zone, no tabs, no docked/undocked mode*) stands on Joe's own words and nothing this session touched it. **D-117 as drafted — `collapsed` a boolean, the fold axis DERIVED from the parent split — was superseded by Joe before it was ever written to `DECISIONS.md`** (see J-515), and Joe's word on the replacement was: ***"honestly i have to see it in practice."*** → **No fold decision enters the record until it has been built and looked at.** *A `D` locked for a design its author has told you he needs to see first is not a decision; it is a prediction wearing a decision's clothes.*
+
+**MEASURED — Chat re-drove every leg on the real client (Rule 5); no number below was taken on report:**
+- Client registry **67** — **quiescent, EMPTY store, NO SELECTION.**
+- **⚠️ N-108 EXTENDED — THE REGISTRY BREATHES WITH THE *SELECTION* STATE, NOT ONLY THE STORE.** Measured in one session: **67** (no selection) → **71** (selection active) → **65** (selection active + self folded). N-105 said *assert quiescence before you count*; N-108 said *a baseline that depends on a data file can be wrong on a machine where nothing is wrong*. **This is the third axis: a baseline that does not state its SELECTION state is unreadable.** The inspector renders rows only when the bus is fed, and a folded tile does not render its body at all — so the same healthy client honestly reports three different numbers. **→ every future baseline states store state AND selection state, or it is not a baseline.**
+- `cargo test` **1517/0/62 — IDENTICAL to baseline**, which *proves* no Rust landed rather than asserting it. `npm test` **43**. `vite build` **168**. Sampler catalogue **328** (unchanged by scope).
+- Split ratios **`[1,2,7,2]` exact at 1242px and 1252px** — a fifth and sixth distinct width.
+
+**⚠️ FILED, NOT FIXED — a real library-wide defect, measured here and deliberately left alone.** **`mergeClasses` does not dedupe**, and `use:envelope` already stamps the type-class from `name` (N-023). **So any component that ALSO writes a literal `class="X"` renders `class="X X"`.** Five registered elements do it today: `region-shell` · `self-panel` · `inspector-panel` · `combobox` · `plugin-list`. **Clair fixed `region-tile` only — correctly; that was her scope.** The sweep (or making `mergeClasses` dedupe, which is a **`$common` base change**) is **its own milestone, NEVER a rider** — the same rule that kept the `dialog` footer-snippet slot out of M-RP6.1k. *A cross-cutting fix smuggled into a component milestone makes that milestone's registry delta unreadable, and the registry delta is the only thing proving the milestone did what it said.*
+
+**TOOLING — measured this session, not folklore. These are new and they cost real time:**
+- **⚠️ The CDP bridge WRAPS getters:** `get(id)` returns `{type, state}`. Read **`get(id).state.foo`** — reading `get(id).foo` returns **all nulls, which looks exactly like a broken build.** It isn't.
+- Tile class names are `region-tile-stripe` / `-move` / `-title` / `-fold` / `-body` / `-resize` (**not** `-strip` / `-grip`).
+- **⚠️ An attribute selector with an unquoted `#` throws a bare `EVAL ERROR`** — `[data-debug-id=region-tile#region-spaces]` is invalid. Quote it, or iterate `querySelectorAll('[data-debug-id]')` and compare. **N-110's family again: assert the subject is READABLE before asserting anything about it.**
+- Escaped double-quotes inside `-Expression` break the harness (it mis-binds to `-Ordinal` and throws a type error). Use single quotes inside the JS, or `String.fromCharCode(39)`.
+- `npm test` lives in **`ui/sampler`** (`vitest run`) — not `ui/` (no `package.json`) and not `ui/client` (no test script). `vite build` runs in **`ui/client`**.
+- **⚠️ `cargo test` EXCEEDS THE MCP TIMEOUT (<45 s). Run it DETACHED** (`Start-Process cmd /c … > log 2>&1 -PassThru`) and poll the PID in **separate short calls** — a long `Start-Sleep` gets the shell killed **and takes the detached run with it.** When that happened here, the truncated log read **1195 / 0 / 60** — plausible, complete-looking, and **wrong**. Only the **missing final `test result:` summary** gave it away. ***A killed detached run leaves a MEASUREMENT-SHAPED ARTIFACT*** — the N-099 shape at the process level.
+
+**Records this entry closes:** `ui/docs/xgen-region-dock-model.md` → **v2.0** · `xgen-widget-tier.md` (W-13's *"may collapse"* finally has a mechanism; a region widget's root is no longer a titled `Section`) · `xgen-ui-components.md` (`region-tile` = 35th) · `xgen-ui-notes.md` · `tasks/M_RP7_1_TILE_FRAME.md` → **COMPLETED** · `docs/ROADMAP.md`. **No new `core` beyond `region-tile`. No Rust.**
+
+**🟢 NEXT-ACTIVE = M-RP7.1b — the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor.**
 
 ---
 

@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.82  
+> Version: 0.83  
 > Date: May 2026  
-> **Last updated**: 2026-07-12  
+> **Last updated**: 2026-07-13  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -2358,6 +2358,78 @@ The symptom is a bare **`EVAL ERROR: Uncaught`** (there is no `window.__XGEN_DEB
 **Harness debt (filed):** `cdp-debug.ps1` / `tasks/CDP_DEBUG_HARNESS.md` must state that **the registry and the DOM key on `data-debug-id`, never `id`** — the `#id` selector reflex is natural, silent, and will be repeated by the next seat.
 
 *(Family: **N-091** · **N-097** · **N-099** · **N-109** · N-110 — every one of them a check, a claim, or now a *lookup* that returned something confident about a subject it never actually had.)*
+
+---
+
+### N-111 — a proof about ONE NODE is not a proof about the TREE (2026-07-13, M-RP7.1 / J-514 — fold opened a hole the chapter had already promised could not exist)
+
+**The dock-engine Phase-0 §4.1, written one session before the code, argued the fold axis from geometry and concluded:** *"No hole is ever created: the tile still fills its parent's cross-axis."*
+
+**It shipped. Joe folded two regions. A hole opened.**
+
+> ### **The sentence is TRUE about the CROSS axis and SILENT about the MAIN one — and nobody noticed, because the argument reasoned about a SINGLE TILE, and a single tile cannot see its siblings.**
+
+A folded leaf takes `flex: 0 0 auto` and its **siblings absorb the freed space** — which is exactly why §4.1's reasoning felt complete. **But fold EVERY child of a split and there is no sibling left to absorb anything: the split under-fills, and the empty band is a hole.** The proof was correct at the scope it was run at, and **the scope was one level too small.**
+
+**→ THE RULE: when a rule is derived for a node, ASK IT AGAIN FOR THE NODE'S PARENT — and for the case where every child obeys the rule at once.** *An invariant that holds for each element separately is not an invariant of the collection; "each tile fills its slot" does not give you "the split is full".*
+
+**Consequences, taken knowingly:** region-dock §7.1's *"no holes, rectangles only"* is **AMENDED** — rectangles only; **holes are legal and are painted as a system area** (Joe, 2026-07-13). **A hole is INERT and is NOT a drop target** — D-116's *a target tile is an ADDRESS* means a hole has **no address**. And **D-116 itself is NOT weakened**: §2 argued *"in a space-filling tree there is no empty space to drop into"*, which is now only mostly true — **but the no-tabs lock's ground is Joe's own constraint (*"never mixing or joining"*), not the geometry.** *Correct the rhetoric; do not touch the decision.*
+
+*(Family: **N-091** · **N-097** · **N-099** · **N-109** · **N-110** · N-111. Five of them are a **check** that saw the wrong subject. This one is a **proof** that saw too small a subject. **A verified claim is only ever as wide as the case that was actually run.**)*
+
+---
+
+### N-112 — the registry breathes with the SELECTION state too: N-108's third axis (2026-07-13, M-RP7.1 / J-514)
+
+**N-105:** assert the UI is **quiescent** before you count (menus/popups register children while open). **N-108:** the registry breathes with the **store contents** — *a baseline that depends on a data file can be wrong on a machine where nothing is wrong.* **N-112 is the third axis, and it is the one that bites hardest in the grid arc.**
+
+**Measured on the real client, in one session, all three healthy:**
+
+| state | registry |
+|---|---|
+| quiescent · empty store · **no selection** | **67** |
+| quiescent · empty store · **selection active** | **71** |
+| quiescent · empty store · selection active · **self folded** | **65** |
+
+**Both moves are correct behaviour, not drift.** `inspector-panel` renders its rows **only when the bus is fed** (M-RP6.1h) — so a selection *adds*. A **folded tile does not render its body at all** (M-RP7.1) — so a fold *removes*. **The same healthy client honestly reports three different numbers.**
+
+> ### **→ THE RULE: a baseline states its STORE state AND its SELECTION state AND its FOLD state, or it is not a baseline — it is a number.**
+
+**And the trap sharpens as the arc proceeds:** every remaining leg (resize · drag · the session feeder) adds another dimension the registry can breathe along. ***A count is only a measurement if you can say what you were counting IN.***
+
+---
+
+### N-113 — `mergeClasses` does not dedupe, and the envelope already stamped the class: five components render `class="X X"` (2026-07-13, M-RP7.1 / J-514 — FILED, NOT FIXED)
+
+**Grounded while building `region-tile`, not hunted for.** `use:envelope` **supplies the type-class from `name`** (N-023). **`mergeClasses` does NOT dedupe.** → **any component that ALSO writes a literal `class="X"` on its root renders `class="X X"`.**
+
+**Five registered elements do it today:** `region-shell` · `self-panel` · `inspector-panel` · `combobox` · `plugin-list`.
+
+**It is cosmetic in the DOM and NOT cosmetic in the record:** a duplicated class is a **latent selector hazard** and it is the kind of thing a future skin author reads as intentional.
+
+> ### **→ IT WAS NOT FIXED, AND THAT IS THE NOTE. `region-tile` avoids it (no literal class); the other five were LEFT ALONE.**
+
+**Clair fixed her own component only — correctly. That was her scope.** The sweep (or making `mergeClasses` dedupe — which is a **`$common` BASE change** touching every component in the library) is **ITS OWN MILESTONE, NEVER A RIDER.** *A cross-cutting fix smuggled into a component milestone makes that milestone's registry delta unreadable — and the registry delta is the only thing proving the milestone did what it said.* **Third instance of this exact restraint:** the `dialog` footer-snippet slot (M-RP6.1k) · `M-RP-ROVING` (4 copies, extraction still deferred) · this.
+
+---
+
+### N-114 — a KILLED DETACHED RUN leaves a MEASUREMENT-SHAPED ARTIFACT (2026-07-13, M-RP7.1 / J-514 — the N-099 family at the PROCESS level)
+
+**`cargo test --workspace` exceeds the MCP tool timeout (<45 s).** So it is run **detached** (`Start-Process cmd /c … > log 2>&1 -PassThru`) and polled by PID.
+
+**⚠️ A long `Start-Sleep` in the polling call gets the SHELL killed — AND IT TAKES THE DETACHED RUN WITH IT.** What is left behind is a **truncated log**. And a truncated `cargo test` log **does not look truncated**:
+
+```
+1195 passed / 0 failed / 60 ignored      ← plausible. complete-looking. WRONG.
+```
+
+**The true number is 1517/0/62.** The only tell was the **ABSENCE of the final `test result:` summary line** — there was no error, no partial-write marker, no exception. **The log read exactly like a smaller, healthy test suite.**
+
+> ### **→ THE RULE: poll a detached run with SEPARATE SHORT CALLS, and assert the TERMINATOR before you read the numbers. A run that was killed does not report that it was killed — it reports whatever it had finished saying.**
+
+*(This is **N-099** — *a check whose subject is absent still returns an answer, and the answer is always the flattering one* — lifted from the eval to the process. The subject was **a run that no longer existed**, and its corpse was still legible. **Assert the subject is COMPLETE before asserting anything about it.**)*
+
+**And a second tooling trap from the same session, same shape:** **the client CDP bridge WRAPS getters** — `get(id)` returns `{type, state}`. Read `get(id).foo` and you get **`null` for every field** — which looks **exactly** like a component that mounted and failed to bind. The correct read is **`get(id).state.foo`**. *A wrapper you forgot about does not throw; it hands you a perfectly-shaped nothing.*
 
 ---
 

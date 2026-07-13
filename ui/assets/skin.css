@@ -2822,6 +2822,10 @@ html, body {
   --region-stripe: 22px;        /* stripe thickness: height (horizontal) / width (folded vertical) */
   --region-grip: 14px;          /* move-grip square */
   --region-resize: 12px;        /* SE resize triangle */
+  --region-fold-gap: 0;         /* gap BETWEEN the two fold buttons. 0 because the chevron glyphs are
+                                 * SQUARE (16×16) and already carry their own optical spacing. A narrower
+                                 * (non-square) glyph would need a real value here — the knob is LIVE, not
+                                 * reserved: change it and the render moves (see .region-title-buttons). */
   /* --region-fold-rotate is declared at :root (D8.1a) so a theme override reaches it — CONSUMED below,
    * never re-declared here (a local default would shadow the override). */
 
@@ -2882,11 +2886,27 @@ html, body {
   white-space: nowrap;
 }
 /* Fold buttons — TWO now (M-RP7.1b, §4.1): [data-fold="width"] folds to the left, [data-fold="height"]
- * folds to the top. Each is a skin-drawn border-chevron (::before). Convention B (disclosure): the button
- * points the way it will fold when OPEN, and flips to the unfold direction when THAT axis is folded. The
- * OTHER-axis button is aria-disabled while folded → dimmed + no pointer. NO extra rotation is applied inside
- * the rotated (width-collapsed) strip — the chevron transform below is the ONLY rotation on the glyph, so
- * the double-rotation trap (§4.1) cannot bite (a border-box ::before is not rotated by writing-mode). */
+ * folds to the top. Each is a skin-drawn border-chevron (::before).
+ *
+ * 🔒 CONVENTION A — DIRECTION OF TRAVEL (Joe, 2026-07-13, correcting the "convention B" label):
+ *   THE CHEVRON ALWAYS POINTS WHERE THE REGION WILL GO IF YOU PRESS IT. Open: "<" = I will go LEFT,
+ *   "^" = I will go UP. Folded: the matching button points BACK the way the region will return
+ *   (">" / "v"). The other-axis button keeps its open glyph — dimmed, but still telling the truth
+ *   about what it WOULD do.
+ *
+ *   ⚠️ THE SHIPPED BUILD WAS MIXED, AND THE COMMENT ABOVE THE ROTATIONS WAS ALREADY RIGHT.
+ *   The width button was ALWAYS convention A (open "<" = travel; B would have pointed ">" at the
+ *   content). Only the HEIGHT button spoke disclosure (open "v" = "my body is below"), taken from
+ *   Joe's original [<][V] sketch. Two languages, one stripe. The fix is TWO ROTATIONS SWAPPED and
+ *   nothing else — the width button was never wrong.
+ *
+ * Base ::before = a 6×6 box with right+bottom borders (a bottom-right corner). Rotations read:
+ *   45° = v (down) · 135° = < (left) · 225° = ^ (up) · −45° = > (right).
+ *
+ * The other-axis button is aria-disabled while folded → dimmed + no pointer. NO extra rotation is
+ * applied inside the rotated (width-collapsed) strip — the chevron transform below is the ONLY
+ * rotation on the glyph, so the double-rotation trap (§4.1) cannot bite (a border-box ::before is
+ * not rotated by writing-mode). */
 .region-tile-fold {
   flex: none;
   width: 16px;
@@ -2912,14 +2932,29 @@ html, body {
   border-right: 1.5px solid currentColor;
   border-bottom: 1.5px solid currentColor;
 }
-/* Open glyphs: width button = left chevron `<` (rotate 135°); height button = down chevron `v` (rotate 45°). */
+/* Open glyphs (CONVENTION A — where the region will GO): width button = left chevron `<` (135°);
+ * height button = UP chevron `^` (225°). */
 .region-tile-fold[data-fold="width"]::before  { transform: rotate(135deg); }
-.region-tile-fold[data-fold="height"]::before { transform: rotate(45deg); }
-/* Folded on THIS axis → the matching button flips to the unfold direction: width → right `>` (−45°),
- * height → up `^` (225°). (The other-axis button is disabled and keeps its open glyph.) */
+.region-tile-fold[data-fold="height"]::before { transform: rotate(225deg); }
+/* Folded on THIS axis → the matching button flips to point BACK the way the region will RETURN:
+ * width → right `>` (−45°), height → down `v` (45°). (The other-axis button is disabled and keeps
+ * its open glyph — it still names the action it would perform.) */
 .region-tile[data-collapsed="width"]  .region-tile-fold[data-fold="width"]::before  { transform: rotate(-45deg); }
-.region-tile[data-collapsed="height"] .region-tile-fold[data-fold="height"]::before { transform: rotate(225deg); }
+.region-tile[data-collapsed="height"] .region-tile-fold[data-fold="height"]::before { transform: rotate(45deg); }
 .region-tile:hover .region-tile-fold:not([aria-disabled="true"]) { color: var(--t2); }
+
+/* The two fold buttons' wrapper (M-RP7.1b, Joe 2026-07-13) — ONE addressable unit in the stripe.
+ * inline-flex is what makes --region-fold-gap REAL: on the shipped `display: inline` default a `gap`
+ * would be INERT, and an inert knob is a reservation, not a control (§4.3.1 — RESERVE NOTHING). It also
+ * fixes the stripe's own gap landing between the TITLE and the span rather than between the buttons:
+ * the span is now a single box, so the stripe separates [title | buttons] and this rule separates the
+ * buttons from each other. */
+.region-title-buttons {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: var(--region-fold-gap);
+}
 
 /* The body — the scroller (D5, ex-.region-leaf). Padding so an unwrapped widget body isn't flush. */
 .region-tile-body {

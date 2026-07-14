@@ -1,10 +1,120 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-13  
+> **Last updated:** 2026-07-14  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-517 — The space around the regions and the space under them: two knobs, one filed milestone, and a discharger pointed at the wrong place
+
+**Records + skin only. NO component change, NO Rust, NO registry change. Design walk for M-RP7.2 opened; no code written — Joe has not said go.**
+
+---
+
+### 1. Two questions from Joe, and both were really the same question
+
+Joe asked, in order: *"have we a gap possibility between regions and grid edges? I would like to have that due to possible skin customization request — set it to non-zero for development inspection"*, and then: *"the space under regions aka 'the hole' will be customizable, and there will be some static or dynamic visual plate — from solid black to animated reactive colour fractal clouds."*
+
+**They are the same surface.** The perimeter and the hole are both *"grid, but no tile here"* — and once there is a backdrop plate, **they light up together.** That is why the second answer changed the first one, and why they travel in one commit.
+
+---
+
+### 2. 🎛️ The two spacing knobs — GROUNDED FIRST, and the grounding found that neither existed
+
+**Answer to the literal question: NO, and worse than no.**
+
+- **`.region-shell` had no padding at all** — and `.app-center` sets **`padding: 0` explicitly** (J-499's D5). The grid has been welded to the frame edge since renderer A shipped.
+- **`.region-split` carried a hardcoded `gap: 1px`** — **not a token, not a knob.** Every record calls the hairline seams *"skin"*; the number was a literal.
+
+Both are now **PROVISIONAL** tokens on `.region-shell`:
+
+| token | what it spaces | value |
+|---|---|---|
+| **`--region-pad`** | the **grid ↔ frame edge** | **6px** — non-zero **on purpose**, so it is visible for development inspection (Joe's ask) |
+| **`--region-seam`** | **between tiles** | **1px** — the same hairline, the same value; now tunable |
+
+> **🔑 `--region-seam` IS NOT A THROWAWAY — IT SURVIVES THE NEXT MILESTONE.** At **M-RP7.2** the flex `gap` **becomes a real seam ELEMENT** (a `gap` cannot be hit-tested — that is the whole reason the splitter needs one) **and this token becomes its thickness.** *One token, both eras, so retuning the seam never means finding two places.*
+
+> ### 🔒 **THE PERIMETER IS NOT A SEAM AND CAN NEVER BECOME ONE.**
+> Seams exist **only BETWEEN a split's children** — the `{#each}` interior. **There is no leading or trailing seam.** So the outer edge **cannot** grow a drag cursor or a hit zone at M-RP7.2, structurally. *It costs the splitter milestone nothing, and — the part that matters — **it cannot lie to the user about a drag that does not exist**.*
+
+**Ratios UNAFFECTED, and this was checked rather than assumed:** flex distributes over the **reduced content box**, so `[1,2,7,2]` still holds **exactly** — only the absolute px shrink by `2×pad`. Global **`box-sizing: border-box`** (`xgen-normalize.css:21`, **grepped**) means the padding cannot overflow the frame. *A `content-box` shell with padding would have blown the frame out, and that is not a thing to find out by looking.*
+
+---
+
+### 3. ⏸️ `M-RP-PLATE` — the grid backdrop: an inert, live-switchable plate widget under the tiles. FILED, NOT BUILT.
+
+**Joe's frame is right, and — the finding — the project had already built the mechanism one level down and nobody had connected the two.**
+
+**🔑 GROUNDED, NOT RECALLED:** `message-stream.svelte` has shipped since **J-482** with **`background?: WidgetMount[]`** — an **ARRAY** (so a *stack* of plates is free) · `position: absolute; inset: 0` · **`pointer-events: none`** · unknown-`widgetId` **dropped** (W-13) · and a **`backgroundLive`** switch passed into every mount, whose own comment reads: *"a reactive widget renders frozen when false; a static object ignores it."* Locked at **J-481**. **Chat wallpaper.**
+
+***Joe is describing the same object one level up: grid wallpaper.*** **"Solid black" and "animated reactive fractal clouds" are the SAME SEAM** — one is a `div` with a colour, the other owns a canvas, **and the host never learns the difference.**
+
+**🔑 IT COSTS NO SURFACE — AND THE TAXONOMY HAD ALREADY RULED ON IT.** W-12 (amended): a widget declares **at most one** of `region · shelf · window · none`. A backdrop plate declares **none of them** — which is not a hole in the taxonomy but **`xgen-widget-surfaces-phase0.md` §3.2: *content rendered inside a HOST is not a surface*** — the identical ruling that settled `temperature-indicator` (J-502). → **no tile, no region, no shelf face, no new surface kind, no W-12 conflict.** *The answer was on the shelf; it did not need inventing.*
+
+**🔑 AND THE ONE THING THAT WOULD HAVE BEEN EASY TO GET WRONG: A HOLE CANNOT HOLD ANYTHING.** A hole is **flex leftover space** — **no element, no address, no identity** (which is *precisely* why D-116 holds and §7.1's lattice stayed out). **So the plate is a BACKDROP, not a hole-filler:**
+
+> **ONE plate, `inset: 0`, behind the whole `.region-shell`.** Not one per split — *a cloud that restarts at every split boundary reads as N surfaces, not one.* **The tiles are OPAQUE, so what shows through IS the holes** — identical mechanic to today's background, **promoted from *paint* to *element***. **And it lights the `--region-pad` perimeter for free**, which is what fuses §2 and §3 into one answer.
+
+> ### 🔒 **THE PLATE MAY READ THE POINTER. IT MAY NEVER CAPTURE IT.**
+> `pointer-events: none`; a passive listener only. ***The instant a hole becomes clickable it has an ADDRESS*** — and **D-116** (*a target tile is an address*) falls, and **§7.1's lattice argument is live again.** ***A reactive backdrop is fine. A clickable one retires the tree.***
+
+**⚠️ IT RETIRES A §4.5 CLAIM, AND THAT IS THE FINDING.** §4.5 says the raster is *"a BACKGROUND on the split container — zero new DOM, one skin rule."* A CSS background does solid, gradient, pattern, even keyframes. **It cannot do a canvas, a shader, or anything reactive.** The moment the plate is dynamic **it is an ELEMENT.** → **today's dot raster is not the seed of the plate; it is the placeholder the plate REPLACES.**
+
+**🔒 BUT PROMOTED, NOT DELETED:** the dev raster becomes the **first *system* plate widget**, so the socket **ships FED** — *an unfed branch is an unverified branch* (D-065 / N-091). **"Solid black" is then a setting on it, not a special case.**
+
+---
+
+### 4. ⚠️ A DISCHARGER WAS POINTING AT THE WRONG MILESTONE — CORRECTED
+
+The hole raster shipped **PROVISIONAL** with **`M-RP-SKIN`** named as its discharger (J-516). **That is now wrong, and it is wrong in a way that would have cost real work:**
+
+> **`M-RP-SKIN` would TUNE the raster. `M-RP-PLATE` DELETES it.**
+
+→ **the raster's discharger is re-pointed to `M-RP-PLATE`**, in the Phase-0, the ROADMAP, `CLAUDE.md` **and in the `skin.css` comment itself**, so nobody opens the appearance pass and spends an afternoon tuning a dot grid that a later milestone throws away. ***This is the J-495 argument that rejected the interim DWM title-bar tint: do not polish what you have already decided to replace.***
+
+**Every other provisional in the arc still points at `M-RP-SKIN`** (fold chevrons · stripe/grip/triangle sizing · the folded strip's form · **the two new tokens**). **None points at nothing** — the countdown rule survives; one arrow just moved.
+
+---
+
+### 5. 🔒 Why it is FILED and not BUILT — and it is a LOCK, not a preference
+
+Joe's sentence contains the blocker: *"…a background widget **which sets it by its own setting**."*
+
+> **THERE IS NO SETTINGS MECHANISM, AND THAT IS DELIBERATE.** **J-513** filed the Ch6 `settings_schema`-vs-plugin-component collision as **explicitly undecided**, binding: ***nothing is built toward either until the grid works.***
+
+So the plate **cannot** be built today without picking the exact thing that is fenced off. **Joe, unprompted, landed on the same conclusion from the other side:**
+
+> ***"That is why i don't want to solve it now. Now has priority widget grid with functional empty regions. Background widget we can create after the grid concept works."***
+
+**Same shape as `M-RP-SKIN`, same reason: you cannot tune — or plug a widget into — an appearance whose mechanics are still moving underneath it.**
+
+> **🔒 THIS ARC RESERVES NOTHING FOR IT.** No prop on `region-shell`, no descriptor key, no store, no manifest slot. *A key nothing writes is a key nobody has round-tripped* (the M-RP6.1k finding). **ZERO impact on M-RP7.2.**
+
+---
+
+### 6. One stale record found and fixed in passing
+
+`docs/ROADMAP.md`'s **M-RP7 arc summary** still read **M-RP7.1b** as *"🟢 design locked J-515"* — stale since **J-516 closed it**. The dedicated entry three lines above it was correct; the summary had not been re-read. **Corrected to ✅ CLOSED (J-516).** *The session brief said the record was consistent and the tree was clean; it was 99% right, and the 1% is why you still look.*
+
+---
+
+### 7. Files
+
+| file | change |
+|---|---|
+| `ui/assets/skin.css` | `--region-pad: 6px` + `--region-seam: 1px` on `.region-shell`; `padding: var(--region-pad)`; `.region-split` `gap` reads the token; **the raster's discharger comment re-pointed to `M-RP-PLATE`** |
+| `docs/xgen-dock-engine-phase0.md` | **v1.4 → v1.5** — new **§4.5.1** (`M-RP-PLATE`) + **§4.5.2** (the two knobs); §11's `M-RP-SKIN` block gains the raster exception; §13 filed list |
+| `docs/ROADMAP.md` | **v4.87 → v4.88** — `M-RP-PLATE` filed; `M-RP-SKIN` discharger list corrected; M-RP7.1b marked CLOSED in the arc summary |
+| `CLAUDE.md` | PLAY block: `M-RP-PLATE` + the two spacing knobs; `M-RP-SKIN` exception |
+| `JOURNAL.md` | this entry |
+
+**No `ui/core/**`, no `ui/client/src/**`, no `ui/sampler/**`, no Rust. Registry unchanged. No new `D` — nothing here is a decision Joe was asked to lock; it is a design filed and a record corrected.**
+
+**Next: M-RP7.2 — splitter resize on the seam.** Design walk delivered; the seven §0 mechanics are taken (`mutate.ts` born at 7.2 with `resizeSplit` · integer scale-up, never floats · live preview / integers on release · seam dead when a neighbour has no main-axis weight · `path: number[]`, no schema change · min-clamp reads the skin · no keyboard resize). **Awaiting Joe's go before any code.**
 
 ---
 

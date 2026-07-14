@@ -2771,10 +2771,31 @@ html, body {
  *   so it reads identically client↔node; the 1px gap over the split's --s5 background draws the hairline
  *   seams between tiles. ── */
 .region-shell {
+  /* Two grid knobs (Joe, 2026-07-14). Both PROVISIONAL; discharger = M-RP-SKIN (the arc-scale countdown).
+   *
+   * --region-pad  = the gap between the GRID and the FRAME EDGE. Zero until now, and not even a knob. Set
+   *   NON-ZERO deliberately so it is visible for development inspection. ⚠️ It is NOT a seam and can never
+   *   become one: seams exist only BETWEEN a split's children ({#each} interior) — there is no leading or
+   *   trailing seam — so the perimeter can never grow a drag cursor or a hit zone at M-RP7.2. The perimeter
+   *   shows what is UNDER .app-center, i.e. it reads as "outside the grid", NOT as the §4.5 system-area
+   *   raster (which is a background on .region-split). Whether it SHOULD read as system area is appearance
+   *   = Joe's; nothing is guessed here.
+   *
+   * --region-seam = the gap BETWEEN tiles. Was a hardcoded `gap: 1px`; same hairline, same value, now a
+   *   knob. At M-RP7.2 the flex `gap` becomes a real seam ELEMENT (a gap is not hittable) and this token
+   *   becomes its thickness — one token, both eras, so retuning it never means finding two places.
+   *
+   * Ratios are UNAFFECTED: flex distributes over the reduced content box, so [1,2,7,2] still holds exactly
+   * — only the absolute px shrink by 2×pad. Global box-sizing:border-box (xgen-normalize.css:21) means the
+   * padding cannot overflow the frame. Registry unchanged. No component change, no Rust. */
+  --region-pad: 6px;
+  --region-seam: 1px;
+
   display: flex;
   flex: 1;
   min-height: 0;
   min-width: 0;
+  padding: var(--region-pad);
 }
 /* the resolved root (a split, or a degenerate single leaf) fills the shell */
 .region-shell > .region-split,
@@ -2785,12 +2806,19 @@ html, body {
   display: flex;
   min-height: 0;
   min-width: 0;
-  gap: 1px;
-  /* --s5 base draws the 1px hairline seams through the gaps between tiles. The faint dot grid is the
+  gap: var(--region-seam);
+  /* --s5 base draws the hairline seams through the gaps between tiles. The faint dot grid is the
    * PROVISIONAL "system area" RASTER (M-RP7.1b, §4.5): it becomes visible only in a HOLE — the flex
    * leftover space a split under-fills when its children fold ACROSS it. Tiles are OPAQUE (--s), so the
-   * raster never shows through a tile, only where no tile covers the split. Plain + provisional: the
-   * pattern/weight/colour are Joe's to tune (N-090) and he cannot tune it until he has seen holes under it. */
+   * raster never shows through a tile, only where no tile covers the split.
+   *
+   * ⚠️ DISCHARGER CORRECTED (Joe, 2026-07-14): it is M-RP-PLATE, NOT M-RP-SKIN — §4.5.1. This is a DEV
+   * PLATE with no real background defined, and the real one arrives as a BACKGROUND WIDGET setting its own
+   * appearance (solid colour → animated reactive plate), which is an ELEMENT, not a background-image. So
+   * M-RP-PLATE REPLACES these three lines; it does not tune them. Do not spend appearance work here —
+   * tuning the look of a thing we are about to delete is work we throw away (the J-495 interim-tint
+   * argument). 🔒 And whatever replaces it stays pointer-events:none: the instant a hole is clickable it
+   * has an ADDRESS, and D-116 falls with it. */
   background-color: var(--s5);
   background-image: radial-gradient(var(--s3) 1px, transparent 1px);
   background-size: 8px 8px;

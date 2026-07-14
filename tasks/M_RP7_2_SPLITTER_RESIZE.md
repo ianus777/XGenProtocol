@@ -1,6 +1,6 @@
 # M-RP7.2 — Splitter resize on the seam
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-14  
 > Language: English  
@@ -106,7 +106,18 @@ Enumerate by **grepping what you exported**, not from this list (D-078). At mini
 
 ## 5. Leg 4 — the gesture (in `region-node`)
 
-- **`pointerdown`** on a live seam → **`preventDefault()`** (belt to N-118's braces) → **`setPointerCapture(e.pointerId)`**. Capture: the two neighbour elements' rects, and **`--region-min`** read once via `getComputedStyle` (**do not hardcode it — grep the folded-strip width token and point `--region-min` at the same value; the minimum IS the folded size, §4.2**).
+- **`pointerdown`** on a live seam → **`preventDefault()`** (belt to N-118's braces) → **`setPointerCapture(e.pointerId)`**. Capture: the two neighbour elements' rects, and **`--region-min`** read once via `getComputedStyle`.
+
+> ### ⚠️ **`--region-min` DOES NOT EXIST YET, AND THE OBVIOUS WAY TO ADD IT IS A TRAP. READ THIS BEFORE YOU WRITE THE CLAMP.**
+> **The number already exists and must not be typed twice: `--region-stripe: 22px`**, whose own comment says *"stripe thickness: height (horizontal) / **width (folded vertical)**"*. **That IS the folded size, and §4.2 says the minimum IS the folded size.** A literal `22px` anywhere in this milestone is a second source of truth (**D-067** — the J-499 drift, and the thing Clair correctly refused at M-RP7.1b).
+>
+> **🔒 BUT `--region-stripe` IS DECLARED ON `.region-tile`, AND THE SEAM LIVES ON `.region-split` — ITS PARENT.** **Custom properties inherit DOWN, never UP.** So `getComputedStyle(seam).getPropertyValue('--region-stripe')` returns the **empty string**, `parseFloat` gives **`NaN`**, and a careless clamp becomes **no clamp at all** — which looks like it works, right up until a drag squashes a tile to nothing. ***A minimum that silently evaluates to zero is worse than no minimum, because it passes.***
+>
+> **→ HOIST IT.** Move `--region-stripe` (and only its **declaration**, not its value) from `.region-tile` up to **`.region-shell`**, and add **`--region-min: var(--region-stripe)`** beside it. `.region-tile` still resolves it to `22px` by inheritance — **behaviour-neutral, verify it** — and now the seam can see it too. **ONE number, one place.**
+>
+> *This is the exact reasoning `skin.css` already applies to `--region-fold-rotate` three lines away* (*"it lives at `:root`, NOT on `.region-tile`, precisely so an override REACHES it — a local default out-specifies an inherited value and silently shadows it"*). **Same trap, opposite direction.**
+>
+> **⚠️ AND ASSERT THE READ.** If `--region-min` resolves to nothing, **fail loudly** — do not fall back to a literal.
 - **`pointermove`** → new boundary px → **snap to `--region-snap`** (new, `8px`, PROVISIONAL) → **clamp so both neighbours stay ≥ `--region-min`. It stops. It does not auto-fold.** Write a transient local `dragSizes` used for the **inline flex of the pair only**. **`node.sizes` is NOT touched.**
 - **`pointerup`** → `fraction = a_px / (a_px + b_px)` from the final clamped boundary → `onResize(path, seamIndex, fraction)` → clear `dragSizes` → release capture.
 - **`lostpointercapture` / `Escape`** → clear `dragSizes`, **call nothing.** A cancelled drag leaves the descriptor exactly as it was.
@@ -128,6 +139,7 @@ Enumerate by **grepping what you exported**, not from this list (D-078). At mini
 - [ ] `mutate.ts` + `mutate.test.ts`; **`npm test` count RECORDED, not predicted.**
 - [ ] `path` threaded; seam element; gesture; shell wiring.
 - [ ] **`user-select: none` + `preventDefault` on the seam, and a drag driven TWICE from the same point without a reload** (N-118's exact reproducer).
+- [ ] **`--region-stripe` hoisted to `.region-shell`; `--region-min: var(--region-stripe)` beside it.** **Verify the hoist is behaviour-neutral** — the folded strip still measures **22px** — and **verify the seam can actually READ `--region-min`** (an empty read is `NaN`, and a clamp of `NaN` is no clamp).
 - [ ] Clamp exercised: a drag that would push a neighbour below `--region-min` **stops** and **does not fold**.
 - [ ] A **shrink-wrapped** split's seam, and a seam beside a **folded-along** tile, are **inert** — proven, not asserted.
 - [ ] **Fold still works after a resize**, and a resize after a fold.

@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.87  
+> Version: 0.88  
 > Date: May 2026  
 > **Last updated**: 2026-07-14  
 > Language: English  
@@ -2594,6 +2594,43 @@ Joe: *"give each region a 1px very fine smooth border. When gap is 0, there is n
 3. **Prefer reloading between token variants over inline overrides**, whenever the test does not need the state to survive a gesture.
 
 > ***An instrument that leaves residue in the thing it measures does not just produce a bad reading — it produces a bad reading IN SOMEBODY ELSE'S SESSION, and they will look for the bug in their own work.*** *N-118 said the instrument can lie to me. N-123 says it can lie to Joe.*
+
+---
+
+### N-124 — the A/B test the milestone's own premise had never been given, and it killed the premise (2026-07-14, J-523 — M-RP7.2b, the region-owned gap model)
+
+**The model shipped. Its justification did not.**
+
+For three journal entries the arc carried a locked claim: ***"the region-owned gap model fixes the one boundary still wrong — tile↔hole is 0."*** It was in the skin, in §4.5.2's table, in the PLAY block, and in this milestone's own runbook — which **Chat wrote before measuring it.**
+
+**The A/B, and it takes one eval:** inject the OLD geometry as a `<style>` (`tile margin 0` · `shell padding 4` · `seam 4px`), fold a tile **across** to build a real hole, measure, remove the style.
+
+| | NEW | **OLD (injected)** |
+|---|---|---|
+| folded tile insets | 4 / 4 | **4 / 4** |
+| distance to the hole | 774.8px | **774.8px** |
+| adjacent-gap census | all **4** | **all 4** |
+| perimeter | **4** | **4** |
+
+> ### 🔑 **THE BOUNDARY IS NOT OBSERVABLE, AND THE REASON IS ONE LINE: SINCE J-521, A HOLE AND A GAP ARE THE SAME SURFACE.** Both are `.region-shell`'s backdrop. A tile "butting onto a hole" is **indistinguishable** from a tile with a gap — ***there is nothing on the far side of that gap to be separated from.*** The claim was never *wrong about the pixels*; it was **about a difference that cannot be seen**, and nobody had tried to look.
+
+**🔑 THE SHAPE OF THE ERROR IS THE ARC'S OWN, FOR THE FOURTH TIME.** N-118: my *reasoning* can be internally consistent and wrong. J-521: my *architecture* can be. N-116: the *record* can be. **N-124: the *justification* can be** — and a 🔒 icon on it in three canonical records changed nothing except how confidently it was repeated. ***A coherent explanation that fits the evidence is not the cause. Change one variable and look.***
+
+**🔒 IT SHIPPED ANYWAY, AND THE HONEST REASON IS A DIFFERENT ONE:** it **deletes a MECHANISM, not a token.** The perimeter was the *shell's padding*; the inter-tile gap was the *seam element's thickness* — **two mechanisms, two tokens, which had already drifted apart once** (J-517: 1px and 6px; Joe found it by looking at the screen). J-520 forced them to *derive* from one. They can now never drift, **because they no longer exist.** And a gap that lives on the **region** travels with it when `move` relocates it (M-RP7.4); a gap that lives on the **grid** exists only where the grid puts a seam. *That argument was available from the start. It was not the one we locked on.*
+
+### N-124a — two records were more precise than their measurement (same session)
+
+**(a) `[1,2,7,2]` WAS NEVER BIT-EXACT.** Recorded as **"EXACT"** at four separate window widths across the arc. At full float precision it is **`[1, 2.000112, 7.000224, 2.000112]`** — **and the OLD geometry returns `2.000114`.** A pre-existing Chromium sub-pixel artefact (~0.004px) present in **both** models — which is precisely what **proves the margin adds no bias** (N-121's border broke it by **1.5%**; this is **0.006%**, and it is not new). The records were exact to *display* precision and claimed a certainty they had not earned.
+
+**(b) THE CLAMP DOES NOT STOP AT "EXACTLY 22px".** Measured **22.29px** — integer-weight rounding (L2), not a defect. Under the OLD geometry the same rounding lands at **21.89px, just BELOW the minimum.** Neither is a bug; both records overstated their own precision, and the new one at least errs on the safe side of the floor.
+
+> ***A number you rounded before you recorded it is a number you can no longer use as a control.*** *Both of these were only catchable because the A/B gave a second reading of the same quantity — the control the arc had never had.*
+
+### N-124b — a line-index splice is all-or-nothing per CALL, and the indices shift under you
+
+The skin edit was five splices. Chat ran them **top-down for two of them** — so an earlier splice **shifted the file** and the next one deleted **`min-height: 0` from `.region-shell`** instead of the `padding` line it was aiming at. *`min-height: 0` is load-bearing: it is the rule that keeps a deep leaf from pushing the scrollbar onto the document.*
+
+**It was caught by the grep verification, NOT by the diff** — the diff looked plausible. **🔒 RULE: splice DESCENDING, always; and guard each splice with an assertion on the line it is about to replace** (the fix script aborts if the anchor is not what it expects). *Sibling of the `edit_file` near-miss at J-521: **a diff that looks applied is not a render.***
 
 ---
 

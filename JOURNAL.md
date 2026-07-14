@@ -8,6 +8,63 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-523 — M-RP7.2b CLOSED: the region owns its gap — and the boundary it was locked to fix turned out to be invisible
+
+**Skin only (`ui/assets/skin.css`). No component, no descriptor, no vitest, no Rust. Joe-locked → built → A/B-measured → the justification died → Joe shipped it anyway on the right reason.**
+
+### What shipped
+
+`--region-gap: 4px` is now the **only** spacing token. `--region-pad` and `--region-seam` are **deleted — not renamed, gone.**
+
+- every **TILE** carries `margin: G`
+- every **SPLIT** carries **nothing** (and, since J-521, must never paint again — now load-bearing: a nested split's box **overlaps its neighbour's margin**)
+- every **SEAM** is a **ZERO-WIDTH** flex child with `−G/2` each side, cancelling the double — **its box lands dead centre of the gap**, so the drag handle survives (a `gap` never was hit-testable; that is why M-RP7.2 had to build a seam element at all)
+
+**`--region-seam-hit` re-derived: `max(4px, calc(var(--region-gap) / 2))`.** N-122's premise is retired — it compensated for a seam that **was** `--region-gap` wide. The seam is now **always** zero-width, so the `::before` **is** the entire grab target. Two floors, both deliberate: **≥ 8px** (a finger, at any gap) and **≥ the gap the user can see**.
+
+### 🔑 THE MILESTONE'S PREMISE WAS A GHOST, AND IT HAD A 🔒 ON IT IN THREE RECORDS
+
+For three journal entries the arc carried: ***"the region-owned gap model fixes the one boundary still wrong — tile↔hole is 0."*** It was in the skin comment, in Phase-0 §4.5.2's table, in the PLAY block, and in **this milestone's own runbook — which Chat wrote before measuring it.**
+
+**The A/B took one eval:** inject the OLD geometry as a `<style>` (tile margin 0 · shell padding 4 · seam 4px), fold a tile **across** to build a real hole, measure, remove the style.
+
+| | NEW | **OLD (injected)** |
+|---|---|---|
+| folded tile insets | 4 / 4 | **4 / 4** |
+| distance to the hole | 774.8px | **774.8px** |
+| adjacent-gap census | all **4** | **all 4** |
+| perimeter | **4** | **4** |
+
+> ### ⚠️ **IT IS NOT OBSERVABLE, AND THE REASON IS ONE LINE: SINCE J-521, A HOLE AND A GAP ARE THE SAME SURFACE.** Both are `.region-shell`'s backdrop. A tile "butting onto a hole" is **indistinguishable** from a tile with a gap — ***there is nothing on the far side of that gap to be separated from.*** The claim was never wrong about the pixels; it was **about a difference that cannot be seen**, and nobody had tried to look. **The model has ZERO VISUAL DELTA.**
+
+**🔑 FOURTH TIME, SAME SHAPE.** N-118: my *reasoning* can be internally consistent and wrong. J-521: my *architecture* can be. N-116: the *record* can be. **N-124: the *justification* can be** — and a 🔒 icon changed nothing except how confidently it got repeated.
+
+### 🔒 JOE SHIPPED IT ANYWAY, ON THE HONEST REASON — AND THAT REASON WAS AVAILABLE FROM THE START
+
+**It deletes a MECHANISM, not a token.** The perimeter was the *shell's padding*; the inter-tile gap was the *seam element's thickness* — **two mechanisms, two tokens, which had already drifted apart once** (J-517: 1px and 6px; **Joe found it by looking at the screen**). J-520 forced them to *derive* from one number; **they can now never drift, because they no longer exist.** And it is Joe's own model of what a region **is**: *"those gaps are part of each region."* **A gap that lives on the REGION travels with it when `move` relocates it (M-RP7.4); a gap that lives on the GRID exists only where the grid puts a seam.**
+
+### ⚠️ TWO RECORDS WERE MORE PRECISE THAN THEIR MEASUREMENT (N-124a)
+
+**(a) `[1,2,7,2]` WAS NEVER BIT-EXACT.** The arc recorded it as **"EXACT"** at four separate window widths. At full float precision it is **`[1, 2.000112, 7.000224, 2.000112]`** — **and the OLD geometry returns `2.000114`.** A pre-existing Chromium sub-pixel artefact (~0.004px) in **both** models — **which is precisely what proves the margin adds no bias.** (N-121's border broke it by **1.5%**; this is **0.006%**, and it is not new.) *The runbook said "if V1 is not EXACT the model does not ship" — and V1 was not exact. The right answer was not to fail the model; it was to notice the control had never been measured either.*
+
+**(b) THE CLAMP DOES NOT STOP AT "EXACTLY 22px".** Measured **22.29px** — integer-weight rounding (L2), not a defect. Under the OLD geometry the same rounding lands at **21.89px — just BELOW the minimum.** Neither is a bug; the new one at least errs on the safe side of the floor.
+
+> ***A number you rounded before you recorded it is a number you can no longer use as a control.***
+
+### MEASURED — Chat re-drove every leg on the real client 9222 (Rule 5)
+
+**V1** ratios `2.000112` new vs `2.000114` old → **no bias** · **V2** perimeter **4/4/4/4** and **14 adjacent tile pairs all exactly 4**, including pairs crossing a split boundary → **it composes at depth** · **V3** **MID-drag (button still down)** descriptor `[1,2,7,2]` untouched while the tiles had painted 216/118; **AFTER** `[194,106,700,200]` — pair total **300 invariant**, untouched siblings **×100** · **V4** grab zone **9px @ gap 0 · 9px @ gap 4 · 20px @ gap 20**, and the seam wins at **x=113–115, inside the neighbour's border box** (**N-119's `z-index` re-proven by sweeping `elementFromPoint`, not by reading the CSS**) · **V5** registry **67** quiescent; **the zero-width seam registers nothing** · **V6** clamp **22.29px**, `data-collapsed`/`data-fold-mode` **null** — *it stops, it does not fold*; `--region-min` still reads **22px** on the seam · **V7** `npm test` **59** · `vite build` **169** · **zero Rust by scope** (`git diff` = `ui/assets/skin.css`) · **V8** probes removed, no inline style, client reloaded quiescent (**N-123 honoured — the cleanup is part of the probe**) · **V9 Joe drove it by hand** (registry **71** — selection active — and a hand-dragged descriptor `[100,220,680,200]`).
+
+### ⚠️ CHAT'S OWN DEFECT, RECORDED NOT ABSORBED (N-124b)
+
+The skin edit was five line-index splices, and **two of them ran top-down.** An earlier splice shifted the file, and the next one **deleted `min-height: 0` from `.region-shell`** instead of the `padding` line it was aiming at — *the rule that keeps a deep leaf from pushing the scrollbar onto the document.* **It was caught by the grep verification, NOT by the diff.** 🔒 **Splice DESCENDING, always — and guard every splice with an assertion on the line it is about to replace.** *Sibling of J-521's `edit_file` near-miss: **a diff that looks applied is not a render.***
+
+**Records:** `ui/assets/skin.css` (the only code) · dock-engine Phase-0 **v1.9** (§4.5.2 rewritten — the ghost named, the `M-RP-PLATE` bundle retracted in §4.5.1 and §13; §11 gains the **M-RP7.2b** row) · `ui/docs/xgen-ui-notes.md` **v0.88** (**N-124 / N-124a / N-124b**) · `tasks/M_RP7_2B_REGION_GAP.md` **COMPLETED** · CLAUDE.md PLAY · ROADMAP. **No new D.**
+
+**Next-active: M-RP7.3 — the mutation algebra (pure).** 🔒 **It opens by fixing N-120** (Phase-0 §6.1) — a required leg, not a filed item: an index into the **resolved** tree is not an address into the **descriptor**, and *a misaddressed `resize` nudges two integers while a misaddressed `move` relocates a panel into the wrong branch.*
+
+---
+
 ## Entry J-522 — The region gets its own edge, and the obvious way to draw it would have silently biased the splitter
 
 **Skin only. No component, no Rust, registry 67. Joe's request; Joe's number (`--region-gap: 4px`, which he set himself after testing 0 and 20).**

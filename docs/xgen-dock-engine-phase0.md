@@ -1,6 +1,6 @@
 # XGen Client — The Dock Engine (Renderer B): Phase-0
 > **Status**: ACTIVE  
-> Version: 1.6  
+> Version: 1.8  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-14  
 > Language: English  
@@ -226,7 +226,14 @@ The only verbs that touch `sizes[]` are **resize** (§6 / M-RP7.2) and **move** 
 > ### 🔒 **§7.1's *"no holes, rectangles only"* IS AMENDED: RECTANGLES ONLY; HOLES ARE LEGAL AND ARE PAINTED AS A SYSTEM AREA.**
 > Joe accepted *"no holes"* explicitly on 2026-07-12. **He is retiring it explicitly on 2026-07-13.** *A lock is only retired by the person who set it, in the open.*
 
-**Mechanically the hole is `flex` leftover space INSIDE a split — it is not an element.** → **the raster is a BACKGROUND on the split container**, showing through wherever no tile covers it. **Zero new DOM. One skin rule.** *(Caveat to verify: tiles must be opaque, or the raster bleeds through them.)*
+**Mechanically the hole is `flex` leftover space INSIDE a split — it is not an element.** → the raster is a **BACKGROUND**, showing through wherever no tile covers it. **Zero new DOM. One skin rule.**
+
+> ### 🔑 **CORRECTED 2026-07-14 (J-521): THE BACKGROUND IS ON `.region-shell`, NOT ON `.region-split`.**
+> It was on the split, and **that was a bug Joe saw before anyone measured it.** **Measured:** the split painted `--s5` + the raster, while **`.region-shell` AND `.app-center` were BOTH transparent** — so **the gaps BETWEEN regions showed the GRID's surface, and the gap AROUND the grid showed THE ROOM BEHIND IT.** ***Two different surfaces for what is conceptually one gap.*** Joe, pointing at it: *"the edge gap is made from outside"* — and he was describing the implementation exactly, from the picture.
+>
+> **🔒 NOW: the SHELL paints · the SPLITS are TRANSPARENT · the TILES are OPAQUE.** Therefore **every gap — the seams, the holes, AND the perimeter — is the SAME ONE SURFACE.** *(Caveat now load-bearing rather than incidental: **tiles must be opaque**, or the raster bleeds through them.)*
+>
+> **🔒 AND THIS IS ALREADY THE `M-RP-PLATE` ARCHITECTURE** (§4.5.1: one plate behind the whole shell), **arrived at early and for free.** That milestone now only has to swap a `background-image` for a real element.
 
 **The appearance is Joe's** (§0 / N-090): a soft fine raster reading *"system area — no functionality here"*. **It ships PROVISIONAL** — plain and obviously placeholder — because **you cannot tune a raster under holes you have not seen.** Retuning it costs **a skin edit and zero component change**.
 
@@ -257,18 +264,45 @@ Joe: *"the space under regions aka 'the hole' will be customizable, and there wi
 
 **🔒 THIS ARC RESERVES NOTHING FOR IT** — no prop on `region-shell`, no descriptor key, no store, no manifest slot. *A key nothing writes is a key nobody has round-tripped* (the M-RP6.1k finding). **Zero impact on M-RP7.2.**
 
+> ### 🔒 **AND IT GREW (2026-07-14): `M-RP-PLATE` ALSO CARRIES THE REGION-OWNED GAP MODEL (§4.5.2).**
+> Joe wants each region to own its gap *as a margin* — so a region floats on the backdrop with the same **G** on every side, **including the sides where no neighbour happens to sit.** **That requires the splits to stop painting**, because a nested split's box would otherwise overlap its neighbour's margin and paint over the gap. **Stopping the splits painting IS this milestone.** → ***the gap model is not a separate milestone; it is what this one makes possible.*** *The plate got bigger, not later.*
+
 > **⚠️ AND THE RASTER'S DISCHARGER IS CORRECTED: it was `M-RP-SKIN` (tune it); it is now `M-RP-PLATE` (REPLACE it).** *Tuning the appearance of a thing we are about to delete is work we throw away* — the J-495 argument that rejected the interim DWM title-bar tint.
 
-#### 4.5.2 The grid's two spacing knobs (Joe, 2026-07-14)
+#### 4.5.2 The grid's spacing — ONE token, and the model it is a down-payment on (Joe, 2026-07-14)
 
-Grounded: `.region-shell` had **no padding** and `.app-center` sets `padding: 0` explicitly (J-499's D5); `.region-split` carried a **hardcoded `gap: 1px`** — not even a knob. Both are now tokens on `.region-shell`, **PROVISIONAL**:
+**✅ SHIPPED: `--region-gap: 5px`.** One number for **all** grid spacing; `--region-pad` and `--region-seam` both derive from it. **Measured: edge gap 5 · seam 5 · tile-to-tile 5 · grab zone 8px · the drag still commits and the descriptor is still untouched mid-drag.**
 
-- **`--region-pad`** — the gap between the **grid and the frame edge**. Set **non-zero (6px)** at Joe's request, deliberately visible for development inspection.
-- **`--region-seam`** — the gap **between tiles**. Same hairline, same value; now tunable. **At M-RP7.2 the flex `gap` becomes a real seam ELEMENT** (a `gap` cannot be hit-tested) **and this token becomes its thickness** — one token, both eras, so retuning it never means finding two places.
+**⚠️ WHY IT WAS WRONG BEFORE, AND IT WAS CHAT'S DOING:** J-517 shipped **two** tokens at **two** values — `--region-seam: 1px` between regions, `--region-pad: 6px` at the edge. **Joe found it by looking at the screen** and drew two arrows on a screenshot: *the regions were glued to each other and floating off the frame.* **A gap that means one thing at the edge and another between tiles is not a knob, it is a bug with two names.**
 
-> **🔒 THE PERIMETER IS NOT A SEAM AND CAN NEVER BECOME ONE.** Seams exist **only BETWEEN a split's children** (the `{#each}` interior) — **there is no leading or trailing seam** — so the outer edge can never grow a drag cursor or a hit zone at M-RP7.2. *It costs the splitter milestone nothing, and it cannot lie to the user about a drag that does not exist.*
+> ### 🔒 **THE MODEL JOE ACTUALLY ASKED FOR — AND IT IS RIGHT.**
+> Joe: *"those gaps are part of each region and are transparent, like a margin on a block element — they **overlap when they meet, not added** to each other. The gap has to be **5px (not 10px)** between both of regions and also between region and edge."*
+>
+> **⚠️ That is TRUE MARGIN COLLAPSING — and FLEXBOX DOES NOT COLLAPSE MARGINS. They ADD.** So it cannot be written the way it reads. **But the result is exactly reachable:**
+>
+> **Every TILE carries a full margin `G`. Splits carry NOTHING. The seam becomes a ZERO-WIDTH flex child with `−G/2` margin on each side — which cancels the double.**
+>
+> | boundary | arithmetic | result |
+> |---|---|---|
+> | tile ↔ tile | `G` + `−G` + `G` | **G** |
+> | tile ↔ frame edge | the tile's own margin | **G** — **and `--region-pad` DISAPPEARS: the edge gap BECOMES the region's own margin.** *That is literally the model.* |
+> | tile ↔ **HOLE / backdrop** | the tile's own margin | **G** — **today this case is ZERO** |
+> | **nested** (a tile inside a column, against an outer neighbour) | the split contributes **nothing**, so the inner tile's own `G` is the whole gap | **G** — **it composes at any depth** |
+>
+> **And the seam's zero-width box lands DEAD CENTRE of the gap**, so the drag handle survives intact — still an element, still hit-testable (a `gap` never was; §6.1's sibling lesson).
 
-**Ratios are UNAFFECTED:** flex distributes over the reduced content box, so `[1,2,7,2]` still holds **exactly** — only the absolute px shrink by `2×pad`. Global `box-sizing: border-box` (`xgen-normalize.css:21`, grounded) means the padding cannot overflow the frame.
+> ### ⚠️ **AND HERE IS WHY IT IS NOT NOW — RETRACTED 2026-07-14 (J-521). IT WAS NEVER A DEPENDENCY.**
+> **Chat wrote:** *"`.region-split` PAINTS today, so a nested split's box would paint into its neighbour's margin and eat the gap. The model requires the splits to be transparent — **which is exactly what `M-RP-PLATE` does** → they are ONE MILESTONE."*
+>
+> **⚠️ THE PREMISE WAS TRUE AND THE CONCLUSION WAS WRONG.** The model requires the splits **not to PAINT**. **Making the splits stop painting is a two-line skin move** (§4.5: the backdrop moved up to `.region-shell`) — **it is NOT the plate widget.** ***Chat conflated "splits must not paint" with "the milestone that makes splits not paint". `M-RP-PLATE` is a SUPERSET, not a prerequisite.***
+>
+> **🔒 → THE BLOCKER IS GONE. The region-owned gap model is BUILDABLE NOW** — a small component change: **tile takes `margin: G`** · **seam becomes a ZERO-WIDTH flex child with `−G/2` each side** · **`--region-pad` is DELETED.** It can go before or after M-RP7.3; **Joe's call, and the grid still has priority.**
+>
+> *Third coherent-but-wrong claim this arc (N-118's two, and this). **A dependency you have not tried to break is a dependency you have assumed.***
+
+**🔒 WHAT SHIPPED IS AN HONEST DOWN-PAYMENT, NOT THE MODEL:** the two boundaries Joe can **see today** (tile↔tile, tile↔edge) are now uniform at **5px**. **The third (tile↔hole) is still ZERO, and that is stated in the skin, not hidden** — seams exist only *between* a split's children, and **a hole is not a child.**
+
+**🔒 The perimeter is still not a seam and can never become one.** **Ratios unaffected** — every tile's `flex-basis` is `0`, so border boxes stay exactly weight-proportional; `[1,2,7,2]` still holds. **`--region-seam-hit` drops 3px → 1px**: it was sized for a **1px** seam; against a **5px** one it would reach 3px into each neighbour's edge and eat clicks there. *(Mechanical — Chat's, under §0.)*
 
 ---
 
@@ -446,7 +480,7 @@ Joe: *"can we in this phase create just empty regions without context with full 
 
 ## 13. Filed, NOT in this arc
 
-**`M-RP-PLATE`** — the grid backdrop: an inert, live-switchable plate widget under the tiles (§4.5.1; **it REPLACES the dev raster, it does not tune it**; gated on the settings mechanism, J-513) · **`tabs`** (§3 — a position, not a deferral; re-opening it is an explicit act) · **`M-RP-ROVING`** — extract the roving-tabindex helper (no 5th consumer now) · **`M-RP-ENTITY-DRAG`** — dragging content, not regions (§8) · **`M-RP-ENTITY-PANEL-RESPONSIVE`** — an entity list fills any rectangle (§15) · **tear-off to a real OS window** (behind **M-RP8** — a torn-off region is a `decorations:false` `WebviewWindow` whose **title bar IS the tile stripe**, S-2's *one component, two mounts*; it also needs the descriptor to **record floating regions**, or W-13's re-inject silently re-docks them — **a second schema change, not free**) · **`M-RP-SETTINGS`** · **`M-RP6.1m`** — the plugin row action surface · **`M-RP-FOCUS`** · **`M-RP6.6`** — client resident · the `dialog` footer-snippet slot · N-007's ungraduated obligation · the settings-mechanism collision · the read-marker protocol gap · `temperature-indicator` ⏸️.
+**`M-RP-PLATE`** — the grid backdrop: an inert, live-switchable plate widget under the tiles (§4.5.1; **it REPLACES the dev raster, it does not tune it**; **and it carries the region-owned gap model, §4.5.2 — a dependency, not a bundle**; gated on the settings mechanism, J-513) · **`M-RP-RESTART` — File ▸ Restart and Revert** (Joe, 2026-07-14; **lands with M-RP7.5**) · **`tabs`** (§3 — a position, not a deferral; re-opening it is an explicit act) · **`M-RP-ROVING`** — extract the roving-tabindex helper (no 5th consumer now) · **`M-RP-ENTITY-DRAG`** — dragging content, not regions (§8) · **`M-RP-ENTITY-PANEL-RESPONSIVE`** — an entity list fills any rectangle (§15) · **tear-off to a real OS window** (behind **M-RP8** — a torn-off region is a `decorations:false` `WebviewWindow` whose **title bar IS the tile stripe**, S-2's *one component, two mounts*; it also needs the descriptor to **record floating regions**, or W-13's re-inject silently re-docks them — **a second schema change, not free**) · **`M-RP-SETTINGS`** · **`M-RP6.1m`** — the plugin row action surface · **`M-RP-FOCUS`** · **`M-RP6.6`** — client resident · the `dialog` footer-snippet slot · N-007's ungraduated obligation · the settings-mechanism collision · the read-marker protocol gap · `temperature-indicator` ⏸️.
 
 ---
 

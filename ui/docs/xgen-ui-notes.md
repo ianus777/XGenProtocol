@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.86  
+> Version: 0.87  
 > Date: May 2026  
 > **Last updated**: 2026-07-14  
 > Language: English  
@@ -2557,6 +2557,43 @@ return getComputedStyle(el).color;       // ← SAME EVAL. Svelte has NOT flushe
 **⚠️ NOT REACHABLE IN TODAY'S SHIPPED BUILD** (all 8 region ids are registered, no `tabs` is ever produced — D-116). **It becomes reachable the first time a widget id is RETIRED OR RENAMED between versions and a user loads a saved workspace** — which is precisely the **W-13 reconcile** case the project designed for, and M-RP7.1b proved the Load dialog is **three clicks** away. ***"Unreachable today" is the argument that has now been wrong five times in this codebase*** (N-091 · N-097 · N-099 · N-109 · N-116).
 
 **→ NOT FILED. It is a REQUIRED LEG of `M-RP7.3 — the mutation algebra (pure)`, which is next and which OWNS addressing.** *`move` reuses this exact addressing (L5, "paid once") — and **a misaddressed resize nudges two integers; a misaddressed `move` relocates a panel into the wrong branch.** Do not let `move` be built on a broken address.*
+
+### N-121 — a BORDER on a `flex-basis: 0` item is not free: it breaks weight-proportionality AND biases any gesture that measures border boxes (2026-07-14, J-522 — Joe asked for a 1px region border)
+
+Joe: *"give each region a 1px very fine smooth border. When gap is 0, there is no sense of regions, all is melted."* **Correct, and the obvious implementation is wrong.**
+
+**A real `border` on `.region-tile` was tried and MEASURED FIRST.** The arc's baseline ratios `[1,2,7,2]` came back as **`[1, 1.97, 6.90, 1.97]`.**
+
+> ### 🔑 **WHY: with `flex: n 1 0`, flex hands out the FREE space by weight — and then each item's BORDER BOX is `content + 2×border`.** A **constant** is added to every tile. **Ratios of the content boxes stay exact; ratios of the BORDER boxes do not.** *Every rect you can measure from JS is a border box.*
+>
+> **⚠️ AND THAT IS WORSE THAN COSMETIC HERE: the splitter computes its drag fraction from the two neighbours' `getBoundingClientRect()` widths** — border boxes. **A border therefore biases the resize arithmetic by `2×border` per tile, systematically and silently.** *The drag would land a little off where you dropped it, forever, and nothing would ever fail.*
+
+**✅ FIX: `outline` + `outline-offset: -1px`.** Draws the identical hairline just inside the edge with **ZERO layout impact** — the weights, `[1,2,7,2]`, `--region-min` and the folded-strip width all stay exactly what they were. **Re-measured: `[1, 2, 7, 2]` EXACT.**
+
+**⚠️ An inset `box-shadow` is also layout-free and was rejected:** it paints **BELOW the children**, so the stripe's own `--s2` background would cover the top hairline. **An `outline` paints ABOVE them.** *(Flagged: tiles are not focusable today; if one ever needs a focus ring it must not be an `outline` on this element.)*
+
+**⚠️ THE COLOUR COULD NOT BE `--s5` ANY MORE** — J-521 made `--s5` **the backdrop**, so an `--s5` edge would be **invisible at any gap > 0**, which is the majority case. The edge must read against **both** its neighbours: darker than the backdrop (`--s5 #343b47`), lighter than the tile body (`--s #16181c`). **`--s4 #2a2f38` does both.** *A token that was correct for a hairline stopped being correct the moment the surface behind it changed.*
+
+### N-122 — a hit area sized for one value of a token is a hit area that dies at another (2026-07-14, J-522)
+
+**`--region-seam-hit` was a constant.** The seam element **IS `--region-gap` wide** — so **at `--region-gap: 0` the seam is ZERO px**, and a fixed 1px expansion left a **2px** target: **alive, and ungrabbable by a human.** *Joe tests the extremes (he tried 0 and 20). A knob that silently kills a gesture at one end of its range is not a knob.*
+
+**✅ FIX: the expansion COMPENSATES for the gap** — `max(1px, calc((8px - var(--region-gap)) / 2))` → **a CONSTANT grab zone at every setting. Measured: 9px at gap 4 · 9px at gap 0 · 22px at gap 20**, and the drag commits at gap 0. **`calc()` is safe here only because this token is never read by JS** — `getComputedStyle` does **not** resolve `calc()` in a custom property, and `parseFloat` on it yields **`NaN`**. *`--region-min` and `--region-snap` ARE read by JS, so they must stay plain values — the same trap the M-RP7.2 runbook already names.*
+
+### N-123 — a CDP probe that MUTATES the page can outlive the probe, and HMR will not clear it (2026-07-14, J-522 — Chat broke Joe's token and Joe reported it as a bug in his own CSS)
+
+**Joe: *"something happens, `--region-gap: 4px` doesn't work anymore."*** He had edited the token, HMR had applied it, and **nothing moved.**
+
+**The cause was not his CSS. It was CHAT'S INSTRUMENT.** To test the drag at `--region-gap: 0` (N-122), the probe had to set the token in **one** CDP call and drag in the **next** — so the override could not be undone inside a single eval. It was set as an **inline style** on `.region-shell` … **and never removed.**
+
+> ### ⚠️ **AND VITE'S HMR HOT-PATCHES CSS WITHOUT A RELOAD — SO THE INLINE OVERRIDE SURVIVED EVERY EDIT JOE MADE.** *Inline beats the stylesheet. His 4px was being applied and then silently overridden, indefinitely, by a leftover from a test he never ran.*
+
+**🔒 THE RULES:**
+1. **A probe that must persist a mutation across CDP calls OWES A CLEANUP CALL — and the cleanup is part of the probe, not an afterthought.**
+2. **End any session that touched inline styles with `location.reload()`.** Cheap, and it guarantees the app Joe is looking at is the app the code describes.
+3. **Prefer reloading between token variants over inline overrides**, whenever the test does not need the state to survive a gesture.
+
+> ***An instrument that leaves residue in the thing it measures does not just produce a bad reading — it produces a bad reading IN SOMEBODY ELSE'S SESSION, and they will look for the bug in their own work.*** *N-118 said the instrument can lie to me. N-123 says it can lie to Joe.*
 
 ---
 

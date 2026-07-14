@@ -1,6 +1,6 @@
 # XGen UI — CDP Debug Harness (WebView2 remote-debug read loop)
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Jun 2026  
 > **Last updated**: 2026-07-14  
 > Language: English  
@@ -90,6 +90,7 @@ A single dev-only script. Responsibilities, in order:
 - **⚠️ THE SELECTION TRAP — see N-118.** Every gesture is preceded by `getSelection().removeAllRanges()`. Without it, the second drag from the same point presses on the selection the first one left, **Chromium opens a native HTML5 drag, and every subsequent `mousemove` and the `mouseup` are swallowed in silence.** *This is not a harness quirk — it is a real bug waiting for any splitter that is not `user-select: none`.*
 - **🧪 `-KeepSelection` (J-519) — because A HARNESS THAT CAN ONLY PASS IS A WEAK HARNESS.** It **suppresses** that clear, so N-118 can be **REPRODUCED on demand** rather than merely avoided. **Use it to prove a gesture is genuinely immune rather than protected by the instrument.** **Proven with it:** two drags on selectable tile body → `mousedown, mousemove, **dragstart**` — and then **nothing, no `mouseup`** (the native drag, finally *visible* rather than inferred). The **seam**, same conditions with a live selection → **both drags commit, no `dragstart`.** ***If a gesture behaves differently under this switch, the guard is the HARNESS's, not the CODE's — and the code will fail for a real user, who has no harness tidying up after them.***
 - **⚠️ RE-MEASURE COORDINATES BEFORE EVERY GESTURE — a rect is not a constant.** Folding **moves** a tile's buttons (they rotate into the side strip); a resize **moves** every seam to its right. **Chat dragged a stale coordinate during the J-519 re-drive and selected text instead of grabbing the seam.** *Measure, then gesture. Never gesture on a coordinate measured before the last gesture.*
+- **🔒 CLEAN UP AFTER A MUTATING PROBE — SEE N-123.** A test that needs a mutation to survive **between** CDP calls (e.g. "set `--region-gap: 0`, *then* drag") cannot undo itself inside one eval, so it sets an **inline style** — and **inline beats the stylesheet.** **Vite's HMR hot-patches CSS WITHOUT a reload, so the override survives every subsequent edit to `skin.css`.** *Chat left `--region-gap: 0px` on `.region-shell`; Joe then edited the token, saw nothing move, and reported it as a bug in his own CSS.* → **the cleanup call is PART OF THE PROBE, and any session that touched inline styles ends with `location.reload()`.** ***An instrument that leaves residue does not just mislead you — it misleads whoever is looking at the app next.***
 
 ## Open / parked
 

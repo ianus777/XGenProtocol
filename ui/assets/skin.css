@@ -2771,25 +2771,70 @@ html, body {
  *   so it reads identically client↔node; the 1px gap over the split's --s5 background draws the hairline
  *   seams between tiles. ── */
 .region-shell {
-  /* Two grid knobs (Joe, 2026-07-14). Both PROVISIONAL; discharger = M-RP-SKIN (the arc-scale countdown).
+  /* 🔑 THE GRID'S BACKDROP LIVES HERE, NOT ON .region-split (moved 2026-07-14, J-521 - Joe: "the
+   * not-transparent padding around whole grid is still there").
    *
-   * --region-pad  = the gap between the GRID and the FRAME EDGE. Zero until now, and not even a knob. Set
-   *   NON-ZERO deliberately so it is visible for development inspection. ⚠️ It is NOT a seam and can never
-   *   become one: seams exist only BETWEEN a split's children ({#each} interior) — there is no leading or
-   *   trailing seam — so the perimeter can never grow a drag cursor or a hit zone at M-RP7.2. The perimeter
-   *   shows what is UNDER .app-center, i.e. it reads as "outside the grid", NOT as the §4.5 system-area
-   *   raster (which is a background on .region-split). Whether it SHOULD read as system area is appearance
-   *   = Joe's; nothing is guessed here.
+   * It USED to be a background on .region-split. MEASURED, which is how the bug was found: the split
+   * painted --s5 + the raster, while .region-shell AND .app-center were BOTH transparent - so the gaps
+   * BETWEEN regions showed the GRID's surface and the gap AROUND the grid showed THE ROOM BEHIND IT.
+   * Two different surfaces for what is conceptually one gap. That is exactly what Joe meant by an edge
+   * gap "made from outside".
    *
-   * --region-seam = the gap BETWEEN tiles. Was a hardcoded `gap: 1px`; same hairline, same value, now a
-   *   knob. At M-RP7.2 the flex `gap` becomes a real seam ELEMENT (a gap is not hittable) and this token
-   *   becomes its thickness — one token, both eras, so retuning it never means finding two places.
+   * Now: the SHELL paints, the SPLITS are transparent, the TILES are opaque. Therefore EVERY gap - the
+   * seams, the §4.5 holes, AND the perimeter - is the SAME ONE SURFACE, showing through wherever no tile
+   * covers it. This is also the M-RP-PLATE architecture (one plate behind the whole shell), arrived at
+   * early and for free.
    *
-   * Ratios are UNAFFECTED: flex distributes over the reduced content box, so [1,2,7,2] still holds exactly
-   * — only the absolute px shrink by 2×pad. Global box-sizing:border-box (xgen-normalize.css:21) means the
-   * padding cannot overflow the frame. Registry unchanged. No component change, no Rust. */
-  --region-pad: 6px;
-  --region-seam: 1px;
+   * 🔒 AND IT UNBLOCKS THE REGION-OWNED GAP MODEL (§4.5.2) - A RETRACTION. Chat claimed that model was
+   * gated on M-RP-PLATE "because it requires transparent splits". WRONG: it requires the splits not to
+   * PAINT, which is THIS MOVE - not the plate widget. The plate is a SUPERSET, not a prerequisite.
+   *
+   * ⚠️ PROVISIONAL, and the discharger is still M-RP-PLATE (§4.5.1), which REPLACES these three lines
+   * with a real backdrop WIDGET (an element, not a background-image - a CSS background cannot do a canvas
+   * or anything reactive). Do not spend appearance work here. */
+  background-color: var(--s5);
+  background-image: radial-gradient(var(--s3) 1px, transparent 1px);
+  background-size: 8px 8px;
+
+  /* THE GRID'S SPACING (Joe, 2026-07-14). PROVISIONAL; discharger = M-RP-SKIN for the VALUE,
+   * M-RP-PLATE for the MODEL (see the countdown below).
+   *
+   * --region-gap = ONE number for ALL grid spacing. Joe's rule: "the gap has to be 5px (not 10px)
+   *   between both of regions and also between region and edge." It was TWO tokens at different
+   *   values (seam 1px, pad 6px) - which is exactly the inconsistency he spotted on screen: the
+   *   regions looked glued to each other and floating off the frame. One token, one number, uniform.
+   *
+   * --region-pad / --region-seam now BOTH derive from it. They stay as separate names only because
+   *   they are consumed in different places (shell padding vs the seam element's thickness); they are
+   *   NOT independent knobs and must not drift apart again.
+   *
+   * ⚠️ WHAT THIS DOES NOT YET DO - AND IT IS NAMED, NOT HIDDEN: the gap between a region and a HOLE
+   *   is still ZERO. Seams exist only BETWEEN a split's children, and a hole is not a child - so a tile
+   *   beside a hole butts straight onto the backdrop with no breathing room.
+   *
+   * 🔒 THE REAL MODEL (Joe): "those gaps are part of each region and are transparent, like a margin on a
+   *   block element - they overlap when they meet, not added to each other." That is TRUE margin
+   *   collapsing, and FLEXBOX DOES NOT COLLAPSE MARGINS - they add. The result is still reachable:
+   *   give every TILE a full margin G, give splits NOTHING, and make the seam a ZERO-WIDTH flex child
+   *   with -G/2 margin each side, which cancels the double. Then tile-tile = G, tile-edge = G (and
+   *   --region-pad DISAPPEARS - the edge gap BECOMES the region's own margin, which is literally the
+   *   model), tile-hole = G, and it COMPOSES THROUGH NESTING because a split contributes nothing.
+   *
+   * 🔒 BUT IT CANNOT SHIP UNTIL M-RP-PLATE, AND THAT IS A DEPENDENCY, NOT A PREFERENCE: .region-split
+   *   PAINTS today (--s5 + the raster below). Under that model a nested split's box OVERLAPS its
+   *   neighbour's margin, so its background would paint INTO the gap and eat it. The model needs the
+   *   splits to be TRANSPARENT - which is exactly what M-RP-PLATE does (one plate behind the whole
+   *   shell; splits stop painting). → the region-owned gap and the backdrop plate are ONE milestone.
+   *
+   * 🔒 THE PERIMETER IS STILL NOT A SEAM AND CAN NEVER BECOME ONE: seams exist only BETWEEN a split's
+   *   children, so there is no leading or trailing seam and the outer edge can never grow a drag cursor.
+   *
+   * Ratios UNAFFECTED: flex distributes over the reduced free space, and every tile's flex-basis is 0, so
+   * the border boxes stay exactly weight-proportional - [1,2,7,2] still holds. Global box-sizing:border-box
+   * (xgen-normalize.css:21) means the padding cannot overflow the frame. No component change, no Rust. */
+  --region-gap: 4px;
+  --region-pad: var(--region-gap);
+  --region-seam: var(--region-gap);
 
   /* Splitter tokens (M-RP7.2). ALL PROVISIONAL; discharger = M-RP-SKIN.
    *
@@ -2804,7 +2849,16 @@ html, body {
   --region-stripe: 22px;
   --region-min: var(--region-stripe);
   --region-snap: 8px;
-  --region-seam-hit: 3px;
+  /* Invisible hit expansion EACH SIDE of the seam - and it COMPENSATES FOR THE GAP so the grab zone is
+   * a CONSTANT ~8px no matter what --region-gap is set to. This is not a nicety: the seam element IS
+   * --region-gap wide, so at gap 0 the seam is ZERO px and a fixed 1px expansion would leave a 2px target
+   * - alive, but not grabbable by a human. Joe tests the extremes (0 and 20) and the splitter has to
+   * survive both. gap 0 -> 4px each side; gap 4 -> 2px; gap 5 -> 1.5px; gap 20 -> the 1px floor (the seam
+   * is already 20px). Never read by JS (only --region-min and --region-snap are), so calc()/max() is safe
+   * here - a calc() in a custom property does NOT resolve in getComputedStyle, and would parse to NaN.
+   * N-119: the expansion only works at all because .region-seam[data-live] carries z-index - an overlay a
+   * sibling paints over is not an overlay. */
+  --region-seam-hit: max(1px, calc((8px - var(--region-gap)) / 2));
 
   display: flex;
   flex: 1;
@@ -2825,21 +2879,16 @@ html, body {
    * (M-RP7.2) — a `gap` cannot be hit-tested, and the splitter needs a drag target. The seam is transparent
    * and --region-seam wide, so the --s5 background shows through and the hairline looks exactly as it did. */
   gap: 0;
-  /* --s5 base draws the hairline seams through the gaps between tiles. The faint dot grid is the
-   * PROVISIONAL "system area" RASTER (M-RP7.1b, §4.5): it becomes visible only in a HOLE — the flex
-   * leftover space a split under-fills when its children fold ACROSS it. Tiles are OPAQUE (--s), so the
-   * raster never shows through a tile, only where no tile covers the split.
+  /* 🔒 NO BACKGROUND HERE - ON PURPOSE. The backdrop (--s5 + the §4.5 raster) MOVED UP to .region-shell
+   * (J-521). It used to live here, and that was the bug Joe saw: the split painted the grid's surface, but
+   * .region-shell and .app-center were BOTH transparent - so the gaps BETWEEN regions showed the grid's
+   * backdrop while the gap AROUND the grid showed the room behind it. Two surfaces for one gap; an edge
+   * gap "made from outside". With the paint on the shell, the splits transparent and the tiles opaque,
+   * EVERY gap - seam, hole, perimeter - is the SAME ONE SURFACE.
    *
-   * ⚠️ DISCHARGER CORRECTED (Joe, 2026-07-14): it is M-RP-PLATE, NOT M-RP-SKIN — §4.5.1. This is a DEV
-   * PLATE with no real background defined, and the real one arrives as a BACKGROUND WIDGET setting its own
-   * appearance (solid colour → animated reactive plate), which is an ELEMENT, not a background-image. So
-   * M-RP-PLATE REPLACES these three lines; it does not tune them. Do not spend appearance work here —
-   * tuning the look of a thing we are about to delete is work we throw away (the J-495 interim-tint
-   * argument). 🔒 And whatever replaces it stays pointer-events:none: the instant a hole is clickable it
-   * has an ADDRESS, and D-116 falls with it. */
-  background-color: var(--s5);
-  background-image: radial-gradient(var(--s3) 1px, transparent 1px);
-  background-size: 8px 8px;
+   * ⚠️ DO NOT GIVE THIS ELEMENT A BACKGROUND AGAIN. Beyond re-splitting the surface, it also blocks the
+   * region-owned gap model (§4.5.2): once tiles own their gaps as margins, a NESTED split's box OVERLAPS
+   * its neighbour's margin, so a background here would paint INTO the gap and eat it. */
 }
 .region-split[data-dir="row"] { flex-direction: row; }
 .region-split[data-dir="col"] { flex-direction: column; }
@@ -2915,6 +2964,16 @@ html, body {
    * .region-shell (M-RP7.2, L6) so the seam can read it too — inherited here, value unchanged (22px). */
   --region-grip: 14px;          /* move-grip square */
   --region-resize: 12px;        /* SE resize triangle */
+  /* The region's own edge (Joe, 2026-07-14): "give each region 1px very fine smooth border. When gap is 0,
+   * there is no sense of regions, all is melted." PROVISIONAL both; discharger = M-RP-SKIN.
+   *
+   * ⚠️ THE COLOUR CANNOT BE --s5 ANY MORE. --s5 IS NOW THE BACKDROP (J-521) - a --s5 border would be
+   * INVISIBLE at any gap > 0, which is the majority case. The edge has to read against BOTH neighbours:
+   *   - against the BACKDROP  --s5 #343b47 (whenever gap > 0)  -> --s4 is DARKER: a soft inset edge
+   *   - against a TILE BODY   --s  #16181c (when gap = 0, two borders meet as one 2px line) -> LIGHTER
+   * --s4 #2a2f38 sits between the two and contrasts with each. One colour, both jobs. */
+  --region-border: 1px;
+  --region-edge: var(--s4);
   --region-fold-gap: 0;         /* gap BETWEEN the two fold buttons. 0 because the chevron glyphs are
                                  * SQUARE (16×16) and already carry their own optical spacing. A narrower
                                  * (non-square) glyph would need a real value here — the knob is LIVE, not
@@ -2928,6 +2987,20 @@ html, body {
   min-width: 0;
   position: relative;           /* anchors the absolute SE resize grip */
   box-sizing: border-box;
+  /* ⚠️ OUTLINE, NOT BORDER - AND THAT IS A MEASURED CHOICE, NOT A STYLE ONE.
+   * A real `border` was tried first and it BROKE THE ARC'S BASELINE. With `flex-basis: 0`, flex hands out
+   * the FREE space by weight and then each tile's border box = content + 2*border - a CONSTANT added to
+   * every tile. Measured: the [1,2,7,2] ratios became [1, 1.97, 6.90, 1.97]. Worse than cosmetic: the
+   * splitter computes its drag fraction from the neighbours' BORDER-BOX rects, so a border biases the
+   * resize arithmetic by 2*border per tile, systematically.
+   * `outline` with a NEGATIVE offset draws the same hairline just inside the edge with ZERO layout impact:
+   * the weights, [1,2,7,2], --region-min and the folded strip width all stay exactly what they were.
+   * (An inset box-shadow would also be layout-free, but it paints BELOW the children - the stripe's own
+   * --s2 background would cover the top hairline. An outline paints ABOVE them.)
+   * ⚠️ Tiles are not focusable today. If one ever needs a focus ring, it must NOT be an outline on this
+   * element - it would collide with this. */
+  outline: var(--region-border) solid var(--region-edge);
+  outline-offset: calc(-1 * var(--region-border));
   background: var(--s);         /* the panel surface (ex-.region-leaf) */
   overflow: hidden;             /* the BODY scrolls, not the tile */
 }
@@ -3084,7 +3157,7 @@ html, body {
   height: auto;                 /* physical height fills; physical width is pinned to the stripe thickness */
   width: var(--region-stripe);
   border-bottom: none;
-  border-right: 1px solid var(--s5);
+  border-right: none;           /* the tile's own outline draws this edge now (J-522) */
 }
 
 /* Placeholder body (the six not-yet-built regions) — muted filler text in the tile body. */

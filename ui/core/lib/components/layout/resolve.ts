@@ -20,8 +20,15 @@ import type { FoldAxis, Layout, LayoutNode } from './types';
 export type ResolvedNode =
   // `collapsed` is carried through VERBATIM (M-RP7.1, D5): the walk does not interpret it, the renderer
   // does. A collapsed leaf still resolves (it is a folded tile, NOT a drop) — so `leafCount` is unchanged.
-  | { type: 'leaf'; widgetId: string; collapsed?: FoldAxis } // boolean → FoldAxis (M-RP7.1b)
-  | { type: 'split'; dir: 'row' | 'col'; sizes: number[]; children: ResolvedNode[] };
+  //
+  // `srcIndex` (M-RP7.3, N-120) — the node's index in its parent's `children` array in the DESCRIPTOR (the
+  // root is -1: no parent, nothing may read it). The walk DROPS (unknown leaf, tabs, all-dropped split), so
+  // a resolved child's position `i` is NOT its descriptor index the instant anything drops. Any write into
+  // the descriptor (resize `path`/pair, move) must address by `srcIndex`, never by resolved position — a
+  // derived view may renumber, and an index into a derived view is not an address into the source. The walk
+  // already has `i` in hand when it keeps a child; it used to throw it away.
+  | { type: 'leaf'; srcIndex: number; widgetId: string; collapsed?: FoldAxis } // boolean → FoldAxis (M-RP7.1b)
+  | { type: 'split'; srcIndex: number; dir: 'row' | 'col'; sizes: number[]; children: ResolvedNode[] };
 
 export interface ResolveResult {
   /** The resolved tree, or `null` when everything dropped / the root was absent. */
@@ -45,12 +52,15 @@ export function resolveLayout(layout: Layout | null | undefined, knownIds: Set<s
   const leafIds: string[] = [];
   let unsupported = 0;
 
-  function walk(node: LayoutNode): ResolvedNode | null {
+  // `srcIndex` is the node's index in its PARENT DESCRIPTOR's `children` (the root gets -1). It is recorded
+  // at the moment the walk keeps a child (N-120) — the same `i` the walk already iterates, no longer thrown
+  // away. It is the ONLY address a descriptor write may trust; the resolved position `i` is not one.
+  function walk(node: LayoutNode, srcIndex: number): ResolvedNode | null {
     if (node.type === 'leaf') {
       if (knownIds.has(node.widgetId)) {
         leafIds.push(node.widgetId);
         // Carry `collapsed` through verbatim (D5) — a folded leaf is still a resolved, counted leaf.
-        return { type: 'leaf', widgetId: node.widgetId, collapsed: node.collapsed };
+        return { type: 'leaf', srcIndex, widgetId: node.widgetId, collapsed: node.collapsed };
       }
       dropped.push(node.widgetId); // rule 2
       return null;
@@ -70,7 +80,7 @@ export function resolveLayout(layout: Layout | null | undefined, knownIds: Set<s
     const resolvedChildren: ResolvedNode[] = [];
     const keptSizes: number[] = [];
     children.forEach((child, i) => {
-      const r = walk(child);
+      const r = walk(child, i); // i = the child's DESCRIPTOR index in this split's `children` (its srcIndex)
       if (r) {
         resolvedChildren.push(r);
         // Kept children retain their original weight; a dropped sibling's weight is simply skipped, so the
@@ -80,10 +90,10 @@ export function resolveLayout(layout: Layout | null | undefined, knownIds: Set<s
     });
 
     if (resolvedChildren.length === 0) return null; // rule 4 — every child dropped, so the box drops too
-    return { type: 'split', dir: node.dir, sizes: keptSizes, children: resolvedChildren };
+    return { type: 'split', srcIndex, dir: node.dir, sizes: keptSizes, children: resolvedChildren };
   }
 
-  const root = layout?.root ? walk(layout.root) : null; // empty / null descriptor survives (never throws)
+  const root = layout?.root ? walk(layout.root, -1) : null; // root has no parent → -1; empty/null survives
   return { root, leafIds, dropped, unsupported };
 }
 

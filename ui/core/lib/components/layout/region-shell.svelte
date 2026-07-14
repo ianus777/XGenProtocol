@@ -33,7 +33,7 @@
     widgets?: Record<string, Component>; // widgetId → component; an unknown id is dropped by resolveLayout (W-13)
     titles?: Record<string, string>; // widgetId → tile title (M-RP7.1, D2); threaded to each tile
     onFold?: (regionId: string, collapsed: FoldAxis | undefined) => void; // fold seam (M-RP7.1b, D6)
-    onResize?: (path: number[], seamIndex: number, fraction: number) => void; // splitter seam (M-RP7.2, L5)
+    onResize?: (path: number[], aIdx: number, bIdx: number, fraction: number) => void; // splitter seam (M-RP7.2/7.3, N-120)
     id?: string;
   } = $props();
 

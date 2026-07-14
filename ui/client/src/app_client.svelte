@@ -11,7 +11,7 @@
   import { uiStateStore } from './uistate.svelte';
   import { loadLayout, widgetRegistry, REGION_TITLES, DEFAULT_LAYOUT } from './layout-default';
   import { migrateLayout } from '$core/components/layout/resolve';
-  import { resizeSplit } from '$core/components/layout/mutate';
+  import { resizeSplit, foldLeaf, move } from '$core/components/layout/mutate';
   import { substitutions } from '$common/components/processor/store.svelte';
   // The self-state store (M-RP6.1g, D3) — ONE channel, TWO views: the shell WRITES it below (the existing
   // state listen + get_state + a once get_self_state invoke), and BOTH the status-bar (here) AND the
@@ -54,42 +54,39 @@
     window.__XGEN_LAYOUT__ = {
       get current() { return layout; },
       set(l) { layout = l; },
+      // M-RP7.3 — drive the pure algebra before any gesture code exists (§4). `move` relocates a region to
+      // an edge of a target; `fold` sets/clears a leaf's fold axis. Both delegate to the shell handlers so
+      // the reactive reassignment fires. Dead-code-eliminated in a release build, as `set` already is.
+      move(sourceId, targetId, edge) { handleMove(sourceId, targetId, edge); },
+      fold(regionId, collapsed) { handleFold(regionId, collapsed); },
     };
   }
 
   // ── Fold (M-RP7.1b, D6) ───────────────────────────────────────────────────────────────────────
-  // The tile's fold buttons set the descriptor's `collapsed` to a FoldAxis ('width'|'height'), or clear it
-  // (unfold). Held in MEMORY this leg — the session feeder that PERSISTS `session.layout` is M-RP7.5 (D6).
-  // A pure rebuild (not an in-place proxy mutation) so we never mutate the shared DEFAULT_LAYOUT const, and
-  // the reassignment triggers the shell to re-resolve. `__XGEN_LAYOUT__.current` reflects the new tree
-  // immediately (the CDP fold proof). On unfold we DELETE the key — absent means expanded, so we never
-  // persist `collapsed: undefined` (matching the descriptor contract and the migrate's drop rule).
-  function setLeafCollapsed(node, widgetId, collapsed) {
-    if (node.type === 'leaf') {
-      if (node.widgetId !== widgetId) return node;
-      if (collapsed === undefined) {
-        const { collapsed: _drop, ...rest } = node; // unfold → drop the key entirely
-        return rest;
-      }
-      return { ...node, collapsed };
-    }
-    if (node.type === 'split') {
-      return { ...node, children: node.children.map((c) => setLeafCollapsed(c, widgetId, collapsed)) };
-    }
-    return node; // tabs (untouched — renderer A drops it anyway)
-  }
+  // The tree surgery moved into the pure algebra (`foldLeaf`, mutate.ts, M-RP7.3 L2) — the shell keeps NO
+  // tree code, only the reactive reassignment that triggers the shell to re-resolve. Held in MEMORY this leg
+  // — the session feeder that PERSISTS `session.layout` is M-RP7.5 (D6). `foldLeaf` preserves the unfold
+  // contract exactly (undefined ⇒ delete the key), so an unfold never persists `collapsed: undefined`.
   function handleFold(regionId, collapsed) {
     if (!layout) return;
-    layout = { ...layout, root: setLeafCollapsed(layout.root, regionId, collapsed) };
+    layout = foldLeaf(layout, regionId, collapsed);
   }
 
-  // ── Splitter resize (M-RP7.2, L1/L5) ──────────────────────────────────────────────────────────
-  // The seam gesture reports the split's `path`, the seam index, and the boundary `fraction` on release;
-  // `resizeSplit` writes the new INTEGER weights (L2/L3). IN MEMORY only — `session.layout` still has no
-  // writer until M-RP7.5, so nothing is persisted here.
-  function handleResize(path, seamIndex, fraction) {
+  // ── Splitter resize (M-RP7.2/7.3, N-120) ──────────────────────────────────────────────────────
+  // The seam gesture reports the split's `path` and the pair's two DESCRIPTOR indices (`aIdx`/`bIdx`,
+  // N-120 — never resolved positions) with the boundary `fraction` on release; `resizeSplit` writes the new
+  // INTEGER weights (L2/L3). IN MEMORY only — `session.layout` has no writer until M-RP7.5.
+  function handleResize(path, aIdx, bIdx, fraction) {
     if (!layout) return;
-    layout = resizeSplit(layout, path, seamIndex, fraction);
+    layout = resizeSplit(layout, path, aIdx, bIdx, fraction);
+  }
+
+  // ── Move (M-RP7.3, L3 — drag-to-dock, no gesture yet) ──────────────────────────────────────────
+  // Relocate a region to an edge of a target (`move`, mutate.ts). No pointer wiring this milestone — the
+  // DEV handle drives it so the tree surgery is proven before M-RP7.4 gives it a gesture. IN MEMORY only.
+  function handleMove(sourceId, targetId, edge) {
+    if (!layout) return;
+    layout = move(layout, sourceId, targetId, edge);
   }
 
   // ── Keymap wiring (M-RP6.1d — the 6.1c-deferred shell half) ──────────────────────────────

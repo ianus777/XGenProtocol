@@ -1,5 +1,5 @@
 # M-RP7.3 — The mutation algebra (pure): fix the address, migrate `fold`, build `move`
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-14  
@@ -187,12 +187,14 @@ The DEV handle is dead-code-eliminated in a release build, exactly as `set` alre
 
 ## 7. Definition of done
 
-- [ ] `resolve.ts` — `srcIndex` on every `ResolvedNode`; the walk stops discarding it
-- [ ] `region-node.svelte` — `path` threaded from `srcIndex`; the seam reports **both** descriptor indices; preview untouched
-- [ ] `mutate.ts` — `resizeSplit(layout, path, aIdx, bIdx, fraction)` · `foldLeaf` · `move`
-- [ ] `mutate.test.ts` — 12 existing cases **migrated** (not deleted) + the **non-adjacent pair** case + `foldLeaf` + `move` (sibling · wrap · cascade · root-degenerate · folded-region · total-temperament · deep-freeze immutability)
-- [ ] `app_client.svelte` — `setLeafCollapsed` **gone**; `handleMove` + the DEV `move`/`fold` handle
-- [ ] V1–V11 measured on the real client; **numbers Chat did not personally measure do not enter the record**
-- [ ] Records: `docs/xgen-dock-engine-phase0.md` §6 (the re-normalise step **deleted**; §6.1 N-120 **discharged**) · `ui/docs/xgen-ui-notes.md` · `JOURNAL.md` · `CLAUDE.md` PLAY · `docs/ROADMAP.md` — one atomic commit (D-074)
+- [x] `resolve.ts` — `srcIndex` on every `ResolvedNode`; the walk stops discarding it
+- [x] `region-node.svelte` — `path` threaded from `srcIndex`; the seam reports **both** descriptor indices; preview untouched. **+ N-125: the `{#each}` re-keyed to stable node identity** (a latent index-key defect `move` was the first mutation to expose)
+- [x] `mutate.ts` — `resizeSplit(layout, path, aIdx, bIdx, fraction)` · `foldLeaf` · `move`
+- [x] `mutate.test.ts` — 12 existing cases **migrated** (not deleted) + the **non-adjacent pair** case + `foldLeaf` + `move` (sibling · wrap · cascade · root-degenerate · folded-region · total-temperament · deep-freeze immutability) → **mutate 26 cases; `npm test` 75**
+- [x] `app_client.svelte` — `setLeafCollapsed` **gone**; `handleMove` + the DEV `move`/`fold` handle
+- [x] V1–V11 measured on the real client 9222 (all personally re-driven, Rule 5). V1 `[1356,1000,644]` (ghost byte-identical); V2 registry 67/leaf 8/dropped 0 through every move; V3 sibling `[3,3,2]`; V4 wrap `row[1,1]`; V5 collapse → bare `rooms` leaf; V6 bare-leaf root renders (not blank); V7 fold axis survives; V8 unfold deletes the key; V9 spaces relocated `(4,30)→(1171,245)`; V10 `npm test` **75** · `vite build` **169** · `cargo test` **1517/0/62 IDENTICAL**; V11 clean quiescent 67
+- [x] Records: `docs/xgen-dock-engine-phase0.md` §6 (re-normalise step **deleted**; §6.1 N-120 **discharged** + N-125) · `ui/docs/xgen-ui-notes.md` (N-120 discharge · N-125) · `JOURNAL.md` J-524 · `CLAUDE.md` PLAY · `docs/ROADMAP.md` — one atomic commit (D-074)
+
+**⚠️ ONE IN-SCOPE ADDITION beyond the runbook (flagged, not silent — the runbook did not foresee it): N-125.** `move` restructures a split's children, and the renderer's index-keyed `{#each}` reused tile instances across regionIds, desyncing the registry (67 → 65) and leaving stale `data-debug-id` stamps. It fails DoD V2 (registry 67 through any move), so the fix (stable node-identity keys in `region-node`) is required by the DoD itself, not scope creep. Pre-existing (from M-RP7.2), latent until `move` — the N-120 family.
 
 *(`Status: COMPLETED` in this header is the shipped signal. "Commit pushed" is not a DoD item — Joe pushes.)*

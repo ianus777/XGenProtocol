@@ -55,8 +55,9 @@ describe('resolveLayout', () => {
     const r = resolveLayout(layout, ALL_IDS);
     expect(r.leafIds).toEqual(['spaces']);
     expect(r.dropped).toEqual(['ghost']);
-    // Surviving split keeps only the resolved child + its weight.
-    expect(r.root).toEqual({ type: 'split', dir: 'row', sizes: [1], children: [{ type: 'leaf', widgetId: 'spaces' }] });
+    // Surviving split keeps only the resolved child + its weight. `srcIndex` is the DESCRIPTOR index: the
+    // root is -1, and `spaces` was descriptor child 0 (the dropped `ghost` was child 1) — N-120.
+    expect(r.root).toEqual({ type: 'split', srcIndex: -1, dir: 'row', sizes: [1], children: [{ type: 'leaf', srcIndex: 0, widgetId: 'spaces' }] });
   });
 
   it('collapses a split whose children all drop (an empty box is noise)', () => {
@@ -87,7 +88,8 @@ describe('resolveLayout', () => {
     const r = resolveLayout(layout, ALL_IDS);
     expect(r.unsupported).toBe(1);
     expect(r.leafIds).toEqual(['spaces']); // the tabs subtree is not walked
-    expect(r.root).toEqual({ type: 'split', dir: 'row', sizes: [1], children: [{ type: 'leaf', widgetId: 'spaces' }] });
+    // `spaces` is descriptor child 0; the dropped `tabs` was child 1 — the survivor keeps srcIndex 0 (N-120).
+    expect(r.root).toEqual({ type: 'split', srcIndex: -1, dir: 'row', sizes: [1], children: [{ type: 'leaf', srcIndex: 0, widgetId: 'spaces' }] });
   });
 
   it('degrades a sizes/children mismatch to equal weights (never throws)', () => {
@@ -100,9 +102,9 @@ describe('resolveLayout', () => {
     };
     const r = resolveLayout(layout, ALL_IDS);
     expect(r.leafIds).toEqual(['spaces', 'rooms']);
-    expect(r.root).toEqual({ type: 'split', dir: 'row', sizes: [1, 1], children: [
-      { type: 'leaf', widgetId: 'spaces' },
-      { type: 'leaf', widgetId: 'rooms' },
+    expect(r.root).toEqual({ type: 'split', srcIndex: -1, dir: 'row', sizes: [1, 1], children: [
+      { type: 'leaf', srcIndex: 0, widgetId: 'spaces' },
+      { type: 'leaf', srcIndex: 1, widgetId: 'rooms' },
     ] });
   });
 
@@ -127,9 +129,9 @@ describe('resolveLayout', () => {
     // A collapsed leaf is still a resolved, counted leaf — leafCount is unchanged (§4 getter G).
     expect(r.leafIds).toEqual(['rooms', 'self']);
     expect(r.dropped).toEqual([]);
-    expect(r.root).toEqual({ type: 'split', dir: 'col', sizes: [1, 1], children: [
-      { type: 'leaf', widgetId: 'rooms', collapsed: 'height' },
-      { type: 'leaf', widgetId: 'self', collapsed: undefined }, // absent key ⇒ undefined
+    expect(r.root).toEqual({ type: 'split', srcIndex: -1, dir: 'col', sizes: [1, 1], children: [
+      { type: 'leaf', srcIndex: 0, widgetId: 'rooms', collapsed: 'height' },
+      { type: 'leaf', srcIndex: 1, widgetId: 'self', collapsed: undefined }, // absent key ⇒ undefined
     ] });
   });
 

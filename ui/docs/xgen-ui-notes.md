@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.88  
+> Version: 0.89  
 > Date: May 2026  
 > **Last updated**: 2026-07-14  
 > Language: English  
@@ -2631,6 +2631,22 @@ For three journal entries the arc carried a locked claim: ***"the region-owned g
 The skin edit was five splices. Chat ran them **top-down for two of them** — so an earlier splice **shifted the file** and the next one deleted **`min-height: 0` from `.region-shell`** instead of the `padding` line it was aiming at. *`min-height: 0` is load-bearing: it is the rule that keeps a deep leaf from pushing the scrollbar onto the document.*
 
 **It was caught by the grep verification, NOT by the diff** — the diff looked plausible. **🔒 RULE: splice DESCENDING, always; and guard each splice with an assertion on the line it is about to replace** (the fix script aborts if the anchor is not what it expects). *Sibling of the `edit_file` near-miss at J-521: **a diff that looks applied is not a render.***
+
+### N-120 discharged — an index into a derived view is not an address into the source (M-RP7.3, J-524)
+
+The fix, in three edits: every `ResolvedNode` carries **`srcIndex`** (its index in its parent's DESCRIPTOR `children`; the root is `-1`); `region-node` threads the `path` from `srcIndex` and reports a seam's pair as **two descriptor indices** (`aIdx`/`bIdx`, which **need not be adjacent** — a dropped ghost can sit between the two tiles a seam paints between); `resizeSplit(layout, path, aIdx, bIdx, fraction)` moves weight between exactly those two and **leaves everything between them, ghost weight included, untouched.** `move` addresses by leaf **identity**, so it was drop-safe by construction — the same reason `foldLeaf` always was.
+
+**🔑 The separation that makes it coherent: the LIVE PREVIEW stays in resolved space; only the WRITE crosses into descriptor space.** `dragSizes` / `effectiveSizes` / `flex` are about *what paints* and keep using the resolved index; only `onResize`'s two indices and the threaded `path` are descriptor addresses.
+
+**REACHED, NOT ARGUED (V1, real client 9222):** J-519's poisoned layout rebuilt (one unknown `widgetId`, 3 descriptor children → 2 tiles, 1 seam). MID-drag (button down) the descriptor read `[1,1,1]`; AFTER release **`[1356, 1000, 644]`** — `spaces` **GREW** (`1000 → 1356`), the ghost at index 1 **byte-identical `1000`**, pair total `2000` invariant. *The exact inverse of J-519, where the same gesture HALVED `spaces`.* The gesture and the result finally agree.
+
+### N-125 — `move` surfaced N-120's sibling in the RENDERER: an index-keyed `{#each}` (M-RP7.3, J-524)
+
+`region-node`'s split renders `{#each node.children as child, i (i)}` — **keyed by position.** `move` is the FIRST mutation to change a split's **child count and order** (fold changes a leaf's `collapsed` in place; resize changes `sizes` in place — neither touches the child SET). So index keying **reused a tile instance across DIFFERENT regionIds**, and a `region-tile`'s `use:envelope` stamps `data-debug-id` on MOUNT **without re-keying** — so a moved layout painted tiles stamped `#region-rooms` while titled *"Room header"*, `#region-self` while titled *"Message stream"*, and the registry **desynced (a single move clobbered 2 entries, 67 → 65)**.
+
+**🔑 Grounded, not assumed:** the `(i)` key predates this milestone (`git show HEAD` = M-RP7.2, `9faa38c`), and the painted DOM read showed the stamps mismatched while the TITLES were correct — the content was right, the identity was scrambled. **Same family as N-120: a latent index-key defect, unreachable until the first mutation that restructures the tree.** *"Unreachable today" is the argument that has now been wrong SIX times in this codebase (N-091 · N-097 · N-099 · N-109 · N-116 · N-120).*
+
+**Fixed with stable node-identity keys** (`{#each node.children as child, i (nodeKey(child))}` — a leaf keys by its globally-unique `widgetId`, a split by its subtree's leaf ids). A split whose leaf-set is unchanged reconciles IN PLACE (a resize); one that gained or lost a leaf is torn down and rebuilt (correct — its children re-register under the right ids). After the fix, EVERY move holds the registry at **67, unique 67**, and every tile's `data-debug-id` matches its title — measured across sibling / wrap / collapse / relocate. **The fix was one line + one helper in `region-node`; the finding was worth more than the fix.** *A move that scrambles the identity of what it did not touch is not a working move — it is an untested one (N-097's shape, in the renderer).*
 
 ---
 

@@ -43,8 +43,9 @@
     titles?: Record<string, string>;
     /** Fold toggle seam threaded to every tile (D6). `undefined` collapsed ⇒ unfold. */
     onFold?: (regionId: string, collapsed: FoldAxis | undefined) => void;
-    /** Splitter-resize seam (M-RP7.2, L1/L5). `path` addresses THIS split; `seamIndex` the seam. */
-    onResize?: (path: number[], seamIndex: number, fraction: number) => void;
+    /** Splitter-resize seam (M-RP7.2/7.3). `path` addresses THIS split (DESCRIPTOR indices); the pair is the
+     *  two neighbours' DESCRIPTOR indices (`srcIndex`, N-120) — never resolved positions. */
+    onResize?: (path: number[], aIdx: number, bIdx: number, fraction: number) => void;
     /** The PARENT split's `dir` — the axis a leaf collapses along/across (§4.1). Undefined at the root. */
     axis?: 'row' | 'col';
     /** Descriptor weight from the parent split; applied inline (skin exception, D4). */
@@ -52,6 +53,18 @@
     /** Child indices from the root TO THIS node (L5). Root = `[]`. */
     path?: number[];
   } = $props();
+
+  // A split's children are keyed by STABLE node identity, not by position (M-RP7.3, N-120's sibling). Index
+  // keying reused a tile instance across DIFFERENT regionIds the moment a `move` changed a split's child
+  // count/order — and a tile's `use:envelope` stamps `data-debug-id` on MOUNT without re-keying, so a reused
+  // instance kept a STALE id and the registry desynced (measured: a move clobbered 2 entries, region-tiles
+  // stamped `#region-rooms` while titled "Room header"). fold/resize never changed a split's child SET, so
+  // this stayed latent until `move`. A leaf keys by its (globally unique) widgetId; a split by its subtree's
+  // leaf ids — so a split whose leaf-set is unchanged reconciles IN PLACE (a resize), and one that gained or
+  // lost a leaf is torn down and rebuilt (correct — its children re-register under the right ids).
+  function nodeKey(n: ResolvedNode): string {
+    return n.type === 'leaf' ? `L:${n.widgetId}` : `S:${n.children.map(nodeKey).join(',')}`;
+  }
 
   // Shrink-wrap (§4.4): a split whose children are ALL leaves folded ACROSS its own axis takes `flex: 0 0
   // auto` (the inline weight is omitted so the skin's `[data-shrinkwrap]` rule wins), so it collapses to its
@@ -157,11 +170,16 @@
   }
 
   function endResize(e: PointerEvent): void {
-    if (!drag) { cleanupDrag(); return; }
+    if (!drag || node.type !== 'split') { cleanupDrag(); return; }
     const fraction = computeFraction(e);
-    const seamIndex = drag.seamIndex;
+    // The seam sits between resolved neighbours `seamIndex` and `seamIndex+1`; the descriptor write needs
+    // their DESCRIPTOR indices (`srcIndex`, N-120) — a dropped sibling makes the resolved position lie, and
+    // they need not be adjacent in the descriptor. The LIVE PREVIEW stayed in resolved space (dragSizes /
+    // effectiveSizes / flex); ONLY this write crosses over.
+    const aIdx = node.children[drag.seamIndex].srcIndex;
+    const bIdx = node.children[drag.seamIndex + 1].srcIndex;
     cleanupDrag(); // clears the transient preview + releases capture BEFORE the descriptor write
-    onResize?.(path, seamIndex, fraction); // written ONCE, integers (L2/L3)
+    onResize?.(path, aIdx, bIdx, fraction); // written ONCE, integers (L2/L3)
   }
 
   function cancelResize(): void {
@@ -197,7 +215,7 @@
   </RegionTile>
 {:else}
   <div class="region-split" data-dir={node.dir} data-shrinkwrap={shrinkWrap || undefined} style={flexStyle}>
-    {#each node.children as child, i (i)}
+    {#each node.children as child, i (nodeKey(child))}
       {#if i > 0}
         {@const live = seamLive(i - 1)}
         <!-- The seam between children[i-1] and children[i]; seamIndex = i-1. `user-select`/`touch-action`
@@ -221,7 +239,7 @@
         {onResize}
         axis={node.dir}
         flex={effectiveSizes[i]}
-        path={[...path, i]}
+        path={[...path, child.srcIndex]}
       />
     {/each}
   </div>

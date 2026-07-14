@@ -8,6 +8,46 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-524 — M-RP7.3 CLOSED: the mutation algebra — N-120 discharged, `move` built, and the move exposed N-120's twin in the renderer
+
+**`ui/core/lib/components/layout/` + `ui/client/src/app_client.svelte`. TypeScript + Svelte only — zero Rust, zero sampler, zero `skin.css`, no schema change (`version` stays 3). Proven by `git diff --stat` (7 files, all `.ts`/`.svelte`) AND by `cargo test` 1517/0/62 IDENTICAL.**
+
+### What shipped
+
+`mutate.ts` is now the **complete** pure write algebra for the dock:
+
+- **`resizeSplit(layout, path, aIdx, bIdx, fraction)`** — the N-120 fix. The pair is **two explicit DESCRIPTOR indices** that need not be adjacent; weight moves between exactly those two, the between-entries (ghost weight included) untouched.
+- **`foldLeaf(layout, regionId, collapsed)`** — migrated **verbatim** out of the shell (it was already pure and identity-addressed — a move, not a rewrite). Unfold still DELETES the key.
+- **`move(layout, sourceLeafId, targetLeafId, edge)`** — remove → collapse-degenerate (cascading) → insert (sibling if the target's parent already runs on the drop axis; else WRAP). **No re-normalise pass** — §6 step 4 was overstated work and is deleted from the record.
+
+`resolve.ts` gained **`srcIndex` on every `ResolvedNode`** (its descriptor index in its parent's children; root `-1`); `region-node` threads `path` from `srcIndex` and reports a seam's pair as descriptor indices. The 12 M-RP7.2 `resizeSplit` cases were **migrated** (not deleted) to the two-index signature; `mutate.test.ts` is now **26 cases** (`npm test` **75**).
+
+### 🔑 N-120 discharged — reached, not argued (V1)
+
+J-519 shipped `resizeSplit` addressing a split by a `path` counted over the **resolved** tree, while `resolve.ts` **drops** — so the instant anything dropped, the resize hit the wrong pair (J-519: a ghost between `spaces` and `rooms` made a rightward drag **HALVE** `spaces`). The fix: a resolved child carries its source index; a resize addresses by it; a move addresses by leaf **identity**.
+
+**V1, real client 9222:** the poisoned layout rebuilt (one unknown `widgetId`, 3 descriptor children → 2 tiles, 1 seam). Dragging the seam RIGHT to enlarge `spaces`: MID-drag (button down) the descriptor read `[1,1,1]`; AFTER release **`[1356, 1000, 644]`** — **`spaces` GREW `1000→1356`, the ghost byte-identical at `1000`, pair total `2000` invariant.** The exact inverse of J-519. *The gesture and the result finally agree, and the live preview stayed in resolved space while only the write crossed to descriptor space.*
+
+### 🔑 The finding was bigger than the runbook (N-125) — `move` exposed N-120's twin in the RENDERER
+
+The first `move` on the real client dropped the registry **67 → 65**, and the painted DOM showed tiles stamped `data-debug-id="region-tile#region-rooms"` **titled "R4 · Room header"** — the content correct, the identity scrambled. Root cause, grounded (`git show HEAD` = M-RP7.2, not mine): `region-node`'s `{#each node.children as child, i (i)}` is **index-keyed**, and `move` is the FIRST mutation to change a split's **child count and order** — fold and resize never did. So index keying reused a tile instance across regionIds, and `use:envelope` stamps `data-debug-id` on MOUNT without re-keying.
+
+**Same family as N-120: a latent index-key defect, unreachable until the first mutation that restructures the tree.** It fails DoD V2 (registry 67 through any move), so the fix was required by the DoD, not scope creep. Fixed with **stable node-identity keys** (`(nodeKey(child))` — a leaf by its widgetId, a split by its subtree's leaf ids). After: every move holds registry **67, unique 67**, every stamp matches its title. *"Unreachable today" has now been wrong six times here (N-091 · N-097 · N-099 · N-109 · N-116 · N-120).*
+
+### MEASURED — Chat re-drove every leg on client 9222 (Rule 5)
+
+**Baseline** 67, quiescent, empty store, no selection, version 3. **V1** N-120 `[1356,1000,644]` (ghost byte-identical). **V2** registry 67/unique 67/leaf 8/dropped 0 through sibling, wrap, collapse, and relocate. **V3** sibling insert: root `[2,7,2]`, col `[rooms,spaces,self]` `[3,3,2]`. **V4** wrap: `row[1,1]` `[rooms,spaces]`, grandparent `[3,1]` untouched. **V5** collapse-degenerate: the rooms/self col vanished, `rooms` is a bare leaf holding the weight-2 slot (`[1,2,7,2]`), members col `[1,1,2]`. **V6** bare-leaf root renders a single "R5 · Message stream" tile (registry 52) — **not a blank centre** (N-095 holds). **V7** folded `spaces` moved into a col split: `collapsed:'width'` survived, fold-mode flipped `along→across` (correct — leaves a hole, §4.1). **V8** unfold DELETES the key. **V9** spaces relocated `(4,30) 119×855 → (1171,245) 253×212` — a region visibly moving. **V10** `npm test` **75** · `vite build` **169** · `cargo test` **1517/0/62 IDENTICAL** (56 terminators, final `test result:` line present — the N-117 truncation trap avoided; a first detached run read `1195/0/60`, the exact "plausible and WRONG" artifact the harness warns of). **V11** clean quiescent 67, no inline residue.
+
+### Deviations (Rule 6) — one in-scope addition, flagged not absorbed
+
+**N-125 is beyond the runbook's four legs.** The runbook did not foresee that `move` would expose the renderer's index keying; but its own DoD (V2: registry 67 through any move) demands the fix, so it is in scope by the DoD, not scope creep. Flagged here and in the task file. Everything else matched the runbook, and the runbook's own corrections held: `resolve.ts` DOES drop (N-120 real), the re-normalise step DID NOT exist (§3.4 correct), the two-index signature IS needed (non-adjacent pair proven in V1 and in a dedicated vitest case leaving the between-entry byte-identical).
+
+**Records:** `resolve.ts` · `region-node.svelte` · `region-shell.svelte` · `mutate.ts` · `mutate.test.ts` · `resolve.test.ts` · `app_client.svelte` (the 7 code files) · dock-engine Phase-0 **v2.0** (§6 re-normalise deleted; §6.1 N-120 discharged + N-125; §11 row 3 CLOSED) · `ui/docs/xgen-ui-notes.md` **v0.89** (N-120 discharge · N-125) · `tasks/M_RP7_3_MUTATION_ALGEBRA.md` COMPLETED · CLAUDE.md PLAY · ROADMAP **v4.95**. **No new D.**
+
+**Next-active: M-RP7.4 — drag to dock.** The algebra gets a pointer: grip + four edge bands per tile, inert centre. A hole is not a drop target (§4.5). ⚠️ N-119's paint-order lesson is inherited — sweep `elementFromPoint` across every drop-band edge.
+
+---
+
 ## Entry J-523 — M-RP7.2b CLOSED: the region owns its gap — and the boundary it was locked to fix turned out to be invisible
 
 **Skin only (`ui/assets/skin.css`). No component, no descriptor, no vitest, no Rust. Joe-locked → built → A/B-measured → the justification died → Joe shipped it anyway on the right reason.**

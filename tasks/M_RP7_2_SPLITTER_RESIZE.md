@@ -1,6 +1,6 @@
 # M-RP7.2 — Splitter resize on the seam
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 2.0  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-14  
 > Language: English  
@@ -9,6 +9,16 @@
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 **Implementer: Clair.** Design authority: none — every open question below is already closed. **If a step is wrong, say so and stop** (Rule 6: at M-RP7.1b the deviation was correct and the runbook was the thing that was wrong).
+
+> ## ✅ **CLOSED — J-519. Code commit `9faa38c` (8 files, +512/−28). Do not re-execute.**
+>
+> **MEASURED (Chat re-drove every leg, Rule 5):** registry **67** (quiescent · empty store · no selection · nothing folded · zero saved UI states; seam does not register) · `cargo test` **1517/0/62 IDENTICAL** · `npm test` **59** · `vite build` **169** · `--region-min` reads **22px on the seam** · 7 seams · clamp stops at **exactly 22px** without folding · **MID-drag: descriptor untouched at `[1,2,7,2]` while the tile painted 74→176px; AFTER: `[237,63,700,200]`.**
+>
+> **⚠️ RULE 6 FIRED TWICE, AND BOTH TIMES THE RUNBOOK WAS THE THING THAT WAS WRONG.**
+> **① N-119 — §4's `::before` hit area did not work.** The next tile **paints over** the far half of the overlay; **half of the seam's own VISIBLE pixel was unclickable.** Fixed with `z-index: 1` on a live seam — **Clair's deviation, correct, accepted.** *`pointer-events` decides WHETHER an element is hit; **paint order decides WHICH**. Expanding a hit area is two facts and the CSS states one.*
+> **② §5's premise was misattributed** — `resolve.ts` did **not** own the flex decision. The **intent** (one source, D-067) was right; the **fact** was wrong. She exported the predicates and deduped three call-sites instead of adding a fourth.
+>
+> **🔑 AND ONE DEFECT THIS MILESTONE SHIPPED, NOW OWNED BY M-RP7.3 — N-120.** `path` is threaded over the **RESOLVED** tree; `resizeSplit` walks the **DESCRIPTOR**. `resolve.ts` drops unknown leaves → **the index spaces diverge**. **Reached, not argued:** with one ghost widget, dragging a seam **right to enlarge a panel HALVED it**, and **55% of the row's weight went to a widget that does not exist**. **Fold is drop-safe (addresses by `regionId`); resize is drop-fragile (addresses by position).** *Unreachable in today's build; reachable the first time a widget id is retired.* → **a REQUIRED LEG of M-RP7.3, not a filed item.**
 
 **Read first:** `docs/xgen-dock-engine-phase0.md` v1.5 (§4.2, §6, §7 — **§4.1-H is HISTORY, do not implement it**) · `ui/docs/xgen-region-dock-model.md` v2.1 · `ui/core/lib/components/layout/` (all of it) · **`ui/docs/xgen-ui-notes.md` N-118 — it is not optional, it is a correctness requirement in leg 4.**
 

@@ -48,6 +48,12 @@ param(
     [string]$From = '',
     [string]$To = '',
     [int]$Steps = 12,
+    # ** A harness that can only PASS is a weak harness. ** -KeepSelection suppresses the pre-gesture
+    # selection clear so N-118 can be REPRODUCED on demand, not merely avoided. Use it to prove a
+    # splitter is genuinely immune (user-select:none + preventDefault) rather than protected by the
+    # instrument. If a gesture behaves differently under this switch, the guard is the harness's, not
+    # the code's - and the code will fail for a real user who never had a harness clearing up after them.
+    [switch]$KeepSelection,
     [int]$Seconds = 8,
     [switch]$Launch,
     [string]$Exe = '',
@@ -270,7 +276,7 @@ try {
         }
         'click' {
             $p = ConvertTo-Point $At 'At'
-            Clear-Selection $ws $cts.Token
+            if (-not $KeepSelection) { Clear-Selection $ws $cts.Token }
             Write-Host "click @ $($p[0]),$($p[1])  (trusted, CSS px)"
             Send-MouseEvent $ws $cts.Token 'mouseMoved'    $p[0] $p[1] 0 0
             Send-MouseEvent $ws $cts.Token 'mousePressed'  $p[0] $p[1] 1 1
@@ -281,7 +287,7 @@ try {
             $a = ConvertTo-Point $From 'From'
             $b = ConvertTo-Point $To   'To'
             if ($Steps -lt 1) { $Steps = 1 }
-            Clear-Selection $ws $cts.Token
+            if (-not $KeepSelection) { Clear-Selection $ws $cts.Token }
             Write-Host "drag $($a[0]),$($a[1]) -> $($b[0]),$($b[1])  in $Steps steps  (trusted, CSS px)"
             Send-MouseEvent $ws $cts.Token 'mouseMoved'   $a[0] $a[1] 0 0
             Send-MouseEvent $ws $cts.Token 'mousePressed' $a[0] $a[1] 1 1

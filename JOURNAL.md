@@ -8,6 +8,91 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-519 — M-RP7.2 CLOSED: the seam drags, the descriptor is written once — and the re-drive reached a bug that inverts a resize
+
+**M-RP7.2 — splitter resize on the seam ✅ CLOSED.** Code commit **`9faa38c`** [Clair] — 8 files, +512/−28. **Zero Rust · zero `ui/sampler` · zero `ui/node`** — verified by diffstat and by the identical `cargo test`, not asserted.
+
+**Chat re-drove EVERY leg on the real client (Rule 5). Not one number below was taken on report.**
+
+---
+
+### 1. What shipped
+
+**`mutate.ts`** (new, `core`, pure) — `resizeSplit(layout, path, seamIndex, fraction)`: integer scale-up, pair-only, total temperament (bad path · non-split · out-of-range seam · non-finite fraction → **input unchanged, never throws**), immutable rebuild. **`path: number[]`** threaded through `region-node` (derived; **no schema change**). The **`.region-seam` element** replaces the flex `gap` (a `gap` cannot be hit-tested). The **gesture**: pointer capture, live preview, min-clamp off the skin. **`resolve.ts` exported `isFoldAlong` / `splitShrinkWraps` / `carriesMainAxisWeight`** — one source for tile fold-mode, split shrink-wrap **and** seam liveness.
+
+**All eight locks L1–L8 honoured as written.**
+
+### 2. 🔑 THE CENTRAL CLAIM, PROVEN — AND IT WAS ONLY PROVABLE BECAUSE LEG 0 BUILT THE INSTRUMENT FIRST
+
+> **MID-DRAG (button still down): the descriptor still read `[1,2,7,2]` while the tile had painted from 74px to 176px.**
+> **AFTER (released): `[237, 63, 700, 200]`.** Sum **1200**. Pair total **invariant** (`1+2 = 3` → ×100 → `237+63 = 300`). **Untouched siblings exactly ×100** (`7→700`, `2→200`). **No jump on commit.**
+
+***"Preview live, write the descriptor ONCE on release" is indistinguishable from "write on every move" if you can only read after `mouseReleased`.*** J-518's `-MidExpression` is the entire reason this is a measurement and not a hope.
+
+### 3. Re-driven (Rule 5) — every number Chat's own
+
+**Registry 67** — quiescent · empty store · **no selection** · nothing folded · **zero saved UI states**; `count === unique === 67`; **the seam does NOT register** (L8); **returns to exactly 67** after a full fold / shrink-wrap / resize churn. **⚠️ The client Clair handed over had a SELECTION ACTIVE** — the inspector was populated and `paragraph#region-inspector__empty` was gone. **A count read in that state is 71, not 67** (N-112). *Reloaded before measuring; a baseline read in an unstated state is not a baseline.*
+
+`cargo test` **1517 / 0 / 62 — IDENTICAL** (56 terminators, complete run, **zero real failures under a CASE-SENSITIVE grep** — N-117) · `npm test` **59** (was 49) · `vite build` **169** (was 168).
+
+**The hoist works, and the runbook's central trap is closed:** `getComputedStyle(seam).getPropertyValue('--region-min')` → **`"22px"`**. **Chromium resolves the nested `var(--region-stripe)` inside a custom property's computed value** — which was the open question. `--region-stripe` reads **22px on both the seam and a tile**: the hoist is behaviour-neutral. **7 seams.**
+
+**Clamp (L6):** dragged hard into the frame → painted width stopped at **exactly 22px**, mid-drag *and* after; **`data-collapsed: null`, `data-fold-mode: null`**. ***It stops. It does not fold.*** (§4.2.)
+
+**Inert seams (L4), driven not asserted:** folded-**along** → that seam `data-live="false"`, root seams live. **Shrink-wrap** → `data-shrinkwrap="true"`, column **22px**, **both adjoining root seams `false`** — **and the column's OWN internal seam `true`**, because two *width*-folded (across) leaves still carry their **height** weight. **The nuanced case falls out of ONE predicate with no special case.**
+
+**Resize after fold:** the shrink-wrapped column's live seam `[3,1]` → **`[1946, 2054]`** (sum 4000, pair invariant), folds survived. **Fold after resize:** worked.
+
+---
+
+### 4. ⚠️ N-119 — CLAIR'S FINDING, AND THE RUNBOOK WAS ONE PAINT-ORDER FACT SHORT OF WORKING
+
+**The runbook (Chat's) said: expand the seam's hit area with a `::before` overlay. It did not work, and the first drag did nothing.** The next tile **follows the seam in DOM order and painted over the far half of the overlay.**
+
+**Chat re-drove it by DELETING the fix** (`z-index` removed live, `elementFromPoint` swept across the seam): x = 77–80 hit `.region-seam`; **x = 81–84 hit `.region-tile-body`** — ***including the seam's own painted pixel***, which spans 80.35–81.35. **Half of the VISIBLE seam was unclickable.** With `z-index: 1`: 77–84 all seam. **The fix is load-bearing, not cargo-cult.**
+
+> ### 🔑 **`pointer-events` decides WHETHER an element is hit. PAINT ORDER decides WHICH element is hit.** An overlay that reaches into the next box reaches into a box that **paints after it**. **Expanding a hit area is two facts, and the CSS only states one.** **M-RP7.4's drop bands are the same shape of overlay — they inherit this.**
+
+**🔒 Clair's deviation (`z-index: 1`) was CORRECT and is ACCEPTED.** *An expanded hit area that a sibling paints over is not expanded.* **And she found it by LOOKING (`elementFromPoint`), not by reading the CSS** — N-118's own lesson, applied by the implementer to the architect's design. **Second milestone running: Rule 6 caught the runbook, not the code.**
+
+### 5. 🔑 N-120 — CLAIR FILED IT AS "LATENT, OUT OF SCOPE". CHAT REACHED IT. IT INVERTS A RESIZE.
+
+**`region-node` renders the RESOLVED tree and threads `path` from the RESOLVED child index. `resizeSplit` walks the DESCRIPTOR by that path.** `resolve.ts` **drops** unknown leaves, `tabs`, and all-dropped splits. **Any drop, and the two index spaces diverge.**
+
+**Planted a layout with ONE unknown `widgetId`** (`ghost`) — descriptor has 3 children, **2 tiles paint**, **1 seam**, and it sits between `spaces` and `rooms`:
+
+| | before | after dragging that seam RIGHT (to ENLARGE `spaces`) |
+|---|---|---|
+| descriptor | `[1,1,1]` | **`[1660, 340, 1000]`** — *the **ghost** took 1660* |
+| painted `spaces` | 660px | **335px — it HALVED** |
+| painted `rooms` | 660px | 986px — it **grew** |
+
+> ### ⚠️ **THE RESIZE DID THE EXACT OPPOSITE OF THE GESTURE**, because the pair actually resized was `ghost ↔ spaces`. **And 55% of the row's weight now belongs to a widget that does not exist** — which **M-RP7.5 would write to DISK**, and which would **reappear eating half the screen** if that widget ever came back.
+
+**🔒 THE ASYMMETRY, PROVEN IN THE SAME POISONED LAYOUT:** folding `spaces` with the ghost present collapsed **`spaces`** — **correct** — because **fold addresses by `regionId`, an IDENTITY.** **Resize addresses by `path`, a POSITION** — and ***a position is only an address in the tree it was counted in.***
+
+> ### 🔑 **THE GENERAL RULE:** ***a derived view may renumber. An index into a derived view is not an address into the source.*** `resolve.ts` **already knows** the descriptor index at the moment it drops — **it just throws it away.**
+
+**⚠️ UNREACHABLE IN TODAY'S BUILD** (all 8 ids registered; `tabs` is never produced — D-116). **It becomes reachable the first time a widget id is retired or renamed and a user loads a saved workspace** — the **W-13 reconcile** case the project explicitly designed for, and M-RP7.1b proved the Load dialog is **three clicks** away. ***"Unreachable today" is the argument that has now been wrong five times here*** (N-091 · N-097 · N-099 · N-109 · N-116).
+
+**→ NOT FILED. It becomes a REQUIRED LEG of `M-RP7.3 — the mutation algebra (pure)`, which is NEXT and which OWNS addressing.** *L5 said the addressing is "paid once" — **if it is wrong, we have paid once for the wrong thing.** A misaddressed resize nudges two integers; **a misaddressed `move` relocates a panel into the wrong branch.** `move` is not built on a broken address.*
+
+### 6. Clair's finding ② — the runbook's premise was misattributed (harmless, and she fixed it better than it was written)
+
+The runbook said *"`resolve.ts` already decides which children get an inline flex — REUSE that value."* **It does not** — that decision lived in `region-node` (shrink-wrap) and `region-tile` (fold-mode). **The INTENT (one source, D-067) was right and the FACT was wrong.** She exported the three predicates from `resolve.ts` and had all three call-sites consume them — **which dedups pre-existing parallel logic rather than adding a fourth copy.** *Better than compliance.*
+
+### 7. Chat's own instrument, strengthened mid-re-drive
+
+**`cdp-debug.ps1` gains `-KeepSelection`.** The harness was clearing the selection before every gesture — so it **avoided** N-118 instead of **testing** it. ***A harness that can only pass is a weak harness.*** **Control, same session:** two drags on the tile body with the clear suppressed → **`mousedown, mousemove, dragstart` — and then nothing. No `mouseup`.** **N-118 reproduced on the wire, with the native drag visible** (it was only *inferred* at J-518). **Subject:** the seam, same conditions, a live 21-char selection → **both consecutive drags committed, no `dragstart`, `mousedown: false`** — because `preventDefault()` on `pointerdown` **suppresses the compat mouse events**; the pointer events carry the drag. **Measured, not assumed.**
+
+### 8. Records
+
+`tasks/M_RP7_2_SPLITTER_RESIZE.md` → **COMPLETED**. Phase-0 → **v1.6**. `xgen-ui-notes.md` → **v0.86** (**N-119**, **N-120**). New tokens on `.region-shell`: `--region-min: var(--region-stripe)` · `--region-snap: 8px` · `--region-seam-hit: 3px`; **`--region-stripe` hoisted from `.region-tile`** (behaviour-neutral, 22/22 verified). **`--region-seam` is now the seam element's thickness — exactly as J-517 predicted: *"one token, both eras."***
+
+**⚠️ THE M-RP7.1 SE CORNER TRIANGLE IS STILL PAINTED-DEAD, AND ITS DISCHARGER SAID "M-RP7.2".** This milestone resized on the **seam**, not the **corner**. **The countdown is NOT discharged — it is RE-POINTED, not quietly dropped.** → **`M-RP-SKIN`** decides whether a corner grip exists at all; **if it stays, it needs a milestone that makes it live.** *A disabled face is a countdown, and a countdown whose milestone came and went without discharging it is exactly the painted-dead chrome this project keeps refusing.*
+
+---
+
 ## Entry J-518 — M-RP7.2 leg 0: the trusted-mouse harness lands, and it found the milestone's first real bug before a line of the milestone was written
 
 **M-RP7.2 — splitter resize on the seam: OPENED. Leg 0 (Chat) DONE. Runbook ACTIVE for Clair. No component code, no Rust.**

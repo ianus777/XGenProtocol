@@ -1,6 +1,6 @@
 # XGen UI — CDP Debug Harness (WebView2 remote-debug read loop)
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Jun 2026  
 > **Last updated**: 2026-07-14  
 > Language: English  
@@ -88,6 +88,8 @@ A single dev-only script. Responsibilities, in order:
 - **⚠️ INTEGER COORDINATES ONLY.** PowerShell renders a `[double]` with the **current culture's** decimal separator — on a sk-SK box `123.5` becomes `123,5`, which is not JSON, and the CDP frame is rejected with an error that looks nothing like a locale bug.
 - **⚠️ Every read sits behind a double-`requestAnimationFrame` barrier** (`awaitPromise`). A CDP ack means the *browser* accepted the event, not that the renderer ran the handler — and Svelte's flush is a microtask on top (N-117). **The barrier is a READ barrier: do not put it inside the move loop.**
 - **⚠️ THE SELECTION TRAP — see N-118.** Every gesture is preceded by `getSelection().removeAllRanges()`. Without it, the second drag from the same point presses on the selection the first one left, **Chromium opens a native HTML5 drag, and every subsequent `mousemove` and the `mouseup` are swallowed in silence.** *This is not a harness quirk — it is a real bug waiting for any splitter that is not `user-select: none`.*
+- **🧪 `-KeepSelection` (J-519) — because A HARNESS THAT CAN ONLY PASS IS A WEAK HARNESS.** It **suppresses** that clear, so N-118 can be **REPRODUCED on demand** rather than merely avoided. **Use it to prove a gesture is genuinely immune rather than protected by the instrument.** **Proven with it:** two drags on selectable tile body → `mousedown, mousemove, **dragstart**` — and then **nothing, no `mouseup`** (the native drag, finally *visible* rather than inferred). The **seam**, same conditions with a live selection → **both drags commit, no `dragstart`.** ***If a gesture behaves differently under this switch, the guard is the HARNESS's, not the CODE's — and the code will fail for a real user, who has no harness tidying up after them.***
+- **⚠️ RE-MEASURE COORDINATES BEFORE EVERY GESTURE — a rect is not a constant.** Folding **moves** a tile's buttons (they rotate into the side strip); a resize **moves** every seam to its right. **Chat dragged a stale coordinate during the J-519 re-drive and selected text instead of grabbing the seam.** *Measure, then gesture. Never gesture on a coordinate measured before the last gesture.*
 
 ## Open / parked
 

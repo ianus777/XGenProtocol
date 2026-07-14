@@ -1,6 +1,6 @@
 # XGen Client — The Dock Engine (Renderer B): Phase-0
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-14  
 > Language: English  
@@ -319,6 +319,32 @@ resize(layout, splitPath, index, delta) -> Layout
 
 ---
 
+### 6.1 🔒 N-120 — AN INDEX INTO THE RESOLVED TREE IS NOT AN ADDRESS INTO THE DESCRIPTOR (found M-RP7.2 / J-519). **REQUIRED LEG OF M-RP7.3.**
+
+**M-RP7.2 shipped `path: number[]` as the address (L5), and M-RP7.4's `move` was to reuse it — *"paid once"*. It is wrong, and it was paid once for the wrong thing.**
+
+**Grounded in the code:** `region-node.svelte:200` iterates `node.children` of a **`ResolvedNode`** and threads `path={[...path, i]}`. `resizeSplit` walks the **DESCRIPTOR** by that path. **But `resolve.ts` DROPS** — unknown leaves, `tabs`, and splits whose children all drop. **The moment anything drops, the two index spaces diverge.**
+
+**🔑 REACHED, NOT ARGUED** (a layout planted with one unknown `widgetId`; descriptor 3 children, **2 tiles paint, 1 seam**, sitting between `spaces` and `rooms`):
+
+| | before | after dragging that seam RIGHT — i.e. to **enlarge** `spaces` |
+|---|---|---|
+| descriptor `sizes` | `[1,1,1]` | **`[1660, 340, 1000]`** — the **ghost** took **1660** |
+| painted `spaces` | 660px | **335px — it HALVED** |
+| painted `rooms` | 660px | 986px — it **grew** |
+
+> ### ⚠️ **THE RESIZE DID THE EXACT OPPOSITE OF THE GESTURE** — the pair actually resized was `ghost ↔ spaces`. **And 55% of the row's weight now belongs to a widget that does not exist**, which **M-RP7.5 would write to disk**, and which would **reappear eating half the screen** if that widget ever returned.
+
+**🔒 THE ASYMMETRY, PROVEN IN THE SAME POISONED LAYOUT: FOLD IS DROP-SAFE. RESIZE IS DROP-FRAGILE.** Folding `spaces` with the ghost present collapsed **`spaces`** — correct — because **fold addresses by `regionId`: an IDENTITY.** Resize addresses by **`path`: a POSITION.** ***A position is only an address in the tree it was counted in.***
+
+> ### 🔑 **THE RULE, AND IT OUTLIVES THIS ARC:** ***a derived view may renumber; an index into a derived view is not an address into the source.*** Either the resolved node **carries its source index**, or every mutation **addresses by identity**. **`resolve.ts` already knows the descriptor index at the moment it drops — it simply throws it away.**
+
+**⚠️ Not reachable in today's build** (all 8 region ids registered; **`tabs` is never produced** — D-116). **It becomes reachable the first time a widget id is retired or renamed and a user loads a saved workspace** — the **W-13 reconcile** case this project explicitly designed for, and M-RP7.1b proved the Load dialog is **three clicks** away. ***"Unreachable today" is the argument that has been wrong five times in this codebase*** (N-091 · N-097 · N-099 · N-109 · N-116).
+
+**→ M-RP7.3 opens with it. NOT a filed item.** *A misaddressed **resize** nudges two integers. A misaddressed **`move`** relocates a panel into the wrong branch.* **`move` is not built on a broken address.**
+
+---
+
 ## 7. The raster — a quantum on the weights, not a lattice of cells
 
 The dilemma Joe posed (*absolute grid → regions can fall off-display · relative grid → regions would scale*) dissolves once the grid is an **input model**, not a **storage model**.
@@ -387,8 +413,8 @@ Joe: *"can we in this phase create just empty regions without context with full 
 |---|---|---|
 | 1 | **✅ M-RP7.1 — the tile frame: stripe, grip, fold** | **CLOSED J-514** (`4c2f886`). Chrome moved widget → renderer. `collapsed` entered the descriptor (`version: 2`, migrate a no-op). The eight `Section` roots unwrapped. **Joe saw it — and the appearance review produced §4.1/§4.4/§4.5, which is exactly what this leg was for.** |
 | 1b | **✅ M-RP7.1b — the fold axis becomes the user's choice; splits shrink-wrap; the hole gets a floor** | **CLOSED J-516** (`0f25e50` + `14eb4d8` [Clair] + the appearance fix [Chat]). Two fold buttons (§4.1) · `collapsed` is now a **DIRECTION** (`'width' \| 'height'`) · along-fold absorbs / across-fold holes · **the split shrink-wrap (§4.4)** · **the raster under the holes (§4.5)** · `v2 → v3` and **`migrateLayout` CREATED — the first migrate this project has ever run**, exercised in vitest AND driven live through the real Load dialog. **Convention A locked after Joe saw it run.** |
-| 2 | **🟢 M-RP7.2 — splitter resize on the seam** | The 1px `.region-split` gap becomes a drag handle. Weights snap to the quantum. Pure `sizes[]` arithmetic — the cheapest real mechanic, **and it lands the trusted-mouse-event harness the rest of the arc needs.** |
-| 3 | **M-RP7.3 — the mutation algebra (pure)** | The new module beside `resolve.ts`: `move` · `fold` · `resize`, remove → collapse-degenerate → insert → re-normalise. **Vitest, no DOM, no gestures.** |
+| 2 | **✅ M-RP7.2 — splitter resize on the seam (CLOSED J-519, `9faa38c`)** | The `.region-split` gap became a real **seam ELEMENT** (a flex `gap` cannot be hit-tested), sized by `--region-seam`. **`mutate.ts` was BORN here** with `resizeSplit` — *the arc table put the algebra after the first mutation, and the first mutation IS algebra.* **Integers only: an exact ×10^n scale-up, pair-total invariant, untouched siblings preserved to the byte.** **Live preview; the descriptor written ONCE on `pointerup`** — **proven by reading it MID-DRAG with the button still down**, which is what leg 0's harness exists for. Clamp stops at `--region-min` and **never auto-folds**. **⚠️ Two runbook defects (N-119 paint-order hit area; the §5 misattribution) and one SHIPPED defect (N-120) — see §6.1.** |
+| 3 | **M-RP7.3 — the mutation algebra (pure)** | The module beside `resolve.ts`: `move` · `fold` · `resize`, remove → collapse-degenerate → insert → re-normalise. **Vitest, no DOM, no gestures.** **🔒 AND IT OPENS BY FIXING N-120 (§6.1) — a REQUIRED LEG, not a filed item: addressing IS algebra, and `move` must not be built on a broken address.** |
 | 4 | **M-RP7.4 — drag to dock: grip, edge bands** | The algebra gets a pointer. Four edge bands per tile, inert centre. **⚠️ A HOLE IS NOT A DROP TARGET (§4.5).** **Where the arc's real cost lives.** |
 | 5 | **M-RP7.5 — the session layout feeder** | The grid finally **writes `session.layout`** — see §12. |
 | 6 | **M-RP7.6 — the grid lock: freeze arrangement, keep function** | **NEW (Joe, 2026-07-13).** A 4th bottom-shelf face freezing fold + resize + drag; **normal function untouched.** **⚠️ IT CANNOT SHIP EARLIER — TODAY IT WOULD GUARD NOTHING** (drag and resize do not exist; a lock over one verb is a button whose whole meaning is a promise — the painted-dead chrome this project keeps refusing). **Three grounded costs:** ① **it is the FIRST STATEFUL shelf face** — grepped: `shelf-face` has `active` (roving) and `disabled` (guard) and **NO pressed/toggle concept**, so `aria-pressed` is a real change to a **shipped `core`**; ② **`locked` wants to live in `session`, where RUST writes `geometry` and the frontend writes `layout`** — **N-107 one level deeper: that object must be merged PER-KEY, never replaced** → **it lands AFTER M-RP7.5**; ③ **"lock the top shelf too" locks an EMPTY BOX today** — `app_client.svelte:277` mounts it `items={[]}` and the skin collapses it to height 0; **there is no pinning verb** → the top shelf joins the day favourites exist. |

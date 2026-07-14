@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.85  
+> Version: 0.86  
 > Date: May 2026  
 > **Last updated**: 2026-07-14  
 > Language: English  
@@ -2522,6 +2522,41 @@ return getComputedStyle(el).color;       // ← SAME EVAL. Svelte has NOT flushe
 > ***A coherent explanation that fits the evidence is not the same as the cause. N-116 said the record can be self-consistent while the code is not; N-118 says MY OWN REASONING can be self-consistent while being wrong — and it will happily be written into the record as "measured" if nobody makes it disprove itself.***
 
 **Filed for M-RP7.4 (drag to dock) too:** that milestone drags a **grip**, over a **title stripe**, next to a **title** — all text. It inherits this trap wholesale.
+
+### N-119 — an expanded hit area is only expanded until a SIBLING PAINTS OVER IT (2026-07-14, M-RP7.2 — Clair found it; Chat re-drove it by deleting the fix)
+
+**The seam is a 1px element with a `::before` overlay expanded ±`--region-seam-hit` (3px) so it can be grabbed.** It could not be grabbed. **The next tile follows the seam in DOM order and painted over the far half of the overlay.**
+
+**Measured (`elementFromPoint`, re-driven by Chat with `z-index` removed live):** the seam sits at `left: 80.35`, width 1px. Without `z-index`, x = 77–80 hit `.region-seam` and **x = 81–84 hit `.region-tile-body`** — ***including the seam's own painted pixel***, which spans 80.35–81.35. **Half of the VISIBLE seam was not clickable, and the whole right half of the hit zone belonged to the neighbour.** With `z-index: 1` on a live seam: x = 77–84 all hit the seam.
+
+> ### 🔑 **THE RULE: `pointer-events` DECIDES *WHETHER* AN ELEMENT IS HIT; PAINT ORDER DECIDES *WHICH* ELEMENT IS HIT.** An overlay that overlaps its siblings is only on top if it is **painted** on top. In flex/normal flow that means **later siblings win**, and a hit area that reaches into the next box is reaching into a box that paints after it. **Expanding a hit area is two facts, and the CSS only says one of them.**
+
+**⚠️ The runbook (Chat's) specified the `::before` expansion and stopped there — it was one paint-order fact short of working.** *The milestone that exists to prove a drag proved it by not dragging.* **And it was found by LOOKING (`elementFromPoint` swept across the seam), not by reading the CSS** — N-118's own lesson, applied by the implementer to the architect's design.
+
+**Consequence for M-RP7.4:** its drop bands are also overlays over neighbouring boxes. **They will need the same treatment, and "it looks right" will not tell you** — sweep `elementFromPoint` across every band edge.
+
+### N-120 — the RESOLVED tree and the DESCRIPTOR are two different coordinate systems, and an index is not an address in both (2026-07-14, M-RP7.2 — Clair flagged it as latent; Chat REACHED it, and it is worse than latent)
+
+**`region-node` renders the RESOLVED tree and threads `path={[...path, i]}` from the resolved child index. `resizeSplit` walks the DESCRIPTOR by that path.** Grounded in the code, not inferred: `region-node.svelte:200` iterates `node.children` of a `ResolvedNode`; `resolve.ts` **drops** unknown leaves, **drops** `tabs`, and **drops** splits whose children all drop. **Any drop, and the two index spaces diverge.**
+
+**🔑 REACHED, NOT ARGUED.** A layout was planted with one unknown `widgetId` (`ghost`), so `resolve` dropped it: **descriptor has 3 children, 2 tiles paint, 1 seam — and that seam sits between `spaces` and `rooms`.**
+
+| | before | after dragging the seam RIGHT (to enlarge `spaces`) |
+|---|---|---|
+| descriptor `sizes` | `[1,1,1]` | **`[1660, 340, 1000]`** |
+| | *ghost · spaces · rooms* | **the ghost took 1660; `spaces` was cut to 340** |
+| painted `spaces` | 660px | **335px — it HALVED** |
+| painted `rooms` | 660px | 986px — it **grew** |
+
+> ### ⚠️ **THE RESIZE DID THE EXACT OPPOSITE OF THE GESTURE.** Dragging right to enlarge a panel **halved it**, because the pair actually resized was `ghost ↔ spaces`, not `spaces ↔ rooms`. **And 55% of the row's weight now belongs to a widget that does not exist** — which **M-RP7.5 would write to disk**, and which would **reappear eating half the screen** if that widget ever returned.
+
+**🔒 THE ASYMMETRY, PROVEN IN THE SAME POISONED LAYOUT: FOLD IS DROP-SAFE; RESIZE IS DROP-FRAGILE.** Folding `spaces` with the ghost present collapsed **`spaces`** — correct — because **fold addresses by `regionId`, an IDENTITY.** Resize addresses by **`path`, a POSITION** — and *a position is only an address in the tree it was counted in.*
+
+> ### 🔑 **THE GENERAL RULE, AND IT IS BIGGER THAN THIS MILESTONE:** ***a derived view may renumber. An index into a derived view is not an address into the source.*** Either the resolved node carries its **source index**, or every mutation must address by **identity**. `resolve.ts` already knows the descriptor index at the moment it drops — **it just throws it away.**
+
+**⚠️ NOT REACHABLE IN TODAY'S SHIPPED BUILD** (all 8 region ids are registered, no `tabs` is ever produced — D-116). **It becomes reachable the first time a widget id is RETIRED OR RENAMED between versions and a user loads a saved workspace** — which is precisely the **W-13 reconcile** case the project designed for, and M-RP7.1b proved the Load dialog is **three clicks** away. ***"Unreachable today" is the argument that has now been wrong five times in this codebase*** (N-091 · N-097 · N-099 · N-109 · N-116).
+
+**→ NOT FILED. It is a REQUIRED LEG of `M-RP7.3 — the mutation algebra (pure)`, which is next and which OWNS addressing.** *`move` reuses this exact addressing (L5, "paid once") — and **a misaddressed resize nudges two integers; a misaddressed `move` relocates a panel into the wrong branch.** Do not let `move` be built on a broken address.*
 
 ---
 

@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.84  
+> Version: 0.85  
 > Date: May 2026  
-> **Last updated**: 2026-07-13  
+> **Last updated**: 2026-07-14  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -2502,6 +2502,26 @@ return getComputedStyle(el).color;       // ← SAME EVAL. Svelte has NOT flushe
 
 > ### **🔑 BOTH TIMES, THE LIAR WAS THE CHECK, NOT THE BUILD.**
 > *N-099's family (N-091 · N-097 · N-099 · N-109 · N-110 · N-111 · N-114) is usually about a check pointed at the **wrong subject**. These two are about a check that was **wrong in itself** — and both produced a **plausible, complete-looking, confidently-wrong number**. **When a re-drive turns up a surprise, the FIRST suspect is the instrument.***
+
+---
+
+## 2026-07-14
+
+### N-118 — a SELECTION left by one drag becomes a NATIVE DRAG on the next one, and it eats the gesture (2026-07-14, M-RP7.2 leg 0 — found while building the trusted-mouse harness, *before* any splitter existed)
+
+**The symptom.** The trusted-mouse harness (`cdp-debug.ps1 -Mode drag`) worked perfectly on a fresh page and then, on the **second** drag from the same point, delivered only **three** events: the hover-move, the `mousedown`, **one** `mousemove` — and then nothing. **No further moves. No `mouseup` at all.** Silently. The CDP acks all came back clean.
+
+**The cause.** A drag across selectable text fires **`selectstart`** and leaves a **SELECTION** behind. The next drag presses **on that selection** — and **Chromium treats a selection as DRAGGABLE CONTENT.** It opens a **native HTML5 drag session**, which takes the mouse and stops delivering `mousemove` / `mouseup` to the page entirely. Verified: `location.reload()` (which clears the selection) made it vanish; arming a `dragstart` listener showed the native drag; and with `getSelection().removeAllRanges()` before each gesture, **three consecutive drags from the same point are now byte-identical.**
+
+> ### ⚠️ **AND THIS IS NOT A HARNESS BUG. IT IS WAITING FOR THE SEAM.**
+> **A splitter that can be grabbed over selectable text will select the text on the first drag — and the SECOND drag will be swallowed by the native DnD, leaving the tile stuck to the cursor with no `mouseup` to end it.** A real user reproduces this by dragging a splitter twice. → **`user-select: none` on the seam is a CORRECTNESS requirement, not a cosmetic one**, and `pointerdown` → `preventDefault()` + `setPointerCapture` is the belt to its braces. **Written into the M-RP7.2 runbook as a DoD leg, not a footnote.**
+
+> ### 🔑 **THE PROCESS LESSON, AND IT IS THE EXPENSIVE ONE: I DIAGNOSED IT WRONG TWICE, CONFIDENTLY, AND BOTH WRONG DIAGNOSES WERE *COHERENT*.**
+> **First** I concluded *"the CDP ack doesn't mean the renderer ran it — the events are arriving LATE"* and replaced the sleep with an rAF barrier. **Wrong** — a read **two seconds** later showed the events had **never arrived at all**. **Then** I concluded *"interleaving `Runtime.evaluate` between moves KILLS the input stream — the instrument is destroying what it measures"*, and wrote that into the file as a measured finding. **Also wrong** — removing the barrier changed nothing. **Both stories explained the data. Neither was true.** The thing that actually found it was **reloading the page and watching the symptom disappear** — i.e. *changing one variable and looking*, not reasoning harder.
+>
+> ***A coherent explanation that fits the evidence is not the same as the cause. N-116 said the record can be self-consistent while the code is not; N-118 says MY OWN REASONING can be self-consistent while being wrong — and it will happily be written into the record as "measured" if nobody makes it disprove itself.***
+
+**Filed for M-RP7.4 (drag to dock) too:** that milestone drags a **grip**, over a **title stripe**, next to a **title** — all text. It inherits this trap wholesale.
 
 ---
 

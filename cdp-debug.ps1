@@ -10,6 +10,26 @@
 #   .\cdp-debug.ps1 -App client -Mode screenshot                       # attach to a RUNNING client, save PNG to temp\
 #   .\cdp-debug.ps1 -App client -Ordinal 1 -Mode eval -Expression "location.href"
 #
+# TRUSTED INPUT (M-RP7.2). A synthetic MouseEvent from `eval` is UNTRUSTED: `isTrusted:false`, and it
+# fires NO native defaults (J-496, proven the hard way). `Input.dispatchMouseEvent` is injected at the
+# BROWSER level, so it is trusted and drives real hover, focus, capture and drag:
+#   .\cdp-debug.ps1 -App client -Mode click -At "320,140"
+#   .\cdp-debug.ps1 -App client -Mode drag  -From "215,400" -To "300,400" -Steps 12
+#   .\cdp-debug.ps1 -App client -Mode drag  -From "215,400" -To "300,400" ^
+#        -MidExpression "JSON.stringify(__XGEN_LAYOUT__.current)" -Expression "JSON.stringify(__XGEN_LAYOUT__.current)"
+#
+# ** -MidExpression is evaluated WHILE THE BUTTON IS STILL DOWN.** It is not a convenience: a design that
+# previews live but only writes the descriptor on release is INDISTINGUISHABLE from one that writes on
+# every move, if you can only read after mouseReleased. The mid-drag read IS the proof.
+#
+# COORDINATES ARE CSS PIXELS relative to the layout viewport - the same space `getBoundingClientRect()`
+# returns, so a rect centre can be handed straight to -At/-From. It is NOT device pixels; do NOT scale by
+# devicePixelRatio. Verified by calibration, not assumed (see tasks/CDP_DEBUG_HARNESS.md).
+#
+# ** INTEGER COORDINATES ONLY, AND THAT IS DELIBERATE.** PowerShell renders a [double] with the CURRENT
+# CULTURE's decimal separator - on a sk-SK box `123.5` stringifies to `123,5`, which is not JSON, and the
+# CDP frame is rejected with an error that looks nothing like a locale bug. Coords are [int] end to end.
+#
 # Port = base + Ordinal; base is 9222 (client) or 9322 (node), so client and node
 # never collide and each instance gets a unique port. Override with -Port / -Exe.
 # To debug a `tauri dev` session, launch it with a dev-only Tauri config OVERLAY that adds
@@ -21,8 +41,13 @@
 param(
     [ValidateSet('client','node','sampler')] [string]$App = 'client',
     [int]$Ordinal = 0,
-    [ValidateSet('console','state','eval','screenshot')] [string]$Mode = 'state',
+    [ValidateSet('console','state','eval','screenshot','click','drag')] [string]$Mode = 'state',
     [string]$Expression = '',
+    [string]$MidExpression = '',
+    [string]$At = '',
+    [string]$From = '',
+    [string]$To = '',
+    [int]$Steps = 12,
     [int]$Seconds = 8,
     [switch]$Launch,
     [string]$Exe = '',
@@ -71,6 +96,84 @@ function Format-ConsoleArgs {
         else                              { $parts += [string]$a.type }
     }
     return ($parts -join ' ')
+}
+
+# --- Trusted input (M-RP7.2) ---------------------------------------------------------------
+
+# Parse "x,y" -> [int[]]. Integers only: see the locale note in the header.
+function ConvertTo-Point {
+    param([string]$Text, [string]$Name)
+    if ($Text -notmatch '^\s*(-?\d+)\s*,\s*(-?\d+)\s*$') { throw "-$Name must be `"x,y`" with INTEGER CSS pixels (got: '$Text')" }
+    return @([int]$Matches[1], [int]$Matches[2])
+}
+
+# Send a CDP method and drain until its id comes back. Runtime events interleave, so matching on
+# the id is the only safe read; taking the next frame off the wire is how you get a phantom result.
+$script:CdpId = 100
+function Invoke-CdpMethod {
+    param($Ws, $Token, [string]$Method, [string]$ParamsJson = '{}')
+    $script:CdpId++
+    $id = $script:CdpId
+    Send-Cdp $Ws $Token ('{"id":' + $id + ',"method":"' + $Method + '","params":' + $ParamsJson + '}')
+    for ($i = 0; $i -lt 60; $i++) {
+        $obj = (Receive-CdpMessage $Ws $Token) | ConvertFrom-Json
+        if ($obj.id -eq $id) { return $obj }
+    }
+    throw "No CDP reply for $Method (id $id)"
+}
+
+function Send-MouseEvent {
+    param($Ws, $Token, [string]$Type, [int]$X, [int]$Y, [int]$Buttons = 0, [int]$ClickCount = 0)
+    # ** `button` MUST be "none" on a button-up move, or Chromium reports buttons=1 on it. **
+    # Measured, not assumed: sending button:"left" with buttons:0 on a mouseMoved makes the listener
+    # see a DRAG-move where a HOVER happened. Harmless to a splitter (it only listens after
+    # pointerdown) but it would silently poison M-RP7.4, whose drop-band hover must be readable
+    # with the button UP. The instrument lied before the code had a chance to.
+    $btn = if ($Type -eq 'mouseMoved' -and $Buttons -eq 0) { 'none' } else { 'left' }
+    $p = '{"type":"' + $Type + '","x":' + $X + ',"y":' + $Y +
+         ',"button":"' + $btn + '","buttons":' + $Buttons + ',"clickCount":' + $ClickCount + '}'
+    [void](Invoke-CdpMethod $Ws $Token 'Input.dispatchMouseEvent' $p)
+}
+
+# ** CLEAR THE SELECTION BEFORE EVERY GESTURE. THIS IS NOT HYGIENE - IT IS THE DIFFERENCE BETWEEN A
+#    DRAG THAT WORKS AND ONE THAT HALF-EXECUTES. **
+# A drag across selectable text fires `selectstart` and leaves a SELECTION behind. The NEXT drag from
+# the same point presses on that selection - and Chromium treats a selection as DRAGGABLE CONTENT, so
+# it opens a native HTML5 drag session, which takes over the mouse and SWALLOWS every subsequent
+# mousemove AND the mouseup. The gesture then half-executes in total silence: press lands, one move
+# lands, release never does. Cost me three wrong diagnoses ("the barrier kills the stream", "the events
+# arrive late") before a page reload made it vanish and named the real cause.
+# The same trap is waiting for the SEAM: a splitter must be `user-select: none`, or the first drag
+# selects the text under it and the second one sticks the tile to the cursor.
+function Clear-Selection {
+    param($Ws, $Token)
+    $js = 'if(window.getSelection){var s=getSelection();if(s.removeAllRanges)s.removeAllRanges()}1'
+    $p  = '{"expression":' + (ConvertTo-Json $js) + ',"returnByValue":true}'
+    [void](Invoke-CdpMethod $Ws $Token 'Runtime.evaluate' $p)
+}
+
+# ** A CDP ACK IS NOT A GUARANTEE THAT THE DOM HAS MOVED. **
+# `Input.dispatchMouseEvent` returns when the BROWSER accepts the event, not when the renderer has run
+# the handler - and Svelte's flush is a MICROTASK on top of that (N-117: a click and a read in one eval
+# return the PRE-change DOM, and it produced a false accent-leak once already). So every read goes
+# behind a DOUBLE requestAnimationFrame with awaitPromise: two frames clears the input dispatch and the
+# microtask queue both.
+# ** Do NOT put this barrier inside the move loop.** It is a read barrier, not a gesture pacer.
+function Wait-Frame {
+    param($Ws, $Token)
+    $js = 'new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(function(){r(1)})})})'
+    $p  = '{"expression":' + (ConvertTo-Json $js) + ',"awaitPromise":true,"returnByValue":true}'
+    [void](Invoke-CdpMethod $Ws $Token 'Runtime.evaluate' $p)
+}
+
+# Evaluate and print, ALWAYS behind the frame barrier above.
+function Show-Eval {
+    param($Ws, $Token, [string]$Label, [string]$Js)
+    Wait-Frame $Ws $Token
+    $p = '{"expression":' + (ConvertTo-Json $Js) + ',"returnByValue":true}'
+    $obj = Invoke-CdpMethod $Ws $Token 'Runtime.evaluate' $p
+    if ($obj.result.exceptionDetails) { Write-Host "$Label ERROR: $($obj.result.exceptionDetails.text)" }
+    else { Write-Host "$Label $($obj.result.result.value)" }
 }
 
 try {
@@ -164,6 +267,37 @@ try {
                     break
                 }
             }
+        }
+        'click' {
+            $p = ConvertTo-Point $At 'At'
+            Clear-Selection $ws $cts.Token
+            Write-Host "click @ $($p[0]),$($p[1])  (trusted, CSS px)"
+            Send-MouseEvent $ws $cts.Token 'mouseMoved'    $p[0] $p[1] 0 0
+            Send-MouseEvent $ws $cts.Token 'mousePressed'  $p[0] $p[1] 1 1
+            Send-MouseEvent $ws $cts.Token 'mouseReleased' $p[0] $p[1] 0 1
+            if ($Expression) { Show-Eval $ws $cts.Token 'AFTER:' $Expression }
+        }
+        'drag' {
+            $a = ConvertTo-Point $From 'From'
+            $b = ConvertTo-Point $To   'To'
+            if ($Steps -lt 1) { $Steps = 1 }
+            Clear-Selection $ws $cts.Token
+            Write-Host "drag $($a[0]),$($a[1]) -> $($b[0]),$($b[1])  in $Steps steps  (trusted, CSS px)"
+            Send-MouseEvent $ws $cts.Token 'mouseMoved'   $a[0] $a[1] 0 0
+            Send-MouseEvent $ws $cts.Token 'mousePressed' $a[0] $a[1] 1 1
+            for ($s = 1; $s -le $Steps; $s++) {
+                # Integer interpolation: see the locale note. Round, never emit a fraction.
+                $x = [int][Math]::Round($a[0] + ($b[0] - $a[0]) * $s / $Steps)
+                $y = [int][Math]::Round($a[1] + ($b[1] - $a[1]) * $s / $Steps)
+                Send-MouseEvent $ws $cts.Token 'mouseMoved' $x $y 1 0
+                # 16 ms = one frame. Chromium coalesces mousemove per frame; firing faster drops moves.
+                Start-Sleep -Milliseconds 16
+            }
+            # THE MID-DRAG READ - the button is STILL DOWN. This is the only place a live preview
+            # can be told apart from a descriptor written on every move.
+            if ($MidExpression) { Show-Eval $ws $cts.Token 'MID (button down):' $MidExpression }
+            Send-MouseEvent $ws $cts.Token 'mouseReleased' $b[0] $b[1] 0 1
+            if ($Expression) { Show-Eval $ws $cts.Token 'AFTER (released):' $Expression }
         }
         'screenshot' {
             # Page.captureScreenshot -> base64 PNG in result.data. The app window must be

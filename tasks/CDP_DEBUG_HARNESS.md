@@ -1,8 +1,8 @@
 # XGen UI — CDP Debug Harness (WebView2 remote-debug read loop)
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jun 2026  
-> **Last updated**: 2026-07-09  
+> **Last updated**: 2026-07-14  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -65,6 +65,29 @@ A single dev-only script. Responsibilities, in order:
 6. **Cleanup** — dispose the ws; if the harness launched the process, kill the tree (`taskkill /PID <pid> /T /F`) and clear the env-var.
 
 **Conventions to honour:** `$ProgressPreference='SilentlyContinue'`; absolute paths; verification reads as separate calls from writes; UTF-8 no-BOM if it emits any project file.
+
+## Trusted input — `-Mode click` / `-Mode drag` (added 2026-07-14, M-RP7.2 leg 0)
+
+**Why it exists.** A synthetic `MouseEvent` from `Runtime.evaluate` is **untrusted** (`isTrusted:false`) and **fires no native defaults** — J-496 proved this the hard way. **`Input.dispatchMouseEvent` is injected at the browser level, so it is trusted**, and it drives real hover, focus, pointer capture and drag. **M-RP7.4's drag cannot be proven without it.**
+
+```
+.\cdp-debug.ps1 -App client -Mode click -At "206,42"
+.\cdp-debug.ps1 -App client -Mode drag -From "215,400" -To "300,400" -Steps 12 `
+     -MidExpression "JSON.stringify(__XGEN_LAYOUT__.current)" `
+     -Expression    "JSON.stringify(__XGEN_LAYOUT__.current)"
+```
+
+> ### 🔑 **`-MidExpression` IS EVALUATED WHILE THE BUTTON IS STILL DOWN, AND IT IS NOT A CONVENIENCE.**
+> A design that **previews live but only writes the descriptor on release** is **indistinguishable** from one that writes on every move — *if you can only read after `mouseReleased`.* **The mid-drag read IS the proof.** Verified: MID sees the moves and **no `mouseup`**; AFTER sees the `mouseup`.
+
+**MEASURED on the real client (2026-07-14), not assumed:**
+
+- **Coordinates are CSS pixels** relative to the layout viewport — **the same space `getBoundingClientRect()` returns.** **DPR 1.25 does NOT apply; do not scale.** *Calibrated by clicking a fold button at its measured rect centre and watching `collapsed` flip — a wrong coordinate space simply misses.*
+- `isTrusted = true` on every event; `buttons = 1` across the moves; **three consecutive drags byte-identical.**
+- **⚠️ `button` MUST be `"none"` on a button-up move.** Sending `button:"left"` with `buttons:0` makes Chromium report **`buttons=1` on a HOVER**. Harmless to a splitter; **it would silently poison M-RP7.4**, whose drop-band hover must be readable with the button up. *The instrument lied before the code had a chance to.*
+- **⚠️ INTEGER COORDINATES ONLY.** PowerShell renders a `[double]` with the **current culture's** decimal separator — on a sk-SK box `123.5` becomes `123,5`, which is not JSON, and the CDP frame is rejected with an error that looks nothing like a locale bug.
+- **⚠️ Every read sits behind a double-`requestAnimationFrame` barrier** (`awaitPromise`). A CDP ack means the *browser* accepted the event, not that the renderer ran the handler — and Svelte's flush is a microtask on top (N-117). **The barrier is a READ barrier: do not put it inside the move loop.**
+- **⚠️ THE SELECTION TRAP — see N-118.** Every gesture is preceded by `getSelection().removeAllRanges()`. Without it, the second drag from the same point presses on the selection the first one left, **Chromium opens a native HTML5 drag, and every subsequent `mousemove` and the `mouseup` are swallowed in silence.** *This is not a harness quirk — it is a real bug waiting for any splitter that is not `user-select: none`.*
 
 ## Open / parked
 

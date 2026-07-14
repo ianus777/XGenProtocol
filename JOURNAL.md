@@ -8,6 +8,90 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-518 — M-RP7.2 leg 0: the trusted-mouse harness lands, and it found the milestone's first real bug before a line of the milestone was written
+
+**M-RP7.2 — splitter resize on the seam: OPENED. Leg 0 (Chat) DONE. Runbook ACTIVE for Clair. No component code, no Rust.**
+
+---
+
+### 1. Why the harness went first, and it was not an ordering preference
+
+The brief said it plainly: *"the arithmetic is the cheapest real mechanic in the arc; **budget for the harness, not the arithmetic.**"* So the harness was **not** written into Clair's runbook. **If it did not work, we would have discovered that AFTER a splitter had shipped that nobody could prove** — and tooling is Chat's lane in any case.
+
+`cdp-debug.ps1` gains **`-Mode click`** and **`-Mode drag`**, driving real `Input.dispatchMouseEvent` (browser-level ⇒ **trusted**, unlike an `eval`-synthesised event, which is `isTrusted:false` and fires no native defaults — J-496).
+
+> ### 🔑 **AND ONE PARAMETER THAT IS NOT A CONVENIENCE: `-MidExpression`, EVALUATED WHILE THE BUTTON IS STILL DOWN.**
+> M-RP7.2's central design lock is *"preview live, write the descriptor ONCE, on release."* **That claim is UNPROVABLE if you can only read after `mouseReleased`** — it is indistinguishable from writing on every move. **The mid-drag read IS the proof.** Verified: MID sees the moves and **no `mouseup`**; AFTER sees it.
+
+### 2. CALIBRATED, not assumed — and the calibration target was already-verified behaviour
+
+**Clicked a fold button at its measured `getBoundingClientRect()` centre `(206,42)` and watched `collapsed:"width"` appear.** A wrong coordinate space simply **misses** — so the instrument checks itself against a behaviour M-RP7.1b already proved.
+
+**→ 🔒 Coordinates are CSS pixels, the same space `getBoundingClientRect()` returns. DPR 1.25 does NOT apply.** `isTrusted=true` throughout; `buttons=1` across the moves; **three consecutive drags byte-identical**.
+
+*(A small thing that says something: the second click at the same coordinates did nothing — because **folding MOVES the button** into the rotated strip, to `(15,785)`. The instrument was right and my assumption was wrong. **Re-measure coordinates before every gesture; a rect is not a constant.**)*
+
+### 3. ⚠️ THE HARNESS LIED FIRST — twice — and both lies were HARMLESS-LOOKING
+
+**(a) A HOVER reported `buttons=1`.** I was sending `button:"left"` on *every* event, including button-up moves; Chromium derives from it. Harmless to a splitter (it only listens after `pointerdown`) — **but it would have silently poisoned M-RP7.4, whose drop-band hover must be readable with the button UP.** Fixed: `button:"none"` on a button-up move.
+
+**(b) PowerShell would have emitted `123,5` instead of `123.5`.** A `[double]` stringifies with the **current culture's** decimal separator; on this box that is a comma, which is not JSON, and the CDP frame dies with an error that looks nothing like a locale bug. **Integer coordinates end to end.**
+
+---
+
+### 4. 🔑 N-118 — AND THIS ONE IS NOT A HARNESS BUG. IT IS A BUG IN THE MILESTONE THAT DOES NOT EXIST YET.
+
+**The symptom:** the drag worked perfectly on a fresh page, and then the **second** drag from the same point delivered **three** events — hover-move, `mousedown`, **one** `mousemove` — and then **nothing. No further moves. No `mouseup` at all.** Every CDP ack came back clean.
+
+**The cause:** a drag across selectable text fires `selectstart` and leaves a **SELECTION** behind. The next drag presses **on that selection** — and **Chromium treats a selection as DRAGGABLE CONTENT.** It opens a **native HTML5 drag session**, which takes the mouse and stops delivering `mousemove` and `mouseup` to the page entirely.
+
+> ### ⚠️ **A SPLITTER THAT IS NOT `user-select: none` WILL SELECT THE TEXT UNDER IT ON THE FIRST DRAG — AND THE SECOND DRAG WILL BE SWALLOWED, LEAVING THE TILE STUCK TO THE CURSOR WITH NO `mouseup` TO END IT.**
+> **A real user reproduces this by dragging a splitter twice.** → `user-select: none` + `preventDefault()` + `setPointerCapture` are **DoD legs in the runbook, not footnotes.** **M-RP7.4 inherits the trap wholesale** — it drags a *grip*, over a *title stripe*, next to a *title*: all text.
+
+> ### 🔑 **THE EXPENSIVE LESSON, AND IT IS ABOUT ME, NOT THE CODE: I DIAGNOSED IT WRONG TWICE, CONFIDENTLY, AND BOTH WRONG DIAGNOSES WERE *COHERENT*.**
+> **First:** *"a CDP ack doesn't mean the renderer ran it — the events are arriving LATE"* → replaced the sleep with an rAF barrier. **Wrong**: a read **two seconds later** showed the events had **never arrived at all.**
+> **Then:** *"interleaving `Runtime.evaluate` between moves KILLS the input stream — the instrument is destroying what it measures"* → **and I wrote that into the file as a measured finding.** **Also wrong**: removing the barrier changed nothing.
+> **Both stories fit the data. Neither was true.** What actually found it was **reloading the page and watching the symptom vanish** — changing one variable and *looking*, not reasoning harder.
+>
+> ***N-116 said the RECORD can be self-consistent while the code is not. N-118 says MY OWN REASONING can be self-consistent while being wrong — and it will happily enter the record wearing the word "measured" if nothing is built to disprove it.*** *Both false findings were live in `cdp-debug.ps1` as authoritative comments before the third experiment removed them.*
+
+---
+
+### 5. The runbook — `tasks/M_RP7_2_SPLITTER_RESIZE.md` v1.0, ACTIVE
+
+**Eight design locks taken under §0 autonomy (mechanics are Chat's; only graphical appearance is Joe's):**
+
+| # | lock |
+|---|---|
+| **L1** | **`mutate.ts` is BORN at 7.2** with `resizeSplit` only; 7.3 adds `move` and pulls `fold` out of the shell. **⚠️ THE ARC TABLE PUT THE ALGEBRA *AFTER* THE FIRST MUTATION, AND THAT CANNOT BE TRUE — the first mutation IS algebra.** The alternative was tree surgery in two places for one milestone. |
+| **L2** | **Integers only** (§7 bans floats, and it is right). Resolution comes from an **exact integer scale-up**: `[1,2,7,2]` → ×100 → `[100,200,700,200]`, then **only the dragged pair moves**. *Untouched siblings keep their proportions to the byte; the pair's total is invariant, so nothing else moves.* **Cost, stated: a saved workspace reads the scaled numbers after a drag. That is the price of §7's own lock, and it is mine to pay.** |
+| **L3** | **Live preview; integers written ONCE on `pointerup`.** A float never reaches the descriptor even if the user thrashes, and the CDP proof is **one clean diff** instead of sixty. |
+| **L4** | **A seam is draggable iff BOTH neighbours carry a main-axis weight.** One derived predicate; folded-along and shrink-wrapped fall out of it with **no special case**. |
+| **L5** | **`path: number[]`, derived. NO schema change** (a split id would be a key nothing round-trips — the M-RP6.1k finding). **M-RP7.4's `move` needs the identical addressing, so it is paid once.** |
+| **L6** | **The min-clamp reads the skin** (N-090). **It stops; it never auto-folds** (§4.2). |
+| **L7** | **No keyboard resize** — it would put a tab stop on **all 7 seams** nobody asked for, *and* dodge the harness this milestone exists to land. Filed. |
+| **L8** | **The seam does NOT register.** `.region-split` has no getter either — the seam is its chrome. **Registry stays 67**; proof is the tree diff + painted geometry. |
+
+**⚠️ I over-asked at the top of the session** — three questions to Joe, two of which were **mine to answer** under §0. Retracted and taken. *Autonomy is not a licence to be vague; it is an obligation to decide.*
+
+**Also retracted: a scrollbar-collision risk I NAMED WITHOUT MEASURING.** The invisible hit zone was said to clash with the tile body's scrollbar — **I asserted that; I did not check it.** Grounding cuts both ways: *do not name a risk you have not grounded* (rule ③). The seam keeps the 1px hairline Joe already approved and grows only an **invisible** hit area; if that turns out to need a visible change, **it is a finding, not a licence.**
+
+---
+
+### 6. Files
+
+| file | change |
+|---|---|
+| `cdp-debug.ps1` | `-Mode click` · `-Mode drag` · `-MidExpression` · `-At/-From/-To/-Steps`; selection clear before every gesture; rAF read barrier; integer-only coords |
+| `tasks/M_RP7_2_SPLITTER_RESIZE.md` | **NEW — v1.0, ACTIVE.** Clair's runbook |
+| `tasks/CDP_DEBUG_HARNESS.md` | **v1.3 → v1.4** — the trusted-input section |
+| `ui/docs/xgen-ui-notes.md` | **v0.84 → v0.85** — **N-118** |
+| `CLAUDE.md` · `docs/ROADMAP.md` | M-RP7.2 → 🟢 ACTIVE; leg 0 recorded |
+
+**No `ui/core/**`, no `ui/client/src/**`, no Rust. Registry unchanged (67, re-measured this session).**
+
+---
+
 ## Entry J-517 — The space around the regions and the space under them: two knobs, one filed milestone, and a discharger pointed at the wrong place
 
 **Records + skin only. NO component change, NO Rust, NO registry change. Design walk for M-RP7.2 opened; no code written — Joe has not said go.**

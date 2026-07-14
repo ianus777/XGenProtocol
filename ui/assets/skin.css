@@ -2791,6 +2791,21 @@ html, body {
   --region-pad: 6px;
   --region-seam: 1px;
 
+  /* Splitter tokens (M-RP7.2). ALL PROVISIONAL; discharger = M-RP-SKIN.
+   *
+   * --region-stripe is HOISTED here from .region-tile (L6). It was declared on .region-tile, but the seam
+   * lives on .region-split — its PARENT — and custom properties inherit DOWN, never up: a seam reading
+   * --region-stripe would get "" → NaN → a clamp that silently does nothing (the exact trap the runbook
+   * warns of). At :root/shell it inherits to BOTH .region-tile (unchanged, 22px by inheritance) and the
+   * seam. --region-min aliases it so the clamp reads ONE number in ONE place: a tile never resizes below
+   * its folded/stripe size (§4.2 — the drag STOPS, it never auto-folds, L6).
+   * --region-snap = the drag quantum (the pointer snaps; the file stays unit-free, §7).
+   * --region-seam-hit = how far the invisible hit area extends past the visible 1px seam, along the axis. */
+  --region-stripe: 22px;
+  --region-min: var(--region-stripe);
+  --region-snap: 8px;
+  --region-seam-hit: 3px;
+
   display: flex;
   flex: 1;
   min-height: 0;
@@ -2806,7 +2821,10 @@ html, body {
   display: flex;
   min-height: 0;
   min-width: 0;
-  gap: var(--region-seam);
+  /* gap is 0 (was var(--region-seam)): the hairline between tiles is now a real .region-seam ELEMENT
+   * (M-RP7.2) — a `gap` cannot be hit-tested, and the splitter needs a drag target. The seam is transparent
+   * and --region-seam wide, so the --s5 background shows through and the hairline looks exactly as it did. */
+  gap: 0;
   /* --s5 base draws the hairline seams through the gaps between tiles. The faint dot grid is the
    * PROVISIONAL "system area" RASTER (M-RP7.1b, §4.5): it becomes visible only in a HOLE — the flex
    * leftover space a split under-fills when its children fold ACROSS it. Tiles are OPAQUE (--s), so the
@@ -2830,6 +2848,52 @@ html, body {
  * the parent's siblings absorb the freed weight. The mechanic a folded leaf uses, one rule, two node types. */
 .region-split[data-shrinkwrap] { flex: 0 0 auto; }
 
+/* ── SEAM (.region-seam) — the splitter drag handle (M-RP7.2, L3/L4). Replaces the split's `gap`: a thin
+ * flex item BETWEEN children (n-1 for n children), TRANSPARENT so the split's --s5 (+ raster) shows through
+ * and the hairline looks EXACTLY as it did as a gap. There is NO leading/trailing seam — the perimeter
+ * (--region-pad) is not a seam and can never become one (§4.5.2).
+ *
+ * A LIVE seam (both neighbours carry a main-axis weight, L4) gets a resize cursor, an EXPANDED invisible
+ * hit area (::before, --region-seam-hit, along the split axis ONLY — the visible 1px is unchanged), and
+ * user-select/touch-action: none. ⚠️ THE user-select IS CORRECTNESS, NOT POLISH (N-118): a drag over
+ * selectable text leaves a selection; the NEXT drag presses on it, Chromium opens a native HTML5 drag, and
+ * every subsequent pointermove AND the pointerup vanish — the tile sticks to the cursor with nothing to
+ * end it. A DEAD seam (data-live="false") is ONLY the divider: no cursor, no hit expansion, no listeners
+ * (region-node omits them). PROVISIONAL — discharger M-RP-SKIN. ── */
+.region-seam {
+  flex: 0 0 var(--region-seam);
+  position: relative;            /* anchors the ::before hit overlay */
+  background: transparent;       /* the split's --s5 (+ raster) draws the hairline — do NOT repaint it */
+}
+.region-seam[data-live="true"] {
+  user-select: none;
+  touch-action: none;
+  /* Lift the live seam (and its expanded ::before hit area) ABOVE both neighbour tiles. Without this, the
+   * NEXT tile — which follows the seam in DOM order — paints over the ::before's far half, so the hit area
+   * works on only one side and the seam's own centre hit-tests as the tile (measured, not assumed). The
+   * seam is transparent, so this changes hit-testing only, never appearance. */
+  z-index: 1;
+}
+.region-seam[data-dir="row"][data-live="true"] { cursor: col-resize; }
+.region-seam[data-dir="col"][data-live="true"] { cursor: row-resize; }
+/* invisible hit area — expands ONLY along the split's axis (the visible seam thickness never changes) */
+.region-seam[data-live="true"]::before {
+  content: "";
+  position: absolute;
+}
+.region-seam[data-dir="row"][data-live="true"]::before {
+  top: 0;
+  bottom: 0;
+  left: calc(-1 * var(--region-seam-hit));
+  right: calc(-1 * var(--region-seam-hit));
+}
+.region-seam[data-dir="col"][data-live="true"]::before {
+  left: 0;
+  right: 0;
+  top: calc(-1 * var(--region-seam-hit));
+  bottom: calc(-1 * var(--region-seam-hit));
+}
+
 /* ──────────────────────────────────────
  * region-tile (.region-tile*) — the tile frame (M-RP7.1). The chrome moved widget → renderer, so ALL of
  *   its appearance is skin (D9 / N-090): stripe thickness, grips, triangle, the folded/rotated form and
@@ -2847,7 +2911,8 @@ html, body {
  *   the {#if collapsed === undefined} makes it element-absent). See the FOLD block below. ── */
 .region-tile {
   /* ── tunable tokens (Joe) ── */
-  --region-stripe: 22px;        /* stripe thickness: height (horizontal) / width (folded vertical) */
+  /* --region-stripe (stripe thickness: height horizontal / width folded vertical) is HOISTED to
+   * .region-shell (M-RP7.2, L6) so the seam can read it too — inherited here, value unchanged (22px). */
   --region-grip: 14px;          /* move-grip square */
   --region-resize: 12px;        /* SE resize triangle */
   --region-fold-gap: 0;         /* gap BETWEEN the two fold buttons. 0 because the chevron glyphs are

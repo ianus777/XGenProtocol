@@ -87,6 +87,37 @@ export function resolveLayout(layout: Layout | null | undefined, knownIds: Set<s
   return { root, leafIds, dropped, unsupported };
 }
 
+// ── flex / liveness predicates (M-RP7.2, L4) ─────────────────────────────────────────────────────────
+// The seam gesture must know which children carry a main-axis flex weight — a seam is draggable iff BOTH
+// its neighbours do (L4). This is the SAME decision region-node/region-tile make when they OMIT the inline
+// flex (so the skin's `flex: 0 0 auto` wins): a leaf folded ALONG the split axis, or a split that shrink-
+// wraps. Exporting the predicates here (rather than re-deriving them in the seam code) is what keeps ONE
+// source of truth — the D-067 drift the J-499 grounding killed and M-RP7.1b's migrate nearly repeated.
+// region-tile consumes `isFoldAlong` for its `foldMode`; region-node consumes `splitShrinkWraps` for its
+// own weight and `carriesMainAxisWeight` for seam liveness.
+
+/** A leaf folded ALONG the parent split's dividing axis (a `col` split divides height; a `row` split divides
+ *  width). An along-fold drops out of the parent's main axis (siblings absorb, no hole); an across-fold keeps
+ *  its main-axis share (§4.1). Undefined `collapsed` (expanded) is never along. */
+export function isFoldAlong(collapsed: FoldAxis | undefined, splitDir: 'row' | 'col'): boolean {
+  return (collapsed === 'height' && splitDir === 'col') || (collapsed === 'width' && splitDir === 'row');
+}
+
+/** A split shrink-wraps (drops out of its parent's main axis) when EVERY child is a leaf folded ACROSS the
+ *  split's own axis (§4.4). DERIVED, never stored (a flag would go stale the instant one child unfolds). */
+export function splitShrinkWraps(node: ResolvedNode): boolean {
+  if (node.type !== 'split' || node.children.length === 0) return false;
+  const across: FoldAxis = node.dir === 'col' ? 'width' : 'height';
+  return node.children.every((c) => c.type === 'leaf' && c.collapsed === across);
+}
+
+/** Whether a child carries a main-axis flex weight inside a split of direction `splitDir` (L4). A leaf
+ *  carries weight unless folded ALONG `splitDir`; a split carries weight unless it shrink-wraps. */
+export function carriesMainAxisWeight(child: ResolvedNode, splitDir: 'row' | 'col'): boolean {
+  if (child.type === 'leaf') return !isFoldAlong(child.collapsed, splitDir);
+  return !splitShrinkWraps(child);
+}
+
 /** Max depth of a resolved tree (null=0, leaf=1, split=1+max child). Feeds the getter's `depth` (§4). */
 export function treeDepth(node: ResolvedNode | null): number {
   if (!node) return 0;

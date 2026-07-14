@@ -40,6 +40,7 @@
   import { envelope } from '$common/components/base/envelope';
   import type { Snippet } from 'svelte';
   import type { FoldAxis } from './types';
+  import { isFoldAlong } from './resolve'; // one source for the along-fold predicate (M-RP7.2, L4)
 
   let {
     regionId,
@@ -69,11 +70,7 @@
   // foldMode — DERIVED, never stored (§4.1). 'along' the parent's dividing axis ⇒ siblings absorb, no hole;
   // 'across' ⇒ nobody absorbs ⇒ a hole. (A `col` split divides height, so folding height is ALONG it.)
   const foldMode = $derived<'none' | 'along' | 'across'>(
-    collapsed === undefined
-      ? 'none'
-      : (collapsed === 'height' && axis === 'col') || (collapsed === 'width' && axis === 'row')
-        ? 'along'
-        : 'across',
+    collapsed === undefined ? 'none' : isFoldAlong(collapsed, axis) ? 'along' : 'across',
   );
 
   // The inline flex weight (the ONE N-090 exception: `sizes[]` is DATA). OMITTED for an ALONG fold so the

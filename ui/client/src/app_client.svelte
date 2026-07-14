@@ -11,6 +11,7 @@
   import { uiStateStore } from './uistate.svelte';
   import { loadLayout, widgetRegistry, REGION_TITLES, DEFAULT_LAYOUT } from './layout-default';
   import { migrateLayout } from '$core/components/layout/resolve';
+  import { resizeSplit } from '$core/components/layout/mutate';
   import { substitutions } from '$common/components/processor/store.svelte';
   // The self-state store (M-RP6.1g, D3) — ONE channel, TWO views: the shell WRITES it below (the existing
   // state listen + get_state + a once get_self_state invoke), and BOTH the status-bar (here) AND the
@@ -80,6 +81,15 @@
   function handleFold(regionId, collapsed) {
     if (!layout) return;
     layout = { ...layout, root: setLeafCollapsed(layout.root, regionId, collapsed) };
+  }
+
+  // ── Splitter resize (M-RP7.2, L1/L5) ──────────────────────────────────────────────────────────
+  // The seam gesture reports the split's `path`, the seam index, and the boundary `fraction` on release;
+  // `resizeSplit` writes the new INTEGER weights (L2/L3). IN MEMORY only — `session.layout` still has no
+  // writer until M-RP7.5, so nothing is persisted here.
+  function handleResize(path, seamIndex, fraction) {
+    if (!layout) return;
+    layout = resizeSplit(layout, path, seamIndex, fraction);
   }
 
   // ── Keymap wiring (M-RP6.1d — the 6.1c-deferred shell half) ──────────────────────────────
@@ -290,7 +300,7 @@
     leaves. It FILLS .app-center (no whole-grid scroll, D5) — each leaf owns its own scroll. -->
   <main class="app-center">
     {#if layout}
-      <RegionShell {layout} widgets={widgetRegistry} titles={REGION_TITLES} onFold={handleFold} id="region-root" />
+      <RegionShell {layout} widgets={widgetRegistry} titles={REGION_TITLES} onFold={handleFold} onResize={handleResize} id="region-root" />
     {/if}
   </main>
 

@@ -26,12 +26,14 @@
     widgets = {},
     titles = {},
     onFold,
+    onResize,
     id,
   }: {
     layout: Layout;
     widgets?: Record<string, Component>; // widgetId → component; an unknown id is dropped by resolveLayout (W-13)
     titles?: Record<string, string>; // widgetId → tile title (M-RP7.1, D2); threaded to each tile
     onFold?: (regionId: string, collapsed: FoldAxis | undefined) => void; // fold seam (M-RP7.1b, D6)
+    onResize?: (path: number[], seamIndex: number, fraction: number) => void; // splitter seam (M-RP7.2, L5)
     id?: string;
   } = $props();
 
@@ -52,6 +54,6 @@
 
 <div class="region-shell" use:envelope={{ name: 'region-shell', id, debug }}>
   {#if resolved.root}
-    <RegionNode node={resolved.root} {widgets} {titles} {onFold} />
+    <RegionNode node={resolved.root} {widgets} {titles} {onFold} {onResize} path={[]} />
   {/if}
 </div>

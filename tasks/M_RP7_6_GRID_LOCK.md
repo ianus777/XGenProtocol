@@ -1,5 +1,5 @@
 # M-RP7.6 — The Grid Lock: freeze arrangement, keep function
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-15  
@@ -7,6 +7,10 @@
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+**CLOSED J-529 (feat `303faa4`, Clair code-only, 9 files, +139/−42).** Every §7 DoD leg re-driven by Chat on the live client 9222 (Rule 5); Clair's numbers reproduced exactly. Quiescent baseline 67 → 69. Zero Rust, no schema change. D1+D4 seam composition (`live && !locked` driving `data-live` + all listeners) resolved the §8 seam case cleanly — no new D, no new N.
 
 ---
 

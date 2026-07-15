@@ -8,6 +8,49 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-529 — M-RP7.6 CLOSED: the grid lock — the lock that only hides buttons is not a lock
+
+**Feat `303faa4` [Clair, code-only, 9 files, +139/−42, pushed]. Zero Rust · zero sampler · no schema change** (`version` stays 3 — `locked` is a `session` key, not a `Layout` field). `cargo test` **1517/0/62 IDENTICAL by construction** (no `.rs` in the diff). `npm test` **77**, `vite build` **170**. Clair built; Chat re-drove every §7 leg on the live client 9222 (Rule 5) — Clair's numbers reproduced exactly.
+
+### The one sentence
+
+The lock that only hides buttons is not a lock — the guard is `if (locked) return` at the top of `handleFold`/`handleResize`/`handleMove` (the layer a command bridge or a stray call cannot walk around), and the element-absent grip / fold-buttons / dead seams are the honesty layer so no live-looking dead control ships. Both halves shipped; the refusal is load-bearing.
+
+### What shipped (D1–D5, Joe-locked, no design authority taken)
+
+**First stateful shelf face (D2):** `shelf-face` gained `pressed?` → `aria-pressed={pressed || undefined}`; getter `{command, hasIcon, disabled, active, pressed}` — a toggle axis distinct from roving `active` (G2, proven: pressed face, `active:false` unchanged). `shelf` `ShelfItemDef` gained `pressed?`, threaded. **`locked` threaded shell → node → tile (D1):** grip + `.region-title-buttons` go `{#if !locked}` element-absent; the seam gate composed to `live && !locked`. **Persistence (D3, N-107):** `uistate.setSessionLocked` mirrors `setSessionLayout`; `persist()` now does a **two-key session merge** (`layout` | `locked`) — geometry (Rust's) and layout both preserved when `locked` writes. **Wiring (D4):** `app_client` `locked` `$state` seeded `session()?.locked ?? false` after hydrate; single `layout.lock` toggle (one bool, one command — D-067); `SHELF_BOTTOM` → `$derived` so the latch tracks `locked`; the three handlers early-return. **Glyph (D5):** PROVISIONAL colour-free `lock` in `icons.ts` (D-108/D-110); shape → M-RP-SKIN. Skin `.shelf-face[aria-pressed="true"]` accent-neutral latch, no glyph swap.
+
+### The load-bearing proof (V1) — re-driven both ways
+
+Locked, driving `__XGEN_LAYOUT__.fold`+`move`+`fold` through the DEV bridge — **which bypasses the chrome and calls the handler directly** — the descriptor was **byte-identical** (sizes `[63,111,826,200]` intact, no `collapsed` introduced). The control is the leg: unlocked, the *same* bridge call **mutated** (`bridgeMutates:true`, introduced `collapsed`), then unfold restored it exactly. A refusal you cannot distinguish from a stuck bridge is not proven — so the mutating control had to run (N-099 family). It did; the refusal is real.
+
+### Measured — every leg (live 9222, Chat re-drove)
+
+| leg | result |
+|---|---|
+| V2 suppression | locked ⇒ grips **0** / fold-groups **0** / live-seams **0** (7 dead dividers stay). unlocked ⇒ grips **8** / live-seams **7**. |
+| V3 bands inert | locked ⇒ bands 0, `dragging:null` (no grip ⇒ no drag can start). |
+| V4 face toggle | click ⇒ `pressed:true`, `aria-pressed="true"`, roving `active:false` unchanged. |
+| V5 persistence/N-107 | disk `session` = geometry `{402,178,1644,1165}` (Rust's) + layout v3 + `locked` **coexisting** — the frontend write never ate geometry. |
+| V6 migrate-tolerance | witnessed at open (N-091) — store had **no `locked` key** → hydrates `false`, grips 8, no crash. |
+| V7 content untouched | locked ⇒ count 69, 8 tile bodies, self-panel + inspector registered. |
+| V8 registry | quiescent **67 → 69** (+2 = `shelf-face#app-shelf-bottom__3` + its `__icon`), `count===unique===69`; four conditions read (empty store, null selection, nothing folded, zero saved). |
+| V9 gates | no `.rs` · `cargo test` **1517/0/62 IDENTICAL** · `npm test` **77** · `vite build` **170**. |
+
+### Deviations (Rule 6 — flagged, not absorbed)
+
+**The seam composition** — §4 literally specified only `onpointerdown={live && !locked ? …}`. Clair composed one `{@const draggable = live && !locked}` driving `data-live` AND all five pointer listeners, because the skin paints the resize cursor + `::before` hit-zone + z-index off `[data-live="true"]` — gating only `onpointerdown` would ship a resize-cursored seam that does nothing, exactly the live-looking dead control D1 forbids. §8 anticipated this ("if the seam live predicate cannot compose `!locked` cleanly, that is a finding"); it composes cleanly and V2 proves it (7 dead dividers, 0 live). A faithful D1+D4 realization, not a divergence. **`UiStateBag.locked?: boolean`** added to the type so the session key is first-class (§6 scope). Minor.
+
+### Corrections to the record
+
+**Module count 169 → 170** — J-528's 169 was stale; the clean tree at HEAD builds 170, so this change is module-neutral. The running figure is 170. **N-108 baseline 67 → 69** (ui-components) — the +2 is the grid-lock face + its icon child; the four-axis citation rule (store · selection · saved · fold) stands. **No new D, no new N** — D-116/N-107 extension exactly as the runbook predicted; the seam composition is a D1 realization, not a discovery (D-065 — no N invented).
+
+### State
+
+M-RP7.6 DONE. **The dock-engine arc's mechanics are complete** — tile frame, fold, splitter resize, drag-to-dock, exact preview, session persistence, and now the lock. **Next-active = M-RP7.7 — node app inherits the frame + grid** (lands after the arc so it inherits a working grid rather than building the frame twice). Still filed: `M-RP-SKIN` (every PROVISIONAL incl. the lock/unlock glyph swap) · `M-RP-PLATE` · `M-RP-ROVING` · `M-RP-MOVE-KBD` · `M-RP-RESTART` · `temperature-indicator` ⏸️. Per D-065 + D-074 + N-107 + Rule 5 + Rule 6.
+
+---
+
 ## Entry J-528 — M-RP7.5 CLOSED: the session layout feeder — the grid persists, and N-107 holds one level deeper
 
 **5 files, ZERO Rust** (`git diff --stat`: `uistate.svelte.ts` · `app_client.svelte` · `menu.svelte` · `menu-bar.svelte` · `skin.css`) → `cargo test` **1517/0/62 IDENTICAL by construction**. `npm test` 77, `vite build` 169. Registry **67** quiescent. Clair built; Chat re-drove every leg on the live client 9222 (Rule 5).

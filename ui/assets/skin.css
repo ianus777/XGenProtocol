@@ -3054,6 +3054,9 @@ html, body {
   background: var(--s2);
   border-bottom: 1px solid var(--s5);
   font-size: var(--fs-0);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 500;
   color: var(--t2);
 }
 /* Move grip — ACTIVATED at M-RP7.4 (drag-to-dock). A neutral --t4 handle now carrying a grab cursor.

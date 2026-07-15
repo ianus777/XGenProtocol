@@ -5,7 +5,7 @@
 // in strict mode).
 
 import { describe, it, expect } from 'vitest';
-import { resizeSplit, foldLeaf, move } from './mutate';
+import { resizeSplit, foldLeaf, move, isMoveNoop } from './mutate';
 import type { Layout, LayoutNode } from './types';
 
 // The shipped DEFAULT_LAYOUT shape (row of four columns). version 3 (M-RP7.1b).
@@ -320,5 +320,36 @@ describe('move', () => {
     expect(out).not.toBe(frozen);
     expect(rootSizes(frozen)).toEqual([1, 2, 7, 2]); // original untouched
     expect(leafCount(frozen.root)).toBe(8);
+  });
+});
+
+describe('isMoveNoop — the single predicate D4 and move() both read', () => {
+  it('is TRUE exactly when move() returns the input unchanged', () => {
+    const l = defaultLayout();
+    // no-op cases
+    expect(isMoveNoop(l, 'spaces', 'spaces', 'top')).toBe(true);
+    expect(isMoveNoop(l, 'ghost', 'rooms', 'top')).toBe(true);
+    expect(isMoveNoop(l, 'spaces', 'ghost', 'top')).toBe(true);
+    expect(isMoveNoop(l, 'rooms', 'self', 'top')).toBe(true); // rooms already before self in a col split
+    expect(isMoveNoop(l, 'self', 'rooms', 'bottom')).toBe(true); // self already after rooms
+    // real moves
+    expect(isMoveNoop(l, 'spaces', 'rooms', 'bottom')).toBe(false);
+    expect(isMoveNoop(l, 'spaces', 'rooms', 'right')).toBe(false);
+    // and move() agrees: no-op ⟺ same reference
+    for (const c of [['spaces', 'spaces', 'top'], ['rooms', 'self', 'top'], ['self', 'rooms', 'bottom']] as const) {
+      expect(move(l, c[0], c[1], c[2])).toBe(l);
+    }
+    expect(move(l, 'spaces', 'rooms', 'bottom')).not.toBe(l);
+  });
+
+  it('flags a tabs tree as a no-op (move bails on tabs)', () => {
+    const withTabs: Layout = {
+      version: 3,
+      root: { type: 'split', dir: 'row', sizes: [1, 1], children: [
+        { type: 'leaf', widgetId: 'spaces' },
+        { type: 'tabs', active: 0, children: [ { type: 'leaf', widgetId: 'rooms' } ] },
+      ] },
+    };
+    expect(isMoveNoop(withTabs, 'spaces', 'rooms', 'top')).toBe(true);
   });
 });

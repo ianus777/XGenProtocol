@@ -8,6 +8,42 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-525 — M-RP7.4 CLOSED: drag to dock — the dead grip gets a pointer, and a user rearranges the grid by hand
+
+**`ui/core/lib/components/layout/` + `ui/client/src/app_client.svelte` + `ui/assets/skin.css`. TypeScript + Svelte + PROVISIONAL skin only — zero Rust, zero sampler, no schema change (`version` stays 3). Proven by `git diff --stat` (7 files, no `.rs`/`Cargo.*`) AND `cargo test` 1517/0/62 IDENTICAL.**
+
+### What shipped
+
+The loudest milestone in the arc: the move grip that M-RP7.1 shipped **painted and dead** (`.region-tile-move`, `aria-hidden`, no handler — Joe: *"only with this grip the region can be moved"*) is now ACTIVATED, and a user can rearrange the grid by hand for the first time. **No new tree algebra** — `move` was finished, pure, total and live at M-RP7.3; 7.4 wires trusted pointer gestures onto it.
+
+- **The grip** drops `aria-hidden`, gains `role="button"` + `tabindex="0"` + `onpointerdown`. Keyboard-driven move is its own protocol → filed `M-RP-MOVE-KBD` (D5).
+- **`onMoveStart` + `draggingId` threaded** shell → node → tile (the `onFold` shape); `onMove` (→ `handleMove`) is the shell↔app completion callback.
+- **ONE grid-level overlay (D1)** — the drag ghost + four `data-edge` bands + an inert centre, mounted last at `z-index: 4000` above every tile. This designs the whole N-119 paint-order class out in one stroke; per-tile overlays would re-fight the seam's z-index battle on every tile.
+- **`isMoveNoop` extracted** from `move` — the single predicate both the affordance and the action read.
+
+### 🔒 The five locks held, and D2 is the spine
+
+- **D2 — the band is chosen by HIT-TEST, never geometry.** `elementFromPoint(x,y)` → read `data-edge` off the band. The band rects only POSITION the hit targets; the pointer's edge is read off the thing that paints. **V1 proved it:** mid-drag (button held over `stream`), `elementFromPoint` swept across the four band centres read **`top:stream / bottom:stream / left:stream / right:stream / center:-`** — every centre resolving to the edge the picture shows, no coordinate resolving to another.
+- **D3 — a hole offers no band because a band attaches only to a rendered tile.** Not a suppression check — an impossibility. **V4:** with a real hole (fold `spaces` across the root row → the split under-fills), a drag over the hole showed `elementFromPoint → region-split`, **`bandsDrawn: 0`**, release = no-op.
+- **D4 — a no-op band does not light.** The trap was computing "is this a no-op?" a second way in the overlay — a parallel model of `move`'s decision that can drift (the N-124 shape). The fix is structural: `move` and the overlay both call **`isMoveNoop`**, so a highlighted band and a committed move cannot disagree by construction (→ N-126). **V5:** dragging `rooms` (already above `self`) over `self` → TOP band `data-noop=true active=no`, BOTTOM band `data-noop=no`.
+- **D1** designed out N-119; **D5** filed the keyboard protocol.
+
+### MEASURED — every leg re-driven with the TRUSTED-POINTER harness (Rule 5; the DEV `move()` handle is NOT the proof here)
+
+**Baseline** 67, quiescent, empty store, no selection. **V1** the D2 sweep (above). **V2** trusted drag `spaces` grip → `stream`'s right band: `spaces` left the far-left column (`left ~4`) and appeared right of `stream` (`left 722`, `spacesRightOfStream:true`), registry 67. **V3** a sequence of trusted drags (sibling + relocate): registry **67 / unique 67 / leaf 8 / stampMismatches 0** after each — the N-125 tripwire clean through real gestures. **V4** the hole (above). **V5** the no-op band (above). **V6** teardown total — Esc mid-drag (`dragging:null` at MID), release outside the grid, release on the source's own centre: each left no `data-dragging`, no overlay, registry unchanged. **V7** a sub-threshold press is a click, not a move (no band phase, no `move` call). **V8** `npm test` **77** · `vite build` **169** · `cargo test` **1517/0/62 IDENTICAL**. **V9** clean quiescent 67, no inline residue.
+
+### Deviations (Rule 6) — one, flagged not absorbed
+
+The runbook DoD said *"onMove threaded shell → node → tile."* Grounded, the TILE only needs a START trigger: under D1 the capture loop, the overlay and the `onMove` completion all live at the grid level (`region-shell`), so the tile gets `onMoveStart` and `onMove` is the shell↔app callback. The runbook's wording was off; the code is right — the fourth milestone running where Rule 6 fired on the runbook, and the fourth where the code was the correct party.
+
+**Two honest notes.** (1) The Esc test's synthetic `KeyboardEvent` is untrusted, but `onWinKey` reads `e.key` and does not depend on a UA default, so it validly exercises my teardown wiring (a real trusted Escape takes the same path). (2) At MID the `.region-drag-overlay` DOM read still showed `true` one turn after the state went null — a pre-flush read; the state (`dragging:null`) is authoritative and the overlay was gone after settle (the N-099 read-after-settle family).
+
+**Records:** the 7 code files · dock-engine Phase-0 **v2.1** (§11 row 4 CLOSED, §13 `M-RP-MOVE-KBD`) · `ui/docs/xgen-ui-notes.md` **v0.90** (N-126) · `tasks/M_RP7_4_DRAG_TO_DOCK.md` COMPLETED · CLAUDE.md PLAY · ROADMAP **v4.96**. **No new D.**
+
+**Next-active: M-RP7.5 — the session layout feeder.** The grid finally WRITES `session.layout` (§12) — and then both writers touch `session`, so N-107's per-key merge inside `session` becomes load-bearing. Then M-RP7.6 (the grid lock) · M-RP7.7 (node app inherits the frame + grid).
+
+---
+
 ## Entry J-524 — M-RP7.3 CLOSED: the mutation algebra — N-120 discharged, `move` built, and the move exposed N-120's twin in the renderer
 
 **`ui/core/lib/components/layout/` + `ui/client/src/app_client.svelte`. TypeScript + Svelte only — zero Rust, zero sampler, zero `skin.css`, no schema change (`version` stays 3). Proven by `git diff --stat` (7 files, all `.ts`/`.svelte`) AND by `cargo test` 1517/0/62 IDENTICAL.**

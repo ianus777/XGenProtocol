@@ -3056,17 +3056,21 @@ html, body {
   font-size: var(--fs-0);
   color: var(--t2);
 }
-/* Move grip — PAINTED + DEAD this leg (drag = M-RP7.4). A neutral --t4 handle; NO move cursor (no claim).
+/* Move grip — ACTIVATED at M-RP7.4 (drag-to-dock). A neutral --t4 handle now carrying a grab cursor.
  * `inline-size` (NOT physical `width`) sizes the handle along the flex MAIN axis in BOTH orientations:
  * horizontal stripe → 14px wide × full-height (stretch); folded vertical strip (writing-mode: vertical-rl)
- * → 14px tall × full-width. Physical `width` collapsed the grip to 0 on the vertical axis (a real fold bug). */
+ * → 14px tall × full-width. Physical `width` collapsed the grip to 0 on the vertical axis (a real fold bug).
+ * `touch-action: none` + `user-select: none` keep a touch/pen drag from scrolling or selecting (N-118). */
 .region-tile-move {
   flex: none;
   align-self: stretch;
   inline-size: var(--region-grip);
   background: var(--t4);
-  cursor: default;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
+.region-tile-move:active { cursor: grabbing; }
 .region-tile-title {
   flex: 1;
   min-width: 0;
@@ -3188,3 +3192,39 @@ html, body {
   color: var(--t3);
   font-size: var(--fs-0);
 }
+
+/* ── DRAG TO DOCK (M-RP7.4) ──────────────────────────────────────────────────────────────────────────
+ * The FUNCTIONAL bits are load-bearing (pointer-events, z-index, position) — the seam's N-119 lesson made
+ * grid-scale: ONE overlay above every tile, so nothing a sibling paints can steal a band's hit. The
+ * APPEARANCE is PROVISIONAL (band tint, ghost, dim) — M-RP-SKIN tunes it; this leg ships it visible, not
+ * pretty. Only the bands are hit-testable; the overlay root and the ghost never intercept. */
+.region-drag-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;          /* above every tile AND the seam (functional — the whole point of D1) */
+  pointer-events: none;   /* the layer is inert; only the bands opt back in */
+}
+.region-drop-band {
+  position: absolute;
+  pointer-events: auto;   /* the band IS the hit target (D2 reads data-edge off elementFromPoint here) */
+  box-sizing: border-box;
+}
+.region-drop-band[data-edge="center"] { pointer-events: auto; } /* inert to DROP, but still covers the tile */
+.region-drop-band[data-active] {        /* PROVISIONAL: the highlighted edge (D4 never sets this on a no-op) */
+  background: color-mix(in srgb, var(--accent2) 30%, transparent);
+  outline: 2px solid var(--accent2);
+  outline-offset: -2px;
+}
+.region-drag-ghost {                     /* PROVISIONAL: the label following the pointer */
+  position: absolute;
+  transform: translate(10px, 10px);
+  padding: 2px var(--sp-2);
+  background: var(--s2);
+  color: var(--t);
+  border: 1px solid var(--s5);
+  border-radius: var(--rad);
+  font-size: var(--fs-0);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.region-tile[data-dragging] { opacity: 0.45; }  /* PROVISIONAL: dim the source while it is being dragged */

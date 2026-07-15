@@ -49,6 +49,8 @@
     axis = 'col',
     flex,
     onFold,
+    onMoveStart,
+    dragging = false,
     children,
   }: {
     /** The leaf widgetId — the tile's durable registry handle is `region-${regionId}` (N-096, D4). */
@@ -63,6 +65,12 @@
     flex?: number;
     /** Fold toggle seam — the shell mutates the descriptor (D6). `undefined` ⇒ unfold. */
     onFold?: (regionId: string, collapsed: FoldAxis | undefined) => void;
+    /** Move-grip pointerdown seam (M-RP7.4). The grip only STARTS the gesture; the grid-level overlay in
+     *  `region-shell` (D1) owns capture, the drag loop, band hit-testing and the release → `move`. */
+    onMoveStart?: (regionId: string, e: PointerEvent) => void;
+    /** True while THIS tile is the one being dragged (M-RP7.4) — the shell threads its own drag `sourceId`
+     *  down; the skin dims the source (PROVISIONAL). Reflected as `data-dragging`. */
+    dragging?: boolean;
     /** The widget body (rendered only while expanded). */
     children?: Snippet;
   } = $props();
@@ -104,13 +112,24 @@
   data-axis={axis}
   data-collapsed={collapsed || undefined}
   data-fold-mode={foldMode !== 'none' ? foldMode : undefined}
+  data-region-id={regionId}
+  data-dragging={dragging || undefined}
   style={flexStyle}
   use:envelope={{ name: 'region-tile', id: `region-${regionId}`, debug }}
 >
   <div class="region-tile-stripe">
-    <!-- Move grip (Joe's walk: "only with this grip the region can be moved"). PAINTED + DEAD this leg;
-      the drag lands at M-RP7.4 (D7). -->
-    <span class="region-tile-move" aria-hidden="true"></span>
+    <!-- Move grip (Joe's walk: "only with this grip the region can be moved") — ACTIVATED at M-RP7.4.
+      pointerdown STARTS the gesture; the grid-level overlay (region-shell, D1) owns the rest. Focusable so
+      it is not a dead control, but keyboard-driven move (pickup → target → drop) is its own protocol,
+      FILED as M-RP-MOVE-KBD (D5) — Enter/Space are deliberately not wired yet. -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <span
+      class="region-tile-move"
+      role="button"
+      tabindex="0"
+      aria-label="Move region (drag)"
+      onpointerdown={(e) => onMoveStart?.(regionId, e)}
+    ></span>
     <span class="region-tile-title">{title}</span>
     <!-- Two fold buttons — the user picks the axis (§4.1). ALWAYS PRESENT (§4.3); DOM order is fixed
       [move · title · [fold-width · fold-height]], which now matters (it survives the rotated strip). The

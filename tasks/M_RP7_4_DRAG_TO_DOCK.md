@@ -1,5 +1,5 @@
 # M-RP7.4 — Drag to dock: the algebra gets a pointer
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-14  
@@ -105,14 +105,14 @@ No tear-off to OS windows (M-RP8). **No entity/content drag** — this drags REG
 
 ## 7. Definition of done
 
-- [ ] `.region-tile-move` activated: handler + focusable; `aria-hidden` dropped
-- [ ] `onMove` threaded shell → node → tile, matching the `onFold`/`onResize` shape
-- [ ] one grid-level overlay: drag ghost + the four `data-edge` bands, `z-index` above all tiles
-- [ ] band selection by `elementFromPoint`/`data-edge` (D2); **no geometry quadrant math**
-- [ ] bands attach only to `.region-tile` (D3); no-op edges do not highlight (D4)
-- [ ] `app_client.svelte`: the gesture calls the existing `handleMove`
-- [ ] `M-RP-MOVE-KBD` filed (D5)
-- [ ] V1–V9 measured on the real client with the trusted-pointer harness; **numbers Chat did not personally measure do not enter the record**
-- [ ] Records: `docs/xgen-dock-engine-phase0.md` (§7 or the arc table row) · `ui/docs/xgen-ui-notes.md` · `JOURNAL.md` · `CLAUDE.md` PLAY · `docs/ROADMAP.md` — one atomic commit (D-074)
+- [x] `.region-tile-move` activated: `onpointerdown` handler + `role="button"`/`tabindex="0"`; `aria-hidden` dropped. (Keyboard activation deferred → `M-RP-MOVE-KBD`, D5.)
+- [x] `onMoveStart` + `draggingId` threaded shell → node → tile (the `onFold` shape). **⚠️ Rule-6 flag: the runbook said "onMove threaded to the tile"; grounded, the TILE only needs a START trigger — under D1 the loop + overlay + the `onMove` completion live at the grid level (region-shell), so the tile gets `onMoveStart`, and `onMove` (→ `handleMove`) is the shell↔app callback. The runbook's wording was off; the code is right.**
+- [x] one grid-level overlay: drag ghost + four `data-edge` bands + inert centre, `z-index: 4000` above all tiles (D1)
+- [x] band selection by `elementFromPoint`/`data-edge` (D2); **no geometry quadrant math** — the rects only POSITION the hit targets
+- [x] bands attach only to `.region-tile[data-region-id]` (D3); no-op edges suppressed via `isMoveNoop` and never highlighted (D4, N-126)
+- [x] `app_client.svelte`: the gesture calls the existing `handleMove` via `onMove`
+- [x] `M-RP-MOVE-KBD` filed (D5) — §13
+- [x] V1–V9 measured on the real client 9222 with the trusted-pointer harness. V1 sweep `top:stream/bottom:stream/left:stream/right:stream/center:-`; V2 spaces relocated far-left→right-of-stream; V3 registry 67/unique 67/leaf 8/**stampMismatches 0** through a drag sequence (N-125 tripwire clean); V4 hole → `bandsDrawn:0`, release no-op; V5 no-op band `data-noop=true active=no`; V6 Esc/outside/source-centre all clean teardown; V7 sub-threshold = click; V8 `npm test` **77** · `vite build` **169** · `cargo test` **1517/0/62 IDENTICAL**; V9 clean quiescent 67
+- [x] Records: `docs/xgen-dock-engine-phase0.md` (§11 row 4 CLOSED, §13 M-RP-MOVE-KBD) · `ui/docs/xgen-ui-notes.md` (N-126) · `JOURNAL.md` J-525 · `CLAUDE.md` PLAY · `docs/ROADMAP.md` — one atomic commit (D-074)
 
 *(`Status: COMPLETED` in this header is the shipped signal. "Commit pushed" is not a DoD item — Joe pushes.)*

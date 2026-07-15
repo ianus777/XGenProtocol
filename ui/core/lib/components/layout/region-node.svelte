@@ -33,6 +33,8 @@
     titles = {},
     onFold,
     onResize,
+    onMoveStart,
+    draggingId = null,
     axis,
     flex,
     path = [],
@@ -46,6 +48,10 @@
     /** Splitter-resize seam (M-RP7.2/7.3). `path` addresses THIS split (DESCRIPTOR indices); the pair is the
      *  two neighbours' DESCRIPTOR indices (`srcIndex`, N-120) — never resolved positions. */
     onResize?: (path: number[], aIdx: number, bIdx: number, fraction: number) => void;
+    /** Move-grip pointerdown seam threaded to every tile (M-RP7.4, D1) — the shell owns the gesture. */
+    onMoveStart?: (regionId: string, e: PointerEvent) => void;
+    /** The regionId currently being dragged (M-RP7.4) — a tile marks itself `dragging` when it matches. */
+    draggingId?: string | null;
     /** The PARENT split's `dir` — the axis a leaf collapses along/across (§4.1). Undefined at the root. */
     axis?: 'row' | 'col';
     /** Descriptor weight from the parent split; applied inline (skin exception, D4). */
@@ -207,6 +213,8 @@
     axis={axis ?? 'col'}
     {flex}
     {onFold}
+    {onMoveStart}
+    dragging={node.widgetId === draggingId}
   >
     {#if widgets[node.widgetId]}
       {@const W = widgets[node.widgetId]}
@@ -237,6 +245,8 @@
         {titles}
         {onFold}
         {onResize}
+        {onMoveStart}
+        {draggingId}
         axis={node.dir}
         flex={effectiveSizes[i]}
         path={[...path, child.srcIndex]}

@@ -297,7 +297,7 @@
     leaves. It FILLS .app-center (no whole-grid scroll, D5) — each leaf owns its own scroll. -->
   <main class="app-center">
     {#if layout}
-      <RegionShell {layout} widgets={widgetRegistry} titles={REGION_TITLES} onFold={handleFold} onResize={handleResize} id="region-root" />
+      <RegionShell {layout} widgets={widgetRegistry} titles={REGION_TITLES} onFold={handleFold} onResize={handleResize} onMove={handleMove} id="region-root" />
     {/if}
   </main>
 

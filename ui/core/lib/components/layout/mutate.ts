@@ -151,27 +151,39 @@ function foldNode(node: LayoutNode, regionId: string, collapsed: FoldAxis | unde
  * Pure and TOTAL (N-095): `source === target` / a no-op reposition / unknown source or target / a `tabs`
  * node anywhere in the tree / a malformed tree → returns the input UNCHANGED, throws NOTHING.
  */
-export function move(layout: Layout, sourceLeafId: RegionId, targetLeafId: RegionId, edge: 'top' | 'bottom' | 'left' | 'right'): Layout {
-  if (!layout || !layout.root) return layout;
-  if (sourceLeafId === targetLeafId) return layout; // §3.6 lock 1 — same leaf, nothing to do
-  if (hasTabs(layout.root)) return layout; // renderer A never produces tabs; a tree that has one is out of scope
+export type Edge = 'top' | 'bottom' | 'left' | 'right';
+
+const edgeAxis = (edge: Edge): 'row' | 'col' => (edge === 'left' || edge === 'right' ? 'row' : 'col');
+const edgeBefore = (edge: Edge): boolean => edge === 'left' || edge === 'top';
+
+/**
+ * Would `move(layout, source, target, edge)` change NOTHING? — the SINGLE predicate `move` itself uses, so a
+ * caller can ask "is this drop a no-op?" and get exactly `move`'s answer (M-RP7.4, D4: the drop-band that
+ * would be a no-op must not highlight, and highlighting IS `move`'s decision, not a second model — N-124).
+ * True on: same leaf · a `tabs` tree (move bails) · unknown source/target · a drop that reproduces the
+ * source's current position (already the target's sibling on that side, in a split of that axis, §3.6).
+ */
+export function isMoveNoop(layout: Layout, sourceLeafId: RegionId, targetLeafId: RegionId, edge: Edge): boolean {
+  if (!layout || !layout.root) return true;
+  if (sourceLeafId === targetLeafId) return true;
+  if (hasTabs(layout.root)) return true;
+  if (!findLeaf(layout.root, sourceLeafId) || !findLeaf(layout.root, targetLeafId)) return true;
+  return isAlreadyPositioned(layout.root, sourceLeafId, targetLeafId, edgeAxis(edge), edgeBefore(edge));
+}
+
+export function move(layout: Layout, sourceLeafId: RegionId, targetLeafId: RegionId, edge: Edge): Layout {
+  // §3.6 lock 1 + N-095 temperament: every "do nothing" case routes through the ONE predicate D4 also reads,
+  // so a highlighted band and a committed move can never disagree.
+  if (isMoveNoop(layout, sourceLeafId, targetLeafId, edge)) return layout;
 
   const source = findLeaf(layout.root, sourceLeafId);
-  const target = findLeaf(layout.root, targetLeafId);
-  if (!source || !target) return layout; // unknown source / target → unchanged (N-095)
-
-  const axis: 'row' | 'col' = edge === 'left' || edge === 'right' ? 'row' : 'col';
-  const before = edge === 'left' || edge === 'top';
-
-  // §3.6 lock 1 — a drop that reproduces the region's current position (already the target's sibling on that
-  // side, in a split of that axis) is a no-op; do not churn the descriptor (a pointless remove + doubling).
-  if (isAlreadyPositioned(layout.root, sourceLeafId, targetLeafId, axis, before)) return layout;
+  if (!source) return layout; // unreachable after isMoveNoop, but keeps the type honest + defensive
 
   const removed = removeLeaf(layout.root, sourceLeafId); // + collapse-degenerate, cascading
   if (!removed) return layout; // defensive: source was the only leaf (cannot happen — target is distinct)
 
   // Re-insert the SAME leaf node (source), so its `collapsed` axis rides along (§3.6 lock 2).
-  return { ...layout, root: insertBeside(removed, targetLeafId, source, axis, before) };
+  return { ...layout, root: insertBeside(removed, targetLeafId, source, edgeAxis(edge), edgeBefore(edge)) };
 }
 
 /** Depth-first find of the leaf node carrying `id` (returns the node itself — `collapsed` and all). */

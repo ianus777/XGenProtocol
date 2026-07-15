@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.89  
+> Version: 0.90  
 > Date: May 2026  
 > **Last updated**: 2026-07-14  
 > Language: English  
@@ -2647,6 +2647,16 @@ The fix, in three edits: every `ResolvedNode` carries **`srcIndex`** (its index 
 **🔑 Grounded, not assumed:** the `(i)` key predates this milestone (`git show HEAD` = M-RP7.2, `9faa38c`), and the painted DOM read showed the stamps mismatched while the TITLES were correct — the content was right, the identity was scrambled. **Same family as N-120: a latent index-key defect, unreachable until the first mutation that restructures the tree.** *"Unreachable today" is the argument that has now been wrong SIX times in this codebase (N-091 · N-097 · N-099 · N-109 · N-116 · N-120).*
 
 **Fixed with stable node-identity keys** (`{#each node.children as child, i (nodeKey(child))}` — a leaf keys by its globally-unique `widgetId`, a split by its subtree's leaf ids). A split whose leaf-set is unchanged reconciles IN PLACE (a resize); one that gained or lost a leaf is torn down and rebuilt (correct — its children re-register under the right ids). After the fix, EVERY move holds the registry at **67, unique 67**, and every tile's `data-debug-id` matches its title — measured across sibling / wrap / collapse / relocate. **The fix was one line + one helper in `region-node`; the finding was worth more than the fix.** *A move that scrambles the identity of what it did not touch is not a working move — it is an untested one (N-097's shape, in the renderer).*
+
+### N-126 — a highlighted drop-band must read the SAME predicate the commit reads, or it lies (M-RP7.4, J-525)
+
+Drag-to-dock draws four drop bands on the hovered tile; D4 says a band whose drop would be a **no-op** must not highlight (a band that lights and then does nothing on release is the painted-dead chrome this project refuses, J-500). The trap: computing "is this a no-op?" a **second way** in the overlay — a parallel model of `move`'s own decision that can drift from it (the N-124 shape: run one model of the truth, not two).
+
+**The fix is structural, not vigilant:** `move`'s no-op guards were extracted into an exported **`isMoveNoop(layout, source, target, edge)`** — the SINGLE predicate — and `move` now routes through it (`if (isMoveNoop(...)) return layout`). The overlay's suppression asks the exact same function per edge. **A highlighted band and a committed move therefore CANNOT disagree by construction** — there is one definition of "would this do nothing," and both the affordance and the action read it. *When an affordance promises an outcome, the promise and the outcome must be the same function call — not two functions that are supposed to agree.*
+
+**Verified (V5, real client 9222):** dragging `rooms` (already above `self`) over `self` → the TOP band reads `data-noop=true`, `data-active` absent (not highlighted); the BOTTOM band `data-noop=no` (a real move stays live). The suppression came from `isMoveNoop`, the same call `move` would have made.
+
+*(Method note for the harness: the `-Mode drag -MidExpression` runs with the pointer held at the `To` point, button down — so a drag that ENDS over the target tile lets you sweep `elementFromPoint` across its four band centres mid-drag and read each `data-edge`. That is how V1's D2 hit-test was proven: `top:stream / bottom:stream / left:stream / right:stream / center:-`, every band centre resolving to the edge the picture shows.)*
 
 ---
 

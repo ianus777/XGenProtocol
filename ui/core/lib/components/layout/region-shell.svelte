@@ -37,6 +37,7 @@
     onFold,
     onResize,
     onMove,
+    locked = false,
     id,
   }: {
     layout: Layout;
@@ -46,6 +47,10 @@
     onResize?: (path: number[], aIdx: number, bIdx: number, fraction: number) => void; // splitter seam (N-120)
     /** Move commit (M-RP7.4). Called ONCE on a valid drop with the three `move` arguments (→ `handleMove`). */
     onMove?: (source: string, target: string, edge: Edge) => void;
+    /** Grid lock (M-RP7.6): when true, every rearrange affordance goes element-absent / seam-dead. Threaded
+     *  down; the load-bearing guard is the shell's handlers (`if (locked) return`), this only hides the UI.
+     *  Bands/preview go inert TRANSITIVELY — a suppressed grip means `onMoveStart` never fires (G4). */
+    locked?: boolean;
     id?: string;
   } = $props();
 
@@ -261,6 +266,7 @@
       {onFold}
       {onResize}
       {onMoveStart}
+      {locked}
       draggingId={drag?.sourceId ?? null}
       path={[]}
     />

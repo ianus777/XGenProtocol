@@ -50,4 +50,12 @@ export const icons: Record<string, IconPath> = {
   // https://github.com/google/material-design-icons/blob/master/src/file/folder_open/materialicons/24px.svg
   load:
     'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z',
+
+  // lock — the grid-lock command (layout.lock, M-RP7.6). PROVISIONAL shape (D5) — the real glyph
+  // (and any lock/unlock swap) is a skin decision, deferred to M-RP-SKIN; do not tune it here.
+  // Material name: lock · Apache-2.0 · the source fill="none" bounding rect is dropped → colour-free
+  // geometry only (D-110/D-108), colour arrives from the tint.
+  // https://github.com/google/material-design-icons/blob/master/src/action/lock/materialicons/24px.svg
+  lock:
+    'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z',
 };

@@ -40,6 +40,7 @@
     command,
     active = false,
     disabled = false,
+    pressed = false,
     onActivate,
     ref = $bindable(),
     id,
@@ -53,6 +54,10 @@
     /** Roving-tabindex active flag, OWNED BY shelf: active → tabindex 0, else -1. */
     active?: boolean;
     disabled?: boolean;
+    /** Toggle latch (M-RP7.6, the FIRST stateful face) → aria-pressed. A DIFFERENT axis from `active`
+     *  (roving) — a face can be pressed and unfocused, or focused and unpressed. Skin hooks on
+     *  [aria-pressed="true"]; no glyph swap here (that is a skin decision, deferred to M-RP-SKIN). */
+    pressed?: boolean;
     /** Activation callback (suppressed while disabled); the shelf turns it into onCommand(command). */
     onActivate?: () => void;
     /** The face's <button> element, exposed to the shelf for programmatic roving focus. */
@@ -61,8 +66,8 @@
   } = $props();
 
   // N-024 opt-in. Config/task-state only (icon/led plain-return form): `command` is what CDP asserts
-  // a click dispatched; `active`/`disabled` are the roving + phase-limit flags.
-  const debug = () => ({ command, hasIcon: icon != null, disabled, active });
+  // a click dispatched; `active`/`disabled` are the roving + phase-limit flags; `pressed` is the latch.
+  const debug = () => ({ command, hasIcon: icon != null, disabled, active, pressed });
 </script>
 
 <button
@@ -72,6 +77,7 @@
   aria-label={label}
   tabindex={active ? 0 : -1}
   aria-disabled={disabled || undefined}
+  aria-pressed={pressed || undefined}
   onclick={() => !disabled && onActivate?.()}
 >
   <Icon name={icon} id={id ? `${id}__icon` : undefined} />

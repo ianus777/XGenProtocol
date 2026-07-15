@@ -49,6 +49,8 @@
     /** The opaque command id dispatched via onCommand on activate. */
     command: string;
     disabled?: boolean;
+    /** Toggle-latch state (M-RP7.6) → the face's aria-pressed. Absent ⇒ not a toggle. */
+    pressed?: boolean;
   };
 
   let {
@@ -131,6 +133,7 @@
       label={item.label}
       command={item.command}
       disabled={item.disabled ?? false}
+      pressed={item.pressed ?? false}
       active={activeIndex === i}
       onActivate={() => onCommand?.(item.command)}
       bind:ref={faces[i]}

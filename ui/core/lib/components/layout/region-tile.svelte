@@ -50,6 +50,7 @@
     flex,
     onFold,
     onMoveStart,
+    locked = false,
     dragging = false,
     children,
   }: {
@@ -68,6 +69,10 @@
     /** Move-grip pointerdown seam (M-RP7.4). The grip only STARTS the gesture; the grid-level overlay in
      *  `region-shell` (D1) owns capture, the drag loop, band hit-testing and the release → `move`. */
     onMoveStart?: (regionId: string, e: PointerEvent) => void;
+    /** Grid lock (M-RP7.6): when true, the move grip and the fold buttons go ELEMENT-ABSENT (the house
+     *  convention — the folded tile's resize triangle ships absent, not greyed, J-500/D8.2). Keeps the
+     *  arrangement frozen while the widget stays interactive; the shell handler is the real guard. */
+    locked?: boolean;
     /** True while THIS tile is the one being dragged (M-RP7.4) — the shell threads its own drag `sourceId`
      *  down; the skin dims the source (PROVISIONAL). Reflected as `data-dragging`. */
     dragging?: boolean;
@@ -121,41 +126,48 @@
     <!-- Move grip (Joe's walk: "only with this grip the region can be moved") — ACTIVATED at M-RP7.4.
       pointerdown STARTS the gesture; the grid-level overlay (region-shell, D1) owns the rest. Focusable so
       it is not a dead control, but keyboard-driven move (pickup → target → drop) is its own protocol,
-      FILED as M-RP-MOVE-KBD (D5) — Enter/Space are deliberately not wired yet. -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <span
-      class="region-tile-move"
-      role="button"
-      tabindex="0"
-      aria-label="Move region (drag)"
-      onpointerdown={(e) => onMoveStart?.(regionId, e)}
-    ></span>
+      FILED as M-RP-MOVE-KBD (D5) — Enter/Space are deliberately not wired yet.
+      M-RP7.6: ELEMENT-ABSENT while locked (D1) — no live-looking dead grip; the shell handler is the guard. -->
+    {#if !locked}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <span
+        class="region-tile-move"
+        role="button"
+        tabindex="0"
+        aria-label="Move region (drag)"
+        onpointerdown={(e) => onMoveStart?.(regionId, e)}
+      ></span>
+    {/if}
     <span class="region-tile-title">{title}</span>
     <!-- Two fold buttons — the user picks the axis (§4.1). ALWAYS PRESENT (§4.3); DOM order is fixed
       [move · title · [fold-width · fold-height]], which now matters (it survives the rotated strip). The
       matching-axis button unfolds; the other-axis button is aria-disabled (NOT native disabled →
       keyboard-reachable) while folded. Glyph + rotation are skin (N-090). Both buttons are wrapped in one
       addressable `.region-title-buttons` span so the skin can target/position them as a group. -->
-    <span class="region-title-buttons">
-      <button
-        type="button"
-        class="region-tile-fold"
-        data-fold="width"
-        aria-label={widthState === 'unfold' ? 'Unfold region' : 'Fold region to the left'}
-        aria-expanded={collapsed === undefined}
-        aria-disabled={widthState === 'disabled' || undefined}
-        onclick={() => clickFold('width', widthState)}
-      ></button>
-      <button
-        type="button"
-        class="region-tile-fold"
-        data-fold="height"
-        aria-label={heightState === 'unfold' ? 'Unfold region' : 'Fold region to the top'}
-        aria-expanded={collapsed === undefined}
-        aria-disabled={heightState === 'disabled' || undefined}
-        onclick={() => clickFold('height', heightState)}
-      ></button>
-    </span>
+    <!-- M-RP7.6: the whole fold group is ELEMENT-ABSENT while locked (D1) — the arrangement is frozen, so no
+      fold affordance is offered; the shell's `handleFold` early-return is the load-bearing guard. -->
+    {#if !locked}
+      <span class="region-title-buttons">
+        <button
+          type="button"
+          class="region-tile-fold"
+          data-fold="width"
+          aria-label={widthState === 'unfold' ? 'Unfold region' : 'Fold region to the left'}
+          aria-expanded={collapsed === undefined}
+          aria-disabled={widthState === 'disabled' || undefined}
+          onclick={() => clickFold('width', widthState)}
+        ></button>
+        <button
+          type="button"
+          class="region-tile-fold"
+          data-fold="height"
+          aria-label={heightState === 'unfold' ? 'Unfold region' : 'Fold region to the top'}
+          aria-expanded={collapsed === undefined}
+          aria-disabled={heightState === 'disabled' || undefined}
+          onclick={() => clickFold('height', heightState)}
+        ></button>
+      </span>
+    {/if}
   </div>
 
   {#if collapsed === undefined}

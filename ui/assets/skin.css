@@ -2577,6 +2577,13 @@ html, body {
 .shelf-face[aria-disabled="true"]:hover {
   background: transparent; /* disabled faces do not light on hover */
 }
+/* Toggle latch (M-RP7.6, the first stateful face — the grid lock). Accent-NEUTRAL like the rest of the
+ * strip (an accent swap must move nothing but the focus ring): a persistent --s4 fill + --t tint marks
+ * "on". A lock/unlock glyph swap is a separate appearance decision, deferred to M-RP-SKIN. PROVISIONAL. */
+.shelf-face[aria-pressed="true"] {
+  background: var(--s4);
+  color: var(--t);
+}
 
 /* ───────────────────────────────────────────────────
  * message (.message) — the message dd sub-family opener (M-RP5.5, dd-composite). Root IS

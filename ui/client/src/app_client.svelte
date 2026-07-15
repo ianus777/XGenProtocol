@@ -48,6 +48,12 @@
   // consumer; the widget-manager/shelf promotion to a $common store is reserved, not built).
   let layout = $state(null);
 
+  // Grid lock (M-RP7.6). One boolean, seeded from session.locked after hydrate() (default false). When
+  // true: the fold/resize/move handlers early-return (the LOAD-BEARING guard — an access rule is only real
+  // if its callers enforce it) AND the tile grips / fold buttons / seams go element-absent (the honesty
+  // layer). The lock face's `pressed` tracks it; the toggle persists via setSessionLocked.
+  let locked = $state(false);
+
   // DEV-only CDP handle (N-024 idiom) so the verify pass can drive the drop / tabs / mismatch paths
   // (§5.3): push a test layout, read region-shell's getter G. Dead-code-eliminated in a release build.
   if (import.meta.env.DEV && typeof window !== 'undefined') {
@@ -68,6 +74,7 @@
   // the session store (M-RP7.5 Leg B — `session.layout` now persists across relaunch). `foldLeaf` preserves
   // the unfold contract exactly (undefined ⇒ delete the key), so an unfold never persists `collapsed: undefined`.
   function handleFold(regionId, collapsed) {
+    if (locked) return; // M-RP7.6 — the load-bearing refusal (also reached via __XGEN_LAYOUT__.fold, V1)
     if (!layout) return;
     layout = foldLeaf(layout, regionId, collapsed);
     uiStateStore.setSessionLayout($state.snapshot(layout));
@@ -78,6 +85,7 @@
   // N-120 — never resolved positions) with the boundary `fraction` on release; `resizeSplit` writes the new
   // INTEGER weights (L2/L3), then FEEDS the session store (M-RP7.5 Leg B — persisted, debounced).
   function handleResize(path, aIdx, bIdx, fraction) {
+    if (locked) return; // M-RP7.6 — belt to the dead-seam braces; a locked seam has no listener anyway
     if (!layout) return;
     layout = resizeSplit(layout, path, aIdx, bIdx, fraction);
     uiStateStore.setSessionLayout($state.snapshot(layout));
@@ -88,6 +96,7 @@
   // (M-RP7.4) and the DEV handle; the reactive reassignment re-resolves the shell, then FEEDS the session
   // store (M-RP7.5 Leg B — persisted, debounced).
   function handleMove(sourceId, targetId, edge) {
+    if (locked) return; // M-RP7.6 — the backstop for the transitively-inert bands (also reached via V1)
     if (!layout) return;
     layout = move(layout, sourceId, targetId, edge);
     uiStateStore.setSessionLayout($state.snapshot(layout));
@@ -124,6 +133,12 @@
     // M-RP7.5 Leg D — standalone "renew from autosave" (loadLayout re-read), no bounce. The command is
     // LIVE (real handler) awaiting its own interactive element (Joe: placed elsewhere, not the File menu).
     'layout.revert': handleRevertUi,
+    // M-RP7.6 — the grid lock. ONE boolean, ONE command (two commands would be two sources of truth for
+    // one bit, D-067). Toggles + persists; the lock face's `pressed` reflects it, the handlers refuse.
+    'layout.lock': () => {
+      locked = !locked;
+      uiStateStore.setSessionLocked(locked);
+    },
   };
   function runCommand(commandId) {
     commandTable[commandId]?.();
@@ -171,11 +186,15 @@
   // RENAMED layout.save/layout.load → uistate.save/uistate.load (D-114): the store is NOT a layout — it
   // holds geometry, and will hold shelf/theme/room; `layout.*` would be a lie by M-RP6.2. There is no
   // uistate.saveAs — one diskette, one dialog, two outcomes (overwrite the active state, or a new name).
-  const SHELF_BOTTOM = [
+  // $derived (M-RP7.6): the 4th face is the grid lock, whose `pressed` tracks `locked` reactively — a plain
+  // const array would snapshot `locked` once and never repaint the latch. It is ENABLED (its command exists),
+  // so no shelf face is disabled — the 6.1j countdown stays discharged.
+  const SHELF_BOTTOM = $derived([
     { icon: 'gear', label: 'Plugins', command: 'widget.manager', disabled: false },
     { icon: 'diskette', label: 'Save UI state', command: 'uistate.save', disabled: false },
     { icon: 'load', label: 'Load UI state', command: 'uistate.load', disabled: false },
-  ];
+    { icon: 'lock', label: 'Lock layout', command: 'layout.lock', pressed: locked, disabled: false },
+  ]);
 
   onMount(async () => {
     window.addEventListener('keydown', onKeydown);
@@ -215,6 +234,10 @@
       // M-RP6.1k Leg B — hydrate the persistent UI-state store from disk (get_ui_state). The
       // Save/Load dialogs read it reactively; a corrupt/absent store leaves it empty (N-095).
       await uiStateStore.hydrate();
+
+      // M-RP7.6 — seed the grid lock from the persisted session (default false when the key is absent —
+      // a past-build store has no `locked` key, V6). Must follow hydrate() so it reads the loaded value.
+      locked = uiStateStore.session()?.locked ?? false;
     } catch (_) {
       // Running outside Tauri (browser dev preview) — state stays at placeholder.
     }
@@ -336,7 +359,7 @@
     leaves. It FILLS .app-center (no whole-grid scroll, D5) — each leaf owns its own scroll. -->
   <main class="app-center">
     {#if layout}
-      <RegionShell {layout} widgets={widgetRegistry} titles={REGION_TITLES} onFold={handleFold} onResize={handleResize} onMove={handleMove} id="region-root" />
+      <RegionShell {layout} widgets={widgetRegistry} titles={REGION_TITLES} onFold={handleFold} onResize={handleResize} onMove={handleMove} {locked} id="region-root" />
     {/if}
   </main>
 

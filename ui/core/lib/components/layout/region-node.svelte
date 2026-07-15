@@ -35,6 +35,7 @@
     onResize,
     onMoveStart,
     draggingId = null,
+    locked = false,
     axis,
     flex,
     path = [],
@@ -52,6 +53,10 @@
     onMoveStart?: (regionId: string, e: PointerEvent) => void;
     /** The regionId currently being dragged (M-RP7.4) — a tile marks itself `dragging` when it matches. */
     draggingId?: string | null;
+    /** Grid lock (M-RP7.6): a locked seam becomes a DEAD seam (no listeners, no cursor, no hit-expansion —
+     *  `data-live` folds `!locked` into `live`, so the honesty layer matches the algebra's refusal). Threaded
+     *  recursively; the tile suppresses its grip + fold buttons on the same flag. */
+    locked?: boolean;
     /** The PARENT split's `dir` — the axis a leaf collapses along/across (§4.1). Undefined at the root. */
     axis?: 'row' | 'col';
     /** Descriptor weight from the parent split; applied inline (skin exception, D4). */
@@ -214,6 +219,7 @@
     {flex}
     {onFold}
     {onMoveStart}
+    {locked}
     dragging={node.widgetId === draggingId}
   >
     {#if widgets[node.widgetId]}
@@ -227,16 +233,20 @@
       {#if i > 0}
         {@const live = seamLive(i - 1)}
         <!-- The seam between children[i-1] and children[i]; seamIndex = i-1. `user-select`/`touch-action`
-          none live on the skin (N-118). A DEAD seam gets NO listeners (L4) — it is only the divider. -->
+          none live on the skin (N-118). A DEAD seam gets NO listeners (L4) — it is only the divider.
+          M-RP7.6: `locked` folds into liveness (`draggable`) so a locked seam is dead in EVERY sense the
+          skin reads (`data-live` drives the cursor + hit-expansion + z-index) — no live-looking dead
+          control (D1). The load-bearing refusal is still the shell handler; this is the honesty layer. -->
+        {@const draggable = live && !locked}
         <div
           class="region-seam"
           data-dir={node.dir}
-          data-live={live}
-          onpointerdown={live ? (e) => startResize(e, i - 1) : undefined}
-          onpointermove={live ? moveResize : undefined}
-          onpointerup={live ? endResize : undefined}
-          onpointercancel={live ? cancelResize : undefined}
-          onlostpointercapture={live ? cancelResize : undefined}
+          data-live={draggable}
+          onpointerdown={draggable ? (e) => startResize(e, i - 1) : undefined}
+          onpointermove={draggable ? moveResize : undefined}
+          onpointerup={draggable ? endResize : undefined}
+          onpointercancel={draggable ? cancelResize : undefined}
+          onlostpointercapture={draggable ? cancelResize : undefined}
         ></div>
       {/if}
       <RegionNode
@@ -247,6 +257,7 @@
         {onResize}
         {onMoveStart}
         {draggingId}
+        {locked}
         axis={node.dir}
         flex={effectiveSizes[i]}
         path={[...path, child.srcIndex]}

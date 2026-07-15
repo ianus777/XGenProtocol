@@ -21,6 +21,8 @@ import type { Layout } from '$core/components/layout/types';
 /** A saved arrangement — `layout` today; `geometry` at Leg C. Extra keys are preserved verbatim. */
 export interface UiStateBag {
   layout?: Layout;
+  /** Grid lock (M-RP7.6). A SESSION-only key today (the named states carry it too, verbatim, for free). */
+  locked?: boolean;
   [k: string]: unknown;
 }
 interface NamedEntry {
@@ -73,13 +75,22 @@ async function persist(): Promise<void> {
     // above, so a geometry Rust wrote since our last read survives.
     const onDiskSession =
       onDisk.session && typeof onDisk.session === 'object' ? onDisk.session : {};
+    // Two INDEPENDENT session keys THIS module owns (M-RP7.6, N-107): `layout` (fold/resize/move feeder) and
+    // `locked` (the grid lock). Each is merged only when set, so a lock-toggle with no layout change still
+    // persists, a layout write does not clobber `locked`, and NEITHER touches geometry (Rust's, spread first).
     const layout = _store.session?.layout;
+    const locked = _store.session?.locked;
+    const sessionOut = {
+      ...onDiskSession,
+      ...(layout ? { layout } : {}),
+      ...(locked !== undefined ? { locked } : {}),
+    };
     const merged = {
       ...onDisk,
       version: 1,
       named: _store.named,
       active: _store.active,
-      ...(layout ? { session: { ...onDiskSession, layout } } : {}),
+      ...(layout || locked !== undefined ? { session: sessionOut } : {}),
     };
     await tauriInvoke('set_ui_state', { json: JSON.stringify(merged) });
   } catch (e) {
@@ -199,6 +210,16 @@ export const uiStateStore = {
    */
   setSessionLayout(layout: Layout): void {
     _store.session = { ...(_store.session ?? {}), layout };
+    scheduleSessionPersist();
+  },
+
+  /**
+   * M-RP7.6 — persist the grid-lock flag. Mirrors setSessionLayout verbatim: a per-key session write
+   * (N-107 — geometry stays Rust's, `layout` untouched). `loadLayout()`'s neighbour, `session().locked`,
+   * reads it back on the next launch (default false when absent — the past-build tolerance, V6).
+   */
+  setSessionLocked(locked: boolean): void {
+    _store.session = { ...(_store.session ?? {}), locked };
     scheduleSessionPersist();
   },
 };

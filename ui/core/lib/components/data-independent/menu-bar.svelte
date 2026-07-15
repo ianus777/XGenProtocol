@@ -32,7 +32,10 @@
     command?: string;
     disabled?: boolean;
   };
-  type MenuDef = { label: string; items?: MenuItemDef[] };
+  /** A visual divider entry (M-RP7.5) — passed through to `menu`, which renders the `separator` core. */
+  type MenuDivider = { separator: true };
+  type MenuEntry = MenuItemDef | MenuDivider;
+  type MenuDef = { label: string; items?: MenuEntry[] };
 
   let {
     menus = [],

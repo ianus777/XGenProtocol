@@ -64,29 +64,42 @@
 
   // ── Fold (M-RP7.1b, D6) ───────────────────────────────────────────────────────────────────────
   // The tree surgery moved into the pure algebra (`foldLeaf`, mutate.ts, M-RP7.3 L2) — the shell keeps NO
-  // tree code, only the reactive reassignment that triggers the shell to re-resolve. Held in MEMORY this leg
-  // — the session feeder that PERSISTS `session.layout` is M-RP7.5 (D6). `foldLeaf` preserves the unfold
-  // contract exactly (undefined ⇒ delete the key), so an unfold never persists `collapsed: undefined`.
+  // tree code, only the reactive reassignment that re-resolves the shell, then FEEDS the new arrangement to
+  // the session store (M-RP7.5 Leg B — `session.layout` now persists across relaunch). `foldLeaf` preserves
+  // the unfold contract exactly (undefined ⇒ delete the key), so an unfold never persists `collapsed: undefined`.
   function handleFold(regionId, collapsed) {
     if (!layout) return;
     layout = foldLeaf(layout, regionId, collapsed);
+    uiStateStore.setSessionLayout($state.snapshot(layout));
   }
 
   // ── Splitter resize (M-RP7.2/7.3, N-120) ──────────────────────────────────────────────────────
   // The seam gesture reports the split's `path` and the pair's two DESCRIPTOR indices (`aIdx`/`bIdx`,
   // N-120 — never resolved positions) with the boundary `fraction` on release; `resizeSplit` writes the new
-  // INTEGER weights (L2/L3). IN MEMORY only — `session.layout` has no writer until M-RP7.5.
+  // INTEGER weights (L2/L3), then FEEDS the session store (M-RP7.5 Leg B — persisted, debounced).
   function handleResize(path, aIdx, bIdx, fraction) {
     if (!layout) return;
     layout = resizeSplit(layout, path, aIdx, bIdx, fraction);
+    uiStateStore.setSessionLayout($state.snapshot(layout));
   }
 
   // ── Move (M-RP7.3, L3 — drag-to-dock, no gesture yet) ──────────────────────────────────────────
-  // Relocate a region to an edge of a target (`move`, mutate.ts). No pointer wiring this milestone — the
-  // DEV handle drives it so the tree surgery is proven before M-RP7.4 gives it a gesture. IN MEMORY only.
+  // Relocate a region to an edge of a target (`move`, mutate.ts). Driven by the drag-to-dock gesture
+  // (M-RP7.4) and the DEV handle; the reactive reassignment re-resolves the shell, then FEEDS the session
+  // store (M-RP7.5 Leg B — persisted, debounced).
   function handleMove(sourceId, targetId, edge) {
     if (!layout) return;
     layout = move(layout, sourceId, targetId, edge);
+    uiStateStore.setSessionLayout($state.snapshot(layout));
+  }
+
+  // ── Revert UI (M-RP7.5, Leg D) — renew the grid from the last autosave ──────────────────────────
+  // Re-reads `session.layout` from disk via the SHIPPED loadLayout() (migrates a past-build tree, NEVER
+  // returns null — N-095) and reassigns the grid. A REFRESH, not an undo: the feeder writes continuously,
+  // so "last autosave" ≈ the live grid — this is "renew UI from disk". Zero Rust. No setSessionLayout
+  // after: reloading and re-writing the same disk state is a no-op (runbook §6 D1).
+  async function handleRevertUi() {
+    layout = await loadLayout();
   }
 
   // ── Keymap wiring (M-RP6.1d — the 6.1c-deferred shell half) ──────────────────────────────
@@ -106,6 +119,11 @@
     // M-RP6.1l — the gear resolves here. This entry existing is what lets the gear enable (below);
     // the 6.1j countdown is now discharged — no shelf face is disabled.
     'widget.manager': () => (pluginsOpen = true),
+    // M-RP7.5 Leg C — File ▸ Restart: bounce the process; the fresh boot restores the autosaved grid.
+    'app.restart': handleRestart,
+    // M-RP7.5 Leg D — standalone "renew from autosave" (loadLayout re-read), no bounce. The command is
+    // LIVE (real handler) awaiting its own interactive element (Joe: placed elsewhere, not the File menu).
+    'layout.revert': handleRevertUi,
   };
   function runCommand(commandId) {
     commandTable[commandId]?.();
@@ -129,7 +147,14 @@
   const menus = [
     {
       label: 'File',
-      items: [{ label: 'Exit', accelerator: accelerator('Ctrl+Q'), command: 'app.exit' }],
+      items: [
+        // M-RP7.5 Leg C — File ▸ Restart: bounce the process; the fresh boot's loadLayout() re-reads the
+        // session autosave, so the arranged grid comes back (the "revert" is implicit in the reload). Joe
+        // owns the glyph; this is the wiring. Standalone Revert (layout.revert) lives elsewhere, not here.
+        { label: 'Restart', command: 'app.restart' },
+        { separator: true }, // horizontal divider between the restart action and the destructive Exit
+        { label: 'Exit', accelerator: accelerator('Ctrl+Q'), command: 'app.exit' },
+      ],
     },
     // Help → About (M-RP6.1e-C3). NO accelerator — F1 conventionally means Help *contents*.
     {
@@ -206,6 +231,20 @@
       await invoke('quit');
     } catch (e) {
       console.error('Quit failed:', e);
+    }
+  }
+
+  // ── Restart (M-RP7.5, Leg C) — File ▸ Restart: bounce the process ────────────────────────────────
+  // The fresh boot's loadLayout() re-reads the session autosave (Legs A/B), so the arranged grid comes
+  // back — "revert + restart" with the revert implicit in the reload. `tauri-plugin-process` and the
+  // `process:default` grant already ship (since M1) → ZERO Rust. Lazy import keeps the browser-dev
+  // preview (no Tauri) working — the handleQuit pattern.
+  async function handleRestart() {
+    try {
+      const { relaunch } = await import('@tauri-apps/plugin-process');
+      await relaunch();
+    } catch (e) {
+      console.error('Restart failed:', e);
     }
   }
 

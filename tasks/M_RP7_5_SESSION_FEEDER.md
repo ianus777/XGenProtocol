@@ -1,6 +1,6 @@
 # M-RP7.5 — The session layout feeder (writes `session.layout`) + M-RP-RESTART (Restart · Revert UI)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-15  
 > Language: EN  
@@ -26,7 +26,7 @@ The grid finally **persists**. Until now every fold/resize/move mutated `layout`
 - **N-107 one level deeper:** the write MUST merge **per key inside `session`** — read the on-disk `session` fresh, spread it, override only `layout`. A whole-object `session:` write **eats `geometry`** (Rust writes `session.geometry`; the frontend writes `session.layout`).
 - **Debounce ~400ms** on session writes (§12 mandates it; note each mutation is already a single discrete commit — resize writes once on `pointerup`, J-519 — so the debounce only coalesces rapid sequences).
 - **M-RP-RESTART decomposed (Joe): two parts of one idea.**
-  - **Restart** = bounce the process. Wire the **already-declared-but-dead `tauri-plugin-process`** (`restart()`). Reload naturally re-reads the autosave via `loadLayout()`. **This is the ONLY Rust in the milestone.**
+  - **Restart** = bounce the process via `tauri-plugin-process` (`relaunch()`). **⚠️ N-116 CORRECTION (at close): the plugin was ALREADY `.plugin()`-wired at `desktop.rs:543` and `process:default` ALREADY granted at `capabilities/default.json:8`, both since M1 (c23c06a) — NOT the "declared but never wired" this runbook / ROADMAP L754 / J-520 claimed. Leg C added ZERO Rust; Clair caught it (Rule 6).** Reload re-reads the autosave via `loadLayout()`.
   - **Revert UI** = the frontend half, standalone (its own interactive element): live-reload `session.layout` from disk and reassign the grid, **no process bounce**. "Renew UI from last autosave." Zero Rust.
 - **Reset-to-default is OUT OF SCOPE** — filed to the (unbuilt) settings surface; "buried deep, not an everyday control" (Joe). This milestone ships NO reset-to-`DEFAULT_LAYOUT` verb.
 
@@ -34,14 +34,9 @@ The grid finally **persists**. Until now every fold/resize/move mutated `layout`
 
 ---
 
-## 2. ⚠️ cargo test IS EXPECTED TO MOVE — and that is the inverse proof
+## 2. cargo test STAYS IDENTICAL — the whole milestone is zero-Rust (N-116 corrected)
 
-Through M-RP7.1–7.4 the discipline was `cargo test` **1517/0/62 IDENTICAL** = proof no Rust landed. **M-RP7.5 breaks that on purpose**, but ONLY via the Restart plugin wire.
-
-- The **feeder** (Legs A/B) and **Revert UI** (Leg D) are **zero-Rust** — if they alone moved `cargo test`, something is wrong.
-- The **Restart** wire (Leg C) adds the `tauri_plugin_process` surface → the delta must be **exactly** that plugin's tests, nothing in `xgen-core`/`space`/`node`. **Grep `git diff --stat` for `.rs` files: the only `.rs` change is `desktop.rs` (builder `.plugin(...)`). No `xgen-core/**`, no `space/state.rs`.**
-
-If Leg C is deferred (see §7), `cargo test` stays IDENTICAL and that is the correct signal.
+**As-shipped:** `git diff --stat` = 5 files, **zero `.rs`** → `cargo test` **1517/0/62 IDENTICAL by construction** (not re-run; nothing Rust changed — the correct signal). The v1.0 claim that Leg C would move `cargo test` was **wrong (N-116)**: `tauri-plugin-process` was already wired + granted since M1, so Restart added no Rust. The feeder (A/B), Revert (D), Restart (C) and the menu separator are all frontend-only.
 
 ---
 
@@ -172,3 +167,20 @@ Baseline: relaunch to quiescent, measure registry (was 67 at M-RP7.4b — re-mea
 - **Revert-to-active-named** (reload the active named state's layout rather than DEFAULT/autosave) — a richer revert; filed.
 - **M-RP7.6 grid lock** — the `locked` flag also lives in `session`, so it lands AFTER this (N-107 per-key inside `session` must be shipped first).
 - Unsent-message-safe restart (post-M-RP6.3) — J-520 named risk; not now.
+
+---
+
+## 11. CLOSE (J-528, 2026-07-15) — Chat re-drive verdict (9222, all Chat-measured, Rule 5)
+
+Shipped 5 files, **zero `.rs`** (`cargo test` 1517/0/62 IDENTICAL by construction). Baseline registry **67** quiescent.
+
+- **V1 N-107 live** ✅ — fold committed → disk `session.layout` gained `collapsed`, `session.geometry` **byte-identical** (x402 y178 w1612 h1087). The frontend write did not eat Rust's geometry.
+- **V2 persistence** ✅ — fold survived `location.reload()` (feeder → disk → loadLayout round-trip). A prior inner-resize `[1714,2286]` also survived.
+- **V3 past-build load** ✅ — a valid layout carrying retired `ghost-retired-xyz`: resolve **dropped the ghost** (no tile), shell rendered (no blank), descriptor retains the id (W-13), registry 66 = 67−1 dropped tile. *(First attempt tripped my own BOM probe artifact — `Set-Content -Encoding UTF8` prepended `EF BB BF`, Rust `get_ui_state` choked → N-095 DEFAULT fallback; re-ran BOM-free via `UTF8Encoding($false)`. N-124 family: verify the input the probe writes.)*
+- **V4 Revert** ◐ partial — handler wired live (`layout.revert` → `handleRevertUi` → `loadLayout()`); the load path is proven non-null by every V2/V3 reload. **Not button-driven** — no UI home (by design) and no command bridge, so end-to-end click is deferred to when Revert gets a home.
+- **Separator** ✅ — non-registering (registry unperturbed at 67); Arrow steps Restart→Exit→back, stepping over the separator both directions.
+- **Restart** ◐ wiring correct (lazy `relaunch`); **dev 2nd-invocation death** = `tauri dev` lifecycle artifact (spawn-self+exit tears down the dev supervisor). Not driven under dev. **Countdown: standalone-bundle hand-test — Joe discharges** (bundle has no CDP).
+
+**Refiled to `M-RP-RESTART`:** Restart (menu + code stay in-tree, exposed) with the standalone hand-test countdown; Revert with its recorded useful semantics = **undo-to-launch** (snapshot the boot layout in memory; Revert restores it — respects the saved workspace, unlike reset-to-default). Both await Revert's UI home.
+
+**N-116 records-vs-code correction swept at close:** this runbook §2/§5, ROADMAP L754, dock-engine §10/§13, J-520 — all carried "declared but never wired"; the plugin was wired + granted since M1.

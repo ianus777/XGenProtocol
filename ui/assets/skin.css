@@ -2503,6 +2503,11 @@ html, body {
   font-size: var(--fs-0);
   font-family: inherit;
 }
+/* a divider row inside a menu popup (M-RP7.5) — the atom owns the hairline; the popup owns the spacing
+   around it (separator docblock: "spacing AROUND the divider is the consumer's concern"). */
+.menu-popup .separator {
+  margin: var(--sp-1) 0;
+}
 
 /* ───────────────────────────────────────────────────
  * shelf family (.shelf / .shelf-face) — the ordered command STRIP framing the widget grid

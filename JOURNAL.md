@@ -1,10 +1,36 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-14  
+> **Last updated:** 2026-07-15  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-528 — M-RP7.5 CLOSED: the session layout feeder — the grid persists, and N-107 holds one level deeper
+
+**5 files, ZERO Rust** (`git diff --stat`: `uistate.svelte.ts` · `app_client.svelte` · `menu.svelte` · `menu-bar.svelte` · `skin.css`) → `cargo test` **1517/0/62 IDENTICAL by construction**. `npm test` 77, `vite build` 169. Registry **67** quiescent. Clair built; Chat re-drove every leg on the live client 9222 (Rule 5).
+
+### What shipped
+
+The grid finally **persists across a relaunch**. `loadLayout()` already read `session.layout` and migrated it — the load half was shipped; this milestone added the **write half**. `uiStateStore.setSessionLayout(layout)` feeds the live arrangement (fold/resize/move) on a 400ms debounce; `persist()` became the one **N-107-correct write path** — it reads the on-disk `session` FRESH, spreads it, and overrides `layout` **only**, so the frontend write never eats the `geometry` Rust writes. Wired from `handleFold`/`handleResize`/`handleMove`. Companion verbs shipped (in-tree, exposed): **File ▸ Restart** (`app.restart` → `relaunch()`), a **separator**, then **Exit**; and a standalone **`layout.revert`** command (live handler, no UI home yet). The menu gained a **non-registering separator** primitive (`{ separator: true }` → `role=separator`, no id — the roving machine steps over it).
+
+### The N-107 live proof (V1)
+
+The one thing static review can't settle: a frontend `session.layout` write must leave `session.geometry` untouched. Committed a fold → disk `session.layout` gained `collapsed` while `session.geometry` stayed **byte-identical** (x402 y178 w1612 h1087). Neither writer ate the other, at rest and across a write. V2: the fold (and a prior inner-resize `[1714,2286]`) survived `location.reload()`. V3: a valid layout carrying a retired `ghost-retired-xyz` loaded — resolve **dropped the ghost** (registry 66 = 67−1), the shell rendered (no blank), the descriptor kept the id (W-13). Separator: roving steps Restart→Exit→back over it. *(V3 first pass tripped my own BOM probe artifact — `Set-Content -Encoding UTF8` → `EF BB BF` → Rust `get_ui_state` choked → N-095 DEFAULT fallback; re-ran BOM-free. N-124 family: verify the input the probe writes. Self-caught by looking.)*
+
+### N-116 — the record said "never wired"; the code said otherwise (Clair caught it, Rule 6, sixth consecutive milestone)
+
+The runbook §2/§5, ROADMAP L754, dock-engine §10/§13 and J-520 all claimed `tauri-plugin-process` was "declared but never wired" — so Leg C would move `cargo test`. **False.** The plugin was `.plugin()`-wired at `desktop.rs:543` and `process:default` granted at `capabilities/default.json:8`, both since M1 (`c23c06a`). Restart added **zero Rust**; the whole milestone is frontend-only. My grounding failed — I propagated the ROADMAP's claim into the runbook without grepping `desktop.rs`. All four records corrected in this commit.
+
+### Honest partials + filing
+
+**Restart** wiring is correct but **dies on the 2nd invocation under `tauri dev`** — a dev-lifecycle artifact (spawn-self+exit tears down the dev supervisor that owns Vite), not a wiring bug; unproven in a standalone bundle. Joe's ground: Restart's primary user is the agent during verification, exactly where the dev-death bites, so it isn't worth a detour — the grid matters more. Filed **countdown: a standalone-bundle hand-test, Joe discharges** (the bundle has no CDP). **Revert** is a live handler but as-built a visible no-op (continuous feeder ⇒ disk ≈ live ⇒ reload changes nothing); recorded useful semantics = **undo-to-launch** (snapshot the boot layout, restore on Revert — respects the saved workspace, unlike reset-to-default). Not button-driven (no UI home). Both refiled to **`M-RP-RESTART`**. **Reset-to-default** stays filed deep in settings (Joe: "not everyday").
+
+### State
+
+M-RP7.5 DONE. The `session` per-key merge is shipped → **M-RP7.6 (the grid lock) is unblocked** (its `locked` flag lives in `session`). Per D-065 + D-074 + N-107 + N-116 + Rule 5 + Rule 6.
 
 ---
 

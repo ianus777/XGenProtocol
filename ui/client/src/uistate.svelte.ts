@@ -49,10 +49,12 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
 }
 
 // Fire-and-forget READ-MODIFY-WRITE: mutations persist without blocking the UI. We re-read the file
-// and merge our authoritative parts (`named` / `active` / `version`) over it, so a save never clobbers
-// keys THIS module does not own — above all `session.geometry`, which RUST writes (D-114/Leg C) between
-// our reads — nor any unknown key a newer binary added. A write error (or the no-Tauri browser dev
-// preview) leaves the session in memory — honest (W-8), not silently pretended-persisted.
+// and merge our authoritative parts (`named` / `active` / `version` / `session.layout`) over it, so a
+// save never clobbers keys THIS module does not own — above all `session.geometry`, which RUST writes
+// (D-114/N-107) between our reads — nor any unknown key a newer binary added. The `session` merge is
+// PER-KEY (M-RP7.5, N-107): read the on-disk session bag FRESH, spread it, override `layout` only — a
+// whole-`session` write would eat the geometry Rust just wrote. A write error (or the no-Tauri browser
+// dev preview) leaves the session in memory — honest (W-8), not silently pretended-persisted.
 async function persist(): Promise<void> {
   try {
     let onDisk: Record<string, unknown> = {};
@@ -65,11 +67,36 @@ async function persist(): Promise<void> {
     } catch {
       // corrupt/no-Tauri on read → start the merge from {}; the write below still runs.
     }
-    const merged = { ...onDisk, version: 1, named: _store.named, active: _store.active };
+    // Per-key merge INSIDE `session` (N-107): preserve geometry (Rust's) + any unknown session key;
+    // override `layout` only. `layout` undefined (pre-first-mutation) ⇒ NO `session` key written ⇒
+    // geometry untouched and loadLayout still DEFAULTs (guarded below). `onDisk.session` is read fresh
+    // above, so a geometry Rust wrote since our last read survives.
+    const onDiskSession =
+      onDisk.session && typeof onDisk.session === 'object' ? onDisk.session : {};
+    const layout = _store.session?.layout;
+    const merged = {
+      ...onDisk,
+      version: 1,
+      named: _store.named,
+      active: _store.active,
+      ...(layout ? { session: { ...onDiskSession, layout } } : {}),
+    };
     await tauriInvoke('set_ui_state', { json: JSON.stringify(merged) });
   } catch (e) {
     console.error('ui-state persist failed', e);
   }
+}
+
+// M-RP7.5 Leg A — the SESSION writer's debounce. Session mutations (fold/resize/move) are already
+// discrete commits (resize writes once on pointerup, J-519), so this only coalesces rapid sequences
+// into a single write. Routes through persist() → one N-107-correct write path, never a second.
+let _sessionTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleSessionPersist(): void {
+  if (_sessionTimer) clearTimeout(_sessionTimer);
+  _sessionTimer = setTimeout(() => {
+    _sessionTimer = null;
+    persist();
+  }, 400);
 }
 
 function seedSeq(): void {
@@ -163,6 +190,16 @@ export const uiStateStore = {
     delete _store.named[id];
     if (_store.active === id) _store.active = null;
     persist();
+  },
+
+  /**
+   * M-RP7.5 Leg A — feed the live SESSION arrangement (fold/resize/move). Debounced per-key write: the
+   * `layout` key only, merged into whatever `session` already holds (geometry stays Rust's — N-107).
+   * `loadLayout()` reads this back on the next launch. NEVER a whole-`session` write.
+   */
+  setSessionLayout(layout: Layout): void {
+    _store.session = { ...(_store.session ?? {}), layout };
+    scheduleSessionPersist();
   },
 };
 

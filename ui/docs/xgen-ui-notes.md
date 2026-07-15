@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.92  
+> Version: 0.93  
 > Date: May 2026  
-> **Last updated**: 2026-07-14  
+> **Last updated**: 2026-07-15  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -2701,6 +2701,14 @@ N-127 recorded the 7.4a preview as "~40–100px off." Measured more widely for 7
 **🔑 The rule: weight-proportional-from-a-dry-run is the SAME rule the renderer applies for WEIGHTS, so it is not a second model — but it mirrors only the weight rule, NOT the gap rule, and the gaps are a real floor that grows PER LEVEL, not a flat 2px.** Chasing the gaps precisely means modeling the margin/seam interaction per child type — the D2 second-model trap (§7); §5 (mount the hypo tree offscreen, measure the real rect) is the truly-exact path and stays filed, unbuilt, because:
 
 **Resolution (Joe):** *"we don't need super exact computations and result numbers. if the highlighted rectangles are in optically correct positions and size, i am satisfied."* — **the bar is OPTICAL, not sub-pixel.** The proportional preview meets it: the reflow (the thing that was visibly wrong) is exact, and the residual is ~1–14px = **1–4% of the rect**, invisible in use. Shipped, floor recorded as-is — **NOT "pixel-perfect."** *A number rounded before it is recorded cannot be a control later (N-124a); the floor is "reflow-exact, ~2px per split level of accumulated gap."*
+
+---
+
+## 2026-07-15
+
+### N-129 — the menu separator: a non-registering divider that roving steps over (M-RP7.5, J-528)
+
+`menu.svelte` gained a `{ separator: true }` entry type (+ `menu-bar.svelte` typing, `.menu-popup .separator` spacing in `skin.css`). It renders the platform separator role (`role="separator"`) with **no `id`**, so it does **not register** — the client registry is unperturbed (measured **67 quiescent** before and after; a separator adds 0). The linear roving machine (ArrowUp/Down · Home/End · initial focus · `selectAt`) **steps over it**: driven live on 9222, the `File` popup = `[menuitem Restart · separator · menuitem Exit]`, initial focus Restart, ArrowDown → Exit, ArrowUp → Restart — the separator is never focused, both directions. Joe-approved scope expansion (the runbook had scoped 7.5 "no `ui/core`"); it is a real new **core** capability (divider entries + roving-skip) with **zero registry/catalogue impact** because it is non-registering. Shipped as an available primitive; its first use is the `Restart | ─ | Exit` File menu. *A divider is chrome, not a control — it must be visible and unreachable, and "no id → does not register → roving skips it" delivers all three from one property.*
 
 ---
 

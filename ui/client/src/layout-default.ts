@@ -95,7 +95,7 @@ export const DEFAULT_LAYOUT: Layout = {
  * `region-shell` → a blank centre (measured at J-499, registry 30→21). That is exactly N-095's
  * fallback, whose DoD moved to this milestone (D-115): recover to DEFAULT, EXERCISED not asserted.
  *
- * (The session layout is written at Leg D; until then this always falls to DEFAULT — but the SEAM now
+ * (The session layout is written on every mutation now (M-RP7.5 feeder, Leg B) and read back here — but the SEAM now
  * parses a real file, which is what makes N-095's guard reachable here rather than an unreachable
  * branch at M-RP7.3.)
  */

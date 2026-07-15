@@ -32,6 +32,7 @@
   // keyed by `.menu` / `.menu-trigger` / `.menu-popup` in the one skin file (N-025).
   import { envelope } from '$common/components/base/envelope';
   import MenuItem from './menu-item.svelte';
+  import Separator from './separator.svelte';
   import type { Accelerator, Platform } from '$common/keymap/accelerator';
 
   /** One popup row. `command` is the opaque id dispatched via `onCommand` on select. */
@@ -42,6 +43,12 @@
     command?: string;
     disabled?: boolean;
   };
+  /** A visual divider between item groups — renders the `separator` core (M-RP6.1b, designed to be a
+   *  valid `<ul role="menu">` child). NON-INTERACTIVE: the roving machine steps over it (never focusable,
+   *  never selectable), and it carries no id → it does not register. */
+  type MenuDivider = { separator: true };
+  type MenuEntry = MenuItemDef | MenuDivider;
+  const isDivider = (e: MenuEntry): e is MenuDivider => (e as MenuDivider).separator === true;
 
   let {
     label,
@@ -58,7 +65,7 @@
   }: {
     /** The trigger caption (e.g. "File"). */
     label: string;
-    items?: MenuItemDef[];
+    items?: MenuEntry[];
     platform?: Platform;
     /** Open state — controlled by menu-bar (single-open mutual exclusion). */
     open?: boolean;
@@ -86,10 +93,29 @@
     rowEls[i]?.focus();
   }
 
+  // Roving steps OVER dividers — a separator is never focusable or selectable (the a11y point of the
+  // divider), so every navigation resolves to the nearest non-divider index. -1 means "none".
+  function firstFocusable(): number {
+    for (let i = 0; i < items.length; i++) if (!isDivider(items[i])) return i;
+    return -1;
+  }
+  function lastFocusable(): number {
+    for (let i = items.length - 1; i >= 0; i--) if (!isDivider(items[i])) return i;
+    return -1;
+  }
+  function nextFocusable(from: number): number {
+    for (let i = from + 1; i < items.length; i++) if (!isDivider(items[i])) return i;
+    return from >= 0 ? from : firstFocusable(); // clamp at the last real row; seed from -1
+  }
+  function prevFocusable(from: number): number {
+    for (let i = from - 1; i >= 0; i--) if (!isDivider(items[i])) return i;
+    return from; // clamp at the first real row
+  }
+
   // Internal transitions set the roving position, then request the parent flip the open flag.
   function doOpen() {
     if (open) return;
-    activeIndex = 0; // clamped to a real row by the focus effect once items render
+    activeIndex = firstFocusable(); // first non-divider row; the focus effect moves focus there
     onRequestOpen?.();
   }
   function doClose(returnFocus: boolean) {
@@ -100,7 +126,7 @@
 
   function selectAt(i: number) {
     const item = items[i];
-    if (!item || item.disabled) return;
+    if (!item || isDivider(item) || item.disabled) return;
     onCommand?.(item.command);
     doClose(true);
   }
@@ -126,40 +152,47 @@
   }
 
   function onPopupKey(e: KeyboardEvent) {
-    const n = items.length;
     switch (e.key) {
       case 'Escape':
         e.preventDefault();
         doClose(true);
         break;
-      case 'ArrowDown':
+      case 'ArrowDown': {
         e.preventDefault();
-        if (n) {
-          activeIndex = Math.min(n - 1, activeIndex + 1);
-          focusItem(activeIndex);
+        const d = nextFocusable(activeIndex);
+        if (d >= 0) {
+          activeIndex = d;
+          focusItem(d);
         }
         break;
-      case 'ArrowUp':
+      }
+      case 'ArrowUp': {
         e.preventDefault();
-        if (n) {
-          activeIndex = Math.max(0, activeIndex - 1);
-          focusItem(activeIndex);
+        const u = prevFocusable(activeIndex);
+        if (u >= 0) {
+          activeIndex = u;
+          focusItem(u);
         }
         break;
-      case 'Home':
+      }
+      case 'Home': {
         e.preventDefault();
-        if (n) {
-          activeIndex = 0;
-          focusItem(0);
+        const f = firstFocusable();
+        if (f >= 0) {
+          activeIndex = f;
+          focusItem(f);
         }
         break;
-      case 'End':
+      }
+      case 'End': {
         e.preventDefault();
-        if (n) {
-          activeIndex = n - 1;
-          focusItem(n - 1);
+        const l = lastFocusable();
+        if (l >= 0) {
+          activeIndex = l;
+          focusItem(l);
         }
         break;
+      }
       case 'Enter':
       case ' ':
         e.preventDefault();
@@ -184,7 +217,7 @@
   $effect(() => {
     if (!open) return;
     queueMicrotask(() => {
-      if (open) focusItem(activeIndex >= 0 ? activeIndex : 0);
+      if (open) focusItem(activeIndex >= 0 ? activeIndex : firstFocusable());
     });
     const onDocDown = (e: MouseEvent) => {
       const t = e.target as Node | null;
@@ -227,18 +260,23 @@
 
   {#if open}
     <ul class="menu-popup" role="menu" aria-label={label} onkeydown={onPopupKey}>
-      {#each items as item, i (item.label)}
-        <MenuItem
-          label={item.label}
-          icon={item.icon}
-          accelerator={item.accelerator}
-          {platform}
-          active={i === activeIndex}
-          disabled={item.disabled}
-          onSelect={() => selectAt(i)}
-          bind:ref={rowEls[i]}
-          id={cid(itemKey(item.label))}
-        />
+      {#each items as item, i (isDivider(item) ? `sep-${i}` : item.label)}
+        {#if isDivider(item)}
+          <!-- non-interactive divider: no id → does not register; the roving machine steps over it -->
+          <Separator orientation="horizontal" />
+        {:else}
+          <MenuItem
+            label={item.label}
+            icon={item.icon}
+            accelerator={item.accelerator}
+            {platform}
+            active={i === activeIndex}
+            disabled={item.disabled}
+            onSelect={() => selectAt(i)}
+            bind:ref={rowEls[i]}
+            id={cid(itemKey(item.label))}
+          />
+        {/if}
       {/each}
     </ul>
   {/if}

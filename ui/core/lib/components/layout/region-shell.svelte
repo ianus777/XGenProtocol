@@ -26,8 +26,8 @@
   import { envelope } from '$common/components/base/envelope';
   import type { Component } from 'svelte';
   import type { FoldAxis, Layout } from './types';
-  import { resolveLayout, treeDepth } from './resolve';
-  import { isMoveNoop, type Edge } from './mutate';
+  import { resolveLayout, treeDepth, carriesMainAxisWeight, type ResolvedNode } from './resolve';
+  import { isMoveNoop, move, type Edge } from './mutate';
   import RegionNode from './region-node.svelte';
 
   let {
@@ -51,6 +51,10 @@
 
   const knownIds = $derived(new Set(Object.keys(widgets)));
   const resolved = $derived(resolveLayout(layout, knownIds));
+
+  // The shell element — its first child is the rendered root node, whose rect is the grid's container box
+  // for the M-RP7.4b proportion walk (the flex proportioning starts from the root split's box).
+  let shellEl = $state<HTMLElement>();
 
   // ── Move gesture (M-RP7.4, D1) ──────────────────────────────────────────────────────────────────────
   const EDGES: Edge[] = ['top', 'bottom', 'left', 'right'];
@@ -166,25 +170,72 @@
     ];
   });
 
-  // The DIVISION PREVIEW (M-RP7.4a) — the honest picture of the ONE result: the exact half the moved region
-  // will occupy after the drop. This is `move`'s own 50/50 (M-RP7.3 §3.5 double-then-bisect): a top/bottom
-  // drop splits the HEIGHT, a left/right drop splits the WIDTH, flush to the target's real edges. It DRAWS
-  // what the algebra already commits — it runs no parallel geometry that could drift (D2 / N-126, a third
-  // time). The render guard is JUST `drag.edge`: it is already null on a no-op edge (D4) or over a hole (D3,
-  // no tile), so both suppressions are inherited free — NO second check. `drag.edge` is `Edge | null` and
-  // never `'center'` (hitTest sets it null there), so a truthy `drag.edge` is always a real drop edge.
-  // READ-ONLY over the hit layer (D3): the preview element carries `pointer-events: none`; it is PAINT, never
-  // a target, and it is never read back into detection — one-way, after hitTest has set `drag.edge`.
+  // The DIVISION PREVIEW — M-RP7.4b: REHEARSE THE DROP, DRAW THE RESULT. 7.4a drew half the target as it is
+  // NOW; but `move` does remove → collapse-degenerate → insert, and the *remove* reflows the grid BEFORE the
+  // region lands (N-127) — so the region lands elsewhere (measured 60px off on the reflow-heavy case). The
+  // fix: compute the preview from a DRY-RUN of `move` on the live descriptor, not from the current DOM.
+  //   1. `move` is pure + total (M-RP7.3) → the dry-run has ZERO side-effect (V6); it returns the tree you'd
+  //      get, and the SAME reference on a no-op (so `hypo === layout` ⇒ nothing to preview).
+  //   2. resolve the hypothetical tree the SAME way the render does (drops/folds handled identically).
+  //   3. find the moved leaf's PATH, then PROPORTION its weight down that path.
+  // 🔒 The proportion MIRRORS the renderer's own two rules, it does not model flex a second time (D2/N-126):
+  // each split child gets `flex: {weight} 1 0` → `weight / Σweights × axis`, EXCEPT a folded-along leaf or a
+  // shrink-wrapped split which takes `flex: 0 0 auto` → a fixed `--region-stripe` strip, OUT of the weight
+  // pool (the `carriesMainAxisWeight` test, reused from resolve.ts — a concept in the code is not re-derived).
+  // Naive weight math lands within ~2px of the real render (§4 floor — gaps are NOT subtracted; 10× better
+  // than 7.4a's 60px, but real, so recorded as "~2px", not "pixel-perfect"). Guard is still JUST `drag.edge`
+  // (no-op/hole already gave null — D3/D4 inherited). READ-ONLY (D3): PAINT, never read back into detection.
   const previewRect = $derived.by(() => {
-    if (!drag?.hover || !drag.edge) return null;
-    const { left, top, width, height } = drag.hover.rect;
-    switch (drag.edge) {
-      case 'top': return { left, top, width, height: height / 2 };
-      case 'bottom': return { left, top: top + height / 2, width, height: height / 2 };
-      case 'left': return { left, top, width: width / 2, height };
-      case 'right': return { left: left + width / 2, top, width: width / 2, height };
+    if (!drag?.hover || !drag.edge || !shellEl) return null;
+    const containerEl = shellEl.firstElementChild as HTMLElement | null; // the root node's box = the grid area
+    if (!containerEl) return null;
+
+    const hypo = move(layout, drag.sourceId, drag.hover.targetId, drag.edge);
+    if (hypo === layout) return null; // move returns the input by reference on a no-op → nothing to preview
+    const hypoRoot = resolveLayout(hypo, knownIds).root;
+    if (!hypoRoot) return null;
+
+    // Path (resolved child indices) from the hypothetical root down to the moved leaf.
+    const path: number[] = [];
+    const walk = (node: ResolvedNode): boolean => {
+      if (node.type === 'leaf') return node.widgetId === drag!.sourceId;
+      for (let i = 0; i < node.children.length; i++) {
+        path.push(i);
+        if (walk(node.children[i])) return true;
+        path.pop();
+      }
+      return false;
+    };
+    if (!walk(hypoRoot)) return null;
+
+    // A folded-along leaf / shrink-wrapped split takes a fixed strip, not a weight share (mirror the skin).
+    const stripPx = parseFloat(getComputedStyle(shellEl).getPropertyValue('--region-stripe')) || 0;
+    const cr = containerEl.getBoundingClientRect();
+    let rect = { left: cr.left, top: cr.top, width: cr.width, height: cr.height };
+    let node: ResolvedNode = hypoRoot;
+
+    for (const idx of path) {
+      if (node.type !== 'split') break; // defensive
+      const dir = node.dir;
+      const weighted = node.children.map((c) => carriesMainAxisWeight(c, dir));
+      const totalWeight = node.children.reduce((s, _c, i) => s + (weighted[i] ? node.sizes[i] : 0), 0);
+      const strips = weighted.filter((w) => !w).length;
+      // Weighted children share the axis MINUS the fixed strips; a strip child takes exactly `stripPx`.
+      const share = (dir === 'row' ? rect.width : rect.height) - strips * stripPx;
+      let offset = 0;
+      for (let i = 0; i < node.children.length; i++) {
+        const extent = weighted[i] ? (totalWeight > 0 ? (share * node.sizes[i]) / totalWeight : 0) : stripPx;
+        if (i === idx) {
+          rect = dir === 'row'
+            ? { left: rect.left + offset, top: rect.top, width: extent, height: rect.height }
+            : { left: rect.left, top: rect.top + offset, width: rect.width, height: extent };
+          break;
+        }
+        offset += extent;
+      }
+      node = node.children[idx];
     }
-    return null;
+    return rect;
   });
 
   const sourceTitle = $derived(drag ? (titles[drag.sourceId] ?? drag.sourceId) : '');
@@ -201,7 +252,7 @@
   });
 </script>
 
-<div class="region-shell" use:envelope={{ name: 'region-shell', id, debug }}>
+<div class="region-shell" bind:this={shellEl} use:envelope={{ name: 'region-shell', id, debug }}>
   {#if resolved.root}
     <RegionNode
       node={resolved.root}

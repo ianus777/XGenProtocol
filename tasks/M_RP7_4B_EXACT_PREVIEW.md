@@ -1,5 +1,5 @@
 # M-RP7.4b — The exact preview: rehearse the drop, draw the result
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-15  
@@ -116,10 +116,12 @@ The method that gives GROUND TRUTH: capture the preview rect mid-drag; **commit 
 
 ## 8. Definition of done
 
-- [ ] `region-shell.svelte`: `previewRect` derives from `move`+`resolveLayout`+proportion walk, not the static half; shrink-wrap rule mirrored (or §5 fallback, flagged)
-- [ ] no `mutate.ts` / `skin.css` / Rust / schema change
-- [ ] V1–V8 measured on the real client; **numbers Chat did not personally measure do not enter the record**; the **~2px floor recorded as-is, not rounded to "perfect"**
-- [ ] `M-RP-PREVIEW-EXACT` marked **superseded by M-RP7.4b** wherever it is filed
-- [ ] Records: `docs/xgen-dock-engine-phase0.md` · `ui/docs/xgen-ui-notes.md` (the N-note + the N-127 correction: conditional 1-120px, not flat 40-100) · `JOURNAL.md` · `CLAUDE.md` PLAY · `docs/ROADMAP.md` — one atomic commit (D-074)
+- [x] `region-shell.svelte`: `previewRect` derives from `move`+`resolveLayout`+proportion walk, not the static half; **shrink-wrap rule mirrored via `carriesMainAxisWeight` (no §5 fallback needed — V3 top 1px proves the strip-exclusion works)**
+- [x] no `mutate.ts` / `skin.css` / Rust / schema change
+- [x] V1–V8 measured on the real client. **⚠️ The ≤2px bar was NOT met — the FINDING (N-128): the runbook's "≤2px" measured a single split level; the preview walks a multi-level path to a tile, so fixed gaps accumulate (reflow-exact ~2px, up to ~14px on a 3-level wrap). The REFLOW (the actual bug) is fixed: `spaces`→`stream` right left 60px → 2px. Joe reset the bar to OPTICAL correctness — "if the highlighted rectangles are in optically correct positions and size, i am satisfied" — which the ~1–4% residual meets.** Floor recorded as-is, not "pixel-perfect." V6 dry-run purity proven (layout byte-identical while the preview shows). V7 `npm test` 77 · `vite build` 169 · `cargo test` **1517/0/62 IDENTICAL**.
+- [x] `M-RP-PREVIEW-EXACT` marked **⬛ superseded by M-RP7.4b** (dock-engine §13)
+- [x] Records: `docs/xgen-dock-engine-phase0.md` (§11 row 4b, §13) · `ui/docs/xgen-ui-notes.md` (N-128 + the N-127 correction: conditional 1–120px, not flat 40–100) · `JOURNAL.md` J-527 · `CLAUDE.md` PLAY · `docs/ROADMAP.md` — one atomic commit (D-074)
+
+**⚠️ Deviations from the runbook, flagged not absorbed (Rule 6):** (1) the "≤2px floor" was measured on the wrong quantity (a single split level's column widths, not a multi-level path to a tile) — the real floor is per-level gap accumulation, up to ~14px; recorded honestly, not rounded to the runbook's number. (2) The §5 offscreen-render fallback was NOT taken — the proportional walk (with the strip-exclusion) meets the optical bar Joe set, so the heavier path stays filed. (3) The runbook's headline goal — fix the reflow — IS met (60px → 2px); the ≤2px *everywhere* target was not, and Joe reset it to optical, which is the honest close.
 
 *(`Status: COMPLETED` in this header is the shipped signal. "Commit pushed" is not a DoD item — Joe pushes.)*

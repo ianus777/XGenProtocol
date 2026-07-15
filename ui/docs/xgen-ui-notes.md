@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.91  
+> Version: 0.92  
 > Date: May 2026  
 > **Last updated**: 2026-07-14  
 > Language: English  
@@ -2679,6 +2679,28 @@ M-RP7.4a splits M-RP7.4's `bands` array into the **hit targets** (the `f=0.3` ed
 > **(1) The delta was recorded as a flat ~40–100px; it is CONDITIONAL, 1–120px.** Chat re-drove on the real client: the LOCAL case (`members`→`stream`, source removal does not reflow the target) came back **1–4px — already exact**; the reflow-heavy case (`spaces`→`stream`) measured **60px position / 38px width**, and a larger construction reached **~120px**. A single number implied a uniformity that is not there — the preview is *exact when the source's removal doesn't move the target, and off in proportion to how much space that removal frees.*
 >
 > **(2) "Predicting the true rect needs the post-move layout RENDERED and measured" — FALSE, and it changed Joe's decision.** Chat measured the alternative: `move` is pure, so a **dry-run** on a copy is side-effect-free (verified: `current` byte-identical), and **naive weight-proportional math predicts the browser's real rects within 2px, gaps and all** (container 1454, `[1,2,7,2]` → proportional `[121,242,848,242]` vs actual `[121,243,850,243]`). So the exact preview needs **no offscreen render and no flexbox reimplementation** — proportion the dry-run tree's weights (the SAME `flex: w 1 0` rule the renderer applies; not a second model). Shown this, Joe reversed the "directional is fine" acceptance and asked for the exact fix now. **`M-RP-PREVIEW-EXACT` is no longer filed — it is being built as M-RP7.4b (rehearse-then-proportion).** The ~2px proportional floor is the new honest limit, 30× better than the 60px this note accepted.
+
+### N-127 correction — 7.4a's error was CONDITIONAL on the reflow, not a flat 40–100px (M-RP7.4b, J-527)
+
+N-127 recorded the 7.4a preview as "~40–100px off." Measured more widely for 7.4b, that is **conditional, not flat: it scales with how much the source's removal reflows the target** — from **~1px** (a move whose remove barely disturbs the target) to **~120px** (the source is a whole column and the target's column widens hugely). "40–100" was the reflow-heavy middle, not the range. *A number measured on one case is not a range.*
+
+### N-128 — the exact preview: rehearse-then-proportion FIXES the reflow; the "≤2px floor" was a single-level measurement (M-RP7.4b, J-527)
+
+7.4b computes the preview from a **dry-run of `move`** on the live descriptor (pure + total → **zero side-effect, proven V6**: the live layout is byte-identical while the preview shows), then `resolveLayout`s the hypothetical tree and **proportions the moved leaf's weight down its path, mirroring the renderer's own two rules**: `flex: {weight} 1 0` → `weight / Σweights × axis`, and a folded-along leaf / shrink-wrapped split takes a fixed `--region-stripe` strip out of the weight pool (`carriesMainAxisWeight`, **reused from resolve.ts, not re-derived**). This is not a second flex model (D2/N-126) — it is the same arithmetic the renderer applies.
+
+**🔑 It fixes the reflow, which was the whole point.** The moved region now previews in the **right place**: `spaces`→`stream` right, left went **60px → 2px**, width **38px → 4px**. The strip-exclusion works too — V3 (drop into a column holding a folded strip) landed **top 1px** (without the exclusion the folded strip's ~22px would have shifted everything).
+
+**⚠️ BUT the runbook's "naive weight math lands within 2px" was measured on the WRONG quantity — Rule 6.** §1.3 measured **one split level's four column widths** (`[1,2,7,2]` → within 2px — true, the gaps are tiny relative to each column). The preview instead walks a **multi-level path down to a TILE**, and weight-proportional math is exact for **weights** and **structurally blind to the fixed GAPS** (each tile's 4px margin on every side + the inter-tile gap at every level). Those accumulate down the path:
+
+| case | path | reflow axis | gap axis |
+|---|---|---|---|
+| V1 `spaces`→`stream` right | 3-level wrap | left 2 / width 4 | top 7 / **height 14** |
+| V2 `members`→`stream` top | 2-level sibling | left 3 / width 10 | top 6 / height 7 |
+| V3 folded target | 2-level + strip | left 3 / **top 1** | width 10 / height 8 |
+
+**🔑 The rule: weight-proportional-from-a-dry-run is the SAME rule the renderer applies for WEIGHTS, so it is not a second model — but it mirrors only the weight rule, NOT the gap rule, and the gaps are a real floor that grows PER LEVEL, not a flat 2px.** Chasing the gaps precisely means modeling the margin/seam interaction per child type — the D2 second-model trap (§7); §5 (mount the hypo tree offscreen, measure the real rect) is the truly-exact path and stays filed, unbuilt, because:
+
+**Resolution (Joe):** *"we don't need super exact computations and result numbers. if the highlighted rectangles are in optically correct positions and size, i am satisfied."* — **the bar is OPTICAL, not sub-pixel.** The proportional preview meets it: the reflow (the thing that was visibly wrong) is exact, and the residual is ~1–14px = **1–4% of the rect**, invisible in use. Shipped, floor recorded as-is — **NOT "pixel-perfect."** *A number rounded before it is recorded cannot be a control later (N-124a); the floor is "reflow-exact, ~2px per split level of accumulated gap."*
 
 ---
 

@@ -8,6 +8,53 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-527 — M-RP7.4b CLOSED: the exact preview — rehearse the drop, and the reflow lie becomes optical truth
+
+**`ui/core/lib/components/layout/region-shell.svelte` — ONE file. Zero Rust (proven by `git diff --stat` + `cargo test` 1517/0/62 IDENTICAL), zero sampler, no `mutate.ts`/`skin.css` change, no schema change (`version` stays 3). `npm test` 77, `vite build` 169.**
+
+### What shipped
+
+7.4a's preview drew **half of the target as it is NOW** — but `move` does remove → collapse-degenerate → insert, and the *remove* reflows the grid *before* the region lands (N-127), so the preview was up to 120px off. 7.4b computes the preview from a **rehearsal of the move**:
+
+1. **Dry-run** `move(layout, source, target, edge)` on the live descriptor — `move` is pure and total (M-RP7.3), so this has **zero side-effect** (V6: the live layout is byte-identical *while the preview is showing*).
+2. **Resolve** the hypothetical tree the same way the render does.
+3. **Find the moved leaf's path** and **proportion its weight down that path**, mirroring the renderer's own rules: `flex: {weight} 1 0` → `weight / Σweights × axis`, with a folded-along leaf / shrink-wrapped split taking a fixed `--region-stripe` strip out of the weight pool (`carriesMainAxisWeight`, **reused from resolve.ts, not re-derived** — a concept in the code is not reinvented).
+
+### 🔑 The reflow is fixed — which was the whole point
+
+| case | axis | 7.4a | **7.4b** |
+|---|---|---|---|
+| `spaces`→`stream` right | left | **60px** | **2px** |
+| | width | 38px | **4px** |
+
+The moved region now previews in the **right place**. The strip-exclusion works too: V3 (drop into a column holding a folded strip) landed **top 1px** — without the exclusion the strip's ~22px would have shifted everything.
+
+### ⚠️ The measured finding (N-128) — the runbook's "≤2px floor" was the wrong measurement
+
+The runbook's §1.3 "within 2px" measured **one split level's four column widths**; the preview instead walks a **multi-level path to a TILE**. Weight-proportional math is exact for **weights** and **structurally blind to the fixed gaps** (each tile's 4px margin per side + the inter-tile gap at every level), which accumulate down the path:
+
+| case | reflow axis | gap axis |
+|---|---|---|
+| V1 (3-level wrap) | left 2 / width 4 | top 7 / **height 14** |
+| V2 (2-level sibling) | left 3 / width 10 | top 6 / height 7 |
+| V3 (folded, strip-excluded) | left 3 / **top 1** | width 10 / height 8 |
+
+So the honest floor is **reflow-exact, ~2px per split level of accumulated gap** — up to ~14px on a deep wrap, not the flat 2px predicted (Rule 6: the runbook measured the wrong quantity). Chasing the gaps precisely means modeling the margin/seam interaction per child type — the §7 second-model trap; §5 (mount the hypo tree offscreen, measure the real rect) is the truly-exact path and stays filed, unbuilt.
+
+### Resolution — the bar is optical
+
+I reported the measured floor rather than claim the ≤2px the runbook demanded (Rule 3/5/6). Joe: *"we don't need super exact computations and result numbers. if the highlighted rectangles are in optically correct positions and size, i am satisfied."* The proportional preview meets that bar — the reflow (the thing that was visibly wrong at 60px) is exact, and the residual is ~1–14px = **1–4% of the rect**, invisible in use. Shipped; the floor is recorded as-is, not "pixel-perfect."
+
+### MEASURED — every leg re-driven, ground-truth method (Rule 5)
+
+Capture the preview mid-drag → commit the real move → read the moved tile's **fresh** rect (`matches:1` — after a move the tile is a new DOM node, N-125, so a held reference lies) → restore via the saved descriptor. **V1** reflow-heavy: 2px on the reflow axis (was 60px). **V2** sibling: 3–10px. **V3** folded target: strip-exclusion works, top 1px. **V4** wrap (V1) + sibling (V2) both optical. **V5** no-op edge → `previews:0`. **V6** dry-run purity: layout byte-identical while the preview shows. **V7** `npm test` 77 · `vite build` 169 · `cargo test` **1517/0/62 IDENTICAL**. **V8** clean quiescent 67, saved-descriptor probe removed.
+
+**Records:** `region-shell.svelte` (the only code) · dock-engine Phase-0 **v2.3** (§11 row 4b, §13 `M-RP-PREVIEW-EXACT` ⬛ superseded) · `ui/docs/xgen-ui-notes.md` **v0.92** (N-128 + the N-127 correction: conditional 1–120px, not flat 40–100) · `tasks/M_RP7_4B_EXACT_PREVIEW.md` COMPLETED · CLAUDE.md PLAY · ROADMAP. **No new D.**
+
+**Next-active: M-RP7.5 — the session layout feeder** (writes `session.layout`; N-107's per-key merge inside `session`; `M-RP-RESTART` lands with it).
+
+---
+
 ## Entry J-526 — M-RP7.4a CLOSED: the division preview — the orange half shows the target, and a measured finding about what it can and cannot promise
 
 **`ui/core/lib/components/layout/region-shell.svelte` + `ui/assets/skin.css` — two files. Zero Rust (proven by `git diff --stat` + `cargo test` 1517/0/62 IDENTICAL), zero sampler, no schema change (`version` stays 3). Detection byte-identical — `npm test` 77, `vite build` 169.**

@@ -1,5 +1,5 @@
 # M-RP7.4a — The division preview: show the real post-drop rect
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-15  
@@ -101,9 +101,11 @@ Reload before baseline (a client mid-selection reads 71 — N-112).
 
 ## 5. Definition of done
 
-- [ ] `region-shell.svelte`: `previewRect` derived; one `.region-drop-preview` element; **`bands`/detection byte-identical**
-- [ ] `skin.css`: `.region-drop-preview` with **`pointer-events: none`** (correctness) + PROVISIONAL fill
-- [ ] V1–V7 measured on the real client with the trusted-pointer harness; **numbers Chat did not personally measure do not enter the record**
-- [ ] Records: `docs/xgen-dock-engine-phase0.md` (§7 / arc row) · `ui/docs/xgen-ui-notes.md` (the N-note) · `JOURNAL.md` · `CLAUDE.md` PLAY · `docs/ROADMAP.md` — one atomic commit (D-074)
+- [x] `region-shell.svelte`: `previewRect` derived; one `.region-drop-preview` element; **`bands`/detection byte-identical**
+- [x] `skin.css`: `.region-drop-preview` with **`pointer-events: none`** (correctness) + PROVISIONAL fill (band's `data-active` highlight moved to the preview)
+- [x] V1–V7 measured on the real client with the trusted-pointer harness. **⚠️ V2/V3 did NOT pass as literally written ("sub-pixel match to reality") — the FINDING (N-127): the preview is half the target AS IT IS NOW; `move` reflows the grid so the rendered rect after the drop is ~40–100px off (sibling +80 width / wrap +38). Joe reviewed the measured deltas and accepted the DIRECTIONAL preview — "i think it works as i want."** V1 (preview = exact half), V4 (no pointer capture), V5 (no preview on no-op edge) all held. V6 `npm test` 77 · `vite build` 169 · `cargo test` **1517/0/62 IDENTICAL**. V7 clean quiescent 67.
+- [x] Records: `docs/xgen-dock-engine-phase0.md` (§11 row 4a, §13 `M-RP-PREVIEW-EXACT`) · `ui/docs/xgen-ui-notes.md` (N-127) · `JOURNAL.md` J-526 · `CLAUDE.md` PLAY · `docs/ROADMAP.md` — one atomic commit (D-074)
+
+**⚠️ Deviation from the runbook, flagged not absorbed (Rule 6):** the runbook's §V2/§V3 made "preview == rendered reality (sub-pixel)" the pass/fail. Measured, that is **unachievable** — `move` reflows the grid, so a preview drawn from the pre-move DOM is directional, not exact (N-127). The runbook's own §V3 trap anticipated the preview "can silently lie" but attributed it to wrap-insert; the real cause is the reflow, and it hits sibling too. The build does exactly what D1 specifies (half the hovered tile); the honest close is the directional preview Joe accepted, not a fabricated sub-pixel pass. The skin also moved the band's `data-active` highlight to the preview (the runbook's §2 skin bullet only named the ADD, but "replace the fixed slab" requires the band's visible highlight to yield — otherwise the slab Joe asked to remove stays).
 
 *(`Status: COMPLETED` in this header is the shipped signal. "Commit pushed" is not a DoD item — Joe pushes.)*

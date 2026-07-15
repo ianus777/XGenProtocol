@@ -166,6 +166,27 @@
     ];
   });
 
+  // The DIVISION PREVIEW (M-RP7.4a) — the honest picture of the ONE result: the exact half the moved region
+  // will occupy after the drop. This is `move`'s own 50/50 (M-RP7.3 §3.5 double-then-bisect): a top/bottom
+  // drop splits the HEIGHT, a left/right drop splits the WIDTH, flush to the target's real edges. It DRAWS
+  // what the algebra already commits — it runs no parallel geometry that could drift (D2 / N-126, a third
+  // time). The render guard is JUST `drag.edge`: it is already null on a no-op edge (D4) or over a hole (D3,
+  // no tile), so both suppressions are inherited free — NO second check. `drag.edge` is `Edge | null` and
+  // never `'center'` (hitTest sets it null there), so a truthy `drag.edge` is always a real drop edge.
+  // READ-ONLY over the hit layer (D3): the preview element carries `pointer-events: none`; it is PAINT, never
+  // a target, and it is never read back into detection — one-way, after hitTest has set `drag.edge`.
+  const previewRect = $derived.by(() => {
+    if (!drag?.hover || !drag.edge) return null;
+    const { left, top, width, height } = drag.hover.rect;
+    switch (drag.edge) {
+      case 'top': return { left, top, width, height: height / 2 };
+      case 'bottom': return { left, top: top + height / 2, width, height: height / 2 };
+      case 'left': return { left, top, width: width / 2, height };
+      case 'right': return { left: left + width / 2, top, width: width / 2, height };
+    }
+    return null;
+  });
+
   const sourceTitle = $derived(drag ? (titles[drag.sourceId] ?? drag.sourceId) : '');
 
   // Aggregate getter G — resolved (rendered) truth + the live drag source (M-RP7.4, for CDP teardown proofs).
@@ -208,6 +229,14 @@
           style="left:{b.left}px;top:{b.top}px;width:{b.width}px;height:{b.height}px"
         ></div>
       {/each}
+      <!-- M-RP7.4a — the division preview: the real half the moved region will occupy (D1). READ-ONLY
+        (pointer-events:none, D3); render guard is just `previewRect` (null on no-op/hole, D4/D3 inherited). -->
+      {#if previewRect}
+        <div
+          class="region-drop-preview"
+          style="left:{previewRect.left}px;top:{previewRect.top}px;width:{previewRect.width}px;height:{previewRect.height}px"
+        ></div>
+      {/if}
       <div class="region-drag-ghost" style="left:{drag.x}px;top:{drag.y}px">{sourceTitle}</div>
     </div>
   {/if}

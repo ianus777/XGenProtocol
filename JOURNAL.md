@@ -8,6 +8,46 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-526 — M-RP7.4a CLOSED: the division preview — the orange half shows the target, and a measured finding about what it can and cannot promise
+
+**`ui/core/lib/components/layout/region-shell.svelte` + `ui/assets/skin.css` — two files. Zero Rust (proven by `git diff --stat` + `cargo test` 1517/0/62 IDENTICAL), zero sampler, no schema change (`version` stays 3). Detection byte-identical — `npm test` 77, `vite build` 169.**
+
+### What shipped
+
+Joe's note on the shipped M-RP7.4 drag: the orange drop preview should show **the real region about to be created** — half the target, where it will land — not the fixed `f=0.3` edge slab. M-RP7.4 conflated two things in one `bands` array: the **hit targets** (the strips that DECIDE the edge) and **what the user sees**. This milestone splits them.
+
+- The `bands` derive + every `data-edge`/`data-active`/`data-noop`/hit rect stay **byte-identical** — detection (D2) is untouched.
+- A new `$derived previewRect` = the drop-half of the hovered tile (`move`'s own 50/50: `top`/`bottom` split the height, `left`/`right` split the width, flush to the target's real edges).
+- One new `.region-drop-preview` element, `pointer-events:none` (the D3 correctness lock — it is PAINT, never a hit target), render guard just `drag.edge` (so a no-op edge and a hole suppress it free — D4/D3 inherited, no second check).
+- The band's `data-active` highlight (the old slab) now paints nothing — its visible role moved to the preview, so there is one honest indicator, not two.
+
+### 🔑 The measured finding (N-127) — a preview drawn from the pre-move DOM is directional, not exact
+
+V1 confirmed the preview is the **exact** half of the hovered target (TOP → `{368,116,842,331}` = stream's top half to the pixel; RIGHT → `{790,116,421,662}` = its right half). **But V2/V3 — "does the preview match the rendered rect after the drop?" — the runbook's stated pass/fail — do NOT pass:**
+
+| drop | preview (MID) | `spaces` rendered (after) | delta |
+|---|---|---|---|
+| stream TOP (sibling) | `{368,116,842,331}` | `{266,116,**922**,329}` | width **+80**, left **−102** |
+| stream RIGHT (wrap) | `{790,116,421,662}` | `{729,117,**459**,659}` | width **+38**, left **−61** |
+
+**Root cause, grounded on the real client:** `move` **removes the source from its old slot, and that re-flows the whole grid.** `spaces` was the leftmost column (weight 1 of `[1,2,7,2]`); dropping it elsewhere makes the root row `[2,7,2]` over three columns, so the target's column **widens ~80px** and the source lands in that widened half. The preview is drawn from the target's pre-move rect; reality is the post-move (reflowed) rect. **They cannot agree whenever source and target are in different branches — i.e. almost every move.** The rule (N-127): *"draw what the algebra commits" is exact at the descriptor level, but the rendered geometry also depends on the reflow the same mutation triggers elsewhere — so a pre-move preview is honest only for a LOCAL mutation; `move` is non-local.*
+
+**I stopped and reported this rather than fabricate a V2/V3 pass or silently redesign** (Rule 3/5/6). Shown the measured deltas, **Joe accepted the directional preview** — *"i think it works as i want."* Recorded plainly so nobody later "fixes" the ~40–100px as a bug: it is inherent to a pre-move preview under reflow. The exact post-drop rect (apply `move` to a copy, render offscreen, measure) is filed as **`M-RP-PREVIEW-EXACT`** (§13), out of the two-file scope.
+
+### MEASURED — every leg re-driven with the trusted-pointer harness (Rule 5)
+
+**V1** preview = exact half (above). **V2/V3** the finding (above) — the mechanism is correct, the pre-move geometry is what it is. **V4** `elementFromPoint` over the preview centre returns `region-drop-band` (`isPreview:false`) — the preview never captures the pointer (D3). **V5** dragging `rooms` over `self`'s TOP (a no-op edge) → `previews:0`, `activeBands:0` (D4 inherited). **V6** `npm test` 77 · `vite build` 169 · `cargo test` **1517/0/62 IDENTICAL**. **V7** clean quiescent 67, no residue.
+
+### Honest close
+
+The runbook's V2/V3 "sub-pixel match to reality" is not what shipped — it is unachievable under reflow, and the acceptance is the directional preview. V1 (exact half), V4 (no capture), V5 (no preview on no-op/hole) all held; the appearance is PROVISIONAL (M-RP-SKIN). No new D.
+
+**Records:** `region-shell.svelte` · `skin.css` · dock-engine Phase-0 **v2.2** (§11 row 4a, §13 `M-RP-PREVIEW-EXACT`) · `ui/docs/xgen-ui-notes.md` **v0.91** (N-127) · `tasks/M_RP7_4A_DIVISION_PREVIEW.md` COMPLETED · CLAUDE.md PLAY · ROADMAP.
+
+**Next-active: M-RP7.5 — the session layout feeder** (writes `session.layout`; N-107's per-key merge inside `session` becomes load-bearing; `M-RP-RESTART` lands with it).
+
+---
+
 ## Entry J-525 — M-RP7.4 CLOSED: drag to dock — the dead grip gets a pointer, and a user rearranges the grid by hand
 
 **`ui/core/lib/components/layout/` + `ui/client/src/app_client.svelte` + `ui/assets/skin.css`. TypeScript + Svelte + PROVISIONAL skin only — zero Rust, zero sampler, no schema change (`version` stays 3). Proven by `git diff --stat` (7 files, no `.rs`/`Cargo.*`) AND `cargo test` 1517/0/62 IDENTICAL.**

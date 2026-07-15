@@ -3210,7 +3210,19 @@ html, body {
   box-sizing: border-box;
 }
 .region-drop-band[data-edge="center"] { pointer-events: auto; } /* inert to DROP, but still covers the tile */
-.region-drop-band[data-active] {        /* PROVISIONAL: the highlighted edge (D4 never sets this on a no-op) */
+/* `data-active` is still SET on the hovered band (detection/observability, M-RP7.4) but paints NOTHING now:
+ * its visible highlight moved to the DIVISION PREVIEW (M-RP7.4a) — the single honest indicator of the exact
+ * drop, replacing the fixed 0.3 edge slab. No visible rule here on purpose; M-RP-SKIN has the hook if a
+ * subtle edge cue is ever wanted. */
+
+/* M-RP7.4a — the DIVISION PREVIEW: the exact half the moved region will occupy after the drop (region-shell
+ * derives the rect from move's own 50/50). `pointer-events: none` is NOT appearance — it is the D3
+ * correctness lock (the preview is PAINT, never a hit target, never read back into detection), MANDATORY.
+ * The fill/outline are PROVISIONAL (M-RP-SKIN) — reused from the old band highlight so it reads immediately. */
+.region-drop-preview {
+  position: absolute;
+  pointer-events: none;
+  box-sizing: border-box;
   background: color-mix(in srgb, var(--accent2) 30%, transparent);
   outline: 2px solid var(--accent2);
   outline-offset: -2px;

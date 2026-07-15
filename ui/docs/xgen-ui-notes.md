@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.90  
+> Version: 0.91  
 > Date: May 2026  
 > **Last updated**: 2026-07-14  
 > Language: English  
@@ -2657,6 +2657,23 @@ Drag-to-dock draws four drop bands on the hovered tile; D4 says a band whose dro
 **Verified (V5, real client 9222):** dragging `rooms` (already above `self`) over `self` → the TOP band reads `data-noop=true`, `data-active` absent (not highlighted); the BOTTOM band `data-noop=no` (a real move stays live). The suppression came from `isMoveNoop`, the same call `move` would have made.
 
 *(Method note for the harness: the `-Mode drag -MidExpression` runs with the pointer held at the `To` point, button down — so a drag that ENDS over the target tile lets you sweep `elementFromPoint` across its four band centres mid-drag and read each `data-edge`. That is how V1's D2 hit-test was proven: `top:stream / bottom:stream / left:stream / right:stream / center:-`, every band centre resolving to the edge the picture shows.)*
+
+### N-127 — a preview drawn from the pre-mutation state matches reality only when the mutation is LOCAL; `move` is not (M-RP7.4a, J-526)
+
+M-RP7.4a splits M-RP7.4's `bands` array into the **hit targets** (the `f=0.3` edge strips that choose the edge by hit-test — byte-identical, D2) and a **drawn preview** = the drop-half of the hovered tile (`move`'s own 50/50, M-RP7.3 §3.5). The preview is `pointer-events:none` (D3), guarded by `drag.edge` (so no-op/hole suppress it free, D4). V1 confirmed the preview rect is the **exact** half of the target, flush to its edges.
+
+**🔑 The finding: "half of the target as it is now" is NOT "where the region lands," and the gap between them is the milestone's real lesson.** V2/V3 measured the preview against the moved region's RENDERED rect after the drop:
+
+| drop | preview (MID, button held) | `spaces` rendered (after) | delta |
+|---|---|---|---|
+| stream TOP (sibling) | `{368,116,842,331}` | `{266,116,**922**,329}` | width **+80**, left **−102** |
+| stream RIGHT (wrap) | `{790,116,421,662}` | `{729,117,**459**,659}` | width **+38**, left **−61** |
+
+**Root cause, grounded not guessed:** `move` **removes the source from its old slot, and that re-flows the whole grid.** `spaces` was the leftmost column (weight 1 of `[1,2,7,2]`); dropping it elsewhere makes the root row `[2,7,2]` over three columns, so the target's column **widens ~80px** and the source lands in that *widened* half. The preview is drawn from the target's **pre-move** rect; reality is the **post-move (reflowed)** rect. **They cannot agree whenever source and target are in different branches — i.e. almost every move.** The runbook's §V3 trap warned the preview "can silently lie"; it lies in the **sibling** case too, and the culprit is the reflow, not the insert type.
+
+**🔑 The rule, bigger than this milestone:** *"draw what the algebra commits" is exact at the DESCRIPTOR level (the source takes half the target's weight) but the RENDERED geometry also depends on the reflow the same mutation triggers ELSEWHERE in the tree. A preview computed from the current DOM is honest only for a LOCAL mutation (fold, resize — they don't move anything out of its slot). `move` is non-local, so a pre-move preview is directional, not exact.* Predicting the true rect needs the post-move layout rendered and measured — you cannot read it off the pre-move DOM.
+
+**Resolution (Joe):** shown the measured deltas, Joe accepted the DIRECTIONAL preview (the correct half + edge of the target) as what he wants — *"i think it works as i want."* **Recorded so nobody later "fixes" the ~40–100px as a bug**: it is inherent to a pre-move preview under reflow. The exact post-drop rect is filed as **`M-RP-PREVIEW-EXACT`** (dock-engine §13) — apply `move` to a copy, render offscreen, measure; a real change, out of 7.4a's two-file scope. *(The V2/V3 "sub-pixel match" success criterion in the runbook was unachievable under reflow; the honest close is not that V2/V3 passed — they did not — but that the acceptance was the directional preview, and V1/V4/V5 (the mechanism) all held.)*
 
 ---
 

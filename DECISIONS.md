@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-13  
+> **Last updated:** 2026-07-16  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -4398,5 +4398,37 @@ The Phase-0 §2 argued *"in a space-filling tree there is no empty space to drop
 **The fold axis.** M-RP7.1 shipped `collapsed` as a boolean with the axis **derived from the parent split**. **Joe superseded that design at J-515** — the axis becomes the **user's choice**. **The drafted `D-117` was NOT locked**, on Joe's word: ***"honestly i have to see it in practice."*** → **the fold decision enters this file only after `M-RP7.1b` is built and looked at.** *A decision locked for a design its author has said he needs to see first is a prediction wearing a decision's clothes.*
 
 **Relationship:** **D-103** (the descriptor this constrains) · **D-067** (the drift surface a docked/undocked flag would create) · **D-069** (the roving bar this decision keeps from being met a 5th time) · **N-111** (the hole finding, which corrects §2's argument and not this decision) · **M-RP7.4 — drag to dock: grip, edge bands** (where this becomes code).
+
+---
+
+## D-118 — The plugin package: one zip, one root manifest — the universal distribution unit for all plugins
+
+**Date:** 2026-07-16 · **Layer:** Plugin / module architecture, distribution + install path (spans node + client, all delivery kinds) · **Ref:** D-085, D-112, D-113, D-103, D-102, W-12/W-13 · **Journal:** J-531 · **Code:** none (architecture + naming convention; binding on the plugin manager, M-RP-SETTINGS, and the first `service`/`packaged` plugin).
+
+**Decision.** Every out-of-tree plugin — for **either** app (`host = node` | `client`) and **any** delivery kind (`service` | `packaged`) — is distributed and installed as **one package: a `.zip` with a manifest at its root.** One package = one plugin. The delivery / host / surface / kind axes (D-112) are **fields in the manifest**, not separate on-disk shapes; the archive is the single uniform unit the plugin manager enumerates, trust-badges, installs, and removes.
+
+**The manifest is the spine, and it is readable without executing or unpacking-to-live.** Enumerate, trust-badge, show-in-manager, and route-by-host all happen by reading the manifest entry *inside* the zip — nothing lands on disk as executable, and nothing runs, to know what a package is. The manifest declares `host`, `delivery`, `surface`, plugin id, semver, author, the trust-relevant fields, and **enumerates any secondary files** the plugin carries. “Works with secondary files” is not an exception — it is the manifest declaring them, and they travel **inside** the one archive, never loose beside it (containment, the D-112 shape: a plugin owns its files the way a host owns its `WidgetMount[]` — declared, not ambient).
+
+**🔒 D-085 is UNCHANGED — a zip is transport, not a load path.** Packaging makes distribution uniform; it does **not** create a new way to run code in the key-holder's address space. A `service` package still **spawns out-of-process** and talks over the pipe; a `packaged` UI still runs in the **no-key sandbox** (and does not load until the S-1…S-6 floor ships — D-113/S-7). Nothing in a zip is ever `dlopen`ed into the node. **`compiled` plugins do NOT live in a package on disk** — they are statically registered in the binary (D-085), so every zip in `plugins\` is `kind: custom` by construction; a shipped `compiled` reference may be *presented* through the same manifest shape for uniformity, but it is baked in, not dropped in.
+
+**Two-tier location** (from the app-vs-user lock, same session): `[app_root]\plugins\{client,node}\` = bundled / optional, read-only, updated via app update · `[userdata]\plugins\{client,node}\` (e.g. `%LOCALAPPDATA%\XGenProtocol\...`) = user-installed, writable — what the manager installs into. **Install = verified unpack into the plugin's OWN boundary** (a per-plugin subfolder `<plugin-id>\`, or read-on-demand from the zip — a mechanism choice deferred); one plugin's files never mix with another's.
+
+**Discovery ≠ loading (the free half).** Scanning `plugins\` and enumerating from manifests touches no address space and is **not** gated by S-7. So the plugin manager (M-RP-SETTINGS) can show a real `plugins\` inventory — with enable / disable — *before* the sandboxed-loading half exists; actual loading of `packaged` bundles switches on when the S-1…S-6 floor ships.
+
+### Naming convention (filenames are labels, not trust descriptors)
+
+**`pg{c|n}_<plugin-id>_r<YYMMDD>.zip`**
+- `pgc` = plugin · client · `pgn` = plugin · node (the `host` axis; also the routing hint for which folder it belongs in).
+- `<plugin-id>` = kebab-case plugin id.
+- `r` = release **channel** (single letter, deliberately — `d` dev / `b` beta fall out later with no redesign) · `<YYMMDD>` = release date, a human label.
+- Example: `pgc_widget-grid-background_r260716.zip`.
+
+**No ui-vs-system token in the filename** (Joe, this session): a `system` plugin (D-103 `kind`) is `compiled` + non-removable (W-13) and **never appears as a loose package**, so the package namespace is custom-only by construction — there is nothing to distinguish; and the host badge is already carried by `pgc`/`pgn`. **A filename is a human label + a routing hint — never a trust or capability descriptor** (anyone can rename a zip). Everything trust-relevant — `delivery`, `surface`, `kind`, semver, author, signature — lives in the **manifest inside the zip**, the authoritative verify-from source. The date in the name is a human label; the manifest's semver disambiguates two same-day releases.
+
+**Scope.** Architecture + a distribution / naming convention. **No code.** Binding on the plugin manager, `M-RP-SETTINGS`, and the first `service`/`packaged` plugin (which is where the manifest schema itself gets proven — deliberately not specified here). **Unaffected:** the two `compiled` custom-widget exemplars (grid-background plate + connection-stats) touch no disk package at all.
+
+**D-117 stays reserved** for the fold axis (drafted-not-locked, awaiting M-RP7.1b); this decision takes **D-118**.
+
+**Relationship:** **D-085** (static-not-dynamic loading — this leaves it fully intact; zip is transport) · **D-112** (the three axes — this makes host / delivery / surface manifest *fields* over one package) · **D-113 / S-7** (the sandbox floor that gates `packaged` *loading*, not *discovery*) · **D-103 / W-12 / W-13** (system-vs-custom — why every package is custom) · **M-RP-SETTINGS** (the plugin manager that enumerates / installs / removes packages) · **M-RP-PLATE / connection-stats** (the `compiled` exemplars this does *not* touch).
 
 

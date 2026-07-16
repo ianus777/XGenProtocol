@@ -8,6 +8,29 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-531 — D-118 LOCKED: the plugin package (one zip + root manifest, universal for node + client); plus the node frame/grid postponed and the client's next exemplar set
+
+**Architecture + naming convention. No code.** A design conversation this session settled how plugins are distributed and installed, and re-pointed the near-term work.
+
+### D-118 — the package
+
+Every out-of-tree plugin — either app, any delivery kind — ships as ONE `.zip` with a manifest at its root. `host` / `delivery` / `surface` / `kind` (D-112) become manifest FIELDS, not separate on-disk shapes — one uniform unit the plugin manager enumerates, trust-badges, installs, removes. The manifest is readable **without executing or unpacking-to-live** (enumerate + trust-badge + route-by-host from the manifest alone). **D-085 unchanged:** a zip is transport, never a load path — `service` spawns out-of-process, `packaged` runs in the no-key sandbox (gated on S-1…S-6, D-113/S-7), nothing is `dlopen`ed into the node; `compiled` stays baked in, so every zip in `plugins\` is `kind: custom` by construction. Two-tier location (`[app_root]` bundled read-only · `[userdata]` user-writable — the app-vs-user lock). Discovery ≠ loading: the manager can list `plugins\` before the sandbox floor exists.
+
+**Naming:** `pg{c|n}_<plugin-id>_r<YYMMDD>.zip` — `pgc` client / `pgn` node (the host axis + routing hint); `r` = single-letter release channel (room for `d`/`b`); date a human label. **No ui-vs-system token** (Joe): system plugins are `compiled` + non-removable and never appear as loose packages, so the namespace is custom-only, and the host badge is already `pgc`/`pgn`. A filename is a label + routing hint, never a trust descriptor — everything trust-relevant lives in the manifest. D-117 stays reserved for the fold axis; this takes D-118.
+
+### Direction re-point (records catching up to the conversation)
+
+- **M-RP7.7 (node inherits the frame + grid) → POSTPONED** until the client UI is complete (Joe). Port a FINISHED frame+grid to the node in ONE pass, not twice — the client still has appearance (M-RP-SKIN), real region content, and Settings ahead of it. The node is “working enough to simulate traffic,” which is what makes the client's connection widget real later. **D1 (a)** + **D2** (File menu = Restart / Shut Down; **hide-to-tray IS the native window X**, no new menu item — the shipped `CloseRequested`→`hide()` intercept becomes reachable the moment D3 flips `decorations:true`) recorded as 7.7 design intent; **D3** (native resizable window, twin-config, N-088 fix, **no status-bar grip** — native frame resizes) and **D4** (retire `app_node.svelte` legacy chrome → placeholder centre) are node-UI, deferred with 7.7.
+- **Client next = the two custom-widget exemplars, plate first**, then connection-stats, then the plugin manager (`M-RP-SETTINGS`). Order is architectural: a custom widget is the HARDER, more general case than any system widget (system = always-present, easy; custom = install → registry → layout-inject → uninstall → remove-without-blanking) — prove the lifecycle on one instance before scaling. **`M-RP-PLATE`** (grid-background, `surface:'none'`, inert, no data source) is the most self-contained exemplar and closes the containment/mount question; **connection-stats** (`surface:'region'`, `kind:'custom'`, the first traffic consumer, a natural node widget too) closes install→dock→uninstall. System widgets fill in as live data matures; sub-element widgets (temperature etc.) ride INSIDE their host regions (D-061, §6.2), never as standalone panels — which is why “build all system widgets” is not a clean unit.
+- **The open ground the exemplars close:** the plugin ARCHITECTURE is locked (D-112 taxonomy, D-103 region model, D-113/S-7 sandbox sequencing), but the install/uninstall LIFECYCLE and the compiled-LOADING mechanism are explicitly open (D-112) — the registry today is a static TS array (`CLIENT_PLUGINS`) with no runtime install path. That gap is what the exemplars exist to close.
+- **`plugins\{client,node}` folder split** agreed (matches the host axis; the node's is the stricter — out-of-process / no-key sandbox only, never its address space).
+
+### Records
+
+DECISIONS **D-118** · CLAUDE.md PLAY (NEXT-ACTIVE re-pointed to M-RP-PLATE; 7.7 postponed; D-118 filed) · ROADMAP (7.7 ⏸, plate promoted, D-118 ref). No code; nothing pushed by Chat (Joe pushes).
+
+---
+
 ## Entry J-530 — M-RP-SHELF-FRAME CLOSED: fixed-height shelves — the empty strip holds its frame, and the grid stops reflowing
 
 **Skin-only, 1 file (`ui/assets/skin.css`). Zero Rust · zero component · zero registry change · no schema change.** PROVISIONAL skin (Joe HMR-tunes). Chat authored + drove the CDP verify on the live client 9222 (Rule 5) — a skin edit under the running `tauri dev` session, HMR-applied and measured in place.

@@ -8,6 +8,39 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-534 — M-RP-SETTINGS DESIGN LOCKED: one Discord-shaped Settings modal (Plugins is a section), J-513 → B, no OS window
+
+**Design / records-only, NO CODE.** A design walk this session locked the shape of the next milestone, `M-RP-SETTINGS`. Canonical Phase-0 doc shipped at `docs/xgen-settings-phase0.md` (v1.0, ACTIVE). Registry unchanged (67, quiescent/empty-store baseline from J-533's arc). Clair not engaged; the Leg-A runbook is filed for handoff.
+
+### The one sentence
+
+`M-RP-SETTINGS` stands up **one** Settings surface — an in-DOM modal shaped like Discord's (a left **category menu ~¼ width + a content pane** that swaps per selection, compact; never a new OS window). The **plugin manager is a section inside it** (the `Plugins` category). **Two entry points, one modal:** the `gear` shelf face opens Settings on the **Plugins** section; a new **File ▸ Settings** item (above Restart) opens it on the default section. It proves the per-plugin settings mechanism end-to-end via the grid backdrop, which is `grid-plate`'s own setting.
+
+### Three decisions (Joe-locked this session)
+
+- **D-A — "Settings window" = an in-DOM modal.** D-112 penciled Settings as `surface:'window'`; Joe's reading is that `window` means a **standalone modal area** (the mechanism we already have for About/Plugins), NOT a second OS window. **Grounded:** `xgen-client/tauri.conf.json` has exactly one window; the four "dialogs" (`about-dialog` / `plugins-dialog` / `uistate-{save,load}-dialog`) are in-DOM Svelte modals wrapping the core `dialog`. So there is **no frame arc** — no second Vite entry (the client has one `index.html`), no second CDP target, no new typed Rust geometry struct (D-114/D-115 untouched).
+- **D-B — J-513 → B (component-per-plugin).** The J-513 gate (*how a plugin's settings get drawn*) was binding-deferred until the grid works. The grid works. **Resolved: B** — a plugin that has settings ships its own settings component; the modal hosts it (the shipped widget-tier pattern; `substitutions-editor` was its first instance). The declarative `settings_schema` auto-render (Ch6 §6.8.2/§6.8.5, **zero lines exist**) is not built and is superseded as a path (*"it does not need to be yet another widget system"*, Joe). A technical/mechanism choice; the look stays Joe's. *A formal `D`-number is Joe's to bless when Leg C builds it.*
+- **D-C — ONE Discord-shaped Settings modal; the gear deep-links to its Plugins section.** Settled across the walk (first draft: gear opens Settings, absorbs `plugins-dialog`; second: two separate modals; **final: ONE modal, plugin manager is a category**). Sections = app-level categories + a **Plugins** category (the `plugin-list` rows + the action row) + per-plugin settings in the content pane. The `gear` (`widget.manager`) opens Settings **on the Plugins section**; **File ▸ Settings** (new `settings.open` command + a new File item **above Restart** — grounded: File is `Restart · —— · Exit` today) opens it on the **default** section. `plugins-dialog.svelte` is **absorbed**. The deep-link is trivial (the modal takes a `section` arg).
+
+### The row model (Joe's compact one-liner vision; appearance is Joe's, mechanics are mine)
+
+`[kind-glyph] Official Name · meta · [info][settings][disable][uninstall]` — icon-buttons with hover tooltips (order Joe-set). Leading red/blue glyph = **module vs widget**, the which-one derived from the `host` axis (`node`=module · `client`=widget). Every button state is **descriptor-derived** and greyed only for a reason true of that plugin (W-13 rendered); a verb never built for anyone ships **absent**, never dead-grey (J-500 / 6.1j). Feeders: **info** = a detail view (built Leg A) · **settings** = the plugin's own `settingsComponent` (greyed until a plugin ships one) · **disable** = a new `session.disabled` set (v1 user-toggle; auto-disable-on-version-incompat is a second feeder needing D-118 semver, future) · **uninstall** = D-119 uninstall (custom-only; system absent/greyed-legible).
+
+### Grounding findings worth the record
+
+- **`grid-plate` is the settings mechanism's first real tenant**, not `substitutions-editor` — the backdrop *is* grid-plate's own setting, so Leg C proves D-B and delivers a minimal backdrop setting in one leg. The full backdrop-type menu (static/generative/data-driven, base-vs-stack) is filed as `M-RP-BACKDROP`, not this arc.
+- The current wiring (grounded, N-116): `gear` face → `widget.manager` → `pluginsOpen` → `<PluginsDialog>` hosting the read-only `plugin-list` widget; `__XGEN_PLUGINS__` DEV bridge (install/uninstall + leaf + persist) already lives in `app_client`; `PluginDescriptor` carries `host`/`delivery`/`surface`/`kind` but no `settingsComponent`/`hasSettings` yet.
+
+### Leg roadmap (design-only)
+
+**Leg A** — the Settings shell + Plugins section (the Discord-shaped modal: sidebar ~¼ + content pane; the read-only `plugin-list` as the Plugins section; wire gear → Settings @ Plugins + File ▸ Settings @ default; `plugins-dialog` absorbed; no new verbs, visible-first). **Leg B** — the action row (the Plugins-section rows gain `[info][settings][disable][uninstall]` + kind-glyph; feeders info/disable/uninstall; this IS M-RP6.1m). **Leg C** — the settings mechanism (D-B) + the backdrop setting in the content pane (`grid-plate` first tenant). Each leg: real client 9222 only, Rule 5 re-drive, baseline read quiescent after a full reload (N-132), `cargo test` 1517/0/62 IDENTICAL (all frontend; the opaque-blob store path, D-114).
+
+### State
+
+**M-RP-SETTINGS DESIGN LOCKED.** Next-active = **Leg A** (the Settings shell + Plugins section), runbook `tasks/M_RP_SETTINGS_A_SHELL.md` (Leg B = `tasks/M_RP_SETTINGS_B_ACTION_ROW.md`, PENDING). Filed follow-ons: `M-RP-BACKDROP` (backdrop-type menu) · `M-RP-PLUGINS-NODE` (node-module rows, the red glyph's first real rows) · auto-disable-on-incompat (D-118 semver). Records: Phase-0 doc v1.0 · CLAUDE.md PLAY · ROADMAP. **No new D yet** (D-B awaits its build; D-A/D-C are D-112 readings). Per D-065 + D-069 + Rule 5.
+
+---
+
 ## Entry J-533 — M-RP-CONNSTATS CLOSED: the first `kind:'custom'` widget, and the runtime install → dock → uninstall path it forced into being (→ D-119)
 
 **Commits `c747729` (the milestone, 9 files) + `7f24b19` (post-close: Speed/Bandwidth N/A rows, owner override) [Clair, code-only, on main, NOT pushed — Joe pushes with this doc-bridge]. Zero Rust · zero schema (`version` stays 3) · zero sampler** (confirmed on the commits: no `.rs`, no `ui/sampler/`; `cargo test` **1517/0/62 IDENTICAL** by construction). Clair built; Chat re-drove every leg on the live client 9222 **after a full reload** (Rule 5 + N-132). ID `M-RP-CONNSTATS` confirmed by Joe; the runtime-install pattern minted as **D-119**.

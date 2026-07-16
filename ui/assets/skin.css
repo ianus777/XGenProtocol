@@ -2520,9 +2520,10 @@ html, body {
  *   --s4 (the menu-trigger/menu-item precedent); the ONLY accent carrier is the keyboard focus
  *   ring (--accent2, gold/blue — an accent swap must move nothing else). Disabled hooks on
  *   [aria-disabled="true"], NOT :disabled — the face uses aria-disabled so it stays focusable
- *   (6.1j: the whole bottom shelf is disabled but must be keyboard-reachable). `data-empty`
- *   collapses the strip to nothing (the status.svelte mounted-but-empty precedent) — this is what
- *   the top shelf looks like at 6.1j before pinning. PROVISIONAL (Joe live-tunes via HMR). ── */
+ *   (6.1j: the whole bottom shelf is disabled but must be keyboard-reachable). BOTH shelves hold a
+ *   FIXED height (min-height:--ctl-h + the position hairline) whether empty or full (M-RP-SHELF-FRAME,
+ *   J-530) — a stable frame around the grid, so pinning a favourite never shifts the centre. `data-empty`
+ *   is still emitted (a skin hook) but no longer collapses the strip. PROVISIONAL (Joe live-tunes via HMR). ── */
 .shelf {
   display: flex;
   align-items: center;
@@ -2539,12 +2540,11 @@ html, body {
 .shelf[data-position="bottom"] {
   border-top: 1px solid var(--s5);
 }
-/* empty strip: collapse to nothing but stay mounted (registry complete, N-053). */
-.shelf[data-empty] {
-  min-height: 0;
-  padding: 0;
-  border: 0;
-}
+/* Empty strip: NO collapse (M-RP-SHELF-FRAME, J-530). An empty shelf keeps the base
+ * `min-height: var(--ctl-h)` + padding + position hairline, so both shelves read as a fixed
+ * frame and the grid never reflows between empty and populated. `data-empty` stays emitted as a
+ * skin hook (no JS reader) — it just no longer zeroes the box. Was: min-height/padding/border -> 0
+ * (the 6.1j pre-pinning collapsed look). */
 
 .shelf-face {
   appearance: none;

@@ -1,10 +1,45 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-15  
+> **Last updated:** 2026-07-16  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-530 — M-RP-SHELF-FRAME CLOSED: fixed-height shelves — the empty strip holds its frame, and the grid stops reflowing
+
+**Skin-only, 1 file (`ui/assets/skin.css`). Zero Rust · zero component · zero registry change · no schema change.** PROVISIONAL skin (Joe HMR-tunes). Chat authored + drove the CDP verify on the live client 9222 (Rule 5) — a skin edit under the running `tauri dev` session, HMR-applied and measured in place.
+
+### The one sentence
+
+A lock that only collapses an EMPTY shelf is not a frame — neutralising `.shelf[data-empty]` (was `min-height/padding/border → 0`) makes BOTH shelves hold the base `min-height: var(--ctl-h)` + the position hairline whether empty or full, so an empty favourites strip (or pinning into it) never shifts the centre grid.
+
+### What shipped (Joe-locked)
+
+Joe: both shelves fixed height, not collapsible, even when empty — a calmer grid frame. The base `.shelf` rule already gives a fixed frame (`min-height: var(--ctl-h)` + `padding: 0 var(--sp-2)` + a position hairline; top `border-bottom`, bottom `border-top`), and BOTH shelves already share it — so the “button shelf height” Joe asked to measure is not a special number, it is `--ctl-h` + hairline, and “match the button shelf” reduces to “stop collapsing the empty one.” One block removed; `data-empty` stays EMITTED (a skin hook, no JS reader — grepped) but no longer zeroes the box.
+
+### Measured — live 9222, Chat drove (Rule 5)
+
+| leg | before | after (HMR) |
+|---|---|---|
+| bottom (button) shelf | 28.8px, `data-empty:false` | 28.8px — unchanged |
+| top (favourites) shelf | **0px** (collapsed, `data-empty:true`) | **28px**, `data-empty:true` (attr retained), `min-height:28px`, hairline 0.8px |
+
+The collapse is gone: the top strip went 0 → 28px, so the grid no longer reflows between an empty and a populated favourites shelf.
+
+### The sub-pixel finding (accepted, recorded so it is not “fixed” later)
+
+Top 28 vs bottom 28.8 = **0.8px** (one device pixel). Cause: `.shelf` is `box-sizing:border-box` with `min-height: var(--ctl-h)` — the POPULATED bottom shelf's faces push its border-box 0.8px past the 28 min, while the EMPTY top sits exactly at min-height. It is not a collapse (both are fixed); it is a content-vs-min artifact of the border-box. Joe accepted it (the optical bar, N-128 — optically correct is satisfied); it is sub-pixel and DPR-safe (a pinned `28.8px` would freeze this display's scaling). The exact-equality alternative — `.shelf { height: var(--ctl-h) }` → both 28px, faces clamp harmlessly — is filed-not-taken. → N-130.
+
+### Ripples
+
+The node inherits it free at M-RP7.7 (shared skin → both apps get the identical fixed frame). No registry / catalogue / schema impact. No new D. Deviations: none.
+
+### Records
+
+The skin.css shelf docblock is corrected in place (the “`data-empty` collapses the strip … the 6.1j pre-pinning look” note → the fixed-frame note). ui-notes N-130 · ROADMAP · CLAUDE.md PLAY · task file COMPLETED. Feat: skin-only, 1 file — **not pushed (Joe pushes).**
 
 ---
 

@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.93  
+> Version: 0.94  
 > Date: May 2026  
-> **Last updated**: 2026-07-15  
+> **Last updated**: 2026-07-16  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -2709,6 +2709,18 @@ N-127 recorded the 7.4a preview as "~40–100px off." Measured more widely for 7
 ### N-129 — the menu separator: a non-registering divider that roving steps over (M-RP7.5, J-528)
 
 `menu.svelte` gained a `{ separator: true }` entry type (+ `menu-bar.svelte` typing, `.menu-popup .separator` spacing in `skin.css`). It renders the platform separator role (`role="separator"`) with **no `id`**, so it does **not register** — the client registry is unperturbed (measured **67 quiescent** before and after; a separator adds 0). The linear roving machine (ArrowUp/Down · Home/End · initial focus · `selectAt`) **steps over it**: driven live on 9222, the `File` popup = `[menuitem Restart · separator · menuitem Exit]`, initial focus Restart, ArrowDown → Exit, ArrowUp → Restart — the separator is never focused, both directions. Joe-approved scope expansion (the runbook had scoped 7.5 "no `ui/core`"); it is a real new **core** capability (divider entries + roving-skip) with **zero registry/catalogue impact** because it is non-registering. Shipped as an available primitive; its first use is the `Restart | ─ | Exit` File menu. *A divider is chrome, not a control — it must be visible and unreachable, and "no id → does not register → roving skips it" delivers all three from one property.*
+
+## 2026-07-16
+
+### N-130 — fixed-height shelves: the frame that stops the grid reflowing, and the box-sizing sub-pixel that must not be “fixed” (M-RP-SHELF-FRAME, J-530)
+
+Both shelves (top favourites · bottom system) now hold a FIXED height whether empty or full: `.shelf[data-empty]`'s collapse (`min-height/padding/border → 0`) was neutralised, so an empty strip keeps the base `.shelf` `min-height: var(--ctl-h)` + its position hairline. Joe's goal was a calmer, non-reflowing grid frame — an empty favourites shelf no longer collapses and shifts the centre. `data-empty` stays EMITTED (a skin hook, no JS reader — grepped) but no longer zeroes the box.
+
+**🔑 The “button shelf height” is not a number to copy — both shelves already share the base rule.** Joe asked to measure the populated bottom shelf and apply its height to both; measured live on 9222 it is **28.8px** = `min-height: var(--ctl-h)` (28px) + the 1px hairline (rendered 0.8px at this WebView DPR). Since the top shelf uses the identical base `.shelf` rule, “use the button shelf's height for both” reduces to “stop collapsing the empty one” — no hardcoded pixel, DPR-safe by construction.
+
+**⚠️ The measured residual, recorded so nobody “fixes” it: top 28 vs bottom 28.8 = 0.8px (one device pixel).** `.shelf` is `box-sizing:border-box` with `min-height: var(--ctl-h)`, so the POPULATED shelf's faces push its border-box 0.8px past the 28 min while the EMPTY shelf sits exactly at min-height. It is NOT a collapse (both are fixed) — it is a content-vs-min artifact of the border-box, invisible in use. Joe accepted it against the optical bar (N-128 — “optically correct is satisfied”). The exact-equality alternative — `.shelf { height: var(--ctl-h) }` → both 28px, the icon faces clamping harmlessly to the box — is filed-not-taken (a hard height over a min-height, for a sub-pixel gain).
+
+The node inherits this free at M-RP7.7 (one shared skin → both apps frame identically). Skin-only, PROVISIONAL (Joe HMR-tunes); no component / registry / schema change; no new D.
 
 ---
 

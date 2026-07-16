@@ -8,6 +8,56 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-533 — M-RP-CONNSTATS CLOSED: the first `kind:'custom'` widget, and the runtime install → dock → uninstall path it forced into being (→ D-119)
+
+**Commits `c747729` (the milestone, 9 files) + `7f24b19` (post-close: Speed/Bandwidth N/A rows, owner override) [Clair, code-only, on main, NOT pushed — Joe pushes with this doc-bridge]. Zero Rust · zero schema (`version` stays 3) · zero sampler** (confirmed on the commits: no `.rs`, no `ui/sampler/`; `cargo test` **1517/0/62 IDENTICAL** by construction). Clair built; Chat re-drove every leg on the live client 9222 **after a full reload** (Rule 5 + N-132). ID `M-RP-CONNSTATS` confirmed by Joe; the runtime-install pattern minted as **D-119**.
+
+### The one sentence
+
+The first `kind:'custom'` widget (`connection-stats`) and, with it, the runtime **install → dock → uninstall** lifecycle that did not exist (the registry was a static `const`): a custom is registered into a now-**reactive** registry, its region **injected** into the layout, **removed without blanking**, and its installed-state **persisted per-device** so a reload re-registers it **before `loadLayout`** instead of W-13-dropping it. The pattern is **D-119**.
+
+### What shipped (9 files + the N/A follow-up)
+
+`installed.svelte.ts` (NEW, `$common`) — the reactive `$state` installed-set + `active` getter (`[...CLIENT_PLUGINS, ...installed customs]`) + install/uninstall/hydrate/isInstalled/ids (N-096, one source several readers). `connection-stats.svelte` (NEW, `$common`) — a compact `{label,value}[]` metric-row list reading `selfState` (D-067, no new channel / no Rust); composes `Led`+`Label`; `rowCount` render-truth; rows absent when the source is null (N-060). `registry.ts` — `AVAILABLE_CUSTOM` (the first runtime-installable rows), separate from `CLIENT_PLUGINS`. `mutate.ts` — `insertLeaf` + a **total** `removeRegion` wrapper (remove-without-blanking = the existing collapse-degenerate); no new algebra. `layout-default.ts` — the `widgetRegistry`/`bgWidgets`/`REGION_TITLES` consts became **pure builders**. `uistate.svelte.ts` — `session.installed?: string[]` + `setSessionInstalled` + the N-107 per-key merge (geometry stays Rust's; writes even `[]`). `app_client.svelte` — reactive registries (`$derived` off `installed.active`); install/uninstall wrappers (set + leaf + persist); boot hydrates the installed-set **BEFORE** `loadLayout`; the `__XGEN_PLUGINS__` DEV bridge. `plugin-list.svelte` — reads `installed.active` so an installed custom shows as a `[user]` row (read-only; the action row is M-RP6.1m). `skin.css` — `.connection-stats` (PROVISIONAL → M-RP-SKIN). **Follow-up `7f24b19`:** two trailing `Speed · N/A` / `Bandwidth · N/A` reminder rows — see the N-091 override below.
+
+### Measured — every leg (live 9222, Chat re-drove after a full reload)
+
+| leg | result |
+|---|---|
+| V0 baseline | **73 === unique 73** · `installed:[]` · `available:['connection-stats']` · leafCount 8 · `session.installed` absent. |
+| V1 install | **73→85 (+12)**, `count===unique`, leafCount 8→9, `droppedCount 0`. **+12 enumerated:** `region-tile#region-connection-stats` + `connection-stats#region-connection-stats` + `led#…__state-led` + **6** value `label#region-connection-stats__{state,registered,endpoint,spaces,speed,bandwidth}` + 3 `label#plugin-list__connection-stats__{name,desc,meta}`. |
+| V2 render | widget G `{state:READY, rowCount:6}`; painted rows **State=Ready** (led `rgb(45,122,58)` = `--ok`) · Registered=Yes · Endpoint=`ws://127.0.0.1:8080/xgen` · Spaces joined=0 · Speed=N/A · Bandwidth=N/A. |
+| V3 uninstall | **85→73 exact**, leafCount 8, `droppedCount 0`, `docNoScroll:true` — remove-without-blanking. |
+| V4 persist (load-bearing) | install → **full reload** → widget **survives** (85, `droppedCount 0`, `installed:[connection-stats]`, renders live "State Ready…") → uninstall → reload → **gone** (73, `installed:[]`). |
+| V5 W-13 honesty | a phantom **unregistered** `connection-stats` leaf injected into the layout → `droppedCount:1`, leafCount 8, shell present, `docNoScroll:true`; restored clean. The boot-order dependency is real. |
+| V7 gates | no `.rs` → `cargo test` **1517/0/62 IDENTICAL** · `npm test` **77** · `vite build` **173** (was 171; +2 = the two new `$common` files). |
+
+### The +12 vs Clair's +10 — not a discrepancy, the two commits
+
+Clair measured **+10** on `c747729` (4 value rows). The post-close `7f24b19` added the two N/A value rows (+2). The combined tree Chat measured is **+12** — both correct for their commit. No phantom this time; Chat reloaded from the start (N-132 held).
+
+### The live demo reproduced on Chat's own drive
+
+With Joe's node up on `127.0.0.1:8080` (matching the client endpoint), `connection-stats` reflects the REAL connection: State=**Ready**, led green (`--ok`) — and the self-panel + status-bar are green too. **One store, three views** (`selfState`), exactly D3's point. The widget survived a client restart (persisted install). The N/A rows render honest **N/A**, not fabricated data.
+
+### ⚠️ The N-091 override — an owner-sanctioned reversal, recorded not drifted (→ N-133)
+
+The runbook §4.1 said *no placeholder metric rows* (N-091: an unfed row is an unverified branch). After the live demo, **Joe requested** two trailing `Speed · N/A` / `Bandwidth · N/A` reminder rows. This is a **deliberate owner override**, justified because the rows are **honest `N/A`** (no fabricated numbers) rather than an unfed branch feigning data, and the owner is informed the data source does not exist yet (grepped: zero byte/RTT/throughput accounting anywhere, no resident socket — the M-RP6.6 arc). `rowCount → 6` (render-truth). When live-metrics infrastructure lands, each `N/A` becomes a real value; the rows are already there. **Recorded so the reversal is visible, not silent drift** (D-065).
+
+### Deviations (Rule 6 — flagged, not absorbed; all Clair's, all realization details)
+
+**Reactive registries live in `app_client`, not a `$common` store** — §4.5 anticipated it; W-3 forces it (`RegionPlaceholder` is shell-local). The `layout-default` consts became **pure builders**. **`plugin-list.svelte` — a 9th file** beyond §3's list, required by V1's plugin-list row; read-only (consistent with D4, defers the action row to M-RP6.1m); completes the N-096 two-readers-one-source. **Titles made reactive** — else the custom tile shows its raw id, not "Connection Stats". **`removeRegion` wrapper over raw `removeLeaf`** — took the runbook's "or a thin wrapper" branch to keep `mutate.ts`'s public surface **total** (no null leak). **Fresh-`Set` reactivity** — §4.2 said "mutate the set"; Svelte 5 `$state` does not react to `Set.add`/`.delete`, so reassign a fresh `Set` (folded into D-119). **Boot reorder** — hydrate + `installed.hydrate` + lock seed moved before `loadLayout` (D3-required; idempotent, no-Tauri-safe). **The +12 install delta** — the runbook's V1 named "rendered rows + a plugin-list row (+3)" without the region-tile frame or the exact subtree; enumerated above.
+
+### Live-env findings (worth the record)
+
+`connection-stats` correctly flips **Disconnected → Ready** (led `--err` → `--ok`) when the node comes up — one store, three views. **The in-app File ▸ Restart is a no-op under `tauri dev`** (same PID; needs a real process relaunch — the filed M-RP-RESTART caveat). **Speed/Bandwidth are unavailable by INFRASTRUCTURE, not by the widget** (no byte/RTT accounting, no resident socket — one-shot startup connect) — that is the **M-RP6.6** arc; the N/A rows' eventual data home.
+
+### State
+
+**M-RP-CONNSTATS DONE. The install/uninstall half of the plugin lifecycle is closed** — both exemplars are shipped (plate = containment/mount; connection-stats = install→dock→uninstall), and the runtime-install pattern is locked as **D-119**. **Next-active = `M-RP-SETTINGS`** (per J-532's order: plate → connection-stats → settings) — the plugin manager reuses D-119's install path for the real install/uninstall UI (the `[Remove]` action row, M-RP6.1m) **and** delivers the backdrop-setting that binds the plate's `backgroundLive` + a user-chosen/persisted backdrop (the discussed background-type menu lands there). Then, independently, **M-RP6.6** (the resident → transport accounting → metrics push) fills the N/A rows with real numbers. Still filed: `M-RP-SKIN` · M-RP7.7 (node inherits frame+grid) ⏸️ · `M-RP-ROVING` · `M-RP-MOVE-KBD` · `M-RP-RESTART`. Records: **D-119** · ui-notes **N-133** · components registry bump (first `kind:'custom'` + `AVAILABLE_CUSTOM`) · ROADMAP · CLAUDE.md PLAY. Per D-065 + D-074 + Rule 5 + Rule 6.
+
+---
+
 ## Entry J-532 — M-RP-PLATE CLOSED: the grid backdrop plate — the dev raster becomes an element, and a hole reveals it while capturing nothing
 
 **Feat `6bd17c8` [Clair, code-only, 6 files, +157/−9, on main, NOT pushed — Joe pushes with this doc-bridge]. Zero Rust · zero schema (`version` stays 3) · zero sampler · zero node** (confirmed on the commit: no `.rs`, no `ui/sampler/`, no `ui/node/`). Clair built; Chat re-drove every verification leg on the live client 9222 (Rule 5).

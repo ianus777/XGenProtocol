@@ -4431,4 +4431,22 @@ The Phase-0 §2 argued *"in a space-filling tree there is no empty space to drop
 
 **Relationship:** **D-085** (static-not-dynamic loading — this leaves it fully intact; zip is transport) · **D-112** (the three axes — this makes host / delivery / surface manifest *fields* over one package) · **D-113 / S-7** (the sandbox floor that gates `packaged` *loading*, not *discovery*) · **D-103 / W-12 / W-13** (system-vs-custom — why every package is custom) · **M-RP-SETTINGS** (the plugin manager that enumerates / installs / removes packages) · **M-RP-PLATE / connection-stats** (the `compiled` exemplars this does *not* touch).
 
+## D-119 — The runtime install path for compiled custom widgets: a reactive registry, an available/installed split, and per-device install-state read before the layout
+
+**Context.** M-RP-CONNSTATS (J-533) built the first `kind:'custom'` widget and, with it, the runtime **install → dock → uninstall** path that did not exist — the registry was a static `const` (`CLIENT_PLUGINS`) with no runtime mutation. This decision records the pattern the exemplar proved, because **M-RP-SETTINGS and every future custom install reuse it** (it recurs — it clears the D-069 arc-local bar).
+
+**The path has four parts, and each is load-bearing:**
+
+1. **A reactive registry, not a static const.** The active plugin set is `[...CLIENT_PLUGINS, ...installed customs]`, derived reactively from a `$common` `$state` installed-set (`installed.svelte.ts`). `widgetRegistry` / `bgWidgets` / titles became **pure builders** over that set (`buildWidgetRegistry` etc.), so install/uninstall re-derives them — one source, several readers (N-096). System rows stay non-removable (W-13); only customs install/remove. *(Svelte 5 caveat, N-realisation: a `$state` `Set` does not react to `.add`/`.delete` — reassign a fresh `Set`.)*
+
+2. **An available/installed split.** `AVAILABLE_CUSTOM` (an in-tree catalogue of `compiled` customs) is distinct from `CLIENT_PLUGINS` (the system rows) **and** from the **installed set** (which subset is active). “Install” of a `compiled` widget is **register + inject a leaf**, NOT a code loader (**D-085 intact** — a zip is transport, `compiled` is baked in, nothing is `dlopen`ed); “uninstall” is **deregister + remove-leaf**, where **remove-without-blanking IS the existing collapse-degenerate** `move` already relies on (no new algebra — `insertLeaf` + a total `removeRegion` wrapper over `removeLeaf`).
+
+3. **Boot-order: register before the layout resolves.** The installed-set is hydrated and its customs registered **BEFORE `loadLayout`** runs, so a persisted custom leaf finds its widget instead of being W-13-dropped. This ordering is not cosmetic — verified both ways: `droppedCount:0` when correctly hydrated, `droppedCount:1` (clean drop, no blank, shell present) when a custom leaf is unregistered. An unregistered leaf degrades honestly; it never blanks the grid.
+
+4. **Per-device persistence in the SESSION bag.** Which customs are installed lives in `session.installed: string[]` in the UI-state store — **per-device** (the **J-503** truth: a `compiled`/`packaged` plugin's availability is per-device *arrangement*, not synced config), via the **N-107** per-key merge (geometry stays Rust's; writes even `[]`), **zero Rust** (the opaque-blob path — Rust never learns the shape, the `layout`/`locked` precedent). No `Layout` schema change (`version` stays 3 — an install is a session key, not a layout field).
+
+**Scope.** The **`compiled`** custom path, proven end-to-end on `connection-stats`. The **`packaged`/`service`** install path (out-of-process, sandboxed) is a DIFFERENT mechanism — it rides **D-113 / S-7** (the sandbox floor gating `packaged` *loading*) and **D-118** (the package). This decision is the in-tree compiled register-and-inject path only.
+
+**Relationship:** **D-085** (static-not-dynamic loading — fully intact; install = register+inject, not dlopen) · **D-103 / W-12 / W-13** (system non-removable, custom install/removable; unknown leaves drop, never blank) · **D-112** (the three axes — host/delivery/surface) · **D-114 / N-107** (uistate per-key persistence) · **D-116** (the leaf primitives this exposes come from `move`, whose ground is Joe's address-not-container constraint) · **D-118** (the package — the packaged path this does not touch) · **M-RP-SETTINGS** (the plugin manager that reuses this path for the real install/uninstall UI — the `[Remove]` action row, M-RP6.1m).
+
 

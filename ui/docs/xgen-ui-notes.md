@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.95  
+> Version: 0.96  
 > Date: May 2026  
 > **Last updated**: 2026-07-16  
 > Language: English  
@@ -2733,6 +2733,12 @@ The grid backdrop is now a **widget mounted through the plugin registry**, not a
 ### N-132 — read a quiescent registry baseline AFTER a full reload, never on an accumulated dev session (M-RP-PLATE, J-532)
 
 On a long-running `tauri dev` client, HMR reloads accumulate **stale-but-UNIQUE** envelope registrations from earlier component versions — so the registry count inflates while `count===unique` STILL HOLDS (no duplicates, just extra distinct ids). Verifying M-RP-PLATE, Chat's first quiescent read showed **77** and Chat nearly recorded it as canonical, flagging Clair's **73** as "not reproducing." A full page reload cleared the four stale ids to a stable **73** — **Clair's number was right; Chat's un-reloaded 77 was the phantom.** *The N-099 family, a new variant: a stale subject returns a self-consistent, flattering answer, and `count===unique` is NOT proof of a clean baseline on an accumulated session.* **Rule: read the quiescent baseline after a full reload, and treat a long-running dev client's absolute count as suspect until reloaded.** An agent does not get to stamp its own un-reloaded number as canonical while flagging the correctly-measured one as non-reproducing (Rule 5, cutting in the direction that indicts the driver).
+
+### N-133 — the runtime install path for compiled customs, and the N-091 N/A-rows override (M-RP-CONNSTATS, J-533 → D-119)
+
+The custom install→dock→uninstall path is now real and locked as **D-119** — this note is the implementation-shaped companion. Four moving parts, each verified on 9222: **(1) reactive registry** — the active plugin set is `[...CLIENT_PLUGINS, ...installed customs]`, derived from a `$common` `$state` installed-set (`installed.svelte.ts`); the old `widgetRegistry`/`bgWidgets`/`REGION_TITLES` consts became **pure builders** re-run on change (N-096). *(Svelte 5: a `$state` `Set` does not react to `.add`/`.delete` — reassign a fresh `Set`.)* **(2) available vs installed** — `AVAILABLE_CUSTOM` (in-tree `compiled` catalogue) is distinct from `CLIENT_PLUGINS` (system) and from the installed subset; “install” = register + `insertLeaf`, “uninstall” = deregister + `removeRegion` (remove-without-blanking = the collapse-degenerate `move` already uses — D-085 intact, no code loader). **(3) boot-order** — hydrate + register the installed-set **BEFORE `loadLayout`**, else a persisted custom leaf W-13-drops; verified both ways (`droppedCount:0` healthy / `droppedCount:1` clean-drop-no-blank when bypassed). **(4) per-device persistence** — `session.installed: string[]` in the UI-state bag (the J-503 per-device truth), N-107 per-key merge, zero Rust. Reactive registries ended up in `app_client` (not a `$common` store) because `RegionPlaceholder` is shell-local (W-3); `plugin-list.svelte` reads `installed.active` so an installed custom shows as a read-only `[user]` row (the action row is M-RP6.1m).
+
+**The N-091 override (recorded, not drifted).** N-091 says *no placeholder metric rows* (an unfed row is an unverified branch). `connection-stats` shipped clean, then Joe requested two trailing `Speed · N/A` / `Bandwidth · N/A` reminder rows (`7f24b19`). This is a **deliberate owner override of N-091**, and it is legitimate for a specific reason: the rows show **honest `N/A`** — they do NOT feign data, and the owner is informed the source does not exist (no byte/RTT accounting, no resident socket; the data home is **M-RP6.6**). `rowCount → 6` (render-truth). When live metrics land, each `N/A` becomes a real value; the rows are already placed. *The line N-091 actually draws: a fabricated number is forbidden; an honest, owner-sanctioned `N/A` placeholder for a known-absent source is a labelled reminder, not a lie.* Recorded so the reversal is visible (D-065).
 
 ---
 

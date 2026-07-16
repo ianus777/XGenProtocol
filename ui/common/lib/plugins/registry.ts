@@ -19,6 +19,7 @@ import type { Component } from 'svelte';
 import SelfPanel from '$common/components/widgets/self-panel.svelte';
 import InspectorPanel from '$common/components/widgets/inspector-panel.svelte';
 import GridPlate from '$common/components/widgets/grid-plate.svelte';
+import ConnectionStats from '$common/components/widgets/connection-stats.svelte';
 // plugin-list.svelte is NOT imported here: its descriptor carries no `component` (surface: 'none' →
 // it is content the shell mounts inside a host, never resolved through this registry), so importing
 // it would be both unused and a needless circular import (it reads CLIENT_PLUGINS at runtime).
@@ -105,5 +106,26 @@ export const CLIENT_PLUGINS: PluginDescriptor[] = [
     // from the `surface: 'none' && component` rows — the `widgetRegistry` shape, one socket over (N-096).
     surface: 'none',
     component: GridPlate,
+  },
+];
+
+// AVAILABLE_CUSTOM — the compiled custom (`kind: 'custom'`) plugins the user MAY install (M-RP-CONNSTATS).
+// The FIRST runtime-installable rows: unlike CLIENT_PLUGINS (always present), these enter the active set only
+// when installed (installed.svelte.ts). NOT folded into CLIENT_PLUGINS — a listed-but-uninstalled plugin
+// would be a widget-in-the-registry the client never mounts (the N-091 unfed-branch shape). `delivery:
+// 'compiled'` = in-tree, our own binary (D-085): "install" here means REGISTER + INJECT the layout leaf, not
+// dlopen a library — a compiled plugin is not a loader. A packaged/service custom is a later delivery kind
+// (S-7: none loads until the sandbox floor ships).
+export const AVAILABLE_CUSTOM: PluginDescriptor[] = [
+  {
+    id: 'connection-stats',
+    name: 'Connection Stats',
+    description: 'Live connection state and endpoint.',
+    kind: 'custom',
+    host: 'client',
+    delivery: 'compiled',
+    surface: 'region',
+    regionId: 'connection-stats',
+    component: ConnectionStats,
   },
 ];

@@ -5,18 +5,22 @@
   // NOT a region leaf. Level-2 marked via `data-tier="widget"` on the root (the self-panel /
   // inspector-panel shape).
   //
-  // IT RENDERS THE REGISTRY, AND NOTHING MORE (D1/D5). The registry is `CLIENT_PLUGINS` — the client's
-  // own compiled plugins, the only ones it can see (there is no node-plugin read verb; M-RP-PLUGINS-NODE
-  // is filed, not smuggled in). Three honest rows: self-panel · inspector-panel · plugin-list (it lists
-  // itself). A list that faked a universal registry would be worse than three honest rows.
+  // IT RENDERS THE ACTIVE REGISTRY, AND NOTHING MORE (D1/D5). The active list (M-RP-CONNSTATS) is the
+  // client's own compiled system plugins PLUS the customs the user has installed — one reactive source
+  // (`installed.active`), several readers (this list + the shell's derived widgetRegistry), N-096. It lists
+  // ONLY what is loaded (no node-plugin read verb; M-RP-PLUGINS-NODE is filed, not smuggled in). System rows:
+  // self-panel · inspector-panel · plugin-list (it lists itself) · grid-plate; a `custom` row appears iff it
+  // is installed (e.g. connection-stats), disappears on uninstall. A list that faked a universal registry
+  // would be worse than an honest one.
   //
-  // READ-ONLY (D6). No Remove / Disable / Launch / Settings control: no such verb exists, and a
-  // permanently-disabled control with no countdown behind it is exactly what 6.1j forbade (the absent
-  // slot ships ABSENT, not faked). What ships is the `[system]` badge — Ch6 §6.8.5's own drawing, which
-  // IS W-13 made visible. NO W-8 phase-limit note anywhere (D7): a read-only list of what is loaded is
-  // not a false statement about anything, so there is nothing to sweep at close (N-109 pre-empt).
+  // READ-ONLY (D6). No Remove / Disable / Launch / Settings control: no such verb exists yet (the action row
+  // is M-RP6.1m, POSTPONED — J-513), and a permanently-disabled control with no countdown behind it is
+  // exactly what 6.1j forbade (the absent slot ships ABSENT, not faked). What ships is the `[system]`/`[user]`
+  // badge — Ch6 §6.8.5's own drawing, which IS W-13 made visible. NO W-8 phase-limit note anywhere (D7): a
+  // read-only list of what is loaded is not a false statement about anything (N-109 pre-empt).
   import { envelope } from '$common/components/base/envelope';
-  import { CLIENT_PLUGINS, type PluginDescriptor } from '$common/plugins/registry';
+  import { type PluginDescriptor } from '$common/plugins/registry';
+  import { installed } from '$common/plugins/installed.svelte';
   import Label from '$core/components/data-independent/label.svelte';
 
   // Mounted directly by the host (the plugins-dialog), not by `region-node` — so it takes a plain `id`
@@ -24,10 +28,10 @@
   let { id = 'plugin-list' }: { id?: string } = $props();
   const cid = (s: string) => (id ? `${id}__${s}` : undefined);
 
-  // Alphabetical (D8) — the list is not a priority indicator (Ch6 §6.8.5). A copy so the source array
-  // is never mutated in place.
+  // Alphabetical (D8) — the list is not a priority indicator (Ch6 §6.8.5). Reads the reactive active list,
+  // so an installed custom appears/disappears live; `.active` already returns a fresh array (never mutated).
   const plugins = $derived(
-    [...CLIENT_PLUGINS].sort((a, b) => a.name.localeCompare(b.name)),
+    [...installed.active].sort((a, b) => a.name.localeCompare(b.name)),
   );
 
   // Aggregate getter G (W-4). rowCount is RENDER-TRUTH: counted from `plugins` (what the {#each}

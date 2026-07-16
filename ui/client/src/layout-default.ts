@@ -11,7 +11,7 @@ import type { Layout } from '$core/components/layout/types';
 import type { WidgetMount } from '$core/components/data-dependent/types';
 import { migrateLayout } from '$core/components/layout/resolve';
 import RegionPlaceholder from './region-placeholder.svelte';
-import { CLIENT_PLUGINS } from '$common/plugins/registry';
+import type { PluginDescriptor } from '$common/plugins/registry';
 
 // All 8 D-103 region ids (region-dock §2), in the default row order.
 export const REGION_IDS = [
@@ -33,42 +33,53 @@ export const REGION_NAMES: Record<string, string> = {
   inspector: 'R8 · Selection info',
 };
 
-// The tile-title map (M-RP7.1, D2): `plugin.name ?? REGION_NAMES[id] ?? id`, resolved ONCE here and
-// threaded through region-shell → region-node → region-tile. A placeholder is scaffolding, not a plugin
-// (M-RP6.1l/D5) and is NOT in CLIENT_PLUGINS, so the plugin `name` wins only for the two real region
-// widgets (self → "Self Panel", inspector → "Inspector Panel"); the other six fall to REGION_NAMES.
-const PLUGIN_NAMES: Record<string, string> = Object.fromEntries(
-  CLIENT_PLUGINS.filter((p) => p.surface === 'region' && p.regionId).map((p) => [p.regionId as string, p.name]),
-);
-export const REGION_TITLES: Record<string, string> = Object.fromEntries(
-  REGION_IDS.map((id) => [id, PLUGIN_NAMES[id] ?? REGION_NAMES[id] ?? id]),
-);
+// The registry maps are DERIVED from the ACTIVE plugin list (M-RP6.1l, D2 → M-RP-CONNSTATS, D1): a widget is
+// in the grid — and in the plugin list — BECAUSE it is an active plugin (one source, several readers, N-096).
+// Until M-RP-CONNSTATS the source was the static `CLIENT_PLUGINS` and these were module-level consts. Now the
+// active list is RUNTIME-reactive (`installed.active` = system rows + installed customs), and a plain `.ts`
+// module cannot hold a `$derived` — so these become PURE BUILDERS the shell (`app_client`) calls inside a
+// `$derived` off `installed.active`. They stay HERE (not in the `$common` installed store) because they close
+// over `RegionPlaceholder` / `REGION_IDS` / `REGION_NAMES`, and `RegionPlaceholder` is a SHELL component a
+// `$common` store may not import (W-3) — the node builds its own equivalents at M-RP7.7, mirroring this shape.
 
-// The registry map is DERIVED from CLIENT_PLUGINS (M-RP6.1l, D2): every region id → the placeholder,
-// then each plugin with `surface: 'region'` replaces ONE entry with its component. A widget is in the
-// grid BECAUSE it is a registered region plugin — one source (the registry), two readers (this map +
-// the plugin-list widget), the N-096 shape. The literal `self: SelfPanel, inspector: InspectorPanel`
-// lines are gone; today the derive yields exactly those two (self-panel M-RP6.1g, inspector-panel
-// M-RP6.1h). The remaining 6 regions stay placeholders — a placeholder is scaffolding, not a plugin,
-// and it is not listed.
-export const widgetRegistry: Record<string, Component> = {
-  ...Object.fromEntries(REGION_IDS.map((id) => [id, RegionPlaceholder])),
-  ...Object.fromEntries(
-    CLIENT_PLUGINS.filter((p) => p.surface === 'region' && p.regionId && p.component).map(
-      (p) => [p.regionId as string, p.component as Component],
+/** widgetId → tile title. Fixed regions fall back to `REGION_NAMES`; a region plugin (system OR custom) uses
+ *  its `name` (self → "Self Panel", inspector → "Inspector Panel", connection-stats → "Connection Stats"). */
+export function buildTitles(plugins: PluginDescriptor[]): Record<string, string> {
+  const pluginNames: Record<string, string> = Object.fromEntries(
+    plugins.filter((p) => p.surface === 'region' && p.regionId).map((p) => [p.regionId as string, p.name]),
+  );
+  const out: Record<string, string> = Object.fromEntries(
+    REGION_IDS.map((id) => [id, pluginNames[id] ?? REGION_NAMES[id] ?? id]),
+  );
+  // A custom region plugin's id is NOT in REGION_IDS; add its title so its tile shows the name, not the raw id.
+  for (const p of plugins) {
+    if (p.surface === 'region' && p.regionId && !(p.regionId in out)) out[p.regionId] = p.name;
+  }
+  return out;
+}
+
+/** region id → component: every fixed region id → the placeholder, then each `surface: 'region'` plugin
+ *  (with a component) replaces/adds ONE entry. Today: self → SelfPanel, inspector → InspectorPanel, and —
+ *  when installed — connection-stats → ConnectionStats. The other six regions stay placeholders. */
+export function buildWidgetRegistry(plugins: PluginDescriptor[]): Record<string, Component> {
+  return {
+    ...Object.fromEntries(REGION_IDS.map((id) => [id, RegionPlaceholder])),
+    ...Object.fromEntries(
+      plugins
+        .filter((p) => p.surface === 'region' && p.regionId && p.component)
+        .map((p) => [p.regionId as string, p.component as Component]),
     ),
-  ),
-};
+  };
+}
 
-// The BACKGROUND socket registry (M-RP-PLATE, D1) — the `widgetRegistry` shape, one socket over (N-096).
-// DERIVED from the `surface: 'none' && component` plugins: a widget is in the grid backdrop BECAUSE it is a
-// registered `none`-with-component plugin (today exactly `grid-plate` → GridPlate). Kept SEPARATE from
-// widgetRegistry: a plate id is not a region id, so region-shell resolves the two sockets against two maps.
-export const bgWidgets: Record<string, Component> = Object.fromEntries(
-  CLIENT_PLUGINS.filter((p) => p.surface === 'none' && p.component).map(
-    (p) => [p.id, p.component as Component],
-  ),
-);
+/** The BACKGROUND socket registry (M-RP-PLATE, D1) — the `widgetRegistry` shape, one socket over (N-096).
+ *  From the `surface: 'none' && component` plugins (today exactly `grid-plate`). Kept SEPARATE: a plate id is
+ *  not a region id, so region-shell resolves the two sockets against two maps. */
+export function buildBgWidgets(plugins: PluginDescriptor[]): Record<string, Component> {
+  return Object.fromEntries(
+    plugins.filter((p) => p.surface === 'none' && p.component).map((p) => [p.id, p.component as Component]),
+  );
+}
 
 // The default grid backdrop (D3): ONE inert system plate. A fixed default from here, NOT a user setting —
 // the live-switchable backdrop + persistence land with M-RP-SETTINGS (reserved-nothing holds: no store key,

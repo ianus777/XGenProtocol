@@ -9,9 +9,14 @@
   import UistateLoadDialog from './uistate-load-dialog.svelte';
   import PluginsDialog from './plugins-dialog.svelte';
   import { uiStateStore } from './uistate.svelte';
-  import { loadLayout, widgetRegistry, REGION_TITLES, DEFAULT_LAYOUT, bgWidgets, DEFAULT_BACKGROUND } from './layout-default';
+  import { loadLayout, buildWidgetRegistry, buildBgWidgets, buildTitles, DEFAULT_LAYOUT, DEFAULT_BACKGROUND } from './layout-default';
   import { migrateLayout } from '$core/components/layout/resolve';
-  import { resizeSplit, foldLeaf, move } from '$core/components/layout/mutate';
+  import { resizeSplit, foldLeaf, move, insertLeaf, removeRegion } from '$core/components/layout/mutate';
+  // The runtime custom-plugin lifecycle (M-RP-CONNSTATS). `installed` (a $common store) owns the installed
+  // SET; the shell wraps install/uninstall to ALSO inject/remove the layout leaf and persist (§4.7). The
+  // region widgetRegistry / bgWidgets / titles DERIVE reactively from `installed.active` (below).
+  import { installed } from '$common/plugins/installed.svelte';
+  import { AVAILABLE_CUSTOM } from '$common/plugins/registry';
   import { substitutions } from '$common/components/processor/store.svelte';
   // The self-state store (M-RP6.1g, D3) — ONE channel, TWO views: the shell WRITES it below (the existing
   // state listen + get_state + a once get_self_state invoke), and BOTH the status-bar (here) AND the
@@ -48,6 +53,15 @@
   // consumer; the widget-manager/shelf promotion to a $common store is reserved, not built).
   let layout = $state(null);
 
+  // The RUNTIME-reactive registries (M-RP-CONNSTATS, D1). `installed.active` = the always-present system rows
+  // + the installed customs; installing/uninstalling a custom recomputes these, so its tile widget / backdrop
+  // / title appear/disappear live. Computed HERE (not in the $common installed store) because the builders
+  // close over the shell-local `RegionPlaceholder` (W-3 — a $common store may not import a shell component).
+  const activePlugins = $derived(installed.active);
+  const widgetRegistry = $derived(buildWidgetRegistry(activePlugins));
+  const bgWidgets = $derived(buildBgWidgets(activePlugins));
+  const titles = $derived(buildTitles(activePlugins));
+
   // Grid lock (M-RP7.6). One boolean, seeded from session.locked after hydrate() (default false). When
   // true: the fold/resize/move handlers early-return (the LOAD-BEARING guard — an access rule is only real
   // if its callers enforce it) AND the tile grips / fold buttons / seams go element-absent (the honesty
@@ -74,6 +88,16 @@
       // (an unknown widgetId lowers `backgroundMountCount` to 0, no crash); restore to bring the plate back.
       get background() { return background; },
       setBackground(bg) { background = bg; },
+    };
+
+    // M-RP-CONNSTATS — the custom-plugin lifecycle DEV bridge (§4.7). The SHELL wrappers, so install/uninstall
+    // move BOTH the set and the layout leaf (and persist). No install UI exists yet (the plugins dialog stays
+    // read-only — M-RP6.1m); this drives the mechanism for verify. Dead-code-eliminated in a release build.
+    window.__XGEN_PLUGINS__ = {
+      install(id) { handleInstall(id); },
+      uninstall(id) { handleUninstall(id); },
+      get installed() { return installed.ids; },
+      get available() { return AVAILABLE_CUSTOM.map((p) => p.id); },
     };
   }
 
@@ -109,6 +133,38 @@
     if (!layout) return;
     layout = move(layout, sourceId, targetId, edge);
     uiStateStore.setSessionLayout($state.snapshot(layout));
+  }
+
+  // ── Custom-plugin install / uninstall (M-RP-CONNSTATS, D2/§4.7) ─────────────────────────────────
+  // The store owns the SET; the shell wraps it to ALSO move the layout leaf and persist. Install: register
+  // (reactive registry gains the widget) + inject a leaf at a defined target (PROVISIONAL — the user drags it
+  // after, M-RP7.4). Uninstall: remove the leaf BEFORE deregistering, so no frame renders an unresolved leaf;
+  // `removeRegion` collapse-degenerates so the freed space is absorbed (no blank centre). The installed-set
+  // persists per-device (session key); a reload re-registers it BEFORE loadLayout (onMount, §4.7).
+  const DEFAULT_INSTALL_TARGET = 'inspector'; // PROVISIONAL — a defined dock spot; the user relocates it.
+  const DEFAULT_INSTALL_EDGE = 'bottom';
+
+  function handleInstall(id) {
+    if (installed.isInstalled(id)) return;
+    const desc = AVAILABLE_CUSTOM.find((p) => p.id === id);
+    if (!desc) return;
+    installed.install(id); // reactive: widgetRegistry/titles gain it BEFORE the leaf resolves
+    if (desc.surface === 'region' && desc.regionId && layout) {
+      layout = insertLeaf(layout, desc.regionId, DEFAULT_INSTALL_TARGET, DEFAULT_INSTALL_EDGE);
+      uiStateStore.setSessionLayout($state.snapshot(layout));
+    }
+    uiStateStore.setSessionInstalled(installed.ids);
+  }
+
+  function handleUninstall(id) {
+    if (!installed.isInstalled(id)) return;
+    const desc = AVAILABLE_CUSTOM.find((p) => p.id === id);
+    if (desc?.surface === 'region' && desc.regionId && layout) {
+      layout = removeRegion(layout, desc.regionId); // remove the leaf FIRST — never render an unresolved leaf
+      uiStateStore.setSessionLayout($state.snapshot(layout));
+    }
+    installed.uninstall(id); // then deregister — the widget leaves the reactive registry
+    uiStateStore.setSessionInstalled(installed.ids);
   }
 
   // ── Revert UI (M-RP7.5, Leg D) — renew the grid from the last autosave ──────────────────────────
@@ -208,6 +264,15 @@
   onMount(async () => {
     window.addEventListener('keydown', onKeydown);
 
+    // Boot order (load-bearing — M-RP6.1k/7.6/M-RP-CONNSTATS). Hydrate the persistent UI-state store FIRST: it
+    // is idempotent and no-Tauri-safe (its own try/catch), so it runs OUTSIDE the Tauri try below. From its
+    // `session` we seed the installed custom-plugin set and the grid lock BEFORE the layout resolves — a
+    // persisted custom leaf must find its registered widget (installed.hydrate → the reactive widgetRegistry
+    // gains it) instead of W-13-dropping at resolveLayout (§4.7, D3).
+    await uiStateStore.hydrate();
+    installed.hydrate(uiStateStore.session()?.installed ?? []);
+    locked = uiStateStore.session()?.locked ?? false;
+
     // Seed the centre layout (D2). Not Tauri, never throws, so it runs OUTSIDE the try that swallows the
     // no-Tauri (browser dev preview) case — the grid must render even without a backend.
     layout = await loadLayout();
@@ -240,13 +305,8 @@
       // per session, so fetched once here; the dialog reads it synchronously.
       aboutInfo = await invoke('get_about_info');
 
-      // M-RP6.1k Leg B — hydrate the persistent UI-state store from disk (get_ui_state). The
-      // Save/Load dialogs read it reactively; a corrupt/absent store leaves it empty (N-095).
-      await uiStateStore.hydrate();
-
-      // M-RP7.6 — seed the grid lock from the persisted session (default false when the key is absent —
-      // a past-build store has no `locked` key, V6). Must follow hydrate() so it reads the loaded value.
-      locked = uiStateStore.session()?.locked ?? false;
+      // (The UI-state store hydrate + the installed-set/grid-lock seed moved ABOVE loadLayout — they must run
+      // before the layout resolves, M-RP-CONNSTATS §4.7. hydrate() is idempotent, so no double-read here.)
     } catch (_) {
       // Running outside Tauri (browser dev preview) — state stays at placeholder.
     }
@@ -368,7 +428,7 @@
     leaves. It FILLS .app-center (no whole-grid scroll, D5) — each leaf owns its own scroll. -->
   <main class="app-center">
     {#if layout}
-      <RegionShell {layout} widgets={widgetRegistry} titles={REGION_TITLES} {background} bgWidgets={bgWidgets} backgroundLive={true} onFold={handleFold} onResize={handleResize} onMove={handleMove} {locked} id="region-root" />
+      <RegionShell {layout} widgets={widgetRegistry} {titles} {background} {bgWidgets} backgroundLive={true} onFold={handleFold} onResize={handleResize} onMove={handleMove} {locked} id="region-root" />
     {/if}
   </main>
 

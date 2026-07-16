@@ -243,6 +243,40 @@ function removeLeaf(node: LayoutNode, id: string): LayoutNode | null {
   return node; // tabs — untouched (move bails on tabs before reaching here)
 }
 
+// ── insertLeaf / removeRegion (M-RP-CONNSTATS — the runtime install/uninstall leaf verbs, D2) ───────────
+// The custom-plugin lifecycle EXPOSES `move`'s own private primitives; it invents NO algebra. Install docks a
+// fresh leaf beside a target (reusing `insertBeside` + `edgeAxis`/`edgeBefore`); uninstall removes it (reusing
+// `removeLeaf`, which already collapse-degenerates — the remove-WITHOUT-blanking property `move` relies on).
+// Both are pure + TOTAL like the rest of the module: exposed as `Layout → Layout` wrappers (not raw
+// `removeLeaf`, whose `null` return would break the module's public TOTAL contract for the shell caller).
+
+/**
+ * Dock a NEW leaf carrying `newWidgetId` on the `edge` of the leaf `targetId`. Wraps `insertBeside` (§3.5
+ * semantics: sibling when the parent already runs on `edge`'s axis, else WRAP). Pure + TOTAL: a missing
+ * target, or a `newWidgetId` already present in the tree (a double-install), returns the input UNCHANGED by
+ * reference — never a duplicate leaf, never a throw.
+ */
+export function insertLeaf(layout: Layout, newWidgetId: RegionId, targetId: RegionId, edge: Edge): Layout {
+  if (!layout || !layout.root) return layout;
+  if (!findLeaf(layout.root, targetId)) return layout; // target missing → no-op by reference
+  if (findLeaf(layout.root, newWidgetId)) return layout; // already docked → no-op (guards double-install)
+  const source: LayoutNode = { type: 'leaf', widgetId: newWidgetId };
+  return { ...layout, root: insertBeside(layout.root, targetId, source, edgeAxis(edge), edgeBefore(edge)) };
+}
+
+/**
+ * Remove the leaf `widgetId` and collapse the degenerate split it leaves behind (remove-WITHOUT-blanking —
+ * the survivors absorb the freed space, §3.4). Pure + TOTAL: an unknown id, or a removal that would empty the
+ * whole tree, returns the input UNCHANGED (the latter cannot happen while the non-removable system regions
+ * are present, but the guard keeps the contract honest — this never returns a null-rooted layout).
+ */
+export function removeRegion(layout: Layout, widgetId: RegionId): Layout {
+  if (!layout || !layout.root) return layout;
+  const root = removeLeaf(layout.root, widgetId);
+  if (!root) return layout; // would empty the tree → unchanged (defensive; N-095 — never blank the centre)
+  return { ...layout, root };
+}
+
 /** Insert `source` beside the leaf `targetId` on the `before`/after side of `axis`. SIBLING insert when the
  *  target's parent split already runs on `axis` (double the split's `sizes`, bisect the target's slot so the
  *  moved region takes half — §3.5); otherwise WRAP the target in a new split of `axis` (sizes `[1,1]`, taking

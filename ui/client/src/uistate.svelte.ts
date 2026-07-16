@@ -23,6 +23,10 @@ export interface UiStateBag {
   layout?: Layout;
   /** Grid lock (M-RP7.6). A SESSION-only key today (the named states carry it too, verbatim, for free). */
   locked?: boolean;
+  /** Installed custom plugin ids (M-RP-CONNSTATS). Per-device arrangement (the J-503 test — a compiled
+   *  plugin's install is device-local, not synced config), so a SESSION key. An empty array is meaningful
+   *  (nothing installed) and distinct from undefined (never touched). */
+  installed?: string[];
   [k: string]: unknown;
 }
 interface NamedEntry {
@@ -75,22 +79,26 @@ async function persist(): Promise<void> {
     // above, so a geometry Rust wrote since our last read survives.
     const onDiskSession =
       onDisk.session && typeof onDisk.session === 'object' ? onDisk.session : {};
-    // Two INDEPENDENT session keys THIS module owns (M-RP7.6, N-107): `layout` (fold/resize/move feeder) and
-    // `locked` (the grid lock). Each is merged only when set, so a lock-toggle with no layout change still
-    // persists, a layout write does not clobber `locked`, and NEITHER touches geometry (Rust's, spread first).
+    // Three INDEPENDENT session keys THIS module owns (M-RP7.6/M-RP-CONNSTATS, N-107): `layout` (fold/resize/
+    // move feeder), `locked` (the grid lock), and `installed` (the custom-plugin set). Each is merged only when
+    // set, so any one mutation persists without clobbering the others — and NONE touches geometry (Rust's,
+    // spread first). `installed` writes even an empty array (uninstall-all is meaningful — the reload must not
+    // re-add), distinct from undefined (never touched).
     const layout = _store.session?.layout;
     const locked = _store.session?.locked;
+    const installed = _store.session?.installed;
     const sessionOut = {
       ...onDiskSession,
       ...(layout ? { layout } : {}),
       ...(locked !== undefined ? { locked } : {}),
+      ...(installed !== undefined ? { installed } : {}),
     };
     const merged = {
       ...onDisk,
       version: 1,
       named: _store.named,
       active: _store.active,
-      ...(layout || locked !== undefined ? { session: sessionOut } : {}),
+      ...(layout || locked !== undefined || installed !== undefined ? { session: sessionOut } : {}),
     };
     await tauriInvoke('set_ui_state', { json: JSON.stringify(merged) });
   } catch (e) {
@@ -220,6 +228,16 @@ export const uiStateStore = {
    */
   setSessionLocked(locked: boolean): void {
     _store.session = { ...(_store.session ?? {}), locked };
+    scheduleSessionPersist();
+  },
+
+  /**
+   * M-RP-CONNSTATS — persist the installed custom-plugin ids. Mirrors setSessionLocked (a per-key session
+   * write, N-107 — geometry stays Rust's, `layout`/`locked` untouched). Read back on the next launch by the
+   * shell BEFORE loadLayout, so a persisted custom leaf resolves instead of W-13-dropping (§4.7, D3).
+   */
+  setSessionInstalled(ids: string[]): void {
+    _store.session = { ...(_store.session ?? {}), installed: ids };
     scheduleSessionPersist();
   },
 };

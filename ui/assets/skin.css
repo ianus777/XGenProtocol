@@ -1850,6 +1850,41 @@ html, body {
   font-size: var(--fs-0);
 }
 
+/* ── connection-stats (.connection-stats / .cs-*) — the FIRST `kind: custom` widget (M-RP-CONNSTATS), the
+ * install→dock→uninstall lifecycle exemplar. A compact metric-row list reading the self-state store. ALL
+ * skinnable presentation lives here (N-090 / N-094: the component ships ZERO <style>). PROVISIONAL → M-RP-SKIN
+ * (Joe owns the look; this milestone owns the lifecycle). Reuses the inspector kv-grid shape (NOT extracted;
+ * the recurrence is flagged for the D-069 fourth). Accent-neutral: the State led is caller-coloured
+ * (STATE_COLOURS), not --accent, so the widget reads identically client↔node. ── */
+.connection-stats {
+  padding: var(--sp-2);
+}
+.connection-stats-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--sp-0) var(--sp-3);
+  margin: 0;
+  align-items: baseline;
+}
+.connection-stats-grid dt {
+  color: var(--t3);
+  font-size: var(--fs-0);
+}
+.connection-stats-grid dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.connection-stats-grid dd .label {
+  font-size: var(--fs-0);
+}
+/* The State row pairs the led with its label. */
+.cs-state {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
 /* ── plugin-list (.plugin-list / .pl-*) — the FIFTH widget (M-RP6.1l), the gear's pane. A READ-ONLY
  * stacked list of the client's compiled plugins (Ch6 §6.8.5's stacked-block drawing). ALL skinnable
  * presentation lives here (N-090 / N-094: the component ships ZERO <style>). ACCENT-NEUTRAL — a

@@ -2801,12 +2801,17 @@ html, body {
    * gated on M-RP-PLATE "because it requires transparent splits". WRONG: it requires the splits not to
    * PAINT, which is THIS MOVE - not the plate widget. The plate is a SUPERSET, not a prerequisite.
    *
-   * ⚠️ PROVISIONAL, and the discharger is still M-RP-PLATE (§4.5.1), which REPLACES these three lines
-   * with a real backdrop WIDGET (an element, not a background-image - a CSS background cannot do a canvas
-   * or anything reactive). Do not spend appearance work here. */
+   * ✅ M-RP-PLATE (2026-07-16): THE RASTER IS NOW AN ELEMENT. The dev raster moved from a
+   * `background-image` HERE to the `.grid-plate` widget (a `surface:'none'`-with-component plugin mounted
+   * into region-shell's grid-wide `background` socket, the message-stream `background` layer one level up).
+   * The shell keeps ONLY the `--s5` base colour: it is the surface that shows through every gap, AND it is
+   * the graceful fallback if the plate ever fails to mount (W-13 drop → a clean --s5 gap, no texture, no
+   * blank). The DOTS live on the plate; --s5 shows between them → identical composite. `position: relative`
+   * makes the shell the containing block for the absolutely-positioned `.region-backdrop` (no z-index → NOT
+   * a stacking context, so the fixed drag-overlay's z-order is untouched). Still PROVISIONAL: M-RP-SKIN owns
+   * the final look, and M-RP-SETTINGS swaps the whole plate for a black/reactive backdrop. */
+  position: relative;
   background-color: var(--s5);
-  background-image: radial-gradient(var(--s3) 1px, transparent 1px);
-  background-size: 8px 8px;
 
   /* THE GRID'S SPACING - ONE TOKEN (Joe, 2026-07-14). PROVISIONAL VALUE; discharger = M-RP-SKIN.
    *
@@ -2887,6 +2892,33 @@ html, body {
 .region-shell > .region-split,
 .region-shell > .region-tile {
   flex: 1;
+  /* M-RP-PLATE — LIFT THE TREE ABOVE THE BACKDROP (the message-stream `rows z-index:1` shape). The
+   * `.region-backdrop` is a POSITIONED child at z-index:0; a NON-positioned root split would paint UNDER it,
+   * so the plate would cover the opaque tiles. Lifting the root split to a positioned z-index:1 puts it above
+   * the backdrop (0) and below the fixed drag-overlay (4000) — all three resolve by z-index (backdrop < tree
+   * < overlay). Scoping the root split to its own stacking context leaves the seam's z-index:1 (below) still
+   * painting above its neighbour tiles (tiles non-positioned → below any positioned seam), verified. */
+  position: relative;
+  z-index: 1;
+}
+/* M-RP-PLATE — the grid-wide backdrop socket wrapper (region-shell's FIRST child). Fills the shell box;
+ * z-index:0 keeps it UNDER the lifted tree (above). `pointer-events:none` is the D-116 lock, NOT appearance:
+ * the plate shows through every hole/seam/perimeter but is transparent to hit-testing — a clickable hole
+ * would have an ADDRESS and retire the tree. A drag still docks (the tiles hit-test; a hole offers no band). */
+.region-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+/* .grid-plate — the inert system plate (M-RP-PLATE, D4). Fills the backdrop wrapper and paints the PROMOTED
+ * dev raster (the dots; the shell's --s5 shows between them). PROVISIONAL — discharger M-RP-SKIN; the whole
+ * plate is swapped for a solid/reactive backdrop at M-RP-SETTINGS. Zero component-local CSS (N-090). */
+.grid-plate {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--s3) 1px, transparent 1px);
+  background-size: 8px 8px;
 }
 .region-split {
   display: flex;

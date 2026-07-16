@@ -9,7 +9,7 @@
   import UistateLoadDialog from './uistate-load-dialog.svelte';
   import PluginsDialog from './plugins-dialog.svelte';
   import { uiStateStore } from './uistate.svelte';
-  import { loadLayout, widgetRegistry, REGION_TITLES, DEFAULT_LAYOUT } from './layout-default';
+  import { loadLayout, widgetRegistry, REGION_TITLES, DEFAULT_LAYOUT, bgWidgets, DEFAULT_BACKGROUND } from './layout-default';
   import { migrateLayout } from '$core/components/layout/resolve';
   import { resizeSplit, foldLeaf, move } from '$core/components/layout/mutate';
   import { substitutions } from '$common/components/processor/store.svelte';
@@ -54,6 +54,11 @@
   // layer). The lock face's `pressed` tracks it; the toggle persists via setSessionLocked.
   let locked = $state(false);
 
+  // Grid backdrop mounts (M-RP-PLATE, D3). Seeded to the ONE inert system plate; a `$state` (not the raw
+  // DEFAULT_BACKGROUND literal) only so the DEV bridge can drive the W-13 drop leg (V5). `backgroundLive`
+  // stays a hardcoded `true` at the mount (unbound this arc — the M-RP-SETTINGS binding replaces it).
+  let background = $state(DEFAULT_BACKGROUND);
+
   // DEV-only CDP handle (N-024 idiom) so the verify pass can drive the drop / tabs / mismatch paths
   // (§5.3): push a test layout, read region-shell's getter G. Dead-code-eliminated in a release build.
   if (import.meta.env.DEV && typeof window !== 'undefined') {
@@ -65,6 +70,10 @@
       // the reactive reassignment fires. Dead-code-eliminated in a release build, as `set` already is.
       move(sourceId, targetId, edge) { handleMove(sourceId, targetId, edge); },
       fold(regionId, collapsed) { handleFold(regionId, collapsed); },
+      // M-RP-PLATE (V5) — feed the background socket a bad/empty mount list to exercise the W-13 drop
+      // (an unknown widgetId lowers `backgroundMountCount` to 0, no crash); restore to bring the plate back.
+      get background() { return background; },
+      setBackground(bg) { background = bg; },
     };
   }
 
@@ -359,7 +368,7 @@
     leaves. It FILLS .app-center (no whole-grid scroll, D5) — each leaf owns its own scroll. -->
   <main class="app-center">
     {#if layout}
-      <RegionShell {layout} widgets={widgetRegistry} titles={REGION_TITLES} onFold={handleFold} onResize={handleResize} onMove={handleMove} {locked} id="region-root" />
+      <RegionShell {layout} widgets={widgetRegistry} titles={REGION_TITLES} {background} bgWidgets={bgWidgets} backgroundLive={true} onFold={handleFold} onResize={handleResize} onMove={handleMove} {locked} id="region-root" />
     {/if}
   </main>
 

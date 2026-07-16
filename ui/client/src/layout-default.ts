@@ -8,6 +8,7 @@
 
 import type { Component } from 'svelte';
 import type { Layout } from '$core/components/layout/types';
+import type { WidgetMount } from '$core/components/data-dependent/types';
 import { migrateLayout } from '$core/components/layout/resolve';
 import RegionPlaceholder from './region-placeholder.svelte';
 import { CLIENT_PLUGINS } from '$common/plugins/registry';
@@ -58,6 +59,21 @@ export const widgetRegistry: Record<string, Component> = {
     ),
   ),
 };
+
+// The BACKGROUND socket registry (M-RP-PLATE, D1) — the `widgetRegistry` shape, one socket over (N-096).
+// DERIVED from the `surface: 'none' && component` plugins: a widget is in the grid backdrop BECAUSE it is a
+// registered `none`-with-component plugin (today exactly `grid-plate` → GridPlate). Kept SEPARATE from
+// widgetRegistry: a plate id is not a region id, so region-shell resolves the two sockets against two maps.
+export const bgWidgets: Record<string, Component> = Object.fromEntries(
+  CLIENT_PLUGINS.filter((p) => p.surface === 'none' && p.component).map(
+    (p) => [p.id, p.component as Component],
+  ),
+);
+
+// The default grid backdrop (D3): ONE inert system plate. A fixed default from here, NOT a user setting —
+// the live-switchable backdrop + persistence land with M-RP-SETTINGS (reserved-nothing holds: no store key,
+// no descriptor key, no schema change). Props-less → the plate self-ids to `grid-plate` (stable register id).
+export const DEFAULT_BACKGROUND: WidgetMount[] = [{ widgetId: 'grid-plate' }];
 
 // DEFAULT_LAYOUT (D8) — exercises row + col + nesting, all 8 regions, NO unknown id, NO tabs (a broken
 // default is not a test fixture; the drop/tabs/mismatch paths are driven at verify via __XGEN_LAYOUT__).

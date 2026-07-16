@@ -26,6 +26,7 @@
   import { envelope } from '$common/components/base/envelope';
   import type { Component } from 'svelte';
   import type { FoldAxis, Layout } from './types';
+  import type { WidgetMount } from '../data-dependent/types';
   import { resolveLayout, treeDepth, carriesMainAxisWeight, type ResolvedNode } from './resolve';
   import { isMoveNoop, move, type Edge } from './mutate';
   import RegionNode from './region-node.svelte';
@@ -34,6 +35,9 @@
     layout,
     widgets = {},
     titles = {},
+    background,
+    backgroundLive = true,
+    bgWidgets = {},
     onFold,
     onResize,
     onMove,
@@ -43,6 +47,16 @@
     layout: Layout;
     widgets?: Record<string, Component>; // widgetId → component; an unknown id is dropped by resolveLayout (W-13)
     titles?: Record<string, string>; // widgetId → tile title (M-RP7.1, D2); threaded to each tile
+    /** Grid-wide backdrop mounts (M-RP-PLATE, D1) — the `message-stream` `background` socket, one level up.
+     *  undefined = none. Resolved against `bgWidgets` (NOT `widgets`), unknown id dropped (W-13). */
+    background?: WidgetMount[];
+    /** Settings switch passed into each background mount (unbound this arc — a hardcoded `true` from the
+     *  shell; the M-RP-SETTINGS binding replaces the literal). A static plate ignores it (message-stream). */
+    backgroundLive?: boolean;
+    /** widgetId → component for the BACKGROUND socket ONLY (D1). SEPARATE from the tile `widgets` map: the
+     *  tile map is region-id-keyed and feeds resolveLayout/W-13 for LEAVES; a plate id is not a region id
+     *  and must never be mistaken for one. Two sockets, two registries, independently W-13-testable. */
+    bgWidgets?: Record<string, Component>;
     onFold?: (regionId: string, collapsed: FoldAxis | undefined) => void; // fold seam (M-RP7.1b, D6)
     onResize?: (path: number[], aIdx: number, bIdx: number, fraction: number) => void; // splitter seam (N-120)
     /** Move commit (M-RP7.4). Called ONCE on a valid drop with the three `move` arguments (→ `handleMove`). */
@@ -60,6 +74,15 @@
   // The shell element — its first child is the rendered root node, whose rect is the grid's container box
   // for the M-RP7.4b proportion walk (the flex proportioning starts from the root split's box).
   let shellEl = $state<HTMLElement>();
+
+  // Background socket (M-RP-PLATE, D1) — the `message-stream` shape exactly: resolve each declared widgetId
+  // against `bgWidgets`, DROP an unknown id (W-13), so `backgroundMountCount` reports the RENDERED truth (a
+  // dropped unknown lowers it). Resolved into the SEPARATE `bgWidgets` registry — never the tile `widgets`.
+  const resolvedBg = $derived(
+    (background ?? [])
+      .map((m, i) => ({ key: `${m.widgetId}-${i}`, component: bgWidgets[m.widgetId], props: m.props ?? {} }))
+      .filter((b) => !!b.component),
+  );
 
   // ── Move gesture (M-RP7.4, D1) ──────────────────────────────────────────────────────────────────────
   const EDGES: Edge[] = ['top', 'bottom', 'left', 'right'];
@@ -254,10 +277,25 @@
     unsupportedCount: resolved.unsupported,
     depth: treeDepth(resolved.root),
     dragging: drag?.sourceId ?? null,
+    backgroundMountCount: resolvedBg.length, // rendered background mounts (dropped-unknown lowers it, W-13)
+    backgroundLive, // the settings switch (unbound this arc), CDP-readable even while the plate is inert
   });
 </script>
 
 <div class="region-shell" bind:this={shellEl} use:envelope={{ name: 'region-shell', id, debug }}>
+  <!-- M-RP-PLATE (D1) — the grid-wide backdrop socket, FIRST child so it paints UNDER the opaque tiles
+    (the message-stream `background` layer, one level up). `pointer-events:none` (skin) is the D-116 lock:
+    the plate shows through every gap but is transparent to hit-testing — a clickable hole would have an
+    ADDRESS and retire the tree. Wrapper look/stacking is in skin.css (N-090). -->
+  {#if resolvedBg.length}
+    <div class="region-backdrop" aria-hidden="true">
+      {#each resolvedBg as b (b.key)}
+        {@const W = b.component}
+        <W {...b.props} {backgroundLive} />
+      {/each}
+    </div>
+  {/if}
+
   {#if resolved.root}
     <RegionNode
       node={resolved.root}

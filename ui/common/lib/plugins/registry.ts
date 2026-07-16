@@ -18,9 +18,16 @@
 import type { Component } from 'svelte';
 import SelfPanel from '$common/components/widgets/self-panel.svelte';
 import InspectorPanel from '$common/components/widgets/inspector-panel.svelte';
+import GridPlate from '$common/components/widgets/grid-plate.svelte';
 // plugin-list.svelte is NOT imported here: its descriptor carries no `component` (surface: 'none' →
 // it is content the shell mounts inside a host, never resolved through this registry), so importing
 // it would be both unused and a needless circular import (it reads CLIENT_PLUGINS at runtime).
+//
+// TWO SHAPES of `surface: 'none'` (M-RP-PLATE): a `none` row spends no surface (W-12), but it may still be
+// CONTENT the shell mounts inside a host (§3.2). NO-component (`plugin-list`) → the shell mounts it directly
+// (into a dialog now, Settings later). WITH-component (`grid-plate`) → the shell mounts it into a NAMED host
+// socket (the grid-wide background socket on `region-shell`) via a DERIVED registry (layout-default), the
+// `widgetRegistry` shape one socket over.
 
 /** system = the node/system area · client = the ui area (Joe's frame; already the words in module.rs). */
 export type PluginHost = 'node' | 'client';
@@ -81,8 +88,22 @@ export const CLIENT_PLUGINS: PluginDescriptor[] = [
     kind: 'system',
     host: 'client',
     delivery: 'compiled',
-    // surface: 'none' — the list is CONTENT inside a host (a dialog now, Settings later, S-2/§3.2),
-    // so it spends no surface (W-12) and needs no `component` here (the shell mounts it directly).
+    // surface: 'none', NO component — the list is CONTENT inside a host (a dialog now, Settings later,
+    // S-2/§3.2), so it spends no surface (W-12) and the shell mounts it DIRECTLY (not via a registry).
     surface: 'none',
+  },
+  {
+    id: 'grid-plate',
+    name: 'Grid Backdrop',
+    description: 'The backdrop shown behind the grid, in the gaps between panels.',
+    kind: 'system',
+    host: 'client',
+    delivery: 'compiled',
+    // surface: 'none', WITH component — the FIRST such row (M-RP-PLATE). It spends no surface (W-12) but
+    // IS content the shell mounts into a NAMED host socket: the grid-wide background socket on region-shell
+    // (the `message-stream` `background` socket, one level up). layout-default DERIVES a `bgWidgets` map
+    // from the `surface: 'none' && component` rows — the `widgetRegistry` shape, one socket over (N-096).
+    surface: 'none',
+    component: GridPlate,
   },
 ];

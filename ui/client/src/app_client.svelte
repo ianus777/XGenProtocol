@@ -7,7 +7,7 @@
   import AboutDialog from './about-dialog.svelte';
   import UistateSaveDialog from './uistate-save-dialog.svelte';
   import UistateLoadDialog from './uistate-load-dialog.svelte';
-  import PluginsDialog from './plugins-dialog.svelte';
+  import SettingsDialog from './settings-dialog.svelte';
   import { uiStateStore } from './uistate.svelte';
   import { loadLayout, buildWidgetRegistry, buildBgWidgets, buildTitles, DEFAULT_LAYOUT, DEFAULT_BACKGROUND } from './layout-default';
   import { migrateLayout } from '$core/components/layout/resolve';
@@ -44,9 +44,12 @@
   let saveOpen = $state(false);
   let loadOpen = $state(false);
 
-  // Plugin list dialog (M-RP6.1l). The gear shelf face opens this; it mounts the `plugin-list` widget
-  // ($common) — a READ-ONLY list of the client's own compiled plugins (there is no node-plugin verb).
-  let pluginsOpen = $state(false);
+  // Settings modal (M-RP-SETTINGS Leg A). ONE Discord-shaped modal (sidebar + content pane); the plugin
+  // manager is its Plugins section (the read-only `plugin-list`, absorbed from the retired plugins-dialog).
+  // Two entry points: File ▸ Settings → default section; the gear (widget.manager) → the Plugins section.
+  // `settingsSection` is the deep-link target the entry point sets (null = default).
+  let settingsOpen = $state(false);
+  let settingsSection = $state(null);
 
   // Centre region layout (M-RP6.1f). Seeded by `await loadLayout()` on mount (D2 — async so M-RP7.3 is a
   // one-line swap to invoke('get_layout')). Shell-local this milestone (D7 — the shell is the only
@@ -190,9 +193,11 @@
     // M-RP6.1k — the diskette/load faces resolve here.
     'uistate.save': () => (saveOpen = true),
     'uistate.load': () => (loadOpen = true),
-    // M-RP6.1l — the gear resolves here. This entry existing is what lets the gear enable (below);
-    // the 6.1j countdown is now discharged — no shelf face is disabled.
-    'widget.manager': () => (pluginsOpen = true),
+    // M-RP-SETTINGS Leg A — the gear opens Settings LANDED on the Plugins section (the deep-link).
+    // (M-RP6.1l's `widget.manager` → pluginsOpen is retired; the gear now opens the one Settings modal.)
+    'widget.manager': () => { settingsSection = 'plugins'; settingsOpen = true; },
+    // M-RP-SETTINGS Leg A — File ▸ Settings opens the SAME modal on its default (first) section.
+    'settings.open': () => { settingsSection = null; settingsOpen = true; },
     // M-RP7.5 Leg C — File ▸ Restart: bounce the process; the fresh boot restores the autosaved grid.
     'app.restart': handleRestart,
     // M-RP7.5 Leg D — standalone "renew from autosave" (loadLayout re-read), no bounce. The command is
@@ -228,6 +233,10 @@
     {
       label: 'File',
       items: [
+        // M-RP-SETTINGS Leg A — File ▸ Settings opens the Settings modal on its default section (the gear
+        // is the other entry point, landing on Plugins). Placed ABOVE Restart → File = Settings · Restart ·
+        // —— · Exit. No accelerator (Ctrl+, is a possible future skin/UX call, Joe's).
+        { label: 'Settings', command: 'settings.open' },
         // M-RP7.5 Leg C — File ▸ Restart: bounce the process; the fresh boot's loadLayout() re-reads the
         // session autosave, so the arranged grid comes back (the "revert" is implicit in the reload). Joe
         // owns the glyph; this is the wiring. Standalone Revert (layout.revert) lives elsewhere, not here.
@@ -457,7 +466,9 @@
   <UistateSaveDialog bind:open={saveOpen} onSave={handleUistateSave} />
   <UistateLoadDialog bind:open={loadOpen} onLoad={handleUistateLoad} />
 
-  <!-- Plugin list modal (M-RP6.1l). Same always-mounted top-layer posture; opened by the gear shelf
-    face (widget.manager). A READ-ONLY list of the client's own compiled plugins. -->
-  <PluginsDialog bind:open={pluginsOpen} />
+  <!-- Settings modal (M-RP-SETTINGS Leg A). Same always-mounted top-layer posture; opened by File ▸
+    Settings (default section) and the gear (Plugins section). Discord-shaped: a category sidebar + a
+    content pane. Hosts the read-only plugin-list (Plugins section) and the reused About content (About
+    section). `aboutInfo` is the same payload the Help ▸ About modal reads (S-2 — one fetch, two views). -->
+  <SettingsDialog bind:open={settingsOpen} section={settingsSection} info={aboutInfo} onOpenLink={handleAboutLink} />
 </div>

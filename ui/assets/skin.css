@@ -1077,6 +1077,49 @@ html, body {
 .uistate-actions .button { font-size: var(--fs-0); }
 
 /* --------------------------------------------------
+ * Settings modal (.settings / .settings-*) — the ONE Discord-shaped Settings surface (M-RP-SETTINGS Leg
+ * A): a left category menu (~¼ width) + a content pane that swaps per selection. Shell chrome dressed
+ * HERE, not in app.css (N-090: layout / spacing / sizing are skinnable → skin.css). The `.settings` root
+ * carries the type-class from `envelope` (no hardcoded class → no N-121 double). The stock `dialog` Close
+ * footer is KEPT (no `:has()` suppression — that would be the 2nd recurrence, J-512 D9). ALL of this is
+ * PROVISIONAL → M-RP-SKIN (widths, density, the sidebar/content chrome, the active-item look are Joe's).
+ * -------------------------------------------------- */
+/* Widen the modal for a two-pane layout (the uistate `:has()` precedent). */
+.dialog:has(.settings) { max-width: min(94vw, 720px); }
+
+.settings {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) 3fr; /* sidebar ~¼, content ~¾ */
+  gap: var(--sp-3);
+  min-width: 480px;
+  min-height: 320px;
+}
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding-right: var(--sp-2);
+  border-right: 1px solid var(--s5);
+  min-width: 0;
+}
+.settings-nav-item {
+  text-align: left;
+  padding: var(--sp-1) var(--sp-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--rad);
+  color: var(--t2);
+  font-size: var(--fs-1);
+  cursor: pointer;
+}
+.settings-nav-item:hover { background: var(--s4); }
+.settings-nav-item[aria-current="true"] { background: var(--s4); color: var(--t); }
+.settings-content { min-width: 0; }
+/* All sections mounted; only the active one shows (M-RP3.2 tabbed-sampler precedent). */
+.settings-panel { display: none; }
+.settings-panel[data-active] { display: block; }
+
+/* --------------------------------------------------
  * password-field (.password-field)
  *   The SECOND di COMPOSITE (M-RP2.23) + the home for the reveal toggle. Root IS
  *   <div class="password-field">. Skin lays out textfield (field) + a TRANSPARENT icon-only reveal

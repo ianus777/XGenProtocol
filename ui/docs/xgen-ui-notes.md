@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.94  
+> Version: 0.95  
 > Date: May 2026  
 > **Last updated**: 2026-07-16  
 > Language: English  
@@ -2721,6 +2721,18 @@ Both shelves (top favourites · bottom system) now hold a FIXED height whether e
 **⚠️ The measured residual, recorded so nobody “fixes” it: top 28 vs bottom 28.8 = 0.8px (one device pixel).** `.shelf` is `box-sizing:border-box` with `min-height: var(--ctl-h)`, so the POPULATED shelf's faces push its border-box 0.8px past the 28 min while the EMPTY shelf sits exactly at min-height. It is NOT a collapse (both are fixed) — it is a content-vs-min artifact of the border-box, invisible in use. Joe accepted it against the optical bar (N-128 — “optically correct is satisfied”). The exact-equality alternative — `.shelf { height: var(--ctl-h) }` → both 28px, the icon faces clamping harmlessly to the box — is filed-not-taken (a hard height over a min-height, for a sub-pixel gain).
 
 The node inherits this free at M-RP7.7 (one shared skin → both apps frame identically). Skin-only, PROVISIONAL (Joe HMR-tunes); no component / registry / schema change; no new D.
+
+### N-131 — the grid-wide backdrop socket: `message-stream`'s `background` one level up, and the `surface:'none'`-with-component split (M-RP-PLATE, J-532)
+
+The grid backdrop is now a **widget mounted through the plugin registry**, not a CSS `background-image`. `region-shell` gained `background?: WidgetMount[]` + `backgroundLive?` + a **separate `bgWidgets` registry** — the EXACT socket `message-stream.svelte` already shipped for chat-wallpaper (J-481/J-485), lifted one level up to grid-wallpaper. Rendered as a `position:absolute; inset:0; pointer-events:none` wrapper behind `RegionNode` (drag overlay still mounted last); each mount resolves `widgetId → component` against `bgWidgets`, unknown dropped (W-13), `backgroundMountCount` in G. **The `bgWidgets` registry is deliberately NOT the tile `widgets` map** — that map is region-id-keyed and feeds `resolveLayout`; mixing `grid-plate` into it would risk a non-leaf being read as a leaf. Two sockets, two registries, each W-13-testable.
+
+**🔑 The `surface:'none'` row now has TWO shapes.** `plugin-list` is `surface:'none'` with **no `component`** — content the shell mounts directly into a dialog. `grid-plate` is the **first `surface:'none'` WITH a `component`** — content the shell mounts into a **named host socket** (the grid backdrop). Both are §3.2 "content in a host is not a surface" (W-12); the discriminator is only WHERE the shell mounts it. `layout-default.ts` derives `bgWidgets` from `surface==='none' && component` rows (the N-096 one-source-two-readers shape, mirroring `widgetRegistry`'s derive from `surface==='region'`).
+
+**🔒 The pointer lock is the design, not a detail (D-116).** `pointer-events:none` on the backdrop: measured live, `elementFromPoint` at the perimeter → `region-split`, over a fold-hole → `region-split`, over a tile → `region-tile-body` — never the plate. *The instant a hole is clickable it has an address, D-116 (“a target tile is an address”) falls, and §7.1's lattice argument is live again. A reactive backdrop is fine; a clickable one retires the tree.* The plate MAY read the pointer (a passive listener) but MUST NEVER capture it. **D3 held: inert now** — `backgroundLive` is exposed but unbound (a static plate ignores it); the live-switchable backdrop + its user setting ride M-RP-SETTINGS, still gated on the J-513 settings collision. **Stacking** was realized by lifting the tree (root split `position:relative; z-index:1`, the message-stream rows-z:1 shape), NOT by sinking the backdrop — a positioned `z:0` backdrop paints over non-positioned tiles; `.region-shell` gets only `position:relative` (not a stacking context) so the fixed drag-overlay `z:4000` is untouched. Appearance PROVISIONAL (Joe / M-RP-SKIN). No new D (§4.5.1 + D-103/D-112/W-12 extension).
+
+### N-132 — read a quiescent registry baseline AFTER a full reload, never on an accumulated dev session (M-RP-PLATE, J-532)
+
+On a long-running `tauri dev` client, HMR reloads accumulate **stale-but-UNIQUE** envelope registrations from earlier component versions — so the registry count inflates while `count===unique` STILL HOLDS (no duplicates, just extra distinct ids). Verifying M-RP-PLATE, Chat's first quiescent read showed **77** and Chat nearly recorded it as canonical, flagging Clair's **73** as "not reproducing." A full page reload cleared the four stale ids to a stable **73** — **Clair's number was right; Chat's un-reloaded 77 was the phantom.** *The N-099 family, a new variant: a stale subject returns a self-consistent, flattering answer, and `count===unique` is NOT proof of a clean baseline on an accumulated session.* **Rule: read the quiescent baseline after a full reload, and treat a long-running dev client's absolute count as suspect until reloaded.** An agent does not get to stamp its own un-reloaded number as canonical while flagging the correctly-measured one as non-reproducing (Rule 5, cutting in the direction that indicts the driver).
 
 ---
 

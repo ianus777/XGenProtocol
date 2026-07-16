@@ -8,6 +8,48 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-532 — M-RP-PLATE CLOSED: the grid backdrop plate — the dev raster becomes an element, and a hole reveals it while capturing nothing
+
+**Feat `6bd17c8` [Clair, code-only, 6 files, +157/−9, on main, NOT pushed — Joe pushes with this doc-bridge]. Zero Rust · zero schema (`version` stays 3) · zero sampler · zero node** (confirmed on the commit: no `.rs`, no `ui/sampler/`, no `ui/node/`). Clair built; Chat re-drove every verification leg on the live client 9222 (Rule 5).
+
+### The one sentence
+
+The dev raster was promoted from a `.region-shell` CSS `background-image` (paint) to a real **grid-wide background-widget socket + one inert system plate widget** (element) — the exact `message-stream` `background?: WidgetMount[]` socket, one level up — so the backdrop mounts through the plugin registry, shows through every hole/seam/perimeter, and **never captures the pointer** (`pointer-events:none`; the instant a hole is clickable it has an address and D-116 falls).
+
+### What shipped (D1–D4, Chat-locked under §0 autonomy over mechanics; appearance is Joe's)
+
+**D1 — the socket lives ON `region-shell`** (core): `background?: WidgetMount[]` + `backgroundLive?` (default true, threaded into each mount) + a **separate `bgWidgets` registry** (kept apart from the region-id-keyed tile `widgets` map so `grid-plate` can never be mistaken for a leaf). Rendered as an `inset:0 pointer-events:none` backdrop wrapper behind `RegionNode`, drag overlay still last. G gains `backgroundMountCount` + `backgroundLive`. The node inherits it free at M-RP7.7. **D2 — the plate is `kind:'system' · delivery:'compiled' · surface:'none'`** — the promoted dev raster, the **first `surface:'none'` row WITH a `component`** (plugin-list has none; the two-shape split is now real: no-component → shell mounts directly into a dialog; with-component → shell mounts into a named host socket). **D3 — inert now:** one fixed plate, `backgroundLive` exposed-but-unbound (the message-stream "binding deferred" precedent); the live-switchable backdrop + its user setting ride **M-RP-SETTINGS** (gated on the J-513 settings-mechanism collision, unchanged). **D4 — appearance = the current raster**, now an element, PROVISIONAL → M-RP-SKIN. Reserved-nothing held: no descriptor key, no store key, no persistence — the inert plate is a constant `DEFAULT_BACKGROUND` from `layout-default.ts`.
+
+### The load-bearing proof (V3, D-116) — Chat-measured on 9222
+
+Backdrop `pointer-events:none`; `elementFromPoint` at the perimeter → `region-split`, at a tile → `region-tile-body` — **never the plate**. A reactive backdrop is fine; a clickable one would re-open §7.1's lattice argument. It does not.
+
+### Measured — every leg (live 9222, Chat re-drove; Clair's numbers reproduced)
+
+| leg | result |
+|---|---|
+| V1 registry | quiescent **73 === unique 73** (after a full reload — see the correction below); plate delta **+4** enumerated: `grid-plate#grid-plate` (mount) + `label#plugin-list__grid-plate__{name,desc,meta}` (its plugin-list row). 69 (J-529) + 4 = 73. |
+| V2 shows-through | fold `members` → `data-collapsed:width` / `data-fold-mode:across`, **22px strip**, a **230px hole**; hole point → `region-split` (not tile, not plate), `plateCoversHolePoint:true`. Unfold → exact restore (73). |
+| V3 pointer (D-116) | backdrop `pointer-events:none`; perimeter→`region-split`, tile→`region-tile-body`. |
+| V4 backgroundLive | shell G `backgroundMountCount:1, backgroundLive:true`; plate getter `{backgroundLive:true}`. |
+| V5 W-13 drop | unknown id → `backgroundMountCount:0`, plate+backdrop gone, **73→72**, shell + 8 tiles present, no crash; restore → **73**, mountCount 1. |
+| V6 raster relocation | `.region-shell` `backgroundImage:none` + `--s5` (`rgb(52,59,71)`) kept; `.grid-plate` carries the radial-gradient. |
+| V7 gates | no `.rs` → `cargo test` **1517/0/62 IDENTICAL by construction** · `npm test` **77** · `vite build` **171 modules**. |
+
+### ⚠️ The Rule-5 correction — a stale dev client nearly put MY wrong number in the record (N-132)
+
+Chat's FIRST quiescent read on the long-running `tauri dev` client showed **77**, and Chat drafted it as a deviation — *"Clair's 73 does not reproduce."* **It was the other way round.** A full page reload cleared the count to a stable **73** (`===unique`, six reads): the long-running client had accumulated **4 stale-but-UNIQUE** envelope registrations across HMR reloads (Clair's build + Chat's drive), which is exactly why `count===unique` still held at 77 and the pollution looked clean. **Clair's 73 was correct all along.** The reload was the disambiguator; the phantom 77 never entered the record. *The N-099 family, a new variant: a stale subject returns a self-consistent, flattering answer — and an agent does not get to stamp its own un-reloaded number as canonical while flagging the correct one as non-reproducing.* → **N-132: read a quiescent registry baseline AFTER a full reload, never on an accumulated dev session.**
+
+### Deviations (Rule 6 — flagged, not absorbed; all Clair's, all accepted)
+
+**Registry +4, not the runbook's +1** — the +3 is `grid-plate`'s own plugin-list row (`label#plugin-list__grid-plate__{name,desc,meta}`), the honest **N-096** consequence of registering it as a `kind:'system'` plugin; the plugin manager now shows a 4th row ("Grid Backdrop — [system] · client · compiled · none", Joe-eye-confirmed). Correct per D5; §3 of the runbook did not call it out. **Stacking realized by lifting the tree, not sinking the backdrop** — §4.6's "no explicit z-index needed" hint was wrong on grounding (a positioned `z:0` backdrop paints over non-positioned tiles). Fix: root split `position:relative; z-index:1` (the message-stream rows z:1 shape); `.region-shell` gets only `position:relative` (NOT a stacking context), so the fixed drag-overlay `z:4000` is untouched. A real finding, the right fix. **`--s5` kept on `.region-shell`** (literal §4.6; only image+size moved) → the W-13 drop degrades to a clean `--s5` gap, not a blank. **DEV bridge `setBackground`/`get background`** added to `__XGEN_LAYOUT__` (§5 V5-sanctioned), DCE'd in release. **Plate self-ids to `grid-plate`** (the `self-panel` `id = region-${regionId}` shape) → stable enumerable registration, not envelope's `++ordinal` fallback.
+
+### State
+
+**M-RP-PLATE DONE. The CONTAINMENT/MOUNT half of the plugin lifecycle is closed** — a `surface:'none'` grid-wide widget now has a proven home, and the socket ships FED (D-065/N-091). The dock-engine arc's mechanics remain complete; the plate is the first custom-widget-tier *content* exemplar. **Next-active = connection-stats** (`surface:'region'`, `kind:'custom'`, the first traffic consumer + a natural node widget) — the **install→dock→uninstall** half, which needs a design walk + runbook before impl. Then **M-RP-SETTINGS** (binds `backgroundLive` + the user-chosen/persisted backdrop into exactly this socket). Still filed: `M-RP-SKIN` · M-RP7.7 (node inherits frame+grid) ⏸️ · `M-RP-ROVING` · `M-RP-MOVE-KBD` · `M-RP-RESTART` · `temperature-indicator` ⏸️. **No new D** (§4.5.1 + D-103/D-112/W-12 extension). Records: ui-notes **N-131** + **N-132** · components registry **v0.77** (73) · `docs/xgen-dock-engine-phase0.md` §4.5.1 (⏸️FILED → ✅BUILT) · ROADMAP · CLAUDE.md PLAY. Per D-065 + D-074 + Rule 5 + Rule 6.
+
+---
+
 ## Entry J-531 — D-118 LOCKED: the plugin package (one zip + root manifest, universal for node + client); plus the node frame/grid postponed and the client's next exemplar set
 
 **Architecture + naming convention. No code.** A design conversation this session settled how plugins are distributed and installed, and re-pointed the near-term work.

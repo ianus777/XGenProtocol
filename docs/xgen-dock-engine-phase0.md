@@ -1,8 +1,8 @@
 # XGen Client — The Dock Engine (Renderer B): Phase-0
 > **Status**: ACTIVE  
-> Version: 2.5  
+> Version: 2.6  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-15  
+> **Last updated**: 2026-07-16  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -242,7 +242,9 @@ The only verbs that touch `sizes[]` are **resize** (§6 / M-RP7.2) and **move** 
 >
 > **⚠️ D-116 ITSELF IS NOT WEAKENED.** §2 argued *"in a space-filling tree there is no empty space to drop into"* — now only *mostly* true. **But D-116's ground is Joe's constraint (*"never mixing or joining"*), NOT the geometry.** ***Correct the rhetoric; do not touch the decision.***
 
-#### 4.5.1 ⏸️ `M-RP-PLATE` — the grid backdrop: an inert, live-switchable plate widget under the tiles (Joe, 2026-07-14). FILED, NOT BUILT.
+#### 4.5.1 ✅ `M-RP-PLATE` — the grid backdrop: an inert plate widget under the tiles (Joe, 2026-07-14). BUILT J-532 (inert half); live-switchable half FILED to M-RP-SETTINGS.
+
+> ### ✅ **BUILT 2026-07-16 (J-532).** The inert half shipped: `region-shell` gained the grid-wide background socket (`background?: WidgetMount[]` + `backgroundLive?` + a **separate `bgWidgets`** registry — the `message-stream` `background` shape one level up), and the dev raster is now the **first system plate widget** (`grid-plate`, `kind:'system'`, `surface:'none'` WITH a `component`), mounted `inset:0 pointer-events:none` behind the tiles, promoted from the `.region-shell` CSS `background-image`. **D-116 verified on 9222** — a fold-hole reveals the plate but `elementFromPoint` returns `region-split`, never the plate; the plate captures nothing. `backgroundLive` ships **exposed-but-unbound**; **the live-switchable half + its user setting remain FILED to `M-RP-SETTINGS`** (the J-513 settings-mechanism gate is unchanged). Registry 69→73 (+4 = the mount + its 3-label plugin-list row). See **J-532 / N-131 / N-132**. *The paragraphs below are the original filing, kept for the record.*
 
 Joe: *"the space under regions aka 'the hole' will be customizable, and there will be some static or dynamic visual plate — from solid black to animated reactive colour fractal clouds. What is in the hole right now is a dev plate with no background defined. If we want to put there some real custom background, we can do it by a **background widget** which sets it by its own setting."*
 

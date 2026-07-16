@@ -44,6 +44,13 @@
       if (id.home_node) r.push({ key: 'endpoint', label: 'Endpoint', value: id.home_node });
       r.push({ key: 'spaces', label: 'Spaces joined', value: String(id.spaces_joined) });
     }
+    // PENDING-metric reminder rows (Joe's request, deliberate owner override of §4.1/N-091's "no
+    // placeholder rows"). These have NO data source yet — live traffic accounting is the M-RP6.6 Rust arc
+    // (resident connection → transport byte/RTT counters → a metrics push). Rendered as a literal "N/A", an
+    // HONEST reminder that they are planned — NOT fabricated data. When the resident lands, each `N/A` becomes
+    // a real value fed from the store; the row is already here.
+    r.push({ key: 'speed', label: 'Speed', value: 'N/A' });
+    r.push({ key: 'bandwidth', label: 'Bandwidth', value: 'N/A' });
     return r;
   });
 

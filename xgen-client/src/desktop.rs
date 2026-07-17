@@ -494,8 +494,11 @@ async fn run_startup(
 
 /// Launch the Tauri desktop shell. Returns when the user shuts the app down.
 ///
-/// `data_dir` — Tier-1 runtime files live here. Caller resolves it from the
-/// `--instance` label (or `exe_dir()` when no label is set).
+/// `data_dir` — Tier-1 runtime files live here. The caller (`main::resolve_data_dir`)
+/// resolves the root by precedence `--data-dir` > `XGEN_DATA_DIR` > platform default
+/// (`xgen_common::data_dir::resolve_data_root`) — which FAILS FAST, with NO silent
+/// `exe_dir()` fallback (M12.2b F9/D5). `--instance <label>`, when set, rebases the
+/// instance dir under that root.
 /// `instance_label` — for pipe name derivation. None → default pipe name.
 pub fn run(
     data_dir: PathBuf,

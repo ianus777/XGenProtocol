@@ -1,6 +1,6 @@
 # M-RP-SETTINGS — Leg B — the plugin action row
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: July 2026  
 > **Last updated**: 2026-07-17  
 > Language: English  

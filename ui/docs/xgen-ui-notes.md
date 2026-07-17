@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.96  
+> Version: 0.97  
 > Date: May 2026  
-> **Last updated**: 2026-07-16  
+> **Last updated**: 2026-07-17  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -2739,6 +2739,10 @@ On a long-running `tauri dev` client, HMR reloads accumulate **stale-but-UNIQUE*
 The custom install→dock→uninstall path is now real and locked as **D-119** — this note is the implementation-shaped companion. Four moving parts, each verified on 9222: **(1) reactive registry** — the active plugin set is `[...CLIENT_PLUGINS, ...installed customs]`, derived from a `$common` `$state` installed-set (`installed.svelte.ts`); the old `widgetRegistry`/`bgWidgets`/`REGION_TITLES` consts became **pure builders** re-run on change (N-096). *(Svelte 5: a `$state` `Set` does not react to `.add`/`.delete` — reassign a fresh `Set`.)* **(2) available vs installed** — `AVAILABLE_CUSTOM` (in-tree `compiled` catalogue) is distinct from `CLIENT_PLUGINS` (system) and from the installed subset; “install” = register + `insertLeaf`, “uninstall” = deregister + `removeRegion` (remove-without-blanking = the collapse-degenerate `move` already uses — D-085 intact, no code loader). **(3) boot-order** — hydrate + register the installed-set **BEFORE `loadLayout`**, else a persisted custom leaf W-13-drops; verified both ways (`droppedCount:0` healthy / `droppedCount:1` clean-drop-no-blank when bypassed). **(4) per-device persistence** — `session.installed: string[]` in the UI-state bag (the J-503 per-device truth), N-107 per-key merge, zero Rust. Reactive registries ended up in `app_client` (not a `$common` store) because `RegionPlaceholder` is shell-local (W-3); `plugin-list.svelte` reads `installed.active` so an installed custom shows as a read-only `[user]` row (the action row is M-RP6.1m).
 
 **The N-091 override (recorded, not drifted).** N-091 says *no placeholder metric rows* (an unfed row is an unverified branch). `connection-stats` shipped clean, then Joe requested two trailing `Speed · N/A` / `Bandwidth · N/A` reminder rows (`7f24b19`). This is a **deliberate owner override of N-091**, and it is legitimate for a specific reason: the rows show **honest `N/A`** — they do NOT feign data, and the owner is informed the source does not exist (no byte/RTT accounting, no resident socket; the data home is **M-RP6.6**). `rowCount → 6` (render-truth). When live metrics land, each `N/A` becomes a real value; the rows are already placed. *The line N-091 actually draws: a fabricated number is forbidden; an honest, owner-sanctioned `N/A` placeholder for a known-absent source is a labelled reminder, not a lie.* Recorded so the reversal is visible (D-065).
+
+### N-134 — a shell rule that overrides `display` on a native `<dialog>` must be `[open]`-scoped (M-RP-SETTINGS Leg B, J-537)
+
+Settings needed `display:flex` on its open modal (the two-column, header-fixed scroll layout the stock centred dialog doesn't give). The first cut put it on `.dialog:has(.settings)` — **unconditional**. Its specificity `(0,2,0)` **outranks** the UA rule `dialog:not([open]) { display: none }` at `(0,1,1)`, so the **closed** Settings modal kept `display:flex` and sat visible in normal flow with no backdrop (Joe caught it live). Fixed by scoping to **`.dialog[open]:has(.settings)`** — the rule now applies only while open, and the UA hide wins when closed. Verified on 9222 (J-537): fresh **and** post-close the dialog reads `display:none`, `:modal` false, not in flow, `rectH:0`, and the registry returns to baseline with no leak. *Rule: any author rule that sets `display` on a native `<dialog>` must carry `[open]` (or an equivalent open-state guard), or it silently defeats the UA `:not([open])` hide and leaks the closed modal into the layout.* A `core`-`dialog`-owned custom-chrome slot would remove the need for these shell `display` overrides entirely — that extraction is **M-RP-DIALOG-CHROME** (filed J-537; the 2nd `:has()` footer-suppression recurrence).
 
 ---
 

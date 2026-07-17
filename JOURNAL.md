@@ -8,6 +8,38 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-537 — M-RP-SETTINGS Leg B CLOSED: the plugin action row + the Settings window; disable/enable/persist lifecycle proven live; the closed-modal regression fixed and verified
+
+**Feat `15c1cd9` [Clair, code-only, 20 files, +602/−74, on `main`]. ⚠️ RECORD CORRECTION (Rule 6): the handoff and the session kickoff both said “not pushed — Joe pushes,” but a fresh `git fetch` resolves `origin/main` to `15c1cd9` — the code IS on the remote. Recorded as pushed, not as pending.** Zero Rust · zero schema · zero sampler · zero `core` component (the only `core` touch is additive glyph-map DATA in `icons.ts`) — `git show --stat` = 20 files, no `.rs`, no `ui/sampler/` → `cargo test` **1517/0/62 IDENTICAL by construction**, sampler catalogue **328 unchanged**. A **heavy visible-first round**: Joe directed the one-line row model, per-plugin icons, the version line, and the entire Settings-**window** chrome live over HMR — the corrections below are **design evolution, not defects**. Chat re-drove every leg on the live client 9222 **after a full reload** (Rule 5 + N-132).
+
+### What shipped
+
+The five Leg-B mechanics, all descriptor-derived and honest (§4 of the base runbook): `PluginDescriptor.settingsComponent?` → `hasSettings` (undefined on every row → `[settings]` greyed for the real reason *“no settings”*); `installed.svelte` **disabled axis** (`disabled` `$state<Set>` + `disable`/`enable`/`isDisabled`/`hydrateDisabled` + a new **`mounted`** view = system + installed-not-disabled) — shell derives registry/titles from `mounted` (disabled custom **unmounts**), `plugin-list` reads `active` (disabled custom stays **listed**); the **action row** `[info][settings][disable][uninstall]` (native `<button>` composing core `Icon`, `aria-disabled`+guarded onclick, one `onAction(id,verb)` seam — W-3 held, `data-verb`/`data-plugin` the CDP hooks); a **leading per-plugin icon** (host-tinted in skin); **`info`** → a real `plugin-detail` `<dl>` view. Persistence via `session.disabled` (N-107 per-key merge, **zero Rust**), `hydrateDisabled` before `loadLayout`.
+
+**Row model + window chrome (Joe, visible-first):** one line per plugin `[icon] Name  vX.Y.Z  … [info][settings][disable][uninstall]`; description + the host·delivery·surface axes **moved out of the row into the `info` view**; the `[system]/[user]` badge **replaced by the version** (new descriptor field `version?`='1.0.0' placeholder, real versions later via D-118). **11 real Material Icons** (Apache-2.0, colour-free per D-110, provenance `.svg` in `ui/assets/icons/`, D-108). Settings became a **window**: own header (round Back `<` + context title + round `×`), a solid window-linked area at `--settings-inset: 120px` (resizes with the main window, equal gap 4 edges), independently scrolling columns, thin scrollbars.
+
+### Measured — Chat re-drove every leg (live 9222, after a full reload)
+
+| leg | result |
+|---|---|
+| baseline | **99 === unique 99**, quiescent — `sel:null`, `installed:[]`, `disabled:[]`, `named:[]`, unlocked, default layout. **+13 from Leg A's 86** (4 system rows × net +3 [−`__desc` −`__meta` −badge +`__icon` +4 action icons] = +12, +1 header `settings__close`). Enumerated, `count===unique`. |
+| ⚠️ closed-modal regression | fresh **and** after open→close: `display:none`, `:modal false`, `open` attr false, not in flow, `rectH:0`, registry back to **99 no leak**. The `.dialog[open]:has(.settings)` scope fix holds — N-134. |
+| open @ Plugins | gear (`shelf-face#app-shelf-bottom__0`, `widget.manager`) → `section:'plugins'`, `:modal` **true** (`.matches(':modal')`), `display:flex`, **inset L/T/R/B all 120** (window-linked, equal gap). |
+| action-row honesty | 4 system rows: `info` live, `settings`/`disable`/`uninstall` **all `aria-disabled`** — each for a plugin-true reason (no settings / system can't disable / system can't uninstall). `badgeCount:0` (badge gone); rows paint `v1.0.0`. |
+| info detail | click info → `plugin-detail` real `<dl>` painted (self-panel: Name/Version/Id/Kind=system/Host=client/Delivery=compiled/Surface=region/Description), header → plugin name + Back; count swaps **99→84** (list unmounts, detail mounts); **Back → 99 exact**. |
+| disable/enable/persist/uninstall | **99 → install 114 → disable 105** (widget `region-connection-stats__*` unmounts, row stays listed, `session.disabled:['connection-stats']`) **→ full reload 105** (survives on disk, still unmounted) **→ enable 114** (re-injects) **→ uninstall 99===99** (`csGone`, no leak, no blank). Every transition exact. |
+| gates | `vite build` **175** (Leg A 174 + `plugin-detail.svelte`) · `npm test` **77** (4 files) · scope 20 files 0 `.rs`/0 sampler → `cargo test` **1517/0/62 IDENTICAL by construction**. **Cargo NOT re-run live**: the running `tauri dev` client holds `xgen-client.exe` (N-117/J-511); IDENTICAL is guaranteed by the diff being 100% frontend, and Clair ran it real per the handoff §2. Client left pristine (empty store, `sel:null`, 99). |
+
+### Flags carried (Rule 6 — surfaced, not absorbed)
+
+**⚠️ M-RP-DIALOG-CHROME — dialog header/footer-snippet extraction FILED (J-512 D9, 2nd `:has()` footer suppression).** Settings suppresses the stock `dialog` title+footer to own its header/`×`; that is the second `:has()` chrome hack (after the 6.1k footer suppression), so a `dialog`-owned custom-chrome slot is now owed as its **own milestone** (About/UI-state/Settings would share one mechanism). Joe's framing settles the tension: *Settings is a WINDOW, not a common dialog — the divergence is the point*; the extraction is housekeeping, not a blocker. **⚠️ The ID `M-RP-DIALOG-CHROME` is provisional — Joe to bless per Rule 8.** — `version='1.0.0'` is a declared placeholder (real per-plugin versions via D-118 / M-RP-PLUGINS-NODE) — host-tint icons (module red / widget blue; all rows `client`→blue today) + greyed-legible uninstall-on-system are **PROVISIONAL → M-RP-SKIN** (Joe's absent-vs-greyed call) — action buttons are native `<button>`+core `Icon` (core `Button` is text-only; the shelf-face/menu-item precedent) — the closed-modal `[open]`-scope fix is **N-134**.
+
+### Doc-bridge
+
+JOURNAL J-537 (this) + CLAUDE.md PLAY (Leg B CLOSED, measured baseline 99) + ROADMAP (Leg B ✅ → next-active **Leg C** = the settings mechanism D-B + the `grid-plate` backdrop setting in the content pane; M-RP-DIALOG-CHROME filed) + `ui/docs/xgen-ui-notes.md` N-134. **No new `D`, no new `core`.** → next-active **M-RP-SETTINGS Leg C**.
+
+---
+
 ## Entry J-536 — M-RP-SETTINGS Leg B: GO — rover extraction DEFERRED (5th instance recorded against M-RP-ROVING); action-row runbook handed to Clair
 
 **Records-only (design/handoff). No code, no Rust, no registry change.** Session-open presented the Leg-B plan — five descriptor-derived mechanics + the feeder contract, runbook `tasks/M_RP_SETTINGS_B_ACTION_ROW.md` — and Joe said **go**. Two things settled at handoff.

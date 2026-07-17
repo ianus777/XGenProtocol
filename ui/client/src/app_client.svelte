@@ -1,5 +1,5 @@
 <script>
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import MenuBar from '$core/components/data-independent/menu-bar.svelte';
   import StatusBar from '$core/components/data-independent/status-bar.svelte';
   import Shelf from '$core/components/data-independent/shelf.svelte';
@@ -85,16 +85,21 @@
 
   // M-RP-SETTINGS Leg C (B2) — persist the backdrop setting. The $common grid-plate-settings component
   // WRITES the $common backdrop store; the shell observes it here (W-3 — a $common component cannot import
-  // the shell-local uistate store) and persists via a per-key session write (N-107). The first effect run is
-  // SKIPPED so the boot-seed does not re-persist an already-on-disk value; every user change after persists.
+  // the shell-local uistate store) and persists via a per-key session write (N-107). `backdrop.pattern` is
+  // the ONLY dependency; the persist call is `untrack`ed because setSessionBackdrop READS `_store.session`
+  // (to merge, N-107) and WRITES it — an un-untracked read inside this effect would make `_store.session` a
+  // dependency and the write would self-invalidate → effect_update_depth_exceeded (the render scheduler
+  // halts: state keeps mutating, the DOM freezes). The other setSessionX axes avoid this by persisting from
+  // EVENT handlers, not an effect; the backdrop's writer is a $common component, so an effect is the only
+  // channel — hence untrack. The first run is SKIPPED so the boot-seed does not re-persist an on-disk value.
   let backdropReady = false;
   $effect(() => {
-    const on = backdrop.pattern; // track
+    const on = backdrop.pattern; // the sole tracked dependency
     if (!backdropReady) {
       backdropReady = true;
       return;
     }
-    uiStateStore.setSessionBackdrop(on);
+    untrack(() => uiStateStore.setSessionBackdrop(on));
   });
 
   // DEV-only CDP handle (N-024 idiom) so the verify pass can drive the drop / tabs / mismatch paths

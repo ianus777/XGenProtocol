@@ -56,14 +56,16 @@
   // consumer; the widget-manager/shelf promotion to a $common store is reserved, not built).
   let layout = $state(null);
 
-  // The RUNTIME-reactive registries (M-RP-CONNSTATS, D1). `installed.active` = the always-present system rows
-  // + the installed customs; installing/uninstalling a custom recomputes these, so its tile widget / backdrop
-  // / title appear/disappear live. Computed HERE (not in the $common installed store) because the builders
-  // close over the shell-local `RegionPlaceholder` (W-3 — a $common store may not import a shell component).
-  const activePlugins = $derived(installed.active);
-  const widgetRegistry = $derived(buildWidgetRegistry(activePlugins));
-  const bgWidgets = $derived(buildBgWidgets(activePlugins));
-  const titles = $derived(buildTitles(activePlugins));
+  // The RUNTIME-reactive registries (M-RP-CONNSTATS, D1; M-RP-SETTINGS Leg B). `installed.mounted` = the
+  // always-present system rows + the installed customs that are NOT disabled; install/uninstall AND
+  // disable/enable recompute these, so a custom's tile widget / backdrop / title appear/disappear live.
+  // (plugin-list reads `installed.active` directly — the LISTED set, which KEEPS disabled customs, shown
+  // disabled.) Computed HERE (not in the $common installed store) because the builders close over the
+  // shell-local `RegionPlaceholder` (W-3 — a $common store may not import a shell component).
+  const mountedPlugins = $derived(installed.mounted);
+  const widgetRegistry = $derived(buildWidgetRegistry(mountedPlugins));
+  const bgWidgets = $derived(buildBgWidgets(mountedPlugins));
+  const titles = $derived(buildTitles(mountedPlugins));
 
   // Grid lock (M-RP7.6). One boolean, seeded from session.locked after hydrate() (default false). When
   // true: the fold/resize/move handlers early-return (the LOAD-BEARING guard — an access rule is only real
@@ -99,7 +101,11 @@
     window.__XGEN_PLUGINS__ = {
       install(id) { handleInstall(id); },
       uninstall(id) { handleUninstall(id); },
+      // M-RP-SETTINGS Leg B — drive disable/enable without clicking (the real row button also runs this exact
+      // handler; the bridge is a CDP convenience). One toggle, mirroring the row's Disable/Enable button.
+      toggleDisabled(id) { handlePluginToggleDisabled(id); },
       get installed() { return installed.ids; },
+      get disabled() { return installed.disabledIds; },
       get available() { return AVAILABLE_CUSTOM.map((p) => p.id); },
     };
   }
@@ -168,6 +174,44 @@
     }
     installed.uninstall(id); // then deregister — the widget leaves the reactive registry
     uiStateStore.setSessionInstalled(installed.ids);
+    // uninstall clears the disabled flag inside the store; persist the (now-shorter) disabled set too.
+    uiStateStore.setSessionDisabled(installed.disabledIds);
+  }
+
+  // ── Disable / enable a custom plugin (M-RP-SETTINGS Leg B, §3.2) ────────────────────────────────
+  // A SECOND runtime axis from uninstall: a disabled plugin stays INSTALLED (still listed, still persisted)
+  // but its widget UNMOUNTS. Reuses the D-119 leaf primitives — no new algebra. Disable: remove the leaf
+  // FIRST (never render an unresolved leaf), then mark disabled (mounted excludes it). Enable: mark enabled,
+  // then re-inject the leaf at the default dock (its prior position is not restored — the user re-drags it,
+  // M-RP7.4; matches install). One toggle (the row's Disable/Enable is one button, one bit). Persists
+  // session.disabled (+ session.layout when a leaf moved). Only customs disable — a system plugin never
+  // reaches here (the row button is greyed, W-13).
+  function handlePluginToggleDisabled(id) {
+    const desc = AVAILABLE_CUSTOM.find((p) => p.id === id);
+    if (!desc || desc.kind !== 'custom' || !installed.isInstalled(id)) return;
+    if (installed.isDisabled(id)) {
+      installed.enable(id); // reactive: mounted regains it
+      if (desc.surface === 'region' && desc.regionId && layout) {
+        layout = insertLeaf(layout, desc.regionId, DEFAULT_INSTALL_TARGET, DEFAULT_INSTALL_EDGE);
+        uiStateStore.setSessionLayout($state.snapshot(layout));
+      }
+    } else {
+      if (desc.surface === 'region' && desc.regionId && layout) {
+        layout = removeRegion(layout, desc.regionId); // leaf out BEFORE the mark — never an unresolved leaf
+        uiStateStore.setSessionLayout($state.snapshot(layout));
+      }
+      installed.disable(id); // reactive: mounted drops it (belt to the leaf-removal braces)
+    }
+    uiStateStore.setSessionDisabled(installed.disabledIds);
+  }
+
+  // ── The plugin-list action seam (M-RP-SETTINGS Leg B, §3.3) ─────────────────────────────────────
+  // settings-dialog handles `info` itself (its content-pane drill-in); it forwards the shell-level verbs
+  // here. `settings` is greyed for every plugin this leg (no settingsComponent shipped), so a guarded row
+  // button never fires it — it lands here only once a plugin ships one (Leg C), a no-op until then.
+  function handlePluginAction(id, verb) {
+    if (verb === 'uninstall') handleUninstall(id);
+    else if (verb === 'disable') handlePluginToggleDisabled(id);
   }
 
   // ── Revert UI (M-RP7.5, Leg D) — renew the grid from the last autosave ──────────────────────────
@@ -280,6 +324,10 @@
     // gains it) instead of W-13-dropping at resolveLayout (§4.7, D3).
     await uiStateStore.hydrate();
     installed.hydrate(uiStateStore.session()?.installed ?? []);
+    // M-RP-SETTINGS Leg B — seed the disabled set AFTER installed, BEFORE loadLayout: a persisted disabled
+    // custom must be excluded from `mounted` before the layout resolves (hydrateDisabled filters to
+    // installed-and-available, so a stale id cannot mark a phantom).
+    installed.hydrateDisabled(uiStateStore.session()?.disabled ?? []);
     locked = uiStateStore.session()?.locked ?? false;
 
     // Seed the centre layout (D2). Not Tauri, never throws, so it runs OUTSIDE the try that swallows the
@@ -470,5 +518,5 @@
     Settings (default section) and the gear (Plugins section). Discord-shaped: a category sidebar + a
     content pane. Hosts the read-only plugin-list (Plugins section) and the reused About content (About
     section). `aboutInfo` is the same payload the Help ▸ About modal reads (S-2 — one fetch, two views). -->
-  <SettingsDialog bind:open={settingsOpen} section={settingsSection} info={aboutInfo} onOpenLink={handleAboutLink} />
+  <SettingsDialog bind:open={settingsOpen} section={settingsSection} info={aboutInfo} onOpenLink={handleAboutLink} onPluginAction={handlePluginAction} />
 </div>

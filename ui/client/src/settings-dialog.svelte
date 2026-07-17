@@ -36,10 +36,31 @@
   // mechanism is Leg C.
   import Dialog from '$core/components/data-independent/dialog.svelte';
   import PluginList from '$common/components/widgets/plugin-list.svelte';
+  import PluginDetail from './plugin-detail.svelte';
   import AboutContent from './about-content.svelte';
+  import Icon from '$core/components/data-independent/icon.svelte';
+  import { installed } from '$common/plugins/installed.svelte';
   import { envelope } from '$common/components/base/envelope';
 
-  let { open = $bindable(false), section = null, info = null, onOpenLink } = $props();
+  // M-RP-SETTINGS Leg B — `onPluginAction` is the SHELL-level seam for the row verbs that need shell-local
+  // state (disable/uninstall touch the layout + the uistate store; `settings` is greyed this leg). `info` is
+  // handled HERE (it swaps THIS modal's content pane, the pane's own concern), never forwarded.
+  let { open = $bindable(false), section = null, info = null, onOpenLink, onPluginAction } = $props();
+
+  // The Plugins-section drill-in (§3.5): when a row's [info] fires, the pane swaps to a plugin-detail view
+  // for that id; Back returns to the list. `null` = the list is shown. Looked up in `installed.active` (the
+  // LISTED set — a disabled custom is still inspectable). If the plugin vanishes (uninstalled while open),
+  // the derived is null and the template falls back to the list.
+  let detailId = $state(null);
+  const detailPlugin = $derived(detailId ? (installed.active.find((p) => p.id === detailId) ?? null) : null);
+
+  // The one seam every plugin-list row button emits through. `info` → open the detail view (local); every
+  // other verb → the shell (app_client), which owns the layout + store. A greyed button never fires (guarded
+  // onclick in plugin-list), so `settings` reaches here only once a plugin ships one (Leg C).
+  function handlePluginAction(pluginId, verb) {
+    if (verb === 'info') detailId = pluginId;
+    else onPluginAction?.(pluginId, verb);
+  }
 
   // The category list. First = the default (File ▸ Settings lands here). About is real content today;
   // Plugins hosts the read-only manager. More app-level categories arrive as their content earns a home.
@@ -58,7 +79,10 @@
   // `section` (NOT `active`, which is only written here) so a user selecting a category while open is not
   // overwritten; re-opening via the gear re-lands on `plugins`.
   $effect(() => {
-    if (open) active = section ?? DEFAULT_SECTION;
+    if (open) {
+      active = section ?? DEFAULT_SECTION;
+      detailId = null; // a fresh open always lands on the list, never a stale drill-in
+    }
   });
 
   // Roving-tabindex nav refs, for Arrow/Home/End focus moves (a plain array — the shelf `faces` idiom;
@@ -67,6 +91,7 @@
 
   function selectAt(i) {
     active = SECTIONS[i].key;
+    if (SECTIONS[i].key !== 'plugins') detailId = null; // leaving Plugins closes any open drill-in
     navButtons[i]?.focus?.();
   }
   function indexOfActive() {
@@ -101,11 +126,38 @@
 
   // Getter G — the section swap made CDP-observable: which section is active + how many there are (so the
   // ≥2-real-sections invariant is readable), plus `open` (the DOM truth rides the core dialog's own G).
-  const debug = () => ({ section: active, sectionCount: SECTIONS.length, open });
+  const debug = () => ({ section: active, sectionCount: SECTIONS.length, open, detail: detailId });
 </script>
 
-<Dialog bind:open title="Settings" id="settings">
+<Dialog bind:open id="settings">
   <div use:envelope={{ name: 'settings', id: 'settings-body', debug }}>
+    <!-- Modal header (Joe): Back (round, left — only in the plugin detail drill-in) + the context title +
+      the round × close (right, same line). The stock dialog title + footer are suppressed for this modal in
+      skin (`:has(.settings)`) so this header owns the chrome. NOTE: this is the 2nd `:has()` footer
+      suppression — per J-512 D9 the dialog header/footer-snippet extraction is now owed as its own milestone
+      (flagged, not built here). The header buttons compose the core `icon` (shelf-face pattern). -->
+    <div class="settings-header">
+      {#if detailId && detailPlugin}
+        <button
+          type="button"
+          class="settings-icon-btn"
+          aria-label="Back"
+          title="Back"
+          onclick={() => (detailId = null)}
+        ><Icon name="chevron-left" id="settings__back" /></button>
+      {/if}
+      <span class="settings-header-title"
+        >{detailId && detailPlugin ? detailPlugin.name : 'Settings'}</span
+      >
+      <button
+        type="button"
+        class="settings-icon-btn settings-close"
+        aria-label="Close"
+        title="Close"
+        onclick={() => (open = false)}
+      ><Icon name="close" id="settings__close" /></button>
+    </div>
+
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <nav class="settings-nav" aria-label="Settings categories" onkeydown={onNavKey}>
       {#each SECTIONS as s, i (s.key)}
@@ -128,7 +180,11 @@
         <AboutContent {info} {onOpenLink} idPrefix="settings-about" />
       </div>
       <div class="settings-panel" data-active={active === 'plugins' || undefined}>
-        <PluginList id="plugin-list" />
+        {#if detailId && detailPlugin}
+          <PluginDetail plugin={detailPlugin} />
+        {:else}
+          <PluginList id="plugin-list" onAction={handlePluginAction} />
+        {/if}
       </div>
     </div>
   </div>

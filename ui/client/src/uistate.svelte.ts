@@ -27,6 +27,10 @@ export interface UiStateBag {
    *  plugin's install is device-local, not synced config), so a SESSION key. An empty array is meaningful
    *  (nothing installed) and distinct from undefined (never touched). */
   installed?: string[];
+  /** Disabled custom plugin ids (M-RP-SETTINGS Leg B). The second runtime axis: a disabled plugin stays
+   *  installed but its widget unmounts. Per-device (the `installed` precedent), a SESSION key; an empty
+   *  array is meaningful (nothing disabled) and distinct from undefined (never touched). */
+  disabled?: string[];
   [k: string]: unknown;
 }
 interface NamedEntry {
@@ -87,18 +91,22 @@ async function persist(): Promise<void> {
     const layout = _store.session?.layout;
     const locked = _store.session?.locked;
     const installed = _store.session?.installed;
+    const disabled = _store.session?.disabled;
     const sessionOut = {
       ...onDiskSession,
       ...(layout ? { layout } : {}),
       ...(locked !== undefined ? { locked } : {}),
       ...(installed !== undefined ? { installed } : {}),
+      ...(disabled !== undefined ? { disabled } : {}),
     };
     const merged = {
       ...onDisk,
       version: 1,
       named: _store.named,
       active: _store.active,
-      ...(layout || locked !== undefined || installed !== undefined ? { session: sessionOut } : {}),
+      ...(layout || locked !== undefined || installed !== undefined || disabled !== undefined
+        ? { session: sessionOut }
+        : {}),
     };
     await tauriInvoke('set_ui_state', { json: JSON.stringify(merged) });
   } catch (e) {
@@ -238,6 +246,17 @@ export const uiStateStore = {
    */
   setSessionInstalled(ids: string[]): void {
     _store.session = { ...(_store.session ?? {}), installed: ids };
+    scheduleSessionPersist();
+  },
+
+  /**
+   * M-RP-SETTINGS Leg B — persist the disabled custom-plugin ids. Mirrors setSessionInstalled (a per-key
+   * session write, N-107 — geometry stays Rust's; `layout`/`locked`/`installed` untouched). Read back on the
+   * next launch by the shell via hydrateDisabled BEFORE loadLayout, so a persisted disabled custom is
+   * excluded from `mounted` before the layout resolves (§4).
+   */
+  setSessionDisabled(ids: string[]): void {
+    _store.session = { ...(_store.session ?? {}), disabled: ids };
     scheduleSessionPersist();
   },
 };

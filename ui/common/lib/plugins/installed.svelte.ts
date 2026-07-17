@@ -27,6 +27,13 @@ const isAvailable = (id: string): boolean => AVAILABLE_CUSTOM.some((p) => p.id =
 // dependency is on the `_installed` binding itself (read to call `.has`), so reassignment invalidates.
 let _installed = $state<Set<string>>(new Set());
 
+// The DISABLED set (M-RP-SETTINGS Leg B, D-B). A SECOND runtime axis, orthogonal to installed: a disabled
+// custom stays INSTALLED (still LISTED in the plugin list, still persisted) but its widget UNMOUNTS. Same
+// fresh-Set-reassignment reactivity as `_installed`. Only ever holds ids that are also installed; uninstall
+// clears the flag (a forgotten plugin is not "disabled"). Persisted per-device as `session.disabled` — the
+// `session.installed` precedent (the shell owns the persist; §4).
+let _disabled = $state<Set<string>>(new Set());
+
 export const installed = {
   /** The installed custom ids (a copy — the source set is never handed out mutable). Reactive. */
   get ids(): string[] {
@@ -36,10 +43,28 @@ export const installed = {
   isInstalled(id: string): boolean {
     return _installed.has(id);
   },
-  /** The reactive active plugin list: the always-present system rows + the installed customs. The shell
-   *  derives `widgetRegistry`/`bgWidgets`/titles from this; `plugin-list` renders it. Reactive. */
+  /** The disabled custom ids (a copy). Reactive. What the shell persists as `session.disabled`. */
+  get disabledIds(): string[] {
+    return [..._disabled];
+  },
+  /** Is this custom plugin installed-but-disabled? Reactive. Drives the row's Disable/Enable label and
+   *  keeps a disabled custom out of `mounted` while leaving it in `active`. */
+  isDisabled(id: string): boolean {
+    return _disabled.has(id);
+  },
+  /** The reactive LISTED plugin list: the always-present system rows + the installed customs (INCLUDING
+   *  disabled ones — a disabled plugin stays listed, shown disabled). `plugin-list` renders THIS. Reactive. */
   get active(): PluginDescriptor[] {
     return [...CLIENT_PLUGINS, ...AVAILABLE_CUSTOM.filter((p) => _installed.has(p.id))];
+  },
+  /** The reactive MOUNTED plugin list: system rows + installed customs NOT in the disabled set. The shell
+   *  derives `widgetRegistry`/`bgWidgets`/titles from THIS, so a disabled custom's widget unmounts (and can
+   *  never resolve, even from a stale leaf — the belt to the shell's leaf-removal braces, §3.2). Reactive. */
+  get mounted(): PluginDescriptor[] {
+    return [
+      ...CLIENT_PLUGINS,
+      ...AVAILABLE_CUSTOM.filter((p) => _installed.has(p.id) && !_disabled.has(p.id)),
+    ];
   },
   /** Register a custom plugin as installed (no-op if unknown or already installed). The SHELL wraps this to
    *  also inject the layout leaf + persist (§4.7); the store only owns the set. */
@@ -49,17 +74,46 @@ export const installed = {
     next.add(id);
     _installed = next;
   },
-  /** Deregister a custom plugin (no-op if not installed). The SHELL wraps this to also remove the leaf. */
+  /** Deregister a custom plugin (no-op if not installed). The SHELL wraps this to also remove the leaf.
+   *  Also clears the disabled flag: a forgotten plugin is not "disabled", and a later re-install must not
+   *  come back disabled from a stale flag. */
   uninstall(id: string): void {
     if (!_installed.has(id)) return;
     const next = new Set(_installed);
     next.delete(id);
     _installed = next;
+    if (_disabled.has(id)) {
+      const nd = new Set(_disabled);
+      nd.delete(id);
+      _disabled = nd;
+    }
+  },
+  /** Mark an installed custom as DISABLED (no-op if not installed or already disabled). The SHELL wraps this
+   *  to also REMOVE the layout leaf (the D-119 removeRegion path) + persist. The store only owns the flag. */
+  disable(id: string): void {
+    if (!_installed.has(id) || _disabled.has(id)) return;
+    const next = new Set(_disabled);
+    next.add(id);
+    _disabled = next;
+  },
+  /** Clear the DISABLED flag (no-op if not disabled). The SHELL wraps this to also RE-INJECT the leaf
+   *  (insertLeaf) + persist. */
+  enable(id: string): void {
+    if (!_disabled.has(id)) return;
+    const next = new Set(_disabled);
+    next.delete(id);
+    _disabled = next;
   },
   /** Boot seed (§4.7): install the persisted ids BEFORE `loadLayout` resolves, so a persisted custom leaf
    *  finds its registered widget instead of W-13-dropping. Unknown ids are filtered (a retired custom must
    *  not resurrect a leaf — the W-13 tolerance one level up). */
   hydrate(ids: string[]): void {
     _installed = new Set((ids ?? []).filter(isAvailable));
+  },
+  /** Boot seed for the disabled set (§4.7). Runs AFTER `hydrate` and BEFORE `loadLayout`: filtered to ids
+   *  that are BOTH available AND installed, so a disabled-but-uninstalled id (or an unknown id) cannot mark a
+   *  phantom. A persisted disabled custom is then excluded from `mounted` before the layout resolves. */
+  hydrateDisabled(ids: string[]): void {
+    _disabled = new Set((ids ?? []).filter((id) => isAvailable(id) && _installed.has(id)));
   },
 };

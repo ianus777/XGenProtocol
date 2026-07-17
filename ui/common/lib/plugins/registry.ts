@@ -45,14 +45,31 @@ export interface PluginDescriptor {
   /** Display name — also the alphabetical sort key (D8, Ch6 §6.8.5: the list is not a priority indicator). */
   name: string;
   description?: string;
+  /** The plugin's version, shown on its list line (M-RP-SETTINGS Leg B; Joe: version, not a redundant
+   *  [system] badge — kind is already the icon colour + the info view). A declared string today (our
+   *  compiled built-ins are all at v1.0.0); the real per-plugin version arrives from the D-118 package
+   *  manifest / M-RP-PLUGINS-NODE. */
+  version?: string;
   kind: PluginKind;
   host: PluginHost;
   delivery: PluginDelivery;
   surface: PluginSurface;
+  /** The plugin's own leading glyph name (icons.ts key) — its identity icon in the manager list
+   *  (M-RP-SETTINGS Leg B; Joe: "there has to be a plugin icon"). Chosen to match the plugin's purpose;
+   *  the list falls back to a neutral placeholder when unset. Appearance (the mapping) is PROVISIONAL →
+   *  M-RP-SKIN. Its COLOUR is host-derived in the skin (module = red · widget = blue). */
+  icon?: string;
   /** iff surface === 'region' — the D-103 leaf it occupies (regionId === widgetId, N-100). */
   regionId?: string;
   /** iff it has a surface the shell mounts via the descriptor (i.e. a region). */
   component?: Component;
+  /** The plugin's own settings component (M-RP-SETTINGS Leg B, D-B). Its PRESENCE is `hasSettings`:
+   *  the row's [settings] button enables iff this is set. UNDEFINED on every row this leg — so the
+   *  button is greyed for all, for the real per-plugin reason "this plugin has no settings", never a
+   *  missing verb (J-500 / 6.1j: an unbuilt verb ships absent, a plugin-true fact ships greyed-legible).
+   *  `grid-plate` earns one first at Leg C (its backdrop setting); the modal hosts it in the content
+   *  pane (D-B — component-per-plugin; NOT a declarative schema). */
+  settingsComponent?: Component;
 }
 
 // THREE honest rows (D5). All `host: client, delivery: compiled, kind: system` — they are our own
@@ -64,31 +81,37 @@ export const CLIENT_PLUGINS: PluginDescriptor[] = [
     id: 'self-panel',
     name: 'Self Panel',
     description: 'Your identity and connection status.',
+    version: '1.0.0',
     kind: 'system',
     host: 'client',
     delivery: 'compiled',
     surface: 'region',
     regionId: 'self',
+    icon: 'person',
     component: SelfPanel,
   },
   {
     id: 'inspector-panel',
     name: 'Inspector Panel',
     description: 'Details of the current selection.',
+    version: '1.0.0',
     kind: 'system',
     host: 'client',
     delivery: 'compiled',
     surface: 'region',
     regionId: 'inspector',
+    icon: 'search',
     component: InspectorPanel,
   },
   {
     id: 'plugin-list',
     name: 'Plugin List',
     description: 'The plugins loaded in this client.',
+    version: '1.0.0',
     kind: 'system',
     host: 'client',
     delivery: 'compiled',
+    icon: 'extension',
     // surface: 'none', NO component — the list is CONTENT inside a host (a dialog now, Settings later,
     // S-2/§3.2), so it spends no surface (W-12) and the shell mounts it DIRECTLY (not via a registry).
     surface: 'none',
@@ -97,9 +120,11 @@ export const CLIENT_PLUGINS: PluginDescriptor[] = [
     id: 'grid-plate',
     name: 'Grid Backdrop',
     description: 'The backdrop shown behind the grid, in the gaps between panels.',
+    version: '1.0.0',
     kind: 'system',
     host: 'client',
     delivery: 'compiled',
+    icon: 'wallpaper',
     // surface: 'none', WITH component — the FIRST such row (M-RP-PLATE). It spends no surface (W-12) but
     // IS content the shell mounts into a NAMED host socket: the grid-wide background socket on region-shell
     // (the `message-stream` `background` socket, one level up). layout-default DERIVES a `bgWidgets` map
@@ -121,11 +146,13 @@ export const AVAILABLE_CUSTOM: PluginDescriptor[] = [
     id: 'connection-stats',
     name: 'Connection Stats',
     description: 'Live connection state and endpoint.',
+    version: '1.0.0',
     kind: 'custom',
     host: 'client',
     delivery: 'compiled',
     surface: 'region',
     regionId: 'connection-stats',
+    icon: 'signal',
     component: ConnectionStats,
   },
 ];

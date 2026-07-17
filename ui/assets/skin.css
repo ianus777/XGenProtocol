@@ -1026,6 +1026,13 @@ html, body {
   justify-content: flex-end;
   margin-top: var(--sp-4);
 }
+/* Settings modal — the close is a round × in its own header (Joe: on the same line as the round Back), so the
+ * stock dialog TITLE + FOOTER are suppressed for this modal (`:has(.settings)`) and `.settings-header` owns
+ * the chrome. ⚠️ This is the 2nd `:has()` footer suppression (the uistate dialogs were the 1st) — per J-512
+ * D9 the dialog header/footer-SNIPPET extraction is now OWED as its own milestone (so About/UI-state/Settings
+ * share one custom-chrome mechanism instead of each hacking `:has()`); flagged, not built in this leg. */
+.dialog:has(.settings) .dialog-title { display: none; }
+.dialog:has(.settings) .dialog-footer { display: none; }
 
 /* --------------------------------------------------
  * About dialog body (.about-*) — the client's Help->About box (M-RP6.1e-C3). The FULL skinnable
@@ -1080,19 +1087,83 @@ html, body {
  * Settings modal (.settings / .settings-*) — the ONE Discord-shaped Settings surface (M-RP-SETTINGS Leg
  * A): a left category menu (~¼ width) + a content pane that swaps per selection. Shell chrome dressed
  * HERE, not in app.css (N-090: layout / spacing / sizing are skinnable → skin.css). The `.settings` root
- * carries the type-class from `envelope` (no hardcoded class → no N-121 double). The stock `dialog` Close
- * footer is KEPT (no `:has()` suppression — that would be the 2nd recurrence, J-512 D9). ALL of this is
- * PROVISIONAL → M-RP-SKIN (widths, density, the sidebar/content chrome, the active-item look are Joe's).
+ * carries the type-class from `envelope` (no hardcoded class → no N-121 double). Its OWN header row holds
+ * Back (round, left — only in the plugin drill-in) + the context title + the round × close (right); the stock
+ * dialog title + footer are suppressed above (J-512 D9 debt flagged). ALL of this is PROVISIONAL → M-RP-SKIN
+ * (widths, density, the sidebar/content chrome, the header, the active-item look are Joe's).
  * -------------------------------------------------- */
-/* Widen the modal for a two-pane layout (the uistate `:has()` precedent). */
-.dialog:has(.settings) { max-width: min(94vw, 720px); }
+/* Settings is a WINDOW, not a plain dialog (Joe): it grows richer than one form (switches + controls across
+ * many content areas), so it takes a BOUNDED height and scrolls internally rather than growing off-screen.
+ * The modal is a flex column [header stays put · body fills · footer suppressed]; the body clips and its two
+ * columns (nav + content) each scroll VERTICALLY on their own (Joe's picture). Height is PROVISIONAL. */
+/* SOLID window-linked area (Joe): sized to the main window with a CSS-defined inset from each edge.
+ * ⚠️ SCOPED TO [open] — a closed native <dialog> is display:none, and an unscoped `display: flex` here
+ * (specificity 0,2,0) would BEAT the UA's `dialog:not([open]) { display: none }` (0,1,1) and leave the
+ * closed modal visible in normal flow. `.dialog[open]:has(.settings)` only matches while open, so the closed
+ * modal stays display:none. --settings-inset is the single tunable offset (120px); width/height = viewport
+ * minus 2× the inset, and the base `margin: auto` centres it → an equal gap on all four edges. */
+.dialog[open]:has(.settings) {
+  --settings-inset: 120px;
+  width: calc(100vw - 2 * var(--settings-inset));
+  height: calc(100vh - 2 * var(--settings-inset));
+  max-width: none;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+}
+.dialog:has(.settings) .dialog-body {
+  flex: 1 1 auto;
+  min-height: 0; /* let the body shrink below its content so the columns, not the modal, scroll */
+  display: flex;
+  overflow: hidden;
+}
 
 .settings {
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(140px, 1fr) 3fr; /* sidebar ~¼, content ~¾ */
-  gap: var(--sp-3);
+  grid-template-rows: auto 1fr; /* header row spanning both columns, then the nav | content row */
+  gap: var(--sp-2) var(--sp-3);
   min-width: 480px;
-  min-height: 320px;
+}
+/* The modal header (Joe): Back (left, drill-in only) · context title · round × close (right, same line). */
+.settings-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--s5);
+}
+.settings-header-title {
+  flex: 1 1 auto; /* pushes the × to the right edge; when Back is present it sits between them */
+  min-width: 0;
+  color: var(--t);
+  font-size: var(--fs-2); /* 14px (Joe) */
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Round icon-buttons in the header (Back <, close ×) — the composed core `icon` inherits currentColor. */
+.settings-icon-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: var(--s4);
+  border: 0;
+  border-radius: 50%;
+  color: var(--t2);
+  cursor: pointer;
+}
+.settings-icon-btn:hover {
+  background: var(--s5);
+  color: var(--t);
 }
 .settings-nav {
   display: flex;
@@ -1101,6 +1172,8 @@ html, body {
   padding-right: var(--sp-2);
   border-right: 1px solid var(--s5);
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto; /* the sidebar scrolls on its own when the category list grows (Joe's picture) */
 }
 .settings-nav-item {
   text-align: left;
@@ -1114,7 +1187,31 @@ html, body {
 }
 .settings-nav-item:hover { background: var(--s4); }
 .settings-nav-item[aria-current="true"] { background: var(--s4); color: var(--t); }
-.settings-content { min-width: 0; }
+.settings-content {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto; /* the content pane scrolls on its own — the many-switches case (Joe) */
+}
+/* Thin scrollbars (Joe: ~half the default width) for the two Settings scrollers. WebView2/Chromium
+ * ::-webkit-scrollbar; the default is ~16px, so 8px is about half. Muted thumb on a transparent track,
+ * rounded. PROVISIONAL → M-RP-SKIN (a global thin-scrollbar policy is a wider skin call). */
+.settings-nav::-webkit-scrollbar,
+.settings-content::-webkit-scrollbar {
+  width: 8px;
+}
+.settings-nav::-webkit-scrollbar-track,
+.settings-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.settings-nav::-webkit-scrollbar-thumb,
+.settings-content::-webkit-scrollbar-thumb {
+  background: var(--s5);
+  border-radius: 999px;
+}
+.settings-nav::-webkit-scrollbar-thumb:hover,
+.settings-content::-webkit-scrollbar-thumb:hover {
+  background: var(--t4);
+}
 /* All sections mounted; only the active one shows (M-RP3.2 tabbed-sampler precedent). */
 .settings-panel { display: none; }
 .settings-panel[data-active] { display: block; }
@@ -1928,64 +2025,116 @@ html, body {
   gap: var(--sp-1);
 }
 
-/* ── plugin-list (.plugin-list / .pl-*) — the FIFTH widget (M-RP6.1l), the gear's pane. A READ-ONLY
- * stacked list of the client's compiled plugins (Ch6 §6.8.5's stacked-block drawing). ALL skinnable
- * presentation lives here (N-090 / N-094: the component ships ZERO <style>). ACCENT-NEUTRAL — a
- * plugin registry is chrome, not accent-themed, and there are no focusable controls, so nothing moves
- * under an accent swap (V8). Each row is a subtle card: name + [system] badge, description, and the
- * host · delivery · surface axes (D-112 made visible). No action controls — read-only (D6). ── */
+/* ── plugin-list (.plugin-list / .pl-*) — the FIFTH widget (M-RP6.1l), the gear's pane, now Settings'
+ * Plugins section (M-RP-SETTINGS). Each plugin is ONE line (Joe): a leading PLUGIN icon + name +
+ * [system]/[user] badge + a trailing action bar. Description + the host·delivery·surface axes live in the
+ * [info] detail view, NOT the list. ALL skinnable presentation lives here (N-090 / N-094: the component
+ * ships ZERO <style>). PROVISIONAL — glyph shapes/colours + row density are Joe's, M-RP-SKIN. The plugin
+ * icon carries a per-host colour (the one deliberate NON-neutral element — Joe's red/blue module/widget
+ * cue). ── */
 .plugin-list {
   min-width: 300px;
 }
 .plugin-list-items {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
+  gap: var(--sp-1);
   list-style: none;
   margin: 0;
   padding: 0;
 }
 .plugin-list-row {
   display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  padding: var(--sp-2);
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
   background: var(--s);
   border: 1px solid var(--s5);
   border-radius: var(--rad);
 }
-.pl-row-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-2);
+/* Leading PLUGIN icon: the plugin's own identity glyph, coloured per host — module (node) = red · widget
+ * (client) = blue (Joe's cue). PROVISIONAL colours — the Icon inherits them via currentColor (no tint
+ * passed). All rows are client today. */
+.pl-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+.pl-icon[data-host="node"] {
+  color: var(--err); /* module — red, PROVISIONAL (M-RP-SKIN) */
+}
+.pl-icon[data-host="client"] {
+  color: #3a7ab0; /* widget — blue, PROVISIONAL (M-RP-SKIN) */
 }
 .pl-name .label {
   color: var(--t);
   font-size: var(--fs-1);
   font-weight: 700;
 }
-/* [system] / [user] mode badge (Ch6 §6.8.5) — a small muted pill. `custom` (`[user]`) is reserved
- * for a future installable plugin; only `[system]` renders today. */
-.pl-badge {
+/* Plugin version (Joe: replaces the [system]/[user] badge). Muted metadata text next to the name — the
+ * kind is carried by the icon colour + the info view, so a badge was redundant. */
+.pl-version {
   flex: 0 0 auto;
   color: var(--t3);
   font-size: var(--fs-0);
-  padding: 0 var(--sp-1);
-  background: var(--s4);
-  border-radius: var(--rad);
   white-space: nowrap;
 }
-.pl-badge[data-kind="custom"] {
-  color: var(--t2);
+/* The action bar (§3.3): a trailing group of icon-buttons, pushed to the row's right edge. aria-disabled
+ * greys legibly while staying focusable (the shelf-face / menu-item pattern) — a built-in's Disable/Uninstall
+ * says WHY it can't act. Accent-neutral. PROVISIONAL — glyphs/density/hover are Joe's (M-RP-SKIN). */
+.pl-actions {
+  flex: 0 0 auto;
+  margin-left: auto; /* name+badge stay left; actions pinned right */
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
 }
-.pl-desc .label {
+.pl-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-1);
+  background: transparent;
+  border: 0;
+  border-radius: var(--rad);
   color: var(--t2);
+  cursor: pointer;
+}
+.pl-action:hover {
+  background: var(--s4);
+  color: var(--t);
+}
+.pl-action[aria-disabled="true"] {
+  color: var(--t4);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.pl-action[aria-disabled="true"]:hover {
+  background: transparent;
+  color: var(--t4);
+}
+
+/* ── plugin-detail (.plugin-detail / .pd-*) — the `info` verb's drill-in (M-RP-SETTINGS Leg B), shown in
+ * Settings' content pane in place of the list. Just the descriptor field grid (<dl>) — Back + the plugin
+ * name TITLE live in the shared Settings header (Joe). Accent-neutral (chrome). PROVISIONAL → M-RP-SKIN. ── */
+.plugin-detail {
+  min-width: 300px;
+}
+.pd-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-1) var(--sp-2);
+  margin: 0;
+}
+.pd-grid dt {
+  color: var(--t3);
   font-size: var(--fs-0);
 }
-/* The three axes — the trust posture, in the muted type of metadata. */
-.pl-meta .label {
-  color: var(--t3);
+.pd-grid dd {
+  margin: 0;
+}
+.pd-grid dd .label {
+  color: var(--t2);
   font-size: var(--fs-0);
 }
 

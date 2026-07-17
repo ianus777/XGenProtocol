@@ -1,5 +1,5 @@
 # M-RP-SETTINGS — Leg B — the plugin action row
-> **Status**: PENDING  
+> **Status**: ACTIVE  
 > Version: 1.0  
 > Date: July 2026  
 > **Last updated**: 2026-07-16  

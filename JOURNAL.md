@@ -8,6 +8,53 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-535 — M-RP-SETTINGS Leg A CLOSED: the one Discord-shaped Settings modal stands up; `plugin-list` re-hosted as the Plugins section, About reused as the About section, `plugins-dialog` absorbed
+
+**Commit `473b991` [Clair, code-only, 6 files, +276/−94, on `main`, pushed by Joe]. Zero Rust · zero schema (`version` stays 3) · zero sampler · zero `core`/`common`** (confirmed on the commit: all six files are `ui/client/src` + `ui/assets/skin.css`; `cargo test` **1517/0/62 IDENTICAL by construction**). Clair built; Chat re-drove every leg on the live client 9222 **after a full reload** (Rule 5 + N-132). The running build is `473b991` (About "Built" reads it).
+
+### The one sentence
+
+The **one** Discord-shaped Settings modal now stands up — a category sidebar (~¼) + a content pane that swaps per selection, wrapping the core `dialog`. The read-only `plugin-list` is re-hosted as its **Plugins** section; the About body is extracted (`about-content.svelte`) and reused as its **About** section; both entry points route (gear → Settings @ Plugins, new **File ▸ Settings** → Settings @ default); `plugins-dialog` is **absorbed and gone**.
+
+### What shipped (6 files)
+
+`settings-dialog.svelte` (NEW) — wraps core `dialog`; two-pane; getter `settings#settings-body {section, sectionCount, open}`; deep-link via a `section` prop + an `$effect` landing on `section ?? default` when `open` flips. `about-content.svelte` (NEW) — the About body extracted for two mounts (parametrized by `idPrefix`: default `about` keeps the C3 ids byte-identical; Settings uses `settings-about` → no `data-debug-id` collision, both modals always-mounted). `about-dialog.svelte` — slimmed to `<Dialog><AboutContent/></Dialog>`; Help ▸ About untouched. `app_client.svelte` — `PluginsDialog`→`SettingsDialog`; `settingsOpen`/`settingsSection`; `widget.manager`→Settings@Plugins, new `settings.open`→Settings@default; File = `Settings · Restart · —— · Exit`. `plugins-dialog.svelte` — **removed** (absorbed). `skin.css` — `.settings-*` two-pane block, PROVISIONAL → M-RP-SKIN.
+
+### Measured — Chat re-drove every leg (live 9222, after a full reload)
+
+| leg | result |
+|---|---|
+| V0 baseline | full reload → **86 === unique 86** · `sel:null` · empty store (no saved-state picker). |
+| V1 gear entry | gear (`shelf-face#app-shelf-bottom__0`, `widget.manager`) → `settings#settings-body {section:'plugins', sectionCount:2, open:true}`; `:modal` **true** (open `<dialog>` `.matches(':modal')`, never the attribute); `openId dialog#settings`. |
+| V2 plugins-dialog gone | `ids().indexOf('dialog#plugins') < 0` — absorbed; file deleted. |
+| V3 sidebar swap | click `[data-section=about]` → `section` `plugins`→`about`; **DOM visibility swapped**: `plugin-list#plugin-list` `offsetParent===null` (hidden), `label#settings-about-name` `offsetParent!==null` (shown); About renders real data (Built `473b991`). |
+| V4 close / no leak | `button#settings__close` → `dialog#settings.open false`, no open `<dialog>`, **86 === 86** (clean return, no leak). |
+| V5 File entry (source) | `app_client.svelte`: `{label:'Settings', command:'settings.open'}` **directly above** `{label:'Restart'}`; `settings.open` sets `settingsSection=null` (→ default `about`) + opens; gear sets `'plugins'`; `<SettingsDialog bind:open section={settingsSection}/>` mounted; `PluginsDialog` import gone. File menu `itemCount 4` (was 3). |
+| V6 About preserved | Help ▸ About intact; the original `about-*` ids (12) unchanged (C3 preserved), `settings-about-*` (12) are the reuse. |
+| V7 scope/gates | `git show --stat`: 6 files, no `.rs`/sampler/`core`/`common` → `cargo test` **1517/0/62 IDENTICAL** · `npm test` **77** · `vite build` **174** (was 173; +2 new −1 removed). |
+
+### Delta enumerated (+13; 73 → 86)
+
+−2 (`dialog#plugins`, `button#plugins__close`) + 3 (`dialog#settings`, `button#settings__close`, `settings#settings-body`) + 12 (`settings-about-*`: 1 image + 10 labels + 1 link) = **+13**. The 12 original `about-*` ids remain intact.
+
+### ⚠️ Record correction — J-534's "67" baseline was STALE (Clair caught it; Chat confirms)
+
+J-534 wrote *"Registry unchanged (67, quiescent/empty-store baseline from J-533's arc)"* — a number **re-quoted from the pre-arc era without re-measuring** (the N-105 shape). The true pre-Leg-A live baseline is **73** (69 at J-529 + 4 plate at J-532; connstats adds nothing when uninstalled/empty-store). Chat's post-reload read of **86 === unique 86** with the exact **+13** confirms 73 was the base. **The next milestone cites 86** (quiescent / empty-store / no-selection), not 67.
+
+### Deviations / design flags (Rule 6 — all Clair's, all accepted on Chat's re-drive)
+
+**Second real section = About** (not deferred — `aboutInfo` was already fetched, so it is genuinely ready) — forced the `about-content` extraction + `idPrefix` param; §3.2's proposal made concrete, and it exercises the sidebar swap honestly (N-091). **Sidebar rover = a shell-local linear-rove copy** (selection-follows-focus) — neither core rover fit (`entity-panel` is data-dependent; `shelf` is horizontal transient dispatch); it is chrome, not a new `core` component (catalogue stays 328), so `M-RP-ROVING` stays filed — **noted: arguably a 5th independent rove instance, extraction-pressure for Joe/Chat to weigh.** **Content pane = all sections mounted, inactive `display:none`** (the M-RP3.2 tabbed-sampler + always-mounted-dialog precedent) — swap is CDP-observable via the getter + `offsetParent`. **Kept the stock `dialog` Close footer** — deliberately did NOT reach for `:has()` suppression (that would be the 2nd D9 recurrence → the footer-snippet extraction); Close-at-bottom is honest for a read-only leg, X-in-corner is Joe's via M-RP-SKIN.
+
+### Housekeeping (out of scope, filed)
+
+Stale comment `plugin-list.svelte:26` ("the host (the plugins-dialog)") left in `$common` — sweep in a follow-up if wanted (scope kept tight). Screenshots `temp/cdp-shot-client.png`.
+
+### State
+
+**M-RP-SETTINGS Leg A DONE.** The one Settings modal exists, the plugin manager is its Plugins section, both entry points route, `plugins-dialog` is gone. **Next-active = Leg B** (`tasks/M_RP_SETTINGS_B_ACTION_ROW.md`) — the `[info][settings][disable][uninstall]` action row + leading kind-glyph + `session.disabled` (this IS M-RP6.1m). Then **Leg C** (the settings mechanism, D-B + the `grid-plate` backdrop setting in the content pane). No new D, no new `core`, sampler 328 unchanged. Records: CLAUDE.md PLAY · ROADMAP · this entry. Per D-065 + Rule 5 + Rule 6.
+
+---
+
 ## Entry J-534 — M-RP-SETTINGS DESIGN LOCKED: one Discord-shaped Settings modal (Plugins is a section), J-513 → B, no OS window
 
 **Design / records-only, NO CODE.** A design walk this session locked the shape of the next milestone, `M-RP-SETTINGS`. Canonical Phase-0 doc shipped at `docs/xgen-settings-phase0.md` (v1.0, ACTIVE). Registry unchanged (67, quiescent/empty-store baseline from J-533's arc). Clair not engaged; the Leg-A runbook is filed for handoff.

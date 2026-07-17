@@ -1,5 +1,5 @@
 # M-RP-SETTINGS — Leg A — the Settings shell + Plugins section
-> **Status**: ACTIVE  
+> **Status**: COMPLETED  
 > Version: 1.0  
 > Date: July 2026  
 > **Last updated**: 2026-07-16  

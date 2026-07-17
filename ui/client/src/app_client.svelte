@@ -23,6 +23,11 @@
   // self-panel widget READ it. STATE_COLOURS/PULSING_STATES relocated here (they were shell-local; the
   // widget needs them and cannot receive shell props — W-3).
   import { selfState, STATE_COLOURS, PULSING_STATES } from '$common/stores/self-state.svelte';
+  // The known-Space store (M-RP6.2, D1) — ONE source, TWO readers: the spaces-panel (R1) lists Spaces, the
+  // rooms-panel (R2) reads the selected Space's embedded rooms. The shell WRITES it once on mount below
+  // (`get_spaces`); both region widgets READ it (they can't receive shell props — W-3). No widget-register
+  // line: `widgetRegistry` DERIVES the swap from the CLIENT_PLUGINS descriptors (M-RP6.1l).
+  import { spacesState } from '$common/stores/spaces-state.svelte';
   // The grid-backdrop setting store (M-RP-SETTINGS Leg C, B2). ONE value the grid-plate paints. The shell
   // reads it here to mirror into region-shell's `backgroundLive` + persist it (a session key), seeds it on
   // boot from the persisted key; the $common grid-plate-settings component is what WRITES it (W-3/N-096 —
@@ -381,6 +386,11 @@
       // ONCE here (the get_about_info shape). Inside the same try so the browser-dev/no-Tauri path keeps
       // working. Unregistered → registered:false + a real keypair-derived XGID (rendered honestly, D6).
       selfState.setIdentity(await invoke('get_self_state'));
+
+      // M-RP6.2 — the known-Space tree (D1). Static per session (no live push until the resident, M-RP6.6),
+      // so fetched ONCE here (the get_self_state shape). Rooms ride embedded, so R2 needs no second fetch.
+      // Unregistered → get_spaces returns [] (honest empty; R1 shows "No spaces yet").
+      spacesState.setSpaces(await invoke('get_spaces'));
 
       // M-RP4.2 — hydrate the user-owned substitution pairs from the client
       // TOML ([substitutions] rules). The store parses + validates (Tier-2);

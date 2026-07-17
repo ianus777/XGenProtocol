@@ -363,6 +363,35 @@ fn get_self_state(data: tauri::State<DataDir>) -> SelfStateInfo {
     }
 }
 
+/// The known-Space tree for R1/R2 (M-RP6.2, D1). A thin shell read (the
+/// `get_self_state` shape) composing the EXISTING, unit-tested `ops::spaces` —
+/// NOT a D-092 four-armed verb: no node round-trip, no mutation, no CLI meaning,
+/// so it never grows those arms and never touches `ops.rs`. Each `KnownSpace`
+/// carries its `rooms` EMBEDDED (`state.rs`), so R2 reads them from this same
+/// payload — there is no `get_rooms` UI command. Carried VERBATIM (snake_case as
+/// serde writes it; `KnownSpace`/`KnownRoom` are plain-field structs, no XGID
+/// newtypes) — no rename/mapping layer (a mapping layer is a drift surface; the
+/// self-state precedent). `Err` (state file absent / unregistered) is NOT an
+/// error to the webview — `unwrap_or_default()` gives the honest empty list
+/// (D-065 / W-8), which R1 renders as its "No spaces yet" empty state.
+#[tauri::command]
+fn get_spaces(data: tauri::State<DataDir>) -> Vec<xgen_common::state::KnownSpace> {
+    let data_dir = data.0.clone();
+    // `spaces` never touches `session` (it reads the on-disk state file), so a
+    // throwaway `SessionState` with an EMPTY home_node satisfies the `&mut`
+    // borrow — the `get_self_state` precedent, no config read for a value
+    // nothing consumes.
+    let mut session = crate::session::SessionState::new(String::new(), data_dir.clone());
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir: &data_dir,
+        node_override: None,
+    };
+    crate::ops::spaces(&mut ctx)
+        .map(|r| r.spaces)
+        .unwrap_or_default()
+}
+
 #[tauri::command]
 fn quit(app: AppHandle) {
     emit_state(&app, ClientLifecycleState::Closing);
@@ -585,7 +614,8 @@ pub fn run(
             get_window_geometry,
             apply_window_geometry,
             get_about_info,
-            get_self_state
+            get_self_state,
+            get_spaces
         ])
         .run(tauri::generate_context!())
         .expect("error while running xgen-client desktop shell");
@@ -635,5 +665,50 @@ mod pass_4_commit_1_tests {
         let _timestamp: &String = &ev.timestamp; // descriptive, stays String
         assert_eq!(ev.label, "Ready");
         assert!(matches!(ev.state, ClientLifecycleState::Ready));
+    }
+}
+
+#[cfg(test)]
+mod m_rp6_2_tests {
+    //! M-RP6.2 — R1 Spaces + R2 Rooms. The `get_spaces` command returns
+    //! `Vec<KnownSpace>` VERBATIM (D1): the JS frontend receives each Space's
+    //! `rooms` EMBEDDED (so R2 needs no second fetch) with snake_case keys (the
+    //! store carries the shape unmapped). `KnownSpace`/`KnownRoom` are
+    //! plain-field structs — no XGID newtypes — so this asserts STRUCTURE
+    //! (embedded rooms, key names), not serde-transparency.
+    use xgen_common::state::{KnownRoom, KnownSpace};
+
+    /// The `get_spaces` payload serialises each Space with its Rooms nested and
+    /// its keys in snake_case — the shape `spaces-state.svelte.ts` mirrors 1:1.
+    #[test]
+    fn get_spaces_payload_embeds_rooms_snake_case() {
+        let payload = vec![KnownSpace {
+            space_id: "xgen://hash/sha256:S1".to_string(),
+            name: "Engineering".to_string(),
+            node_endpoint: "ws://localhost:8080".to_string(),
+            role: "member".to_string(),
+            rooms: vec![KnownRoom {
+                room_id: "xgen://hash/sha256:R1".to_string(),
+                name: "general".to_string(),
+                joined: true,
+            }],
+        }];
+        let json = serde_json::to_string(&payload).unwrap();
+        // Space keys, snake_case, plain-string ids.
+        assert!(json.contains(r#""space_id":"xgen://hash/sha256:S1""#), "got {json}");
+        assert!(json.contains(r#""role":"member""#), "got {json}");
+        // The Room rides EMBEDDED inside the Space (no separate get_rooms, D1).
+        assert!(json.contains(r#""rooms":[{"#), "got {json}");
+        assert!(json.contains(r#""room_id":"xgen://hash/sha256:R1""#), "got {json}");
+        assert!(json.contains(r#""joined":true"#), "got {json}");
+    }
+
+    /// An empty tree (unregistered client → `unwrap_or_default()`) serialises to
+    /// `[]` — the honest empty list R1 renders as "No spaces yet" (W-8), not an
+    /// error the webview must handle.
+    #[test]
+    fn get_spaces_empty_tree_is_empty_array() {
+        let payload: Vec<KnownSpace> = Vec::new();
+        assert_eq!(serde_json::to_string(&payload).unwrap(), "[]");
     }
 }

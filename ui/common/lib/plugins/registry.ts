@@ -18,6 +18,8 @@
 import type { Component } from 'svelte';
 import SelfPanel from '$common/components/widgets/self-panel.svelte';
 import InspectorPanel from '$common/components/widgets/inspector-panel.svelte';
+import SpacesPanel from '$common/components/widgets/spaces-panel.svelte';
+import RoomsPanel from '$common/components/widgets/rooms-panel.svelte';
 import GridPlate from '$common/components/widgets/grid-plate.svelte';
 import GridPlateSettings from '$common/components/widgets/grid-plate-settings.svelte';
 import ConnectionStats from '$common/components/widgets/connection-stats.svelte';
@@ -103,6 +105,34 @@ export const CLIENT_PLUGINS: PluginDescriptor[] = [
     regionId: 'inspector',
     icon: 'search',
     component: InspectorPanel,
+  },
+  {
+    id: 'spaces-panel',
+    name: 'Spaces',
+    description: 'The Spaces you have joined.',
+    version: '1.0.0',
+    kind: 'system',
+    host: 'client',
+    delivery: 'compiled',
+    surface: 'region',
+    regionId: 'spaces',
+    // icon UNSET (M-RP6.2 D8): there is no verified spaces glyph in-repo, and a Material `d` path is not
+    // fabricated from memory (Rule 5 / the byte-for-byte icon discipline, D-108). plugin-list falls back to
+    // its documented `'square'` placeholder; the real glyph is deferred to M-RP-ICON-ADOPT / M-RP-SKIN.
+    component: SpacesPanel,
+  },
+  {
+    id: 'rooms-panel',
+    name: 'Rooms',
+    description: 'The Rooms in the selected Space.',
+    version: '1.0.0',
+    kind: 'system',
+    host: 'client',
+    delivery: 'compiled',
+    surface: 'region',
+    regionId: 'rooms',
+    // icon UNSET (M-RP6.2 D8) — see spaces-panel.
+    component: RoomsPanel,
   },
   {
     id: 'plugin-list',

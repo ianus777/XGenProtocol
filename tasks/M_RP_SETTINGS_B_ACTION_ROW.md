@@ -1,8 +1,8 @@
 # M-RP-SETTINGS — Leg B — the plugin action row
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: July 2026  
-> **Last updated**: 2026-07-16  
+> **Last updated**: 2026-07-17  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -17,6 +17,17 @@ Rule-0 reading stack: CLAUDE.md PLAY block → JOURNAL J-534 (this milestone's d
 **Lane:** Clair implements; Chat re-drives every verification leg on the real client `9222` (Rule 5). **Appearance is Joe's** — everything visual in this leg (glyph shapes, icon set, row density, colours) ships **PROVISIONAL** and is tuned in `M-RP-SKIN`; this runbook fixes only the **mechanics** (which control exists, what feeds it, when it is honest).
 
 **Client-only.** No sampler (`ui/sampler` catalogue must stay 328, by scope). No Rust planned — `cargo test` must stay **1517/0/62 IDENTICAL** (the honest proof no Rust landed).
+
+---
+
+## 0.5 Handoff — GO (J-536, 2026-07-17)
+
+Joe said **go** (2026-07-17). Leg B is cleared to implement (Clair). Two records-level resolutions from the plan walk:
+
+- **Rover: DEFERRED, not extracted.** Leg A's sidebar rover is the arguable **5th** roving-tabindex instance (past D-069's four-bar: `entity-panel`·`menu-bar`·`menu`·`shelf`). Joe's call: **do not extract mid-arc** — Leg B adds no new rover, so it proceeds on the shell-local copy; the 5th-instance trigger is recorded against **M-RP-ROVING — extract the roving-tabindex helper** (ROADMAP). Do **not** add rover-extraction work to this leg.
+- **Two appearance calls are Joe's (non-blocking, ship PROVISIONAL → M-RP-SKIN):** the exact **meta** fields shown on the line (§3.3/§3), and **uninstall on system rows — absent vs. greyed-legible** (§4). Neither gates implementation — build the mechanic, skin later.
+
+Everything else in §1–§6 is mechanic-locked. Chat re-drives every verification leg on the live client 9222 after a full reload (N-132); Joe pushes.
 
 ---
 

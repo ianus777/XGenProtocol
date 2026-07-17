@@ -1,10 +1,32 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-16  
+> **Last updated:** 2026-07-17  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-536 — M-RP-SETTINGS Leg B: GO — rover extraction DEFERRED (5th instance recorded against M-RP-ROVING); action-row runbook handed to Clair
+
+**Records-only (design/handoff). No code, no Rust, no registry change.** Session-open presented the Leg-B plan — five descriptor-derived mechanics + the feeder contract, runbook `tasks/M_RP_SETTINGS_B_ACTION_ROW.md` — and Joe said **go**. Two things settled at handoff.
+
+### The one open decision — the rover — RESOLVED: defer
+
+Leg A's Settings sidebar is a roving-tabindex list — the arguable **5th** independent rove instance, past D-069's four-recurrence bar (`entity-panel` · `menu-bar` · `menu` · `shelf`, the fourth copied deliberately at 6.1i). **Joe's call: do NOT extract mid-arc.** Leg B adds no new rover, so extracting now would only widen the blast radius across four closed components — the 6.1k `dialog`-footer lesson: a shared-helper refactor buried in a feature arc makes that arc's registry delta unreadable. The 5th-instance pressure is recorded against **M-RP-ROVING — extract the roving-tabindex helper** (its own milestone, never a rider); Leg B proceeds on the shell-local copy. *The extraction is owed — its forcing function is a shared refactor, not this leg.*
+
+### Two appearance calls flagged to Joe's lane (non-blocking)
+
+Both ship PROVISIONAL → M-RP-SKIN and gate nothing: the exact **meta** fields on the row line (§3), and **uninstall on system rows — absent vs. greyed-legible** (§4). The mechanic is built regardless; the look is Joe's.
+
+### Grounding re-confirmed before handoff (N-116)
+
+Grepped live, not remembered: `PluginDescriptor` (`registry.ts`) still carries no `settingsComponent`/`hasSettings`; `installed.svelte.ts` still exposes only `active` (no `disabled`/`mounted`/`disable`/`enable`). Runbook §2's grounding holds — the five mechanics are genuinely unbuilt. Tree clean at open (`0 0` vs `origin/main`; `473b991` + `eac5398` present). Baseline to cite going forward: **86** (quiescent, empty store).
+
+### Handoff
+
+`tasks/M_RP_SETTINGS_B_ACTION_ROW.md` → v1.1, gains a §0.5 Handoff — GO block carrying the rover decision. Clair implements per §3–§5; Chat re-drives every verification leg live 9222 after a full reload; Joe pushes. → CLAUDE.md PLAY · ROADMAP (M-RP-ROVING 5th-instance trigger · SETTINGS Leg B GO).
 
 ---
 

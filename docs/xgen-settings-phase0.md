@@ -1,6 +1,6 @@
 # M-RP-SETTINGS — the Settings modal + plugin manager (Phase-0)
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: July 2026  
 > **Last updated**: 2026-07-17  
 > Language: English  
@@ -122,6 +122,8 @@ Per the standing autonomy split (broadened this session: mechanics are mine, **v
 ---
 
 ## 9. Leg C — the settings mechanism (D-B → D-120), mechanic-locked (2026-07-17)
+
+**✅ BUILT + CLOSED (J-540, commits `5f4a6fe` + `8b7ca1a`) — D-120 minted.** Re-driven live 9222 (full reload, Rule 5): baseline **99 === unique 99** (store `backdrop:true`, N-108); `[settings]` **enabled for grid-plate only** → drill to “Grid Backdrop” (99→76) → the **real toggle flips the painted `data-pattern` both ways** (N-097) + persists + survives reload; the `untrack` fix (**N-136**) proven; `cargo` **1517/0/62 IDENTICAL**. The B2 minimal (one boolean the plate paints) is a mechanism proof; the full 4-type menu (type 1 = **solid/gradient**, Joe 2026-07-17) is **M-RP-BACKDROP**.
 
 **Locked this session:** the D-number (**D-120**, minted at close), the swap machinery (**reuse**), and the backdrop-setting shape (**B2**). Grounded against live code (N-116 — grepped, not assumed).
 

@@ -1,6 +1,6 @@
 # M-RP-SETTINGS — Leg C — the settings mechanism (D-B → D-120) + the grid-plate backdrop setting
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: July 2026  
 > **Last updated**: 2026-07-17  
 > Language: English  
@@ -9,6 +9,8 @@
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 ---
+
+> **✅ CLOSED (J-540, commits `5f4a6fe` + `8b7ca1a`).** Shipped by Clair, re-driven live 9222 by Chat (Rule 5, full reload): baseline **99 === unique 99**; `[settings]` enabled for grid-plate only → drill “Grid Backdrop” 99→76 → the real toggle flips the painted `data-pattern` both ways (N-097), persists, survives reload; `cargo` **1517/0/62 IDENTICAL**. One defect caught in live verify → **N-136** (the persist `$effect` must `untrack` its read-modify-write). **D-120 minted.** See JOURNAL J-540.
 
 ## 0. Read first
 

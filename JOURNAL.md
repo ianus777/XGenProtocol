@@ -8,6 +8,44 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-540 — M-RP-SETTINGS Leg C CLOSED → the SETTINGS arc is CLOSED: the settings mechanism (D-120) + the grid-plate backdrop setting (B2) shipped, re-driven live, D-120 minted
+
+**Commits `5f4a6fe` (feat, 8 files) + `8b7ca1a` (fix: untrack the persist, 1 file) [Clair, code-only, all `ui/`, on `main`/pushed].** Zero `.rs`, zero `ui/sampler/` (`git show --stat` = 8 `ui/` files + `app_client.svelte`) → `cargo test` **1517/0/62 IDENTICAL by construction**, sampler catalogue **328**. The LAST leg of the SETTINGS arc; the arc (A shell · B action row + window · C mechanism + backdrop) is CLOSED. **D-120 minted** this entry (built-and-looked-at, the D-119 precedent — the reserved number from J-539 lands with the code).
+
+### What shipped (D-B → D-120, B2)
+
+New `$common/lib/stores/backdrop.svelte.ts` (one boolean `pattern`, default true) + new `$common/…/widgets/grid-plate-settings.svelte` (a `core` `Toggle` writing the store, id `grid-plate-settings__toggle`). `grid-plate` reads the store and **paints `data-pattern`** (B2 — no longer fully inert), G `{backgroundLive, pattern}`; `registry.ts` grid-plate row gains `settingsComponent`; `skin.css` `.grid-plate[data-pattern]`=raster / plain otherwise. `settings-dialog.svelte` **drill-in generalised** `detailId → drill={id, mode:'info'|'settings'}` (the J-539 reuse), `settings` **intercepted locally**, generic `{@const C}<C/>` mount — `app_client.handlePluginAction` and `plugin-list` **untouched**. `uistate.svelte.ts` gains a `backdrop` session key + `setSessionBackdrop` (N-107 per-key merge, zero Rust); `app_client` binds `backgroundLive={backdrop.pattern}`, seeds before `loadLayout`, persists via an **`untrack`ed** effect.
+
+### The defect Clair shipped in `5f4a6fe` and caught in live verify → N-136
+
+The backdrop persist `$effect` called `setSessionBackdrop()`, whose read-modify-write **read `_store.session` inside the effect** → it became a dependency → the write self-invalidated it → `effect_update_depth_exceeded` → Svelte halts the render scheduler: `$state` keeps mutating (getters advance, toggle animates natively) but the **DOM freezes**. Symptom = a *dead-button UI*, **not a crash** → it passed every static gate; **only a live drive surfaced it** (Joe caught it on screen). Fix (`8b7ca1a`) = `untrack` the write. **The other persist axes (`installed`/`disabled`/`locked`/`layout`) were safe because they persist from EVENT HANDLERS, not effects** — backdrop was the first persist wired through an effect. → **N-136** (Rule-5 / N-099 family: a failure only a live drive can see). *This is why the leg was not closed on the static gates alone.*
+
+### Measured — Chat re-drove EVERY leg (live 9222, full reload first, N-132; zero errors)
+
+| leg | result |
+|---|---|
+| baseline | **99 === unique 99**, quiescent — store `backdrop:true` (Clair's toggle test, **cited N-108**), else empty (`installed:[]`, `disabled:[]`, `locked:null`, `active:null`, `named:0`, `sel:null`). 99-family unchanged — nothing new is always-mounted |
+| persisted value at first frame | `region-shell` G `backgroundLive:true` + `grid-plate` G `pattern:true` + **painted `data-pattern="true"`** — the persisted choice paints on reload |
+| mechanism (D-B) | gear → Settings `:modal true` @ Plugins; `[settings]` **ENABLED for grid-plate ONLY** (self-panel/inspector-panel/plugin-list `aria-disabled`) — descriptor-derived; click → drill `detail:{id:'grid-plate',mode:'settings'}`, header **“Grid Backdrop”**, Back present, `toggle#grid-plate-settings__toggle` registers, **99→76** (list unmounts, settings component swaps in) |
+| B2 flip (the REAL toggle, N-097) | true→false: store + `grid-plate` G `pattern` + `region-shell` G `backgroundLive` + **painted `data-pattern` REMOVED** (raster→plain) + input unchecked + `session:false` persisted; false→true restores **`data-pattern="true"`**. **Two-way on the painted DOM** |
+| untrack fix | reads return cleanly through the flip — no `effect_update_depth_exceeded`, DOM responsive (the N-136 fix proven) |
+| hygiene | Back → **99===99** (toggle unregisters); Close → `open:false`, **99===99** no leak; reload → **99===99, `backdrop:true` survives, painted first-frame** |
+| gates | `vite build` **178** · `npm test` **77** · scope 8 files, 0 `.rs`/0 sampler → `cargo test` **1517/0/62 IDENTICAL by construction** |
+
+**⚠️ Two of Chat's read-selectors reported clean-looking nothings before I fixed them (N-110 family, logged not hidden):** `get('settings-body')` missed the `type#id` key (it is `settings#settings-body`), and `ids().indexOf('grid-plate-settings__toggle')` checked exact array membership when the id is `toggle#grid-plate-settings__toggle` — both returned a plausible `null`/`false` until re-queried against the real ids. *A selector that cannot see its subject reports the flattering answer; re-ground it before believing it.* No phantom entered the record.
+
+### The backdrop's final form (Joe, 2026-07-17) — an M-RP-BACKDROP refinement, NOT a Leg-C change
+
+Joe refined the FILED backdrop-type menu (`M-RP-BACKDROP`): of its four visual types, **the first is now `solid/gradient`** (was `solid`). This is a filing refinement to the final menu — it does **not** touch Leg C's shipped one-boolean B2 toggle (a mechanism proof), and the full 4-type enumeration is pinned when M-RP-BACKDROP walks. Recorded against M-RP-BACKDROP (ROADMAP / PLAY / D-120 relationship line).
+
+### Canonical (D-074)
+
+`DECISIONS.md` **+D-120** (settings mechanism = component-per-plugin hosted in the content pane; `settings_schema` superseded); `ui/docs/xgen-ui-notes.md` **+N-136** (the untrack finding); `docs/xgen-settings-phase0.md` **v1.1→v1.2, Status ACTIVE→COMPLETED** (§9 built + verified); runbook `tasks/M_RP_SETTINGS_C_MECHANISM.md` **ACTIVE→COMPLETED**; `CLAUDE.md` PLAY (Leg C + arc CLOSED, baseline 99); `docs/ROADMAP.md` (arc CLOSED + the M-RP-BACKDROP refinement); this JOURNAL J-540. No new `core`.
+
+**Next-active.** The SETTINGS arc is closed. Open follow-ons unchanged: `M-RP-BACKDROP` (the static/generative/data-driven, base-vs-stack type menu — unblocked by this leg, not started; type 1 = solid/gradient) · `M-RP-PLUGIN-INSTALL` (the `+` install affordance) · `M-RP-PLUGINS-NODE` · `M-RP-DIALOG-CHROME` · `M-RP-ROVING` · `M-RP6.6`. Per ROADMAP, the client region arc resumes at **M-RP6.2** (R1 Spaces + R2 Rooms on real `KnownSpace`). Not pushed by Chat — Joe pushes.
+
+---
+
 ## Entry J-539 — M-RP-SETTINGS Leg C DESIGN-LOCKED: the settings mechanism (D-B → reserved D-120) + the grid-plate backdrop setting; swap = REUSE the Leg-B drill-in; backdrop = B2 (one painted value)
 
 **Records-only (design). No code, no Rust, no registry change.** The last leg of the SETTINGS arc. Session-open presented the Leg-C Phase-0 — grounded against live code first (N-116), then the mechanic, the forks needing Joe, and the legs — and Joe **locked** all three open decisions.

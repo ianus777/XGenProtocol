@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.97  
+> Version: 0.98  
 > Date: May 2026  
 > **Last updated**: 2026-07-17  
 > Language: English  
@@ -2743,6 +2743,10 @@ The custom install→dock→uninstall path is now real and locked as **D-119** �
 ### N-134 — a shell rule that overrides `display` on a native `<dialog>` must be `[open]`-scoped (M-RP-SETTINGS Leg B, J-537)
 
 Settings needed `display:flex` on its open modal (the two-column, header-fixed scroll layout the stock centred dialog doesn't give). The first cut put it on `.dialog:has(.settings)` — **unconditional**. Its specificity `(0,2,0)` **outranks** the UA rule `dialog:not([open]) { display: none }` at `(0,1,1)`, so the **closed** Settings modal kept `display:flex` and sat visible in normal flow with no backdrop (Joe caught it live). Fixed by scoping to **`.dialog[open]:has(.settings)`** — the rule now applies only while open, and the UA hide wins when closed. Verified on 9222 (J-537): fresh **and** post-close the dialog reads `display:none`, `:modal` false, not in flow, `rectH:0`, and the registry returns to baseline with no leak. *Rule: any author rule that sets `display` on a native `<dialog>` must carry `[open]` (or an equivalent open-state guard), or it silently defeats the UA `:not([open])` hide and leaks the closed modal into the layout.* A `core`-`dialog`-owned custom-chrome slot would remove the need for these shell `display` overrides entirely — that extraction is **M-RP-DIALOG-CHROME** (filed J-537; the 2nd `:has()` footer-suppression recurrence).
+
+### N-135 — the pane action-bar is NOT the grid `shelf`; it is composed from cores (M-RP-SETTINGS design walk, J-538)
+
+The Plugins pane wants a **static header strip** — a search field + action buttons (info / filter / `+`-install) — above the scrolling list. `shelf` was considered and **rejected**. Grepped (N-116): `shelf` is `role="toolbar"` with `items: ShelfItemDef[]` — homogeneous command icon-**faces** dispatched via `onCommand` (S-7, never a bare click) — a linear toolbar rove over `faces[]`, and baked-in `position:'top'|'bottom'` = favourites/system + `data-empty` collapse. All grid-specific. A search `textfield` **is not a face** and has a different keyboard model (its own tab stop + caret keys, not arrow-rove), so forcing it into a shelf-face breaks the face contract — the wrong-abstraction move (N-086 family). → **the strip is COMPOSED shell-local from existing cores** (`textfield` + `icon`-buttons in a flex row); the *static-header + scroll-body* layout is already the Leg-B settings-content scroll model (header `flex-shrink:0`, body `flex:1; overflow-y:auto`) — a **skin, not a component**. It extends by adding one more `icon`-button + `onAction` verb (same honesty contract as the action row: greyed for a real reason, absent if never built). **`pane-toolbar` is FILED as a D-069 extraction candidate, NOT built** — extract only when a 2nd/3rd pane (members / rooms / spaces headers) wants the same search + N-buttons shape and the real axes of variation are visible. *A reusable component minted at N=1 designs the wrong axes.* → M-RP-PLUGIN-INSTALL.
 
 ---
 

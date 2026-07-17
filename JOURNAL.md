@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-539 — M-RP-SETTINGS Leg C DESIGN-LOCKED: the settings mechanism (D-B → reserved D-120) + the grid-plate backdrop setting; swap = REUSE the Leg-B drill-in; backdrop = B2 (one painted value)
+
+**Records-only (design). No code, no Rust, no registry change.** The last leg of the SETTINGS arc. Session-open presented the Leg-C Phase-0 — grounded against live code first (N-116), then the mechanic, the forks needing Joe, and the legs — and Joe **locked** all three open decisions.
+
+### Grounding (N-116 — grepped, not assumed)
+
+- **The content pane swaps two ways** (`settings-dialog.svelte`): a sidebar **section swap** (all mounted, inactive `[data-active]`→`display:none`) and, inside the Plugins panel, a **list↔detail `{#if}` swap** driven by `info`→`detailId`, Back→`null`, the shared header owning Back+×. **The `settings` verb is FORWARDED to the shell today** (`onPluginAction`→`app_client.handlePluginAction`, which handles only `uninstall`/`disable`) → a **no-op**.
+- **The backdrop is threaded but unpersisted:** `region-shell` takes `background`/`backgroundLive`/`bgWidgets`; `app_client` passes **`backgroundLive={true}` as a hardcoded literal** (the seam Leg C binds); `grid-plate` **accepts `backgroundLive` and IGNORES it** (inert by contract, getter reads it back); **no backdrop choice is persisted anywhere** (reserved for this milestone).
+- **`settingsComponent` is unfed:** `PluginDescriptor.settingsComponent?` is `undefined` on every row; `hasSettings = !!settingsComponent` → the `[settings]` button is greyed for all. Confirmed. (Leg B built that button greyed-for-all *on purpose* — Leg C feeds one descriptor and it lights up for that row alone.)
+
+### The three locks (Joe, 2026-07-17)
+
+1. **D-B → reserved `D-120`.** The formal decision (settings mechanism = **component-per-plugin, hosted in the Settings content pane**; the declarative `settings_schema` superseded, not built) takes the number **D-120** — but per the project's decision hygiene (D-117/D-118/D-119: a decision enters `DECISIONS.md` when *built and looked at*, not predicted), the **D-120 entry is minted at Leg C CLOSE**, not now. The reserved number is fixed; the record lands with the code — this session does **not** write `DECISIONS.md` (mirrors J-534, which locked D-A/D-B/D-C without minting numbers).
+2. **Swap = REUSE.** Generalize the Leg-B drill-in from `detailId` to a single drill target carrying a **mode** (`{ id, mode: 'info' | 'settings' }`); the `settings` verb is **intercepted LOCALLY** in `settings-dialog` (like `info`), **never forwarded**; `app_client.handlePluginAction` untouched; a generic `{@const C = plugin.settingsComponent}<C />` is the third content-pane target. A second machine would be N-086 wrong-abstraction risk.
+3. **Backdrop = B2 (one painted value).** `grid-plate` **stops being fully inert** — it reads **one** value from a new `$common` backdrop store and **branches its render**, so the writer is proven on the **painted DOM** (N-097: a setting that moves nothing on screen is an untested writer), not by getter alone. Being a `$common` widget it cannot import a shell store (W-3) → the value lives in `$common` (settings-component writes, plate reads, N-096); the **shell** mirrors it into `backgroundLive` (replacing the literal) and **persists** it via a new `uistate` session key mirroring `setSessionDisabled` (N-107 per-key merge, **zero Rust**), hydrated before `loadLayout`. **The *look* of the two states is Joe's → M-RP-SKIN.** The full static/generative/data-driven menu stays **`M-RP-BACKDROP`**, NOT this leg.
+
+**Surfaced, not decided silently (both then locked):** whether the settings swap reuses the Leg-B detail-swap machinery (→ **reuse**) and where the minimal-backdrop line sits vs. `M-RP-BACKDROP` (→ **B2**, one painted value; the menu stays filed).
+
+### Canonical (D-074)
+
+`docs/xgen-settings-phase0.md` **v1.0→v1.1** (§2 D-B formalization note, §5 sharpened to B2, §6 Leg-C line, new **§9** the mechanic lock — the runbook's canonical source); runbook `tasks/M_RP_SETTINGS_C_MECHANISM.md` **NEW (v1.0 ACTIVE)** handed to Clair; `CLAUDE.md` PLAY (Leg C 🔒 design-locked → 🟢 PLAY); `docs/ROADMAP.md` v5.05→v5.06; this JOURNAL J-539. **No `DECISIONS.md` change** (D-120 minted at close). No new `core`, no new N.
+
+**Next-active.** Clair implements Leg C from the runbook (design→already-locked): the drill-in generalization + local `settings` interception + generic mount, with `grid-plate` as the one fed tenant; then the `$common` backdrop store + the plate's one painted value + the grid-plate settings component + the shell binding & persistence. Chat re-drives every leg live 9222 after a full reload (N-132, baseline 99); `cargo test` stays 1517/0/62 IDENTICAL. At close: mint **D-120**, close the arc. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-539 + J-537 → this runbook → `docs/xgen-settings-phase0.md` §9.** Not pushed — Joe pushes.
+
+---
+
 ## Entry J-538 — M-RP-PLUGIN-INSTALL filed: the Plugins pane action-bar is COMPOSED from cores, not the grid `shelf`; `pane-toolbar` filed as a D-069 extraction candidate
 
 **Records-only (design). No code.** A design walk from Joe's question — are the grid shelves special, or can this bar recycle one? Grounded `shelf` (N-116): it is a grid-tailored `role="toolbar"` of command icon-faces (`onCommand`/S-7, never a bare click), a linear rove over `faces[]`, `position:'top'|'bottom'` = favourites/system, `data-empty` collapse. A search `textfield` is **not** a face and cannot be one without breaking the contract (different keyboard model — own tab stop + caret keys, not arrow-rove). **Verdict: do not recycle `shelf`.** The Plugins pane's top strip (search + info/filter + a `+` install button) is **composed shell-local** from `textfield` + `icon`-buttons; the static-header / scroll-body layout is already the Leg-B settings-content scroll model (a skin, not a component). `pane-toolbar` filed as a **D-069 extraction candidate** — built at the 4th sighting (members/rooms/spaces headers), not at N=1 (N-135). The `+` opens an install dialog over `AVAILABLE_CUSTOM` (grounded: the catalogue exists; D-119's `install()` path works) — the write-side the read-only list lacked.

@@ -1,8 +1,8 @@
 # M-RP-SETTINGS — the Settings modal + plugin manager (Phase-0)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: July 2026  
-> **Last updated**: 2026-07-16  
+> **Last updated**: 2026-07-17  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -37,7 +37,7 @@ D-112 penciled Settings as `surface:'window'`. **Joe's reading (2026-07-16): `su
 
 The J-513 gate — *how a plugin's settings get drawn* — was binding-deferred until the grid works. The grid works. **Resolved: B.** A plugin that has settings ships **its own settings component**; the Settings modal hosts it. This is the shipped widget-tier pattern (a widget hosting content, §3.2); the declarative `settings_schema` auto-render (Ch6 §6.8.2/§6.8.5, **zero lines exist**) is **not** built and is superseded as a path — *"it does not need to be yet another widget system"* (Joe). This is a **technical/mechanism** choice; the *look* remains Joe's.
 
-*A formal `D`-number for D-B is Joe's to bless when Leg C builds it — not taken unilaterally here.*
+**Formalization (Joe-locked 2026-07-17): D-B takes the reserved number `D-120`.** Per the project's decision hygiene (D-117/D-118/D-119 precedent — a decision enters `DECISIONS.md` when its design is *built and looked at*, not predicted), the **D-120 entry is minted at Leg C close**, not now. The reserved number is fixed; the record lands with the code. Mechanic-locked in **§9**.
 
 ### D-C — ONE Discord-shaped Settings modal; the gear deep-links to its Plugins section (Joe, 2026-07-16)
 
@@ -90,7 +90,7 @@ A control is greyed **only for a reason true of that plugin** (legible to the us
 
 ## 5. The settings mechanism's first real tenant is `grid-plate`
 
-The J-513=B mechanism and the backdrop setting are **one proof**: opening a plugin's own settings component. **`grid-plate` is the exemplar** — the backdrop *is* its setting. v1 delivers a minimal backdrop setting (toggle `backgroundLive` + pick from a couple of built-in backdrops), which proves D-B end-to-end.
+The J-513=B mechanism and the backdrop setting are **one proof**: opening a plugin's own settings component. **`grid-plate` is the exemplar** — the backdrop *is* its setting. **v1 delivers ONE value the plate visibly renders (B2, Joe-locked 2026-07-17)** — so the writer is proven on the **painted DOM** (N-097: a setting that moves nothing on screen is an untested writer), not by getter alone. `grid-plate` stops being fully inert: it reads one value from a `$common` backdrop store and branches its render. The *look* of the two states is Joe's (→ M-RP-SKIN); the mechanic is the round-trip settings-component → `$common` store → plate re-render + shell → `backgroundLive`/persist → hydrate-on-boot. This proves D-B end-to-end.
 
 The full **backdrop-type menu** — static / generative / data-driven, base-vs-stack (the socket is `WidgetMount[]`, a stack) — is large enough to be its **own follow-on milestone** (`M-RP-BACKDROP`, filed), not this arc.
 
@@ -100,7 +100,7 @@ The full **backdrop-type menu** — static / generative / data-driven, base-vs-s
 
 - **Leg A — the Settings shell + Plugins section (read-only).** The Discord-shaped modal: category menu (~¼) + content pane. First real content = the existing read-only `plugin-list` as the **Plugins** section. Wire both entry points: gear → Settings @ Plugins, new **File ▸ Settings** → Settings @ default. `plugins-dialog` absorbed. **No new verbs** → safe, visible-first: the whole Settings frame + manager on screen for Joe's eyes.
 - **Leg B — the action row.** The Plugins-section rows gain `[info][settings][disable][uninstall]` + leading kind-glyph, states descriptor-derived. Live feeders: uninstall (D-119, custom-only), disable (new `session.disabled`), info (detail view in the content pane). `settings` present-but-greyed until a plugin ships one. This IS M-RP6.1m.
-- **Leg C — the settings mechanism (D-B) + the backdrop setting.** A plugin's `settingsComponent` opens **in the content pane**; `grid-plate` is the first tenant → proves D-B and delivers a minimal backdrop setting.
+- **Leg C — the settings mechanism (D-B → D-120) + the backdrop setting.** A plugin's `settingsComponent` opens **in the content pane** by **reusing the Leg-B drill-in** (generalize `detailId` → `{ id, mode: 'info' | 'settings' }`; the `settings` verb is intercepted **locally**, not forwarded to the shell); `grid-plate` is the first tenant → proves D-B and delivers a **minimal B2 backdrop setting** (one value the plate paints). Mechanic-locked in §9.
 
 Each leg: real client `9222` only (no sampler — these are shell-local), Rule 5 re-drive, registry baseline read **quiescent after a full reload** (N-132), stating store/selection/saved/disabled state (N-105/N-108). `cargo test` must stay **1517/0/62 IDENTICAL** unless a leg genuinely lands Rust (none is planned — all frontend + the opaque-blob store path).
 
@@ -118,3 +118,35 @@ Each leg: real client `9222` only (no sampler — these are shell-local), Rule 5
 ## 8. Appearance is Joe's
 
 Per the standing autonomy split (broadened this session: mechanics are mine, **visual UI is Joe's**), everything in §3's look — the glyphs, the icon set, the row density, the modal chrome — is Joe's to shape. This doc fixes only the mechanics: which control exists, what feeds it, and when it is honest.
+
+---
+
+## 9. Leg C — the settings mechanism (D-B → D-120), mechanic-locked (2026-07-17)
+
+**Locked this session:** the D-number (**D-120**, minted at close), the swap machinery (**reuse**), and the backdrop-setting shape (**B2**). Grounded against live code (N-116 — grepped, not assumed).
+
+### 9.1 Grounding (the three questions)
+
+- **The content pane swaps two ways** (`settings-dialog.svelte`). (a) the sidebar **section swap** — all sections mounted, inactive `[data-active]` → `display:none` (CDP-stable). (b) inside the Plugins panel, a **list↔detail `{#if}` swap** — `{#if detailId && detailPlugin}<PluginDetail>{:else}<PluginList>`, driven by the `info` verb → `detailId`, Back → `null`, the shared header owning Back + ×. **The `settings` verb is currently FORWARDED to the shell** (`onPluginAction` → `app_client.handlePluginAction`, which handles only `uninstall`/`disable`) → today a **no-op**.
+- **The backdrop is threaded but unpersisted.** `region-shell` takes `background` / `backgroundLive` / `bgWidgets`; `app_client` passes **`backgroundLive={true}` as a hardcoded literal** — the seam Leg C binds. `grid-plate` **accepts `backgroundLive` and IGNORES it** (inert by contract; the getter reads it back). `DEFAULT_BACKGROUND` is fixed in `layout-default.ts`; **no backdrop choice is persisted anywhere** (reserved for this milestone — "no store key, no descriptor key, no schema change").
+- **`settingsComponent` is unfed.** `PluginDescriptor.settingsComponent?` is `undefined` on every row; `hasSettings = !!settingsComponent` → the `[settings]` button is greyed for all. Confirmed still unfed.
+
+### 9.2 The mechanism (D-B → D-120)
+
+A plugin with settings ships its **own settings component**; the Settings modal **hosts it in the content pane** (NOT a declarative `settings_schema`). Leg B built the greyed-for-all `[settings]` button *on purpose* — Leg C feeds **one** descriptor (`grid-plate`'s) and that row's button lights up; **no `plugin-list` change is needed**.
+
+- **Swap = REUSE (Joe-locked).** Generalize the Leg-B drill-in from `detailId` to a single drill target carrying a **mode** (`{ id, mode: 'info' | 'settings' }`, or a parallel `settingsId` — Clair's call, same shape). Back returns to the list; the shared header fits. A second machine would be N-086 wrong-abstraction risk.
+- **`settings` intercepted LOCALLY** in `settings-dialog.handlePluginAction` (like `info`), **not forwarded**. `app_client.handlePluginAction` is untouched (still `uninstall`/`disable`).
+- **Generic mount:** `{@const C = plugin.settingsComponent}<C />` inside the Plugins panel — a third content-pane target.
+- **D-120 is minted at Leg C close** (built-and-looked-at, the D-119 precedent), not here.
+
+### 9.3 The backdrop setting (B2 — one value the plate paints)
+
+- `grid-plate` ships a **`settingsComponent`** (a new `$common` widget). Being `$common` it **cannot import a shell store (W-3)** → the live backdrop value lives in a **new `$common` store** (settings-component writes, `grid-plate` reads — the `self-state` / `installed` precedent, N-096).
+- `grid-plate` **stops being fully inert (B2):** it reads **one** value from that store and branches its render. The *look* of the states is Joe's (→ M-RP-SKIN); the mechanic reads one value.
+- The **shell** mirrors the value into `backgroundLive` (replacing the `backgroundLive={true}` literal) and **persists** it via `uistate` — a new **session key** mirroring `setSessionDisabled` (N-107 per-key merge; geometry stays Rust's; **zero Rust**, `cargo` stays identical), **hydrated before `loadLayout`** if the value must be live at first paint.
+- **RESERVE NOTHING beyond this one key.** The full backdrop-type menu (static / generative / data-driven, base-vs-stack) stays **`M-RP-BACKDROP`**.
+
+### 9.4 Verify (the honesty legs)
+
+Real client **9222** only, Rule 5, baseline **quiescent after a full reload** (N-132, cite from 99). `cargo test` **1517/0/62 IDENTICAL** (all frontend + the opaque-blob store path). The B2 proof is on the **painted DOM**: toggling the setting **flips what the plate renders**, the choice **survives a reload**, and the value stays getter-observable (`region-shell` G `backgroundLive` + `grid-plate` G). Registry moves by the settings-component's mount — **measured after a full reload, not derived**.

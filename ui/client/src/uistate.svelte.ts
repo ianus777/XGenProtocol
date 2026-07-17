@@ -31,6 +31,10 @@ export interface UiStateBag {
    *  installed but its widget unmounts. Per-device (the `installed` precedent), a SESSION key; an empty
    *  array is meaningful (nothing disabled) and distinct from undefined (never touched). */
   disabled?: string[];
+  /** Grid-backdrop setting (M-RP-SETTINGS Leg C, B2). ONE value the grid-plate paints (v1: show the pattern
+   *  or a plain fill). Per-device presentation (the J-503 test — "would you expect it to follow you to
+   *  another device?" → no), a SESSION key; undefined = never set (the default true applies). */
+  backdrop?: boolean;
   [k: string]: unknown;
 }
 interface NamedEntry {
@@ -83,28 +87,35 @@ async function persist(): Promise<void> {
     // above, so a geometry Rust wrote since our last read survives.
     const onDiskSession =
       onDisk.session && typeof onDisk.session === 'object' ? onDisk.session : {};
-    // Three INDEPENDENT session keys THIS module owns (M-RP7.6/M-RP-CONNSTATS, N-107): `layout` (fold/resize/
-    // move feeder), `locked` (the grid lock), and `installed` (the custom-plugin set). Each is merged only when
-    // set, so any one mutation persists without clobbering the others — and NONE touches geometry (Rust's,
-    // spread first). `installed` writes even an empty array (uninstall-all is meaningful — the reload must not
-    // re-add), distinct from undefined (never touched).
+    // The INDEPENDENT session keys THIS module owns (M-RP7.6/M-RP-CONNSTATS/M-RP-SETTINGS, N-107): `layout`
+    // (fold/resize/move feeder), `locked` (the grid lock), `installed` (the custom-plugin set), `disabled`
+    // (the disabled set), and `backdrop` (the grid-backdrop setting). Each is merged only when set, so any one
+    // mutation persists without clobbering the others — and NONE touches geometry (Rust's, spread first).
+    // Array/boolean keys write even an empty/false value (uninstall-all / plain-backdrop are meaningful — the
+    // reload must honour them), distinct from undefined (never touched).
     const layout = _store.session?.layout;
     const locked = _store.session?.locked;
     const installed = _store.session?.installed;
     const disabled = _store.session?.disabled;
+    const backdrop = _store.session?.backdrop;
     const sessionOut = {
       ...onDiskSession,
       ...(layout ? { layout } : {}),
       ...(locked !== undefined ? { locked } : {}),
       ...(installed !== undefined ? { installed } : {}),
       ...(disabled !== undefined ? { disabled } : {}),
+      ...(backdrop !== undefined ? { backdrop } : {}),
     };
     const merged = {
       ...onDisk,
       version: 1,
       named: _store.named,
       active: _store.active,
-      ...(layout || locked !== undefined || installed !== undefined || disabled !== undefined
+      ...(layout ||
+      locked !== undefined ||
+      installed !== undefined ||
+      disabled !== undefined ||
+      backdrop !== undefined
         ? { session: sessionOut }
         : {}),
     };
@@ -257,6 +268,17 @@ export const uiStateStore = {
    */
   setSessionDisabled(ids: string[]): void {
     _store.session = { ...(_store.session ?? {}), disabled: ids };
+    scheduleSessionPersist();
+  },
+
+  /**
+   * M-RP-SETTINGS Leg C (B2) — persist the grid-backdrop setting. Mirrors setSessionDisabled (a per-key
+   * session write, N-107 — geometry stays Rust's; `layout`/`locked`/`installed`/`disabled` untouched). Read
+   * back on the next launch by the shell to seed the $common backdrop store BEFORE loadLayout, so the choice
+   * paints on relaunch. `false` is meaningful (plain backdrop), distinct from undefined (never set → default).
+   */
+  setSessionBackdrop(on: boolean): void {
+    _store.session = { ...(_store.session ?? {}), backdrop: on };
     scheduleSessionPersist();
   },
 };

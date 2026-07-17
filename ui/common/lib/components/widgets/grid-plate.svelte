@@ -11,22 +11,31 @@
   // `.region-backdrop` wrapper is `pointer-events: none` (D-116: a clickable hole would have an ADDRESS and
   // retire the tree; a reactive backdrop is fine, a clickable one is not).
   //
-  // INERT this arc (D3): one fixed appearance, no data source. `backgroundLive` is ACCEPTED and IGNORED —
-  // a static object ignores the settings switch (the `message-stream` contract) — but the getter reads it
-  // back so the switch is provably threaded even while inert. The live-switchable backdrop (solid-black →
-  // reactive fractal clouds) + its user setting ride M-RP-SETTINGS, unchanged by this milestone.
+  // B2 (M-RP-SETTINGS Leg C): the plate STOPS BEING FULLY INERT. It reads ONE value from the $common backdrop
+  // store and branches its render (`data-pattern`), so the setting's writer is proven on the PAINTED DOM
+  // (N-097 — a setting that moves nothing on screen is an untested writer), not by a getter alone. The two
+  // states' LOOK is Joe's (PROVISIONAL → M-RP-SKIN, D4); this reads one value and reflects it so the skin can
+  // paint two states. `backgroundLive` STAYS accepted (its live/frozen contract is the FUTURE reactive plate,
+  // solid-black → fractal clouds — M-RP-BACKDROP) and reported so the switch stays provably threaded; the
+  // shell mirrors the backdrop value into it this leg, but the plate paints from the store, not from it.
   //
-  // W-3 holds: imports only `$common` (`envelope`) — no shell / Tauri / protocol dep. Zero component-local
-  // CSS (N-090): the raster look is `.grid-plate` in skin.css (PROVISIONAL → M-RP-SKIN, D4).
+  // W-3 holds: imports only `$common` (`envelope`, the backdrop store) — no shell / Tauri / protocol dep.
+  // Zero component-local CSS (N-090): the raster look — and the two-state flip — is `.grid-plate` in
+  // skin.css (PROVISIONAL → M-RP-SKIN, D4).
   import { envelope } from '$common/components/base/envelope';
+  import { backdrop } from '$common/stores/backdrop.svelte';
 
   // `id` self-defaults to 'grid-plate' (the self-panel `id = region-${regionId}` self-derivation shape),
   // so the plate registers as a STABLE, enumerable `grid-plate#grid-plate` even when mounted from a
   // props-less `WidgetMount` — not a mount-order ordinal (envelope's `id ?? ++ordinal` fallback).
   let { backgroundLive, id = 'grid-plate' }: { backgroundLive?: boolean; id?: string } = $props();
 
-  // G — proves the settings switch reaches the mount even while the plate ignores it (V4).
-  const debug = () => ({ backgroundLive });
+  // The one painted value (B2). Reactive — the settings component writes the store, this repaints.
+  const pattern = $derived(backdrop.pattern);
+
+  // G — reports BOTH: the mirrored `backgroundLive` (threaded proof) AND the rendered `pattern` (the flip),
+  // so the setting is CDP-observable on the getter as well as the painted DOM.
+  const debug = () => ({ backgroundLive, pattern });
 </script>
 
-<div class="grid-plate" use:envelope={{ name: 'grid-plate', id, debug }}></div>
+<div class="grid-plate" data-pattern={pattern || undefined} use:envelope={{ name: 'grid-plate', id, debug }}></div>

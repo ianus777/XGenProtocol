@@ -47,18 +47,23 @@
   // handled HERE (it swaps THIS modal's content pane, the pane's own concern), never forwarded.
   let { open = $bindable(false), section = null, info = null, onOpenLink, onPluginAction } = $props();
 
-  // The Plugins-section drill-in (§3.5): when a row's [info] fires, the pane swaps to a plugin-detail view
-  // for that id; Back returns to the list. `null` = the list is shown. Looked up in `installed.active` (the
-  // LISTED set — a disabled custom is still inspectable). If the plugin vanishes (uninstalled while open),
-  // the derived is null and the template falls back to the list.
-  let detailId = $state(null);
-  const detailPlugin = $derived(detailId ? (installed.active.find((p) => p.id === detailId) ?? null) : null);
+  // The Plugins-section DRILL-IN (§3.1). Generalized in Leg C from a single `detailId` to a mode-carrying
+  // target `{ id, mode: 'info' | 'settings' }` (or null = the list). `info` → a plugin-detail view; `settings`
+  // → the plugin's OWN settings component (D-B). ONE machine for both, reused verbatim — a second would be
+  // N-086 wrong-abstraction risk. Looked up in `installed.active` (the LISTED set — a disabled custom is still
+  // inspectable/configurable). If the plugin vanishes (uninstalled while open), the derived is null and the
+  // template falls back to the list.
+  let drill = $state(null); // { id, mode } | null
+  const drillPlugin = $derived(drill ? (installed.active.find((p) => p.id === drill.id) ?? null) : null);
 
-  // The one seam every plugin-list row button emits through. `info` → open the detail view (local); every
-  // other verb → the shell (app_client), which owns the layout + store. A greyed button never fires (guarded
-  // onclick in plugin-list), so `settings` reaches here only once a plugin ships one (Leg C).
+  // The one seam every plugin-list row button emits through. `info` AND `settings` → open the drill-in
+  // LOCALLY (both swap THIS modal's content pane, the pane's own concern); every OTHER verb → the shell
+  // (app_client), which owns the layout + store. `settings` is NEVER forwarded — `app_client.handlePluginAction`
+  // stays untouched (still uninstall/disable). A greyed button never fires (guarded onclick in plugin-list),
+  // so `settings` reaches here only once a plugin ships a settingsComponent (Leg C: grid-plate, alone).
   function handlePluginAction(pluginId, verb) {
-    if (verb === 'info') detailId = pluginId;
+    if (verb === 'info') drill = { id: pluginId, mode: 'info' };
+    else if (verb === 'settings') drill = { id: pluginId, mode: 'settings' };
     else onPluginAction?.(pluginId, verb);
   }
 
@@ -81,7 +86,7 @@
   $effect(() => {
     if (open) {
       active = section ?? DEFAULT_SECTION;
-      detailId = null; // a fresh open always lands on the list, never a stale drill-in
+      drill = null; // a fresh open always lands on the list, never a stale drill-in
     }
   });
 
@@ -91,7 +96,7 @@
 
   function selectAt(i) {
     active = SECTIONS[i].key;
-    if (SECTIONS[i].key !== 'plugins') detailId = null; // leaving Plugins closes any open drill-in
+    if (SECTIONS[i].key !== 'plugins') drill = null; // leaving Plugins closes any open drill-in
     navButtons[i]?.focus?.();
   }
   function indexOfActive() {
@@ -126,7 +131,7 @@
 
   // Getter G — the section swap made CDP-observable: which section is active + how many there are (so the
   // ≥2-real-sections invariant is readable), plus `open` (the DOM truth rides the core dialog's own G).
-  const debug = () => ({ section: active, sectionCount: SECTIONS.length, open, detail: detailId });
+  const debug = () => ({ section: active, sectionCount: SECTIONS.length, open, detail: drill });
 </script>
 
 <Dialog bind:open id="settings">
@@ -137,17 +142,17 @@
       suppression — per J-512 D9 the dialog header/footer-snippet extraction is now owed as its own milestone
       (flagged, not built here). The header buttons compose the core `icon` (shelf-face pattern). -->
     <div class="settings-header">
-      {#if detailId && detailPlugin}
+      {#if drill && drillPlugin}
         <button
           type="button"
           class="settings-icon-btn"
           aria-label="Back"
           title="Back"
-          onclick={() => (detailId = null)}
+          onclick={() => (drill = null)}
         ><Icon name="chevron-left" id="settings__back" /></button>
       {/if}
       <span class="settings-header-title"
-        >{detailId && detailPlugin ? detailPlugin.name : 'Settings'}</span
+        >{drill && drillPlugin ? drillPlugin.name : 'Settings'}</span
       >
       <button
         type="button"
@@ -180,8 +185,14 @@
         <AboutContent {info} {onOpenLink} idPrefix="settings-about" />
       </div>
       <div class="settings-panel" data-active={active === 'plugins' || undefined}>
-        {#if detailId && detailPlugin}
-          <PluginDetail plugin={detailPlugin} />
+        <!-- THREE content-pane targets (§3.1, Leg C): the info detail, the plugin's own settings component
+          (generic mount — no per-plugin branch), else the list. A settings drill-in whose plugin lost its
+          settingsComponent (never happens — the button is guarded off `hasSettings`) falls safely to the list. -->
+        {#if drill?.mode === 'info' && drillPlugin}
+          <PluginDetail plugin={drillPlugin} />
+        {:else if drill?.mode === 'settings' && drillPlugin?.settingsComponent}
+          {@const C = drillPlugin.settingsComponent}
+          <C />
         {:else}
           <PluginList id="plugin-list" onAction={handlePluginAction} />
         {/if}

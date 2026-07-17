@@ -3138,12 +3138,17 @@ html, body {
   z-index: 0;
   pointer-events: none;
 }
-/* .grid-plate — the inert system plate (M-RP-PLATE, D4). Fills the backdrop wrapper and paints the PROMOTED
- * dev raster (the dots; the shell's --s5 shows between them). PROVISIONAL — discharger M-RP-SKIN; the whole
- * plate is swapped for a solid/reactive backdrop at M-RP-SETTINGS. Zero component-local CSS (N-090). */
+/* .grid-plate — the system plate (M-RP-PLATE, D4). Fills the backdrop wrapper. The plate now paints TWO
+ * states off the B2 backdrop setting (M-RP-SETTINGS Leg C): [data-pattern] = the PROMOTED dev raster (the
+ * dots; the shell's --s5 shows between them, today's look), no attr = a PLAIN fill (the shell's backdrop
+ * surface shows through, no dots). The FLIP is the B2 proof (N-097). PROVISIONAL — discharger M-RP-SKIN;
+ * the two states' exact look (and the whole static/generative/data-driven menu, M-RP-BACKDROP) are Joe's.
+ * Zero component-local CSS (N-090). */
 .grid-plate {
   position: absolute;
   inset: 0;
+}
+.grid-plate[data-pattern] {
   background-image: radial-gradient(var(--s3) 1px, transparent 1px);
   background-size: 8px 8px;
 }

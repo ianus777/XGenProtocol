@@ -19,6 +19,7 @@ import type { Component } from 'svelte';
 import SelfPanel from '$common/components/widgets/self-panel.svelte';
 import InspectorPanel from '$common/components/widgets/inspector-panel.svelte';
 import GridPlate from '$common/components/widgets/grid-plate.svelte';
+import GridPlateSettings from '$common/components/widgets/grid-plate-settings.svelte';
 import ConnectionStats from '$common/components/widgets/connection-stats.svelte';
 // plugin-list.svelte is NOT imported here: its descriptor carries no `component` (surface: 'none' →
 // it is content the shell mounts inside a host, never resolved through this registry), so importing
@@ -131,6 +132,10 @@ export const CLIENT_PLUGINS: PluginDescriptor[] = [
     // from the `surface: 'none' && component` rows — the `widgetRegistry` shape, one socket over (N-096).
     surface: 'none',
     component: GridPlate,
+    // The FIRST `settingsComponent` (M-RP-SETTINGS Leg C, D-B). This single assignment lights the [settings]
+    // button on the Grid Backdrop row (`hasSettings = !!settingsComponent`, plugin-list) and NOWHERE else;
+    // the Settings modal hosts it in its content pane (component-per-plugin — NOT a declarative schema).
+    settingsComponent: GridPlateSettings,
   },
 ];
 

@@ -23,6 +23,11 @@
   // self-panel widget READ it. STATE_COLOURS/PULSING_STATES relocated here (they were shell-local; the
   // widget needs them and cannot receive shell props — W-3).
   import { selfState, STATE_COLOURS, PULSING_STATES } from '$common/stores/self-state.svelte';
+  // The grid-backdrop setting store (M-RP-SETTINGS Leg C, B2). ONE value the grid-plate paints. The shell
+  // reads it here to mirror into region-shell's `backgroundLive` + persist it (a session key), seeds it on
+  // boot from the persisted key; the $common grid-plate-settings component is what WRITES it (W-3/N-096 —
+  // the $common plate and its $common settings component share this store, never a shell intermediary).
+  import { backdrop } from '$common/stores/backdrop.svelte';
   // The selection bus (M-RP6.1f, D3): its first real writer is now the self-panel widget (D5). This
   // side-effect import keeps the DEV __XGEN_SEL__ handle installed for CDP; the shell is the bus's host,
   // its readers (R8 inspector / entity-context-menu) wire in at 6.1h+.
@@ -74,9 +79,23 @@
   let locked = $state(false);
 
   // Grid backdrop mounts (M-RP-PLATE, D3). Seeded to the ONE inert system plate; a `$state` (not the raw
-  // DEFAULT_BACKGROUND literal) only so the DEV bridge can drive the W-13 drop leg (V5). `backgroundLive`
-  // stays a hardcoded `true` at the mount (unbound this arc — the M-RP-SETTINGS binding replaces it).
+  // DEFAULT_BACKGROUND literal) only so the DEV bridge can drive the W-13 drop leg (V5). The `backgroundLive`
+  // literal is now BOUND to the backdrop setting (M-RP-SETTINGS Leg C, at the RegionShell mount below).
   let background = $state(DEFAULT_BACKGROUND);
+
+  // M-RP-SETTINGS Leg C (B2) — persist the backdrop setting. The $common grid-plate-settings component
+  // WRITES the $common backdrop store; the shell observes it here (W-3 — a $common component cannot import
+  // the shell-local uistate store) and persists via a per-key session write (N-107). The first effect run is
+  // SKIPPED so the boot-seed does not re-persist an already-on-disk value; every user change after persists.
+  let backdropReady = false;
+  $effect(() => {
+    const on = backdrop.pattern; // track
+    if (!backdropReady) {
+      backdropReady = true;
+      return;
+    }
+    uiStateStore.setSessionBackdrop(on);
+  });
 
   // DEV-only CDP handle (N-024 idiom) so the verify pass can drive the drop / tabs / mismatch paths
   // (§5.3): push a test layout, read region-shell's getter G. Dead-code-eliminated in a release build.
@@ -329,6 +348,11 @@
     // installed-and-available, so a stale id cannot mark a phantom).
     installed.hydrateDisabled(uiStateStore.session()?.disabled ?? []);
     locked = uiStateStore.session()?.locked ?? false;
+    // M-RP-SETTINGS Leg C (B2) — seed the $common backdrop store from the persisted key BEFORE loadLayout, so
+    // the plate paints the persisted choice on first paint (the hydrateDisabled precedent). Default true =
+    // the raster shows (no visual regression from the pre-Leg-C plate). This runs before the persist effect's
+    // first (skipped) pass, so no spurious write.
+    backdrop.setPattern(uiStateStore.session()?.backdrop ?? true);
 
     // Seed the centre layout (D2). Not Tauri, never throws, so it runs OUTSIDE the try that swallows the
     // no-Tauri (browser dev preview) case — the grid must render even without a backend.
@@ -485,7 +509,7 @@
     leaves. It FILLS .app-center (no whole-grid scroll, D5) — each leaf owns its own scroll. -->
   <main class="app-center">
     {#if layout}
-      <RegionShell {layout} widgets={widgetRegistry} {titles} {background} {bgWidgets} backgroundLive={true} onFold={handleFold} onResize={handleResize} onMove={handleMove} {locked} id="region-root" />
+      <RegionShell {layout} widgets={widgetRegistry} {titles} {background} {bgWidgets} backgroundLive={backdrop.pattern} onFold={handleFold} onResize={handleResize} onMove={handleMove} {locked} id="region-root" />
     {/if}
   </main>
 

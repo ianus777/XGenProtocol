@@ -1,6 +1,6 @@
 # M-RP6.3 — live messaging: R6 composer + narrow-B send path
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-18  
 > Language: English  
@@ -240,8 +240,11 @@ session model rather than being retrofitted twice.
 - [x] Leg A: terminal state + `[Reconnect]` + auto-resume, exercised
 - [x] Leg B: non-blocking drain proven under load; ack correlation live
 - [x] Leg B: live ingest wired (the M-RP6.6 deferral closes here)
-- [ ] Leg C: R5 wrapped live; gap item counts, hands off to `connecting…`,
-      collapses on recovery; grace period exercised with a sub-2s blip
+- [ ] Leg C1 (`core`): `message-stream` fills its host; divider `now` is live;
+      the `status` row kind exists in `StreamRow` — sampler-verified
+- [ ] Leg C2 (shell): R5 wrapped live; gap item counts, hands off to
+      `connecting…`, collapses on recovery; grace period exercised with a
+      sub-2s blip
 - [ ] Leg D: composer sends live; D6 behaviour exercised during a real outage
 - [x] No message ever renders as delivered when it is not (D6 binding rule)
 - [x] D2 invariant holds: no blob / `send_event_confirmed` / `get_dag_tips` on
@@ -360,3 +363,192 @@ herd is bounded, a genuinely heavy load test would be cleaner.
   the app is ignored** (any `focus` resumes it) — do not draw it as permanent.
 - **A frozen peer produces no lifecycle transition at all** (§0 G-4 as amended),
   so the gap item will not appear for that class of outage.
+
+---
+
+## §9 — Leg C Phase-0 (grounded against HEAD, 2026-07-18)
+
+Authority: Joe granted full autonomy on this leg **except** visual appearance
+(Ms Design, §5 unchanged) and fundamental architecture (the pragmatic-vs-unified
+socket class of question). Every decision below is Chat's, taken under that
+grant, and each one is grounded rather than derived.
+
+### §9.1 — The re-ground, six findings
+
+R5's records were five milestones old (M-RP5.6 closed J-485). Re-read against
+HEAD: `message-stream.svelte` · `message.svelte` · `data-dependent/types.ts` ·
+`stream/grouping.ts` · `$common/plugins/registry.ts` · `layout-default.ts` ·
+`rooms-panel.svelte` · `ingest.svelte.ts` · `xgen-common/src/wire.rs`.
+
+**F-1 — there is no R5 widget, and the register path has moved.**
+`buildWidgetRegistry` maps `stream → RegionPlaceholder`. The current mechanism is
+a `CLIENT_PLUGINS` descriptor (`surface: 'region'`, `regionId`, `component`) that
+`layout-default` **derives** the registry from (N-096, one source several
+readers). There is no `app_client` register line any more. R5 is therefore a new
+`$common` widget plus one descriptor row — the `spaces-panel` / `rooms-panel`
+shape exactly.
+
+**F-2 — `message-stream` is boxed.** Its own scoped `<style>` carries
+`min-height: 64px; max-height: 340px`. That is a fixture-bench constraint. A
+region leaf must FILL its tile and self-scroll (J-499 D5). **This is a `core`
+change, and it is not optional.**
+
+**F-3 — `const now = new Date()` is captured ONCE at mount.** Divider labels
+freeze for the life of the process. Invisible on a sampler fixture mounted for
+thirty seconds; wrong on a resident that runs for days — “Today (Jul 18)” is
+still “Today” on the 19th. `core`.
+
+**F-4 — `StreamRow` is a closed union** (`message | divider`). The live mutable
+item is a THIRD row kind, and it lives in `grouping.ts` + `message-stream.svelte`.
+`core` again.
+
+**F-5 — the ingest store is flat and unscoped.** `IngestEvent[]`,
+`INGEST_CAP = 500` **global** across every room, space and event type, with a
+**global** `dropped`. R5 shows one room ⇒ a busy Room B can evict Room A's
+messages inside the cap, and R5 cannot honestly report completeness per room.
+
+**F-6 — R5 inherits R2's latch problem, one level deeper.** `rooms-panel`
+already latches the last **space** because its own click moves the bus to a room
+(D3, N-136 avoided). R5's shipped `onSelect` moves the bus to a **message**, so
+R5 needs a **room latch** on the identical shape. Nothing else holds “the active
+room” — it exists only on the selection bus.
+
+> **⚠️ F-2, F-3 and F-4 are all `core`.** Three `core` edits inside a shell
+> milestone is exactly what made the M-RP6.1k registry delta unreadable (the
+> `dialog` footer case, correctly filed-not-built). Hence C1/C2 below.
+
+### §9.2 — C-1 · LEG C SPLITS IN TWO
+
+| leg | scope | verified in |
+|---|---|---|
+| **C1 — `message-stream` region fitness (`core`)** | drop the height box → fill + self-scroll · live `now` for dividers · the third `StreamRow` kind as a SHAPE | **sampler 9422** — catalogue 328 is the readable signal |
+| **C2 — `stream-panel` widget + live projection (shell / `$common`)** | new widget + `CLIENT_PLUGINS` row · room latch · projection · gap-item feed + grace | **real client 9222 + live node** |
+
+C1 first, and C2 touches **zero** `core`. A registry delta that mixes a `core`
+change with a shell change cannot be attributed to either.
+
+**C2's runbook is deliberately NOT authored yet.** Its anchors are whatever C1
+ships, and this arc has already paid twice for a runbook written against a
+generation-stale anchor (M-RP6.2; N-116). C2 is authored from C1's close.
+
+### §9.3 — C-2 · THE EVENT → `MessageDescriptor` PROJECTION
+
+Grounded against `xgen-common/src/wire.rs` (≈45 `EventType` variants) and the
+shipped body key `content["text"]` (`ai_behavior.rs:110`).
+
+An **explicit allowlist with a `default: ignore` arm.** Not a denylist: a
+denylist admits every future protocol type into the stream by default, and this
+wire type already ships an `Unknown(String)` catch-all precisely because new
+types are expected.
+
+| event type | → |
+|---|---|
+| `message.text` | `kind: 'text'` — `id = event_id`, `body = content.text`, `timestamp`, `isOwn = sender === selfState xgid` |
+| `membership.join` · `leave` · `kick` · `ban` · `node_eject` | `kind: 'system'` centred notice |
+| `message.redact` | **not a row** — mutates the referenced descriptor's `deleted` (a shipped M-RP5.5 B state) |
+| `message.file` · `message.reaction` | ignore — these are `bodyExtras` / `details`, reserved-unfed (D-065) |
+| everything else (`state.*`, `mls.*`, `migration.*`, `bootstrap.*`, `identity.*`, `dm_promote.*`, `thread.*`, `reputation.*`, `system.*`, `Unknown`) | ignore, silently and by design |
+
+`membership.invite` / `mute` / `node_unban` are **out of v1**: none of them is an
+arrival or a departure the room witnesses. They are listed here so their absence
+reads as a decision rather than an oversight.
+
+> **🔑 C-3 · MEMBERSHIP IS TWO-LEVEL, AND THIS NEARLY BECAME A PHANTOM DEFECT.**
+> Grounded, not assumed: `state_key.rs:252–253` builds a **Space** join with
+> `room_id = ""` and a **Room** join with a real `room_id`; `derive.rs:1026–1030`
+> emits the pair. So a Space-level `membership.join` carries an **EMPTY**
+> `room_id` and is **correctly excluded** by a room-scoped filter.
+> **Clair's very first live ingest at Leg B was a `membership.join`** — so the
+> event class most likely to be driven first at verify is the one the filter
+> legitimately drops. **Anyone verifying C2 must drive a ROOM-level join, not a
+> Space-level one, or they will read a working seam as a dead one.** This is the
+> J-546 fan-out-excludes-the-author trap in a second costume: *zero was correct
+> there too.*
+
+### §9.4 — C-4 · PROJECT ON READ, NEVER A MIRROR STORE
+
+R5 takes `messages: MessageDescriptor[]` as a prop and `rows` is `$derived`. The
+widget therefore derives its array off `ingest.events`, filtered by the latched
+room and mapped through §9.3. No append API, no second store, no reconciliation
+— grouping, dividers and the scroll machine all recompute free (proven J-485).
+
+A projected mirror store is **rejected**: it would put the projection in a second
+place, which is the exact reason Leg B refused to project at all.
+
+### §9.5 — C-5 · THE ROOM LATCH, AND WHAT R5 DOES WITH AN OFF-ROOM EVENT
+
+R5 latches the last `kind: 'room'` selection, on the `rooms-panel` D3 shape: the
+effect reads `selection.current` and WRITES the latch, never reads it (the N-136
+self-invalidating read-modify-write avoided). An event for another room is
+filtered out, stays in `ingest`, and appears if the user switches to that room.
+
+Two honest empty states, distinct copy for distinct truths (N-091):
+no room latched → *select a room*; a latched room with nothing projected →
+*no messages*.
+
+### §9.6 — C-6 · ⚠️ THERE IS NO BACKFILL, AND R5 MUST SAY SO
+
+Switching to a room shows only what arrived over the resident **this session**.
+There is no history load anywhere in the client. **An empty room and a
+not-yet-loaded room therefore render identically**, which is a message-loss
+illusion in the D6 family — *a stream may never look complete when it is not.*
+
+**Decision:** the stream carries a **head marker row** — always present when a
+room is latched, always the first row — stating that the view begins at session
+start. It has **two states**, and the second is what makes it earn its keep:
+
+1. normal — the view begins at session start;
+2. `ingest.dropped > 0` — *and part of this session was discarded* (F-5).
+
+This is the cheapest honest answer to F-5 without restructuring the store, and
+the marker **is deleted, not softened, by the milestone that lands backfill** —
+per N-109, its removal is written into that milestone's DoD, not left to be
+noticed. Its *appearance* is Ms Design's; its *existence and meaning* are
+specified here.
+
+History load is filed as **M-RP6.4 — room history backfill**; it is not scoped
+here and nothing in Leg C reserves a slot for it.
+
+### §9.7 — C-7 · THE LIVE ITEM: WHERE IT LIVES, AND WHAT IT BREAKS
+
+- The item is a **third `StreamRow` kind** (C1), NOT a `MessageDescriptor` with
+  `kind: 'system'`. A system message is immutable, carries an author-shaped
+  descriptor and participates in grouping; this row is **mutable, collapses in
+  place, and carries a live countdown**. Forcing it through `MessageDescriptor`
+  would make `computeRows` break grouping runs as a side effect of a connection
+  event — a coupling nobody asked for.
+- **It breaks a grouping run.** A continuation rendered across a visible
+  disconnect reads wrong.
+- **The ~2 s grace timer lives in the widget** (C2), not in `core` and not in
+  Rust. The Leg-A status surface already publishes the transition; the widget
+  starts the timer on leaving `READY` and materialises the row only if it fires.
+  Nothing is added to `resident.rs`.
+- **Copy constraints, binding (§0 G-4 as amended):** the row describes a **broken
+  socket**, never “the node is down” — a frozen peer produces no transition at
+  all. And the terminal state is **not permanent**: any window `focus` resumes a
+  parked resident, so it may not be drawn as a dead end.
+
+### §9.8 — C-8 · AUTHOR NAMES SHIP ABSENT
+
+Nothing in the client resolves an XGID → display name: `spacesState` carries no
+members and R7 is unbuilt. So `author = { kind: 'identity', id: sender }` with
+**no `name`**, and `entity-avatar` falls back to its xgid-tail initials — the
+shipped, already-verified path.
+
+This is the correct render, not a gap to paper over (W-8). It is stated here so
+Ms Design knows the stream ships **initials-only** author avatars, and so nobody
+fabricates a name map to make the panel look finished (the J-501 rule: *do not
+invent fields to make a panel look substantial*).
+
+### §9.9 — Filed here, built elsewhere
+
+| item | successor |
+|---|---|
+| Room history backfill (the C-6 marker's discharger) | **M-RP6.4 — room history backfill** |
+| Per-room ingest scoping / cross-room cap eviction (F-5) | **M-RP6.4** (same store touch) |
+| Resident pong timeout — frozen-peer detection (§0 G-4) | **M-RP6.7 — resident pong timeout**, FILED, unscoped, Joe's to schedule |
+| Concurrent-first-send re-anchor herd | unchanged, filed at §8 |
+| XGID → display-name resolution (C-8) | R7 members / **M-RP-PLUGINS-NODE** |
+
+**M-RP6.7 is filed, not started.** Filing an arc is not deciding to build it;
+the frozen-peer gap is named so Leg C cannot paper over it, per §0.

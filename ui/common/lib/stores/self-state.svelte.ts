@@ -46,8 +46,22 @@ export interface Connection {
   label: string;
 }
 
+/**
+ * The `get_conn_stats` command's return shape (M-RP6.6 Leg C, desktop.rs::ConnTraffic). Carried VERBATIM —
+ * snake_case as Rust serialises it, no rename/mapping layer (a mapping layer is a drift surface, D3).
+ * Byte counts are cumulative observed bytes this resident session (the auth handshake + pings included).
+ * `rtt_ms` is `null` until the first ping/pong — a metric with no value renders ABSENT, never a fabricated
+ * `0` (absent-not-zero, D4/N-060).
+ */
+export interface ConnTraffic {
+  bytes_in: number;
+  bytes_out: number;
+  rtt_ms: number | null;
+}
+
 let _connection = $state<Connection>({ state: 'INITIALISING', label: 'Initialising' });
 let _identity = $state<SelfStateInfo | null>(null);
+let _traffic = $state<ConnTraffic | null>(null);
 
 export const selfState = {
   /** The live connection lifecycle. Reactive — status-bar + self-panel both read this. */
@@ -58,6 +72,10 @@ export const selfState = {
   get identity(): SelfStateInfo | null {
     return _identity;
   },
+  /** Live connection traffic (M-RP6.6 Leg C), or null before the first `get_conn_stats` poll / no-Tauri. */
+  get traffic(): ConnTraffic | null {
+    return _traffic;
+  },
   /** Written by the shell from the `xgen-client-state-changed` listen and `get_state` (D1 — no new emit). */
   setConnection(payload: Connection): void {
     _connection = payload;
@@ -65,6 +83,10 @@ export const selfState = {
   /** Written by the shell from the once-on-mount `get_self_state` invoke. */
   setIdentity(payload: SelfStateInfo): void {
     _identity = payload;
+  },
+  /** Written by the shell from the `get_conn_stats` poll, mirroring setConnection/setIdentity. */
+  setTraffic(payload: ConnTraffic): void {
+    _traffic = payload;
   },
 };
 

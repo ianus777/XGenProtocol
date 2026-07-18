@@ -8,6 +8,51 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-543 — M-RP6.6 — the client resident: live connection state + traffic accounting — CLOSED: the discard-the-stream scaffold becomes a real long-lived resident (live lifecycle · reconnect/backoff · byte+RTT accounting), all three legs live-verified on the real client 9222 + node
+
+**Single-seat, technical lane (Joe, this session: "all technical stuff is yours; mine is visual").** Chat authored the build runbook, ruled the one open decision, wrote all the Rust + the frontend store facet, and drove every live verification on the real client (9222) against a real node — Legs A/B/C in one session. The one visual piece (the ConnStats row-swap) is left standing as a small **Ms Design** leg (§7); the milestone closes **code-complete with the two `connection-stats.svelte` rows still literally `'N/A'`** (Joe's call — a swap done outside the visual lane is how a provisional appearance decision gets made by accident). Code + records ready; **Joe pushes.**
+
+**The gap this closed.** Since M1 the desktop shell's own doc-comment claimed the resident was *"wired in 2b/M3"* — **it never was.** `run_startup` did **one** 2 s `connect_async`, **threw the stream away**, `sleep(150ms)`, emitted `Ready`, and never touched the socket again. So the client's connection state was **relaunch-scoped**: stopping the node while the app ran changed nothing on screen. This is the live half of gate finding **F-1** (M-RP6.0), and the ROADMAP's *"stop the node → the led flips"* proof was **un-runnable** until now.
+
+### §0 open decision — ruled Path A by Chat (technical-autonomy grant)
+
+Phase-0 §1(3) had recorded the byte seam as *"outbound choke `send_bytes`; inbound `recv()`."* Re-grounded against `main` (N-116, cutting the other way): **neither is usable under D3 (GPL core `Connection` untouched)** — `send_bytes` is **private**, and `recv()` returns a **parsed `Inbound` enum**, so the frame length dies inside core; the resident cannot observe bytes at all without editing GPL core. Ruled **Path A**: a client-crate `CountingStream` interposed **below the WS handshake** (a stream-layer counter), which keeps GPL core untouched *and* delivers real bytes. D3's note revised: *"resident-level counters at the **stream** layer; core untouched; honest scope = all socket bytes this resident session, auth handshake included."*
+
+### Shipped (7 files, all client crate + frontend — GPL core untouched, proven by diff)
+
+- **Spine (D1) — new `xgen-client/src/resident.rs`:** `run_session` (connect → authenticate → drain) with a `SessionEnd` outcome and an injected `FnMut(ClientLifecycleState)` **lifecycle sink** — so the SAME spine drives the Tauri UI (sink = `emit_state`) and stays headless in `--service` (sink = `tracing`), not two forks (D-056). `service::run_ws_loop` was refactored onto it (the watch channel hoisted so the resident shares it) as the **regression-lock**: the extraction compiling clean with headless behaviour unchanged is the proof it's a pure move.
+- **Leg A — real lifecycle:** the scaffold in `desktop.rs::run_startup` replaced by the resident. Node via `resolve_node` (hardcoded `ws://127.0.0.1:8080/xgen` gone), real `client_authenticate` (the `sleep(150ms)` gone), lifecycle from **actual** socket outcomes. `Degraded_*` left inert (no real source — N-091). Best-effort `goodbye` on the shutdown arm (races `app.exit`).
+- **Leg B — reconnect + backoff:** `run_resident` wraps `run_session` in a retry loop; a pure, unit-tested `Backoff` (`1,2,4,8,16` s → 30 s cap; reset after a session that reached READY). `run_resident` is the **only** emitter of `Reconnecting`; the terminal `Disconnected` (Leg A) is superseded by retry.
+- **Leg C — accounting (§0 Path A):** `CountingStream<S>` (a byte-tallying `AsyncRead`/`AsyncWrite` wrapper) + `connect_counted` (hand-dials TCP → wraps → `client_async` → `Connection::new`, ws:// Phase 1; wss:// a documented future concern) + resident-timed RTT (`ping()` on a 10 s interval, matched to `Inbound::Pong`, `want_ping`-flag pattern so ping never races the `recv()` borrow). `TrafficStats(TrafficCounters)` managed state + `get_conn_stats` command (mirrors `get_pacing_state`) → the frontend `selfState.traffic` slot (`ConnTraffic {bytes_in, bytes_out, rtt_ms}`, snake_case verbatim, absent-not-zero: `rtt_ms: null` before the first pong) + a 2 s poll in `app_client.svelte`. `connection-stats.svelte` **not touched** — the row-swap is Ms Design's (§7).
+
+### The finding — a real bug caught only by driving the real app (→ N-137)
+
+The first live drive (node up → READY → kill node) proved DETECTION worked (`recv error (os 10054)` → `session ended outcome=Disconnected` in the log) **but the UI stayed pinned at READY.** `run_session`'s drain-drop arms *returned* `Disconnected` without ever *emitting* `sink(Disconnected)`, while the connect/auth-fail arms did — a silent divergence. The unit test (`reached_ready`) asserted the outcome mapping, not the emission, so only the live drive surfaced it (N-099 family). Fixed by making the **caller** own the terminal state (Leg A emits `Disconnected`, Leg B emits `Reconnecting`) — one owner, no divergence, and the exact shape Leg B needed. **→ N-137** (*a return value is not a notification; returning and emitting are two acts*).
+
+### Verify — real client 9222 + real node, Chat re-drove every leg (Rule 5, real-node session)
+
+- **Leg A** — fresh session log: `CONNECTING → AUTHENTICATING → resident: authenticated (real XGID, connected_node=ws://127.0.0.1:8080/xgen) → READY` (real challenge-response timing, no 150 ms sleep). Clean single run: READY → node kill → `recv error (os 10054)` → `lifecycle_state="DISCONNECTED"` → CDP live state `DISCONNECTED`. Detection→emission ~1 ms once the RST arrived.
+- **Leg B** — the reconnect loop's `RECONNECTING → CONNECTING` gaps walked the exact schedule against wall-clock (`1,2,4,8,16,30`-cap, measured); then **the same running process** (same log file, no restart) auto-reconnected the moment the node returned: `CONNECTING → AUTHENTICATING → authenticated → READY`. CDP live state `READY`.
+- **Leg C** — `__XGEN_SELF__.traffic` = `{bytes_in:587, bytes_out:609, rtt_ms:0}` at READY, and **grew** across a ping interval to `{595, 633, 0}` (live-cumulative, not a snapshot). `rtt_ms:0` is a genuine sub-ms loopback measurement (not the `null` sentinel — the unit test proves `None` before the first pong). The client reached READY **through the counted stream** (`connect_counted` + auth succeeded live), so the interposer is proven end-to-end.
+
+### Gates (measured, not predicted — N-105)
+
+- `cargo test` **1524 / 0 / 62** — the floor **1519 + the 5 new resident unit tests** (`reached_ready`, 3× backoff, `counting_stream`), **exactly**; `ignored` unchanged at 62, `0 failed`, 56 result lines all `0 failed`, final line present (no N-117 truncation). This is the honest Rust-primary signal — `cargo check` clean is not (the count moving off 1519 is what goes in the record).
+- `npm test` **77** (unchanged — no frontend/sampler tests added; the store facet is CDP-verified, the project's pattern). `vite build` clean (941 ms). Sampler catalogue **328 unchanged** (no `core`/sampler touched).
+
+### Confirmed against the actual diff (Joe's close conditions)
+
+- **D3 — GPL core `Connection` untouched:** the change set is **7 files, ZERO `xgen-core`** (`git status` clean of `xgen-core/`). `CountingStream`/`connect_counted` live in the client crate (`resident.rs`); the counter sits on the stream. Proven, not asserted.
+- **D2 — live ingest stayed out:** the drain still discards inbound (`// Deferred: dispatch to R5 fan-out (own milestone)`); no fanout/dispatch wiring. R5 real-time ingest remains its own milestone (gated on R5 + M-RP6.3).
+
+### Records + next
+
+- **Canonical (D-074, one atomic commit):** this JOURNAL J-543 · CLAUDE.md PLAY head (M-RP6.6 🟢→✅ CLOSED) · `docs/ROADMAP.md` (L778 🟢→✅, v5.09→5.10) · `tasks/M_RP6_6_IMPL.md` → COMPLETED · `ui/docs/xgen-ui-notes.md` **N-137** (v0.98→0.99). No new D (D1–D5 arc-local; the §0 ruling is Chat's technical call under the session grant, recorded as a D3 note revision). No new `core`, no sampler change.
+- **Owed / handed off:** the ConnStats **row-swap → Ms Design** (§7 — read `selfState.traffic`, absent-not-zero binding). **Live ingest** (R5 fan-out into the drain) → its own milestone, gated on R5 + M-RP6.3.
+- **Next-active = M-RP6.3 — live messaging (the composer/send verb) + the R5 stream wrap** (D5: 6.6 preceded it; the resident now owns the socket, send writes over it). `temperature-indicator` stays ⏸️ POSTPONED. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-543 → the M-RP6.3 runbook when it exists.** Not pushed — Joe pushes.
+
+---
+
 ## Entry J-542 — M-RP6.6 (client resident: live connection + traffic accounting) OPENED: Phase-0 grounded against live code, all five decisions Joe-LOCKED by-recomm; next-active = Clair build runbook (Legs A/B + Leg-C Rust half)
 
 **What happened.** M-RP6.6 opened (M-RP6.2 closed J-541). Chat ground the six session-open questions against `main`, presented Phase-0, Joe locked D1–D5 by-recomm. Doc-only; no code. Phase-0 `tasks/M_RP6_6_RESIDENT.md` (v1.1 ACTIVE). No DECISIONS change (D1–D5 arc-local).

@@ -37,6 +37,11 @@ struct PipeShutdown(tokio::sync::watch::Sender<bool>);
 /// current snapshot via `get_pacing_state`.
 struct Pacing(Arc<Mutex<PacingManager>>);
 
+/// Live connection traffic counters (M-RP6.6 Leg C). Shares the SAME atomics as
+/// the resident's `CountingStream` + RTT tracker; the webview reads a snapshot via
+/// `get_conn_stats`. Mirrors the `Pacing` managed-state shape.
+struct TrafficStats(crate::resident::TrafficCounters);
+
 /// Resolved path to `xgen-client_config.toml` for this instance (M-RP4.2).
 /// Held as managed state so `get_substitutions` reads the live config without
 /// re-deriving the data-dir — which depends on the `--instance` label resolved
@@ -178,6 +183,16 @@ fn get_pacing_state(space_id: String, pacing: tauri::State<Pacing>) -> Vec<Pacin
         .lock()
         .map(|m| m.snapshots_for_space(&space_id, now_ms))
         .unwrap_or_default()
+}
+
+/// Live connection traffic snapshot (M-RP6.6 Leg C): observed bytes in/out this
+/// resident session + last ping/pong RTT. `rtt_ms` is `null` before the first pong
+/// (absent-not-zero, D4/N-060), never a fabricated 0. The Svelte `selfState.traffic`
+/// slot reads these snake_case fields verbatim (no mapping layer). Mirrors the
+/// `get_pacing_state` command shape.
+#[tauri::command]
+fn get_conn_stats(traffic: tauri::State<TrafficStats>) -> crate::resident::ConnTraffic {
+    traffic.0.snapshot()
 }
 
 /// Emit a temperature update to the Svelte layer (spec 3.7.13, Ch6 §6.12).
@@ -419,6 +434,7 @@ async fn run_startup(
     data_dir: PathBuf,
     pipe_name: String,
     shutdown_rx: tokio::sync::watch::Receiver<bool>,
+    traffic: crate::resident::TrafficCounters,
 ) {
     // Always emit INITIALISING first, regardless of first-run state.
     emit_state(&app, ClientLifecycleState::Initialising);
@@ -469,25 +485,36 @@ async fn run_startup(
         return;
     }
 
-    // Auto-connect: attempt ws://127.0.0.1:8080/xgen with 2-second timeout.
-    emit_state(&app, ClientLifecycleState::Connecting);
-
-    let connect_result = tokio::time::timeout(
-        tokio::time::Duration::from_millis(2000),
-        tokio_tungstenite::connect_async("ws://127.0.0.1:8080/xgen"),
-    )
-    .await;
-
-    match connect_result {
-        Ok(Ok(_stream)) => {
-            emit_state(&app, ClientLifecycleState::Authenticating);
-            tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
-            emit_state(&app, ClientLifecycleState::Ready);
-        }
-        _ => {
+    // M-RP6.6 Leg A — the real long-lived resident. Replaces the discard-the-
+    // stream scaffold (connect_async → throw the socket away → sleep(150ms) →
+    // Ready). Node via `resolve_node` (D-068, no hardcoded URL), a REAL
+    // `client_authenticate`, and lifecycle driven by ACTUAL socket outcomes
+    // through the shared `resident::run_session` spine (D1 — the same spine the
+    // headless `--service` mode drives, its sink logging instead of emitting).
+    // Single-session in Leg A; Leg B wraps this in a reconnect loop with backoff.
+    let node = app::resolve_node(None, &config_path);
+    let signing_key = match app::load_keypair(&app::resolve_keypair_path(&config_path)) {
+        Ok(k) => k,
+        Err(e) => {
+            tracing::warn!(reason = %format!("{:#}", e), "resident: keypair load failed — cannot authenticate");
             emit_state(&app, ClientLifecycleState::Disconnected);
+            return;
         }
-    }
+    };
+
+    // The lifecycle sink for the shell: emit each live transition to the webview.
+    // The service passes a logging sink to the same spine (D1). `app` is borrowed
+    // for the resident's lifetime; nothing else uses it after this point.
+    let mut shutdown_rx = shutdown_rx;
+    let mut sink = |state: ClientLifecycleState| emit_state(&app, state);
+
+    // Leg B — the long-lived reconnect loop. It owns `Reconnecting` and runs until
+    // `quit` signals `shutdown_rx`. Supersedes the Leg-A single session + terminal
+    // `Disconnected`: a dropped node now re-establishes without an app restart, so
+    // the UI cycles Ready → Reconnecting → Connecting → Ready rather than sticking
+    // at Disconnected.
+    crate::resident::run_resident(&node, &signing_key, &traffic, &mut shutdown_rx, &mut sink).await;
+    tracing::info!("resident: loop exited (shutdown requested)");
 }
 
 // ── Entry point ────────────────────────────────────────────────────────────────
@@ -563,6 +590,11 @@ pub fn run(
 
     let pacing_manager = Pacing(Arc::new(Mutex::new(PacingManager::new())));
 
+    // M-RP6.6 Leg C — one TrafficCounters, shared between the managed state (read
+    // by `get_conn_stats`) and the resident (written by its `CountingStream` + RTT
+    // tracker). Both hold clones of the same atomics.
+    let traffic = crate::resident::TrafficCounters::default();
+
     // M-RP4.2 — the config path for `get_substitutions`, derived from the same
     // data_dir the startup sequence uses (`run_startup` line ~139).
     let config_path = ConfigPath(data_dir.join("xgen-client_config.toml"));
@@ -577,6 +609,7 @@ pub fn run(
         .manage(shared_state)
         .manage(PipeShutdown(shutdown_tx))
         .manage(pacing_manager)
+        .manage(TrafficStats(traffic.clone()))
         .manage(config_path)
         .manage(data_dir_state)
         .setup(move |app| {
@@ -584,8 +617,9 @@ pub fn run(
             let dir = data_dir.clone();
             let pn = pipe_name_str.clone();
             let rx = shutdown_rx.clone();
+            let tr = traffic.clone();
             tauri::async_runtime::spawn(async move {
-                run_startup(handle, dir, pn, rx).await;
+                run_startup(handle, dir, pn, rx, tr).await;
             });
 
             // M-RP6.1k Leg C — restore window geometry BEFORE the window is shown (created hidden via
@@ -609,6 +643,7 @@ pub fn run(
         .invoke_handler(tauri::generate_handler![
             get_state,
             get_pacing_state,
+            get_conn_stats,
             quit,
             get_substitutions,
             set_substitutions,

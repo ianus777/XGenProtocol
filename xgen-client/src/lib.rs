@@ -16,6 +16,7 @@ pub mod identity;
 pub mod lifecycle;
 pub mod ops;
 pub mod pacing;
+pub mod resident; // M-RP6.6 — the shared connect→auth→drain resident spine (D1).
 pub mod service;
 pub mod session;
 pub mod temperature;

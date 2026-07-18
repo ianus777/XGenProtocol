@@ -37,9 +37,9 @@ use xgen_common::{
     build_info,
     event_trace::{write_session_footer, write_session_header, ExitReason},
 };
-use xgen_core::transport::client::connect_url;
 
 use crate::app;
+use crate::lifecycle::ClientLifecycleState;
 
 // ── Logging init ───────────────────────────────────────────────────────────────
 
@@ -80,7 +80,7 @@ fn init_logging(data_dir: &std::path::Path, log_level_override: Option<&str>) {
 /// loop exit, Err if any setup step (config load, keypair load, connect, auth)
 /// fails. The pipe server keeps running regardless — operators always have a
 /// channel to query and stop the process.
-async fn run_ws_loop(data_dir: PathBuf) -> Result<()> {
+async fn run_ws_loop(data_dir: PathBuf, mut shutdown_rx: watch::Receiver<bool>) -> Result<()> {
     let config_path = data_dir.join("xgen-client_config.toml");
     let node = app::resolve_node(None, &config_path);
     let keypair_path = app::resolve_keypair_path(&config_path);
@@ -88,46 +88,23 @@ async fn run_ws_loop(data_dir: PathBuf) -> Result<()> {
 
     tracing::info!(home_node = %node, "service: connecting to home Node");
 
-    let connect_result = tokio::time::timeout(
-        std::time::Duration::from_secs(10),
-        connect_url(&node),
-    )
-    .await;
-
-    let mut conn = match connect_result {
-        Ok(Ok(c)) => c,
-        Ok(Err(e)) => {
-            anyhow::bail!("WS connect failed: {e}");
-        }
-        Err(_) => {
-            anyhow::bail!("WS connect timed out after 10 s");
-        }
+    // M-RP6.6 (D1) — drive the SHARED resident spine. The service is headless,
+    // so its lifecycle sink logs rather than emitting a Tauri event; the desktop
+    // shell passes an `emit_state` sink to the SAME `run_session`. Single-session
+    // here (the service stays connect-once, matching pre-M-RP6.6 M1 behaviour —
+    // reconnect is the desktop resident's Leg B); `__STOP__` over the pipe still
+    // exits the process directly, so `shutdown_rx` is effectively inert in this
+    // path but is threaded for spine-signature uniformity.
+    let mut sink = |state: ClientLifecycleState| {
+        tracing::info!(lifecycle_state = state.as_canonical(), "service: lifecycle");
     };
-
-    let identity_id = match conn.client_authenticate(&signing_key).await {
-        Ok(out) => out.identity_id,
-        Err(e) => anyhow::bail!("WS authentication failed: {e}"),
-    };
-    tracing::info!(identity_id = %identity_id, "service: authenticated");
-    tracing::info!("connected_node={}", node);
-
-    // Drain inbound. M1 MVP: events are received and discarded at this layer
-    // (real per-event handling is M3 work). The loop exits when recv() returns
-    // Err (connection closed) — reconnect is M3.
-    loop {
-        match conn.recv().await {
-            Ok(_inbound) => {
-                // Future: dispatch to a handler / forward to a Tauri-style
-                // outbound channel that the pipe server could expose.
-            }
-            Err(e) => {
-                tracing::warn!(reason = %e, "service: WS recv error — connection lost");
-                break;
-            }
-        }
-    }
-
-    let _ = conn.goodbye("service_shutdown").await;
+    // Headless: the counters are maintained but not surfaced (no `get_conn_stats`
+    // command in service mode). Single-session (reconnect is the desktop resident).
+    let traffic = crate::resident::TrafficCounters::default();
+    let outcome =
+        crate::resident::run_session(&node, &signing_key, &traffic, &mut shutdown_rx, &mut sink)
+            .await;
+    tracing::info!(?outcome, "service: WS session ended");
     Ok(())
 }
 
@@ -168,20 +145,21 @@ pub fn run(
         .expect("failed to build tokio runtime for --service mode");
 
     rt.block_on(async move {
-        // Pipe server task — runs for the lifetime of the process. `__STOP__`
-        // inside the pipe handler exits the process directly, so the
-        // shutdown_rx side of the watch channel is never signaled here.
-        // The sender must be held by THIS outer task (not dropped at the end
-        // of an inner block) — when the sender drops, the receiver's
-        // `.changed()` returns Err immediately and the pipe-server loop
-        // breaks out. `_pipe_shutdown_hold` binding lives until block_on ends.
+        // M-RP6.6 (D1) — ONE watch channel for the whole resident block. The pipe
+        // servers (Windows) and the WS resident both take a receiver; the sender
+        // is held until block_on ends — dropping it early makes every receiver's
+        // `.changed()` return Err immediately (the pre-M-RP6.6 `_pipe_shutdown_hold`
+        // lesson). `__STOP__` inside the pipe handler still calls `process::exit`
+        // directly, so this channel is the clean-shutdown convenience, not the
+        // sole stop path.
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+
         #[cfg(target_os = "windows")]
-        let _pipe_shutdown_hold = {
-            let (tx, rx) = watch::channel(false);
+        {
             let pipe_data_dir = data_dir.clone();
             let pipe_name = pipe_name_str.clone();
             // --batch server (unchanged — D-066).
-            let batch_rx = rx.clone();
+            let batch_rx = shutdown_rx.clone();
             tokio::spawn(async move {
                 crate::batch::start_pipe_server(pipe_name, pipe_data_dir, batch_rx).await;
             });
@@ -189,23 +167,22 @@ pub fn run(
             // `.aicontrol` pipe, its own shutdown receiver + state-file lock.
             let ai_dir = data_dir.clone();
             let ai_pipe = crate::aicontrol::aicontrol_pipe_name(&pipe_name_str);
+            let ai_rx = shutdown_rx.clone();
             let state_lock: crate::aicontrol::StateFileLock =
                 std::sync::Arc::new(tokio::sync::Mutex::new(()));
-            // M7-events C5: the client `.events` observer pipe — clone rx/dir
-            // before the aicontrol spawn moves `rx`.
+            // M7-events C5: the client `.events` observer pipe.
             let events_dir = data_dir.clone();
             let events_pipe = crate::events_pipe::events_pipe_name(&pipe_name_str);
-            let events_rx = rx.clone();
+            let events_rx = shutdown_rx.clone();
             tokio::spawn(async move {
                 // expected_token = None: AC-D4 gate inert in v1 (M7C-D1; the
                 // privilege-model arc supplies a real source).
-                crate::aicontrol::start_aicontrol_server(ai_pipe, ai_dir, rx, state_lock, None).await;
+                crate::aicontrol::start_aicontrol_server(ai_pipe, ai_dir, ai_rx, state_lock, None).await;
             });
             tokio::spawn(async move {
                 crate::events_pipe::start_events_server(events_pipe, events_dir, events_rx).await;
             });
-            tx
-        };
+        }
         #[cfg(not(target_os = "windows"))]
         {
             // Pipe server is Windows-only (D-043). On other platforms the
@@ -217,11 +194,16 @@ pub fn run(
             );
         }
 
-        // WS connection task — best-effort. If setup fails, log and keep
-        // the pipe server up so operators can query and stop the process.
+        // Held until block_on ends so every receiver above (and the WS resident
+        // below) stays live.
+        let _pipe_shutdown_hold = shutdown_tx;
+
+        // WS resident task — best-effort. If setup fails, log and keep the pipe
+        // server up so operators can query and stop the process.
         let ws_data_dir = data_dir.clone();
+        let ws_rx = shutdown_rx.clone();
         let ws_task = tokio::spawn(async move {
-            if let Err(e) = run_ws_loop(ws_data_dir).await {
+            if let Err(e) = run_ws_loop(ws_data_dir, ws_rx).await {
                 tracing::warn!(reason = %format!("{:#}", e), "service: WS task ended");
             }
         });

@@ -44,6 +44,10 @@
   // mirror. The store seeds itself to INITIALISING until the first Tauri event arrives.
   let unlisten;
 
+  // M-RP6.6 Leg C — the live-traffic poll handle (bytes + RTT change over time, unlike static identity),
+  // cleared on destroy.
+  let trafficPoll;
+
   // About dialog (M-RP6.1e-C3): the get_about_info payload (build metadata + paths), fetched once
   // on mount (static per session), and the open state flipped by Help→About.
   let aboutInfo = $state(null);
@@ -401,6 +405,19 @@
       // per session, so fetched once here; the dialog reads it synchronously.
       aboutInfo = await invoke('get_about_info');
 
+      // M-RP6.6 Leg C — live connection traffic (observed bytes in/out + last ping/pong RTT). Unlike the
+      // static identity block, this CHANGES, so it is POLLED (the store slot renders absent-not-zero when a
+      // metric has no value yet, D4). One immediate read, then a light interval; cleared on destroy.
+      const pollConnStats = async () => {
+        try {
+          selfState.setTraffic(await invoke('get_conn_stats'));
+        } catch (_) {
+          /* transient invoke failure — keep the last snapshot */
+        }
+      };
+      await pollConnStats();
+      trafficPoll = setInterval(pollConnStats, 2000);
+
       // (The UI-state store hydrate + the installed-set/grid-lock seed moved ABOVE loadLayout — they must run
       // before the layout resolves, M-RP-CONNSTATS §4.7. hydrate() is idempotent, so no double-read here.)
     } catch (_) {
@@ -411,6 +428,7 @@
   onDestroy(() => {
     window.removeEventListener('keydown', onKeydown);
     if (unlisten) unlisten();
+    if (trafficPoll) clearInterval(trafficPoll);
   });
 
   async function handleQuit() {

@@ -404,6 +404,54 @@
     streamScroll = ssSeed();
   }
 
+  // ── M-RP6.3 Leg C1 fixtures ──────────────────────────────────────────────────────────────────
+  // stream-fit — the SIZED-HOST fill proof (F-2). The stream now imposes NO height of its own, so a
+  // host must supply one; `streamFitH` toggles TWO heights (V2 — one height could be a coincidence of
+  // a hardcoded number). Seeded to overflow at BOTH so the viewport self-scrolls (V3). NB: this is a
+  // fixture problem, not a component one — DO NOT put a cap back inside the component (§3.1).
+  const streamFit = [];
+  for (let i = 15; i >= 0; i--) {
+    const own = i % 4 === 0;
+    streamFit.push({
+      kind: 'text',
+      id: `sf-${i}`,
+      author: own ? eaSelf : eaIdentity,
+      body: `Fit line ${16 - i} — enough rows to overflow both 240px and 640px so the viewport self-scrolls, not the document.`,
+      timestamp: iso(nowMs - i * minMs),
+      ...(own ? { isOwn: true } : {}),
+    });
+  }
+  let streamFitH = $state(240); // sized-host height, toggled 240 ↔ 640 (V2)
+
+  // stream-status — the connection-gap row (F-4), fed by a MUTABLE status ARRAY (history accumulates;
+  // "the live widget IS the historical marker, matured"). `gap-1` cycles through all four phases
+  // WITHOUT its id changing (V6 — the row matures in place, key stays `status-gap-1`). The two
+  // same-author messages straddle the gap so the gap BREAKS the run (V7). `status` carries DATA only;
+  // the row renders as unstyled inline chrome (`<div class="stream-status" data-phase>`), appearance
+  // is Ms Design's — so nothing is visible here yet by design.
+  const streamStatusMsgs = [
+    { kind: 'text', id: 'st-1', author: eaIdentity, body: 'Before the gap.', timestamp: iso(nowMs - 3 * minMs) },
+    { kind: 'text', id: 'st-2', author: eaIdentity, body: 'After the gap — same author within window; would group but for the status break.', timestamp: iso(nowMs - 1 * minMs) },
+  ];
+  const gap1 = () => ({ id: 'gap-1', phase: 'counting-down', timestamp: nowMs - 2 * minMs, attempt: 2, maxAttempts: 10, remainingMs: 6000 });
+  let streamStatuses = $state([gap1()]);
+  // Mount toggle ({#if}, unlike the tab panels' display:none) so the interval+DEV-hook `$effect`
+  // cleanup is drivable: unmount → `stream-status` gone from __XGEN_STREAM__ (proxy for clearInterval
+  // running — same cleanup; the 60s firing itself is unproven-by-design in a CDP session).
+  let streamStatusMounted = $state(true);
+  function setStatusPhase(phase) {
+    streamStatuses = streamStatuses.map((s, i) => (i === 0 ? { ...s, phase } : s));
+  }
+  function addStatusEpisode() {
+    streamStatuses = [
+      ...streamStatuses,
+      { id: `gap-${streamStatuses.length + 1}`, phase: 'counting-down', timestamp: nowMs - 30 * 1000, attempt: 1, maxAttempts: 10, remainingMs: 8000 },
+    ];
+  }
+  function resetStatuses() {
+    streamStatuses = [gap1()];
+  }
+
   // select-multiple shares the N-034 options-prop shape (carried over from `select`).
   const smOptions = [
     { value: 'a', label: 'Alpha' },
@@ -965,7 +1013,25 @@
     <div class="s-row">
       <div class="s-rowname">message-stream · scroll (M-RP5.6 B — live: <button type="button" class="s-note" onclick={ssAppend}>append</button> <button type="button" class="s-note" onclick={ssPrepend}>prepend</button> <button type="button" class="s-note" onclick={ssReset}>reset</button>)</div>
       <div class="s-cells">
-        <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-scroll</span><MessageStream messages={streamScroll} id="stream-scroll" /></div>
+        <!-- C1: max-height is gone from the component (F-2), so this fixture supplies a sized host to
+          stay scrollable (fixture hygiene — the cap belongs on the host, never back in the component). -->
+        <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-scroll</span><div style="height: 340px"><MessageStream messages={streamScroll} id="stream-scroll" /></div></div>
+      </div>
+    </div>
+
+    <div class="s-section-title">Message-stream (M-RP6.3 Leg C1 — region fitness)</div>
+
+    <div class="s-row">
+      <div class="s-rowname">message-stream · fit (F-2 sized host — height: <button type="button" class="s-note" onclick={() => (streamFitH = streamFitH === 240 ? 640 : 240)}>{streamFitH}px</button>; fills + self-scrolls)</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-fit</span><div style="height: {streamFitH}px"><MessageStream messages={streamFit} id="stream-fit" /></div></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">message-stream · status (F-4 — gap-1 phase: <button type="button" class="s-note" onclick={() => setStatusPhase('counting-down')}>counting-down</button> <button type="button" class="s-note" onclick={() => setStatusPhase('dialling')}>dialling</button> <button type="button" class="s-note" onclick={() => setStatusPhase('resolved')}>resolved</button> <button type="button" class="s-note" onclick={() => setStatusPhase('exhausted')}>exhausted</button> · <button type="button" class="s-note" onclick={addStatusEpisode}>+episode</button> <button type="button" class="s-note" onclick={resetStatuses}>reset</button> · <button type="button" class="s-note" onclick={() => (streamStatusMounted = !streamStatusMounted)}>{streamStatusMounted ? 'unmount' : 'mount'}</button>)</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-status</span><div style="height: 240px">{#if streamStatusMounted}<MessageStream messages={streamStatusMsgs} status={streamStatuses} id="stream-status" />{/if}</div></div>
       </div>
     </div>
   </div>

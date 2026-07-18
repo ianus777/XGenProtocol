@@ -5,8 +5,11 @@
   // computation, day-dividers, empty state, a persistent background layer, and the SCROLL MACHINE
   // (step B) — while each child `message` owns HOW ONE MESSAGE LOOKS.
   //
-  // STEP A (shipped) built the shell: the scroll viewport is `overflow-y:auto` / `max-height:340px`.
-  // STEP B (this pass, §9.10) adds the scroll behaviour on that viewport:
+  // STEP A (shipped) built the shell; STEP B (M-RP5.6 B) added the scroll behaviour. M-RP6.3 Leg C1
+  // then made it region-fit: the viewport FILLS its host (`height:100%`, no `max-height` box — F-2),
+  // `now` advances on an interval so divider labels re-derive (F-3), and a third `StreamRow` kind
+  // (connection-gap `status`) renders as inline chrome (F-4). See §3 of the C1 runbook.
+  // STEP B (M-RP5.6 B, §9.10) — the scroll behaviour on that viewport:
   //   1. `atBottom` LIVE — a `scroll` listener, rAF-throttled, one const `BOTTOM_THRESHOLD_PX = 80`;
   //      getter G reads the live `$state` (the A `true` stub is gone).
   //   2. Stick-to-bottom on append when at/near bottom; no yank + jump-to-latest pill when scrolled up.
@@ -39,10 +42,11 @@
   import Message from './message.svelte';
   import Paragraph from '../data-independent/paragraph.svelte';
   import type { MessageDescriptor, WidgetMount } from './types';
-  import { computeRows } from './stream/grouping';
+  import { computeRows, DIVIDER_REFRESH_MS, type StreamStatus } from './stream/grouping';
 
   let {
     messages = [],
+    status,
     background,
     backgroundLive = true,
     widgets = {},
@@ -51,6 +55,7 @@
     id,
   }: {
     messages?: MessageDescriptor[]; // ordered (chronological); the stream does NOT re-sort
+    status?: StreamStatus[]; // ordered connection-gap episodes (§3.3, F-4); undefined/empty = none
     background?: WidgetMount[]; // persistent fixed layer (chat-wallpaper); undefined = none
     backgroundLive?: boolean; // settings switch, default true; binding deferred to M-RP6.x
     widgets?: Record<string, Component>; // widgetId → component (background + message details); W-13
@@ -59,14 +64,44 @@
     id?: string;
   } = $props();
 
-  // Single `now` captured at mount → deterministic divider labels for this render (live re-labelling
-  // as wall-clock advances is not a Step-A/B concern; the sampler dates append/prepend relative to it).
-  const now = new Date();
+  // Live `now` (M-RP6.3 Leg C1, F-3). Was captured once at mount → divider labels froze for the life
+  // of the process; wrong on a resident that runs for days. `now` is reactive `$state` advanced by an
+  // interval so labels re-derive ("Today" → "Yesterday") as wall-clock crosses midnight. `tickNow` is
+  // the ONE writer of `now` — the interval calls it and (DEV only) the harness calls the same
+  // function, so the production path and the verify path are literally one code path (named `tickNow`
+  // because Svelte's `tick` occupies the bare name above).
+  let now = $state(new Date());
+  function tickNow(at?: number) {
+    now = new Date(at ?? Date.now());
+  }
 
-  const rows = $derived(computeRows(messages, now));
+  // Interval + DEV hook in ONE effect so the single cleanup proves BOTH ran: clearing the interval
+  // (untestable in a CDP session — the 60s firing is unproven-by-design) and deleting the per-id hook.
+  // "the id is gone from __XGEN_STREAM__ after unmount" is therefore a proxy for the interval being
+  // cleared (the same $effect cleanup ran) — the N-092a proxy discipline. Keyed by `id` because
+  // several fixtures mount at once (unlike the singleton __XGEN_* globals). DCE'd in production.
+  $effect(() => {
+    const timer = setInterval(() => tickNow(), DIVIDER_REFRESH_MS);
+    const dev = import.meta.env.DEV && typeof window !== 'undefined' && id != null;
+    if (dev) {
+      const g = ((window as unknown as { __XGEN_STREAM__?: Record<string, unknown> }).__XGEN_STREAM__ ??=
+        {});
+      g[id!] = { tick: tickNow };
+    }
+    return () => {
+      clearInterval(timer);
+      if (dev) {
+        const g = (window as unknown as { __XGEN_STREAM__?: Record<string, unknown> }).__XGEN_STREAM__;
+        if (g) delete g[id!];
+      }
+    };
+  });
+
+  const rows = $derived(computeRows(messages, now, status));
   const count = $derived(messages.length);
   const groupedCount = $derived(rows.filter((r) => r.kind === 'message' && r.grouped).length);
   const dividerCount = $derived(rows.filter((r) => r.kind === 'divider').length);
+  const statusRows = $derived(rows.filter((r) => r.kind === 'status'));
 
   // Background mounts — resolve each declared widgetId against the consumer registry; DROP unknown
   // ids (W-13, the `message.details` mechanism). The resolved list is the render truth, so
@@ -193,6 +228,11 @@
     atBottom,
     backgroundMountCount: resolvedBg.length,
     backgroundLive,
+    // C1 (F-4): render truth, so a dropped/unfed status row is observable. `statusPhase` is the
+    // CURRENT episode — the last placed by timestamp (resolved history sits earlier, the live gap
+    // last) — or null when there is no status row.
+    statusRowCount: statusRows.length,
+    statusPhase: statusRows.length ? statusRows[statusRows.length - 1].phase : null,
   });
 </script>
 
@@ -230,6 +270,13 @@
         {#each rows as row (row.key)}
           {#if row.kind === 'divider'}
             <div class="day-divider" role="separator">{row.label}</div>
+          {:else if row.kind === 'status'}
+            <!-- connection-gap status row (§3.3, F-4) — INLINE CHROME (day-divider precedent): NOT a
+              component, NOT registered; its state is CDP-observable via getter `statusPhase` and the
+              reflected `data-phase`. NO copy and NO skin rule — appearance (incl. any rule keyed on
+              `data-phase`) is Ms Design's (§3.4). NO `role` — it sits inside `role="log"`, which
+              already announces; a later a11y pass decides whether it needs `role="status"`. -->
+            <div class="stream-status" data-phase={row.phase}></div>
           {:else}
             <div
               class="message-stream-row"
@@ -258,14 +305,21 @@
   /* Structure only (positioning shell + scroll viewport + layer stacking + pill placement);
      appearance is in skin.css. The literal `message-stream` class keeps this scoped rule from being
      pruned as unused — envelope also supplies it (N-023, supplies-never-erases). */
+  /* Height model (M-RP6.3 Leg C1, F-2): the stream FILLS whatever box its host gives it and scrolls
+     inside it — it imposes no height of its own (a region leaf must fill its tile, J-499 D5). The
+     `min-height: 0` rides EVERY level of the chain or a flex host refuses to shrink and the scrollbar
+     migrates to the document (the J-499 D5 failure mode). The old `max-height: 340px` fixture-bench
+     box is deleted, not shadowed. */
   .message-stream-shell {
     position: relative;
+    height: 100%;
+    min-height: 0;
   }
   .message-stream {
     position: relative;
     overflow-y: auto;
-    min-height: 64px;
-    max-height: 340px;
+    height: 100%;
+    min-height: 0;
   }
   .message-stream-bg {
     position: absolute;

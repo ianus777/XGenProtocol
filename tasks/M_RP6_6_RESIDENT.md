@@ -1,6 +1,6 @@
 # M-RP6.6 — the client resident: live connection state + traffic accounting
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-18  
 > Language: English  
@@ -26,7 +26,7 @@ Replace the shell's discard-the-stream auto-connect scaffold (`connect_async("ws
 ## §2 — Locked decisions
 - **D1 (spine reuse) — LOCKED: extract shared.** A shared `connect → auth → drain` helper both `service.rs` and the desktop resident call (D-056 shared command layer). Not a fork, not a rebuild.
 - **D2 (leg split) — LOCKED: A / B / C, ingest deferred.** See §3.
-- **D3 (accounting capture point) — LOCKED: resident-level wrapper.** Counters live in the client resident (sole caller of recv/send post-auth); **GPL core `Connection` untouched.** Honest label: "bytes observed by the resident loop" — the auth handshake and any `send_event_confirmed` internal drains are outside the count (steady-state throughput is the honest scope).
+- **D3 (accounting capture point) — LOCKED: stream-layer wrapper.** *(REVISED at J-543/J-545 — the original text read "resident-level wrapper" and is superseded; see §0 Path A of `M_RP6_3_COMPOSER.md` for why.)* The byte seam the design assumed — choking `send_bytes` / `recv()` — turned out to be **unusable**: `send_bytes` is private and `recv()` returns a parsed `Inbound`, so frame length dies inside GPL core. Counters therefore live in a client-crate **`CountingStream` interposed BELOW the WebSocket handshake**; **GPL core `Connection` remains untouched.** Honest label: **"all socket bytes this resident session" — and the auth handshake IS counted**, because the wrap happens *before* `client_authenticate`. *(The earlier "the auth handshake is outside the count" caveat was written against the abandoned seam and is now simply WRONG — deleted rather than softened.)* `send_event_confirmed` internal drains remain outside the count: under M-RP6.3 D2 they run on their own connection, never on the resident socket.
 - **D4 (ConnStats rows when live) — LOCKED data contract: real-when-fed, absent-when-no-counter (N-060).** A row renders its real value once the resident feeds it; absent (not a fabricated placeholder) when no counter exists. The *look* of live-vs-idle is Ms Design's call (§7); this fixes only the data rule.
 - **D5 (sequencing) — LOCKED: 6.6 before 6.3.** The resident owns the socket; M-RP6.3 (send) writes over it.
 

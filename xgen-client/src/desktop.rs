@@ -42,6 +42,17 @@ struct Pacing(Arc<Mutex<PacingManager>>);
 /// `get_conn_stats`. Mirrors the `Pacing` managed-state shape.
 struct TrafficStats(crate::resident::TrafficCounters);
 
+/// Live resident reconnect status (M-RP6.3 Leg A). Shares the SAME atomics as
+/// `run_resident`; the webview reads a snapshot via `get_resident_status`. The
+/// `TrafficStats` managed-state shape — one pattern, not a new mechanism (D-067).
+struct ResidentStatusState(crate::resident::ResidentStatus);
+
+/// The resume channel (M-RP6.3 Leg A, D4). A generation counter the resident
+/// parks on once the retry cap is reached; `resume_resident` bumps it. Sibling of
+/// `PipeShutdown` — the same `watch::Sender` managed-state shape, so the resident
+/// can `select!` on it exactly the way it already does on shutdown.
+struct ResidentResume(tokio::sync::watch::Sender<u64>);
+
 /// Resolved path to `xgen-client_config.toml` for this instance (M-RP4.2).
 /// Held as managed state so `get_substitutions` reads the live config without
 /// re-deriving the data-dir — which depends on the `--instance` label resolved
@@ -193,6 +204,56 @@ fn get_pacing_state(space_id: String, pacing: tauri::State<Pacing>) -> Vec<Pacin
 #[tauri::command]
 fn get_conn_stats(traffic: tauri::State<TrafficStats>) -> crate::resident::ConnTraffic {
     traffic.0.snapshot()
+}
+
+/// Live resident reconnect status (M-RP6.3 Leg A): attempt count, the cap, the
+/// countdown to the next dial, and whether the resident has PARKED at the cap.
+/// The `get_conn_stats` shape — a thin read over shared atomics, folded into the
+/// same 2 s poll (no second push channel; a second channel would be a second
+/// surface, D-067).
+///
+/// `next_attempt_in_ms` is `null` whenever there is no countdown — connected,
+/// mid-dial, or parked (absent-not-zero, D4/N-060). `max_attempts` /
+/// `connect_timeout_ms` / `ping_interval_ms` travel as DATA so Svelte never
+/// hardcodes a second copy of a tunable (D5).
+#[tauri::command]
+fn get_resident_status(
+    status: tauri::State<ResidentStatusState>,
+) -> crate::resident::ResidentStatusSnapshot {
+    status.0.snapshot()
+}
+
+/// Re-arm the resident after it parked at the retry cap (M-RP6.3 Leg A, D4).
+/// ONE command, THREE callers: the `[Reconnect]` action, window focus, and
+/// network-return. The network-detection half stays in the webview deliberately —
+/// Rust-side link detection means a new dependency and a per-platform surface,
+/// where the WebView already gives `online` / `focus` for free.
+///
+/// IDEMPOTENT AND GUARDED: a resume is ignored unless the resident is actually
+/// terminal, so a focus storm can never reset a live backoff mid-schedule.
+/// Returns whether a resume was actually signalled — the honest answer, so the
+/// caller cannot report "reconnecting" when nothing happened (D6's spirit: never
+/// look like it worked when it did not).
+///
+/// `source` NAMES THE CALLER, and it is load-bearing rather than decorative:
+/// leaving the terminal state is a user-visible transition with three possible
+/// causes, and during the Leg-A verify one occurred that could NOT be attributed
+/// from the logs — focus/online counters read zero, so the record would have had
+/// to guess. An unattributable state change is a debugging hole; every resume now
+/// says who asked for it, in dev and in the field alike.
+#[tauri::command]
+fn resume_resident(
+    source: String,
+    status: tauri::State<ResidentStatusState>,
+    resume: tauri::State<ResidentResume>,
+) -> bool {
+    if !status.0.is_terminal() {
+        tracing::debug!(source = %source, "resident: resume ignored — not terminal");
+        return false;
+    }
+    tracing::info!(source = %source, "resident: resume accepted");
+    resume.0.send_modify(|gen| *gen = gen.wrapping_add(1));
+    true
 }
 
 /// Emit a temperature update to the Svelte layer (spec 3.7.13, Ch6 §6.12).
@@ -435,6 +496,8 @@ async fn run_startup(
     pipe_name: String,
     shutdown_rx: tokio::sync::watch::Receiver<bool>,
     traffic: crate::resident::TrafficCounters,
+    status: crate::resident::ResidentStatus,
+    resume_rx: tokio::sync::watch::Receiver<u64>,
 ) {
     // Always emit INITIALISING first, regardless of first-run state.
     emit_state(&app, ClientLifecycleState::Initialising);
@@ -506,6 +569,7 @@ async fn run_startup(
     // The service passes a logging sink to the same spine (D1). `app` is borrowed
     // for the resident's lifetime; nothing else uses it after this point.
     let mut shutdown_rx = shutdown_rx;
+    let mut resume_rx = resume_rx;
     let mut sink = |state: ClientLifecycleState| emit_state(&app, state);
 
     // Leg B — the long-lived reconnect loop. It owns `Reconnecting` and runs until
@@ -513,7 +577,22 @@ async fn run_startup(
     // `Disconnected`: a dropped node now re-establishes without an app restart, so
     // the UI cycles Ready → Reconnecting → Connecting → Ready rather than sticking
     // at Disconnected.
-    crate::resident::run_resident(&node, &signing_key, &traffic, &mut shutdown_rx, &mut sink).await;
+    //
+    // M-RP6.3 Leg A — the loop is now BOUNDED (D4): after RECONNECT_MAX_ATTEMPTS it
+    // emits a terminal DISCONNECTED, publishes `terminal: true` on the status
+    // surface, and PARKS on `resume_rx` rather than dialling forever. It still
+    // never exits until shutdown, so there is still exactly one loop and one owner
+    // of `Reconnecting`.
+    crate::resident::run_resident(
+        &node,
+        &signing_key,
+        &traffic,
+        &status,
+        &mut shutdown_rx,
+        &mut resume_rx,
+        &mut sink,
+    )
+    .await;
     tracing::info!("resident: loop exited (shutdown requested)");
 }
 
@@ -595,6 +674,17 @@ pub fn run(
     // tracker). Both hold clones of the same atomics.
     let traffic = crate::resident::TrafficCounters::default();
 
+    // M-RP6.3 Leg A — one ResidentStatus, shared between the managed state (read by
+    // `get_resident_status`) and `run_resident` (which writes the attempt count,
+    // the countdown deadline and the terminal flag). Both hold clones of the same
+    // atomics — the TrafficCounters contract.
+    let resident_status = crate::resident::ResidentStatus::default();
+
+    // The resume channel (D4). Starts at generation 0; `resume_resident` bumps it,
+    // and the parked resident wakes on the change. A `watch` (not a `Notify`) so
+    // the resident can `select!` on it beside `shutdown_rx` with no extra task.
+    let (resume_tx, resume_rx) = tokio::sync::watch::channel(0u64);
+
     // M-RP4.2 — the config path for `get_substitutions`, derived from the same
     // data_dir the startup sequence uses (`run_startup` line ~139).
     let config_path = ConfigPath(data_dir.join("xgen-client_config.toml"));
@@ -610,6 +700,8 @@ pub fn run(
         .manage(PipeShutdown(shutdown_tx))
         .manage(pacing_manager)
         .manage(TrafficStats(traffic.clone()))
+        .manage(ResidentStatusState(resident_status.clone()))
+        .manage(ResidentResume(resume_tx))
         .manage(config_path)
         .manage(data_dir_state)
         .setup(move |app| {
@@ -618,8 +710,10 @@ pub fn run(
             let pn = pipe_name_str.clone();
             let rx = shutdown_rx.clone();
             let tr = traffic.clone();
+            let st = resident_status.clone();
+            let rr = resume_rx.clone();
             tauri::async_runtime::spawn(async move {
-                run_startup(handle, dir, pn, rx, tr).await;
+                run_startup(handle, dir, pn, rx, tr, st, rr).await;
             });
 
             // M-RP6.1k Leg C — restore window geometry BEFORE the window is shown (created hidden via
@@ -644,6 +738,8 @@ pub fn run(
             get_state,
             get_pacing_state,
             get_conn_stats,
+            get_resident_status,
+            resume_resident,
             quit,
             get_substitutions,
             set_substitutions,

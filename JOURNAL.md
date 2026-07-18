@@ -8,6 +8,55 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-545 — M-RP6.3 Leg A (resident status publication) CLOSED: the retry is bounded, the counter and countdown are published, the terminal state parks and re-arms — and one live state change could not be attributed, so the verb now names its caller
+
+**What happened.** Leg A of M-RP6.3 built, live-verified on real client 9222 against a real node. Single-seat (Chat technical lane, under the J-544 autonomy grant). The three facts the resident already knew but kept private — **how many attempts have been spent, when the next dial happens, and whether it has given up** — now leave `run_resident` on a published surface. **Gates: `cargo test` 1530/0/62** (floor 1524 + exactly the 6 new Leg-A tests — the honest signal Rust landed) · `vite build` **183** · `npm test` **77** · sampler catalogue **328** untouched. Code + records ready; **Joe pushes.**
+
+**D-071 re-ground first (N-116).** The Phase-0 was written at `aa3cc3e`; HEAD was `92dcb2c` (J-544, doc-only). `resident.rs` re-read in full against HEAD: **all six §0 findings hold, nothing had moved** — no cap, `Backoff{attempt}` private and getter-less, `next_delay()` computed and slept inside the loop, the sink still a bare enum, `PING_INTERVAL`/`CONNECT_TIMEOUT` both 10 s. *The record was checked against the code before anything was built on it, which is the only reason that sentence is worth anything.*
+
+### Shipped
+
+**Rust (`resident.rs` + `desktop.rs`).** `RECONNECT_MAX_ATTEMPTS = 10` — grounded, not picked: the real schedule `1·2·4·8·16·30·30·30·30·30` = **181 s of sleeping**, plus up to 10 × `CONNECT_TIMEOUT` ⇒ ≈6 min worst case. Long enough to ride out a node restart, short enough that a closed-lid laptop parks instead of dialling all night — and it is what makes `(2/10)` expressible, since **before this constant there was no denominator**. `Backoff` gains `attempt()` + `exhausted(max)` (pure, clock-free, unit-tested). `ResidentStatus` = shared Arc'd atomics, **the `TrafficCounters` shape deliberately re-used rather than a mechanism invented** (D-067); `get_resident_status` mirrors `get_conn_stats` and rides the **same 2 s poll** — no second push channel. The resume channel is a `watch::Sender<u64>` generation counter, **the sibling of the shipped `PipeShutdown`**, so the parked resident `select!`s on it exactly as it already does on shutdown — one loop, one owner of `Reconnecting`, no second task.
+
+**Frontend.** `selfState.resident` carries the snapshot **verbatim snake_case, no mapping layer** (the `ConnTraffic` precedent). The `[Reconnect]` verb ships as command `resident.reconnect`; auto-resume triggers are `focus` + `online` **in the webview, deliberately** — Rust-side link detection would mean a new dependency and a per-platform surface where the WebView gives both events for free.
+
+### Two design points that are load-bearing, not stylistic
+
+**① `next_attempt_in_ms` is REMAINING time, not an absolute deadline.** `Instant` is not serialisable and a Rust↔JS epoch bridge buys clock skew for nothing. Internally it *is* stored as an absolute deadline, so a slow or missed poll can never publish a stale remainder; the UI interpolates locally between polls, which is legitimate because the value is a deadline — it cannot change without a state change the next poll catches.
+
+**② The countdown is CLEARED the moment the sleep ends.** §0 G-4 says each dial can take up to `CONNECT_TIMEOUT`; a countdown left armed through that window would sit at zero and read as **frozen**. `None` is precisely what tells Leg C to hand off to `connecting…` — and the handoff was **caught live**: a read at T+6 s returned `next_attempt_in_ms: 113` with the lifecycle already at `CONNECTING`.
+
+### ⚠️ A defect caught in Chat's own edit, before it ever ran
+
+`ResidentStatus` was first written with `#[derive(Default)]`. That seeds `next_attempt_at_ms` to **`0` — a real epoch-ms value in 1970** — so `snapshot()` would have computed `saturating_sub` → **`Some(0)` and published a PHANTOM COUNTDOWN from the moment the app booted**, on a connected client with no retry in progress. Replaced with a hand-written `Default` seeding the sentinel, and a test (`resident_status_defaults_to_no_countdown_not_zero`) exists specifically to fail if anyone re-derives it. *This is the absent-not-zero rule (D4/N-060) biting in a new place: `TrafficCounters` needed a hand-written `Default` for `RTT_NONE` for the identical reason, and the second occurrence of a rule is the one that proves it is a rule.* **"The countdown reads zero" and "there is no countdown" are different facts and must never collapse into the same `0`.**
+
+### Live verification (real client 9222 + real node, Rule 5 — every leg re-driven by Chat)
+
+- **V1 baseline, quiescent + connected:** `attempt:0 · max_attempts:10 · next_attempt_in_ms:null · terminal:false · connect_timeout_ms:10000 · ping_interval_ms:10000`, lifecycle READY. The sentinel holds (the ① defect would have shown here as `Some(0)`), and the three constants arrive **as data** — D5 proven on the wire, not asserted.
+- **V2 the guard:** `resume_resident` on a LIVE resident returned **`false`**. A focus storm cannot reset a live backoff — proven against the real Rust guard.
+- **V3 the numbers, live:** node killed → T+6 s `attempt 2/10`, countdown **113 ms**, state `CONNECTING` (**the G-4 handoff caught mid-act**); T+16 s `attempt 4/10`, countdown **6238 ms** — consistent with the 8 s step 1.8 s in. *Both of these were literally inexpressible before this leg (§0 G-1/G-2).*
+- **V4 the cap:** `attempt 10/10 · terminal:true · next_attempt_in_ms:null`, lifecycle DISCONNECTED. **And the stronger proof: the node was brought BACK while parked and the client did NOT reconnect** — so the cap genuinely stops the resident rather than merely flagging it. *That is exactly why D4 requires both halves; a cap without auto-resume would be a dead app.*
+- **V5 the re-arm:** resume → **`true`** (terminal this time), schedule reset, real auth handshake, **READY**; `attempt` back to `0`, `terminal:false`, countdown absent, traffic counters live (`bytes_in 555 / bytes_out 513`, `rtt_ms:null` — absent-not-zero, no pong yet).
+
+### 🔑 THE FINDING — A STATE CHANGE THAT COULD NOT BE ATTRIBUTED, AND WHAT WAS DONE ABOUT IT
+
+During the first park, the resident **left the terminal state on its own** — a later read showed `attempt:1, terminal:false`. The log confirmed exactly one cap-reach and exactly one resume, ~2 min apart, coinciding with CDP polling. The obvious story was *"the harness focused the window"* — and **that story is false**: counting listeners installed via CDP recorded **`focus:0, online:0`** across two further attach cycles. So the harness was not the trigger, and **the cause remains unknown.**
+
+The available move was to write a plausible cause into the record. **That is exactly the N-118 / N-124 shape this arc has already been burned by twice** — a diagnosis written down as "measured" when it was inferred. Instead the hole itself was closed: `resume_resident` now takes a **`source`** and logs it, and the three callers pass `focus` / `online` / `command` (plus `dev-bridge`). Re-driven end-to-end, the log now reads **`resident: resume accepted source=dev-bridge`**. *The original event stays unexplained and is recorded as unexplained — but it can never recur unexplained.* **An unattributable user-visible state change is a debugging hole, and the fix for not knowing is instrumentation, not a guess.**
+
+**⚠️ A consequence Joe should see, stated plainly:** because any `focus` resumes a parked resident, a user who has the window in front of them will effectively retry indefinitely. That is arguably correct — someone looking at the app *should* get retries — but it means **`terminal` is durable only while the app is ignored**, which is the sleeping-laptop case D4 was written for and not a general "stop trying" guarantee. Recorded, not silently accepted.
+
+### Deviations and honest notes (Rule 6)
+
+- **N-117 fired:** the first post-change `cargo test` returned `0/0/0` — the dev client held the exe, so cargo never ran. Re-run with the apps stopped: **1530/0/62**. *A gate that did not execute is not a gate that passed;* the 0/0/0 was discarded, not reported.
+- The `[Reconnect]` **element** does not ship — appearance is Ms Design's lane (§5). The **verb** is live and real (`resident.reconnect`), awaiting its element in Leg C: the `layout.revert` precedent. *A built verb with no element yet is ABSENT, which is honest; what this project refuses is a painted element that does nothing (J-500 / 6.1j).*
+- `run_session` is untouched, so `service.rs` (the headless `--service` caller of the same spine) needed **zero** changes — checked against the call sites, not assumed.
+- The owed **`tasks/M_RP6_6_RESIDENT.md` v1.2** correction rides this commit as agreed at J-544 (§2 D3 "resident-level wrapper" → the stream-layer `CountingStream`; the "auth handshake excluded" caveat deleted — it is now false, the wrap happens before authenticate).
+
+**No new D** (D4/D5 realisations, arc-local). **No new `core` component.** **OWED, unchanged:** the M-RP6.6 ConnStats row-swap (Ms Design) · all Leg C/D appearance (Ms Design). **🟢 NEXT-ACTIVE = M-RP6.3 Leg B — outbound multiplexer + `event_id → oneshot` ack correlation in the drain**, where live ingest (the M-RP6.6 deferral) wires in and the drain becomes the single reader. → `tasks/M_RP6_3_COMPOSER.md` (Leg A DoD boxes) · ROADMAP v5.12.
+
+---
+
 ## Entry J-544 — M-RP6.3 (live messaging: R6 composer + narrow-B send path) OPENED: send path locked NARROW B, the three-plane invariant minted, and four security gaps surfaced by the unified socket filed as named successor arcs
 
 **What happened.** M-RP6.3 opened (M-RP6.6 closed J-543). A design-only session in the Chat lane: the A-vs-B send-path question was walked from the **user's** point of view, B was chosen on that basis, then grounded against `main` — and grounding **narrowed** it. Four security/plane gaps surfaced in the same walk and are filed as arcs rather than absorbed. Doc-only; no code. Phase-0 `tasks/M_RP6_3_COMPOSER.md` (v1.0 ACTIVE). Six arc-local decisions D1–D6; no DECISIONS.md change.

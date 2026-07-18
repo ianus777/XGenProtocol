@@ -22,19 +22,21 @@
 //! `CountingStream` (the §0 Path-A interposer) — the `Inbound::Pong` arm below is
 //! the reserved RTT seam.
 
+use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::task::{Context as TaskContext, Poll};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
 use ed25519_dalek::SigningKey;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
-use tokio::sync::watch;
+use tokio::sync::{mpsc, oneshot, watch};
 
-use xgen_core::transport::connection::{Connection, Inbound};
+use xgen_core::transport::connection::{Connection, EventConfirm, Inbound};
+use xgen_core::wire::types::Event;
 
 use crate::lifecycle::ClientLifecycleState;
 
@@ -358,6 +360,23 @@ where
 const BACKOFF_MAX_SHIFT: u32 = 5; // 1 << 5 = 32, then capped to BACKOFF_CAP_SECS
 const BACKOFF_CAP_SECS: u64 = 30;
 
+/// How many reconnect attempts before the resident gives up and enters the
+/// TERMINAL state (M-RP6.3 Leg A, D4). Grounded against the real schedule:
+/// `1·2·4·8·16·30·30·30·30·30` = 181 s of sleeping, plus up to 10 ×
+/// `CONNECT_TIMEOUT` of dialling ⇒ ≈6 min worst case before the user is told the
+/// resident stopped trying.
+///
+/// Long enough to ride out a node restart or a router reboot without the user
+/// ever seeing the terminal state; short enough that a closed-lid laptop parks
+/// instead of dialling all night. It is also what makes `(2/10)` expressible —
+/// before this constant existed there was no denominator (§0 G-1).
+///
+/// D5: a NAMED CONSTANT IN ONE PLACE whose value travels to the UI as published
+/// data (`ResidentStatusSnapshot::max_attempts`) — never hardcoded a second time
+/// in Svelte. Migration to a settings-fed value is a one-line change, gated on
+/// J-513; no config-plumbing layer is built here (explicit non-goal).
+pub const RECONNECT_MAX_ATTEMPTS: u32 = 10;
+
 /// Pure reconnect backoff schedule (unit-tested; no clock, no socket). Produces
 /// 1, 2, 4, 8, 16 s then a 30 s cap — fast to recover a briefly-flapping node,
 /// calm for a long-down one. Reset after any session that reached READY so a
@@ -382,21 +401,171 @@ impl Backoff {
     pub fn reset(&mut self) {
         self.attempt = 0;
     }
+
+    /// Attempts CONSUMED so far — the numerator of `(2/10)`. Before M-RP6.3 this
+    /// field was private with no getter, which is precisely why the counter was
+    /// not expressible (§0 G-1). Reading it is not the same as publishing it: the
+    /// value still has to reach `ResidentStatus` to leave `run_resident`.
+    pub fn attempt(&self) -> u32 {
+        self.attempt
+    }
+
+    /// Whether the cap is reached. Pure — the caller supplies `max`, so the policy
+    /// number stays a constant the caller owns and the schedule stays clock-free
+    /// and unit-testable (D4).
+    pub fn exhausted(&self, max: u32) -> bool {
+        self.attempt >= max
+    }
+}
+
+// ── Published resident status (M-RP6.3 Leg A) ──────────────────────────────
+//
+// §0 G-3: the lifecycle sink is `FnMut(ClientLifecycleState)` — a BARE enum with
+// no payload — so the attempt number and the next-attempt time have nowhere to
+// ride. A SECOND PUBLISHED SURFACE is required, and it deliberately mirrors the
+// shipped `TrafficCounters` / `get_conn_stats` shape rather than inventing a
+// mechanism: shared Arc'd atomics written by the resident, read by a Tauri
+// command, folded into the EXISTING 2 s poll. One pattern, not two (D-067).
+
+/// Sentinel in `next_attempt_at_ms` meaning "not currently counting down" →
+/// `next_attempt_in_ms: None` on the wire. Absent-not-zero (the `RTT_NONE`
+/// discipline, D4/N-060): "the countdown reads zero" and "there is no countdown"
+/// are different facts and must not collapse into the same `0`.
+const NEXT_NONE: u64 = u64::MAX;
+
+fn now_epoch_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+/// Shared, cheaply-cloneable resident status. The `TrafficCounters` shape: the
+/// managed state and `run_resident` hold clones of the SAME atomics. `Relaxed` is
+/// correct — these are display values, not a synchronisation signal.
+#[derive(Clone)]
+pub struct ResidentStatus {
+    /// Reconnect attempts consumed since the last READY session (0 while live).
+    attempt: Arc<AtomicU64>,
+    /// Cap reached; the resident is PARKED awaiting a resume signal.
+    terminal: Arc<AtomicBool>,
+    /// Epoch-ms deadline of the next dial, or `NEXT_NONE` when not sleeping.
+    next_attempt_at_ms: Arc<AtomicU64>,
+}
+
+/// Hand-written, NOT derived: `#[derive(Default)]` would seed
+/// `next_attempt_at_ms` to `0`, which is a real epoch-ms value in 1970 — the
+/// snapshot would compute `saturating_sub` → `Some(0)` and publish a PHANTOM
+/// countdown from the moment the app boots. The sentinel must be the default.
+/// (The `TrafficCounters` `Default` exists for exactly the same reason: `RTT_NONE`
+/// is not `0` either.)
+impl Default for ResidentStatus {
+    fn default() -> Self {
+        Self {
+            attempt: Arc::new(AtomicU64::new(0)),
+            terminal: Arc::new(AtomicBool::new(false)),
+            next_attempt_at_ms: Arc::new(AtomicU64::new(NEXT_NONE)),
+        }
+    }
+}
+
+impl ResidentStatus {
+    fn set_attempt(&self, n: u32) {
+        self.attempt.store(n as u64, Ordering::Relaxed);
+    }
+    fn set_terminal(&self, on: bool) {
+        self.terminal.store(on, Ordering::Relaxed);
+    }
+    /// Arm the countdown: store an ABSOLUTE deadline, so the remaining time is
+    /// computed at snapshot time and a slow/missed poll can never report a stale
+    /// remainder.
+    fn arm_next_attempt(&self, delay: Duration) {
+        self.next_attempt_at_ms
+            .store(now_epoch_ms().saturating_add(delay.as_millis() as u64), Ordering::Relaxed);
+    }
+    fn clear_next_attempt(&self) {
+        self.next_attempt_at_ms.store(NEXT_NONE, Ordering::Relaxed);
+    }
+
+    /// Whether the resident is parked at the cap. Read by `resume_resident` so a
+    /// resume signal is IGNORED unless it can do something — a focus storm must
+    /// never reset a live backoff mid-schedule.
+    pub fn is_terminal(&self) -> bool {
+        self.terminal.load(Ordering::Relaxed)
+    }
+
+    /// The serialisable snapshot for `get_resident_status`. Field names are
+    /// snake_case verbatim — the frontend reads them with no mapping layer.
+    ///
+    /// `next_attempt_in_ms` is REMAINING time, not an absolute deadline: `Instant`
+    /// is not serialisable and a Rust↔JS epoch bridge would buy clock skew for
+    /// nothing. The UI decrements locally between polls, which is legitimate
+    /// because the value IS a deadline — it cannot change without a state change
+    /// the next poll catches.
+    pub fn snapshot(&self) -> ResidentStatusSnapshot {
+        let at = self.next_attempt_at_ms.load(Ordering::Relaxed);
+        ResidentStatusSnapshot {
+            attempt: self.attempt.load(Ordering::Relaxed) as u32,
+            max_attempts: RECONNECT_MAX_ATTEMPTS,
+            next_attempt_in_ms: (at != NEXT_NONE).then(|| at.saturating_sub(now_epoch_ms())),
+            terminal: self.is_terminal(),
+            connect_timeout_ms: CONNECT_TIMEOUT.as_millis() as u64,
+            ping_interval_ms: PING_INTERVAL.as_millis() as u64,
+        }
+    }
+}
+
+/// The `get_resident_status` return shape (M-RP6.3 Leg A). Mirrored verbatim by
+/// the frontend `ResidentStatus` interface (snake_case, no mapping layer).
+///
+/// The three window constants ride along under D5: Leg C's "the countdown hands
+/// off to `connecting…`" needs to know how long that dial window is (§0 G-4 —
+/// ~10 s, twice over), and it must read that as DATA rather than hardcode a `10`
+/// a second time in Svelte.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ResidentStatusSnapshot {
+    /// Attempts consumed since the last READY session. `0` while connected.
+    pub attempt: u32,
+    /// The cap (`RECONNECT_MAX_ATTEMPTS`) — the denominator of `(2/10)`.
+    pub max_attempts: u32,
+    /// Milliseconds until the next dial, or `null` when not counting down
+    /// (connected, dialling, or parked). Absent-not-zero.
+    pub next_attempt_in_ms: Option<u64>,
+    /// Cap reached: the resident stopped retrying and awaits `[Reconnect]` or an
+    /// auto-resume trigger. This is what distinguishes a TERMINAL `DISCONNECTED`
+    /// from a transient one — the lifecycle enum alone cannot say it.
+    pub terminal: bool,
+    /// `CONNECT_TIMEOUT` — the dial window the countdown hands off to (G-4).
+    pub connect_timeout_ms: u64,
+    /// `PING_INTERVAL` — the dead-peer detection bound (G-4).
+    pub ping_interval_ms: u64,
 }
 
 /// The long-lived desktop resident: run `run_session` in a reconnect loop. On any
 /// non-shutdown end, emit `Reconnecting`, back off, and retry; reset the backoff
 /// after a session that reached READY; return on a requested shutdown. This is
-/// the ONLY emitter of `Reconnecting` — with it, a dropped connection
-/// re-establishes without an app restart and the UI never sticks at a terminal
-/// `Disconnected` (that was the Leg-A single-session terminal; Leg B supersedes
-/// it). The `sleep` races `shutdown_rx` so a quit during a long backoff wait exits
-/// promptly rather than blocking on the full delay.
+/// the ONLY emitter of `Reconnecting`. The `sleep` races `shutdown_rx` so a quit
+/// during a long backoff wait exits promptly rather than blocking on the full
+/// delay.
+///
+/// **M-RP6.3 Leg A (D4) — the retry is now BOUNDED, and the loop does not exit at
+/// the bound.** On exhausting `RECONNECT_MAX_ATTEMPTS` the resident emits a
+/// TERMINAL `Disconnected`, marks `status.terminal`, and PARKS on `resume_rx`.
+/// A resume (the `[Reconnect]` action, window focus, or network-return — all
+/// three call the one `resume_resident` command) resets the schedule and
+/// continues the SAME loop. Parking rather than returning is what keeps ONE loop
+/// and ONE owner of `Reconnecting`; a second task would be a second owner.
+///
+/// Both halves of D4 are required and both are here: uncapped retry cannot
+/// express a counter or a terminal state, and a cap without auto-resume fails the
+/// sleeping-laptop case.
 pub async fn run_resident<F>(
     node: &str,
     signing_key: &SigningKey,
     traffic: &TrafficCounters,
+    status: &ResidentStatus,
     shutdown_rx: &mut watch::Receiver<bool>,
+    resume_rx: &mut watch::Receiver<u64>,
     sink: &mut F,
 ) where
     F: FnMut(ClientLifecycleState) + Send,
@@ -408,15 +577,55 @@ pub async fn run_resident<F>(
             break;
         }
         if outcome.reached_ready() {
+            // A session that actually connected restarts the schedule AND the
+            // published counter — otherwise a long-lived connection that drops
+            // once would render as `(7/10)` inherited from an old outage.
             backoff.reset();
+            status.set_attempt(0);
         }
+
+        if backoff.exhausted(RECONNECT_MAX_ATTEMPTS) {
+            // TERMINAL (D4). `Disconnected` is the honest lifecycle state; the
+            // `terminal` flag is what tells the UI this one is FINAL rather than
+            // transient — the bare enum cannot say it (§0 G-3).
+            status.clear_next_attempt();
+            status.set_terminal(true);
+            sink(ClientLifecycleState::Disconnected);
+            tracing::warn!(
+                attempts = RECONNECT_MAX_ATTEMPTS,
+                "resident: retry cap reached — parked, awaiting resume"
+            );
+            tokio::select! {
+                _ = resume_rx.changed() => {}
+                _ = shutdown_rx.changed() => break,
+            }
+            if *shutdown_rx.borrow() {
+                break;
+            }
+            tracing::info!("resident: resume signalled — re-arming the reconnect schedule");
+            status.set_terminal(false);
+            backoff.reset();
+            status.set_attempt(0);
+            continue;
+        }
+
         sink(ClientLifecycleState::Reconnecting);
         let delay = backoff.next_delay();
+        // Publish AFTER `next_delay` advanced the schedule: `attempt()` is now the
+        // count CONSUMED, which is the numerator the UI renders.
+        status.set_attempt(backoff.attempt());
+        status.arm_next_attempt(delay);
         tokio::select! {
             _ = tokio::time::sleep(delay) => {}
             _ = shutdown_rx.changed() => break,
         }
+        // The countdown is over the moment we wake — the next dial can take up to
+        // CONNECT_TIMEOUT (§0 G-4), and a countdown left armed through that window
+        // would sit at zero and read as frozen. `None` is what makes the UI hand
+        // off to `connecting…`.
+        status.clear_next_attempt();
     }
+    status.clear_next_attempt();
 }
 
 #[cfg(test)]
@@ -457,6 +666,86 @@ mod tests {
             assert!(d >= prev);
             prev = d;
         }
+    }
+
+    // ── M-RP6.3 Leg A ────────────────────────────────────────────────────────
+
+    #[test]
+    fn backoff_attempt_counts_consumed_retries() {
+        // The numerator of `(2/10)`: before this getter existed the count was
+        // unreadable (§0 G-1), so the test asserts the READ, not just the schedule.
+        let mut b = Backoff::default();
+        assert_eq!(b.attempt(), 0, "a live resident has consumed nothing");
+        b.next_delay();
+        b.next_delay();
+        assert_eq!(b.attempt(), 2);
+        b.reset();
+        assert_eq!(b.attempt(), 0, "a READY session restarts the numerator");
+    }
+
+    #[test]
+    fn backoff_exhausts_exactly_at_the_cap() {
+        let mut b = Backoff::default();
+        for i in 0..RECONNECT_MAX_ATTEMPTS {
+            assert!(!b.exhausted(RECONNECT_MAX_ATTEMPTS), "not exhausted at {i}");
+            b.next_delay();
+        }
+        assert!(b.exhausted(RECONNECT_MAX_ATTEMPTS), "terminal at the cap");
+        // And a resume genuinely re-arms — a cap that could not be left would be a
+        // dead end, not a terminal state (D4).
+        b.reset();
+        assert!(!b.exhausted(RECONNECT_MAX_ATTEMPTS));
+    }
+
+    #[test]
+    fn resident_status_defaults_to_no_countdown_not_zero() {
+        // The defect this test exists for: a derived `Default` seeds the deadline
+        // to 0 (a real 1970 epoch-ms), which publishes a PHANTOM `Some(0)`
+        // countdown from boot. Absent-not-zero (D4/N-060) — "reads zero" and
+        // "there is no countdown" are different facts.
+        let s = ResidentStatus::default();
+        let snap = s.snapshot();
+        assert_eq!(snap.next_attempt_in_ms, None, "no countdown before any retry");
+        assert_eq!(snap.attempt, 0);
+        assert!(!snap.terminal);
+    }
+
+    #[test]
+    fn resident_status_publishes_the_constants_as_data() {
+        // D5: the UI reads the cap and the dial window as DATA. If these ever stop
+        // matching the constants, Svelte would be free to hardcode a second copy.
+        let snap = ResidentStatus::default().snapshot();
+        assert_eq!(snap.max_attempts, RECONNECT_MAX_ATTEMPTS);
+        assert_eq!(snap.connect_timeout_ms, CONNECT_TIMEOUT.as_millis() as u64);
+        assert_eq!(snap.ping_interval_ms, PING_INTERVAL.as_millis() as u64);
+    }
+
+    #[test]
+    fn resident_status_arm_and_clear_round_trip() {
+        let s = ResidentStatus::default();
+        s.arm_next_attempt(Duration::from_secs(8));
+        let ms = s.snapshot().next_attempt_in_ms.expect("armed → Some");
+        // A deadline, read back as remaining time. Bounded, not exact — the clock
+        // advances between the arm and the snapshot.
+        assert!((7_000..=8_000).contains(&ms), "remaining was {ms}ms");
+        s.clear_next_attempt();
+        assert_eq!(s.snapshot().next_attempt_in_ms, None, "cleared → absent");
+    }
+
+    #[test]
+    fn resident_status_terminal_flag_is_shared_across_clones() {
+        // The `TrafficCounters` contract: the managed state and the resident hold
+        // clones of the SAME atomics. If a clone were a copy, `resume_resident`
+        // would read `terminal:false` forever and the [Reconnect] action would be
+        // silently inert.
+        let a = ResidentStatus::default();
+        let b = a.clone();
+        assert!(!b.is_terminal());
+        a.set_terminal(true);
+        assert!(b.is_terminal(), "clones share the atomic");
+        assert!(b.snapshot().terminal);
+        a.set_attempt(4);
+        assert_eq!(b.snapshot().attempt, 4);
     }
 
     #[tokio::test]

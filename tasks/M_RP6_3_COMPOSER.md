@@ -1,6 +1,6 @@
 # M-RP6.3 — live messaging: R6 composer + narrow-B send path
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-18  
 > Language: English  
@@ -219,8 +219,8 @@ session model rather than being retrofitted twice.
 
 ## §6 — Definition of Done
 
-- [ ] Leg A: cap, attempt count, next-attempt-time published and observable
-- [ ] Leg A: terminal state + `[Reconnect]` + auto-resume, exercised
+- [x] Leg A: cap, attempt count, next-attempt-time published and observable
+- [x] Leg A: terminal state + `[Reconnect]` + auto-resume, exercised
 - [ ] Leg B: non-blocking drain proven under load; ack correlation live
 - [ ] Leg B: live ingest wired (the M-RP6.6 deferral closes here)
 - [ ] Leg C: R5 wrapped live; gap item counts, hands off to `connecting…`,
@@ -234,3 +234,43 @@ session model rather than being retrofitted twice.
 
 *(Per house rule, "commit pushed" is NOT a DoD item — the `Status: COMPLETED`
 header is the real signal.)*
+
+---
+
+## §7 — Leg A close (J-545)
+
+**Leg A is CLOSED.** Shipped constants + published surface + terminal park:
+`RECONNECT_MAX_ATTEMPTS = 10` · `Backoff::attempt()` / `exhausted()` ·
+`ResidentStatus` (the `TrafficCounters` atomics shape) · `get_resident_status`
+(the `get_conn_stats` shape, folded into the existing 2 s poll) ·
+`resume_resident(source)` + a `watch::Sender<u64>` resume channel (the
+`PipeShutdown` shape) · `selfState.resident` · the `resident.reconnect` command
+and the `focus` / `online` auto-resume triggers.
+
+**Gates:** `cargo test` **1530/0/62** (floor 1524 + exactly 6 new tests) ·
+`vite build` **183** · `npm test` **77** · sampler catalogue **328** unchanged.
+
+**Three things this leg settled that the Phase-0 left open:**
+
+1. **The cap is 10, grounded not chosen.** 181 s of sleeping + up to 10 ×
+   `CONNECT_TIMEOUT` ⇒ ≈6 min to terminal. Under D5 it is a named constant
+   published as data; migrating it to settings is a one-line change.
+2. **`next_attempt_in_ms` is remaining time**, stored internally as an absolute
+   deadline and **cleared the instant the sleep ends** — a countdown left armed
+   through the dial window would sit at zero and read as frozen (G-4). `None` is
+   the signal Leg C hands off to `connecting…` on.
+3. **`terminal` is durable only while the app is ignored.** Any `focus` resumes a
+   parked resident. This is the intended sleeping-laptop behaviour, but it is
+   **not** a general "stop trying" guarantee — Leg C must not render the terminal
+   item as if it were permanent.
+
+**Carried into Leg C (appearance is Ms Design's, §5 unchanged):** the
+`[Reconnect]` **verb** is live (`resident.reconnect`); its **element** is
+deliberately absent, awaiting Leg C — the `layout.revert` precedent, and the
+opposite of shipping painted-dead chrome.
+
+**Open, unexplained, instrumented:** during the first live park the resident left
+the terminal state with no attributable trigger (`focus`/`online` counters read
+zero). The cause is still unknown; `resume_resident` now logs a `source` for
+every caller, so a recurrence is self-identifying. Recorded rather than guessed
+at (J-545).

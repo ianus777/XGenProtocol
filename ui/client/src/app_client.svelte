@@ -44,9 +44,10 @@
   // mirror. The store seeds itself to INITIALISING until the first Tauri event arrives.
   let unlisten;
 
-  // M-RP6.6 Leg C — the live-traffic poll handle (bytes + RTT change over time, unlike static identity),
-  // cleared on destroy.
-  let trafficPoll;
+  // M-RP6.6 Leg C / M-RP6.3 Leg A — the live-stats poll handle. Both published resident surfaces
+  // (`get_conn_stats` bytes+RTT and `get_resident_status` attempt/countdown/terminal) change over time,
+  // unlike the static identity block, so ONE interval reads both. Cleared on destroy.
+  let livePoll;
 
   // About dialog (M-RP6.1e-C3): the get_about_info payload (build metadata + paths), fetched once
   // on mount (static per session), and the open state flipped by Help→About.
@@ -140,6 +141,15 @@
       get installed() { return installed.ids; },
       get disabled() { return installed.disabledIds; },
       get available() { return AVAILABLE_CUSTOM.map((p) => p.id); },
+    };
+
+    // M-RP6.3 Leg A — the resident DEV bridge. `status` reads the published surface the poll writes;
+    // `reconnect()` drives the SAME guarded verb the [Reconnect] element will, and returns Rust's honest
+    // boolean (false when the resident is not terminal — which is itself the guard's proof).
+    // Dead-code-eliminated in a release build.
+    window.__XGEN_RESIDENT__ = {
+      get status() { return selfState.resident; },
+      reconnect() { return resumeResident('dev-bridge'); },
     };
   }
 
@@ -286,6 +296,12 @@
       locked = !locked;
       uiStateStore.setSessionLocked(locked);
     },
+    // M-RP6.3 Leg A (D4) — [Reconnect]: re-arm a resident that parked at the retry cap. The command is
+    // LIVE (real handler, real Rust verb) awaiting its own interactive element, which lands in Leg C
+    // with Ms Design (§5 — appearance is not this leg's). The `layout.revert` precedent: a built verb
+    // with no element yet is ABSENT, which is the honest state; what this project refuses is a PAINTED
+    // element that does nothing (J-500 / 6.1j).
+    'resident.reconnect': () => resumeResident('command'),
   };
   function runCommand(commandId) {
     commandTable[commandId]?.();
@@ -408,15 +424,30 @@
       // M-RP6.6 Leg C — live connection traffic (observed bytes in/out + last ping/pong RTT). Unlike the
       // static identity block, this CHANGES, so it is POLLED (the store slot renders absent-not-zero when a
       // metric has no value yet, D4). One immediate read, then a light interval; cleared on destroy.
-      const pollConnStats = async () => {
+      //
+      // M-RP6.3 Leg A — the SECOND published surface rides the SAME interval: attempt count, the cap,
+      // the countdown to the next dial, and the terminal flag (Phase-0 §0 G-3 — the lifecycle enum has
+      // no payload to carry them). No second poll and no new push channel: a second channel would be a
+      // second surface (D-067). Read in ONE try so a transient failure keeps BOTH last snapshots rather
+      // than leaving the two halves of one moment disagreeing.
+      const pollLiveStats = async () => {
         try {
           selfState.setTraffic(await invoke('get_conn_stats'));
+          selfState.setResident(await invoke('get_resident_status'));
         } catch (_) {
-          /* transient invoke failure — keep the last snapshot */
+          /* transient invoke failure — keep the last snapshots */
         }
       };
-      await pollConnStats();
-      trafficPoll = setInterval(pollConnStats, 2000);
+      await pollLiveStats();
+      livePoll = setInterval(pollLiveStats, 2000);
+
+      // M-RP6.3 Leg A (D4) — AUTO-RESUME. Window focus and network-return call the SAME guarded verb
+      // the [Reconnect] action does; Rust ignores it unless the resident actually parked at the cap, so
+      // a focus storm can never reset a live backoff. Detection lives here, not in Rust, deliberately:
+      // the WebView already gives `focus`/`online` for free, where Rust-side link detection would mean
+      // a new dependency and a per-platform surface.
+      window.addEventListener('focus', onWindowFocus);
+      window.addEventListener('online', onNetworkOnline);
 
       // (The UI-state store hydrate + the installed-set/grid-lock seed moved ABOVE loadLayout — they must run
       // before the layout resolves, M-RP-CONNSTATS §4.7. hydrate() is idempotent, so no double-read here.)
@@ -428,8 +459,31 @@
   onDestroy(() => {
     window.removeEventListener('keydown', onKeydown);
     if (unlisten) unlisten();
-    if (trafficPoll) clearInterval(trafficPoll);
+    if (livePoll) clearInterval(livePoll);
+    window.removeEventListener('focus', onWindowFocus);
+    window.removeEventListener('online', onNetworkOnline);
   });
+
+  // ── Resident resume (M-RP6.3 Leg A, D4) ────────────────────────────────────────────────────────
+  // The one verb behind THREE callers: the [Reconnect] action, window focus, and network-return. Rust
+  // guards it (a resume is a no-op unless the resident is terminal) and returns whether it actually
+  // signalled — so this never reports a reconnect that did not happen (D6's binding rule applied to an
+  // action rather than a message). Lazy import keeps the browser-dev preview working (the handleQuit
+  // pattern). Returns the honest boolean for the DEV bridge and for Leg C's button.
+  //
+  // `source` is passed through to the Rust log because leaving the terminal state has three possible
+  // causes and the Leg-A verify hit one it could not attribute. Named handlers (not inline arrows) so
+  // removeEventListener gets the SAME reference — an arrow here would leak both listeners on destroy.
+  async function resumeResident(source) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return await invoke('resume_resident', { source });
+    } catch (_) {
+      return false; // no-Tauri (browser dev preview) — nothing to resume
+    }
+  }
+  const onWindowFocus = () => resumeResident('focus');
+  const onNetworkOnline = () => resumeResident('online');
 
   async function handleQuit() {
     try {

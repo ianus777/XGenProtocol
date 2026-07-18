@@ -59,9 +59,35 @@ export interface ConnTraffic {
   rtt_ms: number | null;
 }
 
+/**
+ * The `get_resident_status` command's return shape (M-RP6.3 Leg A,
+ * resident.rs::ResidentStatusSnapshot). Carried VERBATIM — snake_case as Rust serialises it, no
+ * rename/mapping layer (the ConnTraffic precedent; a mapping layer is a drift surface, D3).
+ *
+ * This is the SECOND published surface the resident needed: the lifecycle sink is a bare enum with no
+ * payload, so `attempt` / `next_attempt_in_ms` / `terminal` had nowhere to ride (Phase-0 §0 G-3). The
+ * lifecycle event still carries the STATE; this carries the NUMBERS behind it.
+ *
+ * `next_attempt_in_ms` is `null` whenever there is no countdown — connected, mid-dial, or parked at
+ * the cap (absent-not-zero, D4/N-060). A `0` would mean "the countdown reads zero", which is a
+ * different fact and must not be faked from an absent one.
+ *
+ * `max_attempts` / `connect_timeout_ms` / `ping_interval_ms` are the Rust constants travelling as
+ * DATA (D5) — nothing here may hardcode a second copy of a tunable.
+ */
+export interface ResidentStatus {
+  attempt: number;
+  max_attempts: number;
+  next_attempt_in_ms: number | null;
+  terminal: boolean;
+  connect_timeout_ms: number;
+  ping_interval_ms: number;
+}
+
 let _connection = $state<Connection>({ state: 'INITIALISING', label: 'Initialising' });
 let _identity = $state<SelfStateInfo | null>(null);
 let _traffic = $state<ConnTraffic | null>(null);
+let _resident = $state<ResidentStatus | null>(null);
 
 export const selfState = {
   /** The live connection lifecycle. Reactive — status-bar + self-panel both read this. */
@@ -84,9 +110,17 @@ export const selfState = {
   setIdentity(payload: SelfStateInfo): void {
     _identity = payload;
   },
+  /** Live resident reconnect status (M-RP6.3 Leg A), or null before the first poll / no-Tauri. */
+  get resident(): ResidentStatus | null {
+    return _resident;
+  },
   /** Written by the shell from the `get_conn_stats` poll, mirroring setConnection/setIdentity. */
   setTraffic(payload: ConnTraffic): void {
     _traffic = payload;
+  },
+  /** Written by the shell from the `get_resident_status` poll (the same interval as setTraffic). */
+  setResident(payload: ResidentStatus): void {
+    _resident = payload;
   },
 };
 

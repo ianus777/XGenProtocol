@@ -53,6 +53,17 @@ struct ResidentStatusState(crate::resident::ResidentStatus);
 /// can `select!` on it exactly the way it already does on shutdown.
 struct ResidentResume(tokio::sync::watch::Sender<u64>);
 
+/// The outbound message queue (M-RP6.3 Leg B). `send_message` pushes onto this;
+/// the resident's drain pops, writes and correlates. Bounded, so a UI that
+/// somehow floods it gets backpressure rather than unbounded memory — and a full
+/// queue surfaces as an honest `failed`, never as a silent drop.
+struct Outbound(tokio::sync::mpsc::Sender<crate::resident::OutboundRequest>);
+
+/// The resident's DAG frontier (M-RP6.3 Leg B, B-5). Shared with the drain, which
+/// updates it from live ingest and from our own sends; read by `send_message` to
+/// decide whether a control-plane re-anchor is needed first.
+struct Tips(crate::resident::TipTracker);
+
 /// Resolved path to `xgen-client_config.toml` for this instance (M-RP4.2).
 /// Held as managed state so `get_substitutions` reads the live config without
 /// re-deriving the data-dir — which depends on the `--instance` label resolved
@@ -254,6 +265,116 @@ fn resume_resident(
     tracing::info!(source = %source, "resident: resume accepted");
     resume.0.send_modify(|gen| *gen = gen.wrapping_add(1));
     true
+}
+
+/// Send a chat message over the RESIDENT socket (M-RP6.3 Leg B, D1).
+///
+/// The whole point of narrow-B: this multiplexes onto the one live connection
+/// rather than dialling per message. It does NOT use `send_event_confirmed` —
+/// that owns the drain and would swallow inbound fan-out (D2's binding
+/// invariant); the drain writes and correlates instead.
+///
+/// **Re-anchor first (B-5).** If the Space has not been anchored this session,
+/// fetch its DAG tips over a SHORT-LIVED CONTROL CONNECTION (`ops::*` shape,
+/// D-056 control-mode) and seed the tracker. Once per session per Space, never
+/// per message — that is what keeps `get_dag_tips` off the resident socket while
+/// still giving the first message of a session a correct anchor.
+///
+/// Returns the honest four-way `SendOutcome`. `timed_out` is NOT folded into
+/// success or failure: the node may be holding the event, and D6 forbids a
+/// message that looks sent when it is not.
+#[tauri::command]
+async fn send_message(
+    space_id: String,
+    room_id: String,
+    text: String,
+    app: AppHandle,
+) -> crate::resident::SendOutcome {
+    use crate::resident::SendOutcome;
+
+    if text.trim().is_empty() {
+        return SendOutcome::failed("empty message");
+    }
+
+    // 1) Re-anchor this Space if the current session has not yet done so.
+    let needs_anchor = !app.state::<Tips>().0.is_anchored(&space_id);
+    if needs_anchor {
+        let data_dir = app.state::<DataDir>().0.clone();
+        let config_path = app.state::<ConfigPath>().0.clone();
+        match reanchor_space(&data_dir, &config_path, &space_id).await {
+            Ok(tips) => {
+                // Logged, not silent: the anchor is what causal correctness rests
+                // on, and "which tips did we anchor on" is otherwise invisible from
+                // outside the process — the same reasoning as `resume_resident`'s
+                // `source`. Cheap (once per Space per session) and the first thing
+                // anyone debugging a mis-chained message will want.
+                tracing::info!(
+                    space_id = %space_id,
+                    tip_count = tips.len(),
+                    tips = ?tips,
+                    "send_message: re-anchored from the control plane"
+                );
+                app.state::<Tips>().0.seed(&space_id, tips);
+            }
+            Err(e) => {
+                // Not fatal: the tracker still holds whatever the drain observed,
+                // and an unanchored send falls back to the root anchor exactly as
+                // `ops::send` always has. Logged, never silently swallowed.
+                tracing::warn!(
+                    space_id = %space_id,
+                    reason = %format!("{e:#}"),
+                    "send_message: re-anchor failed; sending on tracked/fallback tips"
+                );
+            }
+        }
+    }
+
+    // 2) Queue it and wait for the drain's verdict.
+    let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+    let queued = app
+        .state::<Outbound>()
+        .0
+        .try_send(crate::resident::OutboundRequest {
+            space_id,
+            room_id,
+            text,
+            reply: reply_tx,
+        });
+    if let Err(e) = queued {
+        return SendOutcome::failed(format!("not queued: {e}"));
+    }
+
+    // The drain ALWAYS resolves the reply (ack, sweep timeout, or session
+    // teardown), so a closed channel here means the resident itself is gone.
+    match reply_rx.await {
+        Ok(outcome) => outcome,
+        Err(_) => SendOutcome::failed("resident stopped before the send resolved"),
+    }
+}
+
+/// Fetch a Space's DAG tips over a short-lived CONTROL connection (M-RP6.3 D2 —
+/// `get_dag_tips` may never run on the resident socket). The `ops::*` shape: its
+/// own `SessionState`, its own connect, its own goodbye.
+async fn reanchor_space(
+    data_dir: &std::path::Path,
+    config_path: &std::path::Path,
+    space_id: &str,
+) -> anyhow::Result<Vec<String>> {
+    let node = app::resolve_node(None, config_path);
+    let mut session = crate::session::SessionState::new(node, data_dir.to_path_buf());
+    session.ensure_identity(&app::resolve_keypair_path(config_path))?;
+    let timeout = std::time::Duration::from_secs(5);
+    let conn = session.ensure_connected(None).await?;
+    let tips = crate::batch::get_dag_tips(conn, space_id, timeout).await?;
+    let _ = conn.goodbye("client_disconnect").await;
+    Ok(tips)
+}
+
+/// Emit a live inbound Event to the webview (M-RP6.3 Leg B — live ingest, the
+/// M-RP6.6 deferral closing). One channel, the `xgen-client-state-changed`
+/// precedent: the drain calls this, R5 listens.
+fn emit_event(app: &AppHandle, ev: &xgen_core::wire::types::Event) {
+    let _ = app.emit("xgen-event", ev);
 }
 
 /// Emit a temperature update to the Svelte layer (spec 3.7.13, Ch6 §6.12).
@@ -498,6 +619,8 @@ async fn run_startup(
     traffic: crate::resident::TrafficCounters,
     status: crate::resident::ResidentStatus,
     resume_rx: tokio::sync::watch::Receiver<u64>,
+    outbound_rx: tokio::sync::mpsc::Receiver<crate::resident::OutboundRequest>,
+    tips: crate::resident::TipTracker,
 ) {
     // Always emit INITIALISING first, regardless of first-run state.
     emit_state(&app, ClientLifecycleState::Initialising);
@@ -570,6 +693,17 @@ async fn run_startup(
     // for the resident's lifetime; nothing else uses it after this point.
     let mut shutdown_rx = shutdown_rx;
     let mut resume_rx = resume_rx;
+    let mut outbound_rx = outbound_rx;
+    // M-RP6.3 Leg B — live ingest. Every inbound Event the drain reads is emitted
+    // to the webview here; R5 listens. `app` is borrowed by both closures, which
+    // is fine — they are both `FnMut` captured by the same task.
+    let ingest_app = app.clone();
+    let mut ingest = move |ev: xgen_core::wire::types::Event| emit_event(&ingest_app, &ev);
+    let mut io = crate::resident::SessionIo {
+        outbound_rx: &mut outbound_rx,
+        tips: &tips,
+        ingest: &mut ingest,
+    };
     let mut sink = |state: ClientLifecycleState| emit_state(&app, state);
 
     // Leg B — the long-lived reconnect loop. It owns `Reconnecting` and runs until
@@ -590,6 +724,7 @@ async fn run_startup(
         &status,
         &mut shutdown_rx,
         &mut resume_rx,
+        &mut io,
         &mut sink,
     )
     .await;
@@ -685,6 +820,14 @@ pub fn run(
     // the resident can `select!` on it beside `shutdown_rx` with no extra task.
     let (resume_tx, resume_rx) = tokio::sync::watch::channel(0u64);
 
+    // M-RP6.3 Leg B — the outbound message queue + the shared DAG frontier.
+    // Bounded at 64: a UI cannot realistically outrun the drain, and if it did,
+    // backpressure surfacing as an honest `failed` beats unbounded memory or a
+    // silent drop (D6).
+    let (outbound_tx, outbound_rx) =
+        tokio::sync::mpsc::channel::<crate::resident::OutboundRequest>(64);
+    let tips = crate::resident::TipTracker::default();
+
     // M-RP4.2 — the config path for `get_substitutions`, derived from the same
     // data_dir the startup sequence uses (`run_startup` line ~139).
     let config_path = ConfigPath(data_dir.join("xgen-client_config.toml"));
@@ -702,6 +845,8 @@ pub fn run(
         .manage(TrafficStats(traffic.clone()))
         .manage(ResidentStatusState(resident_status.clone()))
         .manage(ResidentResume(resume_tx))
+        .manage(Outbound(outbound_tx))
+        .manage(Tips(tips.clone()))
         .manage(config_path)
         .manage(data_dir_state)
         .setup(move |app| {
@@ -712,8 +857,10 @@ pub fn run(
             let tr = traffic.clone();
             let st = resident_status.clone();
             let rr = resume_rx.clone();
+            let ob = outbound_rx;
+            let tp = tips.clone();
             tauri::async_runtime::spawn(async move {
-                run_startup(handle, dir, pn, rx, tr, st, rr).await;
+                run_startup(handle, dir, pn, rx, tr, st, rr, ob, tp).await;
             });
 
             // M-RP6.1k Leg C — restore window geometry BEFORE the window is shown (created hidden via
@@ -740,6 +887,7 @@ pub fn run(
             get_conn_stats,
             get_resident_status,
             resume_resident,
+            send_message,
             quit,
             get_substitutions,
             set_substitutions,

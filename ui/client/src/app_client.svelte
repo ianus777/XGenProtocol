@@ -28,6 +28,9 @@
   // (`get_spaces`); both region widgets READ it (they can't receive shell props — W-3). No widget-register
   // line: `widgetRegistry` DERIVES the swap from the CLIENT_PLUGINS descriptors (M-RP6.1l).
   import { spacesState } from '$common/stores/spaces-state.svelte';
+  // The live inbound-event store (M-RP6.3 Leg B) — the M-RP6.6 ingest deferral closing. The shell listens
+  // to `xgen-event` once and writes it; R5 reads it at Leg C. No second emit channel (D1/D-067).
+  import { ingest } from '$common/stores/ingest.svelte';
   // The grid-backdrop setting store (M-RP-SETTINGS Leg C, B2). ONE value the grid-plate paints. The shell
   // reads it here to mirror into region-shell's `backgroundLive` + persist it (a session key), seeds it on
   // boot from the persisted key; the $common grid-plate-settings component is what WRITES it (W-3/N-096 —
@@ -43,6 +46,8 @@
   // Connection state now lives in the self-state store (D3 — one source, two views); no shell-local
   // mirror. The store seeds itself to INITIALISING until the first Tauri event arrives.
   let unlisten;
+  // M-RP6.3 Leg B — the live-ingest listener handle, torn down beside `unlisten`.
+  let unlistenEvent;
 
   // M-RP6.6 Leg C / M-RP6.3 Leg A — the live-stats poll handle. Both published resident surfaces
   // (`get_conn_stats` bytes+RTT and `get_resident_status` attempt/countdown/terminal) change over time,
@@ -150,6 +155,16 @@
     window.__XGEN_RESIDENT__ = {
       get status() { return selfState.resident; },
       reconnect() { return resumeResident('dev-bridge'); },
+    };
+
+    // M-RP6.3 Leg B — the message-plane DEV bridge. `send()` drives the real `send_message` command
+    // (the same one the Leg-D composer will call) and returns the honest four-way outcome; `ingest`
+    // exposes the live inbound store. Leg B ships the SEAM — there is no composer and no rendered
+    // stream yet, so this is how the plane is verified without inventing UI that belongs to Legs C/D.
+    window.__XGEN_SEND__ = {
+      send(spaceId, roomId, text) { return sendMessage(spaceId, roomId, text); },
+      get ingest() { return { received: ingest.received, dropped: ingest.dropped, latest: ingest.latest }; },
+      clear() { ingest.clear(); },
     };
   }
 
@@ -398,6 +413,12 @@
         selfState.setConnection(event.payload);
       });
 
+      // M-RP6.3 Leg B — live ingest. The resident drain reads the socket and emits every inbound
+      // protocol Event here; the store carries them verbatim for R5 to project at Leg C.
+      unlistenEvent = await listen('xgen-event', (event) => {
+        ingest.push(event.payload);
+      });
+
       // Fetch the current state immediately — handles the case where the startup
       // sequence ran before this listener was registered (pre-listener race, already solved).
       selfState.setConnection(await invoke('get_state'));
@@ -459,6 +480,7 @@
   onDestroy(() => {
     window.removeEventListener('keydown', onKeydown);
     if (unlisten) unlisten();
+    if (unlistenEvent) unlistenEvent();
     if (livePoll) clearInterval(livePoll);
     window.removeEventListener('focus', onWindowFocus);
     window.removeEventListener('online', onNetworkOnline);
@@ -484,6 +506,20 @@
   }
   const onWindowFocus = () => resumeResident('focus');
   const onNetworkOnline = () => resumeResident('online');
+
+  // ── Send (M-RP6.3 Leg B) ──────────────────────────────────────────────────────────
+  // Multiplexes onto the resident socket (D1). Returns the Rust `SendOutcome` VERBATIM — the honest
+  // four-way status (`accepted` / `rejected` / `timed_out` / `failed`), never a boolean. A caller that
+  // reduced this to true/false would be the exact D6 violation: `timed_out` means the node MAY hold the
+  // event, so it is neither sent nor failed. The Leg-D composer renders per-message state from this.
+  async function sendMessage(spaceId, roomId, text) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return await invoke('send_message', { spaceId, roomId, text });
+    } catch (e) {
+      return { event_id: null, status: 'failed', code: null, reason: String(e) };
+    }
+  }
 
   async function handleQuit() {
     try {

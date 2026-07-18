@@ -35,8 +35,10 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, oneshot, watch};
 
+use xgen_core::message::exchange::build_message_text_event;
+use xgen_core::space::state::sign_event;
 use xgen_core::transport::connection::{Connection, EventConfirm, Inbound};
-use xgen_core::wire::types::Event;
+use xgen_core::wire::types::{Event, TransportMessage};
 
 use crate::lifecycle::ClientLifecycleState;
 
@@ -260,16 +262,26 @@ impl SessionEnd {
 /// as `AuthFailed` → the caller's terminal state, not a sticky degraded state.
 /// Emitting one with no real trigger is an unfed branch (N-091). If a real
 /// degradation source ever lands, wire it here.
-pub async fn run_session<F>(
+pub async fn run_session<F, G>(
     node: &str,
     signing_key: &SigningKey,
     traffic: &TrafficCounters,
     shutdown_rx: &mut watch::Receiver<bool>,
+    io: &mut SessionIo<'_, G>,
     sink: &mut F,
 ) -> SessionEnd
 where
     F: FnMut(ClientLifecycleState) + Send,
+    G: FnMut(Event) + Send,
 {
+    // Leg B — a new session means the DAG frontier may have moved without us.
+    // Invalidate every anchor up front: the tips are kept (still the best guess)
+    // but nothing may treat them as authoritative until re-anchored from the
+    // control plane. Doing this HERE rather than in a caller is deliberate — a
+    // reconnect is exactly the moment a frontier goes stale, and an invalidation
+    // someone has to remember to call is one that eventually is not called.
+    io.tips.invalidate_anchors();
+
     sink(ClientLifecycleState::Connecting);
 
     let mut conn = match tokio::time::timeout(CONNECT_TIMEOUT, connect_counted(node, traffic)).await {
@@ -298,17 +310,29 @@ where
 
     sink(ClientLifecycleState::Ready);
 
-    // Drain inbound until the socket drops or shutdown is requested. Events are
-    // discarded at this layer — real-time ingest into R5 fan-out is the deferred
-    // leg (gated on R5 + M-RP6.3). A periodic ping measures RTT (and bounds
-    // dead-peer detection): the interval arm sets `want_ping`, and the ping is
-    // issued at the top of the next iteration — OUTSIDE the select — so it never
-    // races the `conn.recv()` borrow (both need `&mut conn`).
+    // Drain inbound until the socket drops or shutdown is requested. The drain is
+    // the SINGLE READER and — since M-RP6.3 Leg B — also the writer: an outbound
+    // arm pops queued sends, writes them, and correlates their acks here, so
+    // inbound fan-out is never stalled by a send awaiting its reply (D3). A
+    // periodic ping measures RTT (and bounds dead-peer detection): the interval
+    // arm sets `want_ping`, and the ping is issued at the top of the next
+    // iteration — OUTSIDE the select — so it never races the `conn.recv()` borrow
+    // (both need `&mut conn`). The outbound arm writes INSIDE its own branch,
+    // which is safe for the same reason: `select!` has already dropped the other
+    // futures by the time a branch body runs.
     let mut ping_interval = tokio::time::interval(PING_INTERVAL);
     ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     ping_interval.tick().await; // consume the immediate first tick
     let mut pending_ping: Option<Instant> = None;
     let mut want_ping = false;
+
+    // event_id → the waiting sender. Every entry is resolved EXACTLY ONCE: by a
+    // correlated ack, by the sweep on timeout, or by the teardown below when the
+    // session ends. An entry that could be dropped silently would leave the UI
+    // showing a message as in-flight forever — the D6 failure mode.
+    let mut pending: HashMap<String, (oneshot::Sender<SendOutcome>, Instant)> = HashMap::new();
+    let mut sweep = tokio::time::interval(Duration::from_secs(1));
+    sweep.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
     let end = loop {
         if want_ping {
@@ -329,14 +353,123 @@ where
                         traffic.set_rtt(sent.elapsed().as_millis() as u64);
                     }
                 }
+                Ok(Inbound::Transport(tm)) => {
+                    // Ack correlation (Leg B). `TransportMessage::event_id()` is the
+                    // ONE place that knows which variants carry a correlation key
+                    // (D-067) — reused here rather than re-derived, exactly as
+                    // `send_event_confirmed` does on the control plane.
+                    if let Some(id) = tm.event_id().map(|s| s.to_string()) {
+                        if let Some((reply, _)) = pending.remove(&id) {
+                            let outcome = match tm {
+                                TransportMessage::EventAccepted { .. } => {
+                                    SendOutcome::from_confirm(id, EventConfirm::Accepted)
+                                }
+                                TransportMessage::Error { error_code, error_string, .. } => {
+                                    SendOutcome::from_confirm(
+                                        id.clone(),
+                                        EventConfirm::Rejected {
+                                            code: error_code,
+                                            reason: error_string,
+                                            event_id: id,
+                                        },
+                                    )
+                                }
+                                // `event_id()` returns Some ONLY for EventAccepted /
+                                // Error. A third variant means the accessor grew and
+                                // this arm did not — report a FAILURE, never a
+                                // wildcard "accepted" (that is the D-065/B3 lie: a
+                                // uniform mis-map that looks like success).
+                                other => {
+                                    tracing::error!(
+                                        msg = ?other,
+                                        "resident: event_id matched a non-Accepted/Error \
+                                         TransportMessage — not reporting it as sent"
+                                    );
+                                    SendOutcome::failed("unexpected correlated message type")
+                                }
+                            };
+                            let _ = reply.send(outcome);
+                        }
+                    }
+                }
+                Ok(Inbound::Event(ev)) => {
+                    // Live ingest (the M-RP6.6 deferral, closing here) + the
+                    // frontier update that makes resident-tracked tips possible.
+                    let space_id = ev.space_id.as_str().to_string();
+                    let event_id = ev
+                        .event_id
+                        .as_ref()
+                        .map(|e| e.as_str().to_string())
+                        .unwrap_or_default();
+                    let prevs: Vec<String> =
+                        ev.prev_events.iter().map(|p| p.as_str().to_string()).collect();
+                    io.tips.observe(&space_id, &event_id, &prevs);
+                    (io.ingest)(ev);
+                }
                 Ok(_inbound) => {
-                    // Deferred: dispatch to R5 fan-out (own milestone).
+                    // Other control families (federation/identity/space/…) are not
+                    // the message plane's business.
                 }
                 Err(e) => {
                     tracing::warn!(reason = %e, "resident: recv error — connection lost");
                     break SessionEnd::Disconnected;
                 }
             },
+            Some(req) = io.outbound_rx.recv() => {
+                // Build → sign → write, anchored on the tracked frontier with the
+                // shipped root fallback when it is empty (the `ops::send` shape).
+                let mut prev = io.tips.tips_for(&req.space_id);
+                if prev.is_empty() {
+                    prev = vec![req.space_id.clone()];
+                }
+                let ev = sign_event(
+                    build_message_text_event(
+                        signing_key,
+                        &req.space_id,
+                        &req.room_id,
+                        prev.clone(),
+                        &req.text,
+                    ),
+                    signing_key,
+                );
+                let event_id = ev
+                    .event_id
+                    .as_ref()
+                    .map(|e| e.as_str().to_string())
+                    .unwrap_or_default();
+                match conn.send_event(&ev).await {
+                    Ok(()) => {
+                        // Our own send advances the frontier too — two messages
+                        // typed in a row must chain, and the ack has not arrived
+                        // yet when the second is built.
+                        io.tips.observe(&req.space_id, &event_id, &prev);
+                        pending.insert(event_id, (req.reply, Instant::now()));
+                    }
+                    Err(e) => {
+                        // Never written → say so. It is not sent, so it may not
+                        // look sent (D6).
+                        tracing::warn!(reason = %e, "resident: outbound write failed");
+                        let _ = req.reply.send(SendOutcome::failed(format!("write failed: {e}")));
+                        break SessionEnd::Disconnected;
+                    }
+                }
+            }
+            _ = sweep.tick() => {
+                // One owner of the send timeout (D5: the value is a named constant,
+                // published as data). `timed_out` is its own honest outcome — the
+                // node may be holding the event — never folded into success or
+                // failure.
+                let expired: Vec<String> = pending
+                    .iter()
+                    .filter(|(_, (_, at))| at.elapsed() >= SEND_ACK_TIMEOUT)
+                    .map(|(id, _)| id.clone())
+                    .collect();
+                for id in expired {
+                    if let Some((reply, _)) = pending.remove(&id) {
+                        let _ = reply.send(SendOutcome::from_confirm(id, EventConfirm::TimedOut));
+                    }
+                }
+            }
             _ = ping_interval.tick() => {
                 want_ping = true;
             }
@@ -345,6 +478,19 @@ where
             }
         }
     };
+
+    // A dropped connection fails in-flight sends DETERMINISTICALLY (Leg B DoD /
+    // D6). Dropping the map instead would close each oneshot and surface as a
+    // bare RecvError with no reason — an in-flight message must resolve to a
+    // stated failure, not to silence.
+    for (id, (reply, _)) in pending.drain() {
+        let _ = reply.send(SendOutcome {
+            event_id: Some(id),
+            status: "failed",
+            code: None,
+            reason: Some("connection ended before the node confirmed".to_string()),
+        });
+    }
 
     // Best-effort graceful close. On a dropped socket this errors harmlessly; on
     // the shutdown path it races the caller's exit (the desktop `quit` command
@@ -417,6 +563,198 @@ impl Backoff {
         self.attempt >= max
     }
 }
+
+// ── Message plane (M-RP6.3 Leg B) ─────────────────────────────────────────────
+//
+// D1/D2: this is the CONTROL/MESSAGE plane only. Outbound chat multiplexes over
+// the resident socket; the own-connection-and-drain family
+// (`send_event_confirmed`, `upload_blob`, `fetch_blob`, `get_dag_tips`) NEVER
+// runs here — they would swallow inbound fan-out while awaiting their own reply.
+//
+// D3: the drain is the SINGLE READER and also the writer. `Connection` cannot be
+// split (its `ws` is private, and adding an accessor would edit GPL core, D3 of
+// M-RP6.6), so instead of a writer task the drain's `select!` gains an outbound
+// arm. Send enqueues and returns; the drain writes it and correlates the ack
+// WITHOUT stalling inbound.
+
+/// The DAG frontier this client believes each Space is at (Leg B, B-5 option 2).
+///
+/// **Why this exists at all.** A message event needs `prev_events`, and every
+/// `ops::*` write verb obtains them with `batch::get_dag_tips` — a
+/// request/response that OWNS THE DRAIN, so it is D2-forbidden on the resident
+/// socket. `get_dag_tips` exists because a short-lived control-mode connection
+/// has no memory. **A resident does.** Once live ingest is wired the drain sees
+/// every event this client may see, so the frontier is maintained as a
+/// consequence of watching rather than as a query per message.
+///
+/// **Honest limit (recorded, not hidden):** the frontier is accurate only while
+/// connected AND caught up. Across a reconnect gap the client missed events, so
+/// its tips are stale — hence `anchored`, cleared on every session start, and
+/// re-seeded once per session from a CONTROL-PLANE `get_dag_tips` on its own
+/// connection (D2-legal: once per session, never per message). A stale anchor is
+/// not corruption: it produces an event that reads as concurrent, which the
+/// resolution engine already settles, and `ops::send` has always tolerated an
+/// imperfect anchor via its `vec![space_id]` root fallback.
+#[derive(Clone, Default)]
+pub struct TipTracker {
+    inner: Arc<Mutex<HashMap<String, SpaceTips>>>,
+}
+
+#[derive(Default, Clone)]
+struct SpaceTips {
+    /// The current frontier: observed events that nothing observed descends from.
+    tips: Vec<String>,
+    /// Whether this Space was seeded from a control-plane `get_dag_tips` THIS
+    /// session. False ⇒ the caller must re-anchor before trusting `tips`.
+    anchored: bool,
+}
+
+impl TipTracker {
+    /// Fold one observed event into the frontier: it descends from its
+    /// `prev_events`, so those stop being tips and this event becomes one. The
+    /// standard DAG-frontier update — applied to BOTH inbound fan-out and this
+    /// client's own sends, because an unacknowledged local send is still a real
+    /// ancestor for the next one (two messages typed in a row must chain).
+    pub fn observe(&self, space_id: &str, event_id: &str, prev_events: &[String]) {
+        if space_id.is_empty() || event_id.is_empty() {
+            return;
+        }
+        let mut map = match self.inner.lock() {
+            Ok(m) => m,
+            Err(p) => p.into_inner(), // a poisoned display-state lock must not kill the resident
+        };
+        let entry = map.entry(space_id.to_string()).or_default();
+        entry.tips.retain(|t| !prev_events.iter().any(|p| p == t));
+        if !entry.tips.iter().any(|t| t == event_id) {
+            entry.tips.push(event_id.to_string());
+        }
+    }
+
+    /// Seed the frontier from a control-plane `get_dag_tips` and mark the Space
+    /// anchored for this session.
+    pub fn seed(&self, space_id: &str, tips: Vec<String>) {
+        let mut map = match self.inner.lock() {
+            Ok(m) => m,
+            Err(p) => p.into_inner(),
+        };
+        let entry = map.entry(space_id.to_string()).or_default();
+        entry.tips = tips;
+        entry.anchored = true;
+    }
+
+    /// Whether this Space has been re-anchored since the current session began.
+    pub fn is_anchored(&self, space_id: &str) -> bool {
+        match self.inner.lock() {
+            Ok(m) => m.get(space_id).map(|s| s.anchored).unwrap_or(false),
+            Err(p) => p.into_inner().get(space_id).map(|s| s.anchored).unwrap_or(false),
+        }
+    }
+
+    /// The current frontier for a Space. Empty ⇒ the caller applies the shipped
+    /// root fallback (`vec![space_id]`), exactly as `ops::send` does.
+    pub fn tips_for(&self, space_id: &str) -> Vec<String> {
+        match self.inner.lock() {
+            Ok(m) => m.get(space_id).map(|s| s.tips.clone()).unwrap_or_default(),
+            Err(p) => p
+                .into_inner()
+                .get(space_id)
+                .map(|s| s.tips.clone())
+                .unwrap_or_default(),
+        }
+    }
+
+    /// Drop every `anchored` flag — called at the START of each session. The tips
+    /// themselves are KEPT (they are still the best guess and beat the root
+    /// fallback), but nothing may treat them as authoritative until re-anchored.
+    /// *A reconnect is exactly the moment a frontier silently goes stale, so the
+    /// invalidation has to be automatic rather than remembered by a caller.*
+    pub fn invalidate_anchors(&self) {
+        let mut map = match self.inner.lock() {
+            Ok(m) => m,
+            Err(p) => p.into_inner(),
+        };
+        for s in map.values_mut() {
+            s.anchored = false;
+        }
+    }
+}
+
+/// A queued outbound message (Leg B). The drain builds, signs and writes it, so
+/// the caller hands over intent, not an event: the signing key and the frontier
+/// both live resident-side, and putting event construction anywhere else would
+/// mean a second place that knows how to anchor (D-067).
+pub struct OutboundRequest {
+    pub space_id: String,
+    pub room_id: String,
+    pub text: String,
+    /// Resolved when the node's outcome correlates, the send fails to write, or
+    /// the session drops. **Always resolved exactly once** — D6's binding rule
+    /// applied to the transport: a message may never look sent when it is not.
+    pub reply: oneshot::Sender<SendOutcome>,
+}
+
+/// The outcome of one queued send, carried to the webview verbatim (snake_case,
+/// no mapping layer — the `ConnTraffic` precedent).
+///
+/// `status` is the honest four-way outcome, NOT a boolean: `accepted` (the node
+/// validated + durably persisted it), `rejected` (a deterministic node refusal,
+/// with the wire `code`), `timed_out` (no correlated signal — genuinely
+/// ambiguous, the node may hold it), `failed` (never reached the wire, or the
+/// connection dropped with it in flight). Collapsing `timed_out` into either
+/// success or failure is precisely the lie D6 forbids.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SendOutcome {
+    pub event_id: Option<String>,
+    pub status: &'static str,
+    pub code: Option<u32>,
+    pub reason: Option<String>,
+}
+
+impl SendOutcome {
+    pub fn failed(reason: impl Into<String>) -> Self {
+        Self { event_id: None, status: "failed", code: None, reason: Some(reason.into()) }
+    }
+    fn from_confirm(event_id: String, confirm: EventConfirm) -> Self {
+        match confirm {
+            EventConfirm::Accepted => Self {
+                event_id: Some(event_id),
+                status: "accepted",
+                code: None,
+                reason: None,
+            },
+            EventConfirm::Rejected { code, reason, event_id } => Self {
+                event_id: Some(event_id),
+                status: "rejected",
+                code: Some(code),
+                reason: Some(reason),
+            },
+            EventConfirm::TimedOut => Self {
+                event_id: Some(event_id),
+                status: "timed_out",
+                code: None,
+                reason: None,
+            },
+        }
+    }
+}
+
+/// The message-plane wiring handed to one session (Leg B). Bundled into a struct
+/// so `run_session`'s signature stays readable as the resident grows.
+pub struct SessionIo<'a, G: FnMut(Event) + Send> {
+    /// Queued outbound sends. The drain pops these in its `select!`.
+    pub outbound_rx: &'a mut mpsc::Receiver<OutboundRequest>,
+    /// The DAG frontier, updated from BOTH inbound fan-out and our own sends.
+    pub tips: &'a TipTracker,
+    /// Live ingest — the M-RP6.6 deferral. Every inbound `Event` is handed here
+    /// (the desktop shell emits it to R5; the headless service no-ops).
+    pub ingest: &'a mut G,
+}
+
+/// The ceiling on how long a queued send waits for its node ack before the
+/// resident reports `timed_out`. Mirrors `[sync].completion_timeout_seconds`'s
+/// role for the `ops::*` verbs; published as data under D5 rather than hardcoded
+/// again in Svelte.
+pub const SEND_ACK_TIMEOUT: Duration = Duration::from_secs(10);
 
 // ── Published resident status (M-RP6.3 Leg A) ──────────────────────────────
 //
@@ -559,20 +897,22 @@ pub struct ResidentStatusSnapshot {
 /// Both halves of D4 are required and both are here: uncapped retry cannot
 /// express a counter or a terminal state, and a cap without auto-resume fails the
 /// sleeping-laptop case.
-pub async fn run_resident<F>(
+pub async fn run_resident<F, G>(
     node: &str,
     signing_key: &SigningKey,
     traffic: &TrafficCounters,
     status: &ResidentStatus,
     shutdown_rx: &mut watch::Receiver<bool>,
     resume_rx: &mut watch::Receiver<u64>,
+    io: &mut SessionIo<'_, G>,
     sink: &mut F,
 ) where
     F: FnMut(ClientLifecycleState) + Send,
+    G: FnMut(Event) + Send,
 {
     let mut backoff = Backoff::default();
     loop {
-        let outcome = run_session(node, signing_key, traffic, shutdown_rx, sink).await;
+        let outcome = run_session(node, signing_key, traffic, shutdown_rx, io, sink).await;
         if outcome == SessionEnd::ShutdownRequested || *shutdown_rx.borrow() {
             break;
         }
@@ -746,6 +1086,136 @@ mod tests {
         assert!(b.snapshot().terminal);
         a.set_attempt(4);
         assert_eq!(b.snapshot().attempt, 4);
+    }
+
+    // ── M-RP6.3 Leg B ────────────────────────────────────────────────────
+
+    #[test]
+    fn tips_start_empty_so_the_caller_uses_the_root_fallback() {
+        // An unknown Space yields NO tips — deliberately, so the send path applies
+        // the shipped `vec![space_id]` root anchor rather than inventing one.
+        let t = TipTracker::default();
+        assert!(t.tips_for("space-a").is_empty());
+        assert!(!t.is_anchored("space-a"), "never seeded ⇒ never anchored");
+    }
+
+    #[test]
+    fn observe_advances_the_frontier_and_retires_parents() {
+        // The DAG frontier update: a child descends from its parents, so the
+        // parents stop being tips. Getting this backwards would chain every new
+        // message off an ancient event.
+        let t = TipTracker::default();
+        t.observe("s", "e1", &["s".to_string()]);
+        assert_eq!(t.tips_for("s"), vec!["e1".to_string()]);
+
+        t.observe("s", "e2", &["e1".to_string()]);
+        assert_eq!(t.tips_for("s"), vec!["e2".to_string()], "e1 retired by its child");
+    }
+
+    #[test]
+    fn observe_keeps_concurrent_branches_as_multiple_tips() {
+        // Two events both descending from e1 are genuinely concurrent — BOTH are
+        // tips, and the next send must reference both or it silently forks the
+        // DAG a third time.
+        let t = TipTracker::default();
+        t.observe("s", "e1", &[]);
+        t.observe("s", "a", &["e1".to_string()]);
+        t.observe("s", "b", &["e1".to_string()]);
+        let mut tips = t.tips_for("s");
+        tips.sort();
+        assert_eq!(tips, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    fn observe_is_idempotent_on_a_repeated_event() {
+        // Our own send is observed locally, and the node may fan the SAME event
+        // back to us. Seeing it twice must not duplicate the tip.
+        let t = TipTracker::default();
+        t.observe("s", "e1", &[]);
+        t.observe("s", "e1", &[]);
+        assert_eq!(t.tips_for("s"), vec!["e1".to_string()]);
+    }
+
+    #[test]
+    fn spaces_are_independent() {
+        let t = TipTracker::default();
+        t.observe("s1", "a", &[]);
+        t.observe("s2", "b", &[]);
+        assert_eq!(t.tips_for("s1"), vec!["a".to_string()]);
+        assert_eq!(t.tips_for("s2"), vec!["b".to_string()]);
+    }
+
+    #[test]
+    fn observe_ignores_events_with_no_usable_identity() {
+        // An unsigned event (no event_id) or a create event carrying an empty
+        // space_id must not poison the frontier with an empty-string tip — which
+        // would then be sent as a `prev_events` entry the node cannot resolve.
+        let t = TipTracker::default();
+        t.observe("s", "", &[]);
+        t.observe("", "e1", &[]);
+        assert!(t.tips_for("s").is_empty());
+        assert!(t.tips_for("").is_empty());
+    }
+
+    #[test]
+    fn seed_anchors_and_invalidate_clears_the_flag_but_keeps_the_tips() {
+        // The reconnect contract (B-5): after a gap the tips are STALE, not
+        // worthless. Keeping them preserves a better-than-root guess; clearing
+        // `anchored` is what forces the next send to re-anchor from the control
+        // plane first.
+        let t = TipTracker::default();
+        t.seed("s", vec!["tip1".to_string()]);
+        assert!(t.is_anchored("s"));
+        assert_eq!(t.tips_for("s"), vec!["tip1".to_string()]);
+
+        t.invalidate_anchors();
+        assert!(!t.is_anchored("s"), "a new session must re-anchor");
+        assert_eq!(
+            t.tips_for("s"),
+            vec!["tip1".to_string()],
+            "tips survive the invalidation — stale beats root"
+        );
+    }
+
+    #[test]
+    fn clones_share_one_frontier() {
+        // The drain writes it and `send_message` reads it; if a clone were a copy
+        // the send path would anchor on a frontier that never advances.
+        let a = TipTracker::default();
+        let b = a.clone();
+        a.observe("s", "e1", &[]);
+        assert_eq!(b.tips_for("s"), vec!["e1".to_string()]);
+        b.seed("s", vec!["z".to_string()]);
+        assert!(a.is_anchored("s"));
+    }
+
+    #[test]
+    fn send_outcome_never_reports_an_unsent_message_as_sent() {
+        // D6's binding rule, asserted rather than trusted: `failed` carries no
+        // event_id and never the accepted status; `timed_out` stays its own
+        // outcome rather than collapsing into success or failure.
+        let f = SendOutcome::failed("write failed");
+        assert_eq!(f.status, "failed");
+        assert!(f.event_id.is_none());
+
+        let t = SendOutcome::from_confirm("e1".to_string(), EventConfirm::TimedOut);
+        assert_eq!(t.status, "timed_out");
+        assert_eq!(t.event_id.as_deref(), Some("e1"));
+
+        let r = SendOutcome::from_confirm(
+            "e2".to_string(),
+            EventConfirm::Rejected {
+                code: 3046,
+                reason: "event_timestamp_out_of_bounds".to_string(),
+                event_id: "e2".to_string(),
+            },
+        );
+        assert_eq!(r.status, "rejected");
+        assert_eq!(r.code, Some(3046));
+
+        let a = SendOutcome::from_confirm("e3".to_string(), EventConfirm::Accepted);
+        assert_eq!(a.status, "accepted");
+        assert!(a.code.is_none());
     }
 
     #[tokio::test]

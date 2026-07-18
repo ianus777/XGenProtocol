@@ -101,9 +101,31 @@ async fn run_ws_loop(data_dir: PathBuf, mut shutdown_rx: watch::Receiver<bool>) 
     // Headless: the counters are maintained but not surfaced (no `get_conn_stats`
     // command in service mode). Single-session (reconnect is the desktop resident).
     let traffic = crate::resident::TrafficCounters::default();
-    let outcome =
-        crate::resident::run_session(&node, &signing_key, &traffic, &mut shutdown_rx, &mut sink)
-            .await;
+    // M-RP6.3 Leg B — the message plane is a DESKTOP concern: the headless service
+    // has no composer to send from and no R5 to ingest into. It still drives the
+    // same spine (D1), so it supplies the wiring in its inert form: an outbound
+    // channel whose sender is dropped immediately (the `recv()` arm then resolves
+    // to `None` and, being a `Some(..)` pattern, is disabled for the rest of the
+    // session — it never spins), a private tip tracker, and a no-op ingest sink.
+    // Inert-by-construction rather than feature-gated: one spine, one code path.
+    let (outbound_tx, mut outbound_rx) = tokio::sync::mpsc::channel(1);
+    drop(outbound_tx);
+    let tips = crate::resident::TipTracker::default();
+    let mut ingest = |_ev: xgen_core::wire::types::Event| {};
+    let mut io = crate::resident::SessionIo {
+        outbound_rx: &mut outbound_rx,
+        tips: &tips,
+        ingest: &mut ingest,
+    };
+    let outcome = crate::resident::run_session(
+        &node,
+        &signing_key,
+        &traffic,
+        &mut shutdown_rx,
+        &mut io,
+        &mut sink,
+    )
+    .await;
     tracing::info!(?outcome, "service: WS session ended");
     Ok(())
 }

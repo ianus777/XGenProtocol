@@ -1,10 +1,28 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-17  
+> **Last updated:** 2026-07-18  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-542 — M-RP6.6 (client resident: live connection + traffic accounting) OPENED: Phase-0 grounded against live code, all five decisions Joe-LOCKED by-recomm; next-active = Clair build runbook (Legs A/B + Leg-C Rust half)
+
+**What happened.** M-RP6.6 opened (M-RP6.2 closed J-541). Chat ground the six session-open questions against `main`, presented Phase-0, Joe locked D1–D5 by-recomm. Doc-only; no code. Phase-0 `tasks/M_RP6_6_RESIDENT.md` (v1.1 ACTIVE). No DECISIONS change (D1–D5 arc-local).
+
+**Grounding verdict (verified `main`).** (1) `service::run` already holds a THIN resident (`connect_url`→`client_authenticate`→`loop{recv()}` discard→`goodbye`) with **no** lifecycle emit (headless), **no** accounting, **no** reconnect, **no** ingest — desktop resident is a **superset**, not a copy. (2) All **11** `ClientLifecycleState` variants are real Rust AND all 11 enumerated in `STATE_COLOURS` — matched; work is WIRING real events to the existing `emit_state`, no variant to add. (3) ConnStats Speed/Bandwidth are **hardcoded literal `'N/A'`**, not a store key waiting — the N/A→live seam is three joined pieces (counters · store slot · row swap), none existing; transport hooks present (`send_bytes` choke · `recv()` · `ping()`+`Inbound::Pong`). (4) `app::resolve_node` exists (D-068 flag>config), `service.rs` uses it; desktop's hardcoded `ws://127.0.0.1:8080` is the lone holdout. (5) No reconnect/backoff scheduler anywhere — must be built. (6) Live-ingest seam clean, DEFERRED (gated on R5 + M-RP6.3).
+
+**Decisions Joe-LOCKED (all by-recomm).** D1 spine — extract a shared `connect→auth→drain` helper (D-056); not fork/rebuild. D2 leg split — A resident+lifecycle · B reconnect/backoff · C accounting; live-ingest→own milestone. D3 accounting capture — resident-level wrapper counters, GPL core `Connection` **UNTOUCHED** (honest scope: bytes observed by the resident loop; auth handshake + `send_event_confirmed` internal drains excluded). D4 ConnStats data contract — real-when-fed, absent-when-no-counter (N-060), never a fabricated `0` (the row LOOK is Ms Design's; only the data rule is fixed). D5 sequencing — 6.6 BEFORE 6.3.
+
+**Lane split.** Chat = this Phase-0 + the Leg-C data contract (`selfState.traffic` slot: `ConnTraffic{bytes_in, bytes_out, rtt_ms|null}`, snake-case verbatim) + CDP-verify (lifecycle flips on real connect/disconnect, rows N/A→live). Clair = Legs A/B + Leg-C Rust half (shared spine · backoff · counters · `get_conn_stats` mirroring `get_pacing_state`) + build runbook. Ms Design = the ConnStats visual row-swap (appearance only). Joe locks + pushes.
+
+**Correction (D-065).** Session-open quoted the cargo floor as 1517/0/62; live floor is **1519/0/62** (J-541's +2). Rust-primary → the count MUST move (Leg B backoff + Leg C counters are testable pure logic). Task-doc §6 floor corrected (v1.1).
+
+**Canonical (D-074).** `tasks/M_RP6_6_RESIDENT.md` v1.1 ACTIVE (D-1..D-5→D1..D5 house-normalized · floor 1519); `CLAUDE.md` PLAY head (M-RP6.6 🟡→🟢 PHASE-0 LOCKED, new tail); `docs/ROADMAP.md` v5.08→5.09 (L778 🟡→🟢 · 6.6-precedes-6.3); this JOURNAL J-542. No DECISIONS change.
+
+**Next-active.** Clair authors `tasks/M_RP6_6_IMPL.md` (build runbook, spine-first, Leg A→B→C); Joe-lock before any code → Chat CDP-verify live (full reload, N-132) + doc-bridge → close. **Entry (Rule 0): CLAUDE.md PLAY → JOURNAL J-542 → `tasks/M_RP6_6_RESIDENT.md`.** Not pushed — Joe pushes.
 
 ---
 

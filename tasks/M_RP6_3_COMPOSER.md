@@ -1,6 +1,6 @@
 # M-RP6.3 — live messaging: R6 composer + narrow-B send path
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-18  
 > Language: English  
@@ -36,6 +36,23 @@ new mechanism**, D-067).
 `connecting…` state.** A countdown that reaches zero followed by up to ten
 seconds of silence reads as frozen — the exact failure the animation exists to
 prevent.
+
+> **⚠️ AMENDED IN PLACE (J-546) — THE FIRST CLAUSE IS IMPRECISE, corrected by
+> measurement.** `PING_INTERVAL` does **NOT** bound dead-peer detection
+> generally. There is **no pong timeout**: `run_session` sets `pending_ping` and
+> **never acts on a pong that fails to arrive**. So against a peer whose kernel
+> still ACKs TCP — a suspended process, a paused VM, a frozen host — the ping
+> **write keeps succeeding** into the send buffer and the resident stays
+> **READY indefinitely**. Measured (Clair, J-546): **27 s across 2+ ping
+> intervals**, `bytes_out` growing at the ~10 s and ~20 s marks, state never
+> leaving READY. **Detection fires ONLY where the WRITE fails or `recv()`
+> errors** — i.e. an abrupt kill/RST, not a silent freeze.
+>
+> *The second clause (`CONNECT_TIMEOUT`) stands unchanged, and the design
+> consequence — the countdown must hand off to `connecting…` — is unaffected.*
+> **Leg C consequence: a frozen-peer outage produces NO lifecycle transition at
+> all, so the gap item will not appear. Do not describe the connection indicator
+> as detecting “the node is down”; it detects a broken socket.**
 
 **G-5 — `send_event_confirmed` owns the connection and eats the drain.**
 `xgen-core/src/transport/connection.rs:186` takes `&mut self`, sends, then drains
@@ -221,15 +238,15 @@ session model rather than being retrofitted twice.
 
 - [x] Leg A: cap, attempt count, next-attempt-time published and observable
 - [x] Leg A: terminal state + `[Reconnect]` + auto-resume, exercised
-- [ ] Leg B: non-blocking drain proven under load; ack correlation live
-- [ ] Leg B: live ingest wired (the M-RP6.6 deferral closes here)
+- [x] Leg B: non-blocking drain proven under load; ack correlation live
+- [x] Leg B: live ingest wired (the M-RP6.6 deferral closes here)
 - [ ] Leg C: R5 wrapped live; gap item counts, hands off to `connecting…`,
       collapses on recovery; grace period exercised with a sub-2s blip
 - [ ] Leg D: composer sends live; D6 behaviour exercised during a real outage
-- [ ] No message ever renders as delivered when it is not (D6 binding rule)
-- [ ] D2 invariant holds: no blob / `send_event_confirmed` / `get_dag_tips` on
+- [x] No message ever renders as delivered when it is not (D6 binding rule)
+- [x] D2 invariant holds: no blob / `send_event_confirmed` / `get_dag_tips` on
       the resident socket — verified against the diff
-- [ ] `cargo test` moves off the 1524 floor (the honest signal Rust landed)
+- [x] `cargo test` moves off the 1524 floor (the honest signal Rust landed)
 - [ ] CDP-verified on real client 9222 + live node, every leg re-driven
 
 *(Per house rule, "commit pushed" is NOT a DoD item — the `Status: COMPLETED`
@@ -274,3 +291,72 @@ the terminal state with no attributable trigger (`focus`/`online` counters read
 zero). The cause is still unknown; `resume_resident` now logs a `source` for
 every caller, so a recurrence is self-identifying. Recorded rather than guessed
 at (J-545).
+
+**⚠️ One Leg-A claim was later found unearned (J-546).** §7's *“terminal state +
+`[Reconnect]` + auto-resume, exercised”* stands. But the `attempt:0` reading
+that accompanied it was taken after a **terminal park**, whose exit resets the
+counter explicitly — so it could not test the *“0 while live”* contract, which
+was in fact broken for the ordinary reconnect path. Fixed at J-546. *Recorded
+here so §7 is not read as stronger than it was.*
+
+---
+
+## §8 — Leg B close (J-546)
+
+**Leg B is CLOSED.** Outbound multiplexer + ack correlation + live ingest, over
+the resident socket (D1), with the drain as single reader **and** writer (D3).
+
+**Shipped:** the drain's outbound `select!` arm (build → sign → write) ·
+`event_id → oneshot` correlation reusing `TransportMessage::event_id()` and
+`EventConfirm` (D-067, no parallel outcome type) · a 1 s sweep resolving entries
+past `SEND_ACK_TIMEOUT` as `timed_out` · teardown resolving every survivor to
+`failed` **with a stated reason** · **`TipTracker`** (the B-5 frontier) ·
+`send_message` + a control-plane re-anchor on its own short-lived connection ·
+live ingest → `xgen-event` → the `$common` `ingest` store · `service.rs` threaded
+with an inert message plane (one spine, one code path).
+
+**Gates:** `cargo test` **1541/0/62** · vite **184** · npm **77** · sampler **328**.
+
+### Three things this leg settled
+
+1. **B-5 — tips come from the resident, not from a query per message.** A send
+   needs `prev_events`; `get_dag_tips` owns the drain and is D2-forbidden here,
+   so there was **no way to build a sendable event over the resident socket at
+   all**. Resolved by a resident-held frontier, re-anchored **once per session
+   per Space** over a control connection. *Stale tips are not corruption — they
+   yield an event that reads as concurrent, which resolution already settles.*
+2. **`SendOutcome` is four-way, never a boolean.** `timed_out` is its own
+   outcome; folding it into success or failure is the D6 lie.
+3. **An `accepted` outcome proves the anchor was VALID, never OPTIMAL.**
+   Chaining is observable only in the tips. **Standing rule** — do not read a
+   wall of green accepts as proof the frontier is tracked.
+
+### Verification, per seat
+
+| leg | seat |
+|---|---|
+| V1 accepted round-trip | two-seat (Chat, then Clair on her own inputs) |
+| V2 frontier anchoring (`tip_count=1` = msg1) | **Chat, single-seat** |
+| V3 live ingest | two-seat, independently re-driven |
+| V4 in-flight failure on drop | Clair |
+| V5 drain non-stall under load | Clair |
+| V6 re-anchor connection hygiene | Clair |
+
+**Honest scope note:** V5 passed under a **sustained trickle**, not under the
+40-send burst — that burst was confounded by the re-anchor herd (below). Once the
+herd is bounded, a genuinely heavy load test would be cleaner.
+
+### Filed, not fixed
+
+- **Concurrent-first-send re-anchor herd.** N concurrent `send_message` on an
+  un-anchored Space → up to N control connections. No leak (V6). Leg D's composer
+  sends one at a time, so it is not hit in practice.
+
+### Carried into Leg C
+
+- R5 reads the `$common` `ingest` store (Events **verbatim** — the
+  `MessageDescriptor` projection is Leg C's, and must not be duplicated earlier).
+- The gap item reads the Leg-A status surface. **`terminal` is durable only while
+  the app is ignored** (any `focus` resumes it) — do not draw it as permanent.
+- **A frozen peer produces no lifecycle transition at all** (§0 G-4 as amended),
+  so the gap item will not appear for that class of outage.

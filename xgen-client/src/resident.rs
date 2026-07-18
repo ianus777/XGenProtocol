@@ -832,6 +832,31 @@ impl ResidentStatus {
         self.terminal.load(Ordering::Relaxed)
     }
 
+    /// Apply one lifecycle transition to the PUBLISHED status (M-RP6.3, J-546).
+    ///
+    /// **Reaching READY zeroes the counter and clears the countdown.** Extracted
+    /// as a named rule rather than inlined in `run_resident` so it can be
+    /// unit-tested — which is the whole reason the defect below existed.
+    ///
+    /// **The defect this fixes (Chat's, shipped at Leg A):** `run_resident` reset
+    /// `attempt` only via `outcome.reached_ready()`, which runs *after a healthy
+    /// session ENDS*. Nothing zeroed it when READY was *reached*, so a resident
+    /// that reconnected on attempt 8 published `8/10` for the entire healthy
+    /// session that followed — while the struct doc claimed "0 while live".
+    /// Measured by Clair at J-546: `attempt:8` stable with `state:READY` and
+    /// traffic flowing.
+    ///
+    /// *Leg A's own V1 could not have caught it: it read `attempt:0` on a FRESHLY
+    /// connected client, which cannot distinguish "correctly zeroed on ready" from
+    /// "never incremented yet". The discriminator is reconnect-THEN-ready, and the
+    /// test below drives exactly that.*
+    pub fn on_lifecycle(&self, state: &ClientLifecycleState) {
+        if matches!(state, ClientLifecycleState::Ready) {
+            self.set_attempt(0);
+            self.clear_next_attempt();
+        }
+    }
+
     /// The serialisable snapshot for `get_resident_status`. Field names are
     /// snake_case verbatim — the frontend reads them with no mapping layer.
     ///
@@ -912,7 +937,16 @@ pub async fn run_resident<F, G>(
 {
     let mut backoff = Backoff::default();
     loop {
-        let outcome = run_session(node, signing_key, traffic, shutdown_rx, io, sink).await;
+        // J-546 — the published status observes EVERY lifecycle transition, so
+        // reaching READY zeroes the counter DURING the session rather than only
+        // after it ends. Wrapping here (not inside `run_session`) keeps the spine
+        // UI-agnostic and keeps ONE owner of the status: the reconnect loop.
+        let mut observed = |state: ClientLifecycleState| {
+            status.on_lifecycle(&state);
+            sink(state);
+        };
+        let outcome =
+            run_session(node, signing_key, traffic, shutdown_rx, io, &mut observed).await;
         if outcome == SessionEnd::ShutdownRequested || *shutdown_rx.borrow() {
             break;
         }
@@ -1216,6 +1250,49 @@ mod tests {
         let a = SendOutcome::from_confirm("e3".to_string(), EventConfirm::Accepted);
         assert_eq!(a.status, "accepted");
         assert!(a.code.is_none());
+    }
+
+    #[test]
+    fn reaching_ready_zeroes_the_counter_mid_session() {
+        // THE REGRESSION TEST FOR THE LEG-A DEFECT (J-546). The discriminator is
+        // RECONNECT-then-READY, not a fresh connect: a freshly built status reads
+        // `attempt:0` whether or not the reset rule exists, which is exactly why
+        // Leg A's V1 passed against broken code.
+        let s = ResidentStatus::default();
+
+        // Simulate a resident that has been retrying: 8 attempts consumed, a
+        // countdown armed — the state Clair measured stuck at READY.
+        s.set_attempt(8);
+        s.arm_next_attempt(Duration::from_secs(30));
+        assert_eq!(s.snapshot().attempt, 8);
+        assert!(s.snapshot().next_attempt_in_ms.is_some());
+
+        // Transitions that are NOT ready must leave the counter alone — the UI has
+        // to keep rendering `(8/10)` while the retry is genuinely in progress.
+        s.on_lifecycle(&ClientLifecycleState::Reconnecting);
+        s.on_lifecycle(&ClientLifecycleState::Connecting);
+        s.on_lifecycle(&ClientLifecycleState::Authenticating);
+        assert_eq!(s.snapshot().attempt, 8, "a retry in progress still counts");
+
+        // Reaching READY is the moment the count stops being true.
+        s.on_lifecycle(&ClientLifecycleState::Ready);
+        let snap = s.snapshot();
+        assert_eq!(snap.attempt, 0, "a live resident has consumed nothing");
+        assert_eq!(
+            snap.next_attempt_in_ms, None,
+            "a connected resident is not counting down to a retry"
+        );
+    }
+
+    #[test]
+    fn ready_does_not_disturb_the_terminal_flag() {
+        // The reset touches the counter and the countdown ONLY. `terminal` is owned
+        // by the cap/park path, and clearing it here would silently un-park a
+        // resident that never resumed.
+        let s = ResidentStatus::default();
+        s.set_terminal(true);
+        s.on_lifecycle(&ClientLifecycleState::Ready);
+        assert!(s.is_terminal(), "on_lifecycle must not own the terminal flag");
     }
 
     #[tokio::test]

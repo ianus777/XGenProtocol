@@ -20,6 +20,7 @@ import SelfPanel from '$common/components/widgets/self-panel.svelte';
 import InspectorPanel from '$common/components/widgets/inspector-panel.svelte';
 import SpacesPanel from '$common/components/widgets/spaces-panel.svelte';
 import RoomsPanel from '$common/components/widgets/rooms-panel.svelte';
+import StreamPanel from '$common/components/widgets/stream-panel.svelte';
 import GridPlate from '$common/components/widgets/grid-plate.svelte';
 import GridPlateSettings from '$common/components/widgets/grid-plate-settings.svelte';
 import ConnectionStats from '$common/components/widgets/connection-stats.svelte';
@@ -133,6 +134,21 @@ export const CLIENT_PLUGINS: PluginDescriptor[] = [
     regionId: 'rooms',
     // icon UNSET (M-RP6.2 D8) — see spaces-panel.
     component: RoomsPanel,
+  },
+  {
+    id: 'stream-panel',
+    name: 'Messages',
+    description: 'The live message stream for the selected Room.',
+    version: '1.0.0',
+    kind: 'system',
+    host: 'client',
+    delivery: 'compiled',
+    surface: 'region',
+    regionId: 'stream',
+    // icon UNSET (M-RP6.3 Leg C2, the M-RP6.2 D8 discipline): no verified message glyph in-repo, and a
+    // Material `d` path is not fabricated from memory (Rule 5 / D-108). plugin-list falls back to its
+    // documented placeholder; the real glyph is deferred to M-RP-ICON-ADOPT / M-RP-SKIN.
+    component: StreamPanel,
   },
   {
     id: 'plugin-list',

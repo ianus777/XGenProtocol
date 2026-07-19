@@ -31,6 +31,9 @@
   // The live inbound-event store (M-RP6.3 Leg B) — the M-RP6.6 ingest deferral closing. The shell listens
   // to `xgen-event` once and writes it; R5 reads it at Leg C. No second emit channel (D1/D-067).
   import { ingest } from '$common/stores/ingest.svelte';
+  // The connection-gap episode store (M-RP6.3 Leg C2, C-10). A PURE $state store (the self-state precedent);
+  // the shell feeds it from the SAME two live surfaces the status feed reads — see the feeder $effect below.
+  import { gaps } from '$common/stores/gaps.svelte';
   // The grid-backdrop setting store (M-RP-SETTINGS Leg C, B2). ONE value the grid-plate paints. The shell
   // reads it here to mirror into region-shell's `backgroundLive` + persist it (a session key), seeds it on
   // boot from the persisted key; the $common grid-plate-settings component is what WRITES it (W-3/N-096 —
@@ -115,6 +118,20 @@
       return;
     }
     untrack(() => uiStateStore.setSessionBackdrop(on));
+  });
+
+  // M-RP6.3 Leg C2 (C-10) — feed the connection-gap store. This is the ONE writer path: the reactive $effect
+  // calls gaps.apply, and the DEV __XGEN_GAPS__.apply IS the same function (single-writer rule, the J-548
+  // tickNow lesson). It observes BOTH surfaces the status feed rides — `selfState.connection` (event-timed,
+  // so the episode START is accurate) and `selfState.resident` (the 2 s poll, refreshing the countdown
+  // numbers). App-lifetime, because the shell is always mounted: an outage during a widget unmount is still
+  // captured (§9.10.2 — the whole reason the episodes live in a store, not the widget). untrack because
+  // gaps.apply reads/writes its own $state; an un-untracked read would make that state a dependency and
+  // self-invalidate (N-136 — the backdrop effect above documents the same trap). `paused` is a verify gate.
+  $effect(() => {
+    const conn = selfState.connection; // track (event-timed lifecycle)
+    const res = selfState.resident; // track (2 s poll)
+    if (!gaps.paused) untrack(() => gaps.apply(conn, res));
   });
 
   // DEV-only CDP handle (N-024 idiom) so the verify pass can drive the drop / tabs / mismatch paths

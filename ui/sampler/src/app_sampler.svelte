@@ -59,6 +59,7 @@
   import Message from '$core/components/data-dependent/message.svelte'; // message dd sub-family opener (M-RP5.5 A)
   import MessageStream from '$core/components/data-dependent/message-stream.svelte'; // message-stream shell (M-RP5.6 A)
   import FixtureWidget from './fixture-widget.svelte'; // sampler-local stub for the message details socket
+  import FixtureRegWidget from './fixture-reg-widget.svelte'; // its REGISTERING sibling (M-RP6.9) — the instrument for the N×M question
 
   // Processor (common infra, M-RP4.0/M-RP4.2): the kind-1 transformer attachment, fed from the
   // source-agnostic substitutions store. The atomic forwards {...rest}; processor(...) returns a
@@ -291,19 +292,37 @@
   // `details` widget socket resolves widgetId → component via a sampler-supplied registry; an
   // unknown id is DROPPED on render (W-13). `text-own` sets isOwn → the row mirrors to the right.
   const eaSelf = { kind: 'identity', name: 'You', id: 'xgen://identity/self-0', flags: {} };
-  const msgWidgets = { 'fixture.time': FixtureWidget, 'fixture.badge': FixtureWidget };
-  const msgOther = { kind: 'text', id: 'm-1', author: eaIdentity, body: 'Hey — did the fan-out converge on your node?', timestamp: '2026-07-07T12:03:00Z' };
-  const msgOwn = { kind: 'text', id: 'm-2', author: eaSelf, body: 'Yep — 19s, clean. Pushing the tag now.', timestamp: '2026-07-07T12:04:00Z', isOwn: true };
+  const msgWidgets = { 'fixture.time': FixtureWidget, 'fixture.badge': FixtureWidget, 'fixture.reg': FixtureRegWidget };
+  const msgOther = { kind: 'text', id: 'm-1', author: eaIdentity, body: 'Hey — did the fan-out converge on your node? 🤔', timestamp: '2026-07-07T12:03:00Z' };
+  const msgOwn = { kind: 'text', id: 'm-2', author: eaSelf, body: 'Yep — 19s, clean 🚀 Pushing the tag now.', timestamp: '2026-07-07T12:04:00Z', isOwn: true };
   const msgDetails = { kind: 'text', id: 'm-3', author: eaIdentity, body: 'Two details mounts render inline in the header.', timestamp: '2026-07-07T12:05:00Z', details: [{ widgetId: 'fixture.time', props: { label: '12:05' } }, { widgetId: 'fixture.badge', props: { label: 'pinned', tone: 'muted' } }] };
   const msgUnknownWidget = { kind: 'text', id: 'm-4', author: eaIdentity, body: 'One known mount + one unknown id (dropped).', timestamp: '2026-07-07T12:06:00Z', details: [{ widgetId: 'fixture.time', props: { label: '12:06' } }, { widgetId: 'does.not.exist', props: { label: 'GHOST' } }] };
 
   // M-RP5.5 B — text render-states. `grouped` is a PROP (stream-computed, M-RP5.6), not a descriptor
   // field; `edited` / `deleted` are descriptor fields. `text-grouped-edited` proves the combination
   // (header suppressed by grouped + "(edited)" shown because not deleted).
-  const msgGrouped = { kind: 'text', id: 'm-5', author: eaIdentity, body: 'A continuation line — same author, header suppressed but avatar column reserved.', timestamp: '2026-07-07T12:07:00Z' };
-  const msgEdited = { kind: 'text', id: 'm-6', author: eaIdentity, body: 'This line was tweaked after it was sent.', timestamp: '2026-07-07T12:08:00Z', edited: true };
+  const msgGrouped = { kind: 'text', id: 'm-5', author: eaIdentity, body: 'A continuation line — same author, header suppressed but avatar column reserved. 👍🏽', timestamp: '2026-07-07T12:07:00Z' };
+  const msgEdited = { kind: 'text', id: 'm-6', author: eaIdentity, body: 'This line was tweaked after it was sent ✏️', timestamp: '2026-07-07T12:08:00Z', edited: true };
   const msgDeleted = { kind: 'text', id: 'm-7', author: eaIdentity, body: 'Original text — must NOT render (tombstone).', timestamp: '2026-07-07T12:09:00Z', deleted: true, details: [{ widgetId: 'fixture.time', props: { label: '12:09' } }] };
   const msgGroupedEdited = { kind: 'text', id: 'm-8', author: eaIdentity, body: 'Grouped + edited: header gone, (edited) still shown.', timestamp: '2026-07-07T12:10:00Z', edited: true };
+
+  // M-RP6.9 — the `bodyExtras` socket. Below the body, OUTSIDE the header guard, so it survives a
+  // grouped continuation (`text-extras-grouped` is the cell that proves it, and the reason the
+  // socket was chosen over perforating grouping). Each cell mounts THREE stubs: two non-registering
+  // (`fixture.time` / `fixture.badge` → FixtureWidget, the control) and one REGISTERING
+  // (`fixture.reg` → FixtureRegWidget), so the N×M registration question is measured on the
+  // registry rather than read off the source. Every mount is a text stub — zero assets, zero URLs.
+  //
+  // `mountKey` (D-2) is supplied on `text-body-extras` only, so one cell exercises the stable-key
+  // path and the others keep the legacy index fallback. Both must work; that is the point of the
+  // fallback being byte-identical to the old key.
+  const xTime = { widgetId: 'fixture.time', props: { label: '👍 3' } };
+  const xBadge = { widgetId: 'fixture.badge', props: { label: '🎉 1', tone: 'muted' } };
+  const xReg = { widgetId: 'fixture.reg', props: { label: '🚀 2' } };
+  const msgBodyExtras = { kind: 'text', id: 'm-11', author: eaIdentity, body: 'Three mounts sit below this body — the strip is the socket 📎', timestamp: '2026-07-19T12:00:00Z', bodyExtras: [{ ...xTime, mountKey: 'k-time' }, { ...xBadge, mountKey: 'k-badge' }, { ...xReg, mountKey: 'k-reg' }] };
+  const msgExtrasGrouped = { kind: 'text', id: 'm-12', author: eaIdentity, body: 'A continuation row: no header, no avatar — and the strip is still here 🎯', timestamp: '2026-07-19T12:01:00Z', bodyExtras: [xTime, xBadge, xReg] };
+  const msgExtrasUnknown = { kind: 'text', id: 'm-13', author: eaIdentity, body: 'Two known mounts + one unknown id (dropped, W-13).', timestamp: '2026-07-19T12:02:00Z', bodyExtras: [xTime, { widgetId: 'does.not.exist', props: { label: 'GHOST' } }, xReg] };
+  const msgExtrasDeleted = { kind: 'text', id: 'm-14', author: eaIdentity, body: 'Original text — must NOT render (tombstone).', timestamp: '2026-07-19T12:03:00Z', deleted: true, bodyExtras: [xTime, xReg] };
 
   // M-RP5.5 C — system kind: authorless centered notice (no avatar / header / name / details).
   // `system-long` wraps to ≥2 lines to prove the centered wrap stays symmetric.
@@ -322,9 +341,9 @@
   // stream-basic — same local day, two authors + a system notice. Proves: consecutive same-author
   // collapse (sb-2 grouped) + different author breaks (sb-3) + a system message breaks a run (sb-5).
   const streamBasic = [
-    { kind: 'text', id: 'sb-1', author: eaIdentity, body: 'First line from Alice.', timestamp: iso(nowMs - 4 * minMs) },
+    { kind: 'text', id: 'sb-1', author: eaIdentity, body: 'First line from Alice 👋', timestamp: iso(nowMs - 4 * minMs) },
     { kind: 'text', id: 'sb-2', author: eaIdentity, body: 'Second line, same author within 5 min → grouped (header suppressed).', timestamp: iso(nowMs - 3 * minMs) },
-    { kind: 'text', id: 'sb-3', author: eaSelf, body: 'Different author → not grouped; mirrors right.', timestamp: iso(nowMs - 2 * minMs), isOwn: true },
+    { kind: 'text', id: 'sb-3', author: eaSelf, body: 'Different author → not grouped; mirrors right ✅', timestamp: iso(nowMs - 2 * minMs), isOwn: true },
     { kind: 'system', id: 'sb-4', body: 'alice changed the topic', timestamp: iso(nowMs - 90 * 1000) },
     { kind: 'text', id: 'sb-5', author: eaIdentity, body: 'After a system notice → run broken, not grouped.', timestamp: iso(nowMs - 60 * 1000) },
   ];
@@ -340,7 +359,25 @@
   // background / empty — the wallpaper layer resolves widgetId → component (drop-unknown W-13), same
   // registry as message.details; a KNOWN mount shows through when empty (no fallback paragraph), an
   // UNKNOWN one drops (backgroundMountCount 0) but is still "declared" (still no fallback paragraph).
-  const streamWidgets = { 'fixture.wallpaper': FixtureWidget, 'fixture.time': FixtureWidget, 'fixture.badge': FixtureWidget };
+  const streamWidgets = { 'fixture.wallpaper': FixtureWidget, 'fixture.time': FixtureWidget, 'fixture.badge': FixtureWidget, 'fixture.reg': FixtureRegWidget };
+
+  // stream-extras (M-RP6.9) — the N×M bench, and the only place the registration question can
+  // actually be answered: FOUR rows each carrying THREE mounts, one of them registering. Grouping is
+  // stream-computed, so the run is built to yield exactly two grouped rows (alice, alice → grouped;
+  // self breaks the run; self, self → grouped), which puts the socket on both row types in one
+  // fixture. Same local day throughout ⇒ no day dividers to break the runs.
+  // Expect: 4 registering mounts, ids `stream-extras__m-<msgid>__x-<key>`, all distinct.
+  const sxMounts = [
+    { widgetId: 'fixture.time', props: { label: '👍 4' } },
+    { widgetId: 'fixture.badge', props: { label: '❤️ 2', tone: 'muted' } },
+    { widgetId: 'fixture.reg', props: { label: '👀' } },
+  ];
+  const streamExtras = [
+    { kind: 'text', id: 'sx-1', author: eaIdentity, body: 'Row 1 — head of the run, header + avatar shown.', timestamp: iso(nowMs - 4 * minMs), bodyExtras: sxMounts },
+    { kind: 'text', id: 'sx-2', author: eaIdentity, body: 'Row 2 — grouped continuation. No header, no avatar. Strip still renders.', timestamp: iso(nowMs - 3 * minMs), bodyExtras: sxMounts },
+    { kind: 'text', id: 'sx-3', author: eaSelf, body: 'Row 3 — different author breaks the run; mirrors right.', timestamp: iso(nowMs - 2 * minMs), isOwn: true, bodyExtras: sxMounts },
+    { kind: 'text', id: 'sx-4', author: eaSelf, body: 'Row 4 — grouped continuation on an own row.', timestamp: iso(nowMs - 1 * minMs), isOwn: true, bodyExtras: sxMounts },
+  ];
   const streamBgKnown = [{ widgetId: 'fixture.wallpaper', props: { label: 'wallpaper', tone: 'muted' } }];
   const streamBgUnknown = [{ widgetId: 'does.not.exist', props: { label: 'GHOST' } }];
   let streamBgLive = $state(true); // sampler control → backgroundLive
@@ -978,6 +1015,16 @@
     </div>
 
     <div class="s-row">
+      <div class="s-rowname">message · bodyExtras socket (M-RP6.9)</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-body-extras</span><Message descriptor={msgBodyExtras} widgets={msgWidgets} id="text-body-extras" /></div>
+        <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-extras-grouped</span><Message descriptor={msgExtrasGrouped} widgets={msgWidgets} grouped id="text-extras-grouped" /></div>
+        <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-extras-unknown</span><Message descriptor={msgExtrasUnknown} widgets={msgWidgets} id="text-extras-unknown" /></div>
+        <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#text-extras-deleted</span><Message descriptor={msgExtrasDeleted} widgets={msgWidgets} id="text-extras-deleted" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
       <div class="s-rowname">message · system (C)</div>
       <div class="s-cells">
         <div class="s-cell" style="width: 340px; align-self: flex-start"><span class="s-id">message#system-notice</span><Message descriptor={msgSystemNotice} id="system-notice" /></div>
@@ -991,6 +1038,13 @@
       <div class="s-rowname">message-stream · basic (grouping + system-break)</div>
       <div class="s-cells">
         <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-basic</span><MessageStream messages={streamBasic} widgets={streamWidgets} bind:selected={streamSel} id="stream-basic" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">message-stream · bodyExtras N×M bench (M-RP6.9)</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 380px; align-self: flex-start"><span class="s-id">message-stream#stream-extras</span><MessageStream messages={streamExtras} widgets={streamWidgets} id="stream-extras" /></div>
       </div>
     </div>
 

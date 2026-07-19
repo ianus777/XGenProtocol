@@ -53,6 +53,21 @@ export type MessageKind = 'text' | 'system';
 export interface WidgetMount {
   widgetId: string;
   props?: Record<string, unknown>;
+  /**
+   * Stable per-mount identity (M-RP6.9, D-2). Optional; absent ⇒ the resolver falls back to the
+   * legacy index-composed key `` `${widgetId}-${i}` ``, so every existing mount keeps its current
+   * key and current behaviour.
+   *
+   * WHAT IT IS FOR: identity that survives a runtime add/remove. With index keys, removing one
+   * mount re-keys every mount after it, so Svelte destroys and recreates them — invisible for a
+   * static `<span>`, but state loss plus an animation restart for an interactive mount, on every
+   * UNRELATED removal. It also anchors the envelope id the host hands down (D-1), which a
+   * module-level ordinal fallback cannot (`envelope.ts` — unstable across remounts).
+   *
+   * WHAT IT IS NOT: a protocol field, a wire shape, an attribution, or anything a future tenant may
+   * hang meaning on. It is a rendering key the host reads and nothing else ever interprets.
+   */
+  mountKey?: string;
 }
 
 /**
@@ -65,8 +80,16 @@ export interface WidgetMount {
  *   kind-4 `use:render` (D-065). `deleted` ignores `body`.
  * - `isOwn` is SHELL-SET — `core` never computes `author.id === self`; the message owns the mirror.
  * - `details` / `bodyExtras` are widget sockets (each a `WidgetMount[]`). `details` = the header
- *   region (time · temperature · badges · icon-buttons · send-status led); `bodyExtras` = below the
- *   body (attachments / reactions). `bodyExtras` is RESERVED-UNFED in v1 (D-065).
+ *   region (time · temperature · badges · icon-buttons); `bodyExtras` = below the body
+ *   (attachments · reactions · send-status led).
+ *
+ *   ⚠️ `send-status led` moved from `details` to `bodyExtras` at M-RP6.9 (D-5). The original line
+ *   was written before a composer existed, when nobody had asked whether send-status is header
+ *   CHROME or per-row STATE. It is per-row state — the same category as a reaction, not the same
+ *   category as an author name (J-552 §9.11.5). It matters because a grouped continuation suppresses
+ *   the whole header line: a send-status in `details` would be invisible on exactly the rows that
+ *   most need it (three sends in a row, and a failed third looks identical to a delivered first).
+ *   `bodyExtras` sits below the body, outside the header guard, so it is grouping-immune by position.
  */
 export interface MessageDescriptor {
   kind: MessageKind;
@@ -78,6 +101,6 @@ export interface MessageDescriptor {
   edited?: boolean; // → "(edited)" marker (M-RP5.5 B)
   deleted?: boolean; // → tombstone render, body/details ignored (M-RP5.5 B)
   details?: WidgetMount[]; // header/details region widgets
-  bodyExtras?: WidgetMount[]; // below body: attachments / reactions — reserved-unfed (D-065)
+  bodyExtras?: WidgetMount[]; // below body, OUTSIDE the header guard: attachments / reactions / send-status
   // reserved-unfed (D-065): replyTo?
 }

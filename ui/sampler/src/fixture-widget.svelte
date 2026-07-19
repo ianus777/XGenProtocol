@@ -7,20 +7,8 @@
   let { label = 'widget', tone = 'info' } = $props();
 </script>
 
+<!-- Appearance lives in `skin.css` (§ SAMPLER FIXTURE STUBS, M-RP6.9): it was duplicated here and in
+  the registering twin, Svelte-scoped so neither could reuse the other, and the raw numbers read as
+  arbitrary. One named source now — see that block for the tokens and for why the stub is a proxy
+  rather than the thing. -->
 <span class="fixture-widget" data-tone={tone}>{label}</span>
-
-<style>
-  .fixture-widget {
-    display: inline-block;
-    padding: 0 4px;
-    border-radius: 4px;
-    background: var(--s4);
-    color: var(--t3);
-    font-size: 10px;
-    line-height: 1.4;
-    white-space: nowrap;
-  }
-  .fixture-widget[data-tone='muted'] {
-    opacity: 0.7;
-  }
-</style>

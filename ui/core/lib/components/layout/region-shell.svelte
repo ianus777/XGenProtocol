@@ -27,6 +27,7 @@
   import type { Component } from 'svelte';
   import type { FoldAxis, Layout } from './types';
   import type { WidgetMount } from '../data-dependent/types';
+  import { resolveMounts } from '../data-dependent/mounts';
   import { resolveLayout, treeDepth, carriesMainAxisWeight, type ResolvedNode } from './resolve';
   import { isMoveNoop, move, type Edge } from './mutate';
   import RegionNode from './region-node.svelte';
@@ -78,11 +79,15 @@
   // Background socket (M-RP-PLATE, D1) — the `message-stream` shape exactly: resolve each declared widgetId
   // against `bgWidgets`, DROP an unknown id (W-13), so `backgroundMountCount` reports the RENDERED truth (a
   // dropped unknown lowers it). Resolved into the SEPARATE `bgWidgets` registry — never the tile `widgets`.
-  const resolvedBg = $derived(
-    (background ?? [])
-      .map((m, i) => ({ key: `${m.widgetId}-${i}`, component: bgWidgets[m.widgetId], props: m.props ?? {} }))
-      .filter((b) => !!b.component),
-  );
+  //
+  // M-RP6.9 (D-3, S-2b): "the `message-stream` shape exactly" was literally true — this was the THIRD
+  // character-identical copy of the resolver, and the comment said so while the runbook still missed it.
+  // Now the shared pure `resolveMounts()`; behaviour unchanged.
+  // ⚠️ NO `idPrefix`, and that is load-bearing rather than stylistic: this socket mints no mount ids, and
+  // `grid-plate` SELF-DEFAULTS `id = 'grid-plate'` so it registers as a stable enumerable
+  // `grid-plate#grid-plate`. A prefix here would silently RENAME a registered widget and move every
+  // baseline that counts it. Leave it absent unless that rename is the intent.
+  const resolvedBg = $derived(resolveMounts(background, bgWidgets));
 
   // ── Move gesture (M-RP7.4, D1) ──────────────────────────────────────────────────────────────────────
   const EDGES: Edge[] = ['top', 'bottom', 'left', 'right'];

@@ -26,9 +26,13 @@
   //   - `deleted` — a tombstone: the body paragraph is replaced by a skin-owned placeholder
   //     (`--msg-deleted`), and `details` + `edited` are dropped; the avatar + name STAY (who/where is
   //     still context). Precedence: `deleted` wins over `edited`/`details`/`grouped`-body.
-  // Deferred to later steps: `system` kind (C); `bodyExtras` (reserved-unfed, D-065).
+  // M-RP6.9 scope: the SECOND widget socket, `bodyExtras` — below the body, OUTSIDE the header guard,
+  // so it survives a grouped continuation (the reason it was chosen over perforating grouping,
+  // J-552 §9.11.5). Container only: it renders `WidgetMount[]` and never learns what a mount MEANS —
+  // a reaction, a send-status led and an attachment are the same thing here, deliberately. Its first
+  // real tenants land at Leg D3 (send-status) and M-RP-REACTIONS.
   //
-  // WIDGET SOCKET (W-12 all-widgets model). `details` is a `WidgetMount[]`: the message is a HOST
+  // WIDGET SOCKETS (W-12 all-widgets model). `details` / `bodyExtras` are `WidgetMount[]`: the message is a HOST
   // SURFACE that renders declared widgets by DURABLE id (J-475). Resolution is source-agnostic — the
   // consumer supplies a `widgets` registry (widgetId → component); a mount the host CANNOT resolve is
   // DROPPED (W-13 reconcile), never crashes the row. `core` imports no concrete widget; the region
@@ -40,6 +44,7 @@
   import Label from '../data-independent/label.svelte';
   import Paragraph from '../data-independent/paragraph.svelte';
   import type { MessageDescriptor } from './types';
+  import { resolveMounts } from './mounts';
 
   let {
     descriptor,
@@ -64,22 +69,20 @@
   const authorName = $derived(author?.name ?? author?.id ?? '');
   const hasBody = $derived(!!descriptor.body);
 
-  // details socket — resolve each declared mount against the consumer registry; DROP unknown ids
-  // (W-13). The resolved list is the RENDER truth, so `detailsCount` reports what is actually shown
-  // (== declared-known), and a dropped unknown id lowers the count. Stable per-index key so a
-  // re-render does not churn the mounts.
-  const resolvedDetails = $derived(
-    (descriptor.details ?? [])
-      .map((m, i) => ({
-        key: `${m.widgetId}-${i}`,
-        component: widgets[m.widgetId],
-        props: m.props ?? {},
-      }))
-      .filter((d) => !!d.component),
-  );
-
   // Composite-derived stable child ids (so the self-registering atomics read cleanly, not ordinal).
+  // Declared above the socket resolvers because they namespace their mount ids through it.
   const cid = (s: string) => (id ? `${id}__${s}` : undefined);
+
+  // Widget sockets — resolve each declared mount against the consumer registry; DROP unknown ids
+  // (W-13). The resolved list is the RENDER truth, so `detailsCount` / `bodyExtrasCount` report what
+  // is actually shown (== declared-known), and a dropped unknown id lowers the count.
+  //
+  // M-RP6.9 (D-3): the resolution rule moved to the pure `resolveMounts()` — it had three
+  // character-identical copies and no tests. Behaviour here is unchanged: the key still falls back
+  // to the legacy `${widgetId}-${i}`, and the declared index is still taken before the filter.
+  // The `d-` / `x-` namespaces cannot collide with the literal `avatar` / `name` / `body` suffixes.
+  const resolvedDetails = $derived(resolveMounts(descriptor.details, widgets, cid('d-')));
+  const resolvedBodyExtras = $derived(resolveMounts(descriptor.bodyExtras, widgets, cid('x-')));
 
   // Aggregate getter. `author` = a readable identifier (name ?? id) or null for the authorless
   // system kind; `detailsCount` = RESOLVED (rendered) mounts, the drop-unknown proof. `grouped` /
@@ -97,6 +100,7 @@
           author: null,
           hasBody,
           detailsCount: 0,
+          bodyExtrasCount: 0,
           isOwn: false,
           grouped: false,
           edited: false,
@@ -108,6 +112,7 @@
           author: author ? (author.name ?? author.id) : null,
           hasBody,
           detailsCount: deleted ? 0 : resolvedDetails.length,
+          bodyExtrasCount: deleted ? 0 : resolvedBodyExtras.length,
           grouped,
           edited,
           deleted,
@@ -157,7 +162,7 @@
           <span class="msg-details">
             {#each resolvedDetails as d (d.key)}
               {@const W = d.component}
-              <W {...d.props} />
+              <W id={d.id} {...d.props} />
             {/each}
           </span>
         {/if}
@@ -172,6 +177,23 @@
       {#if edited}
         <span class="message-edited">(edited)</span>
       {/if}
+    {/if}
+    <!-- `bodyExtras` (M-RP6.9) — the per-row socket: attachments / reactions / send-status. It sits
+      BELOW the body and OUTSIDE the `{#if !grouped}` header guard, and THAT POSITION IS THE POINT: a
+      grouped continuation suppresses the whole header line (name + `details`), so a per-row marker in
+      `details` would be invisible on exactly the rows a send-status or a reaction most needs to reach.
+      This strip is grouping-immune by position, which is why the socket was chosen over perforating
+      the grouping rule (J-552 §9.11.5).
+      Dropped on a tombstone (D-4): the container cannot tell an attachment (must vanish with the body)
+      from a reaction (arguably survives) — the fence forbids it knowing — so ONE conservative rule,
+      matching `details`. Reversible at M-RP-REACTIONS, where the tenant is known. -->
+    {#if !deleted && resolvedBodyExtras.length}
+      <div class="msg-body-extras">
+        {#each resolvedBodyExtras as x (x.key)}
+          {@const W = x.component}
+          <W id={x.id} {...x.props} />
+        {/each}
+      </div>
     {/if}
   </div>
 </article>

@@ -43,6 +43,7 @@
   import Paragraph from '../data-independent/paragraph.svelte';
   import type { MessageDescriptor, WidgetMount } from './types';
   import { computeRows, DIVIDER_REFRESH_MS, type StreamStatus } from './stream/grouping';
+  import { resolveMounts } from './mounts';
 
   let {
     messages = [],
@@ -103,26 +104,25 @@
   const dividerCount = $derived(rows.filter((r) => r.kind === 'divider').length);
   const statusRows = $derived(rows.filter((r) => r.kind === 'status'));
 
+  // Composite-derived stable child ids so the self-registering children read cleanly (the
+  // entity-panel / message precedent). Each message → `<id>__m-<msgid>`, its own atomics then nest
+  // `<id>__m-<msgid>__avatar` etc. — a clean parent-prefix chain (0 orphans both directions).
+  // Declared above the background resolver because it namespaces its mount ids through `cid`.
+  const cid = (s: string) => (id ? `${id}__${s}` : undefined);
+  const msgId = (mid: string) => (id ? `${id}__m-${mid}` : undefined);
+
   // Background mounts — resolve each declared widgetId against the consumer registry; DROP unknown
   // ids (W-13, the `message.details` mechanism). The resolved list is the render truth, so
   // `backgroundMountCount` reports what is actually shown (a dropped unknown lowers it).
-  const resolvedBg = $derived(
-    (background ?? [])
-      .map((m, i) => ({ key: `${m.widgetId}-${i}`, component: widgets[m.widgetId], props: m.props ?? {} }))
-      .filter((b) => !!b.component),
-  );
+  // M-RP6.9 (D-3): resolution moved to the shared pure `resolveMounts()`; behaviour unchanged (the
+  // key still falls back to the legacy `${widgetId}-${i}`).
+  const resolvedBg = $derived(resolveMounts(background, widgets, cid('bg-')));
 
   // Empty fallback (§9.4): a default paragraph shows ONLY when there are no messages AND no
   // background was DECLARED. If `background` is set (even if all mounts drop as unknown) it "shows
   // through" — no separate empty paragraph.
   const backgroundDeclared = $derived((background?.length ?? 0) > 0);
   const showEmpty = $derived(count === 0 && !backgroundDeclared);
-
-  // Composite-derived stable child ids so the self-registering children read cleanly (the
-  // entity-panel / message precedent). Each message → `<id>__m-<msgid>`, its own atomics then nest
-  // `<id>__m-<msgid>__avatar` etc. — a clean parent-prefix chain (0 orphans both directions).
-  const cid = (s: string) => (id ? `${id}__${s}` : undefined);
-  const msgId = (mid: string) => (id ? `${id}__m-${mid}` : undefined);
 
   function selectRow(mid: string) {
     selected = mid;
@@ -255,7 +255,7 @@
       <div class="message-stream-bg" aria-hidden="true">
         {#each resolvedBg as b (b.key)}
           {@const W = b.component}
-          <W {...b.props} {backgroundLive} />
+          <W id={b.id} {...b.props} {backgroundLive} />
         {/each}
       </div>
     {/if}

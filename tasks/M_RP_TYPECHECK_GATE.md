@@ -1,6 +1,6 @@
 # M-RP-TYPECHECK — a type gate for `ui/**`
 > **Status**: COMPLETED  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-19  
 > Language: English  
@@ -373,7 +373,7 @@ arc from Chat.* The split is now explicit so the next milestone that copies this
 - [x] Test-file error count **measured and stated** (§2.9) → **0, positively controlled**
 - [x] **V3 driven both kinds** — gate proven able to go red (`.ts` **and** `.svelte`, both files named), reverted, re-run green
 - [x] **V4 driven** — alias drift exercised
-- [x] Every §5 floor **predicted then measured** → cargo **1546/0/62 × 56**, npm **132**, vite **193/170**, all SEEN
+- [x] Every §5 floor **predicted then measured** → cargo **1546/0/62 × 56**, npm **132**, vite **193/170**, all SEEN. ⚠️ **v1.2 CORRECTION (J-559): this tick OVERCLAIMED.** §5 also lists **catalogue 419** and **client registry 134**, and neither was measured at close — they were judged unaffected because the edits were type-level, which is a judgement, not a measurement, on a milestone that touched `region-shell.svelte` (the live grid renderer) and `mutate.ts`. **Both have since been measured and BOTH HOLD: registry 134** (`snapshot()` keys and `ids` agree, all unique) **and catalogue 419** with `count === unique === domCount`. *The numbers were right; the tick was not earned when it was made.*
 - [x] `cargo test` **identical**, stated as the direct proof of zero Rust
 - [x] Behaviour change surfaced rather than folded — **`meter.name` folded in WITH a proof of zero behaviour change, and declared** (§1.3)
 - [x] No probe artifact left on disk; `git status` clean of unintended files

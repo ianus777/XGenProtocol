@@ -1,6 +1,6 @@
 # M-RP6.3 — live messaging: R6 composer + narrow-B send path
 > **Status**: ACTIVE  
-> Version: 1.9  
+> Version: 2.0  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-19  
 > Language: English  
@@ -694,6 +694,18 @@ deferred C2 decision. **Filed, not built.**
 
 ## §9.11 — Leg D Phase-0 (grounded against HEAD, 2026-07-19; Joe-locked)
 
+> ⚠️ **RE-GROUND NOTE (J-559, added after M-RP6.9 and M-RP-TYPECHECK landed).** The **substance of
+> §9.11 stands**; **four references below have shifted and one section is in the wrong tense.**
+> Read the substance, not the line numbers:
+> - `resident.rs:706` (the outcome struct) → now **`743–761`**
+> - `fanout.rs:305` (author exclusion by identity) → now **`303` · `1067` · `1116`**
+> - `desktop.rs:331` (`try_send`) → now **`346`**; the bounded wait is **`363`**
+> - `message.svelte:71` (widget resolution) → now **`:56`** (`widgets?: Record<string, Component>`) and **`:63`** (`isOwn`)
+> - `message.svelte:29` — *"`bodyExtras` declared but never rendered"* is **SUPERSEDED: M-RP6.9 BUILT IT** (J-556)
+>
+> ⚠️ **AND §9.11.4 IS WRITTEN IN THE PRESENT TENSE ABOUT A BUG THAT IS CLOSED** — see its own
+> heading note. **Do not re-fix it.**
+
 Driven before any runbook, per the standing order that a `core`- or Rust-shaped
 answer changes the milestone's shape and finding that out mid-runbook is the
 expensive order. **Unlike C2, the answers did NOT come back shell-only.**
@@ -754,7 +766,12 @@ DOCUMENTED property rather than a leak.*
 | 11 | **N windows, one device** — consistent, falls out of #2. Not "two": stated as N so nobody special-cases a pair. |
 | 12 | **No room latched ⇒ typing yes, sending no.** Silently accepting a sentence that goes nowhere is the worst of the three options. |
 
-### §9.11.4 — ⚠️ D-3 · THE SILENT QUEUE IS ALREADY SHIPPED. LEG D IS NOT ZERO-RUST.
+### §9.11.4 — ✅ **CLOSED AT LEG D1 (J-553, `53dab37`) — READ IN THE PAST TENSE** · ⚠️ D-3 · THE SILENT QUEUE WAS ALREADY SHIPPED. LEG D IS NOT ZERO-RUST.
+
+> ✅ **FIXED.** `desktop.rs:363` now calls `await_send_outcome(reply_rx, SEND_QUEUE_TIMEOUT)`, and
+> `SEND_QUEUE_TIMEOUT` is **DERIVED** (`SEND_ACK_TIMEOUT + PENDING_SWEEP_INTERVAL + 5`) with a test
+> asserting it outlasts the drain's worst case. **The description below is of the pre-D1 state and is
+> retained as the reasoning that produced the fix — it is NOT a live defect. Do not re-fix it.**
 
 **`send_message` never checks link state.** It `try_send`s onto the outbound
 channel (`desktop.rs:331`) and awaits the reply. And `io.outbound_rx.recv()` is

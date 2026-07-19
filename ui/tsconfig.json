@@ -1,0 +1,29 @@
+{
+  "// unit": "The LIBRARY (ui/core + ui/common), not the three app packages. The shells are plain JS (M-RP-TYPECHECK §2.1); the libraries are 100% lang=\"ts\". templates/ and backup/ are a dead mockup archive and must never enter a check.",
+  "// paths": "DUPLICATED from the three ui/*/vite.config.js alias blocks — a known D-067 surface, accepted and named (M-RP-TYPECHECK §2.4). If you change an alias here, change it in client/node/sampler vite.config.js too. The drift is EXERCISED at V4: breaking a vite alias does NOT turn this check red.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "$common/*": ["common/lib/*"],
+      "$core/*": ["core/lib/*"],
+      "$assets/*": ["assets/*"]
+    }
+  },
+  "include": [
+    "core/lib/**/*.ts",
+    "core/lib/**/*.svelte",
+    "common/lib/**/*.ts",
+    "common/lib/**/*.svelte"
+  ],
+  "exclude": ["node_modules", "templates", "backup"]
+}

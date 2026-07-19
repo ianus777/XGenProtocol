@@ -1,6 +1,6 @@
 # M-RP-TYPECHECK — a type gate for `ui/**`
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-19  
 > Language: English  
@@ -81,7 +81,18 @@ Of the 13: **10 confirmed-shape, 3 UNCONFIRMED** (see §1.5). `.ts`-only with te
 |---|---|---|---|
 | A | `component?: Component` in `common/lib/plugins/registry.ts` — bare `Component` means *takes no props*; every entry is a region widget with a required `regionId` | **6** | one type |
 | B | narrowing lost across a closure / `let` — `core/lib/components/layout/mutate.ts:95`, `core/lib/components/layout/region-shell.svelte:254` | **2** | `const split = node` after the guard |
-| C | attribute typings — `textfield.svelte:76` (`autocomplete` → `FullAutoFill`), `meter.svelte:75` (`name` not in `HTMLMeterAttributes`) | **2** | two lines |
+| C | attribute typings — `textfield.svelte:76` (`autocomplete` → `FullAutoFill`), `meter.svelte:75` (`name` not in `HTMLMeterAttributes`) | **2 → ⚠️ ACTUALLY 3** | two lines |
+
+**⚠️ v1.1 — §8 #4 FIRED, EXACTLY AS IT ANTICIPATED.** Root cause C is **3 sites, not 2**: `password-field.svelte`
+forwards `autocomplete` and had to move to `FullAutoFill` as well. The grouping was built by reading five error
+sites and was slightly wrong; Clair flagged it rather than absorbing it. *The runbook naming its own weak spot is
+what turned this into a flag instead of a silent drift.*
+
+**`meter.name` — FOLDED IN, NOT ESCALATED, AND THE REASONING IS ON THE RECORD.** `name` was never valid HTML on
+`<meter>` and is passed by **no call site** (verified independently: 8 `<Meter` usages, all in `app_sampler.svelte`,
+none passing `name`). `{name}` therefore always evaluated to `undefined` and the attribute was never emitted.
+**Removal is provably zero behaviour change**, so it is not the "a fix changed behaviour → escalate" case Leg B
+meant. Correct call, correctly declared.
 
 **Root cause A is not cosmetic.** `component?: Component` currently types the field as
 *"a component taking no props"*. Every `CLIENT_PLUGINS` entry is mounted by the shell **with**
@@ -114,9 +125,13 @@ shipped `core`". That was RETRACTED before this runbook was written.** Grounded 
 **Most likely a probe artifact: the junction served Svelte 5.55.5 while the probe dir held 5.56.6.**
 *A number obtained by mixing two versions of the compiler is not a measurement of this codebase.*
 
-**→ Leg A re-measures under a pinned single-version toolchain and DECOMPOSES the result. If the 3
-survive, one of them is inside shipped, CDP-verified `core` — that is a FINDING FOR JOE, not a
-tidy-up, and it stops this milestone rather than getting folded into Leg B.**
+→ **✅ RESOLVED AT LEG A — AND THE PREDICTION WAS WRONG ABOUT THE MECHANISM.** Not a version artifact. A **literal
+`<style>` tag inside a `//` comment in `<script>`, in a file that also has a real style block**, makes svelte2tsx
+read the script as never closed — stripping the default export and failing every importer. **Reproducible on the
+pinned 5.55.5.** The compiler is unaffected, which is why it shipped and was CDP-verified while being invisible to
+every floor the project had. **🔑 The gate justified itself on its first run, on already-shipped code.** Fixed by
+rewording the comment plus a warning left at the point of contact. Latent set swept: **4 in scope**
+(`color-picker`, `shelf-face`, `shelf`, `region-tile`) + **3 out of scope** (`ui/client/src`). → **N-144**
 
 ### §1.6 ⚠️ THREE SVELTE VERSIONS, MEASURED
 
@@ -153,9 +168,14 @@ cause.**
 ### §2.3 🔒 HOME = a real `ui/package.json`. FORCED, not preferred.
 **Grounded: 14 bare `svelte` / `svelte/attachments` imports live in `core` + `common`** (`Component`,
 `Snippet`, `tick`, `untrack`, `createAttachmentKey`). TypeScript resolves those by walking up from
-the importing file: `ui/core/node_modules` → `ui/node_modules` → … **None exist.** The library
+the importing file: `ui/core/node_modules` → `ui/node_modules` → … **Neither holds any packages.** The library
 free-rides on three copies of `node_modules` via vite aliases, and **nothing can resolve `svelte`
 from `ui/core` or `ui/common` at all.**
+
+⚠️ **v1.1 CORRECTION (Clair, Rule 6):** v1.0 said these directories *"None exist"*. **`ui/core/node_modules` DOES
+exist** — a `.vite` cache holding no packages. **Evidence wrong, conclusion right, decision unaffected.** Chat
+asserted a non-existence without running a `Test-Path` — the J-556 class a third time on this arc, and in the
+runbook of the milestone built to answer it.
 
 The Phase-0 probe faked this with a directory junction. **A junction cannot ship.**
 
@@ -212,6 +232,8 @@ type hides.
 **⚠️ BINDING: the error count with tests INCLUDED AND vitest RESOLVABLE HAS NEVER BEEN MEASURED.
 Leg A measures it. It is NOT assumed clean, and it is NOT counted inside the 13.** If it opens a
 backlog, that is a Leg-A decomposition and a decision, not a silent scope grab.
+
+→ **✅ MEASURED AT LEG A: 0 test-file errors — positively controlled, not assumed.**
 
 ---
 
@@ -336,20 +358,35 @@ left `ui/svelte.config.js`, `ui/vite.config.js`, `ui/tsconfig.json`, a `ui/node_
 
 ## §7 — DEFINITION OF DONE
 
-- [ ] `ui/package.json`, `ui/svelte.config.js`, `ui/tsconfig.json` created; `ui/common/tsconfig.json` deleted
-- [ ] `npm run check` in `ui/` → **errors 0**; warning count recorded as a number, not "some"
-- [ ] Baseline **decomposed**, not adjusted (§Leg A); the separator family resolved as artifact **or** escalated
-- [ ] Test-file error count **measured and stated** (§2.9) — never assumed clean
-- [ ] **V3 driven both kinds** — the gate proven able to go red, and reverted
-- [ ] **V4 driven** — alias drift exercised
-- [ ] Every §5 floor **predicted then measured**; SEEN vs DERIVED marked
-- [ ] `cargo test` **identical**, and stated as the direct proof of zero Rust
-- [ ] Any behaviour change surfaced as a **FINDING**, not folded in
-- [ ] No probe artifact left on disk; `git status` clean of unintended files
-- [ ] N-142 in **its own commit**
-- [ ] N-138 marked **GRADUATED**; `M-RP-A11Y` filed
-- [ ] ROADMAP · JOURNAL · CLAUDE.md PLAY · this doc updated together (D-074)
-- [ ] `Status: COMPLETED` on this doc
+⚠️ **v1.1 — SEAT ERROR IN v1.0's DoD, CAUGHT BY CLAIR (Rule 6).** Items marked **[CHAT]** below were written as
+though the implementer owned them. **They do not.** This session's seat division puts every canonical record with
+Chat, and the kickoff said so plainly — so the runbook and the kickoff, both authored by Chat, contradicted each
+other. **Clair followed the kickoff and wrote no records, which was correct.** *This is the J-499/J-548/J-553/J-556
+class — a document disagreeing with another document, findable only by reading both whole — and the fifth on this
+arc from Chat.* The split is now explicit so the next milestone that copies this DoD copies it right.
+
+**— IMPLEMENTER (Clair) —**
+
+- [x] `ui/package.json`, `ui/svelte.config.js`, `ui/tsconfig.json` created; `ui/common/tsconfig.json` deleted
+- [x] `npm run check` in `ui/` → **errors 0**; warnings recorded as a number → **0 errors / 34 warnings / 15 files, exit 0**
+- [x] Baseline **decomposed**, not adjusted (§Leg A); separator family resolved — **neither artifact nor escalation, but a third answer: a real, reproducible svelte2tsx trigger** (→ N-144)
+- [x] Test-file error count **measured and stated** (§2.9) → **0, positively controlled**
+- [x] **V3 driven both kinds** — gate proven able to go red (`.ts` **and** `.svelte`, both files named), reverted, re-run green
+- [x] **V4 driven** — alias drift exercised
+- [x] Every §5 floor **predicted then measured** → cargo **1546/0/62 × 56**, npm **132**, vite **193/170**, all SEEN
+- [x] `cargo test` **identical**, stated as the direct proof of zero Rust
+- [x] Behaviour change surfaced rather than folded — **`meter.name` folded in WITH a proof of zero behaviour change, and declared** (§1.3)
+- [x] No probe artifact left on disk; `git status` clean of unintended files
+- [x] Deviations flagged, not absorbed — **7 Rule-6 flags, 2 of which corrected this runbook**
+
+**— RECORDS (Chat) —**
+
+- [x] **[CHAT]** N-142 in **its own commit**
+- [x] **[CHAT]** N-138 marked **GRADUATED**; `M-RP-A11Y` filed → **N-146**
+- [x] **[CHAT]** New notes for the findings → **N-144** (svelte2tsx) · **N-145** (`--ignore` rejected; noise stays)
+- [x] **[CHAT]** v1.0's false `node_modules` claim corrected here **and** in the pushed J-557 records
+- [x] **[CHAT]** ROADMAP · JOURNAL · CLAUDE.md PLAY · this doc updated together (D-074)
+- [x] **[CHAT]** `Status: COMPLETED` on this doc
 
 *(No "commit pushed" item — it is unflippable inside the commit that performs the push. `Status:
 COMPLETED` is the signal. Joe pushes.)*

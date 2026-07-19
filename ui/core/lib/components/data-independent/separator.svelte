@@ -27,7 +27,15 @@
   // separator is accent-NEUTRAL chrome (the led/meter no-accent precedent).
   //
   // The type-class is supplied by `envelope` (N-023), so no `class` is hardcoded. No local
-  // CSS: empty <style>, all appearance is skin (N-025 / N-021 layer 2).
+  // CSS: an empty style block, all appearance is skin (N-025 / N-021 layer 2).
+  //
+  // ⚠️ DO NOT write the literal tag `<` + `style>` in a comment in this script block. svelte2tsx
+  // (the type-gate's transformer, NOT the compiler) splits a .svelte file by scanning for the
+  // style tag; a literal one inside <script>, in a file that ALSO has a real style block, makes
+  // it read the script as never closed — "`<script>` was left open" — which strips the default
+  // export and fails every importer (menu, status-bar). The compiler is unaffected, which is why
+  // this shipped and was CDP-verified while being invisible. Measured at M-RP-TYPECHECK Leg A:
+  // this one comment cost 3 of the baseline's 13 errors.
   import { envelope } from '$common/components/base/envelope';
 
   let {

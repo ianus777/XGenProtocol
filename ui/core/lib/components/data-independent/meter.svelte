@@ -35,7 +35,6 @@
     fill,
     disabled = false,
     id,
-    name,
   }: {
     /** The current value (read-only; plain, not $bindable). */
     value: number;
@@ -57,7 +56,6 @@
     fill?: string;
     disabled?: boolean;
     id?: string;
-    name?: string;
   } = $props();
 
   // N-024 opt-in is one greppable line. $state.snapshot de-proxies for CDP returnByValue. Config
@@ -72,7 +70,6 @@
   {optimum}
   {low}
   {high}
-  {name}
   aria-disabled={disabled ? 'true' : undefined}
   style={[width ? `width: ${width}` : '', fill ? `--meter-fill: ${fill}` : ''].filter(Boolean).join('; ') || undefined}
   use:envelope={{ name: 'meter', id, debug }}

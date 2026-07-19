@@ -34,6 +34,7 @@
   // is skin, keyed by `.textfield` (+ `.textfield[type=…]`) in the one skin file
   // (N-025 / N-021 layer 2). Pre-skin it renders as the bare normalize.css/native control.
   import { envelope } from '$common/components/base/envelope';
+  import type { FullAutoFill } from 'svelte/elements';
 
   let {
     type = 'text',
@@ -55,7 +56,11 @@
     id?: string;
     pattern?: string;
     name?: string;
-    autocomplete?: string;
+    /** The DOM's own autofill union, not a bare string (M-RP-TYPECHECK root cause C). `<input
+     *  autocomplete>` accepts `FullAutoFill`, so a `string` prop could hand the element a value the
+     *  platform does not define — the browser silently ignores it, which is why this never surfaced.
+     *  Typing it here makes a typo a build error instead of a dead attribute. */
+    autocomplete?: FullAutoFill;
     redactValue?: boolean;
   } = $props();
 

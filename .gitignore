@@ -58,6 +58,9 @@ test_runs/
 ui/sampler/node_modules/
 ui/core/node_modules/
 ui/common/node_modules/
+# The type-gate's own deps (M-RP-TYPECHECK). ui/package-lock.json IS committed —
+# it is what makes the exact svelte 5.55.5 pin real.
+ui/node_modules/
 
 # CDP verification screenshots (local eye-checks, not tracked)
 ui/docs/_shots/

@@ -43,6 +43,17 @@ export type PluginSurface = 'none' | 'region' | 'shelf' | 'window';
 /** W-13: system => non-removable (built-in); custom => install/remove. */
 export type PluginKind = 'system' | 'custom';
 
+/** The props `region-node` passes a REGION widget — grounded against region-node.svelte: it passes
+ *  `regionId` and nothing else (an earlier runbook draft assumed `{regionId, id}`; it is not that).
+ *  A widget may declare further OPTIONAL props (`self-panel`'s self-derived `id`) — optional props
+ *  stay assignable, which is exactly why this contract can be stated without touching a widget. */
+export type RegionWidgetProps = { regionId: string };
+
+/** The props `region-shell` passes a BACKGROUND mount (M-RP-PLATE) — the `backgroundLive` settings
+ *  switch, alongside the mount's own `WidgetMount.props`. Distinct from a region contract: a
+ *  backdrop has no region, no tile and no `regionId`. */
+export type BackgroundWidgetProps = { backgroundLive?: boolean };
+
 export interface PluginDescriptor {
   /** Stable local id. */
   id: string;
@@ -65,8 +76,16 @@ export interface PluginDescriptor {
   icon?: string;
   /** iff surface === 'region' — the D-103 leaf it occupies (regionId === widgetId, N-100). */
   regionId?: string;
-  /** iff it has a surface the shell mounts via the descriptor (i.e. a region). */
-  component?: Component;
+  /** iff it has a surface the shell mounts via the descriptor (i.e. a region), OR it is a
+   *  `surface: 'none'` row the shell mounts into a named host socket (the grid-plate shape).
+   *
+   *  ⚠️ TYPED AS THE UNION OF THE TWO REAL MOUNT CONTRACTS (M-RP-TYPECHECK, root cause A).
+   *  A bare `Component` types this as *"a component taking NO props"*, which is false for every
+   *  region row: `region-node` mounts them WITH a required `regionId`, so six of the eight
+   *  assignments below were type errors nothing could see. `grid-plate` did not error only
+   *  because all of ITS props are optional — the field was never checking the contract, it was
+   *  checking whether the props happened to be omissible. */
+  component?: Component<RegionWidgetProps> | Component<BackgroundWidgetProps>;
   /** The plugin's own settings component (M-RP-SETTINGS Leg B, D-B). Its PRESENCE is `hasSettings`:
    *  the row's [settings] button enables iff this is set. UNDEFINED on every row this leg — so the
    *  button is greyed for all, for the real per-plugin reason "this plugin has no settings", never a

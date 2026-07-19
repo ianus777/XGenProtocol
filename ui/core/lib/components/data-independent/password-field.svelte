@@ -25,6 +25,7 @@
   // Confirm-password match is a DIFFERENT unit (a future `password-confirm` composite wrapping two
   // fields; equality-checking interprets values -> leans dd). Not built here.
   import { envelope } from '$common/components/base/envelope';
+  import type { FullAutoFill } from 'svelte/elements';
   import Textfield from './textfield.svelte';
   import Button from './button.svelte';
 
@@ -44,7 +45,10 @@
     readonly?: boolean;
     id?: string;
     name?: string;
-    autocomplete?: string;
+    /** Forwarded verbatim to the child `textfield`, so it carries the child's type (M-RP-TYPECHECK
+     *  root cause C). NOT a separate error at baseline — it became one the moment textfield stopped
+     *  accepting a bare string, which is what a forwarded prop is supposed to do. */
+    autocomplete?: FullAutoFill;
     revealedByDefault?: boolean;
   } = $props();
 

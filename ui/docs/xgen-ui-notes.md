@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: May 2026  
 > **Last updated**: 2026-07-19  
 > Language: English  
@@ -2764,7 +2764,7 @@ M-RP6.6 replaced the desktop scaffold (`connect_async` → **drop the stream** �
 
 ## 2026-07-19
 
-### N-138 — NO `ui/**` PACKAGE RUNS A TYPECHECK, SO NO GATE ON THIS PROJECT CAN SEE A TYPE ERROR — THE FRONTEND FLOORS PROVE RUNTIME AND BUNDLING, NOTHING ELSE (J-551)
+### N-138 — ✅ **GRADUATED at M-RP-TYPECHECK (J-558)** — the gate exists: `npm run check` in `ui/`, floor `svelte-check 0 errors`. NO `ui/**` PACKAGE RUNS A TYPECHECK, SO NO GATE ON THIS PROJECT CAN SEE A TYPE ERROR — THE FRONTEND FLOORS PROVE RUNTIME AND BUNDLING, NOTHING ELSE (J-551)
 
 Surfaced while scoping the one-field `IngestEvent.event_type` → `type` fix. `grep` found three readers, and the
 second of them — `wireType()`'s `e.event_type` fallback — would become a **property that does not exist on the
@@ -2903,6 +2903,86 @@ of a moving object; appending to it preserves the stale snapshot and adds to it.
 later change mattered.
 
 → J-556 · N-109 family
+
+---
+
+### N-144 — ⚠️ A LITERAL `<style>` TAG INSIDE A `//` COMMENT IN `<script>` BREAKS svelte2tsx BUT NOT THE COMPILER — SO IT SHIPS, PASSES CDP, AND IS INVISIBLE TO EVERY GATE THE PROJECT HAD (J-558)
+
+Found by the first run of the M-RP-TYPECHECK gate, and it accounted for **3 of the baseline's 13 errors**.
+
+**The mechanism.** `svelte2tsx` — the transformer the type-gate uses, **not** the Svelte compiler — splits a `.svelte`
+file by scanning for the style tag. A **literal** one written inside `<script>`, **in a file that also has a real
+style block**, makes it read the script as never closed: `` `<script>` was left open ``. That strips the module's
+default export, so **every importer fails too** — here `menu.svelte` and `status-bar.svelte` reported
+*"has no default export"*, which points at the wrong file entirely.
+
+**BOTH CONDITIONS ARE REQUIRED.** A comment tag alone is inert; a real style block alone is fine. `sb-cell.svelte`
+carries the identical empty `<style></style>` and never erred, because its comments contain no tag. *That is why the
+first diagnosis — "a version artifact" — was wrong: the inconsistency looked like nondeterminism and was actually a
+second condition nobody had spotted.* **Reproducible on the pinned 5.55.5.**
+
+**🔑 WHY THIS ONE MATTERS BEYOND ITSELF.** `svelte.compile` accepts the file, 0 warnings, under both 5.55.5 and
+5.56.6. It bundles. It renders. **It was CDP-verified.** A defect that every existing floor was structurally
+incapable of seeing is exactly the thing N-138 said the project had no way to catch — **and the very first run of
+the gate built to answer N-138 caught one.** The gate justified itself on day one, on a file that had already
+shipped.
+
+**LATENT SET, SWEPT AND COUNTED (not estimated).** Files carrying a tag in a `//` comment but **no** real style
+block — inert today, one `<style></style>` from breaking:
+- **In the gate's scope (4):** `color-picker` · `shelf-face` · `shelf` · `region-tile`
+- **Outside it (3):** `about-content` · `uistate-load-dialog` · `uistate-save-dialog` (`ui/client/src`, which the gate
+  does not cover — they cannot break it today, and would if the shells are ever typed)
+
+**Deliberately NOT swept.** A warning comment was left in `separator.svelte` **at the point of contact** instead,
+which is where the next person actually meets the problem. *A sweep protects the four files that exist; a comment
+protects the ones not written yet.*
+
+→ J-558 · N-138 family
+
+---
+
+### N-145 — `svelte-check --ignore` IS **REJECTED** ALONGSIDE `--tsconfig`, AND THE VITE-CONFIG NOISE HAS NO CHEAP FIX — TWO ATTEMPTS, BOTH FAILED, BOTH MEASURED (J-558)
+
+On every green run the gate prints three **error-shaped** lines before doing any work:
+`Error while loading config at …/{client,sampler,node}/vite.config.js — No Svelte configuration found in vite config`,
+each with a stack trace. Harmless — exit code and counts are unaffected — but **it reads like a broken gate**, and
+training people to skim a gate's output is how a real message gets missed.
+
+**Cause:** svelte-check's `ConfigLoader` eagerly globs the workspace for vite configs, and the three app configs
+`import { svelte } from '@sveltejs/vite-plugin-svelte'`, which is **not resolvable from `ui/`**.
+
+**Attempt 1 — `--ignore "client,node,sampler"`: REJECTED OUTRIGHT.** svelte-check throws
+*"`--ignore` only has an effect when using `--no-tsconfig`"* and **exits before running**. ⚠️ **And the naive check
+for success passed:** grepping the output for the noise returned **0 matches** — because there was no run at all.
+**N-110/N-139 one layer up: "the bad thing is absent" and "nothing happened" are the same string.** Always confirm
+the run PRODUCED ITS SUMMARY LINE before concluding anything from what is missing.
+
+**Attempt 2 — add `@sveltejs/vite-plugin-svelte` to `ui/package.json`: NO EFFECT.** Still 3 noise lines; 14 packages
+added for nothing. Reverted, and the lockfile then had to be wiped and regenerated because `npm uninstall` left
+`node_modules` at 63 entries where a clean install gives 62.
+
+**RESOLUTION: the noise STAYS, documented.** Not worth a wrapper that filters stderr — that would hide real loader
+errors too. **Clair's original call (flag it, do not touch the locked script) was right, and Chat's override was
+wrong on both proposed fixes.**
+
+→ J-558 · N-139/N-110 family
+
+---
+
+### N-146 — THE GATE COUNTS ITS WARNINGS SO THEY CANNOT DRIFT SILENTLY; `M-RP-A11Y` OWNS THEM (J-558)
+
+The typecheck floor is **two numbers, both quoted, always**: `svelte-check 0 errors / 34 warnings`. Errors gate;
+warnings are recorded. **34 across 15 files at M-RP-TYPECHECK close**, ~24 of them a11y (`role` / `tabindex` /
+click-handler-without-key-handler), the rest `$state` and initial-value-capture notes.
+
+**Deliberately OUT of the gate:** fixing them changes **markup in shipped, CDP-verified `core` components** — a
+behaviour arc with an appearance edge, not a lint pass. But an uncounted warning stream is a backlog that quietly
+becomes permanent, so **the number is a floor like any other**: it did not move across the whole milestone (34
+before, 34 after), which is itself evidence the fixes were type-level and behaviour-neutral.
+
+→ **`M-RP-A11Y` — a11y warnings on the `core` component library. FILED, unscoped.**
+
+→ J-558 · N-138 family
 
 ---
 

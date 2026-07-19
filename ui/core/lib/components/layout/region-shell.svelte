@@ -249,15 +249,20 @@
 
     for (const idx of path) {
       if (node.type !== 'split') break; // defensive
-      const dir = node.dir;
-      const weighted = node.children.map((c) => carriesMainAxisWeight(c, dir));
-      const totalWeight = node.children.reduce((s, _c, i) => s + (weighted[i] ? node.sizes[i] : 0), 0);
+      // `node` is a `let` (the walk reassigns it), so its narrowing is LOST inside a closure — TypeScript
+      // cannot know `reduce`'s callback runs before the reassignment below. Bind the narrowed value to a
+      // `const` and read the split through that. Zero behaviour change: `split` IS `node` for this
+      // iteration, and the reassignment at the foot of the loop is untouched. (M-RP-TYPECHECK root cause B.)
+      const split = node;
+      const dir = split.dir;
+      const weighted = split.children.map((c) => carriesMainAxisWeight(c, dir));
+      const totalWeight = split.children.reduce((s, _c, i) => s + (weighted[i] ? split.sizes[i] : 0), 0);
       const strips = weighted.filter((w) => !w).length;
       // Weighted children share the axis MINUS the fixed strips; a strip child takes exactly `stripPx`.
       const share = (dir === 'row' ? rect.width : rect.height) - strips * stripPx;
       let offset = 0;
-      for (let i = 0; i < node.children.length; i++) {
-        const extent = weighted[i] ? (totalWeight > 0 ? (share * node.sizes[i]) / totalWeight : 0) : stripPx;
+      for (let i = 0; i < split.children.length; i++) {
+        const extent = weighted[i] ? (totalWeight > 0 ? (share * split.sizes[i]) / totalWeight : 0) : stripPx;
         if (i === idx) {
           rect = dir === 'row'
             ? { left: rect.left + offset, top: rect.top, width: extent, height: rect.height }
@@ -266,7 +271,7 @@
         }
         offset += extent;
       }
-      node = node.children[idx];
+      node = split.children[idx];
     }
     return rect;
   });

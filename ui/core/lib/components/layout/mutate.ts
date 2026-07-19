@@ -92,8 +92,15 @@ function nodeAtPath(root: LayoutNode, path: number[]): LayoutNode | null {
 /** Immutably replace the target split's `sizes`. Spine nodes are rebuilt; siblings pass through by identity.
  *  `version`, `dir`, `widgetId`, `collapsed` all survive — only the target split's `sizes` changes. */
 function rebuildSizes(node: LayoutNode, path: number[], depth: number, newSizes: number[]): LayoutNode {
-  if (depth === path.length) return { ...node, sizes: newSizes }; // node is the target split (validated)
+  // The two guards are ORDERED so the existing defensive check also does the NARROWING: after it, `node`
+  // is the split variant, so spreading `sizes` onto it type-checks. Reordering adds no branch (the
+  // alternative — a second `type !== 'split'` inside the depth arm — would be an unreachable branch, which
+  // this project refuses: J-499 / D-065 / N-091). Behaviour is identical on every reachable input, because
+  // `resizeSplit` validates `target.type === 'split'` before calling in (mutate.ts:48); on the unreachable
+  // leaf-at-target input it is strictly safer — a leaf now passes through instead of acquiring a bogus
+  // `sizes` field. (M-RP-TYPECHECK root cause B.)
   if (node.type !== 'split') return node; // defensive — the walk already validated this path
+  if (depth === path.length) return { ...node, sizes: newSizes }; // node is the target split (validated)
   const idx = path[depth];
   const children = node.children.map((c, j) => (j === idx ? rebuildSizes(c, path, depth + 1, newSizes) : c));
   return { ...node, children };

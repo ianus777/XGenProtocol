@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: May 2026  
 > **Last updated**: 2026-07-19  
 > Language: English  
@@ -2821,6 +2821,88 @@ only ever returned false has not been shown to work** — the same argument as
 mutation-testing an assertion (→ the U4 lesson in the same leg: *a test that has
 never failed is not yet known to be able to*). Cheapest form: probe two globals,
 one you expect present and one you expect absent, and report both.
+
+---
+
+### N-140 — ⚠️ A VITE DEV SERVER OUTLIVES THE APP AND KEEPS SERVING A POISONED MODULE, SO "FULL RELOAD" HAS NEVER MEANT WHAT N-132 RELIED ON IT TO MEAN (J-556)
+
+**N-132 amended, and it reaches backwards through the whole arc.** N-132 says baseline the
+registry only after a FULL RELOAD, never on an accumulated dev session. At M-RP6.9 that phrase
+turned out to be under-specified in the one way that matters.
+
+**What happened.** A stale module from an intermediate save during S-2a kept being served after
+the app was killed and relaunched — repeatedly. **It reached Joe**, who saw an
+`each_key_duplicate` overlay **twice, without touching anything**. Grounded at the time: exactly
+ONE `const cid` on disk (line 111), the overlay citing **line 129**, and `vite build` **clean**.
+The dev server (**PID 30520**) survived **every** `xgen-sampler` kill-and-relaunch.
+
+**⇒ RULE: a "full reload" means THE DEV SERVER PROCESS IS GONE, not merely the Tauri window.**
+Check for a surviving node/vite PID, not just `xgen-*`.
+
+⚠️ **The uncomfortable part, recorded rather than smoothed over: EVERY baseline on this arc
+(386 · 134 · 192 · 169) was read after an app restart ONLY.** That does not invalidate those
+numbers — they have been reproduced across seats and sessions — but it does mean their
+**provenance was weaker than the records claimed**, on the single instrument the arc's entire
+verification rests on. *A measurement is only as trustworthy as the least-specified word in the
+procedure that produced it.*
+
+**It also RETRACTS an earlier "unexplained"**: a CDP endpoint dying while the process lived is
+explained by the parse error on the poisoned module. *An open item closed by a finding from a
+different milestone is the cheapest debt repayment available.*
+
+→ J-556 · amends N-132
+
+---
+
+### N-141 — A SVELTE `<style>` BLOCK IS EXACTLY ONE VITE MODULE — MEASURED BY PROBE, NOT REASONED (J-556)
+
+Adding one `<style>` block moved the sampler vite count **170 → 171**; removing it returned
+**170**. Measured deliberately, in both directions, rather than inferred from a diff.
+
+**Why it is worth a note:** every floor prediction on this project has to reason about what
+moves a module count. This is now a known unit. It is also half the reason M-RP6.9's predicted
+sampler **171** was unreachable — deviation ⑨ collapsed two style blocks into `skin.css` tokens
+*after* the prediction was written. **The other half is simply that the prediction predated
+Joe's late requests.** *Neither half is a miss; both are why a difference gets DECOMPOSED rather
+than adjusted.*
+
+→ J-556
+
+---
+
+### N-142 — ⚠️ `-Mode console` CANNOT SEE AN UNCAUGHT EXCEPTION: IT SUBSCRIBES TO `Runtime.consoleAPICalled` ONLY (J-556)
+
+**265 lines captured across a crash, ZERO matches.** The harness reads clean while the app is
+dying, because an uncaught exception arrives on `Runtime.exceptionThrown`, which the mode does
+not subscribe to.
+
+**This is the N-139 family:** an instrument that reads clean during a failure is worse than one
+that reads nothing, because clean output looks like evidence.
+
+**Workaround used at M-RP6.9** (arm a collector first, trigger by HMR rather than reload)
+**routes around the gap; it does not close it.** Filed as an open harness gap, not a solved
+problem. Fix is to add an `exceptionThrown` subscription to the mode.
+
+→ J-556 · N-139 family
+
+---
+
+### N-143 — WRITE THE CLOSE LAST; IF THE WORK MOVES AFTER IT, RE-READ IT RATHER THAN APPEND TO IT (J-556)
+
+At M-RP6.9 the `§8` close was written after the legs, and **Joe's two late requests then
+falsified three of its claims** — sampler vite (172→170), a deviation describing two style
+blocks that no longer existed, and a statement that an error name "is not captured" when it had
+since been captured. **Clair caught all three only because she RE-READ §8 before adding to it.**
+
+**This is N-109 occurring inside a document that cites N-109** — not irony, but evidence about
+the shape of the rule: **the failure is about SEQUENCE, not vigilance.** A close is a snapshot
+of a moving object; appending to it preserves the stale snapshot and adds to it.
+
+**Rule:** the close is the last artifact written. If work continues after it, the close is
+**re-read whole**, not extended. Superseded reasoning is kept where it still explains why a
+later change mattered.
+
+→ J-556 · N-109 family
 
 ---
 

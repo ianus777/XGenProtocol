@@ -1,6 +1,6 @@
 # M-RP6.3 — live messaging: R6 composer + narrow-B send path
 > **Status**: ACTIVE  
-> Version: 1.8  
+> Version: 1.9  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-19  
 > Language: English  
@@ -909,4 +909,5 @@ built by replaying fan-out, the hole would silently persist.*
 | Blob-backed custom reactions — custom sets, animated, above 16px, not unicode | **M-RP-REACTIONS**, filed unscoped, no design record; discussion deferred to the real interface |
 | `accepted` carries no authoritative timestamp ⇒ own rows may order differently than for others | filed, unscoped |
 | Multi-device self-visibility (§9.11.7) | **M-RP6.4**, with the event-store constraint above |
+| **⚠️ Outage send latency is `re-anchor + SEND_QUEUE_TIMEOUT`, NOT the bound alone** — measured **19 155 ms** at Leg D1's V-L, decomposed as **3.143 s failed re-anchor + 16.013 s bounded wait** (the bound itself accurate to 13 ms). **Leg D2's lifecycle guard should normally stop the call reaching this path at all** | **Leg D2** — carry it, so nobody later reads ~19 s as a bug in the bound |
 

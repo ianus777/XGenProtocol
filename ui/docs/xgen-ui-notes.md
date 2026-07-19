@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: May 2026  
 > **Last updated**: 2026-07-19  
 > Language: English  
@@ -2788,6 +2788,39 @@ packages and admitting it to the gate set. That is a real decision with a real c
 surface a backlog on first run, and discovering that backlog mid-leg is exactly the wrong moment. It wants its
 own arc, not a smuggled line in a one-field fix. → **M-RP-TYPECHECK — admit a typecheck to the frontend gate
 set**, filed, unscoped, Joe's to schedule.
+
+### N-139 — A FALSE-NEGATIVE PROBE READS EXACTLY LIKE A GENUINE ABSENCE, AND PRODUCES A DEFENSIBLE-LOOKING "NOT RUN" ON A PATH THAT WORKS (J-553)
+
+The Leg D1 runbook v1.0 told the driver to check `window.__TAURI__` before
+attempting the live drive, and to record **V-L NOT RUN** if it was missing. It
+is missing — this build has no `withGlobalTauri`. **The invoke path works
+perfectly well via `__TAURI_INTERNALS__.invoke`** (the J-492 / J-497
+precedent), which Clair grounded before implementing and confirmed live at the
+drive: `window.__TAURI__` → `"undefined"`, `__TAURI_INTERNALS__.invoke` →
+`"function"`.
+
+**What makes this worth a note is not the wrong global — it is that the failure
+mode was HONEST-LOOKING.** The runbook had done everything right by its own
+lights: it named a leg that could silently not-run, told the driver to check
+first, and told them to record the absence rather than fake the drive. A driver
+following it exactly would have produced *"V-L NOT RUN — `window.__TAURI__` not
+exposed in this build"*, which is **accurate, checkable, and completely
+misleading.** The most important verification in the leg — §3.2's only
+end-to-end evidence — would have been skipped **with a paper trail explaining
+why that was correct.**
+
+**Same family as the hidden-element confident zero (J-548) and the empty
+`data-debug-id` array (N-110):** an instrument that returns *nothing* when
+pointed slightly wrong, and *nothing* is indistinguishable from a true negative
+unless something independent says otherwise.
+
+**Rule: a probe that gates a verification must itself be positively controlled.**
+Before accepting "the path is unavailable", show the probe returning TRUE for
+something known present. A probe is an instrument, and **an instrument that has
+only ever returned false has not been shown to work** — the same argument as
+mutation-testing an assertion (→ the U4 lesson in the same leg: *a test that has
+never failed is not yet known to be able to*). Cheapest form: probe two globals,
+one you expect present and one you expect absent, and report both.
 
 ---
 

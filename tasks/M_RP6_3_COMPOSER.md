@@ -1,6 +1,6 @@
 # M-RP6.3 — live messaging: R6 composer + narrow-B send path
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-18  
 > Language: English  
@@ -240,7 +240,7 @@ session model rather than being retrofitted twice.
 - [x] Leg A: terminal state + `[Reconnect]` + auto-resume, exercised
 - [x] Leg B: non-blocking drain proven under load; ack correlation live
 - [x] Leg B: live ingest wired (the M-RP6.6 deferral closes here)
-- [ ] Leg C1 (`core`): `message-stream` fills its host; divider `now` is live;
+- [x] Leg C1 (`core`): `message-stream` fills its host; divider `now` is live;
       the `status` row kind exists in `StreamRow` — sampler-verified
 - [ ] Leg C2 (shell): R5 wrapped live; gap item counts, hands off to
       `connecting…`, collapses on recovery; grace period exercised with a

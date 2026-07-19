@@ -1,6 +1,6 @@
 # M-RP6.3 Leg C1 — message-stream region fitness (`core`)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-18  
 > Language: English  
@@ -222,22 +222,67 @@ implementation agrees.*
 
 ## §6 — Definition of Done
 
-- [ ] `max-height` deleted; the stream fills a sized host at **two** heights and
+- [x] `max-height` deleted; the stream fills a sized host at **two** heights and
       self-scrolls without the document scrolling
-- [ ] `now` advances on a named-constant timer, torn down with the component;
+- [x] `now` advances on a named-constant timer, torn down with the component;
       a divider label changes with no `messages` mutation
-- [ ] `StreamRow` carries a `status` variant holding **data, not copy**; all
+- [x] `StreamRow` carries a `status` variant holding **data, not copy**; all
       four phases render from a sampler fixture
-- [ ] the status row's key is stable across a phase transition — proven by
+- [x] the status row's key is stable across a phase transition — proven by
       **element identity**, not by text
-- [ ] a status row breaks a grouping run
-- [ ] absent status input ⇒ output identical to today (unit + CDP)
-- [ ] G gains `statusRowCount` + `statusPhase`; no child field republished
-- [ ] zero shell files, zero `$common`, zero Rust, zero `MessageDescriptor`
+- [x] a status row breaks a grouping run
+- [x] absent status input ⇒ output identical to today (unit + CDP)
+- [x] G gains `statusRowCount` + `statusPhase`; no child field republished
+- [x] zero shell files, zero `$common`, zero Rust, zero `MessageDescriptor`
       change — verified against `git show --stat`
-- [ ] gates measured per §5, apps stopped for `cargo test`
-- [ ] every appearance decision left to Ms Design; any `skin.css` rule added is
-      structural only and flagged
+- [x] gates measured per §5, apps stopped for `cargo test`
+- [x] every appearance decision left to Ms Design; **no `skin.css` rule added**
+
+---
+
+## §8 — Close (J-548)
+
+**CLOSED.** Feat `58ca561` [Clair, code-only, 4 files: `message-stream.svelte`
+· `stream/grouping.ts` · `stream/grouping.test.ts` (new) ·
+`app_sampler.svelte`; +386/−19].
+
+**Chat re-drove every non-destructive leg itself (Rule 5), and every number
+reproduced exactly** — registry **386/386** · fill **240→240 / 640→640**
+(offsetHeight; `clientHeight` 238/638 excludes the skin's own 0.8px borders under
+`box-sizing: border-box`) · `max-height: none` · viewport scrollTop 500 with
+document scrollTop 0 and the document not scrollable · **V6 MATURED-IN-PLACE on
+Chat's own independently-stamped probe** · **V8 labels re-derived with `count` 5
+and `dividerCount` 4 held** · unmount **386→377** hook gone → remount **exactly
+386** · `cargo test` **1541/0/62 across 56 terminator lines** · `npm test` **93**
+· vite **184 client / 169 sampler**.
+
+**Deviations accepted (Rule 6):** `tick` → `tickNow` (Chat's suggested name
+collided with Svelte's imported `tick` — her catch, same single-writer shape) ·
+a mount toggle on the status fixture (the sampler's tabs are `display:none`, so
+an `{#if}` is the only way to drive the cleanup proxy) · the existing
+`stream-scroll` fixture wrapped in a sized host (fixture hygiene forced by the
+cap deletion; **no cap returned to the component**) · a stale top-of-file comment
+still naming `max-height: 340px` swept unprompted (**N-109 applied without being
+told**).
+
+**`statusPhase` = the last-placed episode's phase, accepted with its reason
+written down:** episodes are placed by timestamp and only one connection exists,
+so the live episode is always the most recent — last-placed *is* current. It is a
+**consequence of ordering, not an independent rule**, and `statusRowCount` plus
+the per-row `data-phase` carry the full picture when history accumulates.
+
+**Unproven by design, recorded as such:** that the `DIVIDER_REFRESH_MS` interval
+actually fires at 60 s is not drivable in a CDP session. What was driven is the
+**cleanup proxy** (unmount → the id leaves `__XGEN_STREAM__`), which proves the
+same `$effect` teardown ran.
+
+**The one number Chat did not isolate:** the **+49** attributed to the
+`stream-fit` subtree. The **+9** for `stream-status` was measured directly as an
+unmount delta; 328 + 49 + 9 = 386 is arithmetically consistent with the measured
+total, and is recorded as *consistent*, not as *separately verified*.
+
+**Next: Leg C2 — `stream-panel` widget + live projection**, authored against what
+C1 actually shipped.
 
 *(Per house rule, "commit pushed" is NOT a DoD item — the `Status: COMPLETED`
 header is the real signal. Joe pushes.)*

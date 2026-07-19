@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-16  
+> **Last updated:** 2026-07-19  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -4460,5 +4460,35 @@ The Phase-0 §2 argued *"in a space-filling tree there is no empty space to drop
 **Scope.** The **client** settings-hosting mechanism. Whether a `host:'node'` module's settings surface the same way rides `M-RP-PLUGINS-NODE`. The `settings_schema` path is not merely unbuilt — it is **superseded**; a future declarative renderer would need a fresh decision reversing this.
 
 **Relationship:** **D-112** (the three-axis plugin taxonomy — this answers the question D-112 never asked: how a plugin's settings get DRAWN) · **D-102** (the widget tier — settings-as-hosted-content is that pattern) · **D-119** (the install path — the `[uninstall]` sibling verb) · **W-3** (why the component + store are `$common`) · **surfaces §3.2** (content in a host is not a surface) · **Ch6 §6.8.2 / §6.8.5** (the superseded `settings_schema`) · **M-RP-BACKDROP** (the grid-plate backdrop's full type menu — the first tenant's follow-on; type 1 = solid/gradient, Joe 2026-07-17).
+
+---
+
+## D-121 — Every question and recommendation is examined through two named lenses first: user-visible impact, then resource cost
+
+**Date:** 2026-07-19 · **Layer:** Project-wide working principle (applies to Chat Claude, Clair, every runbook, every design walk, every option list put to Joe) · **Ref:** D-065 (honest behaviour over polite), D6 (never say sent when it is not), N-091 (no invented data on screen), "honest longer work over fast shortcuts" · **Journal:** J-559 · **Code:** none — this is a discipline, not a mechanism.
+
+**Decision (Joe, 2026-07-19).** Before a question is put to Joe, and before any recommendation is made, it is examined through **two additional lenses, in this order and stated explicitly**:
+
+1. **User-visible impact** — what does a person using XGen actually see, feel, or come to believe as a result? Stated **per option**, not once for the question.
+2. **Resource cost** — what does it drain? Build time, bundle size, maintenance surface, test surface, future work created.
+
+Other views — architectural elegance, symmetry, tidiness, implementation convenience — are **tertiary**. They are still real and still recorded; they simply do not lead.
+
+**⚠️ THESE ARE ADDITIONAL LENSES, NOT A REPLACEMENT.** Every existing rule stands **unchanged and undiminished**: D-065, D6, N-091, D-110 / D-111, D-067, the no-anonymity core, GDPR / right-to-be-forgotten, wire-format discipline. **D-121 adds a mandatory pass; it does not create a trump card.**
+
+**⚠️ A COLLISION IS DISCUSSED, NEVER SILENTLY TRADED.** Where the best answer by user-visible impact conflicts with an existing rule — above all anything touching **identity, the wire, or anything irreversible** — the collision goes to Joe **unresolved**, named as a collision. *A rule that can be outranked by an appeal to user experience is not a rule, and the trades this project exists to refuse are exactly the ones that would feel good to a user in the moment.*
+
+**⚠️ "NO USER-FACING IMPACT" IS A LEGAL AND EXPECTED ANSWER.** Many questions are purely internal — tooling, harness, probe design, records. **Say so plainly and decide on resource cost.** *A manufactured user-experience rationale is worse than none, because it launders an internal preference as a user's interest.* At J-559 the dev-bridge question was exactly this: `import.meta.env.DEV`-guarded and verified absent from a production bundle, so no user ever sees it either way — and a UX story could easily have been invented for it.
+
+**Why Joe asked for this, recorded because the reason governs the application.** Joe locks architecture but **cannot independently verify most of the technical claims put to him**. User-visible impact and resource cost are the two axes he **can** judge. Stating them explicitly is what makes a recommendation **checkable by Joe** rather than trusted blind. *The lens is a trust mechanism, not a philosophy of design.*
+
+**🔑 THE EVIDENCE THAT PROMPTED IT, AND IT IS EXACT.** At J-559, Chat recommended the Leg-D2 composer read the selection bus for its room, on a sound architectural argument (*do not lift a deliberate component-local workaround into a shared store*). **Joe asked what it would do to the user's experience.** Reading `stream-panel.svelte` then showed **R5 latches the room** (`latchedRoomId`, `effectiveRoomId` with a stale-latch guard) — so a bus-reading composer would **grey itself out while the user was still looking at the conversation**, on ordinary navigation, with nothing on screen explaining why. **The recommendation flipped.** *The architectural argument was not wrong; it was answering a question that ranks below the one that decides.*
+
+**Consequence for Phase-0 — the part with teeth.** The user-visible consequence must be **GROUNDED**, not reasoned: read the code, run the probe, state what the user sees. *A principle that says "decide by user impact" without a step that measures user impact merely relocates the guessing.* At J-559 the answer did not exist until `stream-panel.svelte` was actually read.
+
+**Claude's honest boundary, stated so it is not mistaken for expertise.** **Resource cost is measurable** — module counts, bundle bytes, test and maintenance surface — and Claude should measure it rather than estimate it. **User experience is only ever INFERRED**: Claude never observes a user. Claude's user-impact claims are inferences from code and from this project's stated values, and **on many such calls Joe is the better judge** — which is precisely why they are stated for him rather than acted on silently.
+
+**Relationship:** **D-065** (honest behaviour over polite — D-121 is its procedural form: the honest answer is found by asking what the user ends up believing) · **D6** / **N-091** (both are user-visible-truth arguments that predate the rule naming them) · **"honest longer work over fast shortcuts"** (which already subordinates resource cost, and is why cost ranks second rather than first) · **D-071** (subsystem audits precede dependent milestones — the grounding pass D-121 now also loads with a user-impact question).
+
 
 

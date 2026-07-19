@@ -1,6 +1,6 @@
 # M-RP6.3 Leg C2 — `stream-panel` widget + live projection (shell)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-19  
 > Language: English  
@@ -402,27 +402,27 @@ would be correct there too (J-546).
 
 ## §6 — Definition of Done
 
-- [ ] `gaps.svelte.ts` mints stable episode ids and measures `resolvedAfterMs`;
+- [x] `gaps.svelte.ts` mints stable episode ids and measures `resolvedAfterMs`;
       **one writer**, and the DEV hook exposes **that same function**
-- [ ] the grace window discards a blip (V9) and publishes a real gap (V10)
-- [ ] episode history **survives an unmount** with ids intact (V12)
-- [ ] one `CLIENT_PLUGINS` row mounts R5 at `regionId: 'stream'`, retitles the
+- [x] the grace window discards a blip (V9) and publishes a real gap (V10)
+- [x] episode history **survives an unmount** with ids intact (V12)
+- [x] one `CLIENT_PLUGINS` row mounts R5 at `regionId: 'stream'`, retitles the
       tile, and lists in `plugin-list` — **no register line, no
       `layout-default.ts` edit**
-- [ ] the room latch copies the D3 shape; `onSelect` is **not** wired to the bus
-- [ ] the §9.3 allowlist is explicit with a `default: ignore` arm; a
+- [x] the room latch copies the D3 shape; `onSelect` is **not** wired to the bus
+- [x] the §9.3 allowlist is explicit with a `default: ignore` arm; a
       **ROOM-level** `membership.join` renders a system notice
-- [ ] the head marker renders as a synthetic `system` descriptor with a stable
+- [x] the head marker renders as a synthetic `system` descriptor with a stable
       reserved id and **both** states
-- [ ] both empty states render distinct copy, widget-composed (C-5 amended)
-- [ ] the stream fills a **region leaf** at two tile sizes and self-scrolls
-- [ ] a real outage produces a row that **matures in place** to `resolved`,
+- [x] both empty states render distinct copy, widget-composed (C-5 amended)
+- [x] the stream fills a **region leaf** at two tile sizes and self-scrolls
+- [x] a real outage produces a row that **matures in place** to `resolved`,
       proven by **element identity**
-- [ ] the resolved row's meaning is recorded as a **discontinuity** (C-11)
-- [ ] **zero `core`, zero Rust, zero sampler, zero skin** — verified against
+- [x] the resolved row's meaning is recorded as a **discontinuity** (C-11)
+- [x] **zero `core`, zero Rust, zero sampler, zero skin** — verified against
       `git show --stat`
-- [ ] gates measured per §5, apps stopped for `cargo test`
-- [ ] every appearance decision left to Ms Design; **no `skin.css` rule added**
+- [x] gates measured per §5 (⚠️ client vite floor is **192**, not 191 — §8.4)
+- [x] every appearance decision left to Ms Design; **no `skin.css` rule added**
 
 *(Per house rule, "commit pushed" is NOT a DoD item — the `Status: COMPLETED`
 header is the real signal. Joe pushes.)*
@@ -450,3 +450,160 @@ this arc were both saved that way (J-499, J-548).
 
 Chat writes the canonical records (JOURNAL / CLAUDE.md PLAY / ROADMAP / this
 task doc) from that report.
+
+---
+
+## §8 — Close (J-550)
+
+**CLOSED.** Feat `38ee185` [Clair, code-only, **6 files**, +558/−0: `gaps.svelte.ts`
+· `stream-panel.svelte` · `stream/derive.ts` · `stream/derive.test.ts` (new) ·
+`registry.ts` · `app_client.svelte`]. **Chat re-drove ALL THIRTEEN legs on its
+own instance (Rule 5)** against real client 9222 + a live node.
+
+**Scope proven directly, not asserted:** `git show --stat` — **zero `.rs`, zero
+`core`, zero `ui/sampler/**`, zero `skin.css`, zero `layout-default.ts`.**
+*(Chat did NOT re-run `cargo test`; for the specific claim “no Rust changed” the
+`--stat` read is the DIRECT evidence and an identical test count is only
+corroboration — stated this way round rather than quoting a gate Chat did not
+measure.)*
+
+### §8.1 — What reproduced
+
+**V1 134** (twice, each after a full reload, quiescent state stated: no
+selection · ingest 0 · dropped 0 · gaps 0 · READY) · **V2** tile titled
+**“Messages”**, `placeholderIds: []`, panel + stream mounted, `plugin-list` row
+present · **V3** body 419→viewport 403 and body 298→viewport 282, **`fillDelta`
+constant 16**, `docScrollable:false` at both · **V4** no-room `streamCount:1`,
+empty-room `streamCount:2` · **V5** a real `bob` send painted, `isOwn:false`,
+initials-only author, head marker `kind:'system'` / `author:null` · **V6**
+filtered-not-dropped **and** the switch-half · **V8** copy flipped with
+`probeSurvived:true` on Chat's own stamp · **V9** one synchronous expression,
+before/mid/after all **0** · **V10** 0 inside grace → exactly 1 after, `2/10`,
+`remainingMs 6000`, `data-phase` in the DOM · **V12** episode intact across a
+real unmount · **V13** control `groupedCount:1` → **0** with an episode between.
+
+**⚠️ V3 was the leg C1 could not drive** — fill against a **region leaf**, not a
+sized host. Chat drove it at two tile sizes by moving a real splitter between
+reads; the **constant** delta is the proof, not either absolute.
+
+### §8.2 — 🔑 V7 UPGRADED FROM SYNTHETIC TO REAL — C-3 IS NOW MEASURED
+
+Clair's V7/V8/V13 used synthetic `ingest.push`; her **conclusions were right and
+her evidence for V7 was synthetic**, and the handback's leg table read stronger
+than its own deviation list. Chat drove the real thing:
+
+- A second room was created and `bob` **left and rejoined it** → live
+  `membership.leave` + `membership.join`, **`room_id` length 83**, rendered as
+  centred notices (“… left” / “… joined”).
+- `bob` then **left and rejoined the SPACE** → `received: 4`, of which two carry
+  **`room_id === ""`** and two carry a real id; **`projectedCount: 2`** and the
+  rendered rows did not change.
+
+**So the Space-level pair is correctly excluded by the room filter, measured on
+the live wire** — exactly what J-547 grounded from `state_key.rs:252–253` and
+feared would be misread. ***Zero was correct, and now it is correct for a reason
+that was seen rather than reasoned.*** The verb was confirmed from
+`xgen-client.exe join --help` (`--room` omitted ⇒ joins the Space itself), never
+fabricated.
+
+### §8.3 — V11 driven end-to-end on a real outage
+
+The node was killed abruptly (the detectable class — a *freeze* produces nothing,
+§0 G-4 amended). Episode published through the **production path** (shell
+`$effect` → `gaps.apply`), phases `dialling` → `counting-down` → `resolved`,
+**`resolvedAfterMs: 71183`**, `statusRowCount: 1`, one DOM node throughout.
+
+**Proven by ELEMENT IDENTITY on Chat's own independently-stamped probe:**
+`probeSurvived: true` across every transition, `nodeCount: 1` (no duplicate left
+behind). *A rendered-text check passes either way — which is why the runbook
+forbade it.*
+
+### §8.4 — ⚠️ ONE GATE DID NOT REPRODUCE: THE CLIENT VITE FLOOR IS 192
+
+Handback said **191**; Chat measured **192**, twice. HEAD (`87f458f`) differs
+from `38ee185` only by a **CSS-rules-only** commit (11 insertions, no `@import`,
+no `url()`), which cannot move a module graph — *so `38ee185` also builds 192;
+that last step is REASONED from the diff, not separately measured* (N-108).
+
+**C2 added +8 modules to the 184 floor, not +7. The floor for Leg D is 192.**
+Quoted one low, it would read as a phantom regression at the next leg.
+`npm test` **114** and sampler **169** both reproduced exactly.
+
+### §8.5 — The wire-field finding, confirmed twice over
+
+`wire.rs` carries `#[serde(rename = "type")] pub event_type: EventType` — the
+**Rust field** is `event_type`, the **wire name** is `type`, and
+`ingest.svelte.ts` declares the Rust name. Chat confirmed it **at source** and
+**on its own live wire**: after a real send, `latest.type === 'message.text'`
+while `event_type` is **absent from the serialised object entirely**.
+
+Leg B only ever read counts, so the drift was latent; **C2 is the first reader of
+that field**, and keying the allowlist on `event_type` would have matched nothing
+— an empty stream read as a dead projection, *the phantom-defect family a third
+time*. She read the grounded name via `wireType()` with a fallback and did not
+edit the shared store (out of §1 scope). **→ filed: correct
+`IngestEvent.event_type` → `type` at the source.**
+
+### §8.6 — F-5 OBSERVED, NOT THEORISED
+
+Driving V8 required `ingest.dropped > 0`, so 520 synthetic events were pushed.
+They **evicted the room's real messages through the GLOBAL `INGEST_CAP`** —
+`projectedCount` fell to **0** while the head marker simultaneously flipped to
+*“… some were dropped.”* **The defect and the confession it exists for, in one
+frame.** A stronger argument for M-RP6.4 than the filed note was.
+
+### §8.7 — Deviations (Rule 6), all accepted
+
+**Six files, not four** — the pure `derive.ts` + its 21 tests were extracted to
+satisfy §5's “new pure logic should grow `npm test`” and to lock the wire finding
+(the `grouping.ts` precedent). Correct call. · **`gaps` fed by a shell `$effect`**
+rather than a store `$effect.root` — keeps the pure-store precedent; §3.1 asked
+her to state which, and she did. · **Always-mount + a composed `no-room` system
+row**, rather than §3.4's “feed nothing” — one surface, no registry churn between
+states; accepted. · **Synthetic inputs on V7/V8/V13** — flagged, and V7 has since
+been re-driven for real (§8.2). · **Structural `<style>` on `stream-panel`**
+(N-094; a fill contract is not a look). · **Functional placeholder copy** —
+wording remains Ms Design's.
+
+**`paused` is genuinely enforced** at the shell effect (`if (!gaps.paused)`),
+verified in the source — not a dead affordance (N-091).
+
+### §8.8 — ⚠️ ONE FILED OBSERVATION DOES NOT REPRODUCE AS STATED
+
+The handback filed: *fold→unfold remounts the widget and resets the latch →
+“select a room”*. **Chat drove it and the latch SURVIVED** — after unfold,
+`latchedRoomId` was unchanged and `projectedCount` was still 2.
+
+**Why:** the latch `$effect` re-runs on mount and reads `selection.current`,
+which still holds the room → it re-latches immediately. The reset only occurs if
+the bus no longer holds a room at remount time. **The issue is real but strictly
+narrower than filed**, and the correction matters because the broad version would
+have justified work that is not needed.
+
+**A useful invariant falls out:** the latch effect writes only when
+`kind === 'room'`, so **the latch cannot change unless the BUS changed.**
+
+### §8.9 — Open, unexplained, instrumented
+
+Between V8 and V13 the latch moved from the second room back to `general`
+**with no click from Chat**, during `bob`'s membership churn. **Not attributed,
+and not guessed at** (the J-545 precedent). Every reading after it stands — the
+latch was re-driven and re-measured. Per §8.8's invariant, **whatever moved the
+latch moved the SELECTION BUS**, which narrows the search to a bus writer rather
+than the widget. → **M-RP6.8 — view-latch behaviour across remount + the
+unattributed bus move.**
+
+**Honest scope note on element identity:** after a real unmount the probe is
+gone (`probe:false` at V12). That is correct — **element identity is claimed
+WITHIN a mount (V11), never across one.** Episode identity survives; DOM identity
+does not, and the two must not be conflated.
+
+### §8.10 — Test environment, left changed
+
+`LegBSpace` now contains a second room **`legc2redrive`**
+(`xgen://hash/sha256:dbefdd11…a7852f`). `bob` left and rejoined both the Space
+and both Rooms during §8.2; **membership was restored**. The client session
+carries `dropped: 26` from the V8 flood — cleared by a reload.
+
+*(Per house rule, “commit pushed” is NOT a DoD item — the `Status: COMPLETED`
+header is the real signal.)*

@@ -1,6 +1,6 @@
 # M-RP6.3 — live messaging: R6 composer + narrow-B send path
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-19  
 > Language: English  
@@ -242,7 +242,7 @@ session model rather than being retrofitted twice.
 - [x] Leg B: live ingest wired (the M-RP6.6 deferral closes here)
 - [x] Leg C1 (`core`): `message-stream` fills its host; divider `now` is live;
       the `status` row kind exists in `StreamRow` — sampler-verified
-- [ ] Leg C2 (shell): R5 wrapped live; gap item counts, hands off to
+- [x] Leg C2 (shell): R5 wrapped live; gap item counts, hands off to
       `connecting…`, collapses on recovery; grace period exercised with a
       sub-2s blip
 - [ ] Leg D: composer sends live; D6 behaviour exercised during a real outage
@@ -566,6 +566,9 @@ invent fields to make a panel look substantial*).
 | Resident pong timeout — frozen-peer detection (§0 G-4) | **M-RP6.7 — resident pong timeout**, FILED, unscoped, Joe's to schedule |
 | Concurrent-first-send re-anchor herd | unchanged, filed at §8 |
 | XGID → display-name resolution (C-8) | R7 members / **M-RP-PLUGINS-NODE** |
+| **`IngestEvent.event_type` → `type`** — the Leg-B interface declares the RUST field name; the wire serialises `type` (`#[serde(rename)]`, `wire.rs:476`). C2 reads the grounded name via `wireType()` and is correct regardless; the SOURCE is still wrong. | **a one-field fix, unscoped** |
+| **View-latch behaviour across remount + the unattributed bus move** (§8.8/§8.9 of the C2 runbook) | **M-RP6.8 — view-latch persistence** |
+| Per-message send state (“not delivered yet” / pending / failed) — C2 has no outbound rows | **Leg D**, via `MessageDescriptor.details` |
 
 **M-RP6.7 is filed, not started.** Filing an arc is not deciding to build it;
 the frozen-peer gap is named so Leg C cannot paper over it, per §0.

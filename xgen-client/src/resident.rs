@@ -331,7 +331,7 @@ where
     // session ends. An entry that could be dropped silently would leave the UI
     // showing a message as in-flight forever — the D6 failure mode.
     let mut pending: HashMap<String, (oneshot::Sender<SendOutcome>, Instant)> = HashMap::new();
-    let mut sweep = tokio::time::interval(Duration::from_secs(1));
+    let mut sweep = tokio::time::interval(PENDING_SWEEP_INTERVAL);
     sweep.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
     let end = loop {
@@ -416,6 +416,24 @@ where
                 }
             },
             Some(req) = io.outbound_rx.recv() => {
+                // The caller has gone: `send_message`'s bounded wait expired and it
+                // has ALREADY told the user this message was not sent. Writing it
+                // now would put a message on the wire that the user was told
+                // failed — D6's mirror, and the one this leg's own timeout would
+                // otherwise create. Drop it, and say so.
+                //
+                // Honest limit: if the caller's wait expires at the instant this
+                // branch begins writing, the write proceeds. The guarantee is that
+                // the drain never KNOWINGLY writes an abandoned request — not
+                // perfect mutual exclusion, which would need a lock held across an
+                // `.await`. The window is one `select!` branch wide.
+                if req.reply.is_closed() {
+                    tracing::info!(
+                        space_id = %req.space_id,
+                        "resident: dropping abandoned outbound (caller timed out)"
+                    );
+                    continue;
+                }
                 // Build → sign → write, anchored on the tracked frontier with the
                 // shipped root fallback when it is empty (the `ops::send` shape).
                 let mut prev = io.tips.tips_for(&req.space_id);
@@ -688,8 +706,18 @@ pub struct OutboundRequest {
     pub room_id: String,
     pub text: String,
     /// Resolved when the node's outcome correlates, the send fails to write, or
-    /// the session drops. **Always resolved exactly once** — D6's binding rule
-    /// applied to the transport: a message may never look sent when it is not.
+    /// the session drops — D6's binding rule applied to the transport: a message
+    /// may never look sent when it is not.
+    ///
+    /// **Resolved exactly once for every request the drain WRITES.** Two cases
+    /// deliberately do not resolve it, and both are honest:
+    /// - a request queued during an outage is never popped at all — the caller's
+    ///   own `SEND_QUEUE_TIMEOUT` covers it, because nothing here can;
+    /// - an ABANDONED request (this sender already closed, i.e. that timeout has
+    ///   fired) is discarded and logged rather than written. That breaks
+    ///   "exactly once" on purpose: there is no longer anyone to tell, and
+    ///   writing it would be the mirror lie — a message the user was told failed
+    ///   arriving in the room minutes later.
     pub reply: oneshot::Sender<SendOutcome>,
 }
 
@@ -755,6 +783,64 @@ pub struct SessionIo<'a, G: FnMut(Event) + Send> {
 /// role for the `ops::*` verbs; published as data under D5 rather than hardcoded
 /// again in Svelte.
 pub const SEND_ACK_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// How often the drain sweeps `pending` for sends that never got an ack. Named
+/// (it was a bare literal) so `SEND_QUEUE_TIMEOUT` can be DERIVED from the
+/// drain's worst case instead of guessing at it — a derivation cannot cite what
+/// has no name. Same value, same behaviour as before.
+pub const PENDING_SWEEP_INTERVAL: Duration = Duration::from_secs(1);
+
+/// The ceiling on the CALLER's wait. It is a BACKSTOP, not the primary
+/// mechanism: a send that reaches the wire is always resolved by the drain (ack,
+/// or the sweep at `SEND_ACK_TIMEOUT`). This bound exists solely for the request
+/// that was queued and NEVER WRITTEN — nothing polls `outbound_rx` between
+/// sessions, so an outage leaves it with no other timer over it at all.
+///
+/// It must exceed the drain's worst case, measured from a write that begins
+/// AFTER this wait does (`pending` is stamped at write time), or a
+/// written-but-unacked send surfaces as `failed` — "never reached the wire"
+/// about a message that did, and `timed_out` becomes unreachable on this path.
+/// Derived rather than chosen so tuning `SEND_ACK_TIMEOUT` cannot silently
+/// re-create that squeeze; the ordering is asserted by a test, because a comment
+/// cannot fail.
+///
+/// The margin is deliberately generous: the delay before the drain pops *this*
+/// request is bounded by nothing (the channel holds 64), so no constant is
+/// provably correct. Only the direction of the error is decidable — too large
+/// costs an outage a few extra seconds before it says *not sent*; too small
+/// relabels an ambiguous send as a definite failure, which is the D6 lie.
+pub const SEND_QUEUE_TIMEOUT: Duration = Duration::from_secs(
+    SEND_ACK_TIMEOUT.as_secs() + PENDING_SWEEP_INTERVAL.as_secs() + 5,
+);
+
+/// Await the drain's verdict, bounded. An expiry here means the request was
+/// QUEUED BUT NEVER WRITTEN — the drain only polls `outbound_rx` inside
+/// `run_session`, so an outage leaves it unread with no other timer over it
+/// (`SEND_ACK_TIMEOUT` ages only sends already on the wire).
+///
+/// The expiry is `failed`, NOT `timed_out`. `failed` means *never reached the
+/// wire*, which is exactly what happened. `timed_out` would claim the node may
+/// be holding the event — the D6 lie inverted — and it would also make the
+/// message ineligible for a free retry that is in fact perfectly safe.
+///
+/// The duration is a PARAMETER here and a named constant at the call site (D5),
+/// which is also what lets the timeout be unit-tested in milliseconds rather
+/// than by sleeping for the real one.
+pub async fn await_send_outcome(
+    reply_rx: oneshot::Receiver<SendOutcome>,
+    timeout: Duration,
+) -> SendOutcome {
+    match tokio::time::timeout(timeout, reply_rx).await {
+        // The drain resolved it: carry the outcome verbatim. `timed_out`
+        // especially passes through untouched — it is the node's ambiguity, not
+        // ours, and folding it into either success or failure is what D6 forbids.
+        Ok(Ok(outcome)) => outcome,
+        // The sender was dropped without a reply: the resident itself is gone.
+        Ok(Err(_)) => SendOutcome::failed("resident stopped before the send resolved"),
+        // Never drained. Wording provisional — Ms Design owns user-facing copy.
+        Err(_) => SendOutcome::failed("not sent — no link"),
+    }
+}
 
 // ── Published resident status (M-RP6.3 Leg A) ──────────────────────────────
 //
@@ -1321,5 +1407,138 @@ mod tests {
         // A real RTT reads back as Some.
         counters.set_rtt(42);
         assert_eq!(counters.snapshot().rtt_ms, Some(42));
+    }
+
+    // ── Leg D1: the caller's bounded wait ────────────────────────────────────
+    //
+    // All three async cases run on MILLISECOND timeouts. `tokio`'s `full` feature
+    // does not include `test-util`, so `time::pause()` is unavailable — testing
+    // the real 16 s bound would mean sleeping for it. That is precisely why
+    // `await_send_outcome` takes its duration as a parameter (§3.1/§2.4).
+
+    /// U1 — a reply that arrives before expiry is carried VERBATIM, and that
+    /// includes `timed_out`. This is the leg that fails if anyone ever folds the
+    /// queue-expiry into `timed_out`: it proves the two are distinguishable at
+    /// the seam, where a test asserting only "expiry is failed" would not.
+    #[tokio::test]
+    async fn await_send_outcome_passes_a_reply_through_verbatim() {
+        for confirm in [
+            EventConfirm::Accepted,
+            EventConfirm::TimedOut,
+            EventConfirm::Rejected {
+                code: 4002,
+                reason: "nope".to_string(),
+                event_id: "e-rej".to_string(),
+            },
+        ] {
+            let expected = SendOutcome::from_confirm("e1".to_string(), confirm);
+            let (tx, rx) = oneshot::channel();
+            tx.send(expected.clone()).unwrap();
+
+            let got = await_send_outcome(rx, Duration::from_millis(500)).await;
+
+            assert_eq!(got.status, expected.status, "status carried verbatim");
+            assert_eq!(got.event_id, expected.event_id, "event_id carried verbatim");
+            assert_eq!(got.code, expected.code, "code carried verbatim");
+            assert_eq!(got.reason, expected.reason, "reason carried verbatim");
+        }
+
+        // Named explicitly, because it is the whole point of this test: an
+        // ambiguous send stays ambiguous. It is never rewritten as `failed`.
+        let (tx, rx) = oneshot::channel();
+        tx.send(SendOutcome::from_confirm("e2".to_string(), EventConfirm::TimedOut))
+            .unwrap();
+        assert_eq!(
+            await_send_outcome(rx, Duration::from_millis(500)).await.status,
+            "timed_out",
+            "a timed_out reply must NOT be collapsed into failed"
+        );
+    }
+
+    /// U2 — the sender dropped without a reply: the resident itself is gone.
+    #[tokio::test]
+    async fn await_send_outcome_reports_a_dropped_sender() {
+        let (tx, rx) = oneshot::channel::<SendOutcome>();
+        drop(tx);
+
+        let got = await_send_outcome(rx, Duration::from_millis(500)).await;
+
+        assert_eq!(got.status, "failed");
+        assert_eq!(
+            got.reason.as_deref(),
+            Some("resident stopped before the send resolved"),
+            "the shipped string is preserved"
+        );
+    }
+
+    /// U3 — no reply at all (the undrained queue): `failed`, never `timed_out`.
+    ///
+    /// The timeout is single-digit milliseconds and the elapsed time is asserted
+    /// against a control, so the expiry is shown to be the CAUSE rather than a
+    /// coincidence of ordering — with a generous timeout this test would prove
+    /// only that it waited. `status` is asserted POSITIVELY: "not accepted"
+    /// passes for the wrong reason.
+    #[tokio::test]
+    async fn await_send_outcome_expires_as_failed_not_timed_out() {
+        let (_tx, rx) = oneshot::channel::<SendOutcome>();
+        let timeout = Duration::from_millis(5);
+        let control = Duration::from_millis(500);
+
+        let started = Instant::now();
+        let got = await_send_outcome(rx, timeout).await;
+        let elapsed = started.elapsed();
+
+        assert_eq!(got.status, "failed", "queued-but-never-written is failed");
+        assert_ne!(
+            got.status, "timed_out",
+            "never timed_out: that would claim the node may hold an event that never reached the wire"
+        );
+        assert!(elapsed >= timeout, "it actually waited for the bound: {elapsed:?}");
+        assert!(
+            elapsed < control,
+            "the expiry caused the return, not the test outliving it: {elapsed:?}"
+        );
+        // `_tx` is still alive here, so this cannot have passed via U2's arm.
+    }
+
+    /// U4 — the ordering invariant, and the leg that outlives this milestone.
+    ///
+    /// A pure const check: no clock, no async. It exists because the defect it
+    /// guards was invisible to every other test in this file — U1 proves
+    /// `timed_out` passes through the seam and says nothing about whether the
+    /// call site can ever produce one. If the caller's bound does not outlast the
+    /// drain's worst case (`SEND_ACK_TIMEOUT` + one sweep tick, stamped at WRITE
+    /// time, i.e. strictly after the caller's wait began), the caller always
+    /// expires first and `timed_out` is dead on that path.
+    #[test]
+    fn send_queue_timeout_outlasts_the_drains_worst_case() {
+        let worst_case = SEND_ACK_TIMEOUT + PENDING_SWEEP_INTERVAL;
+        assert!(
+            SEND_QUEUE_TIMEOUT > worst_case,
+            "SEND_QUEUE_TIMEOUT ({SEND_QUEUE_TIMEOUT:?}) must exceed the drain's worst case \
+             ({worst_case:?}), or a written-but-unacked send is reported as never having \
+             reached the wire"
+        );
+    }
+
+    /// §3.2's predicate — the SIGNAL the drain reads, not the drain.
+    ///
+    /// Stated as a proxy (N-092a): this proves that a caller who has given up
+    /// leaves `reply.is_closed()` true, which is what the drain branches on. It
+    /// does NOT exercise the drain's `continue`, which needs a live session.
+    /// V-L step 5 is that half's only end-to-end evidence.
+    #[test]
+    fn an_abandoned_request_reads_as_closed() {
+        let (reply, rx) = oneshot::channel::<SendOutcome>();
+        let req = OutboundRequest {
+            space_id: "s".to_string(),
+            room_id: "r".to_string(),
+            text: "t".to_string(),
+            reply,
+        };
+
+        assert!(!req.reply.is_closed(), "a waiting caller is not abandoned");
+        drop(rx); // `send_message` returning after its bounded wait
+        assert!(req.reply.is_closed(), "a caller that gave up reads as abandoned");
     }
 }

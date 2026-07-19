@@ -55,8 +55,17 @@ struct ResidentResume(tokio::sync::watch::Sender<u64>);
 
 /// The outbound message queue (M-RP6.3 Leg B). `send_message` pushes onto this;
 /// the resident's drain pops, writes and correlates. Bounded, so a UI that
-/// somehow floods it gets backpressure rather than unbounded memory — and a full
-/// queue surfaces as an honest `failed`, never as a silent drop.
+/// somehow floods it gets backpressure rather than unbounded memory.
+///
+/// Every way a message can fail to reach the wire surfaces as an honest `failed`,
+/// never as a silent drop (D6) — but that took two mechanisms, not one, and Leg B
+/// shipped only the first:
+/// - a **full** queue fails at `try_send`, immediately;
+/// - an **undrained** queue (nothing polls this receiver between sessions) fails
+///   at `send_message`'s bounded wait, `SEND_QUEUE_TIMEOUT`;
+/// - a **written** send is resolved by the drain — ack, sweep, or teardown;
+/// - an **abandoned** request, popped after that wait expired, is discarded and
+///   logged rather than written.
 struct Outbound(tokio::sync::mpsc::Sender<crate::resident::OutboundRequest>);
 
 /// The resident's DAG frontier (M-RP6.3 Leg B, B-5). Shared with the drain, which
@@ -344,12 +353,14 @@ async fn send_message(
         return SendOutcome::failed(format!("not queued: {e}"));
     }
 
-    // The drain ALWAYS resolves the reply (ack, sweep timeout, or session
-    // teardown), so a closed channel here means the resident itself is gone.
-    match reply_rx.await {
-        Ok(outcome) => outcome,
-        Err(_) => SendOutcome::failed("resident stopped before the send resolved"),
-    }
+    // BOUNDED, and the bound is the whole point (Leg D1). The drain resolves the
+    // reply for every request it WRITES — but it only polls `outbound_rx` inside
+    // `run_session`, so a request queued during an outage is never popped and had,
+    // until this bound existed, no timer over it at all: the promise never
+    // resolved and the message was written unannounced whenever the link returned.
+    // On expiry `await_send_outcome` reports `failed` — never reached the wire —
+    // and the drain discards the request if it surfaces later.
+    crate::resident::await_send_outcome(reply_rx, crate::resident::SEND_QUEUE_TIMEOUT).await
 }
 
 /// Fetch a Space's DAG tips over a short-lived CONTROL connection (M-RP6.3 D2 —

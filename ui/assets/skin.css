@@ -47,6 +47,7 @@
   --fs-s1: 9px;  --fs-s2: 8px;
   /* Line-height (shared by controls + prose) */
   --lh: 1.5;
+  --lh-0: 1.0;
 
   /* Region-tile fold rotation (M-RP7.1, D8.1) — the folded side-strip's reading direction. CW default
    * (0deg, English book-spine); CCW = 180deg (bottom-to-top: DE/FR/CZ/SK/RU). A CULTURAL TOKEN, not a
@@ -948,7 +949,7 @@ html, body {
   justify-content: space-between;
   gap: var(--sp-2);
   box-sizing: border-box;
-  min-height: 20px;
+  min-height: 26px;
   padding: 0 0 0 var(--sp-2);
   background: var(--s2);
   border-top: 1px solid var(--s5);
@@ -2939,8 +2940,8 @@ html, body {
  *   caption read identically client↔node. PROVISIONAL. ── */
 .message-stream {
   box-sizing: border-box;
-  background: var(--s0);
-  border: 1px solid var(--s5);
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: var(--rad);
 }
 /* selectable rows — click-select (§9.5); the [data-selected] mirror is the light-select highlight
@@ -2948,6 +2949,13 @@ html, body {
 .message-stream-row {
   cursor: pointer;
 }
+
+.message-stream-row > .message > .paragraph {
+	font-size: var(--fs-0);
+	line-height: var(--lh-0);
+	font-style: italic;
+}
+
 .message-stream-row[data-selected] {
   background: var(--s3);
 }

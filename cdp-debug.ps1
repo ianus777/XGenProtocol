@@ -244,6 +244,18 @@ try {
                         Write-Host $line
                         Add-Content -Path $OutFile -Value $line -Encoding UTF8
                     }
+                    # N-142: an UNCAUGHT EXCEPTION is not a console API call, so subscribing to
+                    # consoleAPICalled alone renders a crashing app INVISIBLE — measured at M-RP6.9:
+                    # 265 tailed lines, zero matches, across a real crash. An instrument that reads
+                    # clean during a failure is worse than one that reads nothing, because clean
+                    # output looks like evidence (the N-139 family).
+                    elseif ($obj.method -eq 'Runtime.exceptionThrown') {
+                        $d = $obj.params.exceptionDetails
+                        $what = if ($d.exception.description) { $d.exception.description } else { $d.text }
+                        $line = "[exception] {0} (line {1}, col {2})" -f $what, $d.lineNumber, $d.columnNumber
+                        Write-Host $line -ForegroundColor Red
+                        Add-Content -Path $OutFile -Value $line -Encoding UTF8
+                    }
                 }
             } catch { }  # cancellation ends the tail
         }

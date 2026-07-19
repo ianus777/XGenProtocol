@@ -18,7 +18,11 @@
  *  named; the payload is carried whole, so nothing is lost to an early projection. */
 export interface IngestEvent {
   event_id?: string;
-  event_type?: string;
+  /** The event kind. This is the WIRE name. `wire.rs:476` carries
+   *  `#[serde(rename = "type")] pub event_type: EventType` — the RUST field is `event_type`, and it is
+   *  named that way only because `type` is a Rust keyword. This interface declared the Rust name until
+   *  J-551 and now declares the wire name; do NOT "correct" it back. */
+  type?: string;
   sender?: string;
   space_id?: string;
   room_id?: string;

@@ -1,6 +1,6 @@
 # M-RP6.3 — live messaging: R6 composer + narrow-B send path
 > **Status**: ACTIVE  
-> Version: 1.6  
+> Version: 1.7  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-19  
 > Language: English  
@@ -566,7 +566,8 @@ invent fields to make a panel look substantial*).
 | Resident pong timeout — frozen-peer detection (§0 G-4) | **M-RP6.7 — resident pong timeout**, FILED, unscoped, Joe's to schedule |
 | Concurrent-first-send re-anchor herd | unchanged, filed at §8 |
 | XGID → display-name resolution (C-8) | R7 members / **M-RP-PLUGINS-NODE** |
-| **`IngestEvent.event_type` → `type`** — the Leg-B interface declares the RUST field name; the wire serialises `type` (`#[serde(rename)]`, `wire.rs:476`). C2 reads the grounded name via `wireType()` and is correct regardless; the SOURCE is still wrong. | **a one-field fix, unscoped** |
+| ~~**`IngestEvent.event_type` → `type`**~~ — **DONE (J-551)**, Chat micro-change ahead of Leg D. Three readers, not one: the declaration, `wireType()`'s fallback (which stopped type-checking, not merely stopped being load-bearing), and two stale comments + a test title. `wireType()` and its `event_type` fallback are KEPT. | **closed — J-551** |
+| **No `ui/**` package runs a typecheck** — so no gate can fail on a type error; the frontend floors prove runtime + module graph only (N-138) | **M-RP-TYPECHECK — admit a typecheck to the frontend gate set**, filed, unscoped, Joe's to schedule |
 | **View-latch behaviour across remount + the unattributed bus move** (§8.8/§8.9 of the C2 runbook) | **M-RP6.8 — view-latch persistence** |
 | Per-message send state (“not delivered yet” / pending / failed) — C2 has no outbound rows | **Leg D**, via `MessageDescriptor.details` |
 

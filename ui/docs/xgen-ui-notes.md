@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 0.99  
+> Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-07-18  
+> **Last updated**: 2026-07-19  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -2759,6 +2759,35 @@ Leg C's shell binds the backdrop value into `region-shell`'s `backgroundLive` an
 M-RP6.6 replaced the desktop scaffold (`connect_async` → **drop the stream** → `sleep(150ms)` → emit `Ready`) with a real `run_session` spine driven by *actual* socket outcomes. The **first live drive** (node up → client READY → kill the node) proved the DETECTION worked — the log showed `resident: recv error — connection lost (os error 10054)` → `session ended outcome=Disconnected` — **but the UI stayed pinned at READY.** The defect: `run_session`'s drain-drop arms did `break SessionEnd::Disconnected` — they *returned* the outcome but **never called `sink(ClientLifecycleState::Disconnected)`** — while the connect-fail and auth-fail arms *did* emit it. A silent divergence: a session that reached READY and then dropped exited **without ever telling the UI**. The unit test (`reached_ready`) could not catch it — it asserted the outcome-mapping, not the emission. **Only driving the real app surfaced it** (Joe's *“stop the node → the led flips”* proof, which the ROADMAP had said for a year was *“wired in 2b/M3”* and never was — the exact leg that was un-runnable until the resident existed). This is the N-099 family: *a defect the static artefacts (build / typecheck / the unit test) cannot see, because the wrong-but-plausible behaviour is a missing side-effect, not a wrong value.*
 
 **Fix — and it is the shape the reconnect leg needed anyway.** `run_session` emits ONLY the live progression (Connecting → Authenticating → Ready); the **CALLER owns the terminal state.** Leg A's desktop caller emits `Disconnected` for any non-shutdown end; Leg B's `run_resident` emits `Reconnecting` and retries instead. One owner, no divergence — and moving the terminal decision out of the session is precisely what let Leg B substitute `Reconnecting` for `Disconnected` with zero change to the session. **Rule: a return value is not a notification. A state machine that RETURNS a terminal outcome has not COMMUNICATED it — returning and emitting are two acts, and a branch that does one while its siblings do both is a stuck-UI bug. Emit the terminal state at ONE owner (the caller), or prove every return path emits.**
+
+---
+
+## 2026-07-19
+
+### N-138 — NO `ui/**` PACKAGE RUNS A TYPECHECK, SO NO GATE ON THIS PROJECT CAN SEE A TYPE ERROR — THE FRONTEND FLOORS PROVE RUNTIME AND BUNDLING, NOTHING ELSE (J-551)
+
+Surfaced while scoping the one-field `IngestEvent.event_type` → `type` fix. `grep` found three readers, and the
+second of them — `wireType()`'s `e.event_type` fallback — would become a **property that does not exist on the
+interface** the moment the rename landed. The kickoff's own framing said *"nothing breaks; the fallback simply
+stops being load-bearing"*. It does not stop being load-bearing — it stops **type-checking**.
+
+**Then the second half, which is the part worth keeping.** Checked every `ui/**/package.json`: `client` and
+`node` expose `dev` / `build` / `preview`; `sampler` adds `test`. **There is no `svelte-check`, no `tsc`, no
+`tsc --noEmit`, anywhere.** vite strips types through esbuild without checking them, and vitest does the same.
+So `npm test` **114** and `vite build` **192 / 169** — the three floors this arc quotes constantly — **cannot
+fail on a type error.** They are honest signals about runtime behaviour and the module graph, and silent about
+the thing a rename most plausibly breaks.
+
+**Rule: never cite the frontend floors as evidence that a typed change is correct.** They corroborate that
+nothing broke at runtime; they are not a typecheck and quoting them as one is the N-108 error wearing a
+different hat — an underived claim attached to a number that was really measured. For a type-shaped change the
+DIRECT evidence is the `grep` over every reader plus the read of each one; the floors only corroborate.
+
+**Filed, not built:** adding a `check` script (`svelte-check --tsconfig ./tsconfig.json`) to the three `ui`
+packages and admitting it to the gate set. That is a real decision with a real cost — it will almost certainly
+surface a backlog on first run, and discovering that backlog mid-leg is exactly the wrong moment. It wants its
+own arc, not a smuggled line in a one-field fix. → **M-RP-TYPECHECK — admit a typecheck to the frontend gate
+set**, filed, unscoped, Joe's to schedule.
 
 ---
 

@@ -1,7 +1,8 @@
 // derive.test.ts — pure unit suite for the R5 projection map + gap-phase mapping (M-RP6.3 Leg C2). No DOM,
 // no Svelte, no store — runs in the sampler vitest harness (`ui/sampler/vitest.config.js` scans
 // `../common/lib/**/*.test.ts`). Locks the two things §5 named as "should grow npm test": the projection
-// allowlist and the phase mapping — AND the grounded wire-field finding (`type`, not `event_type`).
+// allowlist and the phase mapping — AND the grounded wire-field finding, FIXED AT SOURCE at J-551
+// (`IngestEvent` now declares `type`; the `event_type` fallback is kept deliberately, and still covered).
 
 import { describe, it, expect } from 'vitest';
 import { wireType, shortId, membershipCopy, projectEvent, phaseFor } from './derive';
@@ -20,8 +21,8 @@ describe('wireType — the grounded finding (wire.rs:476)', () => {
   it('reads the wire `type` field', () => {
     expect(wireType(ev({ type: 'message.text' }))).toBe('message.text');
   });
-  it('falls back to `event_type` if a future interface fix renames it', () => {
-    expect(wireType({ event_type: 'message.text' } as IngestEvent)).toBe('message.text');
+  it('still falls back to the legacy `event_type` name (kept deliberately, J-551)', () => {
+    expect(wireType({ event_type: 'message.text' } as unknown as IngestEvent)).toBe('message.text');
   });
   it('is undefined when neither is present', () => {
     expect(wireType({} as IngestEvent)).toBeUndefined();

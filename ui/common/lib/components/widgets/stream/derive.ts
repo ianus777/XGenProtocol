@@ -15,13 +15,16 @@ import type { StreamStatus } from '$core/components/data-dependent/stream/groupi
 
 /**
  * ⚠️ GROUNDED FINDING (surfaced): the wire `Event` serialises its kind as `type` (serde rename,
- * `xgen-common/src/wire.rs:476`), NOT `event_type` as the Leg-B `IngestEvent` interface declares. C2 is the
- * FIRST reader of this field (Leg B only ever read counts), so this drift was latent. Read the grounded wire
- * name, falling back to `event_type` so a later interface correction cannot silently break this. Every other
+ * `xgen-common/src/wire.rs:476`), because `type` is a Rust keyword and the RUST field is therefore
+ * `event_type`. The Leg-B `IngestEvent` interface declared the RUST name; C2 was the FIRST reader of this
+ * field (Leg B only ever read counts), so the drift was latent. FIXED AT SOURCE at J-551: `IngestEvent` now
+ * declares `type`. The `event_type` fallback below is KEPT DELIBERATELY as a legacy read — it costs one `??`,
+ * its unit test is part of the `npm test` floor, and removing it is a separate change. Every other
  * `IngestEvent` field matches the wire.
  */
 export function wireType(e: IngestEvent): string | undefined {
-  return (e as IngestEvent & { type?: string }).type ?? e.event_type;
+  const w = e as { type?: string; event_type?: string };
+  return w.type ?? w.event_type;
 }
 
 /** A short readable handle from an XGID (`xgen://hash/sha256:<hex>`) — the honest identifier while no

@@ -2868,9 +2868,9 @@ html, body {
   justify-content: flex-start;
 }
 .message .msg-header .label {
-  font-size: var(--fs-1);
+  font-size: var(--fs-0);
   font-weight: 600;
-  color: var(--t);
+  color: var(--t4);
 }
 /* details socket — inline widget host (time · badges · send-status led …); muted, small */
 .message .msg-details {
@@ -2882,11 +2882,11 @@ html, body {
 }
 /* body — the composed prose paragraph, flow-tightened under the header */
 .message .msg-content .paragraph {
-  margin: 0;
+  margin: var(--sp-2) 0 0;
 }
 
 .message .message-paragraph {
-	font-size: var(--fs-2);
+	font-size: var(--fs-1);
 	letter-spacing: .5px;
 }
 

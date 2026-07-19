@@ -1,8 +1,8 @@
 # M-RP6.3 — live messaging: R6 composer + narrow-B send path
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-18  
+> **Last updated**: 2026-07-19  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -486,6 +486,15 @@ Two honest empty states, distinct copy for distinct truths (N-091):
 no room latched → *select a room*; a latched room with nothing projected →
 *no messages*.
 
+> **⚠️ AMENDED IN PLACE (J-549) — BOTH EMPTY STATES ARE NOW WIDGET-COMPOSED.**
+> C-9 (§9.10) prepends a permanent head-marker row, and `message-stream`'s own
+> empty branch is `showEmpty = count === 0 && !backgroundDeclared`. A
+> permanently-present marker makes `count ≥ 1` forever, so **`core`'s "No
+> messages yet" can never fire again from this widget.** The second empty state
+> is therefore a **second synthetic `system` row** the widget composes, one
+> level up from where C1 put it. *The truths and the distinct-copy requirement
+> are unchanged; only who renders them moved.*
+
 ### §9.6 — C-6 · ⚠️ THERE IS NO BACKFILL, AND R5 MUST SAY SO
 
 Switching to a room shows only what arrived over the resident **this session**.
@@ -523,6 +532,14 @@ here and nothing in Leg C reserves a slot for it.
   Rust. The Leg-A status surface already publishes the transition; the widget
   starts the timer on leaving `READY` and materialises the row only if it fires.
   Nothing is added to `resident.rs`.
+  > **⚠️ AMENDED IN PLACE (J-549) — THE TIMER AND THE EPISODE MOVE TO A
+  > `$common` STORE (C-10, §9.10).** A widget-local tracker **loses all outage
+  > history when the tile is folded, the layout changes, or the plugin is
+  > toggled**, and restarts the grace timer on remount — a still-live outage
+  > would blink out and return two seconds later. A second mount would give two
+  > views of one connection two disagreeing stories. **The binding half of this
+  > clause — not `core`, not Rust, nothing added to `resident.rs` — is
+  > unchanged.**
 - **Copy constraints, binding (§0 G-4 as amended):** the row describes a **broken
   socket**, never “the node is down” — a frozen peer produces no transition at
   all. And the terminal state is **not permanent**: any window `focus` resumes a
@@ -552,3 +569,112 @@ invent fields to make a panel look substantial*).
 
 **M-RP6.7 is filed, not started.** Filing an arc is not deciding to build it;
 the frozen-peer gap is named so Leg C cannot paper over it, per §0.
+
+---
+
+## §9.10 — Leg C2 Phase-0 (grounded against HEAD, 2026-07-19; Joe-locked)
+
+Three questions were grounded against HEAD before the C2 runbook was authored,
+because a `core`-shaped answer to any of them would have changed the
+milestone's shape and finding that out after the runbook is the expensive
+order. **All three came back shell-only. There is no C1b.**
+
+### §9.10.1 — C-9 · THE HEAD MARKER IS A SYNTHETIC `system` DESCRIPTOR
+
+**The question:** C-6's head marker is neither a message nor a divider, and
+“the view begins at session start” is not one of C1's four status phases. A
+fifth phase or a fourth `StreamRow` kind would be a `core` change C2 is
+forbidden to make.
+
+**Grounded** in `data-dependent/types.ts`: `MessageKind = 'text' | 'system'`,
+and `system` is an **authorless centred notice** — `author` optional, `body`
+optional, `id` free. §9.3 already routes `membership.*` through that render, so
+it is a **shipped, verified path**, not a new one.
+
+**LOCKED:** the head marker is a synthetic `MessageDescriptor{kind:'system'}`
+that the **widget prepends** to `messages`. Zero `core`. `computeRows` needs no
+change — a system row already breaks a grouping run, and as row 0 it breaks
+nothing.
+
+Four consequences, stated rather than discovered:
+
+1. **It makes `core`'s empty state unreachable** → C-5 amended in place (§9.5).
+2. **⚠️ Getter `count` is no longer the message count** — it becomes
+   `projected + 1` (or `+2` when empty). Anyone verifying C2 must subtract, or
+   an empty room reads as two phantom messages. *The J-548 hidden-element
+   family: a number that is right about the wrong quantity.*
+3. **Reserved id prefix** (`__head__`) so a synthetic row can never collide with
+   an `event_id` and `onSelect` can filter it.
+4. **A session crossing midnight** puts a day divider between the marker and the
+   first message. **That is the truthful render, not a bug.**
+
+*Rejected:* a leading `divider` row (`computeRows` mints dividers itself —
+injection needs a `core` prop) and a fifth `status` phase (`core`, forbidden).
+
+### §9.10.2 — C-10 · EPISODE IDENTITY IS MINTED CLIENT-SIDE, IN A `$common` STORE
+
+**The question:** C1's V6 depends on a stable `id` across a phase transition,
+and `resolvedAfterMs` is retrospective. Neither has a source in the resident.
+
+**Grounded:** `ResidentStatus` is exactly
+`{ attempt, max_attempts, next_attempt_in_ms, terminal, connect_timeout_ms,
+ping_interval_ms }`. **No episode id, no gap start time, no outage duration.**
+The lifecycle state arrives on a separate channel (`selfState.connection`).
+
+**LOCKED:** a new `$common` store (`gaps.svelte.ts`) mints episode identity,
+records the start time, owns the grace timer, derives the four phases, and
+publishes a `StreamStatus[]`. **This amends C-7's “in the widget” clause**
+(§9.7, amended in place); C-7's binding half — not `core`, not Rust, nothing
+added to `resident.rs` — is untouched.
+
+**The single-writer rule, the `tickNow` lesson applied forward:** ONE function
+ingests an observation; the reactive effect calls it and the DEV hook exposes
+**that same function**. No setter that injects a finished episode — *a verify
+seam that skips the mechanism verifies the wrong thing* (J-548).
+
+**Honest limits, binding on the close:** episode START is **event-timed** and
+accurate; the countdown **numbers are poll-sampled at 2 s** and may be that
+stale — say which is which. A **frozen peer produces no transition, hence no
+episode, hence no row** (§0 G-4 amended). `terminal` is **not permanent**
+(any `focus` resumes a parked resident). Episode history is **session-scoped
+and in-memory** by design.
+
+### §9.10.3 — C-11 · THE RESOLVED ROW MARKS A DISCONTINUITY, NOT AN ALL-CLEAR
+
+There is no backfill, so messages other people sent **during** a gap are gone
+and nothing will fill the hole. A resolved row meaning only *connection
+restored · 8s* is true and **incomplete** — the same D6 rule as the head marker
+(*the stream may never look complete when it isn't*), applied to the middle of
+the stream instead of the top.
+
+**LOCKED:** the resolved episode row asserts **“the record is discontinuous
+here.”** It costs nothing — `resolvedAfterMs` already ships and the row already
+renders in the right position. **Wording and appearance remain Ms Design's;
+only the meaning is locked here.**
+
+**Filed, NOT built → Leg D: per-message send state.** “Not delivered yet” /
+pending / failed indicators belong on **outbound** rows, and C2 has none: every
+projected row is inbound (delivered by definition) and the node excludes the
+author from fan-out, so your own sends never ingest. `MessageDescriptor.details`
+is the reserved socket (its own comment names *send-status led*) and Leg B
+already ships the four-way `SendOutcome` behind it.
+
+### §9.10.4 — F-6 CORRECTED: THE LATCH IS SAFER THAN J-547 ASSUMED
+
+F-6 recorded that “R5's shipped `onSelect` moves the bus to a **message**.”
+**That is not true at HEAD.** `message-stream.svelte` sets its own `$bindable
+selected` and calls `onSelect?.(mid)` — an explicitly **reserved hook**. It
+never writes the selection bus; the consumer decides.
+
+**LOCKED:** C2 does **not** wire `onSelect` to `selection.set`. The room latch
+is then a byte-for-byte copy of the `rooms-panel` D3 shape with `'room'`, and
+the N-136 self-invalidating read-modify-write is **not merely avoided — it is
+unreachable**, because nothing this widget does moves the bus off a room.
+
+**And a message selection is not expressible on the bus today:**
+`EntityDescriptor.kind` is `'identity' | 'space' | 'room'` — there is no message
+kind. Wiring R5 to the bus is therefore a `core` descriptor-union change, not a
+deferred C2 decision. **Filed, not built.**
+
+**Filter scope:** `room_id` alone is sufficient — room ids are hash-derived
+`xgen://` globals, so `space_id` is redundant. No space latch this leg.

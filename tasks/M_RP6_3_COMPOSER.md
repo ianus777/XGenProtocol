@@ -1,6 +1,6 @@
 # M-RP6.3 — live messaging: R6 composer + narrow-B send path
 > **Status**: ACTIVE  
-> Version: 1.7  
+> Version: 1.8  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-19  
 > Language: English  
@@ -475,6 +475,13 @@ room and mapped through §9.3. No append API, no second store, no reconciliation
 A projected mirror store is **rejected**: it would put the projection in a second
 place, which is the exact reason Leg B refused to project at all.
 
+> **⚠️ AMENDED IN PLACE AT §9.11.2 (Leg D Phase-0, J-552).** This lock governs
+> **INBOUND** and is unchanged for it. **OUTBOUND** is a named exception: the
+> node excludes the author from fan-out *by identity* (`fanout.rs:305`), so the
+> user's own sends have **no wire fact to project from** and must come from a
+> session-mortal, never-federated echo store. Read §9.11.2 before applying this
+> lock to anything the user sent.
+
 ### §9.5 — C-5 · THE ROOM LATCH, AND WHAT R5 DOES WITH AN OFF-ROOM EVENT
 
 R5 latches the last `kind: 'room'` selection, on the `rooms-panel` D3 shape: the
@@ -682,3 +689,224 @@ deferred C2 decision. **Filed, not built.**
 
 **Filter scope:** `room_id` alone is sufficient — room ids are hash-derived
 `xgen://` globals, so `space_id` is redundant. No space latch this leg.
+
+---
+
+## §9.11 — Leg D Phase-0 (grounded against HEAD, 2026-07-19; Joe-locked)
+
+Driven before any runbook, per the standing order that a `core`- or Rust-shaped
+answer changes the milestone's shape and finding that out mid-runbook is the
+expensive order. **Unlike C2, the answers did NOT come back shell-only.**
+
+### §9.11.1 — Two corrections to the brief, both material
+
+**The four-way is `accepted` · `rejected` · `timed_out` · `failed`**
+(`resident.rs:706`, a struct: `{event_id: Option<String>, status: &'static str,
+code: Option<u32>, reason: Option<String>}`). The session brief listed
+*in-flight* as the fourth. **In-flight is not an outcome — it is the state
+before one exists**, and `rejected` is a real one: a deterministic node refusal
+carrying a wire `code`, a message that will NEVER arrive no matter how long the
+user waits. That is a different thing to tell a user than *timed out*.
+
+**`event_id` arrives WITH the outcome, not before it.** `send_message` awaits
+the correlated reply and resolves once. At the moment the user presses Enter the
+frontend does not know the `event_id`, so **an echo cannot be keyed by it at
+creation** — the brief's proposed shape is not constructible. **LOCKED: the echo
+is keyed by a CLIENT-MINTED local id; the real `event_id` is stitched on when
+the outcome returns.**
+
+### §9.11.2 — D-1 · C-4 IS AMENDED: OUTBOUND GETS AN ECHO STORE
+
+**The problem, grounded:** the node excludes the author from fan-out **by
+IDENTITY, not by connection** — `fanout.rs:305`, `EV-D2`, in terms. Combined
+with C-4 (`stream-panel` projects ONLY `ingest`, on read), a send round-trips,
+returns `accepted`, and **the stream does not change.** Your own words render
+nowhere.
+
+**⚠️ The brief proposed "a mirror with a defined death — dropped when the real
+event arrives." THE REAL EVENT NEVER ARRIVES.** There is no server-sent fact to
+reconcile your own messages against, ever. The echo is the sole record they
+exist, for the whole session.
+
+**LOCKED — C-4 amended in place, narrowly:** C-4 continues to govern **inbound**
+unchanged (project on read, no mirror, no reconciliation). **Outbound** gets a
+separate, explicitly **session-mortal, never-federated** echo store in
+`$common`. Not a general mirror — a named exception with a stated reason and a
+stated death. C-4's original rationale (do not put the projection in two places)
+is untouched: there is still exactly one projection path per source of truth.
+*The awkwardness — a mirror that never dies within a session — becomes a
+DOCUMENTED property rather than a leak.*
+
+### §9.11.3 — D-2 · THE TWELVE USER-FACING LOCKS
+
+| # | lock |
+|---|---|
+| 1 | A local echo exists. C-4 amended (§9.11.2). |
+| 2 | The echo lives in a **`$common` store**, not the widget — the C-10 argument, stronger here: a lost outage row is an omission; a lost sentence you just typed is the app eating your words in front of you. |
+| 3 | Keyed by a **client-minted local id**; `event_id` stitched on at outcome. |
+| 4 | The echo's timestamp is **client-minted and stays that way** — see §9.11.5. |
+| 5 | **Self is special-cased**: the user does not see their own six-char hash tail. `isOwn` already ships. Wording/appearance = Ms Design. |
+| 6 | Send-status has **THREE visual states, not two**: sent (`accepted`) · **unresolved** (`timed_out`) · not sent (`rejected` + `failed`, same state, different copy). Collapsing `timed_out` either way is the D6 lie verbatim. |
+| 7 | **Retry policy by status:** `failed` → retry freely (never reached the wire) · `rejected` → no retry (it will be refused again) · `timed_out` → retry only behind an explicit warning, because **the node may hold it and the user may double-post**. |
+| 8 | The echo dies at **exactly one stated moment**: session end / reload. **The C-6 head marker must cover the user's OWN sends**, or its confession is partial. *They never read the messages they lost; they wrote the one they lost.* |
+| 9 | Echoes are real `MessageDescriptor`s, so **grouping and dividers come free**. |
+| 10 | **Auto-scroll on your own send, always** — the one action where it is unambiguous. |
+| 11 | **N windows, one device** — consistent, falls out of #2. Not "two": stated as N so nobody special-cases a pair. |
+| 12 | **No room latched ⇒ typing yes, sending no.** Silently accepting a sentence that goes nowhere is the worst of the three options. |
+
+### §9.11.4 — ⚠️ D-3 · THE SILENT QUEUE IS ALREADY SHIPPED. LEG D IS NOT ZERO-RUST.
+
+**`send_message` never checks link state.** It `try_send`s onto the outbound
+channel (`desktop.rs:331`) and awaits the reply. And `io.outbound_rx.recv()` is
+polled **only inside `run_session`'s `select!`** (`resident.rs:418`). Between
+sessions — i.e. for the entire duration of an outage — **nothing drains that
+queue.**
+
+So a send during an outage: `try_send` succeeds · **the promise never resolves**
+· the message sits queued · and when the link returns the drain pops it and
+**sends it**, minutes later, unannounced.
+
+**`SEND_ACK_TIMEOUT` (10 s, swept at 1 s) does not save this** — it ages only
+sends already WRITTEN and awaiting an ack. A queued-but-never-written send has
+**no timer at all**.
+
+***That is precisely the silent queue D6 forbids, live at HEAD, plus a promise
+that never resolves.*** Leg B is scrupulous about D6 everywhere it writes
+(`resident.rs:449`, *"Never written → say so"*) — the gap is the state where it
+never gets to write. **Nobody was careless: it is the seam between two correct
+pieces, and it only becomes reachable once a composer exists to hit it.**
+
+**LOCKED (D1):** bound the wait in `send_message` —
+`tokio::time::timeout(SEND_ACK_TIMEOUT, reply_rx)` — and on expiry return
+**`failed`**, NOT `timed_out`. `failed` means *never reached the wire*, which is
+exactly true of a send that was never drained; `timed_out` would claim the node
+may hold it, which is the D6 lie inverted. A frontend lifecycle guard blocks the
+common case, **but the guard is the nicety and the timeout is the guarantee**
+(§0 G-4: a half-open socket defeats any guard).
+
+***Rejected: draining the queue on session teardown and failing everything in
+it.*** Tidier, but it destroys a message the user may still want offered under
+D6's explicit *"send when reconnected"*.
+
+**Consequence: C2's zero-Rust shape does NOT repeat. Leg D changes `.rs`, and
+`cargo test` moves off 1541 by design.**
+
+### §9.11.5 — D-4 · THE SOCKETS, AND WHY SEND-STATUS IS NOT HEADER FURNITURE
+
+**`details` is live, not reserved-unfed** — `message.svelte:71` resolves each
+mount against a consumer registry, drops unknown ids (W-13), and `detailsCount`
+reports RENDER truth. `message-stream` takes `widgets?: Record<string,
+Component>` from the shell. So a status widget needs **zero `core`** to mount.
+
+**⚠️ But grouped continuation rows suppress the whole header line — name AND
+`details`** (`message.svelte:149`; grouping is decided in `core`'s
+`grouping.ts`: same author, within `GROUP_WINDOW_MS` = 5 min, no divider
+between). **Three sends in a row ⇒ rows 2 and 3 cannot show send-status. A
+`failed` third message would look exactly like the delivered first one.** D6's
+mirror, broken by a `core` render rule, in the most common send pattern there
+is. *Locks #6 and #9 were in direct tension and this is where it surfaced.*
+
+**REJECTED: perforating grouping so `details` survives.** Suppression is
+**correct** — repeating the author's name and time on every row of a run is
+precisely what grouping exists to remove. Punching a hole in a right rule to
+admit one tenant is the wrong repair.
+
+**LOCKED: send-status belongs in `bodyExtras`, and the socket gets built.**
+`bodyExtras` sits BELOW the body, **outside** the `{#if !grouped}` block, so it
+is **grouping-immune by position** — and `types.ts:69` already names it for
+*attachments / reactions*. It is declared but **never rendered**
+(`message.svelte:29`), so this is a `core` change — but it is **building a
+socket that was always designed**, not perforating a rule that was always right.
+
+**`types.ts:67–69` is corrected as part of this:** *send-status led* moves from
+the `details` list to `bodyExtras`, with the reason recorded. That line was
+written before a composer existed, when nobody had asked whether send-status is
+**header chrome or per-row state**. It is per-row state — the same category as a
+reaction, not the same category as an author name.
+
+**⚠️ NO PROVISIONAL-TIMESTAMP FIELD, and the reason is not cost.**
+`MessageDescriptor.timestamp` is a bare `string` with no provenance, and the
+message formats its own. Marking it provisional is a `core` change — but
+**`SendOutcome` carries no timestamp**, so even on `accepted` there is nothing
+to correct the time TO. *A provisional marker that can never resolve is worse
+than none.* Provenance rides the status widget instead. **FILED:** `accepted`
+returns no authoritative timestamp, so a user's own rows keep a client-minted
+time for the session and **may order differently for them than for everyone
+else in the room**. Real, permanent within a session, not Leg D's to fix.
+
+### §9.11.6 — D-5 · THE LEG SPLIT, AND WHY A MILESTONE IS INSERTED
+
+**Joe's call (2026-07-19):** build the `bodyExtras` container **fixture-driven
+first**, before either tenant needs it — the R5 precedent exactly (M-RP5.6 built
+the stream on fixtures; Leg C wrapped it live four milestones later).
+
+**The argument, and it is Joe's:** a socket designed against a single static led
+will hold a single static led. **Reactions are the far richer consumer** — N
+mounts per row, added and removed at runtime, interactive, on continuation rows.
+Design against the strong consumer and send-status is trivially a second tenant;
+design against the weak one and it is paid for twice. **And this is the cheap
+moment**: one message component, one stream, one registry.
+
+**What the build teaches that a design walk cannot:** `cid()` behaviour under
+**N mounts × M rows**. The client registry has sat at **134 quiescent** through
+C2 and every verify leg on this arc keys off it. Three mounts on twenty rows is
+sixty new ids — **or sixty collisions**, and which one is not known. Answer it
+on a fixture bench, not during a composer drive where it would look like the
+composer's fault. Same for W-13 drop-unknown when socket membership changes at
+runtime: `details` has only ever been handed a static list.
+
+| leg | tier | scope |
+|---|---|---|
+| **D1 — send-path honesty (Rust)** | `.rs` | §9.11.4. **First**, because it is a LIVE D6 violation and depends on nothing else here. |
+| **M-RP6.9 — `bodyExtras`: the per-row message container (`core`)** | `core` | Sampler-fixture-driven. **ZERO protocol, ZERO store, ZERO federation.** |
+| **D2 — R6 composer + echo store (`$common`)** | `$common` | §9.11.2 + §9.11.3. User value lands here. |
+| **D3 — send-status widget** | `$common` | Second tenant of a proven container; `details`-vs-`bodyExtras` already answered by measurement. |
+
+**⚠️ THE FENCE ON M-RP6.9 — BINDING.** The container renders `WidgetMount[]` and
+**never learns what a tag or a reaction IS**. The sampler passes fixture mounts;
+a future arc passes real ones; **the component does not change between those two
+events.** That is what makes it a container to complete rather than a stub to
+replace.
+
+- **Fixtures live in the SAMPLER only.** In the real client the container renders
+  **nothing** until something feeds it. A client rendering invented tags is fake
+  data on screen — N-091 / D-065, the thing this project refuses most
+  consistently. The sampler catalogue moving off **386** is the honest signal it
+  shipped.
+- **Fixture assets are locally bundled, never remote URLs** — so not even a
+  fixture establishes the precedent **D-111** forbids.
+- **NO `ReactionDescriptor`, no wire shape, no protocol, no attribution.** *A
+  data shape invented before the protocol exists is a shape the protocol then
+  has to satisfy* — and **who reacted is identity data, which sits on the
+  no-anonymity core: Joe's.*
+
+### §9.11.7 — ⚠️ #11b · MULTI-DEVICE: NAMED, NOT SOLVED, AND NOT LEG D'S
+
+Author exclusion is **by identity** (`fanout.rs:305`), and the loop below it
+delivers to **every connection** of each recipient. So other people's messages
+reach all of their devices — **and your own reach none of yours.** The echo is
+process-local; a second device is a second process with its own resident. You
+type on the laptop and **the sentence does not exist on the phone.** Not "until
+reload" — at all.
+
+**Not solvable in Leg D and not pretended otherwise.** It is the intersection of
+EV-D2, the no-backfill window (C-6) and one identity spanning devices — the last
+of which sits on the no-anonymity core. **Joe: "this awaits us from day one, and
+I keep it in mind the whole time."**
+
+**The encouraging half:** the node DID persist the event. Fan-out is a
+live-delivery optimisation, **not the record.** A device that can ask the node
+for room history sees the user's own messages perfectly well — so **the
+multi-device hole closes at M-RP6.4, not at Leg D.** **BINDING CONSTRAINT ON
+M-RP6.4, written now while it is still free:** backfill reads the EVENT STORE
+and must return the requesting identity's OWN events. *If backfill were ever
+built by replaying fan-out, the hole would silently persist.*
+
+### §9.11.8 — Filed here, built elsewhere (Leg D additions)
+
+| item | successor |
+|---|---|
+| Blob-backed custom reactions — custom sets, animated, above 16px, not unicode | **M-RP-REACTIONS**, filed unscoped, no design record; discussion deferred to the real interface |
+| `accepted` carries no authoritative timestamp ⇒ own rows may order differently than for others | filed, unscoped |
+| Multi-device self-visibility (§9.11.7) | **M-RP6.4**, with the event-store constraint above |
+

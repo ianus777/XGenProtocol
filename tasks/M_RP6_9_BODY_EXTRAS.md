@@ -1,6 +1,6 @@
 # M-RP6.9 — `bodyExtras`: the per-row message container (`core`, fixture-driven)
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-19  
 > Language: English  
@@ -215,11 +215,9 @@ stop — something registered that should not have.
   `{#if !grouped}` block** — that position *is* the milestone. It must render on
   a grouped continuation row.
 - **Tombstone guard (D-4):** not rendered when `deleted`.
-- Root element: a single container span/div carrying a stable class for Ms Design
-  to key on. **Chat proposes `.msg-body-extras`; the name is structural, the
-  styling is hers.** No skin rule ships from this milestone beyond whatever is
-  needed to make it not visually broken — and even that is provisional and
-  labelled for `M-RP-SKIN`.
+- Root element: a single container span/div carrying the stable class
+  `.msg-body-extras`. Its **appearance is specified in §7** (provisional,
+  skin-only, discharged at `M-RP-SKIN`).
 - Getter gains `bodyExtrasCount` = **resolved (rendered)** mounts, forced to `0`
   when `deleted`, and `0` on the `system` kind (the Option-A normalisation
   precedent already in the getter).
@@ -272,10 +270,15 @@ the list and re-derive the number **before** driving):
 | `npm test` | 114 | **114 + `mounts.test.ts` cases** | D-3 extraction |
 | vite CLIENT | 192 | **193** | ⚠️ **+1 `core` module in the import graph.** The client renders nothing from this milestone but still *compiles* `mounts.ts`. **Predicted deliberately: an unpredicted client move on a sampler-only milestone reads exactly like scope leak.** |
 | vite SAMPLER | 169 | **171** | +1 `mounts.ts`, +1 `fixture-reg-widget.svelte` |
-| sampler catalogue | 386 | **≈412 (+26)** | derived below |
+| sampler catalogue | 386 | **419 (+33)** | derived below | 
 | client registry | 134 quiescent | **134** | fixtures are sampler-only; the client feeds the socket nothing |
 
-**The +26, derived per cell** (non-grouped text cell = `message` + avatar + name +
+⚠️ **`ui/assets/skin.css` now enters the diff** (§7, seat change J-555). **It
+moves NO module count** — CSS rules do not move a module graph, measured at J-550
+when a CSS-rules-only commit left vite unchanged. The 193 / 171 predictions above
+are unaffected and stand.
+
+**The +33, derived per cell** (non-grouped text cell = `message` + avatar + name +
 body = 4 · grouped = `message` + body = 2 · deleted = `message` + avatar + name = 3
 · plus **one registering mount each**):
 
@@ -338,21 +341,134 @@ way, and two of those were Chat's.
 
 ---
 
-## §7 — Ms Design handoff
+## §7 — Provisional appearance (SPEC, in live vocabulary)
 
-**Everything below is hers; nothing in it is decided here.**
+**Seat change, J-555.** This section was a handoff to Ms Design. Her lane came
+back with three artifacts that **are not on disk** (`git status` clean; zero grep
+hits) and, more importantly, written in the **retired May-2026 mockup
+vocabulary**: `--xgen-*` appears **121 times** in `ui/templates/skeleton/tokens.css`
+and **ZERO times** in the live `ui/assets/skin.css`. Her mental DOM is
+`ol[aria-label="Messages"] > li > article` with `<dl>` details — the
+pre-component-library prototype. **⚠️ It would have failed SILENTLY:**
+`var(--xgen-msg-extras-lane)` with no declaration resolves to nothing, no error,
+no warning — the lane collapses and *"pre-sized so churn wraps instead of jumping
+the row"*, the best idea in the handback, quietly does not hold. Appearance
+returns to Chat under the **M-RP-SHELF-FRAME (J-530) pattern**: skin-only,
+PROVISIONAL, shipped with the mechanics, judged live by Joe in the sampler,
+discharged at **M-RP-SKIN**.
 
-- The `bodyExtras` strip sits **below the message body**, inside the content
-  column, and **renders on grouped continuation rows where there is no header
-  line above it**. How it reads in that position is the design question.
-- **This socket has TWO future tenants:** the send-status indicator (Leg D3 —
-  three states: sent · **unresolved** · not sent) and **reactions**
-  (M-RP-REACTIONS — N per row, animated, well above ~16px, added and removed at
-  runtime, custom sets). *Design for the second and the first is free.*
-- The structural class this milestone emits is `.msg-body-extras`. The
-  `.fixture-widget` styling in the sampler is a stub, **not a proposal.**
-- **Still owed from earlier legs, unchanged:** M-RP6.6 ConnStats row-swap, and
-  **all** Leg C + Leg D appearance.
+**Her REASONING is kept — it is DOM-independent and it is good.** Her NUMBERS and
+TOKEN NAMES are discarded: they were measured against a component that is not
+there.
+
+### §7.1 ⚠️ THE MEASURED FACT THAT BREAKS HER OPTION A AS SPECIFIED
+
+Option A (proximity tuck) rested on *"`4px` to the body above, `16px`
+inter-message gap does the separating"* — a 1:4 ratio. **Measured at
+`skin.css:2836`:**
+
+```
+.message              { padding: var(--sp-1) var(--sp-2); }   /* 4px 8px */
+.message[data-grouped] { padding-top: 0; }
+```
+
+⇒ separation between two NON-grouped rows = 4px bottom + 4px top = **8px**, not 16.
+⇒ separation into a GROUPED CONTINUATION = 4px bottom + **0** = **4px**.
+
+**So the real ratio on a continuation row is 4px tuck vs 4px to the next row —
+1:1. No belonging signal at all, on precisely the row type this milestone exists
+for.** *Her conclusion was right; the number it stood on was from another
+codebase.*
+
+**FIX, keeping "no new chrome": make the proximity real rather than add a mark.**
+A row that OWNS a strip pushes the next row away:
+
+```
+.message:has(.msg-body-extras) { padding-bottom: var(--sp-3); }   /* 12px */
+```
+
+⇒ 4px tuck vs 12px to the next row = **1:3**, restored, and it holds on grouped
+continuations because it is keyed on the strip's presence, not on `[data-grouped]`.
+`:has()` is fine in this Chromium/Tauri build. **Option C (hairline spine) stays
+the named fallback** if 1:3 still reads ambiguous in a live grouped run.
+
+### §7.2 What M-RP6.9 SHIPS — the container's own rules, nothing else
+
+```
+:root { --msg-extras-lane: 28px; }        /* PROVISIONAL — M-RP-SKIN */
+
+.message .msg-body-extras {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--msg-extras-lane);
+  margin-top: var(--sp-1);                /* the 4px tuck — §7.1 */
+  justify-content: flex-start;
+}
+.message[data-own] .msg-body-extras { justify-content: flex-end; }
+.message:has(.msg-body-extras)      { padding-bottom: var(--sp-3); }
+```
+
+**Why each choice, so a later reader can overturn it knowingly:**
+
+- **`--msg-extras-lane` lives at `:root`, NOT on `.message`.** The
+  `--region-fold-rotate` comment in this same file warns exactly why: *a local
+  default on the component out-specifies an inherited value and silently shadows
+  any override* — a trap that already cost one re-verify. A theme must be able to
+  reach this. **⚠️ Do not "helpfully" add a `.message` local default.**
+  (`--msg-deleted` sits on `.message` correctly, because it is COPY, never themed.)
+- **`28px`, not her 26px** — it matches the existing `--ctl-h` / avatar-track
+  height, so a lane of reaction tiles lines up with the 28px rhythm the rest of
+  the skin already keeps. **Still provisional; it is one line.**
+- **`min-height`, not `height`.** Her guarantee (churn wraps horizontally, no row
+  jump) holds for one lane; **`flex-wrap` means a long reaction run grows to a
+  second lane and the row DOES move.** That is honest and unavoidable — the
+  alternative is clipping user content. **Named, not hidden:** the guarantee is
+  *"adding the 4th tag does not move the row"*, not *"nothing ever moves."*
+- **`justify-content: flex-end` on own rows, NOT `row-reverse`.** `.msg-header`
+  reverses because it is a two-part unit (name + details). Reversing here would
+  reverse the **order of a user's reactions**, which is not a mirror, it is a
+  reordering.
+- **Motion: reuse `var(--motion)` (120ms) if an entry transition ships at all**,
+  rather than her 180ms — the project has already decided its motion feel and one
+  fewer magic number is worth more than 60ms. **Deviation from her spec, named.**
+
+### §7.3 ⚠️ WHAT THIS MILESTONE DOES **NOT** SHIP — and why that is the fence
+
+Her send-status design is **recorded here as intent for Leg D3 and MUST NOT be
+built now**: one glyph slot on `data-state`, three readings distinct on **shape +
+colour + motion** — filled disc (`sent`, persist-faint, `--t3`) · hollow ring
+that breathes (`unresolved`, `--warn`) · attention triangle (`not sent`,
+`--err-bright`); retry via `data-retry` — `failed` free · `rejected` none ·
+`timed_out` warn-then-retry.
+
+**⚠️ A `.msg-body-extras [data-state="…"]` rule in THIS milestone would put a
+tenant's state vocabulary inside the container's skin — the fence breached
+through CSS rather than through TypeScript.** Ms Design guarded against this
+herself (*"keyed only on the container and `[data-own]`/`[data-deleted]`, never
+on widget identity"*) and she was right. **Those rules ship with the WIDGET at
+Leg D3, in the widget's own block.** Recorded here only so D3 does not
+re-derive it.
+
+Likewise **no reaction-tag visuals** — M-RP-REACTIONS, Joe's, deferred.
+
+### §7.4 What Joe judges, and when
+
+The five sampler cells (§3 S-4) do not exist until Clair builds them, so this
+appearance cannot be judged before implementation. **Sequence: Clair ships
+mechanics + this skin block in one pass → Joe looks at 9422 → redirect freely.**
+Because it is skin-only and provisional, a redirect costs **one CSS block, not a
+rebuild** — which is what makes approve-after-delivery cheap here, exactly as it
+was for the other thirty-odd components.
+
+**Watch for, specifically:** whether 1:3 reads as belonging on a real grouped run
+(§7.1) · whether 28px is dead space when the only tenant is one small glyph ·
+whether the strip on a mirrored `[data-own]` row reads as the author's or as
+interface chrome.
+
+**Still owed, now unowned:** M-RP6.6 ConnStats row-swap · all Leg C + Leg D
+appearance · M-RP-SKIN · M-RP-FOCUS.
 
 ---
 
@@ -378,8 +494,11 @@ leg that proves a failure mode rather than a feature.)*
 - [ ] Client registry **134 quiescent** after a full reload.
 - [ ] `types.ts` D-5 correction shipped; no `ReactionDescriptor`, no wire shape,
       no store, no asset, no URL anywhere in the diff.
+- [ ] §7 skin block shipped in `ui/assets/skin.css`, **PROVISIONAL**
+      with **no `[data-state]` / `[data-retry]` rule** (§7.3 — those are Leg D3's).
+- [ ] `--msg-extras-lane` declared at **`:root` only**, with no `.message` local
+      default (§7.2 shadowing trap).
 - [ ] `git show --stat` confirms scope: **zero `.rs`, zero node, zero
       `layout-default.ts`.**
-- [ ] §7 handed to Ms Design.
 - [ ] D-074: JOURNAL + CLAUDE.md PLAY + ROADMAP + this file travel in ONE commit.
 - [ ] `Status: COMPLETED` set in this header at close.

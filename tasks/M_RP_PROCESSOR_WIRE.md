@@ -1,6 +1,6 @@
 # M-RP-PROCESSOR-WIRE — the Text Processing row, composer wiring, and rule persistence
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-20  
 > Language: English  
@@ -288,6 +288,7 @@ Not a code leg. See §6 `[CHAT]` and §10.
 - [ ] JOURNAL J-561 · CLAUDE.md PLAY · ROADMAP · this doc → `Status: COMPLETED`, in ONE commit (D-074).
 - [ ] **The §1.3 correction landed in all three places** — the PLAY block, `ROADMAP.md` L804, and J-560's record.
 - [ ] The seventh self-contradiction recorded per §10.
+- [ ] **D-101 AMENDED IN PLACE at Leg C close (Joe-locked 2026-07-20, option A).** The scope discriminator — *config is wiped; user-owned content is not* — is stated in D-101 itself, and D-101's **exit condition** updated to record Leg C as a **partial instalment** (seed-once resumes for the preserved section only). **No new D-number**; B (a standalone filing rule) stays available later and promoting reverses nothing. *Reason it is a records item and not a chat note: the discriminator was already decided once and written only as a doc comment at `app.rs:290–291`, which is why this session had to re-discover it by grep.* **Lands in Leg C's records commit, never before the code exists** — a decision document must not describe behaviour the binary does not have.
 
 *No "commit pushed" item. `Status: COMPLETED` in this header is the signal (Joe pushes; Claude never does).*
 
@@ -317,9 +318,13 @@ CDP client **9222**. `.\cdp-debug.ps1 -App client -Mode eval`. Single-expression
 
 **Leg C:**
 
-- **V-C1** — user pairs survive a relaunch. Set rules → relaunch → rules present on disk **and** in the store. *Positive control: confirm the config file was actually regenerated (other sections fresh), or you have proved only that nothing ran.*
+- **V-C1** — user pairs survive a relaunch. Set rules → relaunch → rules present on disk **and** in the store (`__XGEN_SUBS__`). *Positive control: confirm the config file was actually regenerated (other sections fresh), or you have proved only that nothing ran.*
 - **V-C2** — **the J-438 leg.** Clear a rule → relaunch → **still cleared.** Under D-101 today it reappears, so this is a real before/after, not an assertion.
-- **V-C3** — **the §1.4 leg.** Write a deliberately invalid rules file → relaunch → the composer morphs nothing **and** Settings ▸ Text Processing shows the raw text **with its warning**. This is the whole answer to the hazard persistence creates; if the pane does not show it, the hazard is unmitigated and that is a Joe decision, not a defect to paper over.
+- **V-C3** — **the §1.4 leg. ⚠️ SPLIT ACROSS LEGS — only the FIRST part is runnable at Leg C** (caught on a v1.1 re-read: at Leg C there is no settings pane and no wired composer, so the original single-leg wording asked for a verification that could not run):
+  - **V-C3a (Leg C, runnable now)** — write a deliberately invalid rules file → relaunch → **the invalid text SURVIVES the clean slate** (on disk, the whole point of Leg C) **and the store fails safe to empty**: `__XGEN_SUBS__` reads `rules.length === 0` with `source` holding the raw invalid text. *Positive control: the same probe on a VALID file must read a non-empty `rules`, or you have proved only that the handle returns nothing.*
+  - **V-C3b (Leg A)** — Settings ▸ Text Processing shows that raw text **with its warning**.
+  - **V-C3c (Leg B)** — the composer morphs nothing while such a file is loaded.
+  ***Together these are the whole answer to the hazard persistence creates; if V-C3b does not show it at Leg A, the hazard is unmitigated and that is a Joe decision, not a defect to paper over.***
 - **V-C4** — genuine first run (no config) → starter pack seeded, unchanged.
 
 **Leg A:**

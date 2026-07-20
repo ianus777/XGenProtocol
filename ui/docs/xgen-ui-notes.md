@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: May 2026  
 > **Last updated**: 2026-07-19  
 > Language: English  
@@ -2983,6 +2983,67 @@ before, 34 after), which is itself evidence the fixes were type-level and behavi
 → **`M-RP-A11Y` — a11y warnings on the `core` component library. FILED, unscoped.**
 
 → J-558 · N-138 family
+
+---
+
+### N-147 — ⚠️ A PLUGIN DESCRIPTOR HAS **TWO** READERS, SO A NEW REGION WIDGET'S REGISTRY DELTA IS NEVER JUST ITS OWN IDS (J-560)
+
+Leg D2 predicted client registry **137** (134 + the composer's 3 widget ids). Measured: **143**.
+**Decomposed, not adjusted — +9, enumerated:** 3 composer widget ids **+ 6 plugin-list row ids.**
+
+**The cause is structural, not arithmetic.** Adding a row to `CLIENT_PLUGINS` registers ids **twice**:
+once where the widget mounts (its region), and once where the **plugin-list renders a row for it** — the
+descriptor's second reader (N-096, the `widgetRegistry` shape one socket over). Every future region
+widget pays the same double cost.
+
+**⚠️ THIS IS THE J-541 LESSON RECURRING, to the seat that recorded it.** *Knowing a descriptor has two
+readers is not the same as remembering it while predicting a number.*
+
+**→ RULE: predicting a registry delta for a new plugin row means ENUMERATING both readers.** Arithmetic
+agreement afterwards (143 − 134 = 9) is a check, **not** a derivation — *a wrong prediction that happens
+to sum correctly still hid a fact.*
+
+→ J-560 · N-096 / J-541 family
+
+---
+
+### N-148 — THE CLIENT REGISTRY BREATHES ON A **FIFTH** AXIS: THE ECHO COUNT (J-560)
+
+A quiescent registry baseline must now state **five** axes, not four:
+**quiescence (N-105) · store (N-108) · selection (N-112) · saved-state count (N-115) · ECHO COUNT.**
+
+Measured at Leg D2 close: **143 → 235 with 29 echoes → 143 exact** once session-mortality cleared them.
+The return to **143 exact** is the evidence the echo store leaks nothing — *a count that comes back to
+the same number is worth more than one that merely looks plausible.*
+
+**🔒 NEW QUIESCENT BASELINE: client registry 143** — empty store · no selection · nothing folded · zero
+saved states · **zero echoes**. A baseline quoted without its echo count is now under-specified.
+
+*N-132/N-140's lesson in another dimension: a number is only as trustworthy as the least-specified
+condition in the procedure that produced it.*
+
+→ J-560 · N-105 / N-108 / N-112 / N-115 family
+
+---
+
+### N-149 — ⚠️ A VITE MODULE COUNT CAN MOVE BY **REACHABILITY**, NOT BY NEW FILES (J-560)
+
+Leg D2 predicted vite client **199**; measured **200**. The baseline re-measured **193** on that tree, so
+the real delta was **+7** where **6** files were created.
+
+**The seventh module is `textarea.svelte` — existing `core` code, not one line of it new.** It entered
+the graph because **the composer is its first client-side consumer.** Proven by bundle probe with
+positive controls (0 occurrences in the baseline build, 3 in the current one), not inferred from the
+difference.
+
+**→ RULE: a module-count prediction must ask "what does this newly REACH?", not only "what does this
+ADD?"** An unexplained +1 on a module graph reads exactly like scope leak, and *"we wrote six files so
+it should be six"* is the reasoning that makes a correct number look wrong.
+
+*Same family as N-141 (a Svelte `<style>` block is exactly one vite module): the graph counts what is
+reachable, and reachability is not a property of the diff.*
+
+→ J-560 · N-141 family
 
 ---
 

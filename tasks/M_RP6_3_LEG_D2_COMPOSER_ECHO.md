@@ -1,6 +1,6 @@
 # M-RP6.3 Leg D2 — R6 composer + the outbound echo store
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-19  
 > Language: English  
@@ -198,7 +198,15 @@ reversal of §9.11.3.**
 - `ui/common/lib/components/widgets/stream-panel.svelte` — ⚠️ **a shipped, CDP-verified component,
   twice:** consumes the lifted latch instead of owning it, and **merges echoes into the projection**
   (lock #9). C-4 governs **inbound** unchanged.
-- `ui/client/src/app_client.svelte` — mount R6; **the lifecycle guard** (§9.11.8).
+- `ui/common/lib/plugins/registry.ts` — ⚠️ **v1.1 CORRECTION (Clair, Rule 6): v1.0's list OMITTED THIS
+  FILE, WITHOUT WHICH THE COMPOSER NEVER MOUNTS AT ALL.** The `CLIENT_PLUGINS` row is what the shell
+  reads to place R6. *A file list that omits the row that mounts the milestone's own widget is not an
+  incomplete list, it is a list that would have produced a component nobody could see.* And it is the
+  reason the registry delta was +9 rather than +3 — the descriptor's second reader (→ N-147).
+- `ui/client/src/app_client.svelte` — ⚠️ **v1.1: "mount R6 in app_client" was the GENERATION-STALE
+  ANCHOR** N-116/J-541 already corrected once; the mount is driven by the registry row, not by a hand
+  edit at a remembered line.
+- `ui/assets/skin.css` — PROVISIONAL block → discharges at **M-RP-SKIN**.
 
 **Must NOT be touched**
 `**/*.rs` (Leg D1 is closed) · `rooms-panel.svelte` (its Space latch is not this) · `ui/assets/skin.css`
@@ -267,24 +275,25 @@ distinguishes `rejected` from `timed_out` is the milestone** — that distinctio
 
 **— IMPLEMENTER (Clair) —**
 
-- [ ] Echo store · room latch · composer created; `stream-panel` edits behaviour-neutral for R5 (V1)
-- [ ] All twelve locks satisfied or explicitly deviated with a reason
-- [ ] V1–V9 driven; **V4 driven for all four outcomes**
-- [ ] Every §8 floor **predicted then measured**; SEEN vs DERIVED marked; differences **decomposed**
-- [ ] `cargo test` identical, stated as the direct proof of zero Rust
-- [ ] `svelte-check` errors **0**; warning delta stated as a number and justified
-- [ ] Any behaviour change outside the locks surfaced as a **FINDING**, not folded in
-- [ ] No probe artifact left on disk; `git status` clean of unintended files
-- [ ] Deviations **flagged, not absorbed** (Rule 6)
-- [ ] 🔒 **D3 EXISTS — no build that can send renders all four outcomes identically (§3)**
-- [ ] 🔒 **No retry affordance on `timed_out` (§3.1)**
+- [x] Echo store · room latch · composer created; `stream-panel` edits behaviour-neutral for R5 (V1) — **and V1 proved §2.1 live: the bus held a space while stream and composer both kept `rmA`**
+- [x] All twelve locks satisfied or explicitly deviated with a reason — **eleven met; ⚠️ LOCK #10 (auto-scroll on own send) NOT MET, measured not assumed, flagged not absorbed → Joe accepted the deviation → `M-RP-COMPOSER-SCROLL`**
+- [x] V1–V9 driven; **V4 driven for all four outcomes** (`rejected` code 3041 · `failed` no `eventId` · unknown → `timed_out`, live)
+- [x] Every §8 floor **predicted then measured**; SEEN vs DERIVED marked; **three misses all DECOMPOSED, none adjusted** (npm 142 · vite 200 · registry 143 → N-147/N-149)
+- [x] `cargo test` **1546/0/62 × 56 identical**, stated as the direct proof of zero Rust
+- [x] `svelte-check` errors **0**; **warning delta ZERO** (34 → 34)
+- [x] Any behaviour change outside the locks surfaced as a **FINDING**, not folded in — **`core`'s `widgets?: Record<string, Component>` flagged, NOT fixed in a `$common` milestone**
+- [x] No probe artifact left on disk; `git status` clean of unintended files; **machine left quiescent, ports free (N-140)**
+- [x] Deviations **flagged, not absorbed** (Rule 6) — **four flags, TWO of them against this runbook (§5, §11 item 2)**
+- [x] 🔒 **D3 EXISTS — no build that can send renders all four outcomes identically (§3)**
+- [x] 🔒 **No retry affordance on `timed_out` (§3.1)** — enforced **in the store as well as the button**, verified with the UI bypassed
 
 **— RECORDS (Chat) —**
 
-- [ ] **[CHAT]** JOURNAL · CLAUDE.md PLAY · ROADMAP · this doc → `Status: COMPLETED` (D-074, one commit)
-- [ ] **[CHAT]** §9.11.4 re-tensed in `M_RP6_3_COMPOSER.md`; the three stale line refs corrected
-- [ ] **[CHAT]** the M-RP-TYPECHECK DoD tick corrected (catalogue + registry were ticked unmeasured; both since measured at **419** and **134**)
-- [ ] **[CHAT]** any new N notes
+- [x] **[CHAT]** JOURNAL · CLAUDE.md PLAY · ROADMAP · this doc → `Status: COMPLETED` (D-074, one commit) — **J-560**
+- [x] **[CHAT]** §9.11.4 re-tensed in `M_RP6_3_COMPOSER.md`; the three stale line refs corrected — **done at J-559 (v2.0)**
+- [x] **[CHAT]** the M-RP-TYPECHECK DoD tick corrected — **done at J-559 (v1.2); both since measured, 419 and 134**
+- [x] **[CHAT]** any new N notes — **N-147 · N-148 · N-149** (notes v1.4)
+- [x] **[CHAT]** §5 and §11 item 2 corrected in this doc (v1.1), the two Rule-6 flags raised against it
 
 *(No "commit pushed" item — unflippable inside the commit that performs the push. `Status: COMPLETED`
 is the signal. Joe pushes.)*
@@ -303,8 +312,11 @@ whole first (J-499, J-548, J-553, J-556, J-558) — **four of them Chat's.**
 **Known-weak spots in this document, named so you check them first:**
 1. **§2.1's lift touches a shipped component.** If R5 changes behaviour at all, stop — the lift was
    supposed to be neutral.
-2. **§3 is unresolved and Joe's.** If it is still unresolved when you reach the render, **ask**; do not
-   pick.
+2. ⚠️ **v1.1 — THIS ITEM WAS STALE WHEN YOU READ IT, AND YOU CAUGHT IT.** It said *"§3 is unresolved
+   and Joe's — if it is still unresolved when you reach the render, ASK; do not pick"* while **§3's own
+   header already read RESOLVED BY JOE.** A document disagreeing with ITSELF — the
+   J-499/J-548/J-553/J-556/J-558 class, **sixth on this arc, all Chat's**, and findable only by reading
+   the runbook whole before starting. *§3 and §3.1 are both RESOLVED; nothing in §3 needed asking.*
 3. **§8's registry and vite deltas are predictions.** If a measured number differs, **decompose it** —
    do not adjust the prediction.
 4. **The twelve locks were written before `bodyExtras` existed.** If one of them now reads oddly

@@ -244,13 +244,27 @@ pub fn load_sync_section(config_path: &Path) -> SyncSection {
 /// `get_substitutions` Tauri command; all parsing of the ` | ` + first-space
 /// grammar happens there (the engine stays source-agnostic, D-099).
 pub fn load_substitutions_section(config_path: &Path) -> SubstitutionsSection {
-    let Ok(text) = std::fs::read_to_string(config_path) else {
-        return SubstitutionsSection::default();
-    };
-    match toml::from_str::<ClientConfig>(&text) {
-        Ok(cfg) => cfg.substitutions,
-        Err(_) => SubstitutionsSection::default(),
-    }
+    try_load_substitutions_section(config_path).unwrap_or_default()
+}
+
+/// Fallible sibling of [`load_substitutions_section`]: `None` when the config is
+/// absent / unreadable / malformed, `Some(section)` — possibly with an EMPTY
+/// `rules` — when it parsed.
+///
+/// The read path collapses both cases to empty, which is right for a reader.
+/// It is wrong exactly once, in [`clean_slate_config`], where the two mean
+/// opposite things:
+///
+/// - `Some("")` = **the user cleared their pairs.** That intent must ride across
+///   the wipe (J-438 seed-once — cleared pairs stay cleared).
+/// - `None` = **we could not read the old config.** Blanking on that would
+///   silently destroy the freshly seeded starter pack on top of whatever the
+///   corruption already cost the user, so the seed is left standing.
+fn try_load_substitutions_section(config_path: &Path) -> Option<SubstitutionsSection> {
+    let text = std::fs::read_to_string(config_path).ok()?;
+    toml::from_str::<ClientConfig>(&text)
+        .ok()
+        .map(|cfg| cfg.substitutions)
 }
 
 /// Write the raw `[substitutions] rules` string back to `xgen-client_config.toml`
@@ -266,8 +280,12 @@ pub fn load_substitutions_section(config_path: &Path) -> SubstitutionsSection {
 /// surfaces the failure rather than losing data). The raw string is stored verbatim;
 /// the ` | ` + first-space grammar stays UI-side (D-099, engine source-agnostic).
 ///
-/// Phase note (D-101): clean-slate-on-start wipes the config to seed every launch,
-/// so this write-back is **session-only** this phase (W-8, surfaced in the editor UI).
+/// Durability (M-RP-PROCESSOR-WIRE Leg C): this write-back **survives relaunch.**
+/// It used to be session-only — D-101 clean-slate-on-start deleted the whole config
+/// at every launch — and `clean_slate_config` now carries the `[substitutions]`
+/// rules string across that wipe. D-101 itself is unretired: the config file is
+/// still wiped and regenerated whole; only this one section's user-authored text
+/// rides across, because user-owned content is not config (see `clean_slate_config`).
 pub fn write_substitutions_section(config_path: &Path, rules: &str) -> Result<()> {
     let text = std::fs::read_to_string(config_path)
         .context("failed to read config for substitutions write-back")?;
@@ -404,17 +422,44 @@ fn write_fresh_config(config_file: &Path, keypair_path: &Path, ai: Option<AiSect
 /// the file having existed — a genuine first run (no config) is left untouched
 /// so `run_startup`'s first-run SETUP detection still fires.
 ///
-/// **This SUSPENDS J-438 seed-once for the phase:** because the config is
-/// deleted + regenerated from seed every launch, substitution pairs the user
-/// cleared DO reappear on relaunch. Intended now — there is no persistent
-/// user-owned settings surface yet, so nothing durable is lost. Seed-once
-/// resumes at the exit condition: when the client/node UIs are rewritten with
-/// persistent settings, delete-on-start is removed from all three binaries.
-/// See DECISIONS.md D-101 for the full why + until-when.
+/// **`[substitutions]` rides across the wipe (M-RP-PROCESSOR-WIRE Leg C).** This
+/// is NOT an exemption from D-101 — it is the correction of a mis-filing. The
+/// discriminator was already drawn once, in writing, for the UI-state store (see
+/// `load_ui_state`): **persistent user-facing state vs. config.** `ClientConfig`
+/// holds five sections; four are machine and deployment config, and
+/// `[substitutions]` is the only one whose content a human authors. User-owned
+/// content was filed into the config file, and D-101 wipes config files.
+///
+/// D-101's rationale survives intact: the regenerated file still has whatever new
+/// **shape** we want, wiped whole and undiminished; only the user's rule **text**
+/// rides across. The other four sections stay ephemeral by design.
+///
+/// **J-438 seed-once therefore RESUMES for this one section:** pairs the user
+/// cleared stay cleared across a relaunch. That is a deliberate behavioural
+/// change (chosen, not discovered), and it is the first instalment of D-101's
+/// own exit condition — scoped to the one section that holds user-authored
+/// content. See DECISIONS.md D-101 for the full why + until-when.
+///
+/// Failure posture: the capture is fail-soft and the re-inject is best-effort
+/// (matching the two calls it sits beside). A launch is never blocked by an
+/// unreadable old config, and a failed re-inject leaves a valid seeded config —
+/// never a broken one.
 pub fn clean_slate_config(config_path: &Path, keypair_path: &Path) {
     if config_path.exists() {
+        // Capture user-owned content BEFORE the wipe. `None` (unreadable /
+        // malformed) is deliberately NOT the same as `Some("")` (the user
+        // cleared their pairs) — see `try_load_substitutions_section`.
+        let preserved = try_load_substitutions_section(config_path).map(|s| s.rules);
+
         let _ = std::fs::remove_file(config_path);
         let _ = write_fresh_config(config_path, keypair_path, None);
+
+        // Re-inject after regeneration. Skipped when the old config could not be
+        // read, so the freshly seeded starter pack is left standing rather than
+        // blanked by a value we never actually recovered.
+        if let Some(rules) = preserved {
+            let _ = write_substitutions_section(config_path, &rules);
+        }
     }
 }
 
@@ -6522,18 +6567,93 @@ mod m_rp4_2_substitutions_tests {
         );
     }
 
-    /// D-101 clean-slate-on-start — a pre-existing config with the user's pairs
-    /// cleared is wiped + regenerated to the seed on the startup path. This is
-    /// the phase-scoped suspension of seed-once: cleared pairs DO reappear on
-    /// relaunch (contrast `seed_is_not_resurrected_after_user_clears`, which is
-    /// the CLI `cmd_init` path where seed-once still holds).
+    /// D-101 clean-slate-on-start — a pre-existing config is still wiped and
+    /// regenerated from defaults on the startup path. Asserted on `[client]` and
+    /// `[logging]`, i.e. deliberately NOT on `[substitutions]`, so this stays a
+    /// clean proof that the wipe happens at all, independent of the one section
+    /// M-RP-PROCESSOR-WIRE Leg C carries across it.
+    ///
+    /// (Before Leg C this test asserted the config was re-*seeded*, using the
+    /// substitution list as its evidence. Leg C deliberately reverses that
+    /// behaviour for that one section, so the evidence moved to a section that
+    /// is still ephemeral by design; the D-101 claim itself is unchanged.)
     #[test]
-    fn clean_slate_wipes_and_reseeds_existing_config() {
+    fn clean_slate_wipes_and_regenerates_existing_config() {
         let dir = tempfile::tempdir().unwrap();
         let config_path = dir.path().join("xgen-client_config.toml");
         let keypair_path = dir.path().join("xgen-client_keypair.enc");
 
-        // A config exists with the substitution list cleared by the user.
+        // A config exists carrying operator edits in two ephemeral sections.
+        let mut cfg = ClientConfig::default();
+        cfg.client.node = "ws://edited.example:9999/xgen".to_string();
+        cfg.logging.level = "trace".to_string();
+        std::fs::write(&config_path, toml::to_string_pretty(&cfg).unwrap()).unwrap();
+
+        clean_slate_config(&config_path, &keypair_path);
+
+        let text = std::fs::read_to_string(&config_path).unwrap();
+        let regenerated: ClientConfig = toml::from_str(&text).unwrap();
+        assert_eq!(
+            regenerated.client.node, "ws://127.0.0.1:8080/xgen",
+            "[client] is wiped back to defaults on start"
+        );
+        assert_eq!(
+            regenerated.logging.level, "debug",
+            "[logging] is wiped back to defaults on start"
+        );
+    }
+
+    /// **T-C1** (M-RP-PROCESSOR-WIRE Leg C) — the user's substitution pairs
+    /// survive clean-slate-on-start, while every other section regenerates. This
+    /// is the whole milestone at the Rust boundary: user-owned content was
+    /// mis-filed into the config file, and D-101 wipes config files.
+    #[test]
+    fn clean_slate_preserves_user_substitution_pairs() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-client_config.toml");
+        let keypair_path = dir.path().join("xgen-client_keypair.enc");
+
+        let authored = "brb be right back | ttyl talk to you later | --> →";
+        let mut cfg = ClientConfig::default();
+        cfg.substitutions.rules = authored.to_string();
+        cfg.logging.level = "trace".to_string();
+        std::fs::write(&config_path, toml::to_string_pretty(&cfg).unwrap()).unwrap();
+
+        clean_slate_config(&config_path, &keypair_path);
+
+        assert_eq!(
+            load_substitutions_section(&config_path).rules,
+            authored,
+            "user-authored rules ride across the wipe verbatim"
+        );
+
+        // Positive control: the wipe genuinely happened — an ephemeral section
+        // regenerated. Without this the test would also pass if nothing ran.
+        let text = std::fs::read_to_string(&config_path).unwrap();
+        let regenerated: ClientConfig = toml::from_str(&text).unwrap();
+        assert_eq!(
+            regenerated.logging.level, "debug",
+            "the config was really wiped + regenerated, not merely left alone"
+        );
+    }
+
+    /// **T-C2** (M-RP-PROCESSOR-WIRE Leg C) — **the J-438 leg.** A pre-existing
+    /// config with an EMPTY rules string stays empty across the clean slate:
+    /// pairs the user cleared do NOT reappear.
+    ///
+    /// This is the behavioural change Leg C makes, recorded as chosen rather
+    /// than discovered. Under D-101 alone the seed came back every launch (which
+    /// is what `clean_slate_wipes_and_regenerates_existing_config` used to
+    /// assert). Seed-once now resumes for this one section; `write_fresh_config`
+    /// still seeds the starter pack at config *birth*, which is what
+    /// `clean_slate_leaves_seed_when_old_config_unreadable` and
+    /// `first_run_config_seeds_starter_pack` cover.
+    #[test]
+    fn clean_slate_preserves_cleared_substitutions() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-client_config.toml");
+        let keypair_path = dir.path().join("xgen-client_keypair.enc");
+
         let mut cfg = ClientConfig::default();
         cfg.substitutions.rules = String::new();
         std::fs::write(&config_path, toml::to_string_pretty(&cfg).unwrap()).unwrap();
@@ -6543,8 +6663,32 @@ mod m_rp4_2_substitutions_tests {
 
         assert_eq!(
             load_substitutions_section(&config_path).rules,
+            "",
+            "cleared pairs stay cleared across a relaunch (J-438 seed-once resumes)"
+        );
+    }
+
+    /// **T-C3** (M-RP-PROCESSOR-WIRE Leg C) — the §3.1 failure posture. An
+    /// unreadable / malformed old config yields no capture at all, and the
+    /// launch proceeds with a fresh SEEDED config rather than a blanked one.
+    ///
+    /// This is exactly why the capture distinguishes `None` (could not read)
+    /// from `Some("")` (user cleared): collapsing them would silently destroy
+    /// the starter pack on top of whatever the corruption already cost.
+    #[test]
+    fn clean_slate_leaves_seed_when_old_config_unreadable() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-client_config.toml");
+        let keypair_path = dir.path().join("xgen-client_keypair.enc");
+
+        std::fs::write(&config_path, "this is not valid toml {{{").unwrap();
+
+        clean_slate_config(&config_path, &keypair_path);
+
+        assert_eq!(
+            load_substitutions_section(&config_path).rules,
             DEFAULT_SUBSTITUTIONS_SEED,
-            "existing config is wiped + regenerated to the seed on start"
+            "an unrecoverable old config leaves the freshly seeded pack standing"
         );
     }
 

@@ -670,10 +670,14 @@ async fn run_startup(
 
     // D-101 — clean-slate-on-start (phase-scoped). Config is ephemeral this
     // phase: if one exists, wipe it and regenerate from seed BEFORE the
-    // first-run read below. This SUSPENDS J-438 seed-once — cleared substitution
-    // pairs reappear on relaunch (intended now; no persistent settings surface
-    // exists yet). Retired when the client/node UIs gain persistent settings.
-    // See DECISIONS.md D-101 for the full why + exit condition.
+    // first-run read below.
+    //
+    // EXCEPT `[substitutions]`, which rides across the wipe (M-RP-PROCESSOR-WIRE
+    // Leg C) — not an exemption from D-101 but the correction of a mis-filing:
+    // user-owned content is not config. J-438 seed-once therefore resumes for
+    // that one section, so cleared pairs stay cleared on relaunch. The other
+    // four sections remain ephemeral by design. See `app::clean_slate_config`
+    // and DECISIONS.md D-101 for the full why + exit condition.
     app::clean_slate_config(&config_path, &keypair_path);
 
     // First-run detection: neither config nor keypair exists.

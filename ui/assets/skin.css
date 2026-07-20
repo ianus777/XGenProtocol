@@ -2934,7 +2934,7 @@ html, body {
      The honest guarantee is "adding the 4th tag does not move the row", not "nothing ever moves" —
      the alternative is clipping the user's own content. */
   min-height: var(--msg-extras-lane);
-  margin-top: var(--sp-1);
+  margin-top: var(--sp-0);
 }
 /* own rows mirror, so the strip hugs the same edge as the body. flex-end, NOT row-reverse:
    reversing would reverse the ORDER of a user's reactions, which is a reordering, not a mirror. */

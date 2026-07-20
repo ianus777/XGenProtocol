@@ -25,9 +25,11 @@
   import type { MessageDescriptor } from '$core/components/data-dependent/types';
   import { ingest, type IngestEvent } from '$common/stores/ingest.svelte';
   import { selfState } from '$common/stores/self-state.svelte';
-  import { selection } from '$common/stores/selection.svelte';
-  import { spacesState } from '$common/stores/spaces-state.svelte';
   import { gaps } from '$common/stores/gaps.svelte';
+  // M-RP6.3 Leg D2 — the lifted room latch (§2.1) and the outbound echo store (§9.11.2).
+  import { roomLatch } from '$common/stores/room-latch.svelte';
+  import { echo, type EchoMessage } from '$common/stores/echo-state.svelte';
+  import SendStatus from './send-status.svelte';
   // The pure R5 projection (the allowlist + the wire-field finding) — colocated + unit-tested (the
   // stream/grouping.ts precedent), so the map is verified in vitest, not only live (§5).
   import { wireType, projectEvent } from './stream/derive';
@@ -42,30 +44,30 @@
 
   // Functional copy (Ms Design's WORDING is PROVISIONAL, the spaces-panel `emptyText` precedent — appearance
   // and final phrasing → M-RP-SKIN). The MEANING is locked (§3.4/C-6): honest about the no-backfill window.
-  const SESSION_START = 'Showing messages received since you connected.';
-  const SESSION_START_DROPPED = 'Showing messages received since you connected — some were dropped.';
+  // ⚠️ WORDING WIDENED AT LEG D2 (lock #8), and the reason is not style. Leg C2's copy said "messages
+  // RECEIVED since you connected", which was complete when the only rows were inbound. Now the user's OWN
+  // sends live here too, and they are just as session-mortal — the echo store dies on reload. A marker that
+  // confesses only the inbound half would be partial in the direction that hurts most: they never read the
+  // messages they lost; THEY WROTE the one they lost.
+  const SESSION_START = 'Showing this session only — earlier messages, including your own, are not loaded.';
+  const SESSION_START_DROPPED =
+    'Showing this session only — earlier messages, including your own, are not loaded; some were dropped.';
   const NO_MESSAGES = 'No messages in this room yet.';
   const SELECT_ROOM = 'Select a room to see its messages.';
 
   // Session start — captured once at mount; the head marker anchors here (it precedes the first message).
   const sessionStart = Date.now();
 
-  // ── The room latch (C-5, F-6) — the rooms-panel D3 shape with 'room'. Reads selection, writes the latch,
-  // never reads the latch. `onSelect` is NOT wired to selection.set (§3.3) so nothing here moves the bus. ──
-  let latchedRoomId = $state<string | null>(null);
-  $effect(() => {
-    const c = selection.current;
-    if (c?.entity.kind === 'room') latchedRoomId = c.entity.id;
-  });
-
-  // Stale-latch guard (N-095 spirit): a latched room that no longer resolves in the known-Space tree falls
-  // back to the "select a room" state — never throw. (An unregistered client has no rooms → effectiveRoomId
-  // stays null → "select a room", honest.)
-  const roomKnown = $derived(
-    latchedRoomId != null &&
-      spacesState.spaces.some((s) => s.rooms.some((r) => r.room_id === latchedRoomId)),
-  );
-  const effectiveRoomId = $derived(roomKnown ? latchedRoomId : null);
+  // ── The room latch (C-5, F-6) — LIFTED to `$common` at Leg D2 (§2.1). The logic is UNCHANGED: it still
+  // latches the last `kind: 'room'` bus selection, still keeps it while the bus holds something else, and
+  // still falls back to "select a room" when the latched room no longer resolves (stale-latch guard, N-095
+  // spirit — never throw). What moved is WHERE it lives, so R6 (the composer) acts on the SAME room this
+  // stream is showing; a second copy of the rule is the D-067 drift that would grey the composer out on the
+  // conversation the user is reading. The shell drives the single writer (`roomLatch.note`) app-lifetime,
+  // so folding either tile no longer forgets the room. `onSelect` is still NOT wired to selection.set
+  // (§3.3), so nothing here moves the bus. ──
+  const latchedRoomId = $derived(roomLatch.latchedRoomId);
+  const effectiveRoomId = $derived(roomLatch.effectiveRoomId);
 
   // ── The projection (C-2, C-4) — project on READ off `ingest.events`, filtered by the latched room. The
   // allowlist + wire-field reading are the pure `./stream/derive` module (unit-tested). ──
@@ -82,7 +84,7 @@
     ),
   );
 
-  const projected = $derived(
+  const inbound = $derived(
     effectiveRoomId == null
       ? []
       : ingest.events
@@ -90,6 +92,50 @@
           .map((e) => projectEvent(e, selfId, redactedIds))
           .filter((m): m is MessageDescriptor => m !== null),
   );
+
+  // ── The outbound echo merge (M-RP6.3 Leg D2, lock #9) ──────────────────────────────────────────────
+  // Your own words render NOWHERE without this: the node excludes the author from fan-out by identity, so a
+  // send returns `accepted` and `ingest` never sees it. C-4 still governs INBOUND unchanged (project on
+  // read, no mirror); this is the narrow, documented outbound exception (§9.11.2).
+  //
+  // 🔑 THE ROW'S `id` IS THE `localId` AND STAYS THE `localId` — NEVER the stitched `eventId`. The stream
+  // keys its rows by descriptor id, so flipping the id when the outcome lands would make Svelte destroy and
+  // recreate the row: the send-status mount would remount, its state reset, and V3's "the row is the SAME
+  // row" would be false in the only sense that matters (N-125, the index-key lesson one socket over).
+  // `eventId` rides the echo record instead, where the status widget reads it.
+  //
+  // Echoes are real `MessageDescriptor`s, so grouping, dividers and own-side alignment come free (lock #9),
+  // and the send-status widget rides `bodyExtras` — BELOW the body, OUTSIDE the header guard, so it survives
+  // a grouped continuation row (M-RP6.9 D-5; in `details` a failed third message in a run would look
+  // identical to a delivered first).
+  function echoToDescriptor(e: EchoMessage): MessageDescriptor {
+    return {
+      kind: 'text',
+      id: e.localId,
+      author: { kind: 'identity', id: selfId ?? '' }, // NO name (C-8) — xgid-tail initials, same as inbound
+      body: e.text,
+      timestamp: new Date(e.sentAt).toISOString(), // client-minted and stays that way (lock #4)
+      isOwn: true,
+      // `mountKey` is a CONSTANT, not localId-composed: `resolveMounts` scopes keys PER ROW, so one mount
+      // per row is already unique, and M-RP6.9's duplicate-key crash is a within-one-each-block condition.
+      // A row-unique key here would only lengthen the registry id it anchors (`…__x-send-status`).
+      bodyExtras: [{ widgetId: 'send-status', mountKey: 'send-status', props: { localId: e.localId } }],
+    };
+  }
+
+  const outbound = $derived(echo.forRoom(effectiveRoomId).map(echoToDescriptor));
+
+  // Interleave by timestamp so an echo sits where it was written relative to what arrived around it.
+  // ⚠️ `accepted` carries NO authoritative timestamp (§9.11.5), so own rows keep their client-minted time
+  // and MAY order differently for the author than for everyone else in the room. Real, permanent within a
+  // session, FILED — not concealed by sorting them to the end.
+  const projected = $derived(
+    [...inbound, ...outbound].sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp)),
+  );
+
+  // The `bodyExtras` consumer registry (W-13): an id the host cannot resolve is DROPPED on render, so a
+  // future tenant is additive here and a retired one degrades to nothing rather than crashing the row.
+  const widgets = { 'send-status': SendStatus };
 
   // The head marker anchors at (or before) the first message so it sits first and puts no spurious divider
   // between itself and the first message (a session crossing midnight still puts a truthful divider, §3.4).
@@ -135,6 +181,11 @@
     latchedRoomId,
     effectiveRoomId,
     projectedCount: projected.length,
+    // Split out at Leg D2 so a verifier can tell an echo from an arrival — the two are deliberately
+    // indistinguishable in the RENDER (lock #9: an echo is a real message row), which is exactly why the
+    // getter must distinguish them.
+    inboundCount: inbound.length,
+    outboundCount: outbound.length,
     syntheticCount: messages.length - projected.length,
     streamCount: messages.length,
     episodeCount: statusArr.length,
@@ -147,7 +198,7 @@
   is ALWAYS mounted (no conditional mount → no registry churn); every empty state is a composed `system` row,
   so `core`'s own "No messages yet" is never reached. `onSelect` is deliberately NOT wired to the bus (§3.3). -->
 <div class="stream-panel" data-tier="widget" use:envelope={{ name: 'stream-panel', id, debug }}>
-  <MessageStream messages={messages} status={statusArr} id={cid('stream')} />
+  <MessageStream messages={messages} status={statusArr} {widgets} id={cid('stream')} />
 </div>
 
 <style>

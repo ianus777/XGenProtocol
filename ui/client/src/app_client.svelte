@@ -42,7 +42,15 @@
   // The selection bus (M-RP6.1f, D3): its first real writer is now the self-panel widget (D5). This
   // side-effect import keeps the DEV __XGEN_SEL__ handle installed for CDP; the shell is the bus's host,
   // its readers (R8 inspector / entity-context-menu) wire in at 6.1h+.
-  import '$common/stores/selection.svelte';
+  // (Leg D2: the side-effect import became a NAMED one — the shell now READS the bus to feed the room
+  // latch. The DEV __XGEN_SEL__ handle still installs, since importing the module is what installs it.)
+  import { selection } from '$common/stores/selection.svelte';
+  // M-RP6.3 Leg D2 — the shared room latch (§2.1) and the outbound echo store (§9.11.2). Both are PURE
+  // $state stores fed by the shell (the gaps precedent): the shell drives `roomLatch.note` from the bus and
+  // injects the guarded send transport into `echo`. They live in $common because R5 renders echoes and R6
+  // creates them, both `$common` region widgets that receive only a `regionId` (W-3/N-096).
+  import { roomLatch } from '$common/stores/room-latch.svelte';
+  import { echo } from '$common/stores/echo-state.svelte';
   import { KeymapRegistry } from '$common/keymap/registry';
   import { accelerator } from '$common/keymap/accelerator';
 
@@ -134,6 +142,43 @@
     if (!gaps.paused) untrack(() => gaps.apply(conn, res));
   });
 
+  // M-RP6.3 Leg D2 (§2.1) — feed the SHARED room latch. This is the ONE writer path, and the DEV
+  // __XGEN_ROOM__.note IS the same function (single-writer rule, the J-548 tickNow lesson). It lives in the
+  // SHELL, not in R5, because R5 and R6 are separate region widgets in separate tiles: a latch owned by R5
+  // would forget the room the moment R5 was folded, taking the composer's target with it (the C-10 argument
+  // exactly). `note` writes `_latched` and never reads it, so there is no self-invalidating read-modify-write
+  // (N-136) — untrack is belt-and-braces, matching the gaps feeder above.
+  $effect(() => {
+    const sel = selection.current; // the sole tracked dependency
+    untrack(() => roomLatch.note(sel));
+  });
+
+  // M-RP6.3 Leg D2 — inject the send transport into the echo store (W-3: `$common` imports no shell dep, and
+  // there are ZERO @tauri-apps imports under ui/common — so the composer reaches `send_message` ONLY through
+  // this seam).
+  //
+  // 🔒 THIS IS THE LIFECYCLE GUARD (§9.11.8). Without it a send during an outage takes the D1 bounded path
+  // and resolves ~19 s later (measured 19 155 ms = a 3.1 s failed re-anchor + the 16.0 s bound) — correct,
+  // but a very long time to watch a row say "Sending…". The guard short-circuits to `failed` immediately.
+  //
+  // ⚠️ IT RETURNS `failed`, NOT `timed_out`, AND THAT IS EXACT: nothing was written, so "never reached the
+  // wire" is literally true — and `failed` is the ONE status the user may retry freely (lock #7), so the
+  // sentence is preserved, visible and recoverable rather than lost in a textarea.
+  //
+  // ⚠️ AND THE GUARD IS THE NICETY, NOT THE GUARANTEE (§9.11.4): a half-open socket can report READY while
+  // the peer is gone, so a send CAN still reach the bounded path. D1's `SEND_QUEUE_TIMEOUT` is what makes
+  // that terminate. Do not read this guard as a promise.
+  // ONE definition, named, so the DEV bridge's restore reinstates THE SAME transport rather than a second
+  // copy of the guard (a duplicated guard is the D-067 drift this milestone's own central decision exists to
+  // avoid — and a drifted copy would be reinstated by every verify run).
+  async function guardedSend(spaceId, roomId, text) {
+    if (selfState.connection?.state !== 'READY') {
+      return { event_id: null, status: 'failed', code: null, reason: 'not connected' };
+    }
+    return sendMessage(spaceId, roomId, text);
+  }
+  echo.setTransport(guardedSend);
+
   // DEV-only CDP handle (N-024 idiom) so the verify pass can drive the drop / tabs / mismatch paths
   // (§5.3): push a test layout, read region-shell's getter G. Dead-code-eliminated in a release build.
   if (import.meta.env.DEV && typeof window !== 'undefined') {
@@ -178,10 +223,46 @@
     // (the same one the Leg-D composer will call) and returns the honest four-way outcome; `ingest`
     // exposes the live inbound store. Leg B ships the SEAM — there is no composer and no rendered
     // stream yet, so this is how the plane is verified without inventing UI that belongs to Legs C/D.
+    // 🔒 KEPT AT LEG D2, RETIRES AT LEG D3 CLOSE (§2.2). No user-facing impact in either direction — it is
+    // DEV-guarded and verified absent from a production bundle. Kept on the internal axis and stated as
+    // such: it is the ONLY way to drive the send path WITHOUT the composer, i.e. to tell whether a fault is
+    // in the new UI or underneath it. Removing it in the milestone that ADDS that UI would remove the
+    // control exactly when it becomes useful. ⚠️ Its repo reference count is 1 — its own definition —
+    // because its callers are CDP evals living outside the tree: retiring on a reference count would delete
+    // something whose users the count cannot see.
     window.__XGEN_SEND__ = {
       send(spaceId, roomId, text) { return sendMessage(spaceId, roomId, text); },
       get ingest() { return { received: ingest.received, dropped: ingest.dropped, latest: ingest.latest }; },
       clear() { ingest.clear(); },
+    };
+
+    // M-RP6.3 Leg D2 — the composer/echo DEV bridge. `send()` goes through the ECHO STORE (guarded
+    // transport included), which is what the composer does, so the bridge and the UI exercise ONE path.
+    // `inject()` resolves a row from a synthetic outcome WITHOUT touching the network — the only way to
+    // drive all four statuses on demand (V4), since `rejected`/`timed_out` cannot be summoned from a healthy
+    // local node. It calls the SAME `send` first, so the row it resolves is a real row.
+    window.__XGEN_ECHO_BRIDGE__ = {
+      send(spaceId, roomId, text) { return echo.send(spaceId, roomId, text); },
+      get all() { return echo.all.map((e) => ({ ...e })); },
+      get wired() { return echo.wired; },
+      retry(localId) { return echo.retry(localId); },
+      clear() { echo.clear(); },
+      // Room latch — read the shared latch and drive its single writer.
+      get room() {
+        return {
+          latchedRoomId: roomLatch.latchedRoomId,
+          effectiveRoomId: roomLatch.effectiveRoomId,
+          effectiveSpaceId: roomLatch.effectiveSpaceId,
+          canSend: roomLatch.canSend,
+        };
+      },
+      note(sel) { roomLatch.note(sel); },
+      clearRoom() { roomLatch.clear(); },
+      // Swap the transport for a stub returning a chosen outcome, then restore. Used ONLY at verify.
+      stubTransport(outcome) {
+        echo.setTransport(async () => outcome);
+      },
+      restoreTransport() { echo.setTransport(guardedSend); },
     };
   }
 

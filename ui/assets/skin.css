@@ -2945,6 +2945,62 @@ html, body {
   padding-bottom: var(--sp-3);
 }
 
+/* ── send-status (M-RP6.3 Leg D3) — the FIRST real tenant of the bodyExtras lane, in its OWN block,
+   exactly as the container block above reserved. PROVISIONAL: appearance is Joe's to redirect at
+   M-RP-SKIN, and a redirect costs this block, not a rebuild.
+
+   🔒 THREE STATES, VISUALLY DISTINCT — lock #6, and this is where it is easiest to quietly break.
+   `timed_out` is NOT a dimmer `accepted` and NOT a softer `failed`: it gets its OWN colour (--warn)
+   and its own words, because the node MAY be holding that message. Collapsing it toward either
+   neighbour is the D6 lie rendered in CSS. `pending` is the quiet fourth — a state before an
+   outcome exists, deliberately the least loud thing in the lane.
+
+   ⚠️ NO RETRY CONTROL IS STYLED FOR `unresolved`, and none is rendered — §3.1. It is the only status
+   where one click can put a permanent, identity-attributed duplicate on the federated network. */
+.send-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-0);
+  color: var(--t3);
+}
+.send-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--t4);
+  flex: 0 0 auto;
+}
+.send-status[data-tone="sent"] .send-status-dot { background: var(--ok); }
+.send-status[data-tone="unresolved"] .send-status-dot { background: var(--warn); }
+.send-status[data-tone="not-sent"] .send-status-dot { background: var(--err); }
+/* the label carries the state too, so the meaning does not rest on colour alone (a 6px dot is not an
+   accessible sole channel — and this is the one lane where a misread is a message the user thinks sent) */
+.send-status[data-tone="unresolved"] .send-status-label { color: var(--warn); }
+.send-status[data-tone="not-sent"] .send-status-label { color: var(--err); }
+.send-status-detail {
+  color: var(--t4);
+}
+.send-status-retry {
+  font: inherit;
+  color: var(--accent2);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* ── composer-panel (M-RP6.3 Leg D2) — R6 chrome. PROVISIONAL → M-RP-SKIN. Structural fill lives in the
+   component (N-094: a fill contract is not a look); everything a skinner would retune lives here. The
+   textarea grows to the tile and the action row pins to the bottom, so a tall tile gives a tall box
+   rather than a short box under empty space. */
+.composer-panel .textarea {
+  flex: 1 1 auto;
+  min-height: 0;
+  resize: none;
+}
+
 /* deleted tombstone — the body is replaced by an italic-muted placeholder. The COPY is skin-owned
    in `--msg-deleted` (the --caps-hint precedent) so the component ships no string. */
 .message {

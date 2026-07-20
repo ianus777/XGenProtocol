@@ -2999,6 +2999,9 @@ html, body {
   flex: 1 1 auto;
   min-height: 0;
   resize: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
 }
 
 /* deleted tombstone — the body is replaced by an italic-muted placeholder. The COPY is skin-owned

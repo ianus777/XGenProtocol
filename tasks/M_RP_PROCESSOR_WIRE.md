@@ -1,6 +1,6 @@
 # M-RP-PROCESSOR-WIRE — the Text Processing row, composer wiring, and rule persistence
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-20  
 > Language: English  
@@ -138,6 +138,11 @@ The discriminator there was never *"this section is special"* — it was **persi
 
 ### §3.1 — D-C: Leg C preserves the rules string across the wipe
 
+> ⚠️ **AMENDED J-562 — THIS SECTION AS ORIGINALLY WRITTEN WAS SELF-CONTRADICTORY AND WOULD HAVE SHIPPED A SILENT DATA-LOSS PATH. Rule-6 flag 1, raised by the implementer, and it changed the code.**
+> It named `load_substitutions_section` (fail-soft) for the capture **and** required an unreadable old config to "proceed with a fresh seeded config". **Incompatible:** that helper **collapses *could-not-read* and *user-cleared* into one empty string**, so re-injecting it would blank the starter pack just written — ***a user with a corrupted config loses their substitutions AND gets no starter pack, silently.***
+> **CORRECTION AS SHIPPED:** the capture uses a new fallible sibling, `try_load_substitutions_section -> Option<SubstitutionsSection>`. **`None` (unreadable/malformed) → skip the re-inject, leave the seed standing. `Some("")` (the user cleared their pairs) → re-inject empty, so the clearing rides across.**
+> 🔑 **The defect was that §3.1 conflated exactly the two states §3.6's J-438 discriminator exists to keep apart, one level down — written by the same seat, in the same document, and re-read before hand-over.** Recorded in D-101's amendment too, because it is the kind of thing a future reader otherwise re-derives by breaking it.
+
 `clean_slate_config` captures `[substitutions].rules` **before** `remove_file`, then re-injects it **after** `write_fresh_config`. Both helpers already exist and are tested: `load_substitutions_section` (fail-soft, `app.rs:246`) and `write_substitutions_section` (strict, `app.rs:271`).
 
 D-101's rationale survives intact: the regenerated file has whatever new **shape** we want; only the user's rule **text** rides across.
@@ -200,7 +205,13 @@ D-101's written text says seed-once resumes *"when the client/node UIs are rewri
 
 **Order: C → A → B.** Rationale, recorded because it was Joe's call on a question left open: Leg C is the only leg with a Rust floor, and it is the only one whose absence makes the other two **ship a promise we break**. Building it last would mean A+B exist for a window in exactly the state §1.2 rejects.
 
-### Leg C — rule persistence (Rust). Own commit.
+### Leg C — rule persistence (Rust). Own commit. ✅ **CLOSED (J-562, code `1932474`).**
+
+> ✅ **CLOSED.** Shipped as specified except where flagged. `clean_slate_config` captures before the wipe and re-injects after the regen. **⚠️ §3.1 BELOW IS WRONG AND WAS CORRECTED IN IMPLEMENTATION** — see the amendment there. Two stale comments corrected (`app.rs:300` **and `desktop.rs:671–676`**, the latter omitted from §5). Tests as flagged: T-C1 + T-C2 as specified, T-C3 **repurposed** (the specified one was a duplicate), and `clean_slate_wipes_and_reseeds_existing_config` **retargeted + renamed** to `..._wipes_and_regenerates_...`. **cargo 1549/0/62 × 56 — exactly the predicted +3.** V-C1 / V-C2 / V-C3a / V-C4 all driven twice, independently, every one with a positive control. **D-101 amended in place (Joe's option A), no new D-number.**
+
+**🔒 STATUS NOTE — THE MILESTONE IS NOT DONE.** This header stays `ACTIVE`. §6's `Status: COMPLETED` is the **milestone's** signal, not a leg's, and **Legs A and B remain unbuilt.** Flipping it here would mark a milestone done with two thirds of it missing.
+
+**⚠️ THE SINGLE-WRITER WINDOW IS NOW CLOSED.** Leg C leaves **exactly one** writer of `[substitutions]` (the Rust startup path). **Leg A deliberately adds a second** (editor Apply → store seam → `set_substitutions`). The Leg C legs were therefore re-driven at `1932474` and **must not be deferred to the milestone close** — after Leg A, re-driving V-C2 means first proving the UI did not write during launch.
 
 - `app.rs::clean_slate_config` — capture before wipe, re-inject after regen (§3.1).
 - Tests (three, all in `app.rs`'s existing test module, beside `clean_slate_wipes_and_reseeds_existing_config` at `:6531`):

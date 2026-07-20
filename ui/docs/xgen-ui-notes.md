@@ -3047,6 +3047,52 @@ reachable, and reachability is not a property of the diff.*
 
 ---
 
+### N-150 — ⚠️ POWERSHELL 5.1 REWRITES ARGUMENTS ON THE WAY TO A NATIVE EXE — TWO MEASURED FAILURES, ONE ROOT CAUSE (J-562)
+
+PS 5.1 does not hand your argument array to a native executable as-is. It **rebuilds a single command-line
+string** and re-parses it, and two things get lost. Both were **measured**, not reasoned — and a wrong
+diagnosis of the first one survived two attempts before anyone ran a probe.
+
+**(a) Embedded double quotes are stripped and the argument is SPLIT.** Measured with the shell's own
+quoter as the probe:
+
+    git rev-parse --sq-quote 'alpha "beta gamma" delta'   →   'alpha beta' 'gamma delta'
+
+One argument in, two out, quotes gone. **It is NOT the here-string** — that diagnosis was offered twice
+and was wrong both times.
+
+**(b) An EMPTY-STRING argument is dropped ENTIRELY.** `--passphrase ""` reached `xgen-client.exe` as **no
+flag at all**, and the binary answered *"error: a value is required for '--passphrase' but none was
+supplied"* — **which reads exactly like a bug in our own CLI.** The `=` form survives: `"--passphrase="`.
+
+**→ RULE 1 (commit messages for Joe): hand him ONE physical line of multiple `-m 'para'` flags whose text
+contains NEITHER `"` NOR `'`.** Not backticks, not here-strings, not escaping — avoid the characters.
+
+**→ RULE 2 (any native exe): pass an empty value as `"--flag="`, never as `--flag ""`.**
+
+*Why this belongs with the measurement traps rather than the style notes: failure (b) blames the wrong
+binary. You go looking for a defect in the program you are calling, and the defect is in the shell that
+called it.*
+
+---
+
+### N-151 — ⚠️ A CONFIG FIXTURE WRITTEN BY POWERSHELL SILENTLY EXERCISES THE WRONG BRANCH (J-562)
+
+`Set-Content -Encoding UTF8` in PS 5.1 writes a **BOM**. A TOML fixture with a BOM does not parse, so it
+lands in the **unreadable-config** branch — and a test that meant to prove *"valid rules survive the wipe"*
+instead proves *"an unreadable config leaves the seed standing"*, **passing for the wrong reason.**
+
+Write fixtures with an explicit no-BOM encoder and an **absolute** path, then **assert the first byte**
+before doing anything with the file:
+
+    [System.IO.File]::WriteAllText($abs, $body, (New-Object System.Text.UTF8Encoding $false))
+    ([System.IO.File]::ReadAllBytes($abs))[0]   →   91  (`[`),  NOT 239 (BOM)
+
+*The byte assertion is the positive control. Without it, all three Leg C fixtures would have run the same
+wrong branch and every leg would have reported green.*
+
+---
+
 ## How to use this file
 
 - New notes go under the current date heading, indexed `N-NNN` continuing the numbering.

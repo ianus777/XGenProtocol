@@ -413,10 +413,25 @@ fn get_substitutions(config: tauri::State<ConfigPath>) -> String {
 
 /// Writes the raw `[substitutions] rules` string back to xgen-client_config.toml
 /// (M-RP4.3 — the effect half of the `substitutions-editor` widget). Symmetric with
-/// `get_substitutions`; the widget's host-injected `onApply` callback invokes this
-/// on Apply. Returns `Err(String)` (surfaced to the webview) on a read/parse/write
-/// failure rather than clobbering the config (D-065). Session-only under D-101
-/// (clean-slate-on-start re-seeds every launch) — surfaced in the editor UI (W-8).
+/// `get_substitutions`. Returns `Err(String)` (surfaced to the webview) on a
+/// read/parse/write failure rather than clobbering the config (D-065).
+///
+/// ⚠️ BOTH HALVES OF THE OLD NOTE HERE WERE FALSIFIED BY M-RP-PROCESSOR-WIRE and are
+/// corrected rather than deleted, because each was true when written:
+/// • "the widget's host-injected `onApply` callback invokes this" — FALSE since Leg A.
+///   The client reaches this through the **persist seam on the `$common` store**
+///   (`store.svelte.ts`), filled once by the shell at boot beside the `get_substitutions`
+///   read. `onApply` survives as the **sampler's** live-only channel (D-097/W-8), where
+///   the seam is never filled — so the two hosts differ, and the editor's own note
+///   derives from `durable` rather than asserting either.
+/// • "Session-only under D-101 (clean-slate-on-start re-seeds every launch)" — FALSE
+///   since Leg C. **The write is now DURABLE in the client.** `clean_slate_config`
+///   captures `[substitutions].rules` before the wipe and re-injects after regeneration:
+///   D-101 still wipes the config whole, and only the user's rule TEXT rides across.
+///   *Not an exemption from D-101 — the correction of a mis-filing: user-owned content
+///   was filed into the config file, and D-101 wipes config files.* See D-101's
+///   amendment. J-438 seed-once therefore resumes for this section only: cleared pairs
+///   stay cleared. The sampler still clean-slates and is unchanged.
 #[tauri::command]
 fn set_substitutions(rules: String, config: tauri::State<ConfigPath>) -> std::result::Result<(), String> {
     app::write_substitutions_section(&config.0, &rules).map_err(|e| e.to_string())

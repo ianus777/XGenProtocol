@@ -3093,6 +3093,73 @@ wrong branch and every leg would have reported green.*
 
 ---
 
+### N-152 — THE REGISTRY BASELINE HAS A **SIXTH** AXIS: THE SETTINGS DRILL-IN STATE (J-563)
+
+N-105 named quiescence · N-108 the store · N-112 selection · N-115 saved-state count · N-148 echo count.
+**Add: WHICH SETTINGS PANE IS DRILLED IN.**
+
+    149  list shown, nothing drilled     ← the client baseline
+     99  Text Processing settings drilled
+     96  Grid Backdrop settings drilled
+
+Closing the settings modal **leaves the drill-in mounted**; re-opening resets it (the `$effect` keyed on
+`open`) and returns to exactly 149. **Pre-existing since M-RP-SETTINGS Leg C, not a defect of any
+Processor-Wire leg** — control-verified against Grid Backdrop, which shows the identical shape.
+
+**→ RULE: "churn returns to baseline" is only true ACROSS AN OPEN/CLOSE CYCLE, not on close.** A baseline
+quoted without saying which pane is drilled is under-specified by the same argument that produced the
+other five axes.
+
+---
+
+### N-153 — ⚠️ `Where-Object` RETURNS A **SCALAR** ON ONE MATCH, AND `[0]` ON A STRING IS ITS FIRST CHARACTER (J-563)
+
+    $seed = ([System.IO.File]::ReadAllLines($src) | Where-Object {...})[0]
+    # one match -> $seed is System.Char, length 1 -> the character 'r'
+
+A config restore mangled `rules = "..."` down to `r`. **Fix:** `| Select-Object -First 1`, or `@(...)[0]`.
+
+**🔑 The lesson is not the cmdlet — it is the DIAGNOSIS.** The first report blamed a regex in the
+replacement string. **False:** it recurred with pure array replacement and no regex present. The same `[0]`
+had been in the earlier command all along, and the restore that *did* work only worked because it iterated
+the file wholesale and never indexed.
+
+**→ RULE: A WRONG CAUSE THAT REPRODUCES LOOKS EXACTLY LIKE A FIXED ONE.** This surfaced only because the
+operation failed a SECOND time and the variable was *measured* instead of the earlier "fix" being
+re-applied. When a fix does not hold, suspect the diagnosis before suspecting the application.
+
+*Third in the PowerShell family: N-150 (argument rewriting) · N-151 (BOM fixtures) · N-153 (scalar
+indexing). All three produce output that reads as success.*
+
+---
+
+### N-154 — 🔑 A LIVE EDIT-SIDE TRANSFORMER IS A FUNCTION OF THE INPUT **SEQUENCE**, SO A WHOLESALE-VALUE PROBE CANNOT VERIFY IT (J-563)
+
+Every automated probe across all three M-RP-PROCESSOR-WIRE legs drove the composer the same way:
+
+    setValue(ta, 'say --> and xyz');  ta.dispatchEvent(new Event('input'))
+
+One assignment, one event. **So `-->` always arrived as a COMPLETE STRING and always matched.** Both seats
+did this, with positive controls, and both got green.
+
+**Typed character by character it is BROKEN:** the seed holds **both** `--` and `-->`, the shorter rule
+fires the instant `--` exists, and the `>` lands after the result. **`-->` is unreachable by typing.**
+Found by Joe in two minutes of using the app, after three legs of disciplined verification missed it.
+
+**→ RULE 1: any verification of a KIND-1 edit-side rule MUST type character by character** — one `input`
+event per character, asserting after each. A wholesale set verifies the transform function; it does not
+verify the feature.
+
+**→ RULE 2 (the general form, worth more than the probe fix): A RULE WHOSE PROPER PREFIX IS ALSO A RULE IS
+UNREACHABLE BY SEQUENTIAL TYPING.** `<--` survived only because `<-` was not a rule. `transform.ts:60`
+lints **convergence**; nothing lints **prefix-reachability**, which is why validation passes `-->` happily —
+it is not *invalid*, it is *unreachable*. → M-RP-PROCESSOR-SEED leg ③.
+
+*This is the strongest evidence on the arc for §7's "judged by Joe live", and it landed in the one milestone
+where §7 had been left undischarged through every leg.*
+
+---
+
 ## How to use this file
 
 - New notes go under the current date heading, indexed `N-NNN` continuing the numbering.

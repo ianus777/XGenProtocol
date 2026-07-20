@@ -1,6 +1,6 @@
 # M-RP-PROCESSOR-WIRE — the Text Processing row, composer wiring, and rule persistence
-> **Status**: ACTIVE  
-> Version: 1.3  
+> **Status**: COMPLETED  
+> Version: 1.4  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-20  
 > Language: English  
@@ -235,10 +235,24 @@ D-101's written text says seed-once resumes *"when the client/node UIs are rewri
   > ⚠️ **The wording itself is PROVISIONAL and Joe's to judge live** (§7) — only the derivation is locked here.
 - `plugins/registry.ts` — the `Text Processing` row (§3.4), with `settingsComponent: SubstitutionsEditor` and the import that entails.
 
-### Leg B — the composer spread. No Rust.
+### Leg B — the composer spread. No Rust. ✅ **CLOSED (J-563, code `bf4a530`).**
+
+> ✅ **CLOSED.** One file, +20/−0. `{...processor(substitutions.rules)}` on the `<Textarea>` at `:94`, **no options object**, with the §3.5 policy recorded as a comment at the call site that carries it. Nothing else in the file moved. **cargo identical** — the direct zero-Rust proof. **vite client 201 → 202**, predicted from reachability (`processor.ts` reachable from the client for the first time) and landed exactly. **Registry 149 identical — an attachment is not an element.** V-B1/V-B2 re-driven by both seats: same token, same rules, same session, composer **morphed**, editor **unmorphed**. §3.5's feedback-loop refusal is true in fact.
 
 - `composer-panel.svelte` — import the store + `processor`, add `{...processor(substitutions.rules)}` to the `<Textarea>` at `:94`. **One spread.** No options object (§3.2).
 - Nothing else in the file moves. The `sendMessage` path, the room latch, the echo store and lock #12 (the textarea is never disabled) are all untouched.
+
+### ⚠️ MILESTONE CLOSED — AND THE DEFECT THIS RUNBOOK'S VERIFICATION COULD NOT SEE
+
+> **`-->` IS UNREACHABLE BY TYPING, AND EVERY §9 LEG IN THIS DOCUMENT PASSED ANYWAY.** The seed holds **both** `--` and `-->`; typing `-` `-` completes the shorter rule immediately, so the `>` lands after a figure dash. **`<--` survived only because `<-` was not a rule.**
+> ⇒ **A RULE WHOSE PROPER PREFIX IS ALSO A RULE IS UNREACHABLE BY SEQUENTIAL TYPING.**
+> **🔑 THE MISS IS THIS RUNBOOK'S, AND IT IS A METHOD DEFECT: §9 NEVER SAID *HOW* TO TYPE.** Both seats drove every probe by **setting the value wholesale** — one assignment, one dispatched `input` — so `-->` always arrived as a **complete string** and always matched. ***A live edit-side transformer is a function of the INPUT SEQUENCE, not of the final string; a probe that skips the sequence cannot see a defect that only exists in the sequence.*** Found by Joe in two minutes of using the app. → **N-154.**
+> **→ BINDING ON EVERY FUTURE KIND-1 RUNBOOK: the verification leg must type CHARACTER BY CHARACTER — one `input` event per character, asserting after each — and must say so BY NAME.** Carried into M-RP-PROCESSOR-SEED leg ①.
+
+### §7 — PART-DISCHARGED. DO NOT READ THIS AS AN APPEARANCE PASS.
+
+> Joe viewed the pane and the composer live at the close and returned **two items**: the seed defect above, and **Send should be an icon button rather than a text button** (⚠️ **not doable honestly today — `icons.ts` holds 17 glyphs and none is a send glyph, and D-108 forbids fabricating a Material `d` path**; needs a verified path first → **M-RP-SKIN**).
+> **⚠️ THE NOTE WORDING STILL HAS NO VERDICT.** *"Changes are saved and applied on the next start."* remains **PROVISIONAL**; only its **derivation from the persist seam** is locked. **M-RP-SKIN owes it.** *Nothing in this document should be read as Joe having approved those words.*
 
 ### Leg R — records. Travels with the leg it closes, per D-074.
 

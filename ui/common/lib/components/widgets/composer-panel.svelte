@@ -27,11 +27,24 @@
   // reached the wire. So the sentence is PRESERVED, visible and retryable, instead of sitting in a textarea
   // the user may close. §3.1's own table names `failed` "the common outage path", which only happens if the
   // send is allowed through. Disabling the button offline would look tidier and would lose the words.
+  //
+  // 🔒 THE TEXT PROCESSOR IS WIRED HERE, AND HERE ONLY (M-RP-PROCESSOR-WIRE Leg B, §3.5). Of the two
+  // text-input call sites in the whole client+common tree, this is the one that gets it. The other —
+  // `substitutions-editor`'s own textarea — is refused permanently: processing the box where you AUTHOR
+  // substitution rules is a feedback loop, where typing `:)` into the rule list rewrites the rule you are
+  // in the middle of writing. The policy is default OFF everywhere, opt in per call site, behind two
+  // gates: the atomic must forward `{...rest}` (`password-field` and `textfield` do not, so processing
+  // them is structurally impossible), and the consumer must ask. The criterion is COMPOSING vs
+  // CONFIGURING — composing is prose written in flow, where the transformation is visible and correctable
+  // as it happens; configuring is a value stored and reused, where the rewrite lands silently and nobody
+  // is watching. A message is the composing case, which is the whole reason this widget qualifies.
   import { envelope } from '$common/components/base/envelope';
   import Textarea from '$core/components/data-independent/textarea.svelte';
   import Button from '$core/components/data-independent/button.svelte';
   import { roomLatch } from '$common/stores/room-latch.svelte';
   import { echo } from '$common/stores/echo-state.svelte';
+  import { substitutions } from '$common/components/processor/store.svelte';
+  import { processor } from '$common/components/processor/processor';
 
   let { regionId, id = `region-${regionId}` }: { regionId: string; id?: string } = $props();
   const cid = (s: string) => (id ? `${id}__${s}` : undefined);
@@ -91,7 +104,14 @@
 <!-- Widget root (the stream-panel / rooms-panel precedent: `data-tier="widget"` + envelope). The textarea is
   never disabled — only the button is (lock #12). -->
 <div class="composer-panel" data-tier="widget" use:envelope={{ name: 'composer-panel', id, debug }}>
+  <!-- The processor attachment (kind 1, D-099) rides `{...rest}` onto the inner <textarea>. NO options
+    object: `trusted` already defaults to false (processor.ts) and the store has already validated the set
+    as Tier-2, so an explicit `trusted: false` would change nothing and advertise a knob that must never be
+    turned. The second validation inside processor() is deliberate and stays — it is what makes the
+    no-crash claim true independently of the store. The attachment is keyed by a unique symbol, so it
+    cannot collide with `onkeydown`, which rides the same `rest` under a string key. -->
   <Textarea
+    {...processor(substitutions.rules)}
     bind:value={draft}
     placeholder={canSend ? PLACEHOLDER : PLACEHOLDER_NO_ROOM}
     rows={2}

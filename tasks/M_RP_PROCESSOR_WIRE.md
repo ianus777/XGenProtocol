@@ -1,6 +1,6 @@
 # M-RP-PROCESSOR-WIRE — the Text Processing row, composer wiring, and rule persistence
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-20  
 > Language: English  
@@ -228,6 +228,11 @@ D-101's written text says seed-once resumes *"when the client/node UIs are rewri
 - `app_client.svelte` — fill the seam once at boot, **directly beside** the existing read at `:537`.
 - `substitutions-editor.svelte` — `apply()` calls the store seam **in addition to** `onApply?.()` (§3.3). Do **not** delete `onApply`.
 - **⚠️ The editor's closing note must change.** `"Changes apply this session; config resets on restart."` is false after Leg C and would be a lie shipped in the settings pane. Replace with functional, PROVISIONAL copy (§7).
+
+  > ⚠️ **AMENDED J-563 — THE INSTRUCTION ABOVE ASSUMES ONE TRUTH, AND THERE ARE TWO. Grounded, not inherited: `xgen-sampler/src/main.rs:113` STILL CALLS `clean_slate_config`, and Leg C deliberately touched zero sampler code.** So one `$common` component, with one note, is mounted in **two hosts whose persistence behaviour is now OPPOSITE**: in the **client** the note is about to become **false**; in the **sampler** it remains **true**. A single replacement string is wrong in one host whichever way it is written.
+  > **🔒 DECIDED UNDER THE GRANT — the note DERIVES FROM THE PERSIST SEAM, it is not a constant and not a new prop.** The seam's presence *is* the fact: **seam filled ⇒ "your rules are saved" · seam unfilled ⇒ the existing session-only wording.** The client fills it (§3.3); the sampler does not and keeps `onApply` (D-097/W-8).
+  > **① USER-VISIBLE IMPACT — this is why, and the cost is not the reason.** A constant string tells **one of the two users something false about whether their work survives**: either a sampler user is promised persistence that will be wiped at next launch, or a client user is warned their curated rules will be lost when they will not. *A settings screen that misdescribes whether it saves is the same failure D6 and D-065 exist to prevent as §1.2's — just quieter.* **② RESOURCE COST: lower than the alternative** — no new prop, no host branch, and **the note cannot drift out of true**, because it is derived from the mechanism rather than maintained alongside it. *(Recorded second, and not leading: the correctness argument stands on its own even if the costs were reversed.)*
+  > ⚠️ **The wording itself is PROVISIONAL and Joe's to judge live** (§7) — only the derivation is locked here.
 - `plugins/registry.ts` — the `Text Processing` row (§3.4), with `settingsComponent: SubstitutionsEditor` and the import that entails.
 
 ### Leg B — the composer spread. No Rust.
@@ -343,7 +348,7 @@ CDP client **9222**. `.\cdp-debug.ps1 -App client -Mode eval`. Single-expression
 - **V-A1** — registry delta, **both readers enumerated** (§3.4). Expect plugin-list row ids only, **zero** widget ids.
 - **V-A2** — the row renders in Settings ▸ Plugins with **no disable button** (W-13) and an **enabled** `[settings]` button.
 - **V-A3** — `[settings]` drills into the editor; it seeds from the live rules; Apply persists; **churn returns to baseline EXACTLY** on close.
-- **V-A4** — the sampler still mounts the editor live-only and unbroken (D-097; `onApply` path intact).
+- **V-A4** — the sampler still mounts the editor live-only and unbroken (D-097; `onApply` path intact). ⚠️ **AND IT MUST STILL SAY SO:** with the seam unfilled, the sampler's note keeps the **session-only** wording — because `xgen-sampler/src/main.rs:113` still clean-slates. **The paired client read (V-A3) must show the OPPOSITE wording on the same component.** *One of these two passing alone proves nothing; the pair is the verification.*
 
 **Leg B:**
 

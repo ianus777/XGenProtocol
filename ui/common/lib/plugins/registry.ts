@@ -25,6 +25,7 @@ import ComposerPanel from '$common/components/widgets/composer-panel.svelte';
 import GridPlate from '$common/components/widgets/grid-plate.svelte';
 import GridPlateSettings from '$common/components/widgets/grid-plate-settings.svelte';
 import ConnectionStats from '$common/components/widgets/connection-stats.svelte';
+import SubstitutionsEditor from '$common/components/widgets/substitutions-editor.svelte';
 // plugin-list.svelte is NOT imported here: its descriptor carries no `component` (surface: 'none' →
 // it is content the shell mounts inside a host, never resolved through this registry), so importing
 // it would be both unused and a needless circular import (it reads CLIENT_PLUGINS at runtime).
@@ -88,18 +89,21 @@ export interface PluginDescriptor {
    *  checking whether the props happened to be omissible. */
   component?: Component<RegionWidgetProps> | Component<BackgroundWidgetProps>;
   /** The plugin's own settings component (M-RP-SETTINGS Leg B, D-B). Its PRESENCE is `hasSettings`:
-   *  the row's [settings] button enables iff this is set. UNDEFINED on every row this leg — so the
-   *  button is greyed for all, for the real per-plugin reason "this plugin has no settings", never a
-   *  missing verb (J-500 / 6.1j: an unbuilt verb ships absent, a plugin-true fact ships greyed-legible).
-   *  `grid-plate` earns one first at Leg C (its backdrop setting); the modal hosts it in the content
-   *  pane (D-B — component-per-plugin; NOT a declarative schema). */
+   *  the row's [settings] button enables iff this is set — so a row without one is greyed for the real
+   *  per-plugin reason "this plugin has no settings", never a missing verb (J-500 / 6.1j: an unbuilt
+   *  verb ships absent, a plugin-true fact ships greyed-legible). The modal hosts it in the content
+   *  pane (D-B — component-per-plugin; NOT a declarative schema). TWO rows carry one today:
+   *  `grid-plate` (M-RP-SETTINGS Leg C, the first) and `text-processing` (M-RP-PROCESSOR-WIRE Leg A).
+   *  (This sentence read "UNDEFINED on every row this leg" until Leg C fed the first one.) */
   settingsComponent?: Component;
 }
 
 // THREE honest rows (D5). All `host: client, delivery: compiled, kind: system` — they are our own
-// binary's built-in widgets. NOT listed: `substitutions-editor` / `entity-context-menu` — the client
-// never instantiates them (sampler-only), and registering an unmounted plugin is the unfed-branch
-// shape (N-091). They enter the registry at the milestone that mounts them (M-RP-SETTINGS).
+// binary's built-in widgets. NOT listed: `entity-context-menu` — the client never instantiates it
+// (sampler-only), and registering an unmounted plugin is the unfed-branch shape (N-091). It enters the
+// registry at the milestone that mounts it.
+// (`substitutions-editor` WAS on that not-listed line until M-RP-PROCESSOR-WIRE Leg A: the client now
+// instantiates it as the `Text Processing` row's settings pane, so it is no longer unfed.)
 export const CLIENT_PLUGINS: PluginDescriptor[] = [
   {
     id: 'self-panel',
@@ -213,10 +217,40 @@ export const CLIENT_PLUGINS: PluginDescriptor[] = [
     // from the `surface: 'none' && component` rows — the `widgetRegistry` shape, one socket over (N-096).
     surface: 'none',
     component: GridPlate,
-    // The FIRST `settingsComponent` (M-RP-SETTINGS Leg C, D-B). This single assignment lights the [settings]
-    // button on the Grid Backdrop row (`hasSettings = !!settingsComponent`, plugin-list) and NOWHERE else;
-    // the Settings modal hosts it in its content pane (component-per-plugin — NOT a declarative schema).
+    // The FIRST `settingsComponent` (M-RP-SETTINGS Leg C, D-B). This assignment lights the [settings] button
+    // on the Grid Backdrop row (`hasSettings = !!settingsComponent`, plugin-list); the Settings modal hosts
+    // it in its content pane (component-per-plugin — NOT a declarative schema). (It read "and NOWHERE else"
+    // while it was the only one; `text-processing` is the second, M-RP-PROCESSOR-WIRE Leg A.)
     settingsComponent: GridPlateSettings,
+  },
+  {
+    id: 'text-processing',
+    name: 'Text Processing',
+    description: 'Substitution rules applied to text as you type it.',
+    version: '1.0.0',
+    kind: 'system',
+    host: 'client',
+    delivery: 'compiled',
+    // THE FIRST ROW THAT IS PURELY A SETTINGS SURFACE (M-RP-PROCESSOR-WIRE §3.4) — `surface: 'none'` with
+    // NO `component`: the grid-plate shape minus the thing it mounts. It spends no surface (W-12), and
+    // `layout-default` cannot pick it up (its derived `bgWidgets` requires `surface: 'none' && component`),
+    // so it contributes a plugin-list row and NOTHING to the grid. The processor engine it configures is
+    // an ATTACHMENT spread onto host inputs, not a mounted widget — there is nothing for it to render.
+    //
+    // `kind: 'system'`, deliberately, and it is a data-safety call rather than a taxonomy one: a `custom`
+    // row carries a Disable and an Uninstall (plugin-list, W-13), and this is the only plugin in the
+    // project that owns user-authored content — a rule list the user curated by hand. Every existing
+    // custom owns none. `system` ⇒ neither button is live ⇒ there is no path that discards it.
+    surface: 'none',
+    // icon UNSET (M-RP6.2 D8): no verified text/substitution glyph exists in-repo, and a Material `d`
+    // path is not fabricated from memory (Rule 5 / D-108). plugin-list falls back to its documented
+    // `'square'` placeholder; the real glyph is deferred to M-RP-ICON-ADOPT / M-RP-SKIN.
+    //
+    // The SECOND `settingsComponent` (after grid-plate). It is the already-shipped M-RP4.3 widget,
+    // mounted unchanged through the generic prop-less `<C />`; its durable write-back rides the store's
+    // persist seam, which the shell fills at boot (§3.3 — the widget has no prop to receive it through,
+    // and cannot import `invoke` itself under W-3).
+    settingsComponent: SubstitutionsEditor,
   },
 ];
 

@@ -536,6 +536,13 @@
       // every processor-host then sources from it.
       substitutions.setRules(await invoke('get_substitutions'));
 
+      // M-RP-PROCESSOR-WIRE Leg A — the WRITE half of that same seam, filled here beside the read it
+      // mirrors. `substitutions-editor` reaches the client through D-120's generic, prop-less settings
+      // mount, so there is no `onApply` prop to pass; and the widget lives in `$common` and cannot
+      // import `invoke` itself (W-3). Without this line its Apply would type-check, render and
+      // silently never persist. The sampler leaves the seam null and keeps the prop (D-097 / W-8).
+      substitutions.setPersist((rules) => invoke('set_substitutions', { rules }));
+
       // M-RP6.1e-C3 — About data (build metadata + Rust/Tauri/Svelte versions + paths). Static
       // per session, so fetched once here; the dialog reads it synchronously.
       aboutInfo = await invoke('get_about_info');

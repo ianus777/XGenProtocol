@@ -16,13 +16,22 @@
   // `common`, which must NOT hard-depend on a shell dep: a bare `invoke` import inside the widget
   // fails to resolve outside a Tauri host (caught at M-RP4.3 build). So persistence is an INJECTED
   // callback `onApply` (the imperative-one-shot fallback in the spec's I/O-seam menu), passed by
-  // the host: the real client shell passes an `invoke('set_substitutions', …)`-backed callback; the
-  // sampler passes nothing → live-only (the pure layer, I/O stubbed). The live in-app effect stays
-  // store-mediated: substitutions.setRules(draft) updates the $common store → every processor-host
-  // re-morphs. Seed comes from substitutions.source (Step-A additive) — no second read.
+  // the host: the sampler passes nothing → live-only (the pure layer, I/O stubbed). The live in-app
+  // effect stays store-mediated: substitutions.setRules(draft) updates the $common store → every
+  // processor-host re-morphs. Seed comes from substitutions.source (Step-A additive) — no second read.
   //
-  // PHASE-LIMIT (W-8, D-101): write-back is SESSION-ONLY this phase — clean-slate-on-start
-  // wipes the config to seed every launch. Surfaced in-UI; NOT a silent gap.
+  // TWO CHANNELS, ONE PER HOST (M-RP-PROCESSOR-WIRE Leg A, §3.3). The client no longer passes
+  // `onApply`: the Settings modal mounts this widget through D-120's GENERIC, PROP-LESS `<C />`, so
+  // there is no prop to pass. Its channel is the STORE'S persist seam, filled once by the shell at
+  // boot beside the existing `get_substitutions` read. `onApply` is KEPT, not replaced — it is the
+  // sampler's live-only channel (D-097 / W-8), and the two are invoked independently so neither is
+  // load-bearing on the other.
+  //
+  // PHASE-LIMIT (W-8): write-back durability is HOST-DEPENDENT, and the closing note DERIVES from the
+  // seam rather than asserting a constant. In the client, Leg C carries the user's rules across
+  // clean-slate-on-start, so they survive a restart. In the sampler, `main.rs` still clean-slates, so
+  // they do not. One component, two hosts, opposite truths — a fixed string would be a lie in one of
+  // them, and a note derived from the mechanism cannot drift out of true.
   //
   // GETTER (W-4 / 1b): one aggregate {dirty, valid, count} — observable task-state, never
   // the rules payload. The child textarea self-registers as `<id>__rules` (N-054).
@@ -33,13 +42,20 @@
   import Button from '$core/components/data-independent/button.svelte';
 
   let {
-    id,
+    // Defaulted (M-RP-PROCESSOR-WIRE Leg A): the Settings modal mounts this through D-120's prop-less
+    // `<C />`, so no id reaches it there — and `use:envelope` then falls back to a MODULE-LEVEL ORDINAL
+    // that changes on every open/close cycle, making the registry unenumerable across drives. The
+    // default gives the widget and its three children stable ids in the generic mount; the sampler
+    // passes `id="demo"` explicitly and is unaffected. (grid-plate-settings solves the same problem by
+    // hardcoding its control's id.)
+    id = 'substitutions-editor',
     rows = 6,
     onApply,
   }: {
     id?: string;
     rows?: number;
-    /** Host-injected persistence (imperative one-shot). Absent → live-only (pure layer). */
+    /** The SAMPLER's live-only persistence channel (imperative one-shot). The client uses the store's
+     *  persist seam instead — it has no prop to pass through the generic settings mount. */
     onApply?: (rules: string) => void | Promise<void>;
   } = $props();
 
@@ -76,16 +92,32 @@
   async function apply() {
     if (!dirty || !validation.valid) return;
     substitutions.setRules(draft); // live in-app effect (also sets source → dirty clears)
+    // Two channels, invoked INDEPENDENTLY (§3.3: neither is load-bearing on the other). A single
+    // try around both would make a failing persist swallow the sampler's callback and vice versa.
     try {
-      await onApply?.(draft); // host-injected persist; absent in the sampler (live-only, D-097/W-8)
+      await substitutions.persist(draft); // the client's channel — no-op when no host is attached
     } catch {
-      // Persist failed / no host: the in-app effect already applied; durable write is the host's.
+      // Durable write failed: the in-app effect already applied; the write is the host's to report.
+    }
+    try {
+      await onApply?.(draft); // the sampler's channel — absent in the client (no prop to pass)
+    } catch {
+      // As above.
     }
   }
 
   function revert() {
     draft = substitutions.source;
   }
+
+  // The closing note DERIVES from the persist seam (§4 Leg A amendment) — never a constant, never a
+  // host branch. Seam filled (client) ⇒ Leg C carries the rules across clean-slate-on-start; seam
+  // unfilled (sampler) ⇒ the config is still wiped every launch. WORDING IS PROVISIONAL → M-RP-SKIN.
+  const note = $derived(
+    substitutions.durable
+      ? 'Changes are saved and applied on the next start.'
+      : 'Changes apply this session; config resets on restart.',
+  );
 
   const debug = () => $state.snapshot({ dirty, valid: validation.valid, count });
 </script>
@@ -110,5 +142,5 @@
     <Button label="Revert" onclick={revert} disabled={!dirty} id={cid('revert')} />
   </div>
 
-  <p class="subs-note">Changes apply this session; config resets on restart.</p>
+  <p class="subs-note">{note}</p>
 </div>

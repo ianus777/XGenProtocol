@@ -9,8 +9,12 @@
 
 import { parseRules, assertSafeRules, type TransformConfig } from './transform';
 
+/** Host-injected durable write-back (M-RP-PROCESSOR-WIRE Leg A). See `setPersist`. */
+type PersistFn = (rules: string) => void | Promise<void>;
+
 let _rules = $state<TransformConfig>([]);
 let _source = $state<string>('');
+let _persist = $state<PersistFn | null>(null);
 
 export const substitutions = {
   /** The live, validated rule list. Read by processor-hosts; reactive. */
@@ -44,6 +48,36 @@ export const substitutions = {
       }
       _rules = [];
     }
+  },
+  /**
+   * THE PERSIST SEAM (M-RP-PROCESSOR-WIRE Leg A, §3.3). The WRITE half of the seam whose READ half
+   * the shell has filled since M-RP4.2 (`setRules(await invoke('get_substitutions'))`).
+   *
+   * Why here and not a prop: `substitutions-editor` is mounted by the Settings modal through D-120's
+   * GENERIC, PROP-LESS `<C />` — the mount contract is deliberately per-plugin-blind, and widening it
+   * for one tenant changes the contract for every future one. And the widget lives in `$common`, so it
+   * cannot import `invoke` itself (W-3). Mounted with neither channel it type-checks, renders, and
+   * SILENTLY never persists — which is the failure this seam exists to design against.
+   *
+   * The client fills it once at boot, beside the existing read; the sampler leaves it null and keeps the
+   * `onApply` prop (live-only, D-097 / W-8). Neither channel is load-bearing on the other.
+   */
+  setPersist(fn: PersistFn | null): void {
+    _persist = fn;
+  },
+  /**
+   * Is a durable host attached? Reactive, and the EDITOR'S CLOSING NOTE DERIVES FROM IT — the seam's
+   * presence IS the fact. One `$common` component is mounted in two hosts whose persistence behaviour is
+   * now OPPOSITE (the client preserves rules across the clean slate since Leg C; `xgen-sampler`'s
+   * `main.rs` still clean-slates), so a CONSTANT note tells one of the two users something false about
+   * whether their work survives. Derived from the mechanism, it cannot drift out of true.
+   */
+  get durable(): boolean {
+    return _persist !== null;
+  },
+  /** Invoke the host's durable write-back. A no-op when no host is attached (the sampler). */
+  async persist(text: string): Promise<void> {
+    await _persist?.(text);
   },
 };
 

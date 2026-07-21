@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: May 2026  
-> **Last updated**: 2026-07-19  
+> **Last updated**: 2026-07-21  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -3157,6 +3157,38 @@ it is not *invalid*, it is *unreachable*. → M-RP-PROCESSOR-SEED leg ③.
 
 *This is the strongest evidence on the arc for §7's "judged by Joe live", and it landed in the one milestone
 where §7 had been left undischarged through every leg.*
+
+---
+
+## 2026-07-21
+
+### N-155 — A REGISTRY BASELINE HAS A **SEVENTH** AXIS: WHETHER A ROOM IS LATCHED (J-565)
+
+Measured on **one fresh launch** of the client (dev server started clean, app launched detached, CDP 9222),
+reading `window.__XGEN_DEBUG__.ids().length` at three points:
+
+| state | count |
+|---|---|
+| at rest — three spaces sitting in the store, **nothing selected** | **149** |
+| a space selected (rooms list populates) | **156** |
+| a room latched (stream + composer live) | **158** |
+
+The M-RP-MSG-NEWLINE kickoff carried **158** as *the* client baseline and warned at length that it is
+not 149 — correctly, but **without naming the condition that produces it**. Both numbers are right; they
+are answers to different questions.
+
+🔑 **A baseline quoted without its condition is not wrong, it is unreadable.** Someone launching the app
+and counting would read **149** against a documented **158** and start hunting a `−9` that is nothing but
+an unlatched room — the exact failure the kickoff's own residue warning existed to prevent, one axis over.
+
+**The axis list is now seven:** quiescence (no popup open, N-105) · store contents (N-108) · selection
+state (N-108 extended) · saved-state count · echo count (N-148) · settings drill-in (N-152) · **room latch**.
+
+⚠️ **One delta on this run is left unexplained on purpose.** Space-select moved 149 → 156; rooms account
+for **+3** (four room ids, minus the vanished empty placeholder). **+4 has no account, and none was
+invented.** Outside the milestone that measured it, no bearing on its fix. *An honest gap in a record is
+worth more than a plausible story* — and a decomposition that reaches the right total by guessing one term
+is the N-108 mistake wearing arithmetic as a disguise.
 
 ---
 

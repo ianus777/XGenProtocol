@@ -1,10 +1,44 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-20  
+> **Last updated:** 2026-07-21  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-565 — M-RP-MSG-NEWLINE closed: one CSS declaration, and the question it was filed to answer turned out not to be a question
+
+**Date:** 2026-07-21 · **Seats:** Joe (locked both decisions; made the `skin.css` edit with his own hands) · Chat (grounding, the two option sets, live CDP verification, records). **Scope: ONE file, ONE hunk, +13/−0 — `ui/assets/skin.css`.** Zero `.rs`, zero `.ts`, zero `.svelte`. → `tasks/M_RP_MSG_NEWLINE.md` v1.0 `COMPLETED`.
+
+**WHAT SHIPPED.** `white-space: pre-wrap` on `.message .message-paragraph`, with a twelve-line comment marking it NOT COSMETIC and naming its own measurement. Shift+Enter now reaches the rendered message. **First of the five sequenced at J-564, and it goes first not for its size** — *solving line breaks in CSS takes `<br>` off kind-4's allowlist, and every element removed from a sanitiser's allowlist is one less thing that has to be right forever.*
+
+**🔑 DECISION ① DISSOLVED UNDER GROUNDING — THE TOMBSTONE AND `(edited)` WERE NEVER DESCENDANTS.** The milestone was filed asking whether they *inherit* `pre-wrap`. Reading `message.svelte` answered it structurally: `.msg-content` holds **three SIBLINGS** — the `<p class="message-paragraph">`, `<span class="msg-deleted">` and `<span class="message-edited">`. A rule on the body **cannot reach** the other two; they would inherit only if the declaration were hoisted to `.message` / `.msg-content`. ***The question was real, and its answer was that it was the wrong question*** — cheap to find by reading, expensive to find by arguing.
+
+**THREE OPTIONS, BOTH D-121 LENSES PER OPTION, JOE LOCKED A.** **A** on `.message-paragraph` — ① breaks render, tombstone and marker untouched; ② one line, **no floor moves** (CSS moves no module graph, J-550) · **B** hoisted — ① identical today, ***a trap later***: any skin copy string with indentation or a run of spaces starts rendering it literally; ② same line plus a latent constraint on all future copy · **A2** a new `<style>` block in `message.svelte` — ① identical, protects the declaration from a skin sweep **structurally** rather than by comment; ② **moves two vite floors** (N-141: a Svelte `<style>` block is exactly one module — client 202→203, sampler 170→171). *A2's protection is real; it costs two floor moves on a one-declaration fix, and a comment is cheaper than a module.*
+
+**🔑 NAMED, NOT TRADED — THE PROPERTY THAT MAKES THE SCOPE CORRECT RATHER THAN CONVENIENT:** `pre-wrap` also preserves **runs of spaces and leading indentation**. On the body that is **user content**, so preserving it is right. On skin-owned copy it would be wrong. ***The same declaration is correct in one place and a defect three lines away, which is precisely why the scope is a decision and not a detail.*** **DELIBERATELY NOT FOLDED IN:** `overflow-wrap: anywhere` — `pre-wrap` still soft-wraps at spaces, so long tokens behave exactly as today; *an unmeasured change riding a measured one is how a clean verification stops meaning anything.* **STATED RATHER THAN DISCOVERED LATER:** `.message[data-kind="system"] .message-paragraph` also matches, so system notices gain it too — app-authored strings, **no user-visible change today**, and correct if one ever holds a newline.
+
+**🔒 DECISION ② — THE WIRE LEG IS SEPARATE, AND NOT ASSUMED.** The echo store proves the **client's own record** holds `\n`; whether it survives out to a node and back is **untested**. Shipping the CSS fixes the case Joe reported; no wire outcome changes the declaration; if `\n` dies on the round trip that is a **protocol/serialisation defect with its own fix**, and finding it after the CSS is in is strictly easier **because the renderer is no longer a confound**. → filed `M-RP-MSG-NEWLINE-WIRE`. ⚠️ *Do not assume the protocol preserves it.*
+
+**⚠️ WHOSE HANDS, RECORDED SO IT DOES NOT WIDEN SILENTLY.** `ui/assets/skin.css` is Joe's cosmetics file. Chat brought **the line and the reasoning**; **Joe pasted it himself**. For a single declaration a runbook and a handoff cost more than the change — he approved that deviation from *"Chat does not implement"* explicitly, and it is written down **as a deviation**, not absorbed as a new norm. The in-block comment is what stops a future M-RP-SKIN sweep from deleting a correctness fix that happens to live in the skin.
+
+**VERIFIED LIVE AT 9222 (Chat drove; client only, no concurrent cargo — N-117; ports polled by number, not by name).** **V1** computed `whiteSpace` = `pre-wrap`; nothing shadows it, since the pre-fix probe measured `normal`, i.e. **no author rule reached the element at all** · **V2 AND ITS POSITIVE CONTROL** — `controlline` (11 chars, no newline) **18px** vs `alpha\nbravo` (11 chars, one newline) **36px**: ***the identical character count is the whole point*** — same font, same element, same width, so wrapping cannot explain the difference · **V3** injected `.msg-deleted` and `.message-edited` into a real `.msg-content` → both **`normal`**, parent `.msg-content` **`normal`**, **control** the real `.message-paragraph` in the *same subtree* **`pre-wrap`**, probes reverted to 0. ***Without that control, "normal everywhere" is indistinguishable from a probe reading nothing*** — the N-139/N-142 family, guarded against rather than re-learned · **V4** registry **164**, `count === unique === domCount`, 0 duplicates, **decomposed not adjusted**: 158 − 2 (the *"No messages in this room yet."* row leaves) + 5 (first echo) + 3 (second echo, grouped) = **164 exact**.
+
+**🔑 AN UNPLANNED RESULT THAT LANDS ON THE STRONGEST AVAILABLE ROW:** the newline message arrived as a **grouped continuation** — same author within the window, avatar and name suppressed, **3 registered ids instead of 5**, D-106 behaving. *So `pre-wrap` is proven on the row type that strips the most chrome, not merely on a fresh-header row — the case nobody thought to specify.*
+
+**⚠️ N-155 — A REGISTRY BASELINE HAS A SEVENTH AXIS: WHETHER A ROOM IS LATCHED.** Measured on one fresh launch: **149** at rest (three spaces in the store, nothing selected) → **156** with a space selected → **158** with a room latched. The kickoff carried **158** as *the* client baseline **without naming the condition that produces it**. ***A baseline quoted without its condition is not wrong, it is unreadable*** — and this one would have read as a `+9` defect to anyone who launched the app and counted. Extends N-148/N-152: quiescence · store · selection · saved-state count · echo count · settings drill-in · **room latch**. **⚠️ AND ONE DELTA IS LEFT UNEXPLAINED ON PURPOSE:** space-select moved 149 → 156, of which rooms account for **+3**; **+4 has no account and none was invented.** Outside this milestone, no bearing on the fix. *An honest gap in a record is worth more than a plausible story.*
+
+**FLOORS NOT RE-MEASURED, WITH THE REASON STATED INSTEAD OF THE NUMBERS QUOTED:** the diff is one CSS block — zero `.rs`, zero `.ts`, zero `.svelte`. cargo 1549/0/62 × 56 · svelte-check 0/34/15 · npm 142 · vite 202 client / 170 sampler · catalogue 419 stand **by scope** (N-108 — *arithmetic is not measurement, and quoting numbers nobody took is worse than naming which ones were not taken*).
+
+**ENCODING VERIFIED FROM RAW BYTES, NOT ASSUMED** — absolute path (N-110): no BOM (`2F 2A 20`), **zero U+FFFD across 161 841 bytes**, so the `—` and `→` pasted into the comment are valid UTF-8 rather than mojibake a CSS parser would choke on. **Diff scope proven by `git diff --numstat`: `13  0  ui/assets/skin.css`** — one file, one hunk, **zero deletions**. Apps and dev servers stopped and verified **by port**: 5173 · 5174 · 5175 · 8080 · 9222 · 9322 · 9422 all 0 listeners, zero `XGenProtocol` processes (`taskkill /T`, N-140).
+
+**🟢 NEXT-ACTIVE = ② `M-RP-PROCESSOR-SEED` — the starter rule set, the untouched-default migration, and the prefix-reachability lint.** Joe is waiting on it: today `-->` renders `‒>` and `->` does nothing. ⚠️ Its verification leg **must be keystroke-by-keystroke and the runbook must say so by name** (N-154); ⚠️ legs ①+② **must not be split** — the seed without the migration fixes nobody who currently has the bug; ⚠️ it carries the **first config rewrite on upgrade the project has ever done**, and that bound is Joe's to approve **before** the code.
+
+**New: N-155. No new D** — the two decisions here are scope calls inside an existing rule, and neither earns a number.
+
+→ CLAUDE.md PLAY · `docs/ROADMAP.md` v5.31 · `tasks/M_RP_MSG_NEWLINE.md` v1.0 `COMPLETED`.
 
 ---
 

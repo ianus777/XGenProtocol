@@ -2896,6 +2896,19 @@ html, body {
 .message .message-paragraph {
 	font-size: var(--fs-1);
 	letter-spacing: .5px;
+	/* NOT COSMETIC — M-RP-MSG-NEWLINE (J-565). Preserves typed line breaks.
+	   MEASURED: without it this element computes white-space:normal and a \n paints
+	   as a space, while the \n is present in the composer textarea, in bind:value,
+	   in the echo store's `text`, AND in the rendered DOM text node — the data path
+	   is innocent, the collapse happens at paint. Proven live before any edit:
+	   setting pre-wrap took the body box 18px → 36px, and 18px again on restore.
+	   Scope is deliberate: it sits on the BODY only. The tombstone (.msg-deleted)
+	   and the (edited) marker are SIBLINGS, not descendants, so they never inherit
+	   it — right, because pre-wrap also preserves runs of spaces and leading
+	   indentation, which is correct for user prose and wrong for skin-owned copy.
+	   Do NOT remove at M-RP-SKIN: this is a correctness fix that happens to live in
+	   the skin, and it is what keeps <br> off kind-4's allowlist (J-564). */
+	white-space: pre-wrap;
 }
 
 /* ── M-RP5.5 B — text render-states (grouped / edited / deleted) ── */

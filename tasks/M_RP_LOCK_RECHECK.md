@@ -1,6 +1,6 @@
 # M-RP-LOCK-RECHECK — re-verify the twelve D2 locks and mark each with its verifier
-> **Status**: PENDING  
-> Version: 1.0  
+> **Status**: ACTIVE  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-21  
 > Language: English  
@@ -161,3 +161,56 @@ means something was touched that should not have been.**
 - ⚠️ **The obvious generalisation, deliberately NOT taken here:** *every* locks table in the project
   probably has unverified entries. This milestone re-checks **twelve locks in one document**. Widening
   it to a project-wide audit is a different milestone and must be scoped as one.
+
+## §10 — LEG A RESULTS (driven at HEAD b477bae, 2026-07-21)
+
+**Ten machine locks re-driven. Floors re-measured and UNCHANGED, which is this milestone's control, not its gate.**
+
+| # | verdict | probe | its positive control |
+|---|---|---|---|
+| 1 | ✅ MET | echo count 0→1 read in the SAME eval as the send click — the row exists before the network is consulted | pre-click 0 measured three times |
+| 2 | ✅ MET | no widget holds an echo array; the store is `$common/stores/echo-state.svelte.ts` | the grep is proven live by finding 8 other `$state` decls in the same widgets |
+| 3 | ✅ MET | same `localId` across `pending`→`accepted`; `eventId` ABSENT→stitched | the ABSENT pre-state was measured, so the stitch is a transition, not a pre-existing value |
+| 4 | ✅ MET | `sentAt` byte-identical before and after the outcome | the same outcome demonstrably changed OTHER fields on that row — invariance, not a dead read |
+| 5 | ❌ **UNMET** | own row renders the full XGID as author name; avatar `name:null` / `initials:"GC"` | rendered name === self `identity_id`, 65 chars, byte-equal, agreed by three independent sources |
+| 6 | ✅ machine half MET | four outcomes → three tones + `pending`; `rejected`/`failed` share `not-sent` with DIFFERENT copy | registry getter `tone` === painted `data-tone` on all four; labels distinct strings |
+| 7 | ✅ MET | retry offered on `failed` only — in the widget AND refused by the store | bypass call on `rejected`/`timed_out` resolved `null` + unchanged; the SAME call on `failed` MUTATED it |
+| 8 | ✅ MET | no persistence path reaches the store; head marker names own sends | live: echo count 4→0 across a reload, the 4 measured immediately prior |
+| 9 | ✅ MET | `groupedCount: 12`, `dividerCount: 0` — echoes are real descriptors | the "missing" 13th is ARITHMETIC, not hand-waving: two group heads 425,026 ms ≈ 7.1 min apart, past the 5-min window |
+| 10 | ❌ **UNMET** | scrolled to top, sent, `scrollTop` stayed 0 / `atBottom` false | the row demonstrably landed (count 15→16, max 639→705) and the probe demonstrably sees scroll (639.2→0) |
+| 11 | ⚠️ **SPLIT — see §10.2** | tile scope: whole grid unmounted, all 4 echoes survived | `composerMounted` 1→0 and the grid emptied, so the unmount really happened |
+| 12 | ✅ MET | no room ⇒ typing yes (`disabled:false`, 18 chars accepted), sending no (button `disabled:true`) | latching a room flipped ONLY the button; the draft survived at 18 chars, so the refusal is caused by the latch |
+
+### §10.1 — Floors, re-measured
+
+`cargo` **1553 / 0 / 62 across 56 terminator lines** (summed programmatically, case-sensitive grep, all 56 present — the N-117 truncation trap dodged) · `svelte-check` **0 / 34 / 15** · `npm` **154** · `vite` **202 client / 170 sampler** · `catalogue` **419** · client registry **149 AT REST**.
+
+**All identical. `git status` clean, HEAD still `b477bae`.** This milestone writes no code, so unchanged floors are the evidence that nothing was touched.
+
+**Registry baseline stated on all seven N-155 axes:** quiescent · three-space store residue · no selection · zero saved states · echo count 0 · no settings pane drilled in · **no room latched** (`roomId: null`). Transitions **149 → 156 (space selected) → 158 (room latched)** reproduced exactly, and the post-run reload returned to **exactly 149**, `count === unique`, zero leaks.
+
+⚠️ **Residue correction:** the kickoff said *three spaces + two rooms*. Measured: **three spaces, five rooms** (2 + 1 + 2). Content-in-widgets is Joe-ruled acceptable; recorded so the next baseline is not read against a wrong residue.
+
+### §10.2 — FINDINGS
+
+**① #5 was never eye-only, and the probe took five lines.** §2 predicted *"no mechanism to drive."* Grounded: `stream/derive.ts::projectEvent` and `stream-panel.svelte:115` both apply C-8's **inbound** rule to own rows (`isOwn` is computed and never used to suppress the identifier). The negative assertion — *does the own row show the tail?* — is a DOM read with a control. **It is falsifiable, and it fails.** What belongs there INSTEAD remains Joe's (Leg B). ⇒ #5 splits exactly as #6 already does.
+
+**② ⚠️ #11 IS A SECOND UNFALSIFIABLE LOCK — the defect this milestone was filed to investigate, found a second time.** *"N windows, one device."* Measured: `xgen-client/tauri.conf.json` defines **ONE** window and there is **ZERO** runtime window-creation code (`WebviewWindowBuilder` / `WindowBuilder` / `create_window` — none). At OS-window scope the lock **cannot be driven, cannot fail, and cannot be trusted.** At tile scope — what the store comment actually argues — it is drivable and MET. **The lock's own wording is the ambiguity.** 🔑 *A lock with no verification leg cannot fail, so it cannot be trusted — and this document had TWO, not one.* **OPEN FOR JOE: rewording a lock is a records decision about his own design and was NOT taken here.**
+
+**③ ⚠️ Lock #7's TEXT is stale against what shipped.** §9.11.3 reads *"timed_out → retry only behind an explicit warning."* Shipped is **no retry affordance at all**, deliberately narrowed at D2 §3.1 and enforced in BOTH the store's refusal and the widget's button (one predicate, N-126). Behaviour correct; **the table never received the amendment.** *The J-566 shape again — a decision applied in code and not in the record.*
+
+**④ §2's #6 = SPLIT is CONFIRMED, not merely predicted** — `send-status.svelte` maps four outcomes to a three-way `data-tone` plus `pending`, so distinctness is a DOM read and only the reading is Joe's.
+
+**⑤ Flag ② settled by measurement.** *"No probe was ever pointed at #5"* was inference from J-560's silence. Grepped: the only occurrence of `#5` in J-560's body is J-567's correction block, prepended later. **It was never asked — measured, not assumed.**
+
+### §10.3 — Method notes from the drive
+
+- ⚠️ **A synchronous loop of (set value → dispatch input → click send) sends ONCE.** Svelte re-enables the button on flush, so `click()` on a still-disabled button is a silent no-op. Caught only because the echo COUNT was read rather than the loop's return. *N-156's family: the loop returned a confident value that was not the feature.*
+- Two legs used a **stub transport** (`echo.setTransport`) to drive `accepted` / `rejected` / `timed_out` on demand. **This verifies the store and the render rules; it verifies NOTHING about the wire** — and no lock among the twelve claims the wire. Recorded here so nobody later reads these rows as a wire proof.
+- Two evals threw a bare `Uncaught` and were treated as **inconclusive, not failures** (N-110), then re-driven defensively. Neither entered this record.
+
+### §10.4 — Still owed
+
+- **Leg B** — #5 and #6, Joe's eyes, verdicts quoted verbatim.
+- **#11's wording** — Joe's ruling; the verdict depends on it.
+- **Leg C** — §9.11.3's verifier column, which is deliberately UNTOUCHED until B lands, since the DoD is *no lock without a named verifier*.

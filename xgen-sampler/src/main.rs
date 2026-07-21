@@ -27,7 +27,19 @@ use std::path::{Path, PathBuf};
 /// First-run substitution starter pack — **hand-synced** with `xgen-client`'s
 /// `app::DEFAULT_SUBSTITUTIONS_SEED` (this is the third copy of the seed; a
 /// shared-const crate is explicitly out of scope this arc — N-058).
-const DEFAULT_SUBSTITUTIONS_SEED: &str = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒";
+///
+/// ⚠️ **The hand-sync is unguarded by any test on this side.** Both sampler tests
+/// below assert against this const symbolically, so they compare a value to itself
+/// and would stay green if this copy silently drifted from the client's. The seam
+/// is real and known (N-058); the guard is a human read of both consts, not cargo.
+///
+/// **No find may be a proper prefix of another** (D-100's first amendment): the
+/// edit-side engine rescans the whole field every keystroke, so a shorter rule
+/// morphs first and a longer rule it prefixes can never be typed. The seed shipped
+/// until 2026-07-21 paired `-->` with `--`, and `-->` was unreachable — the whole
+/// reason this value changed. The pairs are also the grammar's only worked example
+/// (D-100 ①), so this list may never be emptied.
+const DEFAULT_SUBSTITUTIONS_SEED: &str = "-> → | <- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒";
 
 /// Minimal `xgen-client_config.toml`-shaped subset: only the `[substitutions]`
 /// section (decision 3 — the needed slice, not the whole client/node config).

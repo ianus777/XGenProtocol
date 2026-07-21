@@ -86,6 +86,56 @@ export function assertSafeRules(rules: TransformConfig, opts: { trusted: boolean
   }
 }
 
+/** One unreachable rule and the shorter rule that shadows it (see findUnreachableRules). */
+export type UnreachableRule = {
+  /** The `find` that can never be completed by typing. */
+  find: string;
+  /** The shorter `find` that is a proper prefix of it, and therefore morphs first. */
+  shadowedBy: string;
+};
+
+/**
+ * Reachability diagnostic (M-RP-PROCESSOR-SEED, D-100 ④). A rule is UNREACHABLE when another
+ * rule's `find` is a PROPER PREFIX of its own: the edit-side engine rescans the whole value on
+ * every keystroke, so while you type the longer token the buffer passes through the shorter one,
+ * which morphs immediately — the longer rule never completes. The seed shipped until 2026-07-21
+ * paired `-->` with `--`, so typing `-->` produced `‒>` and never `→`.
+ *
+ * ⚠️ **List order is irrelevant — TYPING order decides.** This is not the convergence lint
+ * (assertSafeRules) restated: that one rejects a rule that re-matches its OWN output and loops;
+ * this one reports a rule that a DIFFERENT rule prevents you from ever entering. `-->` is not
+ * invalid, it is unreachable, which is why it passes every existing check.
+ *
+ * ⚠️ **THIS MUST NEVER BE FOLDED INTO assertSafeRules, and that is a locked decision, not a
+ * style choice (D-100 ④).** assertSafeRules THROWS, and store.svelte.ts:setRules fails safe to
+ * an EMPTY rule list on rejection — so a user with five working rules and one shadowed pair
+ * would lose all six, explained only by a console.warn that release builds strip. *A check that
+ * blanks the whole rule set to report one unreachable pair is strictly worse than the bug it
+ * diagnoses.* It is computed separately, never gates Apply, and is surfaced beside the rules.
+ *
+ * Pure and total: no throw, no DOM, no I/O. At most one entry per rule (the first shadower found
+ * is enough to explain and fix it). Empty `find`s are ignored — parseRules already drops them,
+ * and an empty string is a prefix of everything, so admitting one would flag every other rule.
+ */
+export function findUnreachableRules(rules: TransformConfig): UnreachableRule[] {
+  const out: UnreachableRule[] = [];
+  for (const rule of rules) {
+    for (const other of rules) {
+      // Strictly shorter ⇒ a rule can never shadow itself, and two rules with an
+      // identical `find` never shadow each other (that is a duplicate, not a shadow).
+      if (
+        other.find.length > 0 &&
+        other.find.length < rule.find.length &&
+        rule.find.startsWith(other.find)
+      ) {
+        out.push({ find: rule.find, shadowedBy: other.find });
+        break;
+      }
+    }
+  }
+  return out;
+}
+
 /**
  * Parse one user-owned rules string into a TransformConfig (M-RP4.2 grammar, literal — no regex):
  *   - pairs are separated by the literal " | " (space-pipe-space)

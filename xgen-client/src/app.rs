@@ -152,7 +152,60 @@ pub struct SubstitutionsSection {
 /// `app_sampler.svelte`, so the workbench mirrors the shipped client behaviour
 /// (D-097: the sampler is a minimal host with no client config to read, so the
 /// two seeds are kept in sync by hand — Rust const here, TS literal there).
-pub const DEFAULT_SUBSTITUTIONS_SEED: &str = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒";
+///
+/// **The pairs are also the grammar's only worked example (D-100 ①, Joe-locked
+/// 2026-07-21) — this list may NEVER be emptied.** Nothing else in the UI
+/// documents the ` | ` separator or the first-space split, so the starter pack
+/// is how a user learns to write the next pair. That constrains the CONTENT as
+/// well as the existence: the set must demonstrate the grammar's range, and this
+/// one does — a multi-char `find` (`->`), an emoji `replace` (`🙂`), a symbol
+/// `replace` (`‒`). Recorded here because a hardcoded literal whose second job is
+/// undocumented looks exactly like dead data to the next person who reads it.
+///
+/// **Shadowing (D-100's first amendment, 2026-07-04).** The finds are `->` `<-`
+/// `:)` `<3` `:(` `--`, and no find is a proper prefix of another. That is
+/// load-bearing, not incidental: the edit-side engine rescans the whole field on
+/// every keystroke, so a shorter rule whose `find` prefixes a longer one morphs
+/// first and the longer rule can never be typed at all. The pre-2026-07-21 seed
+/// paired `-->` with `--` and `-->` was unreachable (`‒>`, never `→`) — see
+/// [`HISTORICAL_SEED_S2`]. **Any future edit to this list must preserve the
+/// no-proper-prefix property.**
+pub const DEFAULT_SUBSTITUTIONS_SEED: &str = "-> → | <- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒";
+
+/// **EVIDENCE, NEVER SEED MATERIAL (D-100 ②, the migration bound).**
+///
+/// The starter pack shipped between M-RP4.4 (`7ea70fa`) and M-RP-PROCESSOR-SEED.
+/// It is the seed whose `-->` rule was shadowed by its own `--` rule, so users who
+/// launched on it have a defective list they never authored.
+///
+/// It is kept in the source **because the constant IS the evidence** — it is what
+/// makes [`clean_slate_config`]'s migration comparison auditable rather than
+/// magical. It is never written to a config, never offered as a default, and never
+/// parsed: its only use is byte-equality against a captured `rules` value.
+///
+/// ⚠️ The predecessor seed **S1** (`2cf494f`, five pairs, no `--` rule) is
+/// deliberately NOT listed. Under S1 nothing is a proper prefix of `-->`, so it
+/// works correctly; migrating it would make `--` a rule and install the very defect
+/// this milestone removes, in a file the user never touched (D-100 ③).
+const HISTORICAL_SEED_S2: &str = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁 | -- ‒";
+
+/// The explicit, exhaustive list of historical seeds eligible for migration
+/// (D-100 ② — "an explicit list of NAMED CONSTANTS", "the list never grows
+/// silently"). Appending a value here is a decision recorded in D-100 on its own
+/// line, not a maintenance edit.
+const MIGRATABLE_HISTORICAL_SEEDS: &[&str] = &[HISTORICAL_SEED_S2];
+
+/// Is this captured `rules` value an untouched historical default we shipped?
+///
+/// **BYTE-IDENTITY ONLY (D-100 ②, normative).** `str` equality and nothing else:
+/// never a substring match, never a prefix/suffix test, never a normalisation,
+/// trim, parse-and-compare or similarity heuristic, and never a value differing by
+/// one character. Anything not byte-identical to a listed seed is **user-authored**
+/// and rides across the wipe verbatim, forever; for those users the answer is the
+/// editor's reachability diagnostic, never a rewrite.
+fn is_migratable_historical_seed(rules: &str) -> bool {
+    MIGRATABLE_HISTORICAL_SEEDS.contains(&rules)
+}
 
 /// AI declaration section in xgen-client_config.toml (M3+M4, spec 3.6.10).
 ///
@@ -244,27 +297,78 @@ pub fn load_sync_section(config_path: &Path) -> SyncSection {
 /// `get_substitutions` Tauri command; all parsing of the ` | ` + first-space
 /// grammar happens there (the engine stays source-agnostic, D-099).
 pub fn load_substitutions_section(config_path: &Path) -> SubstitutionsSection {
-    try_load_substitutions_section(config_path).unwrap_or_default()
+    match try_load_substitutions_section(config_path) {
+        PreservedSubstitutions::Rules(rules) => SubstitutionsSection { rules },
+        // A reader is RIGHT to collapse "unreadable" and "no section" to empty —
+        // both mean "no rules to give you". Only the wipe needs them apart.
+        PreservedSubstitutions::Unreadable | PreservedSubstitutions::SectionAbsent => {
+            SubstitutionsSection::default()
+        }
+    }
 }
 
-/// Fallible sibling of [`load_substitutions_section`]: `None` when the config is
-/// absent / unreadable / malformed, `Some(section)` — possibly with an EMPTY
-/// `rules` — when it parsed.
+/// What a pre-wipe capture of `[substitutions]` actually found.
 ///
-/// The read path collapses both cases to empty, which is right for a reader.
-/// It is wrong exactly once, in [`clean_slate_config`], where the two mean
-/// opposite things:
+/// Three states, because [`clean_slate_config`] must act differently on each and
+/// two of them are the SAME VALUE at the point of decision (`""`). Collapsing any
+/// pair here silently destroys user intent or user data:
 ///
-/// - `Some("")` = **the user cleared their pairs.** That intent must ride across
-///   the wipe (J-438 seed-once — cleared pairs stay cleared).
-/// - `None` = **we could not read the old config.** Blanking on that would
-///   silently destroy the freshly seeded starter pack on top of whatever the
-///   corruption already cost the user, so the seed is left standing.
-fn try_load_substitutions_section(config_path: &Path) -> Option<SubstitutionsSection> {
-    let text = std::fs::read_to_string(config_path).ok()?;
-    toml::from_str::<ClientConfig>(&text)
-        .ok()
-        .map(|cfg| cfg.substitutions)
+/// - [`Unreadable`](Self::Unreadable) — the config is absent / unreadable /
+///   malformed. Blanking on this would destroy the freshly seeded starter pack on
+///   top of whatever the corruption already cost the user (J-562).
+/// - [`SectionAbsent`](Self::SectionAbsent) — the config parsed but carries no
+///   `[substitutions]` section at all: a pre-M-RP4.2 config. **This is the state
+///   that did not exist before M-RP-PROCESSOR-SEED**, and its absence was a live
+///   defect (D-100 ⑤): `#[serde(default)]` synthesised an empty section, the wipe
+///   read it as *the user cleared their pairs*, and re-injected `""` over the fresh
+///   seed — so an old config was blanked permanently and never received the starter
+///   pack, including the grammar example the pack exists to provide.
+/// - [`Rules`](Self::Rules) — the section is present; the raw string verbatim,
+///   **possibly empty**. Empty here means the user really did clear their pairs, and
+///   that intent rides across the wipe (J-438 seed-once).
+enum PreservedSubstitutions {
+    Unreadable,
+    SectionAbsent,
+    Rules(String),
+}
+
+/// Presence probe for the one fact [`ClientConfig`] structurally cannot express.
+///
+/// `ClientConfig.substitutions` is `#[serde(default)]` over a `Default`-deriving
+/// struct, so a config with no `[substitutions]` section deserialises to an empty
+/// one — indistinguishable from a section that is present and empty. An `Option`
+/// field distinguishes them; unknown fields are ignored, so this parses any config.
+///
+/// ⚠️ **This probe does NOT replace the `ClientConfig` parse, it accompanies it.**
+/// `client` / `paths` / `logging` carry no `#[serde(default)]`, so a config missing
+/// one of them fails to parse today and reads as unreadable. This struct would
+/// happily accept such a file, so probing *instead of* parsing would quietly widen
+/// what [`load_substitutions_section`] treats as valid. Two parses, two questions:
+/// `ClientConfig` answers *is this a config at all*, this answers *was the section
+/// written*.
+#[derive(serde::Deserialize)]
+struct SubstitutionsPresenceProbe {
+    #[serde(default)]
+    substitutions: Option<SubstitutionsSection>,
+}
+
+/// Fallible sibling of [`load_substitutions_section`], reporting all three states
+/// of [`PreservedSubstitutions`].
+fn try_load_substitutions_section(config_path: &Path) -> PreservedSubstitutions {
+    let Ok(text) = std::fs::read_to_string(config_path) else {
+        return PreservedSubstitutions::Unreadable;
+    };
+    // Validity first — unchanged, and deliberately the stricter of the two parses.
+    let Ok(cfg) = toml::from_str::<ClientConfig>(&text) else {
+        return PreservedSubstitutions::Unreadable;
+    };
+    // Then presence. A probe failure cannot mean "absent" (the file already parsed
+    // as a whole config), so fall back to the value we do have rather than invent
+    // a state: the section is reported present, exactly as it was before Leg C.
+    match toml::from_str::<SubstitutionsPresenceProbe>(&text) {
+        Ok(probe) if probe.substitutions.is_none() => PreservedSubstitutions::SectionAbsent,
+        _ => PreservedSubstitutions::Rules(cfg.substitutions.rules),
+    }
 }
 
 /// Write the raw `[substitutions] rules` string back to `xgen-client_config.toml`
@@ -440,25 +544,61 @@ fn write_fresh_config(config_file: &Path, keypair_path: &Path, ai: Option<AiSect
 /// own exit condition — scoped to the one section that holds user-authored
 /// content. See DECISIONS.md D-101 for the full why + until-when.
 ///
+/// **The untouched-default migration (M-RP-PROCESSOR-SEED, D-100 ②).** This is the
+/// first place the project rewrites a user's config on upgrade, so the bound is
+/// narrow and normative: a captured `rules` value **byte-identical** to a listed
+/// historical seed ([`MIGRATABLE_HISTORICAL_SEEDS`]) is treated as an untouched
+/// default we shipped, and the re-inject is **skipped** so the corrected seed
+/// stands. Users who launched on the shadowed `-->`/`--` seed get the fix without
+/// touching anyone who authored their own list. See
+/// [`is_migratable_historical_seed`] for what byte-identity does and does not mean.
+///
+/// **The absent-section repair (D-100 ⑤).** A config with no `[substitutions]`
+/// section is now distinguishable from one whose list is empty, and is treated like
+/// a first run. Before this, `#[serde(default)]` made the two identical and a
+/// pre-M-RP4.2 config was blanked permanently — it never received the starter pack
+/// at all. See [`PreservedSubstitutions`].
+///
 /// Failure posture: the capture is fail-soft and the re-inject is best-effort
 /// (matching the two calls it sits beside). A launch is never blocked by an
 /// unreadable old config, and a failed re-inject leaves a valid seeded config —
 /// never a broken one.
 pub fn clean_slate_config(config_path: &Path, keypair_path: &Path) {
     if config_path.exists() {
-        // Capture user-owned content BEFORE the wipe. `None` (unreadable /
-        // malformed) is deliberately NOT the same as `Some("")` (the user
-        // cleared their pairs) — see `try_load_substitutions_section`.
-        let preserved = try_load_substitutions_section(config_path).map(|s| s.rules);
+        // Capture user-owned content BEFORE the wipe. Three states, none of them
+        // interchangeable — see `PreservedSubstitutions`.
+        let preserved = try_load_substitutions_section(config_path);
 
         let _ = std::fs::remove_file(config_path);
         let _ = write_fresh_config(config_path, keypair_path, None);
 
-        // Re-inject after regeneration. Skipped when the old config could not be
-        // read, so the freshly seeded starter pack is left standing rather than
-        // blanked by a value we never actually recovered.
-        if let Some(rules) = preserved {
-            let _ = write_substitutions_section(config_path, &rules);
+        // `write_fresh_config` has ALREADY written the current seed, so every
+        // "keep the seed" outcome below is simply a SKIPPED re-inject. There is no
+        // upgrade path, no string surgery and no parser (D-100 ②).
+        match preserved {
+            // Could not read the old config: leave the fresh pack standing rather
+            // than blank it with a value we never actually recovered (J-562).
+            PreservedSubstitutions::Unreadable => {}
+
+            // No `[substitutions]` section at all — a pre-M-RP4.2 config. Treated
+            // like a first run, so it finally receives the starter pack instead of
+            // being blanked forever (D-100 ⑤).
+            PreservedSubstitutions::SectionAbsent => {}
+
+            // An untouched default WE shipped, byte-identical to a listed historical
+            // seed: skip the re-inject so the corrected seed stands. This is the
+            // migration, and it is a SKIP, not a rewrite (D-100 ②). Only S2 is
+            // listed — S1 is not defective and migrating it would install the bug on
+            // someone who does not have it (D-100 ③).
+            PreservedSubstitutions::Rules(ref rules) if is_migratable_historical_seed(rules) => {}
+
+            // Everything else is the user's, including an empty string (pairs they
+            // cleared — J-438 seed-once). Rides across verbatim, forever. A list that
+            // merely RESEMBLES a historical seed is user-authored and is never
+            // rewritten; the editor's reachability diagnostic is their answer.
+            PreservedSubstitutions::Rules(rules) => {
+                let _ = write_substitutions_section(config_path, &rules);
+            }
         }
     }
 }
@@ -6522,8 +6662,8 @@ mod m_rp4_2_substitutions_tests {
         assert_eq!(
             parse_pairs(&rules),
             vec![
-                ("-->".to_string(), "→".to_string()),
-                ("<--".to_string(), "←".to_string()),
+                ("->".to_string(), "→".to_string()),
+                ("<-".to_string(), "←".to_string()),
                 (":)".to_string(), "🙂".to_string()),
                 ("<3".to_string(), "❤️".to_string()),
                 (":(".to_string(), "🙁".to_string()),
@@ -6531,6 +6671,39 @@ mod m_rp4_2_substitutions_tests {
             ],
             "the six expected starter pairs"
         );
+    }
+
+    /// **The property the seed's VALUE exists to satisfy** (D-100's first
+    /// amendment): no `find` is a proper prefix of another `find`.
+    ///
+    /// This is the defect the seed shipped with, expressed as an invariant rather
+    /// than as a literal. The engine rescans the whole field on every keystroke, so
+    /// a shorter rule whose `find` prefixes a longer one morphs first and the longer
+    /// rule can never be typed at all — the old seed paired `-->` with `--`, and
+    /// `-->` was unreachable. Asserting the *property* means a future edit to the
+    /// seed that reintroduces a shadowing pair fails here, which a literal
+    /// comparison could never catch.
+    #[test]
+    fn seed_has_no_shadowed_pairs() {
+        let pairs = parse_pairs(DEFAULT_SUBSTITUTIONS_SEED);
+        for (find, _) in &pairs {
+            for (other, _) in &pairs {
+                assert!(
+                    !(other.len() < find.len() && find.starts_with(other.as_str())),
+                    "seed rule {find:?} is unreachable by typing: {other:?} is a proper prefix and morphs first"
+                );
+            }
+        }
+
+        // Positive control: the property is not vacuous — it genuinely fails on the
+        // seed we shipped, which is exactly the value this milestone migrates away
+        // from. Without this the loop above would also "pass" on an empty list.
+        let old = parse_pairs(HISTORICAL_SEED_S2);
+        let shadowed = old.iter().any(|(find, _)| {
+            old.iter()
+                .any(|(other, _)| other.len() < find.len() && find.starts_with(other.as_str()))
+        });
+        assert!(shadowed, "the historical S2 seed must still exhibit the defect");
     }
 
     /// §4d seed-once — a user who clears their pairs must not see them
@@ -6689,6 +6862,127 @@ mod m_rp4_2_substitutions_tests {
             load_substitutions_section(&config_path).rules,
             DEFAULT_SUBSTITUTIONS_SEED,
             "an unrecoverable old config leaves the freshly seeded pack standing"
+        );
+    }
+
+    /// **Leg B — the migration.** A config still carrying the historical S2 seed
+    /// byte-for-byte is an untouched default WE shipped, and a defective one: its
+    /// `-->` rule is unreachable because its own `--` rule morphs first. The
+    /// re-inject is skipped so the corrected seed stands.
+    ///
+    /// The migration is a SKIP, not a rewrite — `write_fresh_config` has already
+    /// written the new value by the time the decision is taken (D-100 ②).
+    #[test]
+    fn clean_slate_migrates_historical_seed_s2() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-client_config.toml");
+        let keypair_path = dir.path().join("xgen-client_keypair.enc");
+
+        let mut cfg = ClientConfig::default();
+        cfg.substitutions.rules = HISTORICAL_SEED_S2.to_string();
+        cfg.logging.level = "trace".to_string();
+        std::fs::write(&config_path, toml::to_string_pretty(&cfg).unwrap()).unwrap();
+
+        clean_slate_config(&config_path, &keypair_path);
+
+        assert_eq!(
+            load_substitutions_section(&config_path).rules,
+            DEFAULT_SUBSTITUTIONS_SEED,
+            "an untouched historical default is replaced by the corrected seed"
+        );
+
+        // Positive control: the wipe genuinely ran. Without it this test would also
+        // pass if `clean_slate_config` had done nothing at all and the file on disk
+        // just happened to be read back.
+        let text = std::fs::read_to_string(&config_path).unwrap();
+        let regenerated: ClientConfig = toml::from_str(&text).unwrap();
+        assert_eq!(
+            regenerated.logging.level, "debug",
+            "the config was really wiped + regenerated, not merely left alone"
+        );
+    }
+
+    /// **Leg B — the bound, from the other side (D-100 ③).** The S1 seed predates
+    /// the `--` rule, so nothing is a proper prefix of its `-->` and it works
+    /// correctly. Migrating it would ADD `--` and turn a working `-->` into `‒>`:
+    /// the exact defect this milestone removes, newly installed on someone who did
+    /// not have it, in a file they never touched. S1 is therefore NOT listed, falls
+    /// through to the user-authored arm, and is preserved verbatim.
+    ///
+    /// This is also the leg that catches a substring or "close enough" comparison:
+    /// S1 IS a prefix of S2 up to its final pair, so any test looser than byte
+    /// equality would migrate it.
+    #[test]
+    fn clean_slate_does_not_migrate_historical_seed_s1() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("xgen-client_config.toml");
+        let keypair_path = dir.path().join("xgen-client_keypair.enc");
+
+        // S1 (`2cf494f`, M-RP4.2): five pairs, no `--` rule.
+        let s1 = "--> → | <-- ← | :) 🙂 | <3 ❤️ | :( 🙁";
+        let mut cfg = ClientConfig::default();
+        cfg.substitutions.rules = s1.to_string();
+        std::fs::write(&config_path, toml::to_string_pretty(&cfg).unwrap()).unwrap();
+
+        clean_slate_config(&config_path, &keypair_path);
+
+        assert_eq!(
+            load_substitutions_section(&config_path).rules,
+            s1,
+            "S1 is not defective and is preserved verbatim, never migrated"
+        );
+    }
+
+    /// **Leg C — the absent-section repair (D-100 ⑤).** A pre-M-RP4.2 config has no
+    /// `[substitutions]` section at all. `#[serde(default)]` used to synthesise an
+    /// empty one, the wipe read that as *the user cleared their pairs*, and the
+    /// empty string was re-injected over the freshly seeded pack — so such a config
+    /// was blanked permanently and never received the starter pack, including the
+    /// grammar example the pack exists to provide. It is now treated like a first
+    /// run.
+    ///
+    /// The control below is the whole point: an EXPLICIT `rules = ""` must stay
+    /// empty in the same test, or the two states have not been discriminated at all
+    /// — they were the same value at the point of decision, and a repair that also
+    /// re-seeds a cleared list has simply broken J-438 instead.
+    #[test]
+    fn clean_slate_seeds_config_with_absent_substitutions_section() {
+        let dir = tempfile::tempdir().unwrap();
+        let keypair_path = dir.path().join("xgen-client_keypair.enc");
+
+        // A config with no `[substitutions]` section, written as literal TOML —
+        // serialising `ClientConfig` would always emit the section.
+        let absent_path = dir.path().join("absent.toml");
+        std::fs::write(
+            &absent_path,
+            "[client]\nnode = \"ws://127.0.0.1:8080/xgen\"\n\n\
+             [paths]\nkeypair_path = \"k.enc\"\n\n\
+             [logging]\nlevel = \"trace\"\n",
+        )
+        .unwrap();
+        // It really does parse (so this is the absent case, not the unreadable one).
+        assert_eq!(load_substitutions_section(&absent_path).rules, "");
+
+        clean_slate_config(&absent_path, &keypair_path);
+
+        assert_eq!(
+            load_substitutions_section(&absent_path).rules,
+            DEFAULT_SUBSTITUTIONS_SEED,
+            "a config that never had the section finally receives the starter pack"
+        );
+
+        // Control: an EXPLICIT empty list is a different state and stays empty.
+        let cleared_path = dir.path().join("cleared.toml");
+        let mut cfg = ClientConfig::default();
+        cfg.substitutions.rules = String::new();
+        std::fs::write(&cleared_path, toml::to_string_pretty(&cfg).unwrap()).unwrap();
+
+        clean_slate_config(&cleared_path, &keypair_path);
+
+        assert_eq!(
+            load_substitutions_section(&cleared_path).rules,
+            "",
+            "an explicitly cleared list is NOT the absent case — it stays cleared"
         );
     }
 

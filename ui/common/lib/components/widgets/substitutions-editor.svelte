@@ -37,7 +37,11 @@
   // the rules payload. The child textarea self-registers as `<id>__rules` (N-054).
   import { envelope } from '$common/components/base/envelope';
   import { substitutions } from '$common/components/processor/store.svelte';
-  import { parseRules, assertSafeRules } from '$common/components/processor/transform';
+  import {
+    parseRules,
+    assertSafeRules,
+    findUnreachableRules,
+  } from '$common/components/processor/transform';
   import TextArea from '$core/components/data-independent/textarea.svelte';
   import Button from '$core/components/data-independent/button.svelte';
 
@@ -89,6 +93,14 @@
     }
   });
 
+  // Reachability diagnostic (M-RP-PROCESSOR-SEED Leg D, D-100 ④) — SEPARATE from `validation`
+  // above, and that separation is the decision, not a layout choice. `assertSafeRules` throws and
+  // `setRules` fails safe to an EMPTY list, so folding this in would cost a user with one shadowed
+  // pair their entire rule set in order to report it. This never gates Apply: a shadowed rule is
+  // not invalid, it is unreachable, and it is the user's data to fix. Reuses `parsed` — no third
+  // parse of the same draft.
+  const unreachable = $derived(findUnreachableRules(parsed));
+
   async function apply() {
     if (!dirty || !validation.valid) return;
     substitutions.setRules(draft); // live in-app effect (also sets source → dirty clears)
@@ -119,7 +131,12 @@
       : 'Changes apply this session; config resets on restart.',
   );
 
-  const debug = () => $state.snapshot({ dirty, valid: validation.valid, count });
+  // `shadowed` is a COUNT — task-state, never the payload (W-4; §4.3 admits a field on exactly
+  // that condition). It exists so "no diagnostics" is a number a probe can READ rather than an
+  // element it fails to find: an absent node and a broken selector are the same clean-looking
+  // nothing (N-110/N-139), and this is the one field that tells them apart.
+  const debug = () =>
+    $state.snapshot({ dirty, valid: validation.valid, count, shadowed: unreachable.length });
 </script>
 
 <div
@@ -136,6 +153,17 @@
       <span class="subs-warn">{validation.msg}</span>
     {/if}
   </div>
+
+  <!-- Reachability notice (Leg D). Its own block, deliberately NOT inside `.subs-status`'s
+    valid/invalid branch: this is not a validation state, and it must be able to appear while the
+    set is perfectly valid and Apply is enabled. WORDING + APPEARANCE PROVISIONAL → M-RP-SKIN. -->
+  {#if unreachable.length}
+    <ul class="subs-shadow" aria-live="polite">
+      {#each unreachable as u (u.find)}
+        <li>“{u.find}” can’t be typed — “{u.shadowedBy}” changes first.</li>
+      {/each}
+    </ul>
+  {/if}
 
   <div class="subs-actions">
     <Button label="Apply" onclick={apply} disabled={!dirty || !validation.valid} id={cid('apply')} />

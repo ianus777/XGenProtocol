@@ -1944,6 +1944,19 @@ html, body {
   font-size: var(--fs-1);
   color: var(--t4);
 }
+/* Reachability notice (M-RP-PROCESSOR-SEED Leg D) — PROVISIONAL, discharged at M-RP-SKIN.
+ * Deliberately NOT `--err-bright` like `.subs-warn`: this is not an error and it does not
+ * block Apply. A shadowed rule is valid, saved, and simply never reachable by typing, so it
+ * reads as an advisory (`--warn`) — one step above the resting `--t3`/`--t4` and one below
+ * the rejection colour. Wording lives in the component and is provisional with it. */
+.substitutions-editor .subs-shadow {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-1);
+  line-height: var(--lh);
+  color: var(--warn);
+}
 
 /* ── self-panel (.self-panel) — R3 Self/connection, the FIRST real system widget (M-RP6.1g). Layout
  * ONLY (N-090: all skinnable settings — gaps, spacing, sizing — live here, not a component <style>);

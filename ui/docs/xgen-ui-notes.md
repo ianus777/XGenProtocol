@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: May 2026  
 > **Last updated**: 2026-07-21  
 > Language: English  
@@ -3189,6 +3189,75 @@ for **+3** (four room ids, minus the vanished empty placeholder). **+4 has no ac
 invented.** Outside the milestone that measured it, no bearing on its fix. *An honest gap in a record is
 worth more than a plausible story* — and a decomposition that reaches the right total by guessing one term
 is the N-108 mistake wearing arithmetic as a disguise.
+
+---
+
+## 2026-07-21 (M-RP-PROCESSOR-SEED close, J-567)
+
+### N-156 — A WHOLESALE PROBE DOES NOT FAIL TO TEST THE FEATURE; IT RETURNS A **DIFFERENT, EQUALLY CONFIDENT VALUE** (sharpens N-154)
+
+Measured by Clair while driving V-A2. Same input string `-->`, two ways of getting it into the field:
+
+| how | result |
+|---|---|
+| typed **one character at a time** | `‒>` |
+| **set wholesale** (value assigned, `input` dispatched) | `-→` |
+
+Neither is `→`, so **both "detect" the seed change** — a wholesale probe would have reported the
+milestone as working. But only the first describes a human being.
+
+🔑 **This is not N-154 restated.** N-154 says a wholesale set verifies the transform function rather
+than the feature — which sounds like a *false pass*, something that fails to notice. The sharper and
+more dangerous fact is that it **produces a plausible wrong number**: a value that differs from both
+the broken and the correct behaviour, arrives with no error, and reads as a successful measurement.
+***A probe that returns nothing is a hole you can see; a probe that returns the wrong thing
+confidently is a hole shaped exactly like a result.***
+
+⇒ A live edit-side transformer is a function of the **input sequence**, not of the final string.
+Any leg gating a conclusion about it must type.
+
+### N-157 — A CONFIG AT A PATH THE BINARY **USED TO** USE IS INDISTINGUISHABLE FROM THE LIVE ONE BY INSPECTION
+
+Same filename, same schema, plausible mtime, and **it parses**. Nothing about the file says it is dead.
+The only discriminator is the **data-root resolution order**, which lives in the binary, not on disk —
+so the question *"is this the config the app reads?"* cannot be answered by looking at the config.
+
+⚠️ **It cost two distinct errors in a single session, in opposite directions:**
+
+1. `C:\cargo-targets\XGenProtocol\debug\xgen-client_config.toml` — a stale artifact of an older
+   data-root era — was taken for the live config, and the V-B1 wipe control was set on it. **The real
+   config's migration became unattributable** and had to be re-driven against `instances\bob`.
+2. In the same report, `instances\lp-cli\xgen-client_config.toml` was declared **not to exist** after a
+   recursive search — of the repo trees, not of `%LOCALAPPDATA%`. It exists (234 bytes, 2026-06-16,
+   measured twice).
+
+🔑 *One mistake looks like carelessness; two in opposite directions in one session is the environment
+telling you something.* The trap is not "stale files exist" — it is that **the live root is a property
+of the running binary and every copy on disk looks equally alive.**
+
+⇒ Get the path from `get_about_info().common.config_path`, never from recollection or from a search
+rooted where the project happens to live. When a probe's subject is a file, **prove which file first**.
+
+### N-158 — A TEST THAT COMPARES A CONSTANT TO ITSELF IS NOT A FLOOR
+
+`xgen-sampler`'s seed tests assert `load_substitutions(&path) == DEFAULT_SUBSTITUTIONS_SEED`. That is a
+real and useful **round-trip** check — write, read back, get the same bytes — and it passes whatever the
+constant contains. **Replace the const with garbage and the tests still pass.**
+
+Measured consequence: M-RP-PROCESSOR-SEED changed the sampler's seed and its cargo count did **not**
+move (3 → 3), which is why the runbook's "cargo MOVES — both crates" was wrong.
+
+🔑 **The finding is bigger than the miscount.** The two seed constants — `xgen-client/src/app.rs` and
+`xgen-sampler/src/main.rs` — are a **hand-synced seam (N-058)**, and *nothing automated guards that they
+agree*. They diverged once already: D-100's first amendment (2026-07-04) changed one of three named
+sites and left both consts behind for seventeen days, and **no test noticed**, because no test can.
+
+⚠️ *A green suite is evidence about the tests as much as about the code.* When a floor does not move
+after a change that should have moved it, the first hypothesis is not "the change was small" — it is
+**"the test cannot see this"**.
+
+⇒ Candidate fixes, none taken here: hoist the seed into `xgen-common` (kills the seam), or assert
+cross-crate equality in a test that reads both sources. Filed, not scoped.
 
 ---
 

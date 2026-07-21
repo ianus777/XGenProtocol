@@ -1,6 +1,6 @@
 # M-RP-PROCESSOR-SEED — the starter rule set, the untouched-default migration, the absent-section repair, and the prefix-reachability diagnostic
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-21  
 > Language: English  
@@ -127,7 +127,9 @@ pairs*. `clean_slate_config` then re-injects `""` over the freshly seeded pack.
 ⇒ **A pre-M-RP4.2 config launching on a current build is blanked permanently and never receives the
 starter pack — including the grammar example §1.4 says it exists to provide.**
 
-Real on this machine: `instances\lp-cli\xgen-client_config.toml` has no section. Verified live —
+Real on this machine: **fourteen** configs carry no `[substitutions]` section, including
+`instances\lp-cli\xgen-client_config.toml` (234 bytes, 2026-06-16) and thirteen fixtures under
+`bin/instances/m3-*`, `m4-*`, `bin/test_01*` and `test_runs/multiparty_s1_run*`. Verified live —
 `xgen-client_config.toml` (Joe), `instances\bob`, and the stale seeded copy under
 `C:\cargo-targets\XGenProtocol\debug\` all read **S2**; **zero S1 configs exist here.**
 
@@ -232,7 +234,8 @@ this shipped broken*** (N-154). Every seed pair is typed **one character at a ti
 processor-host, and the value is read after the final keystroke.
 
 - **V-A1** both consts read the new value; `app_sampler.svelte:586` byte-unchanged (`git diff`).
-- **V-A2** keystroke-by-keystroke, all six pairs, in the **client composer** (`composer-panel:94`):
+- **V-A2** keystroke-by-keystroke, all six pairs, in the **client composer**
+  (`ui/common/lib/components/widgets/composer-panel.svelte:114`):
   `->`→`→` · `<-`→`←` · `:)`→`🙂` · `<3`→`❤️` · `:(`→`🙁` · `--`→`‒`.
   **Positive control:** a non-rule token (`xyz`) typed the same way must come through **unmorphed**, or
   "everything morphed" and "the probe is not reading the field" are the same result (N-139).
@@ -277,7 +280,7 @@ Predict each **before** driving; decompose any miss, never adjust (N-108).
 
 | gate | at HEAD `65a1420` | expectation |
 |---|---|---|
-| cargo | 1549 / 0 / 62 across 56 terminator lines | **MOVES** — both crates. Predict per crate. |
+| cargo | 1549 / 0 / 62 across 56 terminator lines | **MOVES — CLIENT ONLY.** ⚠️ **This row said "both crates" and was WRONG** (Clair, Rule-6). The sampler's count **cannot** move: both its seed tests compare `DEFAULT_SUBSTITUTIONS_SEED` **to itself**, so they prove the write→read round trip and can never detect a wrong value. Measured 3 → 3. 🔑 **The hand-synced seam between the two crates' seeds (N-058) is guarded by nothing but a human reading both files** — see N-158. |
 | svelte-check | 0 errors / 34 warnings / 15 files | errors stay 0; **quote both numbers** |
 | npm | 142 | **MOVES** — Leg D adds tests |
 | vite | 202 client / 170 sampler | client may move by reachability (N-149) |
@@ -287,21 +290,81 @@ Predict each **before** driving; decompose any miss, never adjust (N-108).
 ## §8 — DoD
 
 **IMPLEMENTER**
-- [ ] Legs A–D per §4; scope proven by `git diff --stat` against §6
-- [ ] Every verification leg in §5 driven, each with its stated control
-- [ ] V-A2 driven **keystroke-by-keystroke** — a wholesale value-set does not discharge it
-- [ ] Floors predicted then measured; misses decomposed in the leg report
+- [x] Legs A–D per §4; scope proven by `git diff --stat` against §6
+- [x] Every verification leg in §5 driven, each with its stated control
+- [x] V-A2 driven **keystroke-by-keystroke** — a wholesale value-set does not discharge it
+- [x] Floors predicted then measured; misses decomposed in the leg report
 
 **[CHAT]**
-- [ ] `DECISIONS.md` — D-100 **second amendment**: D-a · the §3 bound · §1.4's seed-as-grammar-example
-      as a **stated property**
-- [ ] **§1.1 correction landed in place** at J-563 and at D-100 — pointer-style, no retroactive rewrite
-- [ ] JOURNAL · CLAUDE.md PLAY · ROADMAP · this doc, **written before the commit command** (D-074)
-- [ ] `M-RP-MSG-NEWLINE-WIRE`'s outbound half folded in as a filing (J-565's owed item)
+- [x] `DECISIONS.md` — D-100 **second amendment**
+- [x] **§1.1 correction landed in place** at J-563 and at D-100 — pointer-style, no retroactive rewrite
+- [x] JOURNAL · CLAUDE.md PLAY · ROADMAP · this doc, **written before the commit command** (D-074)
+- [x] `M-RP-MSG-NEWLINE-WIRE`'s outbound half folded in as a filing (J-565's owed item)
 
 No "commit pushed" item — `Status: COMPLETED` in this header is the milestone's signal, never a leg's.
 
-## §9 — Owed, not smuggled in
+## §10 — CLOSE (J-567): measured, and what the re-drive changed
+
+**Shipped `a0c4ec9`.** Scope re-verified independently: **6 files, +527/−32, every one named in §6,
+nothing outside it**, and `app_sampler.svelte` **absent from the commit** — the "untouched" claim proven
+by the diff rather than asserted.
+
+| gate | predicted | **measured** |
+|---|---|---|
+| cargo | moves | **1553 / 0 / 62 across 56 terminator lines** (from 1549) — `xgen_client_lib` **181**, `xgen_sampler` **3, UNMOVED** |
+| svelte-check | errors stay 0 | **0 errors / 34 warnings / 15 files** — identical |
+| npm | moves | **154** (from 142) |
+| vite | client may move | **202 client / 170 sampler** — unchanged |
+| catalogue | — | **419**, `count === unique === domCount` |
+| client registry | state which axis | **149 at rest** — quiescent, empty selection, **no room latched** (N-155) |
+
+### 🔑 V-B1 is attributable, on a REAL config, and the control is what makes it evidence
+
+The original V-B1 attribution was lost — the wipe control was set on
+`C:\cargo-targets\XGenProtocol\debug\xgen-client_config.toml`, a **stale artifact of an older
+data-root era**, not the live config (Clair's own flag, §11). Re-driven against `instances\bob`, the
+last un-migrated S2 config on this machine:
+
+| | before | after |
+|---|---|---|
+| `rules` | `--> → \| <-- ← \| :) 🙂 \| <3 ❤️ \| :( 🙁 \| -- ‒` | **`-> → \| <- ← \| :) 🙂 \| <3 ❤️ \| :( 🙁 \| -- ‒`** |
+| `level` **(control)** | `trace` — injected | **`debug`** — back to `ClientConfig::default()` |
+
+***Migration alone proves only that the value changed; the reverted `level` proves the clean-slate ran
+and rewrote the file***, so the new seed is the result of a **skipped re-inject** and not of a path that
+never touched the config. Without the control, "migrated" and "never read" are the same `rules` line.
+
+⚠️ **The pre-state survives** at `instances\bob\xgen-client_config.bak` (317 bytes, byte-identical,
+Joe's request). **It is the only surviving un-migrated S2 config on this machine — do not delete it.**
+It is what lets someone who was not here verify this table.
+
+## §11 — What the implementer found that this document got wrong
+
+Four Rule-6 flags, all Chat's, all caught by the implementer reading the runbook against the code:
+
+1. **§7's cargo row** — "both crates" is wrong; corrected in place. 🔑 **The sub-finding is worth more
+   than the flag:** the sampler's count *cannot* move, because both its seed tests compare the const to
+   itself. **A test that cannot fail is not a floor.** → N-158.
+2. **§6 omitted the Leg D test file** while §7 required npm to move — an internal contradiction; flagged
+   **before** building rather than resolved silently.
+3. **§1.7's example** — flagged as non-existent. ⚠️ **The flag's evidence was itself wrong**: `lp-cli`
+   exists (measured twice, at an absolute path under `%LOCALAPPDATA%`). Her *conclusion* was right and
+   understated — **fourteen** no-section configs, not one and not thirteen. Corrected by keeping the
+   example and fixing the count. 🔑 *Same root cause as her own self-flag: **data-root resolution**,
+   twice in one session, in opposite directions* → N-157.
+4. **§5's composer anchor** was stale (`:94` → `widgets/composer-panel.svelte:114`).
+
+**And two the implementer raised against herself**, which is the report's most valuable content: the
+mis-set wipe control above, and **two cargo baselines discarded before entering anything** (322/0/2
+across 12, and 1231 across 44 — one read mid-run, betrayed by a truncated test name where a terminator
+belonged). *A baseline discarded before it enters the record costs a session; one that enters it costs
+a milestone.*
+
+🔑 **The mechanism worked exactly as §6 intends.** Every one of these arrived as a **flag**, not as a
+silent extra file in the diff. *A runbook that cannot be wrong is not the goal; a runbook whose
+wrongness is forced into the open is.*
+
+## §12 — Owed, not smuggled in
 
 - **`M-RP-MSG-NEWLINE-WIRE`** — the outbound half is measured (node stored `"text":"…\n…"` verbatim,
   with a control); the **inbound render half needs M-RP6.4 backfill or a second identity**. Still open.

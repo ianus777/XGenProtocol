@@ -1,8 +1,9 @@
 # M-RP6.6 — the client resident: live connection state + traffic accounting
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Owes: M-RP6.6-INGEST live-ingest R5 fan-out · M-RP-SKIN ConnStats row-swap  
+> Version: 1.3  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-18  
+> **Last updated**: 2026-07-21  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

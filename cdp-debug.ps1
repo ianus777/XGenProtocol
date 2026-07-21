@@ -1,7 +1,7 @@
 # XGen UI - CDP Debug Harness (WebView2 remote-debug read loop).
 # DEV-ONLY. Reads console output and live UI state from a running XGen WebView2
 # window over the Chrome DevTools Protocol. Never target a release build
-# (release closes the devtools feature and the port). Spec: tasks/CDP_DEBUG_HARNESS.md.
+# (release closes the devtools feature and the port). Spec: docs/CDP_DEBUG_HARNESS.md.
 #
 # Usage:
 #   .\cdp-debug.ps1 -App client -Launch -Mode eval -Expression "1+1"  # launch, eval, clean up
@@ -24,7 +24,7 @@
 #
 # COORDINATES ARE CSS PIXELS relative to the layout viewport - the same space `getBoundingClientRect()`
 # returns, so a rect centre can be handed straight to -At/-From. It is NOT device pixels; do NOT scale by
-# devicePixelRatio. Verified by calibration, not assumed (see tasks/CDP_DEBUG_HARNESS.md).
+# devicePixelRatio. Verified by calibration, not assumed (see docs/CDP_DEBUG_HARNESS.md).
 #
 # ** INTEGER COORDINATES ONLY, AND THAT IS DELIBERATE.** PowerShell renders a [double] with the CURRENT
 # CULTURE's decimal separator - on a sk-SK box `123.5` stringifies to `123,5`, which is not JSON, and the

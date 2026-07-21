@@ -1,8 +1,9 @@
 # M-RP6.3 — live messaging: R6 composer + narrow-B send path
 > **Status**: ACTIVE  
-> Version: 2.0  
+> Owes: M-RP6.4 room-history backfill · M-RP6.7 resident pong timeout · M-RP6.8 view-latch persistence · M-RP-LOCK-RECHECK §9.11.3 lock re-verification  
+> Version: 2.1  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-19  
+> **Last updated**: 2026-07-21  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

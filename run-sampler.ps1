@@ -61,7 +61,7 @@ if ($Mode -eq "release") {
         # programmatic AdditionalBrowserArguments), so the old env-var route no longer opens
         # the port. The port now rides a dev-only Tauri config OVERLAY (cdp.dev.conf.json)
         # merged via --config; the base tauri.conf.json stays port-free so RELEASE builds
-        # never expose CDP. See D-104 / tasks/CDP_DEBUG_HARNESS.md.
+        # never expose CDP. See D-104 / docs/CDP_DEBUG_HARNESS.md.
         Write-Host "[-Debug] CDP remote-debugging port 9422 via cdp.dev.conf.json overlay (dev-only)."
         cargo tauri dev --config cdp.dev.conf.json
     } else {

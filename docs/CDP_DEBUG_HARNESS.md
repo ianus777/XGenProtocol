@@ -1,8 +1,9 @@
 # XGen UI — CDP Debug Harness (WebView2 remote-debug read loop)
 > **Status**: ACTIVE  
-> Version: 1.6  
+> Kind: living reference — not a milestone. Moved `tasks/` → `docs/` at J-568: `tasks/` is milestones only, and no milestone status fits a permanent tool doc.  
+> Version: 1.7  
 > Date: Jun 2026  
-> **Last updated**: 2026-07-14  
+> **Last updated**: 2026-07-21  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

@@ -1,8 +1,8 @@
 # M-RP6.1i — `shelf` core (ordered command strip + faces)
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-12  
+> **Last updated**: 2026-07-21  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

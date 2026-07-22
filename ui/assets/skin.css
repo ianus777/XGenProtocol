@@ -83,15 +83,53 @@
  *   dropping the reliance on the per-shell src/assets/ font copies.
  * ───────────────────────────────────────────────────────────────────────── */
 
+/* Both families are VARIABLE: one file per style carries the whole weight axis, so any
+ * font-weight in this file is a REAL cut, never a renderer-synthesised smear. Before
+ * M-RP-FONTS only Inter-Regular 400 was declared while this file asked for 500/600/700
+ * at fourteen sites and italic at two - every one of them was faked. A static subset
+ * would have brought the trap straight back: the next weight nobody declared fails
+ * silently, and the person it catches is whoever is tuning appearance. Licences ship
+ * beside the fonts (OFL) - see ui/assets/fonts/LICENSE-*.txt. */
+
 @font-face {
   font-family: "XGen UI Sans";
-  src: url("./fonts/Inter-Regular.woff2") format("woff2");
-  font-weight: 400;
+  src: url("./fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "XGen UI Sans";
+  src: url("./fonts/InterVariable-Italic.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Machine text: XGIDs, hashes, console output. JetBrains Mono ships its variable build
+ * as TTF only in 2.304, so these two are uncompressed - a size optimisation (TTF to
+ * woff2, roughly a third off) is FILED, not a correctness issue. */
+
+@font-face {
+  font-family: "XGen UI Mono";
+  src: url("./fonts/JetBrainsMono-Variable.ttf") format("truetype");
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "XGen UI Mono";
+  src: url("./fonts/JetBrainsMono-Italic-Variable.ttf") format("truetype");
+  font-weight: 100 800;
+  font-style: italic;
   font-display: swap;
 }
 
 html, body {
   font-family: "XGen UI Sans", system-ui, sans-serif;
+  font-optical-sizing: auto;
   background-color: var(--s);
   color: var(--t2);
 }
@@ -1718,7 +1756,7 @@ html, body {
   margin: 0;
   padding-left: calc(var(--sp-2) + 16px + 4px);
   padding-right: var(--sp-2);
-  font-family: ui-monospace, monospace;
+  font-family: "XGen UI Mono", ui-monospace, monospace;
 }
 .color-picker .cp-swatch {
   position: absolute;
@@ -1857,7 +1895,7 @@ html, body {
   text-align: center;
 }
 .cp-num.cp-hex {
-  font-family: ui-monospace, monospace;
+  font-family: "XGen UI Mono", ui-monospace, monospace;
   text-align: left;
 }
 .cp-num:focus-visible {

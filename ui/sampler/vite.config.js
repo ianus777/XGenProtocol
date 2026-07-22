@@ -21,6 +21,13 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    // skin.css lives in ui/assets (outside this package root), so its url() font references
+    // resolve to /@fs paths. Without this the dev server answers 403 and the app silently
+    // falls back to system-ui - dev and the built app then render in DIFFERENT typefaces.
+    // Same constraint J-491 hit for the test suites; fixed there, never generalised here.
+    fs: {
+      allow: [fileURLToPath(new URL('../..', import.meta.url))],
+    },
     host: host || false,
     port: 5175,
     strictPort: true,

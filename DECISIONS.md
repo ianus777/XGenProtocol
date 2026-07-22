@@ -4510,5 +4510,47 @@ Other views — architectural elegance, symmetry, tidiness, implementation conve
 
 **Relationship:** **D-065** (honest behaviour over polite — D-121 is its procedural form: the honest answer is found by asking what the user ends up believing) · **D6** / **N-091** (both are user-visible-truth arguments that predate the rule naming them) · **"honest longer work over fast shortcuts"** (which already subordinates resource cost, and is why cost ranks second rather than first) · **D-071** (subsystem audits precede dependent milestones — the grounding pass D-121 now also loads with a user-impact question).
 
+## D-122 — "Window" is a loose umbrella; "modal area" and "separate window" are the fixed terms; and display form is decided in situ, never inherited
 
+**Date:** 2026-07-22 · **Layer:** UI vocabulary + appearance/state architecture · **Ref:** D-112 (surface axis), W-12 (a widget has at most one surface), N-100 (locked dock vocabulary), D-A in `docs/xgen-settings-phase0.md` (Joe, 2026-07-16), Ch6 §6.8.3 (the April origin), locks #8 and #11 in `tasks/M_RP6_3_COMPOSER.md` §9.11.3 · **Journal:** J-571 · **Code:** none — this is a vocabulary and a deferral.
 
+### The three terms
+
+| term | status | means |
+|---|---|---|
+| **window** | **loose umbrella** | a new area presenting information not displayed before it opened. **Says NOTHING about mechanism.** |
+| **modal area** | **fixed** | the in-DOM overlay — About, Plugins, Settings. **The default mechanism.** |
+| **separate window** | **fixed** | its own OS-level window. **Deferred**; requires a named reason. |
+
+**Both fixed terms are lifted from existing records, not invented.** *"standalone modal area"* is Joe's own D-A wording (2026-07-16); *"a full separate desktop window"* is Ch6 §6.8.3's own sentence (April 2026). ***Nothing migrates except the vocabulary table — the concepts were always right, only the shared word was overloaded.***
+
+### ⚠️ THIS VOCABULARY NAMES MECHANISMS; IT DOES NOT ASSIGN THEM
+
+**No surface's display form is locked by these terms.** Naming a mechanism is not choosing one. Settings being a modal area today is a fact **about Settings**, not a property of the word.
+
+**🔒 Joe reserves the right to change the display form of any information at any time.** The UI environment is still crystallising; the shapes recorded here were not visible one or two months ago. *A vocabulary that outlives the things it names is doing its job; one that freezes them is doing the opposite.*
+
+### 🔑 DISPLAY FORM IS DECIDED IN SITU, NOT READ OFF AN OLD RECORD
+
+**When a surface is built, its display form is decided in front of the thing, against the UI as it exists that day. Minimum: re-open it. Never inherit it silently.** When the Auth plugin arrives, Ch6's *"separate desktop window"* is **history, not instruction.**
+
+**Why this is forced rather than merely preferred:** a display-form decision is a **[👁️ PERCEPTION]** call, and those cannot be made from records at all. Proven twice on 2026-07-22 — lock #5 was unfalsifiable until someone looked at a real screen, and three typeface variants were judged invalid because the thing on screen was not the thing being judged (J-570). ***You cannot look at a document.***
+
+**The record's REASONING survives even when its CONCLUSION does not.** Ch6 does not only say *separate window*; it says why — *a module whose UI is too substantial to be a widget*, wanting *its own independent lifecycle*. That reasoning is still a useful input years later even if the answer flips. ⇒ **Conclusions are re-opened; the WHY is inherited.** Otherwise every re-discussion starts from zero, which is expensive in the other direction.
+
+**⚠️ SCOPE — THIS CLAUSE COVERS DISPLAY FORM AND NOTHING ELSE.** For the wire, identity, the no-anonymity core, GDPR/right-to-be-forgotten, and anything irreversible, **records remain BINDING** and re-deciding in the moment is precisely the failure mode this project exists to prevent. *"Decide in situ, not from old records" is a sentence that would be dangerous if it escaped its category.*
+
+### Consequences for lock #11
+
+**⇒ Lock #11 ("N windows, one device") reads at VIEW scope and is MET.** Any number of mounts — tiles, panels, modal areas — read one `$common` store and cannot disagree. It falls out of lock #2 exactly as written.
+
+**⚠️ THE BOUNDARY, RECORDED BECAUSE IT IS THE PART THAT WOULD BITE SILENTLY.** The consistency claim **does not extend to a separate window**. Each Tauri webview is its own JS context, so module-level `$state` is per-window, and **lock #8 makes the echo session-mortal and never persisted**. Two separate windows would hold **two independent echo stores by construction**. 🔑 *Locks #8 and #11 are contradictory at separate-window scope, and nobody had put them side by side.* Sharing the echo across separate windows requires promoting the store **out of the webview** — a protocol/Rust arc, not a UI one.
+
+### Why deferred rather than refused
+
+The separate-window want is real (a room on a second monitor cannot be served by a modal area). It is deferred because **it is not the blocker for what was actually asked**: two rooms side by side does not need windows, it needs **per-view room binding** (`tasks/M_RP_VIEW_BINDING.md`, N-159). ***Nothing is wasted by waiting — the binding work is a prerequisite for the separate-window case anyway.***
+
+### ⚠️ Still open, NOT decided here
+
+- **A consistency rule.** If every surface picks its own mechanism, About / Plugins / Settings may diverge and feel like three applications. Proposed but not locked: **same mechanism unless a named reason**, so divergence is always a recorded decision and never an accident.
+- **The Auth Module.** Ch6 names it the first customer for a separate window. ⚠️ **The identity reasoning may point the opposite way:** a separate window is *harder for a user to tie back to the app that spawned it*, which is exactly the property a credential-phishing surface would want. **An in-DOM modal area the user cannot detach may be safer.** Ch6 chose in April without that consideration on the table. **Identity-adjacent ⇒ Joe's, and per this decision it is re-opened in situ when the plugin is actually built.**

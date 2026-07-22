@@ -710,6 +710,12 @@ The XGen shell renders widget slots as named placeholder elements. A widget modu
 
 **Window**
 
+> ⚠️ **AMENDED 2026-07-22 (D-122 / J-572).** The body below describes what the project now calls a **separate window** — and it is the ORIGIN of that term (*"a full separate desktop window"*, written Session 2, April 2026). **`window` is now a LOOSE UMBRELLA** for any new area presenting information not previously displayed; the fixed terms are **modal area** (in-DOM overlay — the default; About, Plugins, Settings) and **separate window** (its own OS-level window — deferred, requiring a named reason).
+>
+> 🔑 **THIS SECTION IS HISTORY, NOT INSTRUCTION.** Per D-122, **display form is decided in situ when a surface is actually built**, against the UI as it exists that day — never inherited from a record. When the Auth Module is built, *this paragraph does not choose its shape*; it is re-opened. **The REASONING below survives** (a UI too substantial for a widget, wanting its own lifecycle); **the CONCLUSION does not bind.**
+>
+> ⚠️ **And the identity reasoning may point the OPPOSITE way from the April instinct:** a separate window is *harder for a user to tie back to the app that spawned it* — exactly the property a credential-phishing surface would want. **An in-DOM modal area the user cannot detach may be the safer choice for a verification flow.** Ch6 chose in April without that consideration on the table. **Open, Joe's, explicitly NOT decided here.**
+
 A full separate desktop window launched from the module list entry. The window is a Tauri webview containing the module's `window.html`. It has its own independent lifecycle — it can be opened, minimised, and closed without affecting the main application window.
 
 Used for the Auth Module verification flow, compliance dashboards, administrative tools, and any module whose UI is too substantial to be a widget.

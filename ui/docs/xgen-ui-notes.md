@@ -3267,3 +3267,53 @@ cross-crate equality in a test that reads both sources. Filed, not scoped.
 - A note that crystallises into a decision is marked with a forward pointer (`→ D-NNN`) and left in place — do not delete.
 - A note that is superseded or no longer relevant is marked `SUPERSEDED` (or `DROPPED`) with one-line reason, and left in place.
 - The file is append-only in spirit. The full history is the record.
+
+### N-159 — The stream has no room of its own, so "two rooms side by side" is a binding problem, not a windowing one
+
+**2026-07-22.** Asked what it would take to watch two rooms in parallel, the instinct was *real OS windows*.
+Grounding says otherwise: **two stream tiles today would render the SAME room.**
+
+- `stream-panel.svelte:37` — `$props()` is `{ regionId, id }`. **No room prop.**
+- `stream-panel.svelte:70` — reads `roomLatch.effectiveRoomId` directly.
+- `room-latch.svelte.ts:39` — `let _latched = $state<string | null>(null)`. **One value, one writer.**
+
+The dock already supplies the geometry (split layouts, row/col nodes, resizable tiles). A second OS window
+gives the identical result plus an unshared JS context (D-122). 🔑 ***The viewport was never the blocker.***
+
+⚠️ **W-12 is the real gate**, not the code: *"a widget MAY declare exactly one of: `region` … at most one."*
+Two stream regions violate the locked taxonomy, so this cannot begin as an implementation task.
+
+🔑 **The data layer is already correct.** `echo.forRoom(roomId)` is room-keyed and would work with two rooms
+unchanged — *only the view is a singleton.* And **M-RP-SELF-SURFACE and M11/D-021 both need this same
+mechanism**, which nobody had noticed: Saved Messages and the `self` thread are each *a stream bound to
+something other than the latched room*.
+
+⇒ `tasks/M_RP_VIEW_BINDING.md` (PENDING, discussion open) · D-122.
+
+### N-160 — "Modal" names a behaviour, "window" names a mechanism, and this project inherited a model where they were one object
+
+**2026-07-22.** Four locked documents defined `window` as *"its own OS window"* while Joe's own D-A ruling
+(2026-07-16) said it meant *a standalone modal area*. The drift looked like carelessness. **It was not.**
+
+**The origin is Ch6 §6.8.3, Session 2, April 2026:** *"A full separate desktop window … it can be opened,
+minimised, and closed without affecting the main application window."* That is unambiguous — **a modal area
+cannot be minimised.** The text was never vague.
+
+🔑 **What explains it is the mental model, not the wording.** A Delphi modal form with `Owner` set **IS** a real
+OS window — a Win32 window, owned by the main form, modal to it. ***In that vocabulary "modal subwindow" and
+"OS window" were the same object, and the distinction we now draw — in-DOM overlay vs separate webview — was
+not expressible.*** The word was not loose; it came from a language in which the difference did not exist.
+
+⇒ **The general lesson: when one word carries two properties that were INSEPARABLE in an older model, it splits
+silently the moment the newer model separates them — and every document written in between looks correct.**
+Ch6 was right, D-A was right, and they contradicted each other.
+
+**The word travelled through FOUR contexts, meaning something different in each:** Ch6 §6.8.3 (a third-party
+module's own desktop window, with a Launch button) → D-112's `surface` axis (inherited the word) → D-A
+(reinterpreted as a modal area, for first-party Settings) → **lock #11's "N windows"** (the client's own views —
+a context nobody had connected to the other three).
+
+⇒ Resolved at **D-122**: `window` becomes a loose umbrella; **modal area** and **separate window** are the fixed
+terms, **both lifted from existing records rather than invented** — so nothing migrated except the vocabulary
+table. And display form is **decided in situ**, because it is a [👁️ PERCEPTION] call and *you cannot look at a
+document*.

@@ -129,7 +129,7 @@ The two coexist **permanently**: **auto** = implicit session persistence; **manu
 > |---|---|
 > | `region` | a leaf in the grid's `Layout` descriptor *(R1–R8 today)* |
 > | `shelf` | a compact **face** on a shelf strip *(icon + badge + click)* |
-> | `window` | its own OS window *(later)* |
+> | `window` | ⚠️ **loose umbrella (D-122)** — a distinct surface, **mechanism unspecified**. In-DOM **modal area** is the default; a **separate window** is deferred and needs a named reason. Decided **in situ**, not from this table. |
 > | *(none)* | **headless** — computes into a store, never seen |
 >
 > **No widget has two surfaces.** Therefore **a shelf face always means: this widget has no grid leaf.**
@@ -152,7 +152,7 @@ This separates *"where does this thing dock?"* from *"what is drawn inside it?"*
 
 ### 3.3 W-12 as amended
 
-> **W-12 (amended) — a widget has at most one surface.** A widget MAY declare exactly one of: `region` (a leaf in the layout descriptor — **at most one**, unchanged) · `shelf` (a face) · `window` (its own OS window). It may declare **none** (headless). **It may never declare two.** A shelf face implies no region. Content rendered *inside* another widget is not a surface.
+> **W-12 (amended) — a widget has at most one surface.** A widget MAY declare exactly one of: `region` (a leaf in the layout descriptor — **at most one**, unchanged) · `shelf` (a face) · `window` (⚠️ **a distinct surface — mechanism unspecified, D-122**: **modal area** by default, **separate window** deferred). It may declare **none** (headless). **It may never declare two.** A shelf face implies no region. Content rendered *inside* another widget is not a surface.
 
 **Additive.** W-11 (dd-socket), W-13 (system widgets non-removable) and the entire region-dock model are untouched.
 
@@ -301,7 +301,7 @@ Bounded **on paper, before it became a junk drawer** — and grounding turned tw
 
 ## 6. OPEN FOR JOE
 
-> **⚠️ VOCABULARY, LOCKED 2026-07-11 — read before this section.** **tile** = a PLACE (a box in the grid; one `leaf` = one tile) · **region** = a widget's FULL CONTENT SURFACE occupying a tile (it names *which widget*, not where — `regionId === widgetId` in shipped code) · **face** = a widget's COMPACT HANDLE on a shelf (icon + badge + a `commandId` click) · **window** = its own OS window · **slot** = Ch6 §6.8.3's *named, fixed* attachment point (a **different** placement model — do not merge). **A `tabs` node is ONE TILE holding SEVERAL REGIONS** — the sentence that proves the two words are not synonyms. **A face is NOT "the static one"** — both are interactive; a region **IS** the widget rendered, a face is a **handle to** it (S-4 forbids panels/forms/editors on a face). Full table: `ui/docs/xgen-region-dock-model.md` §0.
+> **⚠️ VOCABULARY, LOCKED 2026-07-11 — read before this section.** **tile** = a PLACE (a box in the grid; one `leaf` = one tile) · **region** = a widget's FULL CONTENT SURFACE occupying a tile (it names *which widget*, not where — `regionId === widgetId` in shipped code) · **face** = a widget's COMPACT HANDLE on a shelf (icon + badge + a `commandId` click) · **window** = ⚠️ a **loose umbrella (D-122)** for a distinct surface, mechanism unspecified — **modal area** (default) vs **separate window** (deferred) decided **in situ** · **slot** = Ch6 §6.8.3's *named, fixed* attachment point (a **different** placement model — do not merge). **A `tabs` node is ONE TILE holding SEVERAL REGIONS** — the sentence that proves the two words are not synonyms. **A face is NOT "the static one"** — both are interactive; a region **IS** the widget rendered, a face is a **handle to** it (S-4 forbids panels/forms/editors on a face). Full table: `ui/docs/xgen-region-dock-model.md` §0.
 
 1. **Settings' own surface.** Settings is now a widget — but **which surface?** A grid leaf (a tile)? Its own `window`? A modal `dialog` (built at C1)? Discord uses a full-screen overlay. **This is the first widget whose surface is genuinely non-obvious, and the natural first customer for the `window` kind.**
 

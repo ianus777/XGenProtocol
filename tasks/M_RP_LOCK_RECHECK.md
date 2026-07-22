@@ -1,8 +1,8 @@
 # M-RP-LOCK-RECHECK — re-verify the twelve D2 locks and mark each with its verifier
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-21  
+> **Last updated**: 2026-07-22  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -143,14 +143,14 @@ means something was touched that should not have been.**
 ## §8 — DoD
 
 **IMPLEMENTER / [CHAT]**
-- [ ] Leg A: ten locks re-driven at HEAD, each with its control
-- [ ] Leg B: both eye-judged locks prepared, HANDS OFF posted, **ALL CLEAR posted**, verdicts quoted
-- [ ] Leg C: §9.11.3 carries a verifier for **every** lock
-- [ ] Any newly-found unmet lock **FILED, not fixed**
-- [ ] Floors re-measured and unchanged
+- [x] Leg A: ten locks re-driven at HEAD, each with its control
+- [x] Leg B: verdicts quoted verbatim (§11). ⚠️ **Partial, and named as such:** the app-preparation, the 🛑 HANDS OFF post and the ✅ ALL CLEAR post happened in the session lost to the MCP failure and leave **no trace in the repo**, so they are recorded at §11 rather than claimed here.
+- [x] Leg C: §9.11.3 carries a verifier for **every** lock
+- [x] Any newly-found unmet lock **FILED, not fixed** — the orphaned appearance owner in row #5 (§12)
+- [x] Floors re-measured and unchanged — ⚠️ **five of seven measured; two stand BY SCOPE, named not quoted (N-108). See §12.**
 
 **JOE**
-- [ ] Judges #5 and #6 with his own eyes. **Cannot be discharged by anyone else.**
+- [x] Judges #5 and #6 with his own eyes. **Cannot be discharged by anyone else.** — done 2026-07-22, RE-CONFIRMED (§11)
 
 ## §9 — Owed, not smuggled in
 
@@ -209,8 +209,66 @@ means something was touched that should not have been.**
 - Two legs used a **stub transport** (`echo.setTransport`) to drive `accepted` / `rejected` / `timed_out` on demand. **This verifies the store and the render rules; it verifies NOTHING about the wire** — and no lock among the twelve claims the wire. Recorded here so nobody later reads these rows as a wire proof.
 - Two evals threw a bare `Uncaught` and were treated as **inconclusive, not failures** (N-110), then re-driven defensively. Neither entered this record.
 
-### §10.4 — Still owed
+### §10.4 — Still owed *(AS AT LEG A. All three items DISCHARGED — see §11 and §12.)*
 
 - **Leg B** — #5 and #6, Joe's eyes, verdicts quoted verbatim.
 - **#11's wording** — Joe's ruling; the verdict depends on it.
 - **Leg C** — §9.11.3's verifier column, which is deliberately UNTOUCHED until B lands, since the DoD is *no lock without a named verifier*.
+
+## §11 — LEG B RESULTS (Joe's eyes; RE-CONFIRMED 2026-07-22, NOT captured live)
+
+⚠️ **PROVENANCE, STATED FIRST BECAUSE IT CHANGES HOW THIS SECTION READS.** Both verdicts were judged by Joe **in session on 2026-07-22**. The write-up was **lost to an MCP failure** — the server died mid-write in that session, the same session whose line-ending damage J-573 records. Joe **re-confirmed both afterwards**, and they are recorded here as **RE-CONFIRMED, not captured live**.
+
+🔑 **Why the distinction is kept rather than smoothed away:** a verdict transcribed from memory and a verdict transcribed from a live reading are the same sentence carrying different reliability. This milestone exists because *a lock with no verification leg is unfalsifiable* — **a verdict with an unstated provenance is that same defect one level up.** The verdicts stand; what is recorded alongside them is that they were **recovered**.
+
+⚠️ **FOUND WHILE OPENING LEG C, AND THE REASON LEG C DID NOT START IMMEDIATELY.** The session-open document asserted Leg B CLOSED and its verdicts FINAL. **The repo did not agree.** Measured at HEAD `135310a`, tree clean: `docs/ROADMAP.md` L818 read *"LEG A DONE (J-569); LEGS B AND C OWED"* · §10.4 above listed **Leg B** as still owed · `JOURNAL.md`'s head was **J-573** with no Leg B entry · and a repo-wide grep for the #6 verdict returned **four hits, none of them a verdict** — all four were §2's *prediction* that #6 is SPLIT, restated in ROADMAP and PLAY. **The only copy of either verdict was the kickoff document.** Transcribing them into §9.11.3 from there would have produced a verifier column that **cites itself** — the precise failure this milestone was filed to end.
+
+⚠️ **WHAT COULD NOT BE RECOVERED, NAMED RATHER THAN ASSUMED.** §8's Leg-B DoD requires the app **prepared to the exact state**, a 🛑 **HANDS OFF** post and a ✅ **ALL CLEAR** post. Those happened in chat in the lost session and **leave no trace in the repo**, so they cannot be evidenced here. **Only the verdicts were recovered.** *Recording this is not a hedge: an unrecoverable step reported is a known gap, an unrecoverable step omitted is a false clean record.*
+
+### §11.1 — The two verdicts
+
+| # | verdict | verifier | Joe, verbatim |
+|---|---|---|---|
+| **5** | ❌ **UNMET** — stays unmet; the machine half already failed at Leg A | **eye-judged — Joe, 2026-07-22 (RE-CONFIRMED)** | the name becomes **"Self"** — default, **customisable later**, **visually distinguished** |
+| **6** | ✅ **MET** — the machine half was MET at Leg A; this completes it | **eye-judged — Joe, 2026-07-22 (RE-CONFIRMED)** | *"they read as 3 states"* |
+
+**#6 IS NOW WHOLE.** Leg A proved the four outcomes are *distinct* — registry getter `tone` === painted `data-tone` on all four, labels distinct strings. Whether they *read as three* was never machine-answerable and was only ever Joe's. **They do.** ⚠️ Chat did not judge this and must not; *a seat that judges appearance is how the last one got retired.*
+
+**#5's VERDICT DOES NOT BECOME MET HERE.** The lock stays **UNMET** and keeps its filing. ⚠️ **The fix lands in `M-RP-SELF-SURFACE`, never here.** What Leg B contributed is not a pass but **the missing half of the question**: Leg A established *what is wrong* — the own row renders the full 65-char XGID as the author name, avatar `name:null` / `initials:"GC"` — and Joe has now established *what belongs there instead*. Until this verdict, that second half did not exist, which is why #5 could be **measured but not closed**.
+
+### §11.2 — What Leg B did NOT do
+
+- It did **not** re-drive #5's DOM probe. **Leg A's measurement stands unamended** — #5 was re-confirmed, not re-tested into a different verdict.
+- It did **not** rule on **#11's wording**. That question was answered by a different route entirely: **D-122** (J-571 / J-572) settled the vocabulary, and #11 resolves **MET at VIEW scope** with its separate-window boundary recorded. ⚠️ *A lock rewording was offered to Joe and was NOT the route he took* — the word was fixed, the lock was not edited.
+- It did **not** reopen **#10**. It remains an **accepted deviation** (Joe, J-560), recorded as such in §9.11.3.
+- It landed **zero code**. This milestone writes none, and Leg B is two sentences from Joe.
+
+## §12 — CLOSE (Leg C, 2026-07-22, HEAD `135310a`)
+
+**The milestone produced what it was filed to produce: `tasks/M_RP6_3_COMPOSER.md` §9.11.3 now carries a verifier column, and no lock in it is without a named verifier.** That was the whole DoD.
+
+### §12.1 — What Leg C landed
+
+- **Twelve rows, each with a named verifier.** Machine verdicts cite `b477bae` / Leg A / J-569 **and their positive controls**; eye verdicts cite Joe, 2026-07-22, **verbatim**, flagged **RE-CONFIRMED, not captured live**.
+- **#7's stale text AMENDED IN PLACE.** The row promised *"`timed_out` → retry only behind an explicit warning"*; shipped is **no retry at all**, narrowed deliberately at D2 §3.1 and enforced in both the store and the widget. ⚠️ **The superseded wording is quoted inside the amendment** rather than deleted — *an amendment that erases what it replaced cannot be audited.*
+- **#11's boundary recorded**: MET at VIEW scope by D-122, and explicitly **NOT** at separate-window scope, where module `$state` is per-webview and #8 makes the echo session-mortal. ⚠️ **#8 and #11 CONTRADICT there**, and that is now on the record instead of latent.
+- **`Owes:`** on the composer doc loses this item.
+
+### §12.2 — Floors: five measured, two by scope, none quoted that nobody took
+
+**Measured at `135310a`, all IDENTICAL:** `cargo` **1553 / 0 / 62 across 56 terminator lines** (summed programmatically, case-sensitive grep, all 56 present — the N-117 truncation trap dodged rather than assumed) · `svelte-check` **0 / 34 / 15** · `npm` **154** (9 files) · `vite` **202 client** · `vite` **170 sampler**.
+
+⚠️ **NOT measured, and named rather than quoted (N-108):** the **sampler catalogue (419)** and the **client registry (149 at rest)**. Both require a launched app, CDP and a quiescent window, which fires the 🛑 HANDS OFF convention.
+
+🔑 **Why the substitution is legitimate here, stated so it can be challenged:** this milestone writes **zero code**, and `git status` names **exactly two files, both `.md`**. That is a **direct** proof that nothing executable was touched, where a registry re-read would be an **inferential** one. *Arithmetic is not measurement, and quoting numbers nobody took is worse than naming which ones were not taken.* The two numbers above are therefore **not asserted as re-verified** — they stand by scope, and this line is the record of that choice.
+
+### §12.3 — Filed, not fixed
+
+- **An orphaned appearance owner inside lock #5.** Its text still reads *"Wording/appearance = Ms Design"* — a seat **retired at J-568**, superseded by **D-123**. Left **verbatim**; editing design text is not Chat's call. ⇒ **eleventh candidate for `M-RP-SEAT-ORPHANS`**, where ten are known and *ten is a floor*.
+- **#5's fix** → `M-RP-SELF-SURFACE`. **#10** → accepted deviation, unchanged. **#11's wording** → never edited; D-122 fixed the word instead.
+
+### §12.4 — What this milestone actually taught
+
+🔑 **The pass found its own defect a third time.** It was filed because J-560 claimed one unmet lock when two were unmet and a third was absent entirely. Leg A then found **#11** in the same unfalsifiable condition. **Leg C opened to find that Leg B's own verdicts existed nowhere in the repo** — asserted CLOSED by the session-open document, contradicted by ROADMAP, by §10.4, and by a repo-wide grep that returned four hits, **none of them a verdict**.
+
+⚠️ **The same failure, one level up each time.** A lock with no verifier cannot fail. A verdict with no record cannot be checked. **A milestone that had closed on both would have looked green.** *The fix is not vigilance — it is that every claim now names who verified it and when, and that a recovered claim says so.*

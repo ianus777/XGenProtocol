@@ -1,10 +1,38 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-21  
+> **Last updated:** 2026-07-22  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-574 — M-RP-LOCK-RECHECK CLOSED: the verifier column lands, and Leg B's verdicts were found to exist nowhere in the repo
+
+**Date:** 2026-07-22 · **Seats:** Joe (re-confirmed both eye verdicts, approved the two-step shape) · Chat (verification, records, floors). **Records only. ZERO code — the diff is two `.md` files.**
+
+**WHAT SHIPPED.** `tasks/M_RP6_3_COMPOSER.md` §9.11.3 gains its **verifier column**. Twelve locks, **every one with a named verifier** — that was the entire DoD, and it is met. Machine verdicts cite `b477bae` / Leg A / J-569 **together with their positive controls**; the two eye verdicts cite Joe, 2026-07-22, **verbatim**. `Owes:` on the composer doc loses this item. `tasks/M_RP_LOCK_RECHECK.md` → **COMPLETED** (v1.2), gaining **§11** (Leg B) and **§12** (close).
+
+**🔑 THE PASS FOUND ITS OWN DEFECT A THIRD TIME, AND THE THIRD ONE WAS THE WORST.** The milestone was filed because J-560 closed Leg D2 claiming *"ONE LOCK UNMET"* when **two** were, and **#5 appeared nowhere in that close at all**. Leg A then found **#11** in the same unfalsifiable condition — *one is an oversight; the second, found by the pass filed to investigate the first, is a mechanism.* **Leg C opened to find that Leg B's verdicts existed nowhere in the repository.** The session-open document asserted Leg B CLOSED and its verdicts FINAL; measured at `135310a`, tree clean: `ROADMAP.md` L818 read *"LEGS B AND C OWED"* · §10.4 listed Leg B as owed · `JOURNAL.md`'s head was **J-573** with no Leg B entry · and a repo-wide grep for the #6 verdict returned **four hits, none of them a verdict** — all four were §2's *prediction* that #6 is SPLIT, restated in ROADMAP and PLAY. **The only copy of either verdict was the kickoff.**
+
+⚠️ **LEG C DID NOT START. That was the point.** Transcribing the verdicts from the kickoff would have produced a verifier column that **cites itself** — the exact defect the milestone exists to end, reappearing inside the milestone's own deliverable. *A lock with no verifier cannot fail; a verdict with no record cannot be checked; and a milestone that closed on both would have looked green.*
+
+**🔒 JOE RE-CONFIRMED BOTH VERDICTS, AND RULED ON HOW THEY ARE RECORDED.** Judged in session on 2026-07-22, write-up lost to an MCP failure, re-confirmed afterwards ⇒ recorded as **RE-CONFIRMED, NOT captured live**. **#6 ✅ MET** — verbatim *"they read as 3 states"*, completing the split whose machine half Leg A had already proved (four outcomes → three tones, getter `tone` === painted `data-tone`). **#5 ❌ stays UNMET** — the fix is that the name becomes **"Self"**, default, **customisable later**, **visually distinguished**, and it lands in **`M-RP-SELF-SURFACE`, never here**. 🔑 *What Leg B contributed to #5 was not a pass but the missing half of the question:* Leg A established what is wrong — own rows render the full **65-char XGID** as the author name — and Joe has now established what belongs there instead. Until that verdict, #5 could be **measured but not closed**.
+
+⚠️ **WHAT COULD NOT BE RECOVERED, NAMED RATHER THAN ASSUMED.** §8's Leg-B DoD also requires the app prepared to the exact state, a 🛑 HANDS OFF post and a ✅ ALL CLEAR post. Those happened in chat in the lost session and **leave no repo trace**. The box is ticked **partial and says so**. *An unrecoverable step reported is a known gap; an unrecoverable step omitted is a false clean record.*
+
+**#7 AMENDED IN PLACE.** The row promised *"`timed_out` → retry only behind an explicit warning"*; shipped is **no retry affordance at all**, narrowed deliberately at **D2 §3.1** and enforced in **both** the store's refusal and the widget's button (one predicate, N-126). Behaviour was always right; the table never received the amendment — **the J-566 shape again, a decision applied in code and not in the record.** ⚠️ The superseded wording is **quoted inside the amendment** rather than deleted: *an amendment that erases what it replaced cannot be audited.*
+
+**#11 RECORDED WITH ITS BOUNDARY, AND ITS CONTRADICTION.** MET **at VIEW scope** by **D-122** — and explicitly **not** at separate-window scope, where module `$state` is per-webview while #8 makes the echo session-mortal, so two separate windows are two independent stores. ⚠️ **#8 and #11 CONTRADICT there**, now on the record instead of latent. 🔑 **The lock was never reworded.** Leg A offered that; Joe took a different route entirely and fixed **the word** (D-122), not the lock.
+
+**FLOORS — FIVE MEASURED, TWO BY SCOPE, NONE QUOTED THAT NOBODY TOOK.** Measured at `135310a`, all **IDENTICAL**: `cargo` **1553 / 0 / 62 across 56 terminator lines** (summed programmatically, case-sensitive grep, all 56 present — N-117 dodged rather than assumed) · `svelte-check` **0 / 34 / 15** · `npm` **154** · `vite` **202 client / 170 sampler**. ⚠️ **NOT measured and named rather than quoted (N-108):** sampler **catalogue (419)** and client **registry (149 at rest)** — both need a launched app, CDP and quiescence, which fires HANDS OFF. 🔑 **The substitution is stated so it can be challenged:** this milestone writes zero code and `git status` names **exactly two files, both `.md`** — a **direct** proof nothing executable was touched, where a registry re-read would be an **inferential** one.
+
+**📌 FILED, NOT FIXED — AN ORPHANED APPEARANCE OWNER INSIDE LOCK #5.** Its text still assigns *"Wording/appearance = Ms Design"*, a seat **retired at J-568** and superseded by **D-123**. Left **verbatim** — editing design text is not Chat's call. ⇒ **eleventh candidate for `M-RP-SEAT-ORPHANS`**, where ten are known and *ten is a floor*.
+
+⚠️ **THE MCP SERVER DIED AGAIN MID-SESSION**, during the sampler `vite build`. Recovery followed the rule: `git status`, HEAD and file mtimes read **before** assuming nothing had happened — HEAD unchanged, two `.md` files modified as expected, no `dist/` dirt, and `ui/sampler/.vb_out.txt` **absent**, which proved that floor genuinely unmeasured rather than silently lost. `Filesystem:*` MCP failed every call again; **Windows-MCP:PowerShell was the fallback, flagged not silently substituted.**
+
+**No new `D`. No new `core` component. No new `N`.** Records: this entry · CLAUDE.md PLAY · `docs/ROADMAP.md` · `tasks/M_RP_LOCK_RECHECK.md` v1.2 **COMPLETED** · `tasks/M_RP6_3_COMPOSER.md` v2.2. **🟢 NEXT-ACTIVE = Joe's call** — `M-RP-SELF-VARIANTS` is the cheap high-value one (his three typeface variants were judged against **fallback fonts**; M-RP-FONTS fixed that, so the subject is now real and the re-run feeds #5's fix).
 
 ---
 

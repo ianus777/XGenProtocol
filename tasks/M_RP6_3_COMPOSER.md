@@ -1,9 +1,9 @@
 # M-RP6.3 — live messaging: R6 composer + narrow-B send path
 > **Status**: ACTIVE  
-> Owes: M-RP6.4 room-history backfill · M-RP6.7 resident pong timeout · M-RP6.8 view-latch persistence · M-RP-LOCK-RECHECK §9.11.3 lock re-verification  
-> Version: 2.1  
+> Owes: M-RP6.4 room-history backfill · M-RP6.7 resident pong timeout · M-RP6.8 view-latch persistence  
+> Version: 2.2  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-21  
+> **Last updated**: 2026-07-22  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -752,20 +752,32 @@ DOCUMENTED property rather than a leak.*
 
 ### §9.11.3 — D-2 · THE TWELVE USER-FACING LOCKS
 
-| # | lock |
-|---|---|
-| 1 | A local echo exists. C-4 amended (§9.11.2). |
-| 2 | The echo lives in a **`$common` store**, not the widget — the C-10 argument, stronger here: a lost outage row is an omission; a lost sentence you just typed is the app eating your words in front of you. |
-| 3 | Keyed by a **client-minted local id**; `event_id` stitched on at outcome. |
-| 4 | The echo's timestamp is **client-minted and stays that way** — see §9.11.5. |
-| 5 | **Self is special-cased**: the user does not see their own six-char hash tail. `isOwn` already ships. Wording/appearance = Ms Design. |
-| 6 | Send-status has **THREE visual states, not two**: sent (`accepted`) · **unresolved** (`timed_out`) · not sent (`rejected` + `failed`, same state, different copy). Collapsing `timed_out` either way is the D6 lie verbatim. |
-| 7 | **Retry policy by status:** `failed` → retry freely (never reached the wire) · `rejected` → no retry (it will be refused again) · `timed_out` → retry only behind an explicit warning, because **the node may hold it and the user may double-post**. |
-| 8 | The echo dies at **exactly one stated moment**: session end / reload. **The C-6 head marker must cover the user's OWN sends**, or its confession is partial. *They never read the messages they lost; they wrote the one they lost.* |
-| 9 | Echoes are real `MessageDescriptor`s, so **grouping and dividers come free**. |
-| 10 | **Auto-scroll on your own send, always** — the one action where it is unambiguous. |
-| 11 | **N windows, one device** — consistent, falls out of #2. Not "two": stated as N so nobody special-cases a pair. |
-| 12 | **No room latched ⇒ typing yes, sending no.** Silently accepting a sentence that goes nowhere is the worst of the three options. |
+> ### 🔒 **THE VERIFIER COLUMN — ADDED AT `M-RP-LOCK-RECHECK` LEG C (J-574, 2026-07-22). NO LOCK IN THIS TABLE IS WITHOUT A NAMED VERIFIER.**
+> 🔑 **WHY THE COLUMN EXISTS.** J-560 closed Leg D2 claiming *"ONE LOCK UNMET"*. **Two were.** And **lock #5 appeared nowhere in that close at all** — not met, not unmet, not deferred. ⇒ **A LOCK WITH NO VERIFICATION LEG IS UNFALSIFIABLE: it cannot fail, so it cannot be trusted, and a green milestone says nothing about it either way.** ⚠️ The pass filed to investigate that then found **#11 in the same condition** — *one is an oversight; the second, found by the pass filed to investigate the first, is a mechanism.*
+> **MACHINE verdicts** were driven at `b477bae` (Leg A, J-569), **each with a positive control** — *"the bad thing is absent" and "nothing happened" are the same string.* Every probe and its control is tabulated at `tasks/M_RP_LOCK_RECHECK.md` §10.
+> **EYE verdicts** are Joe's alone and are quoted verbatim at `tasks/M_RP_LOCK_RECHECK.md` §11. ⚠️ Both were **RE-CONFIRMED on 2026-07-22, NOT captured live** — judged in session, write-up lost to an MCP failure, re-confirmed afterwards. *Recorded as recovered because a verdict from memory and a verdict from a live reading are the same sentence carrying different reliability.*
+> ⚠️ **A VERDICT IN THIS TABLE IS NOT A WIRE PROOF.** Two Leg-A legs drove outcomes through a **stub transport** (`echo.setTransport`). That verifies the store and the render rules and **verifies nothing about the wire** — and no lock among the twelve claims the wire.
+
+| # | lock | verdict | verifier |
+|---|---|---|---|
+| 1 | A local echo exists. C-4 amended (§9.11.2). | ✅ MET | **machine** — `b477bae`, Leg A (J-569): echo count 0→1 read in the SAME eval as the send click, so the row exists before the network is consulted. *Control:* pre-click 0 measured three times. |
+| 2 | The echo lives in a **`$common` store**, not the widget — the C-10 argument, stronger here: a lost outage row is an omission; a lost sentence you just typed is the app eating your words in front of you. | ✅ MET | **machine** — `b477bae`, Leg A (J-569): no widget holds an echo array; the store is `$common/stores/echo-state.svelte.ts`. *Control:* the grep proven live by finding 8 other `$state` decls in the same widgets. |
+| 3 | Keyed by a **client-minted local id**; `event_id` stitched on at outcome. | ✅ MET | **machine** — `b477bae`, Leg A (J-569): same `localId` across `pending`→`accepted`, `eventId` ABSENT→stitched. *Control:* the ABSENT pre-state was measured, so the stitch is a transition, not a pre-existing value. |
+| 4 | The echo's timestamp is **client-minted and stays that way** — see §9.11.5. | ✅ MET | **machine** — `b477bae`, Leg A (J-569): `sentAt` byte-identical before and after the outcome. *Control:* the same outcome demonstrably changed OTHER fields on that row — invariance, not a dead read. |
+| 5 | **Self is special-cased**: the user does not see their own six-char hash tail. `isOwn` already ships. Wording/appearance = Ms Design. | ❌ **UNMET** | **SPLIT — both halves now named.** **machine** — `b477bae`, Leg A (J-569): own rows render the FULL XGID as the author name (rendered name === self `identity_id`, 65 chars, byte-equal), avatar `name:null` / `initials:"GC"`. **eye — Joe, 2026-07-22 (RE-CONFIRMED):** the name becomes **"Self"** — default, customisable later, visually distinguished. ⚠️ **FIX FILED TO `M-RP-SELF-SURFACE`; NOT DONE HERE.** |
+| 6 | Send-status has **THREE visual states, not two**: sent (`accepted`) · **unresolved** (`timed_out`) · not sent (`rejected` + `failed`, same state, different copy). Collapsing `timed_out` either way is the D6 lie verbatim. | ✅ MET | **SPLIT — both halves now named.** **machine** — `b477bae`, Leg A (J-569): four outcomes → three tones + `pending`; registry getter `tone` === painted `data-tone` on all four; labels distinct strings. **eye — Joe, 2026-07-22 (RE-CONFIRMED), verbatim:** *"they read as 3 states"*. |
+| 7 | **Retry policy by status:** `failed` → retry freely (never reached the wire) · `rejected` → no retry (it will be refused again) · `timed_out` → **no retry affordance at all**. ⚠️ **AMENDED IN PLACE AT LEG C (J-574).** This row previously read *"`timed_out` → retry only behind an explicit warning, because the node may hold it and the user may double-post."* That was **narrowed deliberately at D2 §3.1** and shipped as **no retry**, enforced in BOTH the store's refusal and the widget's button (one predicate, N-126). **The behaviour was always right; the table never received the amendment** — the J-566 shape again, *a decision applied in code and not in the record.* | ✅ MET | **machine** — `b477bae`, Leg A (J-569), **measured against the shipped narrowing, not against the stale text**: retry offered on `failed` only, refused at the STORE as well as the widget. *Control:* a bypass call on `rejected`/`timed_out` resolved `null` + unchanged, while the SAME call on `failed` MUTATED it. |
+| 8 | The echo dies at **exactly one stated moment**: session end / reload. **The C-6 head marker must cover the user's OWN sends**, or its confession is partial. *They never read the messages they lost; they wrote the one they lost.* | ✅ MET | **machine** — `b477bae`, Leg A (J-569): no persistence path reaches the store; head marker names own sends; live echo count 4→0 across a reload. *Control:* the 4 measured immediately prior. |
+| 9 | Echoes are real `MessageDescriptor`s, so **grouping and dividers come free**. | ✅ MET | **machine** — `b477bae`, Leg A (J-569): `groupedCount: 12`, `dividerCount: 0`. *Control:* the "missing" 13th is ARITHMETIC, not hand-waving — two group heads 425,026 ms ≈ 7.1 min apart, past the 5-minute window. |
+| 10 | **Auto-scroll on your own send, always** — the one action where it is unambiguous. | ❌ **UNMET — accepted deviation** | **machine** — `b477bae`, Leg A (J-569): scrolled to top, sent, `scrollTop` stayed 0 / `atBottom` false. *Control:* the row demonstrably landed (count 15→16, max 639→705) **and** the probe demonstrably sees scroll (639.2→0). ⚠️ **Joe accepted this deviation at J-560 with his eyes open; re-confirmed, NOT re-tested into a pass.** |
+| 11 | **N windows, one device** — consistent, falls out of #2. Not "two": stated as N so nobody special-cases a pair. | ✅ **MET at VIEW scope** | **machine** — `b477bae`, Leg A (J-569): the whole tile grid unmounted and all 4 echoes survived. *Control:* `composerMounted` 1→0 and the grid emptied, so the unmount really happened. **Scope fixed by D-122 (J-571 / J-572)**, not by editing this lock. ⚠️ **BOUNDARY, RECORDED BECAUSE IT IS NOT OBVIOUS: this does NOT extend to a separate window.** Module `$state` is per-webview and #8 makes the echo session-mortal, so two separate windows are **two independent stores** — **#8 and #11 CONTRADICT at separate-window scope**, and #11 is true only at the scope named here. |
+| 12 | **No room latched ⇒ typing yes, sending no.** Silently accepting a sentence that goes nowhere is the worst of the three options. | ✅ MET | **machine** — `b477bae`, Leg A (J-569): with no room, typing yes (`disabled:false`, 18 chars accepted) and sending no (button `disabled:true`). *Control:* latching a room flipped ONLY the button — the draft survived at 18 chars, so the refusal is caused by the latch. |
+
+⚠️ **TWO THINGS THIS PASS DELIBERATELY DID NOT DO.**
+- **#11's wording was NOT edited.** Leg A found the lock unfalsifiable at OS-window scope and offered a rewording; **Joe took a different route** — D-122 fixed the *vocabulary*, and the lock resolves at VIEW scope with its boundary recorded above. *Rewording a lock is a records decision about Joe's own design, and was not Chat's to take.*
+- **#5 was NOT fixed, and #10 was NOT reopened.** *A verification pass that also fixes things cannot tell you whether it verified or created.*
+
+📌 **FILED, NOT FIXED — AN ORPHANED APPEARANCE OWNER SITTING INSIDE ROW #5.** That lock's text still assigns *"Wording/appearance = Ms Design"* — a seat **retired at J-568** and superseded by **D-123**, under which appearance is Joe's. The row is left **verbatim** because editing design text is not Chat's call. ⇒ **candidate for `M-RP-SEAT-ORPHANS`**, where ten such items are already known and *ten is a floor*.
 
 ### §9.11.4 — ✅ **CLOSED AT LEG D1 (J-553, `53dab37`) — READ IN THE PAST TENSE** · ⚠️ D-3 · THE SILENT QUEUE WAS ALREADY SHIPPED. LEG D IS NOT ZERO-RUST.
 

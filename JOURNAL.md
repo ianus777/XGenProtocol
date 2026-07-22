@@ -8,6 +8,23 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-573 — The seat division stops being folklore (D-123), and a line-ending bug that only a normalisation commit revealed
+
+**Date:** 2026-07-22 · **Seats:** Joe (stated the division, agreed the three edges) · Chat (restated it for checking, named the edges, wrote the records). **RECORDS. Zero code.**
+
+**🔒 D-123.** Joe: *"mine is appearance and architectural decisions · yours are technical and other spheres."* Restated for confirmation and agreed: **Joe owns what it looks like and what shape the system is** — appearance, structure, taxonomy, naming, the no-anonymity core, what gets built and in what order. **Chat owns how it gets done and whether it is true** — implementation, grounding, measurement, records, verification, cleanup, tooling.
+
+**⚠️ THE RULE ALREADY EXISTED — IN THE SESSION KICKOFF AND NOWHERE ELSE.** *That is the same shape as everything this day was spent repairing*: `window` meaning two things across four documents, the **J-491 fs-allow lesson filed against a single consumer** and never generalised to the three dev servers, the `ui/templates/` deprecation that lived only in a chat. 🔑 ***A rule restated only at session open is a rule a dropped round can delete*** — and this session lost two rounds.
+
+**THE THREE EDGES, agreed rather than assumed.** ① **The line is about who DECIDES, not who NOTICES.** Chat still surfaces appearance and architecture — *on this day that was most of what it found*: #5 renders Joe's full XGID on his own rows, the declared fonts had never loaded in any dev shell, W-12 blocks two rooms side by side. **None were Chat's to decide; all were Chat's to find.** ② **⚠️ A technical decision that acquires appearance or structural consequence STOPS BEING CHAT'S** — `server.fs.allow` looked technical and exposed *dev and the built app rendering different typefaces*; the font choice looked technical and **turned on the reskinning surface, where Joe overturned Chat and was right.** *A boundary that only holds while the categories stay clean is not a boundary.* ③ **Chat proposes on Joe's side; proposing is not deciding** — per-view binding, the vocabulary split, the `skin.css` split were all Chat's to argue and Joe's to lock, and **he rejected two of three, correctly.** ***That is the mechanism working.***
+
+**⚠️ UNCHANGED:** identity, the wire and anything irreversible still go to Joe **unresolved and named**, even dressed as a technical detail. **D-123 describes ownership; it creates no trump card and overrides nothing.**
+
+**⚠️ METHOD FINDING — CHAT HAD BEEN INJECTING CRLF INTO LF FILES ALL SESSION, AND ONLY A NORMALISATION COMMIT MADE IT VISIBLE.** `6708a71` carried three `vite.config.js` files and `M_RP_LOCK_RECHECK.md` as changed **when none had been edited in substance** — they were dirty purely from line endings. 🔑 **The repo is per-file, not uniform**, measured this session: `JOURNAL.md` **LF** · `CLAUDE.md` **CRLF** · `docs/ROADMAP.md` **CRLF** · `DECISIONS.md` **LF** · `M_RP6_3_COMPOSER.md` **LF** · `M_RP_LOCK_RECHECK.md` **LF**. ⇒ **Detect the file's dominant ending and match it; never impose a convention.** D-123 was written LF and verified to introduce zero CRLF. *A diff that reports a file as changed when nothing changed is noise that hides the changes that matter — and it is exactly the class of thing Chat owns.*
+
+**⚠️ TWO ROUNDS WERE LOST TO AN UNRESPONSIVE MCP SERVER**, one of them mid-write. Recovery followed the standing rule — **check disk and git before assuming nothing happened** — and found the work HAD landed and Joe had already caught the prepared command and pushed it (`6708a71`). **Every recovered claim was re-verified against the file, not the commit message**: D-122's three-term table, the five vocabulary lines now reading `separate window`, N-159, N-160. *The write that timed out (a D-122 amendment block) had NOT landed, and its self-guard would have refused a double-append had it been retried.*
+
+**Records:** D-123 · CLAUDE PLAY · ROADMAP · this entry. **⚠️ M-RP-LOCK-RECHECK REMAINS ACTIVE — Leg C is the only thing between it and close, and every one of the twelve locks now has a verdict.**
 ## Entry J-572 — The vocabulary crystallised: "window" becomes a loose umbrella, and display form is decided in situ
 
 **Date:** 2026-07-22 · **Seats:** Joe (proposed the loose umbrella, named both fixed terms, reserved the right to change any display form, ruled that form is chosen in the moment) · Chat (grounding, the origin dig, records). **RECORDS + VOCABULARY. Zero code.**

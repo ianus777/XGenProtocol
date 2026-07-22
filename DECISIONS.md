@@ -4554,3 +4554,30 @@ The separate-window want is real (a room on a second monitor cannot be served by
 
 - **A consistency rule.** If every surface picks its own mechanism, About / Plugins / Settings may diverge and feel like three applications. Proposed but not locked: **same mechanism unless a named reason**, so divergence is always a recorded decision and never an accident.
 - **The Auth Module.** Ch6 names it the first customer for a separate window. ⚠️ **The identity reasoning may point the opposite way:** a separate window is *harder for a user to tie back to the app that spawned it*, which is exactly the property a credential-phishing surface would want. **An in-DOM modal area the user cannot detach may be safer.** Ch6 chose in April without that consideration on the table. **Identity-adjacent ⇒ Joe's, and per this decision it is re-opened in situ when the plugin is actually built.**
+
+## D-123 — The seat division stated as a rule: Joe owns appearance and architecture, Chat owns technical execution and truth
+
+**Date:** 2026-07-22 · **Layer:** Project-wide working principle · **Ref:** D-121 (two lenses), D-065 (honest behaviour over polite), D-074 (records travel together), D-122 (display form decided in situ, scoped) · **Journal:** J-573 · **Code:** none — this is a discipline, not a mechanism.
+
+**Decision (Joe, 2026-07-22).** The division of seats, until now carried only in session kickoffs, is stated as a rule:
+
+| | owns |
+|---|---|
+| **Joe** | **What it looks like, and what shape the system is.** Appearance, structure, taxonomy, naming, the no-anonymity core, what gets built and in what order. |
+| **Chat Claude** | **How it gets done, and whether it is true.** Implementation, grounding, measurement, records, verification, cleanup, tooling. |
+
+**⚠️ THE RULE ALREADY EXISTED AS FOLKLORE.** It lived in the session kickoff and nowhere else — *the same shape as the defects this project spent 2026-07-22 fixing*: `window` meaning two things across four documents, the J-491 fs-allow lesson filed against one consumer, the `ui/templates/` deprecation that lived only in a chat. **A rule that is only ever restated at session open is a rule that can be lost by a dropped round.**
+
+### ① The line is about who DECIDES, not who NOTICES
+
+Chat still surfaces appearance and architectural problems — **on 2026-07-22 that was most of what it found**: lock #5 renders Joe's full XGID on his own rows (J-569), the declared fonts had never loaded in any dev shell (J-570), W-12 blocks two rooms side by side (J-571). **None of those were Chat's to decide; all of them were Chat's to find and bring.** 🔑 ***Reporting is not encroaching, and over-reporting beats letting a finding sit because it fell on the other side of the line.***
+
+### ② A technical decision that acquires appearance or structural consequences STOPS BEING CHAT'S
+
+**⚠️ This is the edge that actually bites, and 2026-07-22 produced two examples in one session.** The `server.fs.allow` fix looked purely technical — it exposed that **dev and the built app were rendering different typefaces**, which is an architectural fact. The font choice looked purely technical — **the deciding argument turned out to be the reskinning surface**, which is Joe's, *and he overturned Chat's recommendation on exactly that ground and was right.* ⇒ **When a technical call carries appearance or structural consequence, it goes to Joe NAMED AS SUCH.** *A boundary that only holds while the categories stay clean is not a boundary.*
+
+### ③ Chat proposes on Joe's side; proposing is not deciding
+
+Per-view room binding, the vocabulary split, the `skin.css` split — all Chat's to argue, Joe's to lock. **He rejected two of those three on 2026-07-22 and was right both times** (one file is the reskinning surface; the loose-umbrella vocabulary is smaller than a five-document split). ***That is the mechanism working, not Chat overstepping.***
+
+**⚠️ HELD HARDEST — unchanged and undiminished:** anything touching **identity, the wire, or an irreversible act** goes to Joe **UNRESOLVED and NAMED**, *even when it arrives dressed as a technical detail.* D-122's scope clause exists for this reason, and D-121's collision rule is not softened by this decision. **D-123 describes ownership; it creates no trump card and overrides nothing.**

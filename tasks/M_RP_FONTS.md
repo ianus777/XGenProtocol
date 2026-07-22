@@ -1,6 +1,6 @@
 # M-RP-FONTS — declare the bundled type, and the 403 that hid it
 > **Status**: ACTIVE  
-> Owes: M-RP-FONTS-WOFF2 — convert the mono variable TTFs to woff2 · M-RP-FONTS-TEMPLATE — decide the dev_core_ui template's own font-face · M-RP-SELF-VARIANTS — re-run the Self typeface variants against real fonts  
+> Owes: M-RP-FONTS-WOFF2 — convert the mono variable TTFs to woff2 · M-RP-SELF-VARIANTS — re-run the Self typeface variants against real fonts  
 > Version: 1.0  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-22  
@@ -87,9 +87,12 @@ vite **202 / 170** · npm **154** · svelte-check **0/34/15** · sampler catalog
 ## §4 — Owed
 
 - **M-RP-FONTS-WOFF2** — convert the two mono variable TTFs to woff2 (~400 KB saving). Size, not correctness.
-- **M-RP-FONTS-TEMPLATE** — `ui/templates/dev_core_ui/svelte/app.css` still declares its **own** `@font-face`
-  for a static Inter copy, and is now the only place that pattern survives. Its copy was **deliberately kept**
-  (it is referenced), unlike the client and node orphans which were removed. ⚠️ **Joe's call, not taken here.**
+- **Joe ruled the `ui/templates/` tree a DEPRECATED branch kept only for resources (2026-07-22)** — it still
+  carries the old pattern (its own `@font-face` over a static Inter copy), and that is **not a defect to fix**.
+  ⚠️ Its Inter copy was therefore **deliberately kept**, unlike the client and node orphans which were removed.
+  🔑 **Recommended, NOT taken: mark the folder deprecated in place.** A grep of this repo hits it, and an
+  instruction to ignore it lives only in a chat — *which is precisely the ACTIVE-header problem of J-568, one
+  directory up: a status nobody can read gets rediscovered by whoever looks next.*
 - **M-RP-SELF-VARIANTS** — ⚠️ **the three "Self" typeface variants Joe judged were ALL fallback fonts.**
   Variant 2 was never JetBrains Mono (no face was declared); variant 3 was never Inter Italic. ***A
   [👁️ PERCEPTION] verdict is only as good as whether the thing looked at was the subject*** — re-run it.

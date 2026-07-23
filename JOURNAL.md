@@ -1,10 +1,40 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-07-23  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-575 — M-RP-SELF-VARIANTS: the perception test re-run against real faces, and the verdict that repaired a legibility floor nobody was measuring
+
+**Date:** 2026-07-23 · **Seats:** Joe (scope rulings, the verdict) · Chat (controls, drive, records). **Zero code. Zero `skin.css` edit.** Every styling change applied at **runtime via CDP** and dies on reload.
+
+**WHY IT WAS RE-RUN.** J-570 found that the three *"Self"* typeface variants Joe had judged were **all fallback fonts** — no mono face was declared, and the italic was a **skewed Regular**. ***A [👁️ PERCEPTION] verdict is only as good as whether the thing looked at WAS THE SUBJECT.*** 🔑 **A distinction the original filing missed: variant 1 was never corrupted** — *"system mono"* **is** `ui-monospace`, so it rendered exactly what it claimed. What was invalid was **the comparison**, not each reading: choosing among three when two are impostors is not a choice anyone made.
+
+**🔒 JOE'S SCOPE RULINGS, WHICH REDIRECTED THE MILESTONE BEFORE IT RAN.** Typeface is **not** the only axis — the first test is **CSS styling only** (bold / italic / letter-spacing), with a mono family change held in reserve. **Name only**, not the row. And the distinction applies **everywhere, not only where avatars gather**: in the thread it is merely *the only* change, because the avatar's side already carries the rest. ⚠️ Chat had proposed judging in the message row as a **compromise** surface; Joe's reasoning made it a **legitimate** one, which is a better answer than either option offered.
+
+**🔑 AND A RULING ABOUT HOW QUESTIONS ARE PUT.** Joe: *"as for a human, i cannot imagine font weight from number."* ⇒ **weights are presented in words; numbers live only in records.** ⚠️ `semibold` is **not** a CSS keyword — only `normal` and `bold` are absolute — so the in-between weight can only be written as a number, and that is a records problem, not a judging one. ***A question whose answer he cannot perceive is not a perception question.***
+
+**THE CONTROL WAS THE MILESTONE'S REAL CONTENT.** ⚠️ `getComputedStyle().fontFamily` returns **the declared stack, not the resolved face** — the most likely route by which variant 2 passed as JetBrains Mono last time (**N-156**: a probe returning the wrong thing confidently is a hole shaped like a result). ⚠️ And a browser **fakes italic by skewing the Regular**, so a skew and a true italic both render plausibly. ⇒ **`font-synthesis: none` + advance-width measurement + a deliberately bogus family as the negative reference**, all after a forced `document.fonts.load()`. **Results:** real family **133.04** vs bogus **118.80** ⇒ resolves · italic **133.68 ≠ 133.04** ⇒ **a TRUE italic, not last session's skew** · italic-700 **138.19 ≠ 137.40** ⇒ true bold italic · **600 → 135.95 with NO static file on disk** ⇒ **the variable weight axis is real, not assumed.**
+
+**FIXTURE, STATED SO IT IS NOT MISTAKEN FOR THE FIX.** No node (`RECONNECTING`) and both seeded rooms empty (`emptyState: "no-messages"`), so the own row came from **an actual send** — a real local echo, `isOwn: true`, rendering lock #5's defect live at **`nameLen: 65`**. Its text was set to `"Self"` at runtime; V1–V3 were **DOM clones** of that real row, removed afterwards.
+
+**🔒 VERDICT — JOE, 2026-07-23, verbatim: *"v3 + 90% grey colour (90% white in grey)"*, confirmed as applied.** Chosen values for `M-RP-SELF-SURFACE`: **`font-weight: 600` · `font-style: italic` · `letter-spacing: 0.05em` · `color: #E5E5E5`**, and ⚠️ **`font-synthesis: none` is REQUIRED or a skew silently satisfies the italic.**
+
+**🔑 THE FINDING THAT REFRAMES THE VERDICT: the author name was ALREADY `font-weight: 600` at 10px.** So V3's weight **is** the baseline's — **the distinction is carried entirely by italic + tracking + brightness, not by weight at all.** *"Bold" was only ever one step (600→700); 800 and 900 remain if more force is wanted.*
+
+**⚠️ AND IT REPAIRED A DEFECT NOBODY WAS LOOKING FOR.** The self name rendered at `rgb(88,92,100)` on `rgb(22,24,28)` = **2.65 : 1 at 10px — below WCAG AA (4.5:1)**. The chosen colour takes it to **14.1 : 1**. *The question asked was "which reads as Self"; the answer incidentally fixed a measurable failure that no automated test covers — **the J-568 shape again: appearance has no verifier, so appearance defects survive.*** Surfaced and accepted: at `#E5E5E5` the name sits **within 3% of the body text**, so it reads at body strength rather than as a subordinate label.
+
+**⚠️ THE LIMIT ON THE VERDICT, RECORDED IN THE SAME SECTION AS THE VERDICT.** **There were NO inbound names on screen.** The self name was judged **in isolation**. 🔑 This establishes that the styling **reads as deliberate and legible**; it does **NOT** establish that it **DISTINGUISHES**, because nothing was present to distinguish it from — and by Joe's own ruling the distinction is *from other people's names*. **Closing this as "distinction achieved" would be the J-560 defect in a new place.** Needs **M-RP6.4 backfill or a second identity**, both already owed.
+
+**📌 FILED, NOT FIXED.** ① **The self panel already solves #5 and the message row does not** — `self-panel.svelte:43` resolves `display_name` ⇒ **"Joe"**, while `entity-item.svelte:65` / `message.svelte:69` use `name ?? id` with `name` null (`stream-panel.svelte:115`, *"NO name (C-8)"*) ⇒ the **65-char XGID**. Same identity, two surfaces, two answers. ② **`region-tile#region-members` exists as a stub with no panel plugin** — the gathered-avatar surface is **not built**. ③ **A registry ladder deviation:** documented 149 → **156** space → 158 latched; **measured 149 → 158 on space selection alone.** Either an eighth axis or an auto-latch — **N-155 says a baseline has seven; this says otherwise.** Unexplained, filed.
+
+**⚠️ A RECORDS ERROR CAUGHT IN THE WRITING.** The session crossed midnight — `e4d9625` was committed **2026-07-22 22:05**, the drive and verdict happened **2026-07-23**. The task doc was first written dated 07-22 throughout and **corrected before commit**. *A verdict carrying the wrong date is a verdict that cannot be checked against the thing that produced it.*
+
+**No new `D`. No new `core` component.** Records: this entry · CLAUDE.md PLAY · `docs/ROADMAP.md` · `tasks/M_RP_SELF_VARIANTS.md` v1.0 **COMPLETED** · `tasks/M_RP_FONTS.md` `Owes:` discharged · `ui/docs/xgen-ui-notes.md` N-161. **NEXT:** `M-RP-SELF-SURFACE` carries these values; ⚠️ **`M-RP-SELF-NAME`'s persisted `widgetId:"self"` stored-data migration is the harder gate.**
 
 ---
 

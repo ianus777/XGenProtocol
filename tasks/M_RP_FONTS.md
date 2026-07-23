@@ -1,9 +1,9 @@
 # M-RP-FONTS — declare the bundled type, and the 403 that hid it
 > **Status**: ACTIVE  
-> Owes: M-RP-FONTS-WOFF2 — convert the mono variable TTFs to woff2 · M-RP-SELF-VARIANTS — re-run the Self typeface variants against real fonts  
-> Version: 1.0  
+> Owes: M-RP-FONTS-WOFF2 — convert the mono variable TTFs to woff2  
+> Version: 1.1  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-22  
+> **Last updated**: 2026-07-23  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

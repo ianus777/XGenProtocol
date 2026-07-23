@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.6  
+> Version: 1.7  
 > Date: May 2026  
-> **Last updated**: 2026-07-21  
+> **Last updated**: 2026-07-23  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -3317,3 +3317,35 @@ a context nobody had connected to the other three).
 terms, **both lifted from existing records rather than invented** — so nothing migrated except the vocabulary
 table. And display form is **decided in situ**, because it is a [👁️ PERCEPTION] call and *you cannot look at a
 document*.
+---
+
+### N-161 — A DECLARED FONT STACK PROVES NOTHING; ONLY AN ADVANCE-WIDTH DIFFERENCE PROVES A FACE RESOLVED
+
+**Context:** `M-RP-SELF-VARIANTS` (J-575), re-running the perception test that J-570 invalidated.
+
+**Two probes that lie, and they lie in the same direction — confidently.**
+
+① **`getComputedStyle().fontFamily` returns the DECLARED STACK, NOT THE RESOLVED FACE.** It reports `"XGen UI Sans", system-ui, sans-serif` whether the bundled face rendered or the system fallback did. ⇒ **the most likely route by which a variant "was" JetBrains Mono when no mono face had been declared.** (N-156's shape at the type layer.)
+
+② **A BROWSER FAKES ITALIC BY SKEWING THE REGULAR.** A synthesised oblique and a true italic **both render, both look plausible**, and `document.fonts.check()` cannot separate them — it answers about the *family*, not about which face painted the glyphs.
+
+🔑 **THE ONLY HONEST PROBE IS DIFFERENTIAL.** Set **`font-synthesis: none`**, render the same string in the candidate and in a **deliberately bogus family**, and **measure advance width**:
+- candidate width **=== bogus width** ⇒ it fell back; the face never resolved.
+- italic width **=== upright width** with synthesis off ⇒ there is no real italic face; what you saw was a skew.
+- a weight with **no static file on disk** rendering **its own distinct width** ⇒ the **variable axis is real**, which no `check()` can establish.
+
+**Measured (client, 2026-07-23):** real family **133.04** · bogus **118.80** · italic **133.68** · italic-700 **138.19** vs 700 **137.40** · **600 → 135.95 with no 600 file on disk**.
+
+⚠️ **AND THE PRECONDITION THAT MAKES ALL OF IT VALID:** force `document.fonts.load()` **first**. An unloaded face and a broken face return **the same string** — *"never requested" and "broken" are indistinguishable without the load.*
+
+🔑 **THE GENERAL FORM, WHICH IS NOT ABOUT FONTS.** Every one of these probes reports on **what was asked for**, never on **what happened**. The fix is always the same shape: **find a reading that must CHANGE if the thing worked, and a reference that must NOT.** *A probe with no negative reference cannot fail, and a probe that cannot fail is not evidence.*
+
+### N-162 — APPEARANCE HAS NO VERIFIER, SO APPEARANCE DEFECTS SURVIVE INDEFINITELY — AND ARE FOUND BY ACCIDENT
+
+**Found while answering an unrelated question** (J-575): the message author name rendered at `rgb(88,92,100)` on `rgb(22,24,28)` = **2.65 : 1 at `font-size: 10px`** — **below WCAG AA (4.5:1)**, and nothing in the repo was measuring it. It surfaced only because a **[👁️ PERCEPTION] colour choice** happened to land on the same element, taking it to **14.1 : 1**.
+
+⚠️ **Two lessons, and the second is the uncomfortable one.**
+① **A contrast floor is machine-checkable and was never checked** — unlike typeface, this one needs no eye at all.
+② The defect was not found by looking for defects. **It was found because an unrelated question pointed at the same pixels.** *That is not a process; it is luck, and luck does not scale with the number of surfaces.* (Same family as **J-568**: the retired seat's items had no owner, so nothing surfaced them either.)
+
+📌 **Filed, not scoped:** a contrast sweep over `skin.css` colour pairs is cheap and mechanical. ⚠️ **The remedies are appearance and therefore Joe's** — the *measurement* is not.

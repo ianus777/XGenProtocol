@@ -8,6 +8,40 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-577 — M-RP-OWN-ROW-NAME Phase-0: the settings rule was already locked, and the architecture had answered the naming question months before D-124 asked it
+
+**Date:** 2026-07-23 · **Seats:** Joe (the settings logic, the Identity section, index 0, legs together) · Chat (grounding, Phase-0, records). **ZERO code. ZERO `skin.css`.**
+
+**WHAT SHIPPED.** `tasks/M_RP_OWN_ROW_NAME.md` v1.0 **ACTIVE — Phase-0 locked**, no code until Joe says go. Plus a **D-124 amendment**, **N-164**, and two repairs to Chat's own records from J-576.
+
+**🔒 THE SETTINGS RULE WAS ALREADY LOCKED, AND STRONGER THAN IT WAS REMEMBERED.** Joe stated it from memory — *every setting in one place, all settings links point at the end to one common place* — and asked whether his logic was correct. **It was, and the record is more specific than the memory:** **D-C** (`docs/xgen-settings-phase0.md`, Joe-locked **2026-07-16**) with **D-067** behind it — *ONE Discord-shaped Settings modal, **two entry points, one modal**, and the deep-link is a `section` argument*. ⚠️ **And it is BUILT, not merely designed:** `settings-dialog.svelte` carries the `section` prop, `SECTIONS`, `DEFAULT_SECTION` and deep-link-on-open. ⇒ **the self gate becomes a THIRD entry point, not a new pattern.** *Verifying a remembered rule against the record cost one search and turned a plausible answer into a cited one.*
+
+**🔑 THE DISTINCTION THAT MADE JOE'S SENTENCE COHERENT.** He wrote that the setting *"dwells in the self widget"* **and** that all settings end in one place — which reads contradictory until three things are separated. Joe resolved it himself: *"in the mental map — the toggle has to be accessed logically (not exclusively) through the self panel because it deals with self representation. programmatically it dwells in the settings."* ⇒ **BELONGS TO** the identity domain · **DWELLS** in Settings · **REACHED FROM** the gate, **non-exclusively**. 🔑 ***The gate holds DOORS, not CONTROLS.*** A preference placed in the row would be a second home for a setting — the exact thing D-067 forbids.
+
+**⚠️ AND THE RULE'S SCOPE BOUNDARY, WHICH WAS THE NEXT MISTAKE WAITING.** Joe: the address book button *"will not dwell in the setting but its own modal area"*, and help *"maybe will be linked direct to the online help portal"*. ⇒ **D-C and D-067 govern SETTINGS, not utilities.** An address book is a **surface**; help is a **destination**; neither is a second home for anything. *"One place" means one place for settings — it does not mean everything funnels through Settings.*
+
+**⚠️ A CHAT CLAIM CORRECTED BY THAT SAME ANSWER.** Chat had called Settings *"the cheapest door"*. **It is not — help is.** The external-link path is **fully shipped**: `app_client.svelte:658` imports `@tauri-apps/plugin-opener` and calls `openUrl`, the `Link` core component takes `external` + `onclick`, and About already uses it in **two** places. Help needs **no new surface**; Settings needs a new `SECTIONS` entry. 📌 And the help URL must keep coming from the client's **own** config as About's does (`aboutInfo.common.link`) — **never from a node or space (D-111)**.
+
+**🔑 THE FINDING THAT COST AN AMENDMENT, AND IT CAME FROM A POINTER OF JOE'S.** *"about the address book there is some information in the documentations, you can look on it."* **`docs/xgen_ch2_architecture.md` §"User Representation — The Full Picture" already carried the model D-124 derived this morning** — and carried **more**: **FOUR** layers, not three (global display name · Space nickname · contact alias · ⚠️ **contact NOTE**, which is *"not a display name … supplementary context"* and has **no D-124 term**), plus a **locked override chain** — alias → nickname → global, *"regardless of context"* — which D-124 omitted entirely. ⚠️ **And the correction that matters: D-124 called S "impossible today" on the strength of `SpaceMember` having no name field. Ch2 ASSIGNS S a home** — the *Space membership record*. ⇒ **S is SPECIFIED-BUT-UNBUILT, not unimagined.** *The measurement was right; the word libelled an architecture that had already answered.* ⇒ **`M-RP-INBOUND-NAME` is materially larger than filed** — the four-layer chain with the address book as the Private Identity record **plus the resolver that walks it**, not a flat XGID→name lookup.
+
+**⚠️ N-164 — AND IT IS NOT ABOUT NAMES.** D-124 was grounded against **code** and was three-quarters right. **Code cannot lie about what exists, and cannot speak at all about what was intended:** an unbuilt feature and an abandoned one are **byte-identical in a repository**, and precedence is a decision that no struct encodes. 🔑 ***Grounding against code proves what IS; grounding against the spec proves what was DECIDED — a decision record needs both.*** Same family as N-156/N-161 one level up: **the failure looked like a clean result** — the audit finished, every reading held, the conclusion was incomplete.
+
+**🔒 C-8 BECOMES A NAMED EXCEPTION, NOT A VIOLATION.** Its premise — *"nothing in the client resolves an XGID → display name"* — is **true for other people and FALSE for you**: `get_self_state` is **authoritative, not a fabricated map**, so the J-501 *do-not-invent-fields* rule is untouched. Precedent sits in the same file: the existing *"narrow, documented outbound exception"* to C-4. ⚠️ **The amendment is DRAFTED at Phase-0 and APPLIED AT CLOSE** — C-8 still describes shipped behaviour until Leg A lands, and amending early would make the record describe code that does not exist. *That is the J-566 defect run backwards, not a cure for it.*
+
+**🔒 "IDENTITY", NEVER "ACCOUNT" — AND THE DOCS RULE IT, NOT TASTE.** Joe's instinct was that Account *"looks more mechanical"*; the repo gives a harder reason: *"**Identity is not an account. An account implies a relationship with a platform.**"* Discord says Account because Discord **has** accounts — support tickets, recovery email, admin override — all of which XGen's docs explicitly refuse. 🔑 ***Importing the word imports the model.*** `{ key: 'identity', label: 'Identity' }`, verified free of collision.
+
+**⚠️ INDEX 0 IS A USER-VISIBLE DECISION, RECORDED AS CHOSEN.** Joe: *"the very first one, certainly."* Because `DEFAULT_SECTION = SECTIONS[0].key`, **File ▸ Settings will land on Identity instead of About** — a change to a shipped path, entered deliberately rather than discovered.
+
+**🔒 LEGS A AND B RIDE ONE MILESTONE, AND CHAT REVERSED ITS OWN RECOMMENDATION TO GET THERE.** Chat first leaned **split**, reasoning that a milestone waiting on Joe's `skin.css` tends to get closed half-ticked (the J-560 shape). ⚠️ **Wrong, on measurement:** J-575 found the author name at **2.65 : 1 at 10px — below WCAG AA** — and `#E5E5E5` takes it to **14.1 : 1**, so **the legibility fix and the distinction are the same declaration**. Shipping Leg A alone would put *"Self"* on screen **in the failing grey**: a known defect knowingly left (D-065). 🔑 **The styling marks YOUR NAME, not the word *"Self"*** — it applies in **both** toggle states.
+
+**⚠️ TWO RECORD DEFECTS OF CHAT'S OWN, FOUND AND REPAIRED IN THE SAME COMMIT.** J-576 inserted its `CLAUDE.md` PLAY entry and its `JOURNAL.md` entry **without a blank separator** before the following block — a PowerShell here-string contributes one trailing newline where the entry pattern needs two. **Both were already pushed.** 🔑 **Neither was found by reading; both were found because a byte-level line count came back `+1` where `+2` was due.** *An off-by-one in a counter was the only signal — which is the N-162 shape in the records layer: nothing verifies document structure, so structural defects survive until something incidentally counts.*
+
+**⚠️ `Filesystem:*` MCP failed every call again (fourth session).** `Windows-MCP:PowerShell` throughout — **flagged, not silently substituted.**
+
+**New `D`:** none — **D-124 AMENDED** (superseded wording retained). **New `N`:** **N-164**. **No new `core` component.** Records: this entry · `DECISIONS.md` · `tasks/M_RP_OWN_ROW_NAME.md` v1.0 ACTIVE · `docs/ROADMAP.md` v5.42 · `CLAUDE.md` PLAY · `ui/docs/xgen-ui-notes.md` v1.9 N-164. **NEXT:** Joe locks the Phase-0, then a runbook for Clair. ⚠️ **No code until he says go.**
+
+---
+
 ## Entry J-576 — The self widget design walk: "customisable" was three features, one of them a protocol operation — and the row defect was filed against the wrong widget
 
 **Date:** 2026-07-23 · **Seats:** Joe (taxonomy, scope rulings, naming, the deferral) · Chat (grounding, measurement, records). **ZERO code. ZERO `skin.css`. The diff is `.md` only.**
@@ -43,6 +77,7 @@ property purposes. Entries are written contemporaneously with the work described
 **New `D`:** **D-124**, **D-125**. **New `N`:** **N-163**. **No new `core` component.** Records: this entry · `DECISIONS.md` · `tasks/M_RP_SELF_GATE.md` v0.1 PENDING · `docs/ROADMAP.md` · `CLAUDE.md` PLAY · `ui/docs/xgen-ui-notes.md` N-163. **NEXT — Joe's call:** `M-RP-OWN-ROW-NAME` is the only codeable item and closes lock #5; everything else waits on the address book.
 
 ---
+
 ## Entry J-575 — M-RP-SELF-VARIANTS: the perception test re-run against real faces, and the verdict that repaired a legibility floor nobody was measuring
 
 **Date:** 2026-07-23 · **Seats:** Joe (scope rulings, the verdict) · Chat (controls, drive, records). **Zero code. Zero `skin.css` edit.** Every styling change applied at **runtime via CDP** and dies on reload.

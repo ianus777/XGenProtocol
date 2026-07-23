@@ -4638,6 +4638,31 @@ ON → *"Self"*; OFF → the registered `display_name`, which already resolves t
 - **NAME TRUTHFULNESS BY TIER.** Joe's position: T1 = the name does not matter; T4 = real name required. **The scaffolding exists** (space `auth_tier` + tier claims); **the comparison does not** — nothing links `display_name` to any tier check, and the assertion carries no name to compare against. ⇒ enforcement needs **either** a new claim carrying the verified name **or** the module attesting the name rather than the fact. ⚠️ **That puts legal names on the wire** — GDPR territory, sitting on the no-anonymity core. **UNRESOLVED. Do not design around it; ask.**
 - **DOES S SURVIVE NO-ANONYMITY?** One name in one space and another elsewhere is **soft pseudonymity** even with a fixed cryptographic XGID underneath: the XGID makes correlation **possible**, per-space names make it **effortful**. The question is whether no-anonymity means the identity is **verifiable** or the person is **recognisable**. **Not answered.** S is out of scope either way (ruling 1).
 
+### ⚠️ AMENDED 2026-07-23 (J-577) — Ch2 ALREADY CARRIED THIS MODEL, AND CARRIES ONE LAYER MORE
+
+**Found after D-124 was written**, by reading `docs/xgen_ch2_architecture.md` §*"User Representation — The Full Picture"* on Joe's pointer. **L/S/G was derived from the code; Ch2 had specified it months earlier — with a FOURTH layer and an override chain D-124 did not carry.**
+
+| Ch2 layer | set by | seen by | lives in | D-124 |
+|---|---|---|---|---|
+| Global display name | B, about themselves | everyone | Public Identity record | **G** |
+| Space nickname | B, about themselves, per Space | that Space | **Space membership record** | **S** |
+| Contact alias | A, about B, privately | only A | Private Identity record | **L** |
+| **Contact note** | A, about B, privately | only A | Private Identity record | ⚠️ **NO D-124 TERM** |
+
+**① THE FOURTH LAYER.** The **contact note** is *"not a display name — it does not replace any label … supplementary context, displayed on demand"*. It is the field Ch2 says *makes a contact list a genuine personal address book rather than just a list of keys*. **D-124's three terms cover names only; the note is a fourth thing and is not renamed by any of them.**
+
+**② THE OVERRIDE CHAIN, which D-124 omitted entirely.** Ch2 locks the precedence: **contact alias → Space nickname → global display name**, and *"the contact alias overrides everywhere, regardless of context."* ⇒ **L does not merely coexist with G and S — it OUTRANKS both, everywhere.** 🔑 This strengthens D-124's ruling ① rather than weakening it: L is powerful precisely because it is yours about someone else, which is why it has no place on the self surface.
+
+**③ ⚠️ THE CORRECTION THAT MATTERS — S IS NOT "IMPOSSIBLE".** D-124 above reads, verbatim and retained:
+
+> **S — per-space name** … ⚠️ **impossible today** — `SpaceMember` is `identity_id · role · joined_at · invited_by`, **no name field at all**
+
+**The measurement was correct; the word was not.** Ch2 **assigns S a home** — the *Space membership record*. ⇒ **S is SPECIFIED-BUT-UNBUILT, not unimagined.** *"Impossible" describes the code and silently libels the architecture, which had answered the question already.* The open question in D-124 (*does S survive no-anonymity?*) is unchanged and still Joe's — Ch2 specifies the mechanism, not the ruling on whether to build it.
+
+**④ CONSEQUENCE FOR `M-RP-INBOUND-NAME`.** It was filed as *XGID → display_name*. Ch2 makes it **the four-layer override chain**, with the address book as the **Private Identity record plus the resolver that walks it**. Same blocker, **materially larger scope**.
+
+🔑 **THE LESSON, WHICH IS NOT ABOUT NAMES.** D-124 was grounded against **code** and got three layers. The **architecture document** had four and the precedence rule. ***Grounding against the code proves what IS; grounding against the spec proves what was DECIDED — and a decision record needs both.*** D-124's conclusions stand; its completeness did not.
+
 ## D-125 — The utilities row is MIXED: utility buttons, toggles and indicators are different kinds and must stay distinguishable
 
 **Date:** 2026-07-23 · **Layer:** UI vocabulary + component taxonomy · **Ref:** D-121 (two lenses), D-122 (vocabulary precedent), D-123 (seats), D-112/D-113 (plugin taxonomy), W-12, N-063 (owned popup) · **Journal:** J-576 · **Code:** none — this is a vocabulary.

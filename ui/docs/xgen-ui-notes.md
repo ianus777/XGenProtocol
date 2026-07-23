@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.8  
+> Version: 1.9  
 > Date: May 2026  
 > **Last updated**: 2026-07-23  
 > Language: English  
@@ -3367,3 +3367,19 @@ document*.
 **Result:** literal `-eq` reference `True` ⇒ literals are safe to write through PowerShell command strings. *Without step 3, a transport that mangled the literal into different-but-valid UTF-8 would have passed steps 1 and 2.*
 
 ⚠️ **AND THE READ SIDE LIES IN THE OTHER DIRECTION.** MCP responses render repo text as `â€"` / `Å¾` (UTF-8 shown as Latin-1). **That is a DISPLAY artefact of the response channel, not file damage** — proven by the byte dumps above. 🔑 *Do not "fix" an encoding you only saw in a tool response; verify it in bytes first, or the repair becomes the corruption.*
+
+### N-164 — Grounding against CODE proves what IS; grounding against the SPEC proves what was DECIDED. A decision record needs both.
+
+**2026-07-23 (J-577).** **D-124 was written from the code and was three-quarters right.** Its L/S/G naming-scope axis was derived by measuring `xgen-core/src/identity/registration.rs`, `ops.rs` and `SpaceMember`. Every measurement held. **Then Joe said the address book had documentation, and `docs/xgen_ch2_architecture.md` turned out to carry the same model already — with a fourth layer and a precedence rule that no amount of code-reading would have produced.**
+
+**What the code could not show:**
+
+- ⚠️ **The contact NOTE.** Not a name at all — *"supplementary context, displayed on demand"*. Unbuilt, so it has no code to measure, so a code-grounded pass **cannot see it even in principle**.
+- ⚠️ **The override chain** — contact alias → Space nickname → global, *"regardless of context"*. **Precedence is a decision, not a structure.** Nothing in a struct definition encodes which layer wins.
+- ⚠️ **That `SpaceMember`'s missing name field means UNBUILT, not IMPOSSIBLE.** Ch2 assigns per-space names a home (*Space membership record*). The code proves absence; **only the spec distinguishes "not yet" from "not intended"** — and D-124 wrote *"impossible"* on the strength of the struct.
+
+🔑 **THE ASYMMETRY IS THE POINT.** Code cannot lie about what exists, and **cannot speak at all about what was intended**. A spec can be stale, but it is the only record of a decision that has not been built yet. ⇒ **Absence in code is evidence of nothing until the spec has been checked.** *An unbuilt feature and an abandoned one are byte-identical in a repository.*
+
+⚠️ **AND IT IS THE SAME SHAPE AS N-156 AND N-161, ONE LEVEL UP.** Those say a probe reporting *what was asked for* is not evidence of *what happened*. This says a probe reporting *what exists* is not evidence of *what was decided*. **In all three the failure looks like a clean result** — the audit finished, every reading held, and the conclusion was still incomplete.
+
+📌 **Practical rule.** Before any decision record about a domain the project has documented: **grep the `docs/ch*` and `*-phase0.md` set for the subject FIRST**, not after. Cost is one search; D-124 cost an amendment.

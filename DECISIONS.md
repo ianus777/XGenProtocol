@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-21  
+> **Last updated:** 2026-07-23  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -4581,3 +4581,86 @@ Chat still surfaces appearance and architectural problems — **on 2026-07-22 th
 Per-view room binding, the vocabulary split, the `skin.css` split — all Chat's to argue, Joe's to lock. **He rejected two of those three on 2026-07-22 and was right both times** (one file is the reskinning surface; the loose-umbrella vocabulary is smaller than a five-document split). ***That is the mechanism working, not Chat overstepping.***
 
 **⚠️ HELD HARDEST — unchanged and undiminished:** anything touching **identity, the wire, or an irreversible act** goes to Joe **UNRESOLVED and NAMED**, *even when it arrives dressed as a technical detail.* D-122's scope clause exists for this reason, and D-121's collision rule is not softened by this decision. **D-123 describes ownership; it creates no trump card and overrides nothing.**
+
+## D-124 — Naming scope is an axis (local · per-space · global); the Self toggle is a VIEW PREFERENCE, not an identity edit
+
+**Date:** 2026-07-23 · **Layer:** Identity vocabulary + client view state · **Ref:** D-121 (two lenses), D-122 (vocabulary precedent, scope clause), D-123 (seats), lock #5 in `tasks/M_RP6_3_COMPOSER.md` §9.11.3, `tasks/M_RP_LOCK_RECHECK.md` §11, spec 3.6.10.2 · **Journal:** J-576 · **Code:** none — this is a vocabulary and a deferral.
+
+### Why it was needed
+
+*"Customisable later"* (lock #5's fix, Joe 2026-07-22) was read as a UI affordance. Grounding at `7408056` says it is not: `identity.update` is a **real, signed, versioned wire message** (`xgen-core/src/identity/registration.rs` — `update_version`, `changes`, signature-verified, `is_ai` immutable, error 3041), `display_name` is validated (≤128, non-empty, no control chars) and **replicates**. ⚠️ **And the client cannot emit it** — `xgen-client/src/ops.rs` L392/404 set `display_name` at **registration only**, and `xgen-client` holds **zero** references to `sign_update`. All "rename" hits in the client are **room** renames.
+
+🔑 *One phrase was carrying three different features, one of which is a protocol operation. That is the D-122 shape at the identity layer.*
+
+### The three fixed terms
+
+| term | means | state at `7408056` |
+|---|---|---|
+| **L — local override** | you rename **someone else**; only **you** see it | client-only, no wire. ⚠️ **zero lines exist today** |
+| **S — per-space name** | you name **yourself**; **that space** sees it | ⚠️ **impossible today** — `SpaceMember` is `identity_id · role · joined_at · invited_by`, **no name field at all** |
+| **G — global name** | you name **yourself**; **everyone** sees it | = `identity.update`. Protocol exists; **client cannot emit** |
+
+🔑 **THE AXIS IS SCOPE — nobody · one space · everywhere — NOT "local vs replicated".** L is not a cheap G: **it points at a DIFFERENT PERSON.** ⚠️ And **erasure difficulty scales with scope**, which is the GDPR gradient.
+
+### Rulings (Joe, 2026-07-23)
+
+1. **The self surface's naming scope is G ONLY.** L belongs on the *other* person's card / member list, never on the self surface.
+2. ⚠️ **"Self" is a TOGGLE, not a label and not a placeholder.** Joe: *"self will be optional. that what the setting needs. merge names in display to Self or stay various by the wish."*
+   - **ON (DEFAULT, per lock #5)** — all your **own** names **merge** to *"Self"* in **your own view**, so different names in different contexts stop bothering you.
+   - **OFF** — your actual name for that context renders instead (G today; S later, if S is ever built).
+3. 🔒 **ONE GLOBAL PREFERENCE. NOT PER-SPACE.** Joe: *"globally is correct. if for all spaces, one could loose his mind."* 🔑 **The joke is the rationale** — the toggle exists to REDUCE the load of tracking your own names, so a per-space version would **reinvent the problem it solves.** ⚠️ Do not "generalise" it later; that is a regression, and this line is why.
+4. ⇒ **It is L pointed at yourself: a VIEW PREFERENCE.** ZERO wire, no `identity.update`, no migration gate, **not an identity edit**.
+5. ⚠️ **DO NOT build a name input into the self surface.** *"Customisable"* means **the toggle**, confirmed twice. Shipping a rename field without a ruling would silently choose a branch — a decision applied in code and never entered in the record.
+6. **The styling verdict is ORTHOGONAL** — V3 + `#E5E5E5` (J-575) applies to the self name in **both** states.
+
+### Where the preference lives
+
+**PER-DEVICE** (Joe, 2026-07-23, on Chat's recommendation). It rides the mechanism that already holds view preferences — `uiStateStore`, which already persists `session.layout` across relaunch (M-RP7.5 Leg B).
+
+**Why this and not identity-bound:** ① **no new persistence surface, no wire, and no GDPR surface for a checkbox** — D-124's *zero wire* claim stays true of the preference itself, not only of what it displays; ② the drift cost is near-zero in practice, because the default is ON, so a fresh device shows *"Self"* anyway, and a user who turned it OFF needs one click to correct it. ⚠️ **Identity-bound would have put a cosmetic preference into replicated user data**, which is the opposite of what the no-anonymity core needs to keep small.
+
+### ⚠️ `merge`, never `collapse`
+
+**`collapsed` is a persisted layout schema field** on leaves — including `widgetId: 'self'` — and has been **migrated twice** (`ui/client/src/layout-default.ts:91`: `version: 3`, leaf `collapsed` boolean → FoldAxis, upgraded by `migrateLayout`; `foldLeaf` / `handleFold(regionId, collapsed)` persist across relaunch).
+
+⇒ *"collapse the self panel"* reads most literally as **fold the self dock tile**. **`merge` is the fixed term** (Joe's own word, from the ruling). 🔑 *Caught before it entered a decision record — `window` (D-122) and `self` were both caught after.*
+
+### It is testable today, and lock #5 lands without resolving the fork
+
+ON → *"Self"*; OFF → the registered `display_name`, which already resolves to *"Joe"* (`self-panel.svelte:43`). **Two real states, nothing new on the wire.** ⇒ **Lock #5 closes without deciding how G is EDITED.** That fork — local-cosmetic vs a real signed `identity.update` — is **later, and is not this milestone**.
+
+### Auth uses keys only — `display_name` plays no part
+
+`TrustAssertion` binds to `identity_id` (`xgen://pubkey/ed25519:`); `xgen-core/src/auth/**` holds **zero** references to `display_name`. ⚠️ T2–T4 claims carry `legal_name_verified: bool` — **a FLAG, not a NAME.** The protocol attests **that** a name was verified and **never carries the name**. Tiers: T1 cryptographic identity only; T2/T3/T4 TTL 365/180/90 days; space admission gated by `auth_tier` via `verify_tier` (error 3030 `tier_mismatch`).
+
+### ⚠️ Still open, NOT decided here — both JOE'S
+
+- **NAME TRUTHFULNESS BY TIER.** Joe's position: T1 = the name does not matter; T4 = real name required. **The scaffolding exists** (space `auth_tier` + tier claims); **the comparison does not** — nothing links `display_name` to any tier check, and the assertion carries no name to compare against. ⇒ enforcement needs **either** a new claim carrying the verified name **or** the module attesting the name rather than the fact. ⚠️ **That puts legal names on the wire** — GDPR territory, sitting on the no-anonymity core. **UNRESOLVED. Do not design around it; ask.**
+- **DOES S SURVIVE NO-ANONYMITY?** One name in one space and another elsewhere is **soft pseudonymity** even with a fixed cryptographic XGID underneath: the XGID makes correlation **possible**, per-space names make it **effortful**. The question is whether no-anonymity means the identity is **verifiable** or the person is **recognisable**. **Not answered.** S is out of scope either way (ruling 1).
+
+## D-125 — The utilities row is MIXED: utility buttons, toggles and indicators are different kinds and must stay distinguishable
+
+**Date:** 2026-07-23 · **Layer:** UI vocabulary + component taxonomy · **Ref:** D-121 (two lenses), D-122 (vocabulary precedent), D-123 (seats), D-112/D-113 (plugin taxonomy), W-12, N-063 (owned popup) · **Journal:** J-576 · **Code:** none — this is a vocabulary.
+
+**Joe, 2026-07-23:** *"utilities -> utility buttons for button forms"*, and on the self region: *"this will be epicentre / heart of whole client … all as just buttons [?]"*.
+
+### The answer is no — and all four kinds are already shipped `core`
+
+| kind | holds state? | clickable? | component | example |
+|---|---|---|---|---|
+| **utility button** | no | yes | `button` (64 ln) + `icon` (97 ln) | settings · address book · help |
+| **toggle** | **yes, and shows it** | yes | `toggle` (36 ln) | the Self toggle · device-control class |
+| **indicator** | reflects state | **NO** | `status-indicator` (73 ln) / `led` (58 ln) | the connection light |
+| **split control** | opens a list | yes | `menu` (283 ln) or owned-popup (N-063) | a button with a chevron beside it |
+
+All four are `use:envelope`-registered, so all four are CDP-readable. 🔑 **Nothing new enters `core`** — the utilities row is a **widget-tier composition**, not a component milestone.
+
+### The rule, and why it is user-visible rather than architectural
+
+**A toggle authored as a utility button loses its on/off affordance. An indicator authored as a utility button invites a click that does nothing.** (D-121 lens ①.) ⚠️ On the surface that represents the person to themselves, **a control that lies about whether it is a control** is the worst possible place for it.
+
+⇒ **The kinds must remain distinguishable to the eye.** ⚠️ **HOW they are distinguished is APPEARANCE and therefore JOE'S** (D-123). *That* they must differ is the rule.
+
+### Scope
+
+**Vocabulary only.** It assigns no utility to any row, fixes no layout, and does not decide whether the row is fixed or plugin-extensible — that is FILED INTENT in `tasks/M_RP_SELF_GATE.md` §4, locking at **Phase-0**. ⚠️ If it becomes extensible it is a **plugin surface under D-112/D-113**, which is materially larger than a widget.

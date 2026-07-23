@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.7  
+> Version: 1.8  
 > Date: May 2026  
 > **Last updated**: 2026-07-23  
 > Language: English  
@@ -3349,3 +3349,21 @@ document*.
 ② The defect was not found by looking for defects. **It was found because an unrelated question pointed at the same pixels.** *That is not a process; it is luck, and luck does not scale with the number of surfaces.* (Same family as **J-568**: the retired seat's items had no owner, so nothing surfaced them either.)
 
 📌 **Filed, not scoped:** a contrast sweep over `skin.css` colour pairs is cheap and mechanical. ⚠️ **The remedies are appearance and therefore Joe's** — the *measurement* is not.
+
+### N-163 — Two tooling probes that failed SILENTLY into a plausible result, and the differential check that finally proved the write path
+
+**2026-07-23 (J-576).** Records-only session, `Windows-MCP:PowerShell` fallback (`Filesystem:*` MCP dead for a third session). **Two probes returned confident nonsense before anything was written.**
+
+⚠️ **① `cd` IN POWERSHELL DOES NOT MOVE .NET'S WORKING DIRECTORY.** A line-ending audit built as `cd E:\...; [System.IO.File]::ReadAllBytes('DECISIONS.md')` reported **`CRLF=0 LF=0` for five files at once.** `ReadAllBytes` resolved the relative path against the **process** working directory, threw, the error was swallowed, `$b` stayed `$null`, and the counter loop simply never executed. 🔑 **Zero is a number, so the result looked like an answer.** Five files reporting *no line endings at all* is the only reason it was caught. ⇒ **always absolute paths in `[System.IO.*]` calls.**
+
+⚠️ **② `[char]` CANNOT HOLD AN ASTRAL CODE POINT, AND THE FAILURE WRITES A FILE.** `[char]0x1F512` (🔒) is above the BMP; PS 5.1 throws, `WriteAllText` receives `$null` — and **produces a zero-byte file rather than an error.** A probe that leaves an artefact behind reads as a probe that ran. ⇒ `[System.Char]::ConvertFromUtf32(0x1F512)` for anything above `0xFFFF`; BMP + variation selector (⚠️ = `U+26A0 U+FE0F`) is fine as two `[char]`s.
+
+🔑 **THE FIX WAS N-161'S GENERAL FORM, APPLIED TO ENCODING.** *"Find a reading that must CHANGE if the thing worked, and a reference that must NOT."* Neither *"the file exists"* nor *"the write returned"* can fail. What can:
+
+1. Write a **literal** string containing the real hazards — `—` `⇒` `🔒` `🟡` `⚠️` `ž` `ý`.
+2. **Read the bytes back** and check the actual UTF-8 sequences (`e2 80 94`, `f0 9f 94 92`, `e2 9a a0 ef b8 8f`, `c5 be`, `c3 bd`) and that **no BOM** was written (`b[0] != 0xEF`).
+3. ⚠️ **Compare against a `ConvertFromUtf32`-constructed reference string** — this is the negative control. Steps 1–2 alone prove the *file* is well-formed UTF-8; **only step 3 proves the literal survived the MCP transport unmangled**, which is the thing actually in doubt.
+
+**Result:** literal `-eq` reference `True` ⇒ literals are safe to write through PowerShell command strings. *Without step 3, a transport that mangled the literal into different-but-valid UTF-8 would have passed steps 1 and 2.*
+
+⚠️ **AND THE READ SIDE LIES IN THE OTHER DIRECTION.** MCP responses render repo text as `â€"` / `Å¾` (UTF-8 shown as Latin-1). **That is a DISPLAY artefact of the response channel, not file damage** — proven by the byte dumps above. 🔑 *Do not "fix" an encoding you only saw in a tool response; verify it in bytes first, or the repair becomes the corruption.*

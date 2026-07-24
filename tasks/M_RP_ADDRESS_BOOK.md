@@ -1,6 +1,6 @@
 # M-RP-ADDRESS-BOOK — client-side seen-records, the identity cache the UI reads names from
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-24  
 > Language: English  
@@ -131,7 +131,16 @@ A local cache of **other people's** identity data. This is one of the project's 
 **E3 — eviction:** records unseen for *N* drop out — the client-side counterpart of the spec's own TTL expiry.
 
 🔒 **LOCKED — E1 + E2 + E3 (Joe, 2026-07-24).** All three. E3 is not a nice-to-have: it is the client's arm of the erasure mechanism the protocol already relies on.
-⚠️ **ONE PARAMETER OUTSTANDING, JOE'S:** *N*, the eviction window. Not blocking Phase-0 close; needed before the seed corpus (§8, Leg C) can exercise eviction and before Leg D build. Recorded as the single open value on this lock.
+🔒 **N RESOLVED (Joe, 2026-07-24).**
+
+- **N is per-tier, Auth-Module-declared.** The address book reads an eviction policy off the Auth Module of the Space the identity was seen in — same pattern as D-088's tier-scaled interior. The client is a *consumer* of the policy, never its author. ⚠️ **Interface dependency (structural, Joe's):** the book calls into the Auth Module for retention policy — a client↔module seam, deferred to M10 (Auth Module Reference Set); no reference module declares a retention N today, so the read is later work.
+- **Protocol pins the floor: the no-module / T1 fallback is FINITE, never ∞.** Modules raise N upward from there; nothing is required to *lower* it. This keeps T1 — the tier with no retention duty and the real minimisation pressure — from silently caching forever.
+- **T1 default N = 182 days (6 months), customisable.** The single value live today; the one Leg C needs to age a seed record past and prove eviction fires.
+- **Retention rises monotonically with tier; T4 ≈ "keep" (Ch2: 10–20+ yr) — a large finite value, not a stored ∞.** ∞ is abstract; the code never needs an infinity case. Rationale: in T3/T4 (corporate/legal, government/health) a cached identity record can be **evidence** — safeguarding, security, legal. Evicting it on a hygiene timer destroys accountability material exactly where it is most needed. **Safety/evidence-preservation outranks data-minimisation as the tier rises** (GDPR Art. 17(3) retention-for-legal-claims is the same gradient).
+- ⚠️ **`TIER*_TTL_DAYS` (tiers.rs:22–24) ARE NOT ELIGIBLE AS N.** Those are **Trust-Assertion renewal TTLs** (how often a *credential* is re-proven) and run the **opposite** way — T2 365 → T4 90, *shorter* at higher tier. Retention N runs *longer* at higher tier. Same-shaped numbers, opposite meaning: **never reuse the TTL constants for eviction.**
+- 📌 **ALL Ns ARE PROVISIONAL DEVELOPMENT VALUES (Joe, 2026-07-24).** Today's figures — the 182-day T1 default and any per-tier defaults the reference modules eventually carry — are **temporary, for development**, to be re-tuned once real Auth Modules exist. Recorded so a future reader does not mistake a placeholder for a considered constant.
+
+📌 **"NOT RENEWED" — a locally-derived annotation, no federation, no push, no protocol change.** `TrustAssertion` carries an explicit **`valid_until`** RFC-3339 date (`xgen-common/src/trust_assertion.rs:265`), and `IdentityRecord.trust_assertion` holds the whole assertion (`registry.rs:45`), which already replicates inside the record §5 caches. ⇒ the client derives *not renewed* = `now > valid_until` by a **date comparison against the clock** — reading the issuer's signed expiry, not re-judging validity itself (Joe's point: the client is not the verifier; the source of truth is the issuer's stamped `valid_until`, which rides *in* the cached record). A node-pushed flag would go stale the instant it was sent and would reintroduce the push-freshness problem Leg A showed the protocol has no path for; a cached date never goes stale. **An expired assertion does NOT evict the record** — the identity stays in the book, flagged. Filed as an annotation-on-record (sibling to `revoked`), **display deferred to M-RP-MEMBERS and Joe's**. ⚠️ **N-164 pending:** confirmed the *type* carries `valid_until` and the *field* holds the assertion; NOT yet confirmed the F1/F2 fill path populates `trust_assertion` (it is `Option` — may arrive `None`). A build-time check for Leg C/D, not a Phase-0 blocker.
 
 ⚠️ **THE COLLISION STILL STANDS, handed over unresolved (D-121):** when an identity is erased **upstream**, does the local book ever *learn*? The only signal the protocol offers is `identity.not_found` on a re-fetch (which V2 performs on encounter) — there is no push. ⇒ this remains **the first place in the project where right-to-be-forgotten lands concretely**; E1+E2+E3 bound the local exposure, they do not close the propagation gap. Not traded away.
 
@@ -167,6 +176,7 @@ A local cache of **other people's** identity data. This is one of the project's 
 **[CHAT]**
 - [x] §5's revocation-push question measured against code, result recorded
 - [x] four decisions locked by Joe and written into this doc (§4 F1 u F2 . §5 V2 . §6 E1+E2+E3 . §7 own file)
+- [x] §6 N resolved: per-tier Auth-Module-declared, finite floor, T1 = 182 d provisional dev default; not-renewed = derived from cached valid_until
 - [ ] seed corpus specified and the `--batch` set written
 - [ ] runbook authored for Clair
 

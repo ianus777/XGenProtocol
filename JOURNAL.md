@@ -8,6 +8,27 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-580 — Address book §6 N resolved: per-tier Auth-Module-declared with a finite floor, T1 = 182 d provisional; "not renewed" derives from cached valid_until, no push
+
+**Date:** 2026-07-24 · **Seats:** Joe (N is a tier/auth-module matter; T4 retention as evidence-preservation; N values provisional; the not-renewed flag) · Chat (grounding, measurement, records). **ZERO code. ZERO `skin.css`.**
+
+**WHAT SHIPPED.** `tasks/M_RP_ADDRESS_BOOK.md` **v1.3** — §6's open N parameter resolved; Leg C unblocked. No code.
+
+**N IS A TIER MATTER — resolved as the D-088 pattern.** N (E3 eviction window) is **per-tier, Auth-Module-declared**: the book reads a retention policy off the Auth Module of the Space the identity was seen in; the client consumes, never authors. ⚠️ That is a **client↔module interface seam** (structural, Joe's), deferred to M10 — no reference module carries a retention N today. **The protocol pins the floor: the no-module / T1 fallback is FINITE, never ∞** — modules only raise N, keeping T1 (no retention duty, real minimisation pressure) from silently caching forever. **T1 default = 182 days (6 months), customisable** — the one live value, the one Leg C ages a seed record past.
+
+**DIRECTION — retention rises monotonically with tier, and WHY (Joe's correction, adopted).** An earlier Chat framing ("privacy hygiene → T4 shortest N") was **machine logic and wrong at the top tiers** — it was Chat's own inference, never in the spec (grepped: "third-party PII"/"cache hygiene" → 0). In T3/T4 a cached identity record can be **evidence** (safeguarding, security, legal); evicting it on a hygiene timer destroys accountability material where it is most needed. **Safety/evidence-preservation outranks data-minimisation as the tier rises** — GDPR Art. 17(3) (retention for legal claims) is the same gradient. T4 ≈ "keep" (Ch2: 10–20+ yr) = a **large finite value, not a stored ∞**; ∞ is abstract, the code needs no infinity case.
+
+⚠️ **MEASUREMENT TRAP RECORDED — `TIER*_TTL_DAYS` ARE NOT N.** `xgen-core/src/auth/tiers.rs:22–24` carries T2 365 / T3 180 / T4 90 — but these are **Trust-Assertion renewal TTLs** (credential re-proof cadence) and run the **opposite** way (shorter at higher tier). Retention N runs longer at higher tier. Same-shaped numbers, opposite meaning — reusing them for eviction would wire the ladder backwards. Flagged in §6 so it is recorded, not merely avoided once.
+
+📌 **"NOT RENEWED" — locally derived, no federation, no push, no protocol change (Joe's flag idea, grounded).** `TrustAssertion` carries an explicit **`valid_until`** RFC-3339 date (`xgen-common/src/trust_assertion.rs:265`); `IdentityRecord.trust_assertion` holds the whole assertion (`registry.rs:45`) and it already replicates inside the record §5 caches. ⇒ the client derives *not renewed* = `now > valid_until` by a clock comparison — **reading the issuer's signed expiry, not re-judging validity** (Joe: the client is not the verifier; the source of truth rides *in* the cached record). A node-pushed flag would go stale on send and reintroduce the very push-freshness gap Leg A found absent; a cached date never goes stale. **An expired assertion does NOT evict the record** — the identity stays, flagged. Filed as an annotation-on-record (sibling to `revoked`); **display deferred to M-RP-MEMBERS, Joe's.** ⚠️ **N-164 pending:** type carries `valid_until` and field holds the assertion — NOT yet confirmed the F1/F2 fill path populates `trust_assertion` (`Option`, may be `None`); a Leg C/D build-time check, not a Phase-0 blocker.
+
+📌 **ALL Ns ARE PROVISIONAL DEV VALUES (Joe).** Today's figures are temporary, to be re-tuned when real Auth Modules exist — recorded so a future reader does not mistake a placeholder for a considered constant.
+
+**MEASURED at `3ea1efe`** (control: 163 non-test source `.rs`): T1 reference module (`xgen-auth-module`, M10.2) is a **real** offline Ed25519 signer; T2/T3/T4 are **interface-only** (`tiers.rs` claim structs + tier-gate logic, no verification module) — Joe's "T1 and a dummy T4" recollection confirmed. `module_registry.rs` is store-before-consumer (AMR-D1), no runtime retention consumer.
+
+**NEXT.** Leg C — Chat specifies the seed corpus from the fully locked policy (F1∪F2 · V2 · E1+E2+E3, T1 N = 182 d · own file) and writes the `--batch` set. Then Leg D — Clair builds from a runbook. **M-RP-MEMBERS** unblocks at the members-widget step, after populate + book build; the not-renewed badge display lands there.
+
+---
 ## Entry J-579 — Address book §4–§7 locked: F1∪F2 fill, V2 freshness, E1+E2+E3 erasure, own file — and D-088 corrected §6 mid-session
 
 **Date:** 2026-07-24 · **Seats:** Joe (locked all four; the ordering; the reserved appearance/architecture surfaces) · Chat (Leg A measurement, D-088 grounding, records). **ZERO code. ZERO `skin.css`.**

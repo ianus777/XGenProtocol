@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-23  
+> **Last updated:** 2026-07-24  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -4662,6 +4662,36 @@ ON → *"Self"*; OFF → the registered `display_name`, which already resolves t
 **④ CONSEQUENCE FOR `M-RP-INBOUND-NAME`.** It was filed as *XGID → display_name*. Ch2 makes it **the four-layer override chain**, with the address book as the **Private Identity record plus the resolver that walks it**. Same blocker, **materially larger scope**.
 
 🔑 **THE LESSON, WHICH IS NOT ABOUT NAMES.** D-124 was grounded against **code** and got three layers. The **architecture document** had four and the precedence rule. ***Grounding against the code proves what IS; grounding against the spec proves what was DECIDED — and a decision record needs both.*** D-124's conclusions stand; its completeness did not.
+
+## D-126 — Humane pubkey label: a display-only rendering of an XGID for convenience listings
+
+**Date:** 2026-07-24 · **Layer:** client display utility (non-protocol) · **Ref:** D-088 (identity erasure = orphaned pubkey), D-121 (two lenses), D-123 (seats — appearance is Joe's), N-163 (positive control) · **Journal:** J-579 · **Code:** none yet — recorded as adopted intent, no runbook.
+
+**Joe, 2026-07-24:** adopt a human-friendlier rendering of a pubkey/XGID for cases where listing full 65-char XGIDs is heavy and full precision is not needed — e.g. statistics listings. *"not profound but sufficient distinguishing."* Not for serious/identifying use.
+
+### What it is
+
+A **pure deterministic function of the XGID** — no registry, no storage, no network, nobody assigns or picks it. Same key always renders the same label, recomputed on read. It is a **different alphabet for the same number**, not a second identifier.
+
+Two families, both in scope depending on the view:
+- **Tail truncation** — last N chars of the XGID (entropy is in the tail; the `xgen://pubkey/ed25519:` prefix is constant). N=8 for a stat listing. Cheapest; already the pattern in `app.rs`/`ops.rs`.
+- **Word rendering** — SHA-256 the XGID, slice into 11-bit chunks, index a fixed 2048-word list, join (`amber-falcon`). Hash-first for even spread. More readable in a table, needs a wordlist file.
+
+### The hard limit — LABEL, NEVER IDENTIFIER
+
+⚠️ Short and globally-unique are mutually exclusive (birthday bound: 2 words ~2k, 3 words ~90k, N=8 base32 ~millions before a likely collision). This is acceptable **only because it is a display aid read inside a bounded view** (a listing, a roster), where uniqueness need only hold within the view. If a view collides, escalate the colliding entries to a longer form.
+
+**It MUST NOT be typeable, searchable, or usable to address anyone**, and the full XGID MUST stay reachable. An attacker can grind keys to render as any target label in seconds — so nothing may match, look up, or rest trust on the label (the PGP short-key-ID lesson).
+
+### Open, and Joe's (appearance/structure — deferred, not blocking)
+
+- **Canonical vs cosmetic** — one workspace-wide wordlist so every client renders a key identically (enables verbal reference: *"the amber-falcon one"*) vs client-local. Canonical makes it a protocol-adjacent concern; cosmetic keeps zero spec surface.
+- **Wordlist language** — a single fixed list is English-by-default; phonetically-distinct invented syllables read cleanly across Slovak/English. A naming call.
+- **Word count / form per surface** — 2 words suffices for stat listings.
+
+These are recorded as open. Nothing is built; when a surface needs it, it is a small function plus (for the word form) a wordlist file, no protocol messages, no migration.
+
+---
 
 ## D-125 — The utilities row is MIXED: utility buttons, toggles and indicators are different kinds and must stay distinguishable
 

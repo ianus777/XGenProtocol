@@ -1,6 +1,6 @@
 # M-RP-ADDRESS-BOOK — client-side seen-records, the identity cache the UI reads names from
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-24  
 > Language: English  
@@ -86,7 +86,9 @@
 **F3 — registry pull.** Everyone the node knows.
 - ⚠️ **COLLIDES WITH THE SPEC, not merely with cost.** Ch2 §Cross-Space Discoverability: *a user's Space membership list is not globally disclosed … the network does not expose a global membership index.* Recommended **refused on spec grounds**, not weighed on cost.
 
-**Chat's recommendation:** **F1 ∪ F2**, F3 refused. Joe locks.
+**Chat's recommendation:** **F1 ∪ F2**, F3 refused.
+
+🔒 **LOCKED — F1 ∪ F2, F3 refused (Joe, 2026-07-24).**
 
 ---
 
@@ -98,7 +100,23 @@
 **V2 — refresh on encounter,** take the record with the higher `update_version`. *User-visible:* self-healing for active people; a quiet person's record stays as first seen.
 **V3 — V2 plus revocation is pushed,** not left waiting for an encounter.
 
-⚠️ **OPEN, and honestly unmeasured:** whether a push path for revocation exists today is **not established**. If it does not, V3 splits into *V2 now* + *revocation propagation as a named gap*. **This must be measured before the decision is locked, not reasoned.**
+🔒 **LEG A — MEASURED at `7ab743e`, 2026-07-24. ANSWER: NO PUSH PATH EXISTS.**
+
+*Positive control: 254 source `.rs` files, 792 `pub fn` (`target/` and `.claude/worktrees/` excluded).*
+
+- **A live node→client push channel DOES exist.** The client holds a home-Node WebSocket carrying `Inbound::Event` fan-out (`xgen-client/src/events_pipe.rs` header, EV-D3; `xgen-node/src/fanout.rs`). It is real and already carrying traffic.
+- **It cannot carry identity.** The entire DAG event space is `message.*` (text · file · reaction · redact), `state.*` (space · room · federation · mls · dm · status · node_priority · ai_operator) and `space.join_request`. **There is no `identity.*` event type.** Identity lives in the *control-message* layer, never in the DAG.
+- **Revocation is modelled, and it does propagate — node↔node only.** `IdentityRecord` carries `revoked: bool` + `revoked_at` (`xgen-core/src/identity/registry.rs`, 34 hits). `IdentityReplicateMessage::Replicate` pushes the full record plus `update_version` from home Node to replica Nodes (spec 3.13.4, `xgen-core/src/wire/types.rs:715`). **Replica Nodes are pushed to. Clients are not.**
+- **Client-side identity access is pull-only:** `identity.get` → `identity.record` / `identity.not_found` (spec 3.6.7). Request/response, one identity at a time.
+- **The client crate has zero revocation awareness** — one grep hit across all of `xgen-client`, at `app.rs:946`, and it is an unrelated AI-delegation CLI argument.
+
+📌 **Precedent, not an anomaly:** `state.status` (PROTO-STATUS, `xgen-core/src/status/mod.rs`) is already an identity-scoped, **global**, `update_version`ed object deliberately kept *off* `IdentityRecord` and *off* per-Space DAG resolution. An identity-scoped global object that nothing pushes is an existing shape in this protocol.
+
+⇒ **V3 IS NOT AVAILABLE AT ANY PRICE THIS ARC.** It is not a client feature and not a cache setting; it requires a new node→client identity-notification surface — a **protocol addition**, Joe's, and outside this milestone. §5 therefore chooses between **V1 and V2 only**, and revocation propagation to clients is recorded as a named protocol gap.
+
+**CHAT RECOMMENDS V2.** *User-visible:* names self-heal for anyone still active, and a revoked identity is corrected on next encounter — which is the only moment it can be rendered at all, so the trust defect narrows to *records you never meet again and therefore never display*. *Cost:* the record already arrives on encounter; V2 is one `update_version` comparison on top of V1. **The defect V1 carries is bought off for one integer compare.**
+
+🔒 **LOCKED — V2 refresh-on-encounter (Joe, 2026-07-24).** V3 is a protocol addition (Leg A) and is recorded as a named node→client identity-notification gap, outside this arc.
 
 ---
 
@@ -106,17 +124,24 @@
 
 A local cache of **other people's** identity data. This is one of the project's three standing tensions arriving **locally**, ahead of federation.
 
-**E1 — permanent, wholesale clear only.** *Cost:* nil. *User-visible:* nothing granular.
-**E2 — per-entry delete.**
-**E3 — eviction:** records unseen for *N* drop out.
+📌 **Grounded against D-088 (2026-06-04), read this session (N-164).** XGen identity erasure = **orphaning the pubkey↔person binding**: PII (display name, Trust-Assertion attestation) removed, pubkey persists as an anonymous token, every signature keeps verifying, **no Event touched** — `Event.sender` is inside the signed payload (`xgen-common/src/wire.rs:482`), unerasable by construction. The spec's mechanism for cached identity records is **signed deletion notice + federation TTL expiry**, "not guaranteed to propagate instantly" (Appendix D §3.3). ⇒ a client-side cache is exactly the shape TTL expiry exists for.
 
-⚠️ **THE HARD QUESTION, WHICH NONE OF THE THREE ANSWERS:** when an identity is erased upstream, **does the local book ever learn?** No federated mechanism guarantees it. ⇒ **this may be the first place in the project where right-to-be-forgotten must be answered concretely rather than deferred.** Flagged as a **collision** per D-121 — handed to Joe unresolved, not traded away.
+**E1 — permanent, wholesale clear.** *Cost:* nil. *User-visible:* nothing granular.
+**E2 — per-entry delete.** *User-visible:* remove one person by hand.
+**E3 — eviction:** records unseen for *N* drop out — the client-side counterpart of the spec's own TTL expiry.
+
+🔒 **LOCKED — E1 + E2 + E3 (Joe, 2026-07-24).** All three. E3 is not a nice-to-have: it is the client's arm of the erasure mechanism the protocol already relies on.
+⚠️ **ONE PARAMETER OUTSTANDING, JOE'S:** *N*, the eviction window. Not blocking Phase-0 close; needed before the seed corpus (§8, Leg C) can exercise eviction and before Leg D build. Recorded as the single open value on this lock.
+
+⚠️ **THE COLLISION STILL STANDS, handed over unresolved (D-121):** when an identity is erased **upstream**, does the local book ever *learn*? The only signal the protocol offers is `identity.not_found` on a re-fetch (which V2 performs on encounter) — there is no push. ⇒ this remains **the first place in the project where right-to-be-forgotten lands concretely**; E1+E2+E3 bound the local exposure, they do not close the propagation gap. Not traded away.
 
 ---
 
 ## §7 — Storage
 
-`xgen-status-gap-phase0.md` §2 names `xgen-client_state.json` as the client's projection home and the address book beside it. **Whether the book shares that file or takes its own is open** — a small decision, but it interacts with §6 (a separate file is trivially erasable; a shared one is not).
+`xgen-status-gap-phase0.md` §2 names `xgen-client_state.json` as the client's projection home and the address book beside it.
+
+🔒 **LOCKED — its own file (Joe, 2026-07-24).** Buys clean E1 (delete the file = wholesale erasure, verifiable), keeps other people's identity PII out of the client's own state, and interacts correctly with §6's E3.
 
 ---
 
@@ -140,8 +165,8 @@ A local cache of **other people's** identity data. This is one of the project's 
 ## §10 — DoD
 
 **[CHAT]**
-- [ ] §5's revocation-push question measured against code, result recorded
-- [ ] four decisions locked by Joe and written into this doc
+- [x] §5's revocation-push question measured against code, result recorded
+- [x] four decisions locked by Joe and written into this doc (§4 F1 u F2 . §5 V2 . §6 E1+E2+E3 . §7 own file)
 - [ ] seed corpus specified and the `--batch` set written
 - [ ] runbook authored for Clair
 
@@ -164,4 +189,4 @@ A local cache of **other people's** identity data. This is one of the project's 
 
 ## §12 — Handoff
 
-**Next action is Leg A (Chat, measurement), then Joe locks §4–§7.** No runbook, no code, no `skin.css` until then. **M-RP-MEMBERS** does not open until this book has a locked fill policy.
+**Leg A measured (no push path). §4–§7 LOCKED by Joe 2026-07-24.** Next action is **Leg C — Chat specifies the seed corpus from the locked policy and writes the `--batch` set** (§8), then **Leg D — Clair builds from a runbook**. ⚠️ **N (§6 eviction window) is the one open parameter, Joe's, needed before Leg C exercises eviction.** **M-RP-MEMBERS** now unblocks at the members-widget step of the agreed order — *after* populate + book build, not before.

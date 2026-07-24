@@ -8,6 +8,29 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-579 — Address book §4–§7 locked: F1∪F2 fill, V2 freshness, E1+E2+E3 erasure, own file — and D-088 corrected §6 mid-session
+
+**Date:** 2026-07-24 · **Seats:** Joe (locked all four; the ordering; the reserved appearance/architecture surfaces) · Chat (Leg A measurement, D-088 grounding, records). **ZERO code. ZERO `skin.css`.**
+
+**WHAT SHIPPED.** `tasks/M_RP_ADDRESS_BOOK.md` **v1.2** — the four Phase-0 locks written in. `DECISIONS.md` **D-126** (humane pubkey label, adopted, non-protocol, no runbook). Milestone still ACTIVE (build not begun); Phase-0 decisions closed.
+
+**LEG A — MEASURED at `7ab743e`, ANSWER: NO node→client revocation-push path exists.** Positive control: 254 source `.rs`, 792 `pub fn` (`target/` + `.claude/worktrees/` excluded). A live push channel *does* exist — the home-Node WS `Inbound::Event` fan-out — but **it cannot carry identity**: the whole DAG event space is `message.*` / `state.*` / `space.join_request`, with **no `identity.*` event type**; identity is control-layer only. Revocation *is* modelled (`IdentityRecord.revoked`/`revoked_at`) and propagates **node↔node** via `identity.replicate` (spec 3.13.4) — **replicas are pushed, clients are not**. Client identity access is pull-only (`identity.get`→`identity.record`). `xgen-client` has one revocation grep hit and it is an unrelated AI-delegation CLI arg. ⇒ **V3 is a protocol addition, unavailable this arc**; §5 chooses V1 vs V2 only.
+
+**THE FOUR LOCKS (Joe, 2026-07-24):**
+- **§4 FILL — F1 ∪ F2, F3 refused.** Author-on-sight ∪ Space-membership sweep. F3 (registry pull) refused on **spec** grounds — Ch2 §Cross-Space Discoverability forbids a global membership index — not weighed on cost.
+- **§5 FRESHNESS — V2 refresh-on-encounter.** Take the higher `update_version`. Firmed by Leg A (V3 unavailable) and by D-088 (re-encounter is the only path back to a fresh record). V1's revoked-renders-as-valid trust defect bought off for one integer compare.
+- **§6 ERASURE — E1 + E2 + E3.** All three. E3 (eviction of records unseen for *N*) is the client-side arm of the spec's own **TTL-expiry** cache-erasure mechanism (Appendix D §3.3), not a nice-to-have. ⚠️ **N is the one open parameter, Joe's**, needed before Leg C exercises eviction.
+- **§7 STORAGE — its own file.** Delete-the-file = clean verifiable E1; keeps other people's identity PII out of the client's own state.
+
+⚠️ **N-164 CAUGHT LIVE, AND OWNED.** §6's first recommendation ("E1+E2, E3 deferred") was written **without D-088**, a standing decision from 2026-06-04. Joe's informational question about erasure ("some data stay… for owner of occasional events") sent Chat to the docs; the read surfaced D-088; the recommendation was **corrected to include E3** — the change came from documentation, not from any instruction to alter it. *Recommending before grounding fully against the spec is exactly the trap; the pointer paid a third time.*
+
+📌 **D-088 restated for the record.** XGen identity erasure = **orphaning the pubkey↔person binding**: PII removed, pubkey persists as an anonymous token, every signature keeps verifying, **no Event touched** (`Event.sender` is inside the signed payload, `xgen-common/src/wire.rs:482`). The address book is that binding **one hop past the spec** — a client cache of it — so a cache-forever book would be a client PII store surviving upstream Art.17 erasure indefinitely. E1+E2+E3 bound the local exposure; the **upstream-propagation collision** (does the local book ever *learn* of an upstream erasure? only via `identity.not_found` on V2's re-fetch — no push) stays **handed over unresolved per D-121**, not traded away.
+
+📌 **D-126 — humane pubkey label (side thread, adopted).** A pure deterministic render of an XGID for convenience listings (e.g. statistics) where full 65-char XGIDs are heavy and precision is not needed — *"not profound but sufficient distinguishing."* Two families: tail-truncation (N=8, cheapest, already the `app.rs` pattern) and word-rendering (SHA-256 → 11-bit chunks → 2048-word list → `amber-falcon`). ⚠️ **Label, never identifier** — not typeable/searchable/trust-bearing, full XGID always reachable (PGP short-key-ID lesson). Canonical-vs-cosmetic and wordlist language left open, Joe's. No code, no protocol surface.
+
+**NEXT.** Leg C — Chat specifies the seed corpus from the locked policy and writes the `--batch` set (blocked only on Joe supplying **N**), then Leg D — Clair builds from a runbook. **M-RP-MEMBERS** unblocks at the members-widget step of the agreed order, after populate + book build.
+
+---
 ## Entry J-578 — The members widget was two unbuilt protocol subsystems wearing a panel: the address book is named in the record, absent from the code, and everything else decorates it
 
 **Date:** 2026-07-24 · **Seats:** Joe (the split, the ordering, the amendment surface, the reserved areas restated) · Chat (grounding, reconstruction, Phase-0, records). **ZERO code. ZERO `skin.css`.**

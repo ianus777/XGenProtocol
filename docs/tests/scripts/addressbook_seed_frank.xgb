@@ -1,6 +1,7 @@
 # Address Book Seed — frank (not-renewed badge case, enters normally here)
-# THEN (node admin, not a client line): identity_set_trust_expiry <frank_identity_id> <past-timestamp>
+# THEN (node admin, not a client line): identity set-trust-expiry <frank_identity_id> --expiry <past-RFC3339>
 register --name frank
 join --space <SPACE>
+join --space <SPACE> --room <ROOM>
 send --space <SPACE> --room <ROOM> --text "frank-msg-1"
 status

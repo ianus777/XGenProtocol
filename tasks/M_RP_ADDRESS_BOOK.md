@@ -1,6 +1,6 @@
 # M-RP-ADDRESS-BOOK — client-side seen-records, the identity cache the UI reads names from
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-24  
 > Language: English  
@@ -178,6 +178,7 @@ A local cache of **other people's** identity data. This is one of the project's 
 - [x] four decisions locked by Joe and written into this doc (§4 F1 u F2 . §5 V2 . §6 E1+E2+E3 . §7 own file)
 - [x] §6 N resolved: per-tier Auth-Module-declared, finite floor, T1 = 182 d provisional dev default; not-renewed = derived from cached valid_until
 - [x] seed corpus specified and the seed set written (Leg C — `docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md` + 6 `.xgb` scripts; carol v2 + grace E3 are Leg-D book-file cases)
+- [x] **POPULATE executed and verified (J-582)** — five NOW-tier identities seeded against a live node, cold-run reproducible; corpus corrected to v1.1 (room-join defect, `init --ai`); N-164 answered (`trust_assertion` is normally `None`)
 - [ ] runbook authored for Clair
 
 **IMPLEMENTER**
@@ -199,4 +200,15 @@ A local cache of **other people's** identity data. This is one of the project's 
 
 ## §12 — Handoff
 
-**Leg A measured · §4–§7 LOCKED (J-579) · N resolved (J-580) · Leg C DONE (J-581).** Corpus at `docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md` + 6 `.xgb` scripts. **NEXT: POPULATE** — run the NOW-tier seed (six `.xgb` + two node-admin ops: `identity_revoke` on dave, `identity_set_trust_expiry` on frank) against a live node+client (CHAT operational, a driving job — M6 shipped the write path), **then Leg D — Clair builds the book from a runbook** covering the two book-internal cases (carol V2 via Option-C file seed; grace E3 via a `last_seen` field shaped after `state.rs:118`). ⚠️ **Leg-D lookups:** node-admin CLI wiring for the two admin verbs; confirm the F1/F2 fill path populates `IdentityRecord.trust_assertion` (N-164 pending). **M-RP-MEMBERS** unblocks after populate + book build.
+**Leg A measured · §4–§7 LOCKED (J-579) · N resolved (J-580) · Leg C DONE (J-581) · ✅ POPULATE DONE (J-582).** Corpus at `docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md` **v1.1** + 6 `.xgb` scripts, all six now **proven runnable from cold**.
+
+**NEXT: the Leg-D runbook (CHAT authors, off the locked Phase-0), then Leg D (CLAIR implements).** The runbook must cover the two book-internal cases — carol V2 via the Option-C file seed; grace E3 via a `last_seen` field shaped after `state.rs:118` — plus loading the five NOW-tier identities and asserting F1/F2/AI/revoked/not-renewed.
+
+🔒 **BOTH LEG-D LOOKUPS ARE CLOSED (J-582), and one of them changed a build constraint:**
+
+- **Node-admin invocation surface — FOUND.** The node takes `--batch` exactly as the client does (`xgen-node/src/pipe.rs:98` → `admin_ops::AdminCli`). Verbs: `identity revoke <id> [--reason]` · `identity set-trust-expiry <id> --expiry <RFC3339>` · `identity list` · `identity show <id>`. Output surfaces on the **resident's** stdout.
+- ⚠️ **`trust_assertion` is normally `None` — ANSWERED, and it inverts the assumption.** The F1/F2 fill path populates it for **nobody**; frank only has one because `set_trust_expiry` synthesises a minimal `{"expiry": ...}` when none exists (`registry.rs:205`). **The not-renewed badge must render nothing on `None`, not "expired"** — otherwise every ordinary identity in a local-mode deployment wears a warning it never earned. This is now a constraint on Leg D, not an open question.
+
+📌 **Free for Leg D:** `clock advance` / `clock set` already ship as admin verbs behind `--features harness-control` (`admin_ops.rs:4437`, injected `MockClock`) — grace's aging needs a feature-gated build, not new machinery. And every seeded record carries `update_version: 0`, so carol v2 has a known floor to out-rank.
+
+**M-RP-MEMBERS** unblocks after the book build.

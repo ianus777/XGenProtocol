@@ -8,6 +8,29 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-582 — Address book POPULATE: the five NOW-tier identities seeded and verified, and the corpus itself failed live — room membership is not space membership
+
+**Date:** 2026-07-24 · **Seats:** Joe (go). Chat (measurement, driving, corrections, records). **ZERO product code. ZERO `skin.css`.**
+
+**WHAT SHIPPED.** `docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md` **v1.1** (§3/§4 corrected, new §7 POPULATE result). `tasks/M_RP_ADDRESS_BOOK.md` **v1.5** (DoD flipped, §12 rewritten — both Leg-D lookups closed). Four `.xgb` scripts corrected. No `.rs`, no `.svelte`.
+
+**THE RUN.** Fully headless and isolated at `C:\xgen-scratch\ab-populate`, outside the repo — node `--service` on 8080, six client instances, nothing Tauri, nothing CDP. Joe's Vite on 5173 was never touched and the working tree never went dirty. Binaries needed no rebuild: measured 15 commits since the `7408056` floor, all `.md`/`.xgb`, zero `.rs`.
+
+⚠️ **THE CORPUS FAILED LIVE, AND THAT IS THE ENTRY'S POINT.** erin's script died on the node's own refusal — `code 4000: step 11: sender is not a member of room`. **`join --space <S>` grants Space membership only; `send` requires Room membership.** Five of the six committed scripts were missing the second join. The corpus had been *specified* against measured CLI syntax and still shipped a defect that only running it could find — the multiparty suite had it right a year of milestones ago, carrying separate `*_join_room.xgb` scripts, and Leg C did not look. **Grounding against code proves what IS; grounding against a spec proves what was DECIDED; neither proves what RUNS.** That is a third axis on N-164, and it cost one failed script to learn instead of a whole Leg D built on a corpus that could not load.
+
+🔒 **CORRECTED, THEN PROVEN COLD.** The four scripts were fixed, the scratch wiped, and the whole corpus re-run **from zero against the committed files**. Cold run: 16 DAG events — 1 `state.space_create`, 1 `state.room_create`, 9 `membership.join`, 5 `message.text`. **bob authored exactly one event and no message** — F2 isolation clean and observable. alice's join is implicit at Space creation, matching the multiparty pairing table. `identity revoke` reported dave revoked with 1 stale membership space: the A5-D1 honest report, no cascade, as specified. *Correcting a script on paper and committing it untested would have re-run the same class of error one layer down.*
+
+🔑 **N-164 ANSWERED, AND IT INVERTS THE CONVENIENT ANSWER.** The pending question from J-580 — does the F1/F2 fill path populate `IdentityRecord.trust_assertion`? — measured: **it populates it for nobody.** Every seeded identity came back `None`. Frank has an assertion **only because `set_trust_expiry` synthesises a minimal `{"expiry": ...}` when the record has none** (`xgen-core/src/identity/registry.rs:205`; it reported the previous value as `(none)`). ⇒ **the not-renewed badge must render nothing on `None`, not "expired"** — a badge that computes `now > valid_until` against a missing assertion would put an expiry warning on every ordinary identity in a local-mode deployment, a warning nobody earned and nobody could act on. **This stopped being an open question and became a build constraint on Leg D.**
+
+🔒 **BOTH LEG-D LOOKUPS CLOSED.** The node-admin invocation surface: the node takes `--batch` exactly as the client does (`xgen-node/src/pipe.rs:98` → `admin_ops::AdminCli`, clap `no_binary_name`); verbs are `identity revoke <id> [--reason]` and `identity set-trust-expiry <id> --expiry <RFC3339>`, with `identity list` / `identity show` for reads. Output surfaces on the **resident's** stdout, not the caller's. And erin's staging is a CLI flag, not a hand-edited config — `xgen-client init --ai` (`app.rs:716`) writes the whole `[ai]` section; v1.0 had half-seen this and concluded the opposite.
+
+📌 **TWO THINGS LEG D GETS FOR FREE.** `clock advance` / `clock set` already ship behind `--features harness-control` (`admin_ops.rs:4437`, injected `MockClock`) — grace's aging needs a feature-gated build, not new machinery. And every seeded record carries `update_version: 0`, so carol's v2 has a known floor to out-rank.
+
+📌 **OPERATIONAL, RECORDED SO IT IS NOT PAID FOR TWICE.** `Start-Process -PassThru -RedirectStandardOutput` hangs the MCP PowerShell tool even when the launch succeeds — launch detached without `-PassThru`. Committed scripts keep their `<SPACE>`/`<ROOM>` placeholders; the runner substitutes into run-copies outside the repo.
+
+**HANDOFF.** NEXT is the **Leg-D runbook** (Chat authors, off the locked Phase-0), then **Leg D** (Clair implements). **M-RP-MEMBERS** unblocks after the book build.
+
+---
 ## Entry J-581 — Address book Leg C: seed corpus written, and it revealed a two-tier split — five identities node-executable now, carol (V2) and grace (E3) are book-internal, deferred to Leg D
 
 **Date:** 2026-07-24 · **Seats:** Joe (reuse `docs/tests/scripts/`; roster approved; Option C for carol; defer grace's fold as too costly a detour; "write it — a spared record lost two whole legs on a client reset") · Chat (measurement, corpus spec, scripts, records). **ZERO product code. ZERO `skin.css`.**

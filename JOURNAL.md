@@ -1,10 +1,40 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-23  
+> **Last updated:** 2026-07-24  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-578 — The members widget was two unbuilt protocol subsystems wearing a panel: the address book is named in the record, absent from the code, and everything else decorates it
+
+**Date:** 2026-07-24 · **Seats:** Joe (the split, the ordering, the amendment surface, the reserved areas restated) · Chat (grounding, reconstruction, Phase-0, records). **ZERO code. ZERO `skin.css`.**
+
+**WHAT SHIPPED.** `tasks/M_RP_ADDRESS_BOOK.md` **v1.0 ACTIVE — Phase-0 written, awaiting Joe's lock on §4–§7.** R7 split into **two** milestones. Roadmap reordered. No runbook, no code.
+
+**THE SURVEY THAT OPENED IT HELD.** The eight regions re-measured at `886dd07`: `REGION_IDS` = 8, six `surface:'region'` plugin rows (self · inspector · spaces · rooms · stream · composer), plus `connection-stats` as a *custom* region and `grid-plate` as `none`+component. A recursive search of `ui/` for `room-header` or `members` returns **zero files** — R4 and R7 are **absent, not partial**.
+
+🔑 **BUT THE SURVEY'S FRAMING WAS WRONG, AND THE MEASUREMENT SAID SO.** `entity-panel.svelte` is already the shared composite behind spaces, rooms and inspector; `entity-item.svelte` already carries a four-value variant axis (`row · card · nav · inline`) with the single-knob rule, and `entity-panel.svelte:155` hardcodes `variant="row"`. ⇒ **neither unbuilt region is a component gap.** R7's cost is a **state source**; R4's is the **unanswered view-binding question**. *Both had been filed as missing widgets, which is why neither had ever been put to Joe as a decision.*
+
+⚠️ **CHAT'S OWN ERROR, OWNED.** Chat then walked three roster options (snapshot / event-derived / both) off `SpaceState.members`. **That walk answered the wrong question.** Joe's R7 is a **contact list**, not a room roster. ⇒ **the walk is SUPERSEDED**; it survives only as **F2**, one *fill source* for the book. *A grounded walk toward the wrong target is still wrong; the grounding does not redeem the aim.*
+
+🔑 **JOE'S POINTER PAID AGAIN, EXACTLY AS AT J-577.** *"i think there are already in the docs some ideas."* The docs carry **four distinct layers**, and conflating them is the trap: ① public `IdentityRecord` (node, built) · ② **address book = client-side seen-records** (`xgen-status-gap-phase0.md` §2, *"client holds its projection … = client-side seen-records"*) · ③ contacts = **private encrypted annotations** in `identity_private` (Ch2 §Contact Model: reference + alias + note + `meta-atts`) · ④ presence, Space-scoped, *"not stored and not an Event"*, short TTL. **② is named and defined in the record — UNBUILT, not unimagined.**
+
+⚠️ **AND THE CODE AGREES WITH THE SPEC, SO THIS IS NOT N-164's TRAP.** Positive control: 51 files scanned, **175** `pub fn` matches. `address_book`/`seen_record`/`known_identit` → **0**. `identity_private`/`contacts` → **0**. `presence` → 8 hits, **every one the English word** (*predecessor presence*, *blob presence*). ⇒ **layers ②③④ are entirely unbuilt.** *R7 as described was two protocol subsystems and a panel, sitting at position one on the roadmap looking like a widget.*
+
+🔑 **WHY THE BOOK IS FIRST, AND IT IS STRUCTURAL.** A contact is a pubkey plus annotations — the pubkey resolves to nothing without a record. A presence signal is identity + space + status — without a record it is a coloured dot beside a 65-character XGID. `xgen-dd-entity-avatar-phase0.md` §2.1 already said it: *data dwells in the address book*. ⇒ **③ and ④ are decorations on ②.** And the payoff arrives early: the name chain's **bottom** layer is the global display name, which lives in `IdentityRecord` ⇒ **M-RP-INBOUND-NAME unblocks at the book, one milestone earlier than filed.**
+
+🔒 **D-071 ANSWERED THE ORDERING QUESTION WITHOUT A NEW JUDGEMENT.** Joe: *"i dont know which is cleaner"* — seed first, or audit first. **Phase-0 needs no data; the seed corpus is an OUTPUT of the fill policy.** Until §4 locks, nobody knows whether the corpus needs revoked identities, an `is_ai`, or a key rotation — so seeding first means seeding a plausible set that exercises nothing, then seeding again. *The standing decision already contained the answer; recommending populate-first would have argued against Joe's own lock.*
+
+⚠️ **TWO DIVERGENCES FROM Ch2, FILED NOT FIXED.** (1) Joe's *"shared visit card"* is a **mutual** exchange; Ch2 is emphatic that *"a contact is not a mutual connection … the other person is never notified"*. **An amendment, not a recollection.** (2) **Ch2 specifies no contact-acquisition flow at all** — it defines what a contact *is* and where it *lives*; there is no add, discovery, or request/accept anywhere in `docs/`. Grepped; zero. ⇒ **③ cannot be built until that is written.** Both belong to ③, not to this milestone.
+
+📌 **TOOLING, AGAINST THE KICKOFF'S STANDING WARNING.** `Filesystem:*` MCP **responded this session** after four sessions of total failure (`read_text_file` returned; it merely overflowed on an 80-line head). And the PowerShell write path was proved by **byte-level positive control** before any file was written: literal `ž`=`c5 be`, `⇒`=`e2 87 92`, astral `🔒`=`f0 9f 94 92`, roundtrip equal, no BOM. ⇒ **literals survive; building every symbol by code point is unnecessary.** *N-163 asks for a positive control; this is what one buys.*
+
+📌 **AND N-162 CLAIMED A THIRD.** While locating the ROADMAP insertion point, two `> ###` entries were found **adjacent with no blank between them** — markdown merges those into ONE blockquote. Repaired in the same pass, and a whole-file scan now reports **zero adjacent pairs**. *Two were pushed at J-576 and found by accident; this one was found because the insertion required counting lines. Document structure still has no verifier — only habits that happen to look.*
+
+**New `D`:** none. **New `N`:** none — the reconstruction lives in `tasks/M_RP_ADDRESS_BOOK.md` §3, where its consumers will look for it.
 
 ---
 

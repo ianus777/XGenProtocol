@@ -1,0 +1,4 @@
+# Address Book Seed — bob (F2 silent member — joins, never sends; appears only via membership sweep)
+register --name bob
+join --space <SPACE>
+status

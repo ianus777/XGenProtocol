@@ -1,0 +1,6 @@
+# Address Book Seed — dave (revocation case, enters normally here)
+# THEN (node admin, not a client line): identity_revoke <dave_identity_id>
+register --name dave
+join --space <SPACE>
+send --space <SPACE> --room <ROOM> --text "dave-msg-1"
+status

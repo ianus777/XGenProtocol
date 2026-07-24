@@ -1,0 +1,7 @@
+# Address Book Seed — carol (V2 case, v1 record only)
+# v2 rename ("Carol M." at higher update_version) is Option C: seeded into the book file at Leg D.
+# Measured 47ed16b: no live surface mutates display_name, so v2 cannot be produced by a script.
+register --name carol
+join --space <SPACE>
+send --space <SPACE> --room <ROOM> --text "carol-msg-1"
+status

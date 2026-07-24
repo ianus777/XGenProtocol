@@ -1,0 +1,7 @@
+# Address Book Seed — erin (AI identity)
+# PRECONDITION: launch erin's client with config AiSection.is_ai = true
+# (measured 47ed16b: client `register` has NO --ai flag; is_ai comes from resident config).
+register --name erin
+join --space <SPACE>
+send --space <SPACE> --room <ROOM> --text "erin-msg-1"
+status

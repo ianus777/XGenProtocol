@@ -8,6 +8,25 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-581 — Address book Leg C: seed corpus written, and it revealed a two-tier split — five identities node-executable now, carol (V2) and grace (E3) are book-internal, deferred to Leg D
+
+**Date:** 2026-07-24 · **Seats:** Joe (reuse `docs/tests/scripts/`; roster approved; Option C for carol; defer grace's fold as too costly a detour; "write it — a spared record lost two whole legs on a client reset") · Chat (measurement, corpus spec, scripts, records). **ZERO product code. ZERO `skin.css`.**
+
+**WHAT SHIPPED.** `tasks/M_RP_ADDRESS_BOOK.md` **v1.4** (Leg C DoD flipped). New `docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md` **v1.0** + six `.xgb` scripts (alice · bob · erin · carol_v1 · dave · frank). Corpus is minimum-complete: **each of seven identities exercises exactly one locked rule.**
+
+**THE CORPUS SPLIT INTO TWO TIERS — the seed doing its job, not a shortcut.**
+- **NOW — node-executable (five):** alice (F1 speaker + setup run minting the space/room ids) · bob (F2 silent member) · erin (AI — via config `AiSection.is_ai`, measured: client `register` has NO `--ai` flag) · dave (revoked, via node-admin `identity_revoke`) · frank (expired assertion, via node-admin `identity_set_trust_expiry`). These seed *identities*; the book merely projects them, so no book need exist.
+- **LEG D — book-internal (two):** carol (§5 V2) and grace (§6 E3). These exercise rules that live *inside* the book's storage, unbuilt until Leg D.
+
+⚠️ **THE V2 FINDING — measured at `47ed16b`, and it is an N-164-shaped truth.** **No live surface mutates an existing identity's `display_name`.** Client: 0 `sign_update` refs (cannot emit `identity.update`). Node admin: 0 `display_name =` assignments. The `identity.update` wire message exists but **nothing emits it** (the J-576 finding, reconfirmed). ⇒ **the protocol has no live producer of a second record version**, so §5 V2 — correct and forward-looking — is presently **unexercisable end-to-end over the wire.** 🔒 **Option C (Joe-locked):** carol's v1 enters normally via `.xgb`; her v2 (`Carol M.`, higher `update_version`) is **seeded directly into the book file at Leg D**, testing the book's merge logic (higher version wins) at its true seam — the client-side merge — rather than routing through a non-existent wire path. **The wire-update gap is FILED SEPARATELY** (an identity-update emitter, a future milestone), not worked around.
+
+⚠️ **GRACE (E3) DEFERRED — Joe's call, and the measurement backed it.** Folding a `last_seen` field into the corpus now would design a slice of the book schema **ahead of Leg D's Phase-0 — D-071 in reverse (seed twice).** Deferred. 📌 **Field-shape precedent handed to Leg D:** `FederatedPeer.last_seen_at: String` (RFC-3339), `xgen-common/src/state.rs:118` — copy that shape; aging grace is then a one-line clock advance against a field that finally exists. *Joe reached the defer call before Chat finished measuring; the measurement only confirmed the fold was the costly path.*
+
+**WHY IT WAS WRITTEN TO DISK, NOT LEFT IN CHAT (Joe).** *"last time i spared a record and the whole two legs disappeared from memory after Claude's client reset."* The corpus + the split-finding now live in a task doc, a corpus spec, and this entry — reset-durable. Chat-only specs evaporate; that is the entire reason for D-074.
+
+**HANDOFF.** NEXT is **POPULATE** (CHAT operational — run the six `.xgb` + two node-admin ops against a live node+client; a driving job, M6 shipped the write path), then **Leg D** (Clair, from a runbook covering carol Option-C + grace E3). ⚠️ **Leg-D lookups filed:** node-admin CLI wiring for `identity_revoke` / `identity_set_trust_expiry` (`admin_ops.rs:1031/:1125`, invocation surface not located this session); confirm the F1/F2 fill path populates `IdentityRecord.trust_assertion` (`Option`, may be `None` — frank's badge depends on it; N-164 pending from J-580). **M-RP-MEMBERS** unblocks after populate + book build.
+
+---
 ## Entry J-580 — Address book §6 N resolved: per-tier Auth-Module-declared with a finite floor, T1 = 182 d provisional; "not renewed" derives from cached valid_until, no push
 
 **Date:** 2026-07-24 · **Seats:** Joe (N is a tier/auth-module matter; T4 retention as evidence-preservation; N values provisional; the not-renewed flag) · Chat (grounding, measurement, records). **ZERO code. ZERO `skin.css`.**

@@ -1,6 +1,6 @@
 # M-RP-ADDRESS-BOOK — client-side seen-records, the identity cache the UI reads names from
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-24  
 > Language: English  
@@ -166,7 +166,7 @@ A local cache of **other people's** identity data. This is one of the project's 
 
 - **Leg A** — close §5's open measurement (does a revocation push path exist?). **CHAT.** No code.
 - **Leg B** — Joe locks §4, §5, §6, §7.
-- **Leg C** — seed corpus specified from the locked policy. **CHAT** writes the `--batch` script set.
+- **Leg C** — ✅ **DONE (J-581).** Corpus specified: docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md + 6 .xgb. ⚠️ **Two tiers surfaced:** five identities NOW-executable against the node (alice F1 · bob F2 · erin AI · dave revoke · frank not-renewed); **carol (§5 V2)** and **grace (§6 E3)** are **book-internal → Leg D** (V2 has no live producer — nothing emits identity.update at 47ed16b; E3 needs a last_seen field the book does not yet have). **Option C locked for carol:** seed two versions into the book file at Leg D.
 - **Leg D** — implementation from a locked runbook. **CLAIR.**
 
 ---
@@ -177,7 +177,7 @@ A local cache of **other people's** identity data. This is one of the project's 
 - [x] §5's revocation-push question measured against code, result recorded
 - [x] four decisions locked by Joe and written into this doc (§4 F1 u F2 . §5 V2 . §6 E1+E2+E3 . §7 own file)
 - [x] §6 N resolved: per-tier Auth-Module-declared, finite floor, T1 = 182 d provisional dev default; not-renewed = derived from cached valid_until
-- [ ] seed corpus specified and the `--batch` set written
+- [x] seed corpus specified and the seed set written (Leg C — `docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md` + 6 `.xgb` scripts; carol v2 + grace E3 are Leg-D book-file cases)
 - [ ] runbook authored for Clair
 
 **IMPLEMENTER**
@@ -199,4 +199,4 @@ A local cache of **other people's** identity data. This is one of the project's 
 
 ## §12 — Handoff
 
-**Leg A measured (no push path). §4–§7 LOCKED by Joe 2026-07-24.** Next action is **Leg C — Chat specifies the seed corpus from the locked policy and writes the `--batch` set** (§8), then **Leg D — Clair builds from a runbook**. ⚠️ **N (§6 eviction window) is the one open parameter, Joe's, needed before Leg C exercises eviction.** **M-RP-MEMBERS** now unblocks at the members-widget step of the agreed order — *after* populate + book build, not before.
+**Leg A measured · §4–§7 LOCKED (J-579) · N resolved (J-580) · Leg C DONE (J-581).** Corpus at `docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md` + 6 `.xgb` scripts. **NEXT: POPULATE** — run the NOW-tier seed (six `.xgb` + two node-admin ops: `identity_revoke` on dave, `identity_set_trust_expiry` on frank) against a live node+client (CHAT operational, a driving job — M6 shipped the write path), **then Leg D — Clair builds the book from a runbook** covering the two book-internal cases (carol V2 via Option-C file seed; grace E3 via a `last_seen` field shaped after `state.rs:118`). ⚠️ **Leg-D lookups:** node-admin CLI wiring for the two admin verbs; confirm the F1/F2 fill path populates `IdentityRecord.trust_assertion` (N-164 pending). **M-RP-MEMBERS** unblocks after populate + book build.

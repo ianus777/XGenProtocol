@@ -1,0 +1,6 @@
+# Address Book Seed — alice (F1 speaker + setup run; mints SPACE/ROOM ids for followers)
+register --name alice
+create-space --name "Address Book Seed"
+create-room --space <SPACE> --name general
+send --space <SPACE> --room <ROOM> --text "alice-msg-1"
+status

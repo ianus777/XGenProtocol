@@ -85,6 +85,14 @@ struct ConfigPath(PathBuf);
 /// config filename ever moved. Sibling of `ConfigPath`.
 struct DataDir(PathBuf);
 
+/// Serialises concurrent `fill_space_records` invocations (M-RP-MEMBERS Leg A,
+/// runbook §3). Two fills overlapping (the user clicking through Spaces quickly)
+/// would each `load` the book, each `save`, and the loser's resolved records
+/// would be silently discarded — so rows sit as pubkey stubs longer than they
+/// should, with an invisible cause. Held across load → fill → save. A
+/// `tokio::Mutex` (not `std`) because the guard is held across `.await`.
+struct FillLock(tokio::sync::Mutex<()>);
+
 /// The UI-state store filename (M-RP6.1k). Sibling of `xgen-client_config.toml` in the data dir;
 /// resolved via the managed `DataDir` so the path is never re-derived (D-114). Deliberately NOT
 /// config — persistent, and NOT wiped by D-101 clean-slate-on-start.
@@ -615,6 +623,82 @@ fn get_spaces(data: tauri::State<DataDir>) -> Vec<xgen_common::state::KnownSpace
         .unwrap_or_default()
 }
 
+/// The local address book for R7 (M-RP-MEMBERS Leg A). A pure on-disk read, the
+/// `get_spaces` shape — but it needs NO `OpContext`/`SessionState` at all, since
+/// `AddressBook::load` takes a `&Path` and never touches the network.
+///
+/// ⚠️ Returns `Result`, NOT `unwrap_or_default()`. `get_spaces` swallows its
+/// `Err` because there `Err` means "state file absent = unregistered", an honest
+/// empty render. Here a **missing** book is ALREADY `Ok(empty)` (`load`'s
+/// NotFound arm), so the only `Err` is a **corrupt** file — and swallowing that
+/// would render corruption as an empty book, the exact "absence renders as fine"
+/// failure the Phase-0 §3 display rule forbids (D-065). The corrupt path leaves
+/// the file untouched for inspection.
+#[tauri::command]
+fn get_address_book(
+    data: tauri::State<DataDir>,
+) -> Result<crate::address_book::AddressBook, String> {
+    crate::address_book::AddressBook::load(&data.0).map_err(|e| format!("{e:#}"))
+}
+
+/// Fill the address book from one Space's live DAG and persist it (M-RP-MEMBERS
+/// Leg A). The `reanchor_space` shape (runbook §1) — NOT the `get_spaces` shape:
+/// `fill_from_space` calls `ensure_connected`, so it needs a REAL session with a
+/// resolved `home_node`, not the throwaway empty-`home_node` `SessionState` that
+/// `whoami`/`spaces` get away with.
+///
+/// Fire-and-forget from the frontend, OFF THE CRITICAL PATH (Joe-locked,
+/// address-book §4): the Space opens at once and the view refreshes (via a
+/// follow-up `get_address_book`) when this resolves. A Tauri command is already
+/// off the render path, so honouring that lock costs nothing here.
+///
+/// The `FillLock` guard serialises overlapping fills (§3). `fill_from_space` is
+/// re-entrant by design and self-cleans its connection on every exit (J-586) —
+/// this caller adds no connection management.
+#[tauri::command]
+async fn fill_space_records(
+    space_id: String,
+    data: tauri::State<'_, DataDir>,
+    config: tauri::State<'_, ConfigPath>,
+    lock: tauri::State<'_, FillLock>,
+) -> Result<crate::ops::FillReport, String> {
+    // Serialise concurrent fills across load → fill → save (§3): the loser of a
+    // read-modify-write race would otherwise silently discard resolved records.
+    let _guard = lock.0.lock().await;
+
+    let data_dir = data.0.clone();
+    let config_path = config.0.clone();
+
+    // A REAL session (the `reanchor_space` way): resolve the node so `home_node`
+    // is non-empty (else `ensure_connected` bails), and load the identity so the
+    // fill can authenticate.
+    let node = app::resolve_node(None, &config_path);
+    let mut session = crate::session::SessionState::new(node, data_dir.clone());
+    session
+        .ensure_identity(&app::resolve_keypair_path(&config_path))
+        .map_err(|e| format!("{e:#}"))?;
+
+    let mut book = crate::address_book::AddressBook::load(&data_dir).map_err(|e| format!("{e:#}"))?;
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir: &data_dir,
+        node_override: None,
+    };
+
+    let result = crate::ops::fill_from_space(&mut ctx, &mut book, &space_id).await;
+
+    // Persist UNCONDITIONALLY, before propagating `result` (runbook §2 Step 6):
+    // `fill_from_space` takes `&mut book` and applies touches + absorbed fetches
+    // AS IT GOES, so on a mid-loop error the book already holds real
+    // observations. Discarding them would throw away work that happened and force
+    // the next fill to re-fetch. On an early error (nothing mutated) the save is
+    // a harmless no-op write. A save FAILURE is a genuine disk error worth
+    // surfacing over the fill outcome — the records were not persisted.
+    book.save(&data_dir).map_err(|e| format!("{e:#}"))?;
+
+    result.map_err(|e| format!("{e:#}"))
+}
+
 #[tauri::command]
 fn quit(app: AppHandle) {
     emit_state(&app, ClientLifecycleState::Closing);
@@ -879,6 +963,7 @@ pub fn run(
         .manage(Tips(tips.clone()))
         .manage(config_path)
         .manage(data_dir_state)
+        .manage(FillLock(tokio::sync::Mutex::new(())))
         .setup(move |app| {
             let handle = app.handle().clone();
             let dir = data_dir.clone();
@@ -927,7 +1012,9 @@ pub fn run(
             apply_window_geometry,
             get_about_info,
             get_self_state,
-            get_spaces
+            get_spaces,
+            get_address_book,
+            fill_space_records
         ])
         .run(tauri::generate_context!())
         .expect("error while running xgen-client desktop shell");

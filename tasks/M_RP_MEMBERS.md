@@ -1,6 +1,6 @@
 # M-RP-MEMBERS — the R7 members widget over the address book
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.6  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-25  
 > Language: English  
@@ -123,7 +123,7 @@ ROADMAP L826 says *"R7 is a contact list, not a room roster."* But the book is *
 
 **The one honest cost, stated rather than hidden:** `effectiveSpaceId` is `null` until a **room** is latched, so **selecting a Space in the tree does not populate R7** — you must open a room. The alternative, **B2**, would lift R2's Space latch into `$common` as a second shared latch: ① *user-visible* — members appear one click earlier, at the price of reintroducing the A-vs-B divergence above; ② *cost* — a new store plus an edit to a shipped widget plus a second writer, against B1's zero new state and one getter read. **B1 recommended; B2 stays available later as a lift, exactly as `roomLatch` itself was one.**
 
-🔓 **OPEN, and small: this is Chat's to implement but the empty-state copy is Joe's** — under B1 the no-scope empty state reads *"Select a room"*, not *"Select a space"*, because the room is what actually scopes it.
+🔓 **OPEN, and small: this is Chat's to implement but the empty-state copy is Joe's** — under B1 the no-scope empty state reads *"Select a room"*, not *"Select a space"*, because the room is what actually scopes it. ⚠️ **SUPERSEDED v1.5 — see §4c: R7 HAS NO EMPTY STATE.**
 
 ### §4b — 🔓 THE DM SPACE: REACHABLE, UNADDRESSED, AND JOE'S — D-122 FIRED HERE (Clair, Target 3c)
 
@@ -149,9 +149,56 @@ ROADMAP L826 says *"R7 is a contact list, not a room roster."* But the book is *
 
 **Chat recommends D1**, and the recommendation is **unchanged** by the self-in-the-book finding — self still gets a row; only the **source of its name** changes (`selfState`, per the lock above). A panel whose meaning changes with context is a panel the user cannot trust, and self appearing is not a wart — **you are a member**. It is also the only option that costs nothing.
 
+🔒 **§4b IS EFFECTIVELY CLOSED BY §4c (v1.5).** The self-fixture lock **kills D2 and D3 by construction** — self can never be suppressed, and the panel can never be empty — so **D1 stands, but on a stronger footing than it was argued on**: self appears not *because it is a member of this Space* but because it is a **fixture of the panel**. ⚠️ What survives of §4b is only the other half: whether a two-person DM wants a members panel at all — a display question, not a data one.
+
 ⚠️ **SUB-QUESTION, FILED NOT DECIDED — should R7 MARK your own row?** **M-RP-OWN-ROW-NAME** locks *"Self"* plus distinct styling for **own rows only**, and it is explicitly a **message/stream** milestone — so it does **not** bind R7. But inventing a second self-marking mechanism here would be a **D-067 drift surface**, one concept with two implementations. **Chat proposes: v1 renders self as an ordinary, unmarked row; the marking question rides whenever OWN-ROW-NAME's styling exists**, so R7 consumes it rather than duplicating it.
 
 🔓 **OPEN — JOE'S.** §4b is scope and taxonomy, his area under D-123. ⚠️ **It gates Leg B only.** Leg A is two Tauri commands that do not care whether a Space is a DM — **Leg A may open before this is answered.**
+
+---
+
+### §4c — 🔒 THE SELF ROW IS A FIXTURE, NOT A MEMBER (Joe, 2026-07-25)
+
+🔒 **LOCKED (Joe):** *"in the list of members … there will be ALWAYS the self avatar. even if the client will be offline. this is the home for the self avatar"* · *"maybe always as the first, doesnt matter any filter"*.
+
+⇒ **Three properties, and they are not the same property:**
+1. **ALWAYS PRESENT** — regardless of scope, roster, connection or registration.
+2. **ALWAYS FIRST** — ahead of the roster, independent of any sort.
+3. **FILTER-IMMUNE** — survives any future search or filter.
+
+🔑 **AND THIS IS THE CAPABILITY BOUNDARY, NOT A PREFERENCE — MEASURED.** `KnownSpace` (`xgen-common/src/state.rs`) is `space_id · name · node_endpoint · role · rooms` — **no members field** — and `drain_space_events` is an `async` op over the connection. ⇒ **there is no cached membership anywhere; offline the roster is unreachable.** The address book still resolves *names* offline, but not *who is in this room*. Meanwhile `get_self_state` is keypair-derived and needs no network. **So offline, self is the ONLY identity R7 can honestly render** — the lock names a constraint the machine already had.
+
+⚠️ **CONSEQUENCE 1 — R7 HAS NO EMPTY STATE.** §4a-B1's *"Select a room"* empty state is **superseded**: the panel always holds at least one row.
+
+⚠️ **CONSEQUENCE 2 — A FIXTURE THAT LOOKS LIKE A RESULT MAKES THE PANEL LIE. 🔒 THE THREE STATES ARE NOW LOCKED (Joe, 2026-07-25):**
+
+| State | Renders |
+|---|---|
+| **room scoped** | self avatar **+ all in room** |
+| **nothing scoped** | **only self** |
+| **offline** | **only self + *"I cannot see the others"*** — explicitly **NOT** *"there are none"* |
+
+🔑 **THE DISTINCTION IS CARRIED BY THE MESSAGE, NOT BY THE ROW COUNT.** States 2 and 3 render an identical single row; only the offline line separates them. That is the whole point — *silence in state 3 would be indistinguishable from state 2, and both would read as "nobody here".*
+
+⚠️ **THE FOURTH CELL — scoped and offline are INDEPENDENT, so there are four, not three.** Scoping works offline (the room latch resolves against `KnownSpace` on disk), so **unscoped + offline** is reachable and unstated. ⇒ **Chat's reading, for Joe to confirm or overrule: UNSCOPED WINS.** With no room picked there are no *"others"* being blocked — claiming the connection is the obstacle would be a **second false statement**, blaming the network for a scope the user has not chosen. State 2's render, not state 3's.
+
+🔑 **AND THE PREDICATE IS NOT "OFFLINE" — THIS PART IS CHAT'S AND KEYING IT WRONG REPRODUCES THE LIE.** The connection state (`DISCONNECTED` on the status-bar led) is only **one** cause of an unavailable roster; a drain that fails while **online** (node refuses, Space gone, timeout) leaves the panel in exactly the same position and would render *"only self"* with **no explanation at all**. ⇒ the honest predicate is three-valued **on the roster**, not two-valued on the connection:
+
+- roster **KNOWN** → render it
+- roster **UNKNOWN** (never fetched · fetch failed · offline) → **say so**
+- roster known-and-empty → **unreachable by construction**: if you are scoped to it, you are in it
+
+🔒 **BINDING DATA SHAPE ON LEG B:** the roster crosses into the widget as an **`Option`-shaped value, never a bare array** — an empty array MUST NOT be conflatable with *not fetched*. The precedent already ships in this arc: `SeenRecord::trust_lapsed(now) -> Option<bool>`, where **`None` means "no opinion"** rather than `false`. *Same discipline, same reason: absence is a value, and collapsing it into emptiness is how a panel comes to assert something nobody measured.*
+
+📌 **The copy is Joe's** — *"I cannot see the others"* is recorded as the **meaning**, not as final wording.
+
+⚠️ **CONSEQUENCE 2b — THE FILTER CASE, STILL OPEN AND STILL JOE'S.** Once a search or filter exists, a **filter-immune** row styled like a match reports `search "bob" → Joe, Bob` — **the panel misreporting its own search.** ⇒ either the scope rides visibly on the panel, or **self reads as a fixture rather than a roster entry**. No filter ships in v1, so this binds the milestone that adds one.
+
+⚠️ **CONSEQUENCE 3 — BINDING ON LEG B: ANY MEMBER COUNT DERIVES FROM THE ROSTER, NEVER FROM RENDERED ROWS.** Self renders when there is no roster at all, so a count taken off render-truth is wrong **exactly when it matters** (unscoped, offline). This inverts the usual render-truth getter convention **deliberately**: here render-truth and roster-truth diverge, and the roster is the one a human means by *"how many members"*.
+
+📌 **R3 IS NOT A SECOND SELF SURFACE — the D-067 question is WITHDRAWN (Joe, 2026-07-25).** *"in the self panel there is not an avatar in the true sense … just today there it is, but not for long"* — R3's current avatar is **scaffolding**, and the region is to be rebuilt with its own layout and functions (M-RP-SELF-GATE). **The true self avatar is R7's.** ⇒ no milestone may design against R3's present avatar or invest in it.
+
+🔓 **STILL OPEN, NOT BLOCKING:** does the self row **act** — does clicking it open the Self Card (the View-menu proposal)? Chat read it that way (an always-visible handle, the Discord shape); **Joe has not confirmed it.** Recorded as an unconfirmed reading, not a design.
 
 ---
 

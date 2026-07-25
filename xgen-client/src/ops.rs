@@ -2742,7 +2742,11 @@ fn partition_observed(
 }
 
 /// Report from one [`fill_from_space`] pass, for observability + testing.
-#[derive(Debug, Clone, Default, PartialEq)]
+///
+/// `Serialize` was added for M-RP-MEMBERS Leg A: `fill_space_records`
+/// (`desktop.rs`) returns this across the Tauri boundary to the webview. Purely
+/// additive — no field or behaviour change.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct FillReport {
     /// Observed identities the book did not already hold — the ones fetched.
     pub candidates: usize,

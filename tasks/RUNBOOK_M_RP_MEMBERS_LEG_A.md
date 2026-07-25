@@ -1,6 +1,6 @@
 # M-RP-MEMBERS Leg A — the address-book read surface: two Tauri commands
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-25  
 > Language: English  
@@ -120,6 +120,22 @@ If building this surfaces anything that contradicts the Phase-0 or this runbook 
 ---
 
 ## §6 — Handoff
+
+✅ **CLOSED 2026-07-25. Every DoD leg green, every number Chat-measured on the real client 9222.**
+
+**Static:** `cargo build` clean · `cargo test` **1585 / 0 / 62 across 56 terminators**, `FAILED|panicked` = 0, `error[` = 0 — **identical to floor**, which is the honest signal for a milestone that adds a derive, two commands and a newtype · scope `desktop.rs` +89/−1 · `ops.rs` +5/−1, **zero** `ui/**`, `skin.css`, `Cargo.*` · `svelte-check` **not re-measured**, held by scope.
+
+**Live (9222, node on 8080):** cold `get_address_book` → **`{}`** · `fill_space_records` → `{candidates:1, fetched:1, not_found:0, touched:0}` · 🔑 **`xgen-client_address_book.json` EXISTS — 392 B, 14:00:45** · second fill → `{candidates:0, fetched:0, touched:1}`, no connection error (re-entrancy through the new caller) · multi-record on a second Space → `BobLegB` fetched + `Joe` touched, 2 records · corrupt path **exercised**: rejected with the full `anyhow` chain, `returnedInstead: null`, damaged file **byte-untouched** (18→18), restored · client registry **149**, the at-rest floor exactly ⇒ **zero frontend effect, measured not argued**.
+
+🔑 **THE FIRST FILL IN THE PROJECT'S HISTORY WROTE JOE INTO JOE'S OWN ADDRESS BOOK** — Engineering has one member, and the single record was self (`isSelfInBook: true`, checked against `get_self_state`). Every §3 wire prediction held live: `display_name` present · **`revoked: false`** (the constant-false trap, which is why `flags.revoked` ships unfed) · `update_version: 0` · `trust_assertion` absent · `registered_at` correctly trimmed.
+
+**Deviations, flagged not absorbed (D-122 outcome):**
+- The re-open clause **did not fire** — Clair read the runbook against the Phase-0 and the code first, and confirmed every §1/§2 claim at source. She additionally located the trap-① bail at `session.rs:134-136`; Chat reproduced it.
+- **One Clair number does not reproduce, and it is not her fault:** she reported both edited files uniformly CRLF. `desktop.rs` is `w/lf`. But `address_book.rs` and `session.rs` are also `w/lf` and untouched — **the `.rs` working tree was already mixed**, index is `i/lf` throughout, committed bytes identical, and the project convention covers `.md` only. **Conclusion stands, number does not.**
+- **One undocumented-in-runbook choice she documented herself:** if `save` fails *and* the fill failed, the save error wins and the fill error is lost. Reasoned in the doc comment; accepted.
+- ⚠️ **Chat's own orphan, N-165 shape:** `tauri dev` found 5173 held by Joe's 226-minute Vite and started its own on **5174**, which survived the client kill — found in the post-run port sweep and killed. The webview therefore rendered the **stale 5173 bundle**. Immaterial here (Rust-only leg; registry read 149 as expected); **a trap for Leg B**.
+
+**Next:** Leg B (store + `members-panel` + the 7th `CLIENT_PLUGINS` row). ⚠️ Now carries three binding constraints from Phase-0 **§4c**: the self row is a **fixture** (always present · always first · filter-immune), the roster crosses in **`Option`-shaped, never a bare array**, and any member **count derives from the roster, never from rendered rows**.
 
 **Leg B** (store + `members-panel` + the 7th `CLIENT_PLUGINS` row) is **blocked on `M_RP_MEMBERS.md` §4b — the DM Space question, open for Joe.** Leg A is not: neither command cares whether a Space is a DM.
 

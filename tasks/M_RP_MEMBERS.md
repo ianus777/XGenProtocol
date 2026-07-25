@@ -243,7 +243,23 @@ is there a scope?  (roomLatch.effectiveSpaceId)
 
 🔒 **FIX — and Chat over-recommended last turn, corrected here.** Chat proposed a Rust timeout **and** a frontend escalation timer as equally necessary. **They are not.** A Rust-side `tokio::time::timeout` around the fill bounds the command, **releases the lock**, and makes the invoke **always resolve or reject** — at which point the frontend simply escalates ③ → ④ **on the rejection**, with no timer of its own. A separate frontend timer guards only against a stall *outside* the fill (the invoke bridge itself), and is **optional belt-and-braces, not a requirement**.
 
-🔓 **OPEN — THE TIMEOUT *VALUE* IS JOE'S** (the UX question *"how long before waiting becomes failed"*). ⚠️ **The timeout ITSELF is not open** — per the reframe above it is a precondition of ③, and the alternative is dropping ③, not shipping it unbounded. **Chat's default value until told otherwise: 20 s for the whole fill.** Reasoning: it must exceed the drain's own 5 s bound and leave room for N sequential `identity.get` round trips on a large Space, while staying short enough that ③ does not outstay its welcome. The `[sync] completion_timeout_seconds` config key is the precedent for making it tunable rather than a constant.
+🔓 **OPEN — THE TIMEOUT *VALUES* ARE JOE'S** (the UX question *"how long before waiting becomes failed"*). ⚠️ **The timeout ITSELF is not open** — per the reframe above it is a precondition of ③, and the alternative is dropping ③, not shipping it unbounded.
+
+⚠️ **CHAT'S FIRST PROPOSAL — A 20 s CAP ON THE WHOLE FILL — IS WITHDRAWN. WRONG MECHANISM, not just a wrong number.** Joe: *"a flight is euphemism for a progress which in it industry has time limit … when?"* An overall cap **aborts legitimate work**: a Space with 200 members is a legitimately long fill, and a fixed box would kill it mid-way. What *"in flight"* promises is not that the whole thing fits in a box — it is that **every step concludes**.
+
+🔒 **CHAT'S DEFAULT UNTIL TOLD OTHERWISE — PER-STEP, NOT OVERALL:**
+
+| Step | Bound | Status |
+|---|---|---|
+| `resolve_node` + `ensure_identity` | local file reads | already bounded |
+| `connect_url` → `connect_async` | **5 s** | ❌ **missing** |
+| `drain_space_events` | 5 s, `[sync] completion_timeout_seconds` | ✅ already there |
+| each of N × `identity.get` `recv()` | **5 s** | ❌ **missing** |
+| `book.save` | local write | already bounded |
+
+📌 **5 s is not arbitrary — it is the number this codebase already uses twice:** `reanchor_space` bounds `get_dag_tips` at `Duration::from_secs(5)`, and the sync completion timeout defaults to 5. ⇒ **worst case 5 + 5 + 5N, and it always terminates.** The `[sync]` config key is the precedent for making these tunable rather than constants.
+
+⚠️ **AND TERMINATION IS NOT THE WHOLE OF ③'S HONESTY — FILED, NOT BUILT.** For N = 1–2 (every Space that exists today) the cold fill is a second. For N = 200 it is minutes: **terminating, but ③ would sit there saying *"I am waiting"* with nothing moving.** True, and useless. The fix is **progress** — *fetched k of N* — but `fill_space_records` returns **once, at the end**; there is no channel. 🔒 **Deliberately NOT built:** it would be built for a case that does not exist yet. **The trigger is a Space large enough to notice**, and the milestone that hits it should find this note rather than rediscover it as a bug.
 
 ⚠️ **CONSEQUENCE 2b — THE FILTER CASE, STILL OPEN AND STILL JOE'S.** Once a search or filter exists, a **filter-immune** row styled like a match reports `search "bob" → Joe, Bob` — **the panel misreporting its own search.** ⇒ either the scope rides visibly on the panel, or **self reads as a fixture rather than a roster entry**. No filter ships in v1, so this binds the milestone that adds one.
 
@@ -252,6 +268,8 @@ is there a scope?  (roomLatch.effectiveSpaceId)
 📌 **R3 IS NOT A SECOND SELF SURFACE — the D-067 question is WITHDRAWN (Joe, 2026-07-25).** *"in the self panel there is not an avatar in the true sense … just today there it is, but not for long"* — R3's current avatar is **scaffolding**, and the region is to be rebuilt with its own layout and functions (M-RP-SELF-GATE). **The true self avatar is R7's.** ⇒ no milestone may design against R3's present avatar or invest in it.
 
 🔓 **STILL OPEN, NOT BLOCKING:** does the self row **act** — does clicking it open the Self Card (the View-menu proposal)? Chat read it that way (an always-visible handle, the Discord shape); **Joe has not confirmed it.** Recorded as an unconfirmed reading, not a design.
+
+🔒 **§4b NO LONGER BLOCKS LEG B (2026-07-25).** Its data half closed by construction at §4c; its remaining half was *"does a two-person DM want a members panel at all"*. Under §4c the panel renders **self + roster** everywhere, so a DM resolves by the ordinary rule — you and them — with **no special case to write**. ⇒ nothing about §4b needs answering before Leg B; if Joe later wants a DM to suppress or restyle the panel, that is an additive display change, not a prerequisite.
 
 ---
 
@@ -384,7 +402,7 @@ R7 is the first region with **real** candidates: `role` → `secondary`? `last_s
 
 - [x] §4, §6, §7 locked by Joe, in place in this document with the lock date — **2026-07-25, all three DELEGATED**
 - [x] Second reader (Clair, not Chat) has read this Phase-0 against Ch2 — **done 2026-07-25; 5 targets, 4 CONFIRMED, 1 overstatement (3b), 1 GAP (3c → §4b); every finding re-measured by Chat before entering this document**
-- [ ] ⚠️ **§4b (DM Space) answered by Joe — GATES LEG B, NOT LEG A**
+- [ ] 📌 **§4b (DM Space) — NO LONGER A GATE.** Closed by construction at §4c; any DM-specific display change is additive, not a prerequisite
 - [ ] Leg A: cargo floor re-measured, delta explained
 - [ ] Leg B: svelte-check floor re-measured, delta explained
 - [ ] Leg C: every claim CDP-measured by Chat, on the real client 9222; the off-critical-path lock **exercised**

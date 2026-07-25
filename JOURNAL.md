@@ -8,6 +8,69 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-590 — Leg A-bis verified: the roster crosses, the lock releases after a timeout — and the authentication handshake was never bounded on EITHER side
+
+**Date:** 2026-07-25 · **Seats:** Joe (the S1 scope lock; the 15 s value; `AtomicU64`; three successive narrowings of "prepare it for config"; the screenshot and the correction that overturned Chat's port diagnosis). Clair (implementation from the locked A-bis runbook; the flag that started the auth finding). Chat (independent re-drive, the auth measurement, A-ter's runbook, records).
+
+**WHAT SHIPPED.** Clair's commit `2c3144b` — 4 files, +142/−23, **`xgen-client` only**: `ops.rs` (+103) · `desktop.rs` (+34) · `session.rs` (+21) · `resident.rs` (+7). `tasks/RUNBOOK_M_RP_MEMBERS_LEG_A_BIS.md` v1.1 → **COMPLETED**. Pushed by Joe before session open — ⚠️ **the kickoff said HEAD was unpushed and it was stale; verified `HEAD == origin/main`, ahead-by-0, rather than inherited.**
+
+🔑 **THE ROSTER LEG PASSED LIVE, AND THE SHAPE IS NOW MEASURED RATHER THAN PREDICTED.** `fill_space_records` returns the Rust tuple as a **2-element JS array** — `[FillReport, MembersResult]`, positional and unnamed. Fields are **snake_case on the wire**: `space_id` · `identity_id` · `joined_at` · `invited_by` · `not_found` · `events_replayed`. **Leg B binds against these names and against an array index** — which is the standing argument for replacing the tuple with a named struct `{ fill, members }` before Leg B's runbook is written, **not after**. 📌 Chat's proposal; **naming is Joe's**, and it is cheap now and expensive later.
+
+🔑 **AND ENGINEERING'S ROSTER IS EXACTLY ONE MEMBER, AND IT IS SELF.** `owner_id` equals the single member's `identity_id`; `invited_by: null`; `events_replayed: 3`. **Independent corroboration of J-589's finding from the opposite direction** — and a live demonstration of why §4c makes the self row a **FIXTURE**: this Space would otherwise render an empty Members panel to its own owner.
+
+**VERIFICATION — Chat re-drove every leg (Rule 5). Nothing of Clair's entered this record until reproduced.**
+
+| Leg | Result |
+|---|---|
+| cargo floor | **1585 / 0 / 62 across 56**, `error[` 0, warnings 0 — **delta 0** |
+| scope | 4 files, all `xgen-client/src`, **zero `ui/**`, zero `skin.css`, zero `Cargo.*`** |
+| ONE DRAIN | ✅ static — `fill_and_members_inner` drains once; `members_projection` + `fill_from_events` are pure over the same `&events` |
+| abort on first failure | ✅ `ops.rs:2913` `identity_get_on(conn, id).await?` — one timeout, not N |
+| `fill_from_space` tests unchanged | ✅ 56 terminators, totals identical ⇒ the decomposition is behaviour-preserving |
+| roster live on 9222 | ✅ F1 1109 ms · `members:1` · `events_replayed:3` |
+| warm re-entrancy | ✅ F2 1089 ms · `touched:1 / fetched:0`, no connection error |
+| timeout EXERCISED | ✅ F3 **11093 ms**, rejected: *"connection to Node timed out after 10s"* |
+| 🔑 **lock releases after timeout** | ✅ **F3 err → F4 ok (1091 ms), same process** |
+| reproduced under the sanctioned rig | ✅ F5 1103 ms, identical — the numbers are not an artifact of how Chat launched things |
+
+⚠️ **THE FLOOR HOLDING IS NOT A GREEN TICK, AND THE RECORD SAYS SO.** Delta 0 means **A-bis added ZERO tests**. It shipped a new public verb, two bounds and a new constant with no coverage; the unchanged floor proves the *decomposition* is safe and proves **nothing** about the new code. *Stated as a gap rather than allowed to read as a pass.*
+
+**CLAIR'S TWO FLAGS — ADJUDICATED, NOT ABSORBED.** ① *"Values are constants, not config"* — **ACCEPTED**; her reasoning was sound and it was the narrower choice, and the filing was made real in A-ter §2d rather than left in a commit message. ② the auth residual — **see below; it was bigger than she said and bigger than Chat then repeated.** 📌 She also gave `IDENTITY_GET_RECV_TIMEOUT` its own home rather than reusing `SEND_ACK_TIMEOUT` — **a better call than the runbook's**, verified at 10 s, and the same inverse-D-067 reasoning was applied again in A-ter §2c.
+
+🔑 **THE FINDING OF THE SESSION: THREE UNBOUNDED `recv()` IN THE AUTH HANDSHAKE, AND THE THIRD IS ON THE NODE.** Clair flagged one. Chat reported two to Joe. **It is three.** `xgen-core/src/transport/connection.rs` holds six production `recv().await`; **:207 `send_event_confirmed`, :284 `upload_blob`, :339 `fetch_blob` are ALL bounded** by `tokio::time::timeout(timeout, drain)` at :244/:303/:365 — a caller-supplied bound, the file's own established pattern, three times over. **:504 `server_authenticate`, :551 and :566 `client_authenticate` are bare.** ⇒ ***authentication is the sole exception in the file, and it is the only pre-auth, attacker-reachable path in it.*** A-ter is therefore not "add a timeout" but **"apply this file's own rule to the two functions that were missed."**
+
+⚠️ **AND THE SERVER HALF IS NOT A UI CONCERN.** `server_authenticate` has **exactly one production caller** — `xgen-node/src/app.rs:1524`, the **first thing the node does on an accepted connection**, before the revocation check at :1539. A peer that completes the WS upgrade and then never answers **holds that task and socket indefinitely, unauthenticated**. Measured so it rests on nothing: `xgen-node/src/**` (excluding `tests/`) has **zero** hits for `max_connections` / `idle_timeout` / `Semaphore` / `connection_limit` — **no cap, no idle timeout, nothing else bounding it.**
+
+**REPRODUCED DETERMINISTICALLY, WITH A POSITIVE CONTROL (N-163).** Throwaway harness in `connection.rs`, run, reverted, tree verified clean: **control** (server sends an unexpected message) → `client_authenticate` returns in **692 µs**; **subject** (WS upgrade completes, server silent) → **did not return within 5 s**. *Without the control the hang is indistinguishable from a dead rig.*
+
+⚠️ **AND IT EXPLAINS HOW THE HOLE SURVIVED A-BIS'S OWN DoD.** The DoD's black hole is *"accepts, never replies"* — a bare listening socket, which trips the **connect** bound and passes green. **The harness is structurally incapable of seeing the auth hole.** Clair's ran exactly that shape (10.01 s, twice) and so did Chat's live F3. ⇒ A-bis's *"the FillLock deadlock is closed"* is **true only for a node that never completes the WS upgrade** — narrower than it reads, **the fifth instance of this arc's one defect class.**
+
+🔒 **`M-RP-MEMBERS Leg A-ter — bound the authentication handshake, on both sides` CREATED AND LOCKED.** `tasks/RUNBOOK_M_RP_MEMBERS_LEG_A_TER.md` v1.6 PENDING. **Joe's locks:** **S1** — bound all three, including `server_authenticate` (*"of course s1"*, PROVENANCE **CONSIDERED** — he asked for the option in plain terms and read the unauthenticated-connection consequence first) · **15 s**, from `xgen-core`'s own `federation/handshake.rs:48 WAIT_TIMEOUT_SECS`, **not** the client's 10 s, because a bound living in `xgen-core` reaches node code · **`AtomicU64`** as a **forward binding on the future milestone, not a build item** · **a named constant and a short code note, nothing more**.
+
+⚠️ **THE ARITHMETIC CHAT GAVE JOE WAS WRONG TWICE AND IS CORRECTED ON RECORD.** A-bis §2a said ≈25 s (omitting auth); Chat then said ≈85 s **while dropping the second connect from its own formula**. Derived properly — the fill connects and authenticates **twice**, once for the drain and once for `fill_from_events`' fetch loop — the ceiling is **35 + 4A**: **95 s at 15 s**, 75 s at 10 s. ⚠️ **And the ceiling is not the typical case:** a run ends at the *first* bound that fires, so a dead stage costs ~10–15 s; the 95 s ceiling is reached only by a node slow-but-alive at every stage, **and that run succeeds.** ⇒ §4c-i's deferred progress note now has a **second trigger unrelated to Space size**, re-filed as instructed.
+
+📌 **AND THE FILL RE-DIALS MID-OPERATION.** By design (J-586 re-entrancy), `fill_from_events` sets `session.conn = None` and reconnects for its fetch loop — so **every bound in the path is paid twice**. Recorded before Leg B, not after.
+
+**FOUR TOOLING FINDINGS, ALL MEASURED, ALL COSTLY IF INHERITED.**
+
+⚠️ **① THE REPO-LOCAL `target/` IS A STALE DECOY.** `.cargo/config.toml` redirects `target-dir` to `C:/cargo-targets/XGenProtocol`. `target/debug` holds only `deps`/`.fingerprint`, so a probe checking `target/debug/xgen-node.exe` reports **"not built"** with total confidence. N-165 shape: *a check that answers because it looked in the wrong place.*
+
+⚠️ **② `cdp-debug.ps1 -Launch` IS BROKEN TWO WAYS AND FAILS CONVINCINGLY.** **D-104**: WebView2 ≥136 **ignores** `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` (wry overrides it) — only the `cdp.dev.conf.json` overlay works; the base config stays port-free so RELEASE never exposes CDP. But `-Launch` (:188–189) **still sets that env var**, contradicting the file's own header comment 150 lines above. **And it launches `E:\Projects\XGenProtocol\bin\xgen-client.exe` — the 21 MAY binary**, not the redirected target dir. 🔑 **Measured, not inferred** — Chat asserted it first and Joe asked *"do you need to test it again?"*; running it **surfaced the stale-binary defect Chat had not predicted and corrected Chat's description of the first**. Output is `Launched…` / `Cleaned up…` and exit 1 — **the throw is swallowed, so two reassuring lines read like success**, and Joe's screenshot showed it putting a *plausible XGen window* on screen. ⇒ *not a silent failure but a **convincing** one; N-099 with a UI attached.* 📌 **Reading the code proved what it does; running it proved what happens.**
+
+⚠️ **③ THE `run-*.ps1` SCRIPTS LEAK THEIR VITE, AND THE READINESS PROBE CANNOT SEE WHOSE.** Ports are fixed and `strictPort: true` per app — **client 5173 · node 5174 · sampler 5175**. Vite is started as a separate process and **never killed when `tauri dev` exits**, so every run leaks a server. Then: the next run's own Vite **fails to bind and dies**, while the script's probe (`Invoke-WebRequest http://localhost:5173`) is **answered by the leak** and reports *"Vite ready"* ⇒ **the app runs a stale bundle with no error anywhere.** 🔑 **This is what the session actually observed:** PID 6252 was a **client Vite leaked ~10 hours earlier**, and both apps this session rendered its bundle. ⇒ ***a probe that cannot distinguish "my server started" from "a server is listening"*** — N-099 family, third sighting today.
+
+⚠️ **④ AND THE KICKOFF HAD MIS-ATTRIBUTED THAT LEAK AS JOE'S PROPERTY.** *"5173 held a live Vite (PID 6252) … JOE'S. ASK BEFORE KILLING."* **It was never his** — Joe: *"i didnt hold nothing."* The label protected a leak across at least two sessions, and Chat repeated it back four times before Joe corrected it. 📌 The kickoff's own guidance said *check the AGE, not just that something holds it* — **the age (400 → 619 min) was the clue, and both readers took it as evidence of ownership rather than of abandonment.** ⇒ **the correct check is the command line** (`ui\client\…\vite.js` vs `ui\node\…\vite.js`), which settled it in one call.
+
+**CHAT'S ERRORS THIS SESSION, ALL OWNED, ALL ONE FAMILY.** ① **Two successive widenings inside one section** — *"prepare it so it can become a setting"* read first as *the whole timeout class* (Joe: *"i meant in §2b. not over all values"*), then as *build the override mechanism* (Joe: *"named variable and occasionally some code note … not close them to special object"*). **The second widening was committed immediately after being corrected for the first.** ② **A DoD item that was false on arrival** — *"the literal appears exactly once in the workspace"*, when three unrelated constants already hold 15; Clair would have run it and found three hits. ③ **The `85 s` arithmetic**, wrong in Chat's own document. ④ **The 5174 diagnosis** — Chat saw a new Vite on 5174, assumed it was the client's orphan, and **built a mechanism around the assumption without reading either script's port**; it is the node's port by design. ⑤ **Improvising past the sanctioned launchers** — `run-client_debug.lnk` · `run-node_debug.lnk` · `run-node_service.lnk` exist at repo root and Chat hand-rolled both sides instead. *The launcher was one question away.* ⇒ ***the canonical rig procedure is now recorded so the next session does not improvise the same way.***
+
+**FLOORS.** cargo **1585 / 0 / 62 across 56** (unchanged; A-bis added no tests) · `svelte-check` **NOT re-measured, held by scope — stated rather than implied** · client registry not re-measured (no frontend touched).
+
+📌 **DISCLOSED:** Chat's live fills ran against Joe's **real** data dir, advancing `last_seen` on one record in `xgen-client_address_book.json` (19:55:44). Correct command behaviour, not damage — but a real book, not a scratch instance. **Future live legs should consider `--instance`.**
+
+**NEXT.** **Leg A-ter** (Clair, from the locked runbook) → **Leg B**, the widget, which now has a measured command signature and inherits four Phase-0 bindings plus the stale-bundle hazard from ③. 🔓 **OPEN FOR JOE:** the tuple-vs-named-struct return shape (**before** Leg B's runbook) · the future config milestone's **name** — Chat has proposed three and been wrong twice, and *the name should follow Joe's decision on which values are on the list, not precede it* · whether `cdp-debug.ps1` and `run-*.ps1` are fixed now or filed.
+
+---
+
 ## Entry J-589 — Leg A closed: the address book has a caller, the file exists, and the first fill in the project's history wrote Joe into Joe's own address book
 
 **Date:** 2026-07-25 · **Seats:** Joe (the View-menu proposal; the self-fixture lock; the question that found the self-in-the-book contradiction). Clair (implementation from a locked runbook). Chat (grounding, runbook, independent verification, records). **Rust only; ZERO `ui/**`, ZERO `skin.css`.**

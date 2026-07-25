@@ -1,6 +1,6 @@
 # M-RP-MEMBERS Leg A-bis — bound the fill, and give the roster a caller
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-25  
 > Language: English  
@@ -129,6 +129,17 @@ If anything here contradicts the Phase-0 or the code — a private function that
 
 ## §6 — Handoff
 
-**Leg B** (store + `members-panel` + the 7th `CLIENT_PLUGINS` row) is written **after this lands**, against the **measured** command signature — not against a predicted one. Writing it now would mean specifying a widget against a verb that does not exist, which is the exact failure this leg was created by.
+✅ **CLOSED 2026-07-25 (J-590), commit `2c3144b`.** All DoD items met and **independently re-driven by Chat** — roster live on 9222 (`[FillReport, MembersResult]`, `members:1`, `events_replayed:3`) · warm re-entrancy (`touched:1 / fetched:0`) · timeout exercised (11093 ms, rejected at the bound) · 🔑 **lock released after timeout** (err → ok, same process) · reproduced again under the sanctioned rig.
+
+⚠️ **TWO THINGS THIS RUNBOOK GOT WRONG, RECORDED RATHER THAN QUIETLY FIXED:**
+
+1. ⚠️ **§4's black-hole DoD CANNOT SEE THE DEFECT IT WAS MEANT TO CATCH.** *"A listening socket that never replies"* trips the **connect** bound and passes green. A node that **completes the WS upgrade and then goes dark during auth** still hangs — so this leg's *"the FillLock deadlock is closed"* holds **only for a peer that never upgrades**. ⇒ **`RUNBOOK_M_RP_MEMBERS_LEG_A_TER.md` closes it**, and its DoD demands a harness that upgrades *then* goes silent.
+2. ⚠️ **§2a's worst-case arithmetic (≈25 s) omitted auth entirely.** Corrected in A-ter §2b: the fill pays connect + auth **twice**, so the ceiling is `35 + 4A`.
+
+📌 **AND THE FLOOR HELD AT 1585 BECAUSE THIS LEG ADDED NO TESTS** — the unchanged floor proves the decomposition is behaviour-preserving and proves nothing about the new verb or the bounds. Stated, not implied.
+
+**Leg B** (store + `members-panel` + the 7th `CLIENT_PLUGINS` row) follows **after A-ter**, against the now-**measured** signature: a **2-element array**, snake_case fields (`space_id` · `identity_id` · `joined_at` · `invited_by` · `events_replayed`). 🔓 **Whether that tuple becomes a named struct `{ fill, members }` is OPEN and Joe's, and belongs before Leg B's runbook, not after.**
 
 **Leg B carries four Phase-0 bindings:** self is a **fixture** (always present · first · filter-immune, resolved from `selfState` never the book) · the roster crosses **`Option`-shaped, never a bare array** · any **count derives from the roster, never rendered rows** · **live `membership.*` refresh** (§5), with the cold fill as the start only.
+
+⚠️ **AND A FIFTH, LEARNED AT J-590:** the `run-*.ps1` scripts **leak their Vite and their readiness probe cannot tell whose server answered**, so a leaked Vite silently serves a stale bundle. **Leg B is frontend work and would be verified against it, reporting success throughout.** Verify the bundle's provenance before trusting any Leg B measurement.

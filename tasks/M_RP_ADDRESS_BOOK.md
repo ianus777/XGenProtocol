@@ -1,6 +1,6 @@
 # M-RP-ADDRESS-BOOK — client-side seen-records, the identity cache the UI reads names from
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-24  
 > Language: English  
@@ -152,6 +152,14 @@ A local cache of **other people's** identity data. This is one of the project's 
 
 🔒 **LOCKED — its own file (Joe, 2026-07-24).** Buys clean E1 (delete the file = wholesale erasure, verifiable), keeps other people's identity PII out of the client's own state, and interacts correctly with §6's E3.
 
+🔒 **NAMES LOCKED (Joe, 2026-07-24).** Taxonomy is Joe's under D-123; these are now fixed and Clair implements them verbatim:
+
+- **Module:** `xgen-client/src/address_book.rs`
+- **Types:** `AddressBook` (the book) · `SeenRecord` (one entry)
+- **Storage file:** `xgen-client_address_book.json`, beside `xgen-client_state.json`, matching the existing `xgen-client_*` convention
+
+📌 **`SeenRecord` is not `IdentityRecord`.** The node type is the authority; `SeenRecord` is the client's *projection* of it plus book-local fields (`last_seen`, and whatever §6 eviction needs). Keeping the names distinct is what stops the projection being mistaken for the source of truth — the ①/② layer confusion §3 warns about, in type form.
+
 ---
 
 ## §8 — The seed corpus is an OUTPUT of this Phase-0
@@ -195,20 +203,25 @@ A local cache of **other people's** identity data. This is one of the project's 
 - ⚠️ **Joe's mutual "visit card" model diverges from Ch2**, which is emphatic: *"A contact is not a mutual connection … The other person is never notified and never sees your annotations."* An amendment, not a recollection. **Belongs to ③, not here.**
 - ⚠️ **Merged-presence display** — collapsing presence from several Spaces into one indicator erases the context boundary Ch2's Space-scoping exists to protect. Not a protocol breach; a user-model question. **Belongs to ④.**
 - 📌 The A/B/C roster walk of 2026-07-24 is **superseded** — the roster is not the members widget's data model. It survives only as **F2**, one fill source.
+- ⚠️ **THE WIRE CEILING — `identity.record` cannot carry three of the four locked rules (measured `1fd594c`, J-583).** Code (`xgen-core/src/wire/types.rs:455-473`) and spec (Appendix I §IV.1) **agree**: the only client-facing identity payload carries `identity_id`, `display_name`, `registered_at`, `devices`, `home_node`, `is_ai`, `ai_capabilities` — and **no `update_version`, no `revoked`/`revoked_at`, no `trust_assertion`**. The node returns `Some(record)` for a **revoked** identity exactly as for a valid one (`xgen-node/src/app.rs:3538-3551`); revocation is enforced only at session-open against the revoked identity's **own** login (`app.rs:1539`). ⇒ **§5 V2, §5 revocation-on-encounter and §6's not-renewed badge have no wire source.** 🔒 **Joe locked Option C (2026-07-24): build all six, drive those three from book-internal seeds**, so the logic is written and tested and the day the record widens it is field-mapping, not redesign. **Widening `identity.record` is a protocol change** (Appendix I + Ch3 + node + client + a federation-replication check) — **filed, out of arc, awaiting a milestone name from Joe.**
 
 ---
 
 ## §12 — Handoff
 
-**Leg A measured · §4–§7 LOCKED (J-579) · N resolved (J-580) · Leg C DONE (J-581) · ✅ POPULATE DONE (J-582).** Corpus at `docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md` **v1.1** + 6 `.xgb` scripts, all six now **proven runnable from cold**.
+**Leg A measured · §4–§7 LOCKED (J-579) · N resolved (J-580) · Leg C DONE (J-581) · POPULATE DONE (J-582) · ✅ LEG-D RUNBOOK AUTHORED (J-583).**
 
-**NEXT: the Leg-D runbook (CHAT authors, off the locked Phase-0), then Leg D (CLAIR implements).** The runbook must cover the two book-internal cases — carol V2 via the Option-C file seed; grace E3 via a `last_seen` field shaped after `state.rs:118` — plus loading the five NOW-tier identities and asserting F1/F2/AI/revoked/not-renewed.
+🔒 **NEXT: LEG D — CLAIR IMPLEMENTS `tasks/RUNBOOK_ADDRESS_BOOK.md` v1.0.** Six steps in dependency order: `ops::identity_get()` → book type + own-file storage → F1 ∪ F2 fill → merge on encounter → erasure E1/E2/E3 → corpus load and assert. Names locked (§7). Corpus at `docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md` v1.1, proven runnable from cold.
 
-🔒 **BOTH LEG-D LOOKUPS ARE CLOSED (J-582), and one of them changed a build constraint:**
+⚠️ **READ §11's WIRE CEILING BEFORE BUILDING.** Three locked rules have no wire source; Joe locked **Option C** — build them, drive them from book-internal seeds, mark every seeded test with the reason. **Never populate a wire-absent field with a guess, and never let absence read as "fine".**
 
-- **Node-admin invocation surface — FOUND.** The node takes `--batch` exactly as the client does (`xgen-node/src/pipe.rs:98` → `admin_ops::AdminCli`). Verbs: `identity revoke <id> [--reason]` · `identity set-trust-expiry <id> --expiry <RFC3339>` · `identity list` · `identity show <id>`. Output surfaces on the **resident's** stdout.
-- ⚠️ **`trust_assertion` is normally `None` — ANSWERED, and it inverts the assumption.** The F1/F2 fill path populates it for **nobody**; frank only has one because `set_trust_expiry` synthesises a minimal `{"expiry": ...}` when none exists (`registry.rs:205`). **The not-renewed badge must render nothing on `None`, not "expired"** — otherwise every ordinary identity in a local-mode deployment wears a warning it never earned. This is now a constraint on Leg D, not an open question.
+🔒 **TWO CORRECTIONS THIS ARC, BOTH FROM MEASUREMENT:**
 
-📌 **Free for Leg D:** `clock advance` / `clock set` already ship as admin verbs behind `--features harness-control` (`admin_ops.rs:4437`, injected `MockClock`) — grace's aging needs a feature-gated build, not new machinery. And every seeded record carries `update_version: 0`, so carol v2 has a known floor to out-rank.
+- **F2 is CHEAPER than its lock assumed.** §4's cost note ("a transport change on `KnownSpace` / `get_spaces`") was wrong. `ops::members` (`ops.rs:2552-2558`) already derives Space membership client-side by causal replay of the drained DAG. **F1 and F2 read the SAME drain** — one call, union the two sets, fetch the remainder. F2's real cost is N `identity.get` round-trips, because `MemberEntry` carries no `display_name`.
+- ⚠️ **`trust_assertion` is normally `None`** (J-582). The fill path populates it for nobody; frank only has one because `set_trust_expiry` **synthesises** it (`registry.rs:205`). **The not-renewed badge must render nothing on `None`, not "expired"** — otherwise every ordinary identity wears a warning it never earned.
 
-**M-RP-MEMBERS** unblocks after the book build.
+🔒 **FILL TIMING LOCKED (Joe, 2026-07-24): off the critical path.** The Space opens at once; records resolve behind. Blocking the open puts an unbounded network wait in front of a UI action.
+
+📌 **Free for Leg D:** `clock advance` / `clock set` ship behind `--features harness-control` (`admin_ops.rs:4437`, `MockClock`); every seeded record carries `update_version: 0`, a known floor for carol v2.
+
+**M-RP-MEMBERS** unblocks after the book build. The **wire-widening** milestone and the **`identity.update` emitter** remain filed and unscheduled.

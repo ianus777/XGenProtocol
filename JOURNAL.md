@@ -8,6 +8,29 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-583 — Leg-D runbook authored, and the measurement that reshaped it: identity.record cannot carry three of the four locked rules
+
+**Date:** 2026-07-24 · **Seats:** Joe (locked all names, locked the fold, locked fill timing, locked Option C). Chat (grounding, the finding, the runbook). **ZERO product code. ZERO `skin.css`.**
+
+**WHAT SHIPPED.** `tasks/RUNBOOK_ADDRESS_BOOK.md` **v1.0** — six steps in dependency order, a test per locked rule, seams carrying measured line numbers. `tasks/M_RP_ADDRESS_BOOK.md` → **v1.6** (names locked into §7, wire ceiling filed in §11, §12 rewritten). No `.rs`, no `.svelte`.
+
+🔒 **JOE LOCKED, IN ORDER:** module `xgen-client/src/address_book.rs`, types `AddressBook` + `SeenRecord`, file `xgen-client_address_book.json` · the fetch op **folded in** as Step 1 rather than split into its own milestone · fill **off the critical path** · and, after the finding below, **Option C — build all six**.
+
+⚠️ **THE FINDING, AND IT STOPPED THE RUNBOOK MID-AUTHORING.** `identity.get` → `identity.record` is the only client-facing identity payload, and it carries exactly seven fields: `identity_id`, `display_name`, `registered_at`, `devices`, `home_node`, `is_ai`, `ai_capabilities`. **It carries no `update_version`, no `revoked`/`revoked_at`, no `trust_assertion`** (`xgen-core/src/wire/types.rs:455-473`). **Code and spec AGREE** — Appendix I §IV.1 defines the same seven — so this is what was *decided*, not drift. The node confirms it: the lookup returns `Some(record)` for a **revoked** identity exactly as for a valid one (`xgen-node/src/app.rs:3538-3551`), and revocation is enforced in one place only, `is_revoked` at session-open, denying the revoked identity its **own** login (`app.rs:1539`). ⇒ **a third party looking up a revoked identity learns nothing.**
+
+🔑 **THREE OF THE FOUR LOCKED RULES HAVE NO WIRE SOURCE:** §5 V2 (needs `update_version`), §5 revocation-on-encounter (needs `revoked`), §6's not-renewed badge (needs `trust_assertion`). Only §4 fill, §7 storage and §6 erasure are drivable from live data. **This is deeper than the carol finding.** J-581 established that nothing *emits* `identity.update`; the sharper truth is that even with a second version in existence, **the client could never observe `update_version` at all.** V2 has no wire path, not merely no producer.
+
+**I ALSO HAD TO CORRECT MYSELF.** J-582 recorded that frank's badge input "is real". That was measured on the node's registry via `identity show`, and I did not check whether the client could reach it. It cannot. The seeding was right; the conclusion drawn from it was too broad. Written into the runbook §4 Step 6 so the correction travels with the work rather than staying buried in an entry.
+
+🔒 **JOE LOCKED OPTION C: build all six, drive the three wire-dependent rules from book-internal seeds.** The alternative shapes were named and declined — shipping only the buildable half would put the book in front of users while a revoked identity still rendered as perfectly valid, which is precisely the trust defect §5 was locked to close; widening the record first is a protocol change (Appendix I + Ch3 + node + client + a federation-replication check) and does not belong inside a client-cache arc. **Option C keeps the merge, revocation and badge logic written and TESTED, so the day the record widens it becomes field-mapping rather than new design.** The widening is filed as a protocol milestone awaiting a name from Joe.
+
+🔑 **AND ONE LOCKED DECISION GOT CHEAPER.** §4's stated cost for F2 — "a transport change on `KnownSpace` / `get_spaces`" — is **wrong**. `ops::members` (`ops.rs:2552-2558`) is two lines: drain, then `members_projection`. The client already derives Space membership by causal replay of the DAG it drains; `KnownSpace` has no members field and needs none. **F1 and F2 read the SAME drain** — one call, union the sets, fetch the remainder. F2's real cost is N `identity.get` round-trips, because `MemberEntry` carries no `display_name`. *The decision never changed; only its price was misdescribed, and the misdescription would have bought a transport change nobody needed.*
+
+📌 **N-162 FIRED ON MY OWN WRITING.** PowerShell here-strings drop the trailing newline, so two chunk seams fused a `---` into the following heading (`---### Step 3`, `---## §5`) — invisible in the source, fatal to the rendered structure. Caught by scanning for the pattern after the write, not by reading it back. **Appearance and doc structure still have no verifier; the only defence is a programmatic scan aimed at the specific failure.**
+
+**HANDOFF.** NEXT is **Leg D — Clair implements `RUNBOOK_ADDRESS_BOOK.md` v1.0**. **M-RP-MEMBERS** unblocks after the book build.
+
+---
 ## Entry J-582 — Address book POPULATE: the five NOW-tier identities seeded and verified, and the corpus itself failed live — room membership is not space membership
 
 **Date:** 2026-07-24 · **Seats:** Joe (go). Chat (measurement, driving, corrections, records). **ZERO product code. ZERO `skin.css`.**

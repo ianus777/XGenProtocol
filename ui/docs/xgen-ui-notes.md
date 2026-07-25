@@ -3383,3 +3383,21 @@ document*.
 ⚠️ **AND IT IS THE SAME SHAPE AS N-156 AND N-161, ONE LEVEL UP.** Those say a probe reporting *what was asked for* is not evidence of *what happened*. This says a probe reporting *what exists* is not evidence of *what was decided*. **In all three the failure looks like a clean result** — the audit finished, every reading held, and the conclusion was still incomplete.
 
 📌 **Practical rule.** Before any decision record about a domain the project has documented: **grep the `docs/ch*` and `*-phase0.md` set for the subject FIRST**, not after. Cost is one search; D-124 cost an amendment.
+
+---
+
+### N-165 — `cdp-debug.ps1` writes via `Write-Host`, so a piped capture is EMPTY — and a dev-server orphan outlives its parent
+
+**Date:** 2026-07-25 · HEAD `ccf3ffa` · found during the floors re-measurement (J-585).
+
+⚠️ **`.\cdp-debug.ps1 ... | Out-String` CAPTURES NOTHING.** The harness reports through `Write-Host`, which goes to the information stream, not the pipeline. A readiness poll built on `if ($r -match ...)` therefore tests an **empty string** and fails every attempt — while the console shows the correct answer the whole time.
+
+**Measured:** twelve consecutive "not ready" verdicts against a client that was ready on attempt 1 (`typeof window.__XGEN_DEBUG__` → `"object"` each time, visible on screen, invisible to the script).
+
+🔑 **THE FAILURE MODE IS A CONFIDENT FALSE NEGATIVE.** Nothing errors. The loop runs its full course and reports a clean, plausible, entirely wrong conclusion — *"the app never became ready"*. Had the harness not echoed to the console, that would have been recorded as an app defect.
+
+📌 **Fix:** redirect the information stream — `.\cdp-debug.ps1 ... 6>&1 | Out-String`, then regex the `EVAL RESULT:` line.
+
+⚠️ **SECOND, UNRELATED: A DEV-SERVER ORPHAN SURVIVES ITS PARENT.** The Vite server found on 5173 had been running **33 hours** and its `npm` parent PID was already gone. `taskkill /T` on the surviving PID reaped a **grandchild at PID 34412** that a name-only `node.exe` filter would have left behind. ⇒ **the standing tree-kill rule is confirmed live, and process age is not bounded by parent lifetime** — a stale server can outlast the session that created it and silently serve two-day-old code to the next launcher, since `run-client.ps1` only waits for port 5173 to answer and cannot tell a fresh server from a stale one.
+
+📌 **Practical rule.** Before any UI measurement, check the **age** of whatever holds 5173, not merely that something does. Port-up ≠ current, exactly as port-up ≠ ready.

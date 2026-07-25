@@ -8,6 +8,21 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-585 — Floors re-measured at ccf3ffa: all three identical, and the standing inference retired
+
+**Date:** 2026-07-25 · **Seats:** Joe (go). Chat (measurement, cleanup). **ZERO code. ZERO records beyond this entry and N-165.**
+
+🔒 **ALL THREE FLOORS HOLD, UNCHANGED FROM 2026-07-23 at `7408056`:** cargo **1553 / 0 / 62** across **56** terminator lines (complete run, not partial) · svelte-check **0 err / 34 warn / 15 files** · client registry **149 AT REST** (three consecutive stable reads after a full reload, per N-132).
+
+🔑 **THE POINT OF THE RUN IS THE INFERENCE IT RETIRES.** Every kickoff since J-582 carried *"every commit since is `.md`/`.xgb` only — floors SHOULD hold. THAT IS AN INFERENCE, NOT A MEASUREMENT."* It was correct. It has now been **taken** rather than assumed, and the caveat can come out of the kickoff instead of being repeated. *A true inference is still not a measurement, and carrying one across a dozen commits is how it quietly becomes quoted as one.*
+
+📌 **Two tooling findings, both in N-165.** `cdp-debug.ps1` reports via `Write-Host`, so `| Out-String` captures **nothing** — my readiness poll returned twelve confident "not ready" verdicts against a client that was ready on attempt 1. **The failure mode is a clean false negative**: nothing errors, the loop completes, and the wrong conclusion looks like a result. Use `6>&1`. And the Vite server on 5173 had run **33 hours** with its parent PID already dead; `taskkill /T` reaped a grandchild a name-only filter would have missed. ⇒ **port-up ≠ current, exactly as port-up ≠ ready** — `run-client.ps1` waits only for 5173 to answer and cannot distinguish a fresh server from a stale one serving two-day-old code.
+
+📌 **Deliberate D-074 deviation:** this is a measurement confirmation, not a milestone state change, so it travels as JOURNAL + N-165 only — no PLAY, ROADMAP or task-doc edit. Recorded so the narrower footprint reads as a choice rather than an omission.
+
+**HANDOFF.** Unchanged: **Leg D — Clair implements `RUNBOOK_ADDRESS_BOOK.md` v1.1**. **M13** PENDING, blocks nothing.
+
+---
 ## Entry J-584 — M13 filed; the book stores observations not truth; and the visit card turns out to be an identity-layer model, not a contacts one
 
 **Date:** 2026-07-25 · **Seats:** Joe (named M13; supplied the observation framing, the visit-card model, tier-required claims; delegated three decisions). Chat (grounding, D-127, D-128, records). **ZERO product code. ZERO `skin.css`.**

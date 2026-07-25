@@ -1,6 +1,6 @@
 # M-RP-MEMBERS — the R7 members widget over the address book
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-25  
 > Language: English  
@@ -98,13 +98,34 @@ ROADMAP L824 says *"R7 is a contact list, not a room roster."* But the book is *
 
 📌 **The §4 collision stands under the lock:** E2 per-entry delete still has no UI, and the whole-book view still has no home. Carried into §9, not closed.
 
+### §4a — ⚠️ WHICH LATCH? A CHAT DEFECT, FOUND BY CHAT, ONE TURN AFTER THE LOCK
+
+**The lock stands; its implementation note did not.** §4-B originally said *"the `rooms-panel` D3 latch reused verbatim"*. **That is wrong in a way that matters, and grounding `ui/common/lib/stores/room-latch.svelte.ts` said so in its own header:** *"THERE ARE TWO LATCHES AND THE NAME HIDES IT."*
+
+| | What it is | Lifetime | Reachable from R7? |
+|---|---|---|---|
+| **R2's Space latch** | `let latchedSpaceId` **inside** `rooms-panel.svelte:23` — the Space you last clicked in the tree | widget | ❌ **NO.** It is a bare `let`, not exported. It is not a store. |
+| **`roomLatch`** (`$common`) | app-lifetime store; **already exposes `effectiveSpaceId`** — the Space owning the room you are reading | app | ✅ already consumed by R5 (`stream-panel:69-70`), R6 (`composer-panel:68-69`) and the shell (`app_client:153`) |
+
+⇒ **"Reuse R2's latch" was not merely suboptimal, it was NOT POSSIBLE** — copying it into R7 would create a **third** latch, the exact D-067 drift surface `room-latch.svelte.ts` was lifted to prevent, and the J-559 user-impact reversal is the direct precedent.
+
+**And the user-visible argument runs the same way as J-559.** If R7 latched its own Space, you could be reading room X in Space A — stream and composer both on A — while the members panel shows Space B because you clicked B in the tree. **Members of a Space you are not reading, sitting beside a conversation you are.** That is the greyed-out-composer failure wearing a different coat.
+
+🔑 **CHAT'S CORRECTED RECOMMENDATION — B1: R7 scopes off `roomLatch.effectiveSpaceId`.** One predicate, three widgets: the stream, the composer and the member list always describe **the same conversation**.
+
+**The one honest cost, stated rather than hidden:** `effectiveSpaceId` is `null` until a **room** is latched, so **selecting a Space in the tree does not populate R7** — you must open a room. The alternative, **B2**, would lift R2's Space latch into `$common` as a second shared latch: ① *user-visible* — members appear one click earlier, at the price of reintroducing the A-vs-B divergence above; ② *cost* — a new store plus an edit to a shipped widget plus a second writer, against B1's zero new state and one getter read. **B1 recommended; B2 stays available later as a lift, exactly as `roomLatch` itself was one.**
+
+🔓 **OPEN, and small: this is Chat's to implement but the empty-state copy is Joe's** — under B1 the no-scope empty state reads *"Select a room"*, not *"Select a space"*, because the room is what actually scopes it.
+
 ---
 
 ## §5 — DECISION 2: WHEN DOES FILL RUN? 🔒 Chat's, stated for the record
 
 🔒 **Locked upstream (Joe, address-book §4): FILL RUNS OFF THE CRITICAL PATH.** The Space opens **at once**; records resolve behind and the view updates as they land. **Never gate a Space open on the fetch loop** — at N members that is an unbounded network wait in front of a UI action.
 
-**Chat's implementation reading (technical execution, not a Joe call):** the trigger is the same event that already scopes R2 — a **space selection on the bus**. The shell (or the widget) fires `fill_space_records(space_id)` as a fire-and-forget `invoke`; the store re-reads the book when it resolves. The panel renders from `members` **immediately**, with unresolved rows in the §6 form, and rows resolve in place.
+**Chat's implementation reading (technical execution, not a Joe call):** the trigger is **a change in `roomLatch.effectiveSpaceId`** (§4a) — the same predicate R5 and R6 already act on. The widget or shell fires `fill_space_records(space_id)` as a fire-and-forget `invoke`; the store re-reads the book when it resolves. The panel renders from `members` **immediately**, with unresolved rows in the §6 form, and rows resolve in place.
+
+⚠️ **De-duplicate the trigger:** `effectiveSpaceId` does not change when you move between rooms **within** the same Space, so a naive per-room fire would re-fill on every room click. Fill on the **Space** transition only — and note that a warm re-fill is cheap by construction (`FillReport.touched`, J-586), so the failure mode here is noise, not correctness.
 
 ⇒ **the off-critical-path lock is EXERCISED, not asserted** (Leg C): open a Space, assert the panel paints before the fill returns, then assert rows resolve afterwards.
 
@@ -149,7 +170,7 @@ R7 is the first region with **real** candidates: `role` → `secondary`? `last_s
 
 **Leg A — the Rust read surface.** Two thin commands in `desktop.rs`: a sync book read (`get_spaces` shape, `DataDir`) and an async fill trigger (`reanchor_space` shape, G4). Moves the **cargo floor** (baseline 1585/0/62 across 56). ⚠️ **D-129 checked and does NOT fire:** each call builds a fresh session and drops it; nothing is made persistent across ops, so `ensure_connected` is untouched. Stated so the next arc knows it was checked, not skipped.
 
-**Leg B — the store + the widget.** `$common` address-book store + `members-panel.svelte` + the 7th `CLIENT_PLUGINS` row + shell hydration. Frontend only; moves the **svelte-check floor** (baseline 0 err / 34 warn / 15 files).
+**Leg B — the store + the widget.** `$common` address-book store + `members-panel.svelte` + the 7th `CLIENT_PLUGINS` row + shell hydration. **Scopes off `roomLatch.effectiveSpaceId` (§4a) — no new latch, no edit to `rooms-panel.svelte`.** Frontend only; moves the **svelte-check floor** (baseline 0 err / 34 warn / 15 files).
 
 **Leg C — live CDP verify (9222).** Registry delta · the §5 off-critical-path lock **exercised** · the §6 unresolved-row render, both cases · the honest empty states · churn-returns-to-baseline as the orphan proxy (N-092a: the client bridge is state-only, there is no `domCount` leg).
 

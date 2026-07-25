@@ -8,6 +8,27 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-587 — The re-read I claimed in J-586 was partial; doing it properly found a fourth wire-dependent rule
+
+**Date:** 2026-07-25 · **Seats:** Joe (pulled on the promise). Chat (re-read, corrections). **Records only. ZERO code.**
+
+⚠️ **I OVERCLAIMED IN J-586.** I reported *"the runbook re-read I owed found two more instances"* — but both were in **Step 3**, the step Clair had already flagged. I read Step 4's text in passing and reached Steps 5–6 only through a keyword grep. **That is not a re-read, and reporting it as one was wrong.** Joe asked for it again; this is the actual pass.
+
+🔑 **THE PHRASE THAT CAUSED THE ORIGINAL DEFECT WAS STILL SITTING IN TWO DOCUMENTS.** Runbook Step 6: *"bob — present via F2 (silent member, **authors nothing**)"*. Corpus §4: *"Bob is a member who **never authors** — the case F1 alone misses."* **Both false.** bob authors his own `membership.join`; what he never authors is a **message**. The code was fixed by Joe's Reading B ruling (J-586) while the documents kept asserting the untrue thing, in the exact words that produced the defect. Corrected in both, with the reason attached so the next reader sees why the wording is precise rather than pedantic.
+
+🔒 **AND §2's CEILING TABLE WAS UNDER-COUNTING ITSELF: THERE ARE FOUR WIRE-DEPENDENT RULES, NOT THREE.** §6 locks *"N is per-tier, Auth-Module-declared"*. **`tier` is a REQUIRED TrustAssertion field** (`u32`, 1–4 — Appendix M §M.1 L43), reachable **only** through `trust_assertion`, which the wire does not carry and which is `None` on every record. **`SeenRecord` has eight fields and none is `tier`.** ⇒ **the book cannot resolve a tier, so per-tier N is not derivable**, and every record today evicts on the T1 default regardless of tier.
+
+📌 **The mechanism was built correctly and needs no change** — `evict_older_than(now, max_age_days)` takes N as a caller parameter, the right scoping, since resolution belongs where a tier is known. Only the **input** is missing. ⇒ **M13 is worth MORE than its own §1 claimed**: widening `trust_assertion` delivers per-tier retention as well as the badge. Filed into M13 §1 (v1.2).
+
+🔑 **THIS IS THE WORST OF THE FOUR, BECAUSE §2 IS THE SECTION EVERY READER CONSULTS FIRST.** The other three were prose under-specifying a clear contract. This one was the **ceiling table mis-stating its own scope** — anyone sizing M13 from it would have under-counted what unblocks, and the error would have propagated into that milestone's planning rather than staying in this one.
+
+📌 **Step 4's trigger was also wrong:** *"on re-encountering an identity, the higher `update_version` wins"*. In the live path a re-encounter is a **touch** — held identities are never re-fetched — so no merge fires. The real trigger is **absorption of a fetch**. Clair built it correctly regardless, routing `absorb_fetch` through `merge` to keep wire-vs-seed precedence.
+
+🔑 **FOUR INSTANCES, ONE CLASS, AND THE LESSON IS NOT "BE MORE CAREFUL".** All four are one author writing six steps in a single pass against a spec they were simultaneously interpreting. Care does not catch that — the interpretation feels correct from inside. **What caught every one of them was a second reader working from the source: Clair on F1, Joe on this pass.** The structural fix is that a runbook gets read against the Phase-0 by someone other than its author before it is handed over, not that its author tries harder.
+
+**HANDOFF.** Unchanged: **M-RP-MEMBERS unblocks.** **M13** PENDING (now four rules, not three). **D-129** gated.
+
+---
 ## Entry J-586 — Leg D CLOSED: the address book is built, and the live pass found the one defect no committed test could
 
 **Date:** 2026-07-25 · **Seats:** Joe (ruled Reading B, locked the last_seen touch, delegated the root-fix timing). Clair (implementation, both fixes). Chat (runbook, live verification, records). **First Rust of this arc.**

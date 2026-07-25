@@ -1,8 +1,8 @@
 # M-RP-ADDRESS-BOOK — Seed Corpus (Leg C)
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-24  
+> **Last updated**: 2026-07-25  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -98,7 +98,7 @@ send --space <SPACE> --room <ROOM> --text "alice-msg-1"
 register --name bob
 join --space <SPACE>
 ```
-(No send, no room join. Bob is a member who never authors — the case F1 alone misses.)
+(No send, no room join.) ⚠️ **Bob DOES author his own `membership.join` — what he never authors is a MESSAGE** (corrected 2026-07-25, J-587). The earlier phrasing *"a member who never authors"* was false, and it was the exact wording that produced the F1 defect: since every member authors their own join, "F1 = any author" would have swept bob in and made F2 dead code. 🔒 **F1 = `message.*` senders (Joe ruled Reading B, J-586).** Bob is the case F1 alone misses **because he never speaks**, not because he never signs an event.
 
 **erin** (AI): `xgen-client --instance <label> init --passphrase= --ai` FIRST, THEN:
 ```

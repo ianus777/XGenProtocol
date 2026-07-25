@@ -1,6 +1,6 @@
 # M13 — Client Identity Lookup Widening
 > **Status**: PENDING  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-25  
 > Language: English  
@@ -31,6 +31,8 @@
 🔑 **Objectives 1 and 2 are protocol ADDITIONS; objective 3 is a CONFORMANCE and INTEGRITY fix.** Different kinds of work — keep them distinguishable inside the milestone.
 
 **Secondary objective / completion criterion:** every seeded test in M-RP-ADDRESS-BOOK Leg D (carol V2, dave revoked, frank badge) becomes a **live** test when this lands. A reasonable definition of done is *"the Option-C seeds are replaced by wire-driven fixtures."*
+
+🔑 **AND A FOURTH RULE UNBLOCKS THAT THE FIRST DRAFT MISSED — added 2026-07-25 (J-587): PER-TIER RETENTION N.** §6 of the address-book Phase-0 locks *"N is per-tier, Auth-Module-declared"*, and **`tier` is a REQUIRED TrustAssertion field** (`u32`, 1–4 — Appendix M §M.1 L43). It is reachable **only** through `trust_assertion` ⇒ today the book cannot resolve a tier and every record evicts on the T1 default (182 d) regardless of tier. **Widening `trust_assertion` therefore also delivers per-tier retention**, not just the badge. ⚠️ **This means M13 is worth MORE than §1 claimed** — three rules were listed; four go live. 📌 The eviction *mechanism* is already correct and needs no change: `evict_older_than(now, max_age_days)` takes N as a caller parameter, which is right — resolution belongs where a tier is known. Only the input is missing.
 
 ---
 

@@ -1,6 +1,6 @@
 # Runbook — M-RP-ADDRESS-BOOK Leg D: build the client-side address book
 > **Status**: COMPLETED  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-25  
 > Language: English  
@@ -48,11 +48,15 @@ The node confirms this (`xgen-node/src/app.rs:3538-3551`): the lookup returns `S
 |---|---|
 | §4 fill F1 ∪ F2 | ✅ live wire — `display_name`, `is_ai` arrive |
 | §7 own-file storage | ✅ book-local |
-| §6 E1 + E2 + E3 erasure | ✅ book-local (`last_seen`) |
+| §6 E1 + E2 + E3 erasure (mechanism) | ✅ book-local (`last_seen`) |
 | §5 V2 higher `update_version` wins | ⚠️ **seeded** — field is book-local, no wire source |
 | §5 revocation-on-encounter | ⚠️ **seeded** — no wire source |
 | §6 not-renewed badge | ⚠️ **seeded** — no wire source |
+| §6 **per-tier retention N** | ⚠️ **NO WIRE SOURCE — the fourth rule, added 2026-07-25 (J-587)** |
 
+⚠️ **THE CEILING HAS FOUR RULES UNDER IT, NOT THREE — CORRECTED 2026-07-25 (J-587).** §6 locks *"N is per-tier, Auth-Module-declared"*, and **`tier` is a REQUIRED TrustAssertion field** (`u32`, 1–4 — Appendix M §M.1 L43). It is reachable **only** through `trust_assertion`, which the wire does not carry and which is `None` on every record. **`SeenRecord` has eight fields and none is `tier`.** ⇒ **the book cannot resolve a tier, so it cannot resolve a per-tier N**, and every record today evicts on the T1 default regardless of tier.
+
+📌 **The mechanism is correct and stays as built:** `evict_older_than(now, max_age_days)` takes N as a caller parameter, which is the right scoping — resolution belongs where a tier is known. It is the **input** that does not exist yet. Per-tier N goes live with the same M13 widening as the other three, which makes M13 worth slightly more than §1 of its own doc claims.
 🔑 **THE POINT OF OPTION C: the logic is written and TESTED now, so the day `identity.record` widens it becomes field-mapping, not new design.** Do not simulate the missing fields on the wire, do not invent a side-channel, and do not quietly drop the three rules. Build them against seeded book state, and mark each seeded test with the reason.
 
 ⚠️ **NEVER populate a wire-absent field with a guess.** `update_version` defaults to `0`, `revoked` to `false`, `trust_assertion` to `None` on anything fetched. A fetched record must never *claim* an identity is valid — it simply has no opinion, and §6's display rule must treat absence as unknown, not as fine.
@@ -158,7 +162,7 @@ Union the two sets, subtract the identities the book **already holds** — held 
 
 ### Step 4 — Freshness: merge on encounter (§5 V2)
 
-**Rule:** on re-encountering an identity, the record with the **higher `update_version` wins**; equal or lower is discarded, not merged field-by-field.
+**Rule:** when a record is **absorbed from a fetch**, the **higher `update_version` wins**; equal or lower is discarded, not merged field-by-field. ⚠️ **The trigger is absorption, NOT re-encounter** (corrected 2026-07-25, J-587). A live re-encounter of a held identity is a **touch** — held identities are never re-fetched (Step 3), so no merge fires. Routing absorption through `merge` is what keeps wire-vs-seed precedence correct: a fetched record (always `update_version 0`) can never displace a seeded higher version.
 
 ⚠️ **SEEDED, per §2 Option C.** `identity.record` carries no `update_version`, so nothing on the wire can currently produce a second version. Build and test the merge against **book-file seeds**: two records for carol — v1 `carol`, v2 `Carol M.` at a higher `update_version` — written directly into `xgen-client_address_book.json`.
 
@@ -196,8 +200,8 @@ Run `docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md` v1.1 (six `.xgb` + two node
 
 | Identity | Assert |
 |---|---|
-| alice | present via **F1** (authored) |
-| bob | present via **F2** (silent member, authors nothing) |
+| alice | present via **F1** — authored a **message** |
+| bob | present via **F2** — silent member. ⚠️ **He authors his own `membership.join`; what he never authors is a MESSAGE** (corrected 2026-07-25, J-587 — "authors nothing" was the exact false phrasing that produced the F1 defect) |
 | erin | present with `is_ai = true` |
 | dave | ⚠️ **seeded** — revoked-on-encounter, per §2 |
 | frank | ⚠️ **seeded** — not-renewed badge state, per §2 |

@@ -4762,3 +4762,22 @@ A cached `revoked = true` is a **historical fact that can never become wrong**. 
 3. **The protocol should BOUND what a tier may demand.** `claims.extra` is an **open namespace** — unknown keys are preserved and `has_claim` consults them — so absent a ceiling an Auth Module can make access conditional on ever-growing disclosure: *"disclose or lose your tier."* 🔑 **That is enshittification arriving through the Auth Module rather than through a platform** — the one vector the architecture does not currently close, reached by exactly the door tier-required claims opens. The ceiling's shape (proofs and hashes yes, plaintext personal data no, mirroring the `email_hash` rule) is **filed for M10**; imposing it before modules exist is far cheaper than after.
 
 📌 **The optional/required tension resolves one level up:** choosing a tier is voluntary, so disclosure is optional at tier selection rather than per field. **A blank visit card stays legal at T1.**
+---
+
+## D-129 — `goodbye` poisons the session: a GATE on any arc that makes a session persistent across ops
+
+**Date:** 2026-07-25 · **Layer:** client session/transport · **Ref:** J-586, D-121 (two lenses), D-071 (audits precede dependents) · **Code:** `xgen-client/src/session.rs` (`ensure_connected`), `xgen-client/src/ops.rs` (25 `goodbye` sites).
+
+⚠️ **PROVENANCE: found by Chat's live orchestration pass (J-586); Joe delegated the TIMING ("it needs to be fixed but it is yours when").**
+
+**The defect.** `ClientConnection::goodbye` closes the socket but leaves `SessionState.conn = Some(dead)`. `ensure_connected` reconnects **only when `conn` is `None`**, so it hands back the corpse and the next send fails with *"Sending after closing is not allowed"*. **Measured: `ops.rs` has 25 `goodbye` sites and exactly ONE `conn = None`** — the one inside `fill_from_space`.
+
+**Why it has never bitten — measured, not assumed.** Every dispatcher builds a fresh session per command: M5/M6 CLI one-shot, and `aicontrol.rs:404` states it explicitly — *"Each arm builds its own session (matches the batch arm)"*. `fill_from_space` is the first verb **designed** to be called repeatedly on one session, so it is the first to step on the mine. It now clears on every exit path (J-586).
+
+🔒 **DECISION — GATE, NOT A DATE.** This is **NOT scheduled now**: ① user-visible impact today is **zero** (nothing reuses a session; "no user-facing impact" is a legal answer under D-121) and ② the fix touches `session.rs` and every op's assumptions, so it needs its own arc and audit.
+
+⚠️ **THE TRIGGER: any arc that makes a `SessionState` persistent across ops MUST fix this FIRST.** `ops.rs:30-32` names that as the intent (*"the same instance will be reused across commands in a persistent `--aicontrol` connection in M7"*) — so the trigger is live intent, not a hypothetical.
+
+🔑 **A DATE WOULD BE ARBITRARY; A TRIGGER CANNOT BE MISSED.** Fixed early it is one function in `session.rs`. Discovered late it is 24 call sites failing intermittently, in an arc that will look like it broke something unrelated.
+
+📌 **Shape of the eventual fix:** make `ensure_connected` detect a closed connection and reconnect, rather than trusting `Option::is_some` as a liveness proxy. Per-op `conn = None` is a workaround, correct only where it is written.

@@ -8,6 +8,35 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-586 — Leg D CLOSED: the address book is built, and the live pass found the one defect no committed test could
+
+**Date:** 2026-07-25 · **Seats:** Joe (ruled Reading B, locked the last_seen touch, delegated the root-fix timing). Clair (implementation, both fixes). Chat (runbook, live verification, records). **First Rust of this arc.**
+
+**WHAT SHIPPED.** `xgen-client/src/address_book.rs` (new) · `ops.rs` (+687) · `lib.rs` (+1). **Three files, `xgen-client` only. Zero `ui/**`, zero `skin.css`, zero other crates.** Records: runbook → **v1.2 COMPLETED**, task doc → **v1.8 COMPLETED**, **D-129**, M13 doc → **v1.1**.
+
+🔒 **FLOOR MOVED 1553 → 1585 / 0 / 62 across 56** — the honest "Rust landed" signal, **measured independently by Chat**, not quoted from the handback. Zero warnings, zero panics. `svelte-check` holds **by scope** (no frontend touched) and was NOT re-measured — said plainly rather than implied.
+
+🔑 **THE LIVE ORCHESTRATION PASS EARNED ITS EXISTENCE ON THE FIRST RUN.** Clair's Step 6 was a committed deterministic test (option A) — the right committed artifact, but one that simulates the fetch and never exercises the live drain→get→absorb round-trip. Chat drove `fill_from_space` against a real scratch node with the seeded corpus. **Pass 1 was flawless. Pass 2 died:** *"failed to send sync_request → Sending after closing is not allowed"*.
+
+⚠️ **`fill_from_space` WAS NOT RE-ENTRANT — and it was Clair's own finding, reproduced at the exits she had not covered.** She had correctly diagnosed that `drain_space_events` goodbyes and that `ensure_connected` will not revive a `Some`-but-dead connection, and cleared `conn` between the drain and the fetch loop. But the fetch loop's own closing `goodbye` left the same corpse behind for the next caller. **Chat confirmed the diagnosis WITHOUT touching her code** — clearing `conn` in a throwaway harness between passes made pass 2 succeed completely — so the fix location was proven before a line was written.
+
+🔑 **AND THE WORSE PATH WAS THE ONE NOBODY HAD LOOKED AT.** Reading her code for the instruction turned up a second leak: her clear sat **after** the warm early return, so on an already-warm book — *the steady state, where a deployment spends nearly all its time* — the function returned with the connection still dead and never cleared it. **A fix patching only the exit would have passed a two-call test and still failed on almost every real fill**, surfacing much later as an intermittent "names stop updating". *The bug found by running was not the expensive one; the expensive one was found by reading what the fix would have missed.*
+
+🔒 **CLAIR IMPROVED ON THE INSTRUCTION.** Chat specified two clears (after the drain, after the goodbye). She instead made `fill_from_space` a thin wrapper that captures the inner result and clears once on return — which also covers the `?`-skipped **error** paths the two-clear version would still have leaked. **The instruction was worse than what was built, and she said so rather than following it.**
+
+🔒 **RE-RUN: GREEN ON ALL FOUR EXITS, with NO caller-side connection management.** Cold `candidates 6 / fetched 6 / touched 0` · warm `candidates 0 / touched 6` · **warm again succeeded** (the early-return path clears) · a bogus space **genuinely errored** · a valid fill after that error **succeeded** (the error path clears). `last_seen` advanced `08:00:43.019Z → 08:00:45.496Z` for all six. **bob present having authored no message — F2 proven live.** erin `is_ai: true` off the wire. Every record `update_version 0 / revoked false / trust_assertion None` — the wire ceiling behaving exactly as the runbook §2 specifies.
+
+⚠️ **§7 RE-OPEN FIRED A THIRD TIME, ON THE RUNBOOK'S OWN PROSE.** Before Step 3, Clair measured that every member authors their own `membership.join` — so "the distinct `sender` values across the drained events" would put every member in F1, make F2 dead code, and falsify §4's own line *"a member list built on F1 alone shows only talkers"*. **Joe ruled Reading B: F1 = `message.*` senders.** The defect was Chat's runbook, and the root ambiguity was in the Phase-0 itself — a **definition** line ("an event you render") fighting a **rationale** line ("only talkers"). Both are now corrected (task doc §4 v1.8, runbook §3/§4 v1.2). *Grounding against code proves what is; against spec proves what was decided; neither protects you when the two documents disagree with each other.*
+
+📌 **THE SAME DEFECT CLASS, THREE TIMES — loose prose over a contract that was already clear.** F1 "author"; then `last_seen` "on every touch", which `SeenRecord` specified and Step 3 failed to spell out, so held identities' `last_seen` froze and E3 would have evicted demonstrably-present members; then "held fresh" implying a freshness window the ruling had refused. **All three were the runbook under-specifying something the Phase-0 already said.** The re-read Chat owed after the first instance found the other two.
+
+🔒 **D-129 — the systemic root, GATED not scheduled.** `ops.rs` has **25 `goodbye` sites and exactly one `conn = None`**. Every op that says goodbye leaves a dead connection. It has never bitten because every dispatcher builds a fresh session — `aicontrol.rs:404` says so outright, *"Each arm builds its own session"* — **so the risk is latent, and user-visible impact today is zero.** Joe delegated the timing; Chat set a **trigger instead of a date**: any arc making a `SessionState` persistent across ops must fix `ensure_connected` first. `ops.rs:30-32` names that as the M7 intent, so the trigger is live intent, not a hypothetical. *A date would be arbitrary; a trigger cannot be missed.*
+
+📌 **FILED FOR M13 (§3b):** `identity set-trust-expiry` writes the key `"expiry"` while the canonical field is `valid_until` (Appendix M §M.1 L47). Invisible today — `trust_assertion` is an opaque `Value` nothing type-checks — but at M13 a record an admin flagged would render **no badge at all**, silent and inverted. **Third correction to one J-582 claim**; recorded because the pattern matters more than the field.
+
+**HANDOFF.** **M-RP-MEMBERS unblocks** — the book exists and the UI can read names from it. **M13** PENDING. **D-129** gated. **M-RP-OWN-ROW-NAME** still deferred behind this chain, needs no book.
+
+---
 ## Entry J-585 — Floors re-measured at ccf3ffa: all three identical, and the standing inference retired
 
 **Date:** 2026-07-25 · **Seats:** Joe (go). Chat (measurement, cleanup). **ZERO code. ZERO records beyond this entry and N-165.**

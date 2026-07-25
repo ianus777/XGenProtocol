@@ -5,6 +5,7 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
+pub mod address_book; // M-RP-ADDRESS-BOOK — client-side seen-records (the identity cache the UI reads names from).
 pub mod ai_behavior;
 pub mod ai_service;
 pub mod aicontrol;

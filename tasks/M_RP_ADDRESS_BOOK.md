@@ -1,6 +1,6 @@
 # M-RP-ADDRESS-BOOK — client-side seen-records, the identity cache the UI reads names from
-> **Status**: ACTIVE  
-> Version: 1.7  
+> **Status**: COMPLETED  
+> Version: 1.8  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-25  
 > Language: English  
@@ -74,13 +74,13 @@
 
 ## §4 — DECISION 1: FILL POLICY — what enters the book?
 
-**F1 — author-on-sight.** Any identity that authors an event you render.
+**F1 — author-on-sight.** Any identity that authors a **message** event you render. ⚠️ **DISAMBIGUATED 2026-07-25 (J-586, Joe ruled Reading B).** As first written this said "an event you render", which is ambiguous: membership events ARE rendered (C2 system notices, J-547) and every member authors their own `membership.join`, so the literal reading put every member in F1, made F2 dead code, and falsified this section's own next line. **Membership and state events do not qualify.**
 - *User-visible:* names appear for people who have **spoken**; everyone silent stays an XGID. A member list built on F1 alone shows only talkers.
 - *Cost:* smallest. One hook on the event-ingest path.
 
 **F2 — Space-membership sweep.** On opening/joining a Space, cache every member's record. Ch2 permits this explicitly: *"Within a Space, members can see the membership list of that Space."*
 - *User-visible:* everyone appears, silent or not. **This is what a members widget needs.**
-- *Cost:* requires carrying the roster the node already holds (`SpaceState.members`) to the client — a transport change on `KnownSpace` / `get_spaces`.
+- *Cost:* ⚠️ **CORRECTED 2026-07-25 (J-582/J-586): NO transport change is needed.** `ops::members` (`ops.rs:2552-2558`) already derives Space membership client-side by causal replay of the drained DAG; `KnownSpace` has no members field and needs none. **F1 and F2 read the SAME drain.** The real cost is N `identity.get` round-trips, because `MemberEntry` carries no `display_name`.
 - 📌 **The roster question returns here, demoted.** It is no longer *the members widget's data model*; it is **one fill source for the book**.
 
 **F3 — registry pull.** Everyone the node knows.
@@ -187,13 +187,13 @@ A local cache of **other people's** identity data. This is one of the project's 
 - [x] §6 N resolved: per-tier Auth-Module-declared, finite floor, T1 = 182 d provisional dev default; not-renewed = derived from cached valid_until
 - [x] seed corpus specified and the seed set written (Leg C — `docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md` + 6 `.xgb` scripts; carol v2 + grace E3 are Leg-D book-file cases)
 - [x] **POPULATE executed and verified (J-582)** — five NOW-tier identities seeded against a live node, cold-run reproducible; corpus corrected to v1.1 (room-join defect, `init --ai`); N-164 answered (`trust_assertion` is normally `None`)
-- [ ] runbook authored for Clair
+- [x] runbook authored for Clair (`tasks/RUNBOOK_ADDRESS_BOOK.md`, J-583)
 
-**IMPLEMENTER**
-- [ ] book populates per the locked fill policy
-- [ ] freshness rule enforced with a test that a stale record loses to a higher `update_version`
-- [ ] erasure path exists per §6
-- [ ] `cargo` floor holds; `svelte-check` floor holds
+**IMPLEMENTER — ALL MET, LEG D CLOSED 2026-07-25 (J-586)**
+- [x] book populates per the locked fill policy — F1 ∪ F2 from one drain, off the critical path; **F2 proven live** (bob cached having authored no message)
+- [x] freshness rule enforced with a test that a stale record loses to a higher `update_version` (carol seeds, marked per Option C)
+- [x] erasure path exists per §6 — E1 + E2 + E3 + `trust_lapsed`; `None` ⇒ no badge
+- [x] `cargo` floor **moved 1553 → 1585 / 0 / 62 across 56** (Rust landed, verified independently by Chat); `svelte-check` holds **by scope** — zero frontend touched, not re-measured
 
 ---
 

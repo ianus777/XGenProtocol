@@ -1,6 +1,6 @@
 # M13 — Client Identity Lookup Widening
 > **Status**: PENDING  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-25  
 > Language: English  
@@ -57,6 +57,21 @@
 
 ---
 
+## §3b — ⚠️ A NODE-SIDE DEFECT M13 MUST FIX, OR THE BADGE SILENTLY FAILS
+
+**Filed 2026-07-25 (J-586), found by Clair while building Leg D Step 5.**
+
+`identity set-trust-expiry` (M6 A5) writes the key **`"expiry"`** into `IdentityRecord.trust_assertion` (`xgen-core/src/identity/registry.rs:211,214`). The **canonical** Trust Assertion field is **`valid_until`** — Appendix M §M.1 line 47, explicitly *"AE-D1 wire name — NOT `expires_at`"*.
+
+⚠️ **`trust_assertion` is an opaque `Option<Value>`, so nothing type-checks it and no test reads it back canonically.** The mismatch is invisible today: nothing consumes the field, and it never crosses the wire.
+
+🔑 **AT M13 IT STOPS BEING INVISIBLE.** Once `trust_assertion` reaches clients, a record touched by `identity set-trust-expiry` carries a key no canonical reader finds ⇒ a client deriving from `valid_until` gets `None` ⇒ **the not-renewed badge renders nothing for exactly the identities an admin flagged.** The failure is silent and inverted: the flagged look fine, and nobody sees an error.
+
+**M13 must therefore, in addition to widening the wire:** make `set_trust_expiry` write `valid_until`, and decide what to do with any record already carrying `expiry` (dev-only data today, so a clean rename is likely enough — verify before assuming).
+
+📌 **This is the THIRD correction to one J-582 claim** that frank's badge input "is real". It was measured node-side only; the client cannot reach it (§1 objective 3); and the value is in a shape a canonical reader would reject. *One over-claim, three passes to unwind — recorded because the pattern matters more than the field.*
+
+---
 ## §4 — Open, and JOE'S
 
 ⚠️ **`trust_assertion` on the wire: floor vs card.** Joe's visit-card model (§5) supplies a better split than "whole assertion vs derived expiry": the **minimal derived facts (tier + validity window) are protocol FLOOR** — tier gating *is* channel establishment when a Space gates on tier — while the **full assertion with issuer and claims is DISCLOSURE**, belonging to the card. **Proposed, not locked.**

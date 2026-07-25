@@ -1,6 +1,6 @@
 # Runbook — M-RP-ADDRESS-BOOK Leg D: build the client-side address book
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-25  
 > Language: English  
@@ -141,10 +141,12 @@ pub async fn identity_get(
 
 🔑 **F1 and F2 are one drain, not two passes.** From a single `drain_space_events(ctx, space)`:
 
-- **F1 (author-on-sight)** — the distinct `sender` values across the drained events.
+- **F1 (author-on-sight)** — the distinct `sender` values across the **`message.*`** events only. ⚠️ **NOT every drained sender — CORRECTED 2026-07-25 (J-586), Joe ruled Reading B.** Every member authors their own `membership.join`, and those render as C2 system notices, so "any event you render" would put every member in F1, make F2 dead code, and contradict §4's own rationale (*"a member list built on F1 alone shows only talkers"*). Membership and state events DO NOT qualify.
 - **F2 (membership sweep)** — the `identity_id` values from `members_projection(space, &events)`.
 
-Union the two sets, subtract the identities already held fresh in the book, and fetch the remainder through Step 1. Upsert each result, stamping `last_seen`.
+Union the two sets, subtract the identities the book **already holds** — held means *present*, with **no freshness window**: under the wire ceiling a re-fetch is a provable no-op (always `update_version 0`; nothing mutates `display_name`), so the window lands with M13, when a re-fetch first becomes informative. Fetch the remainder through Step 1 and upsert each, stamping `last_seen`.
+
+🔒 **AND TOUCH `last_seen` ON THE WHOLE OBSERVED SET, NOT ONLY THE FETCHED ONES (Joe, 2026-07-25).** Re-observing a held identity advances its `last_seen` with no re-fetch. ⚠️ **This is the observation contract, not an optimisation:** every record means *"as of `last_seen`, this was the state"*, so a frozen `last_seen` on someone you demonstrably saw today makes the record **lie about its own central claim** — and E3 would then evict a continuously-present member. `SeenRecord` already specified `last_seen` as "set on every touch"; this spells out what Step 3 left implicit.
 
 ⚠️ **The union is the point of the lock.** F1 alone misses silent members (bob in the corpus); F2 alone misses authors who have left the Space. Neither is a superset of the other — this is exactly why §4 locked F1 ∪ F2 rather than either one.
 
@@ -208,20 +210,24 @@ Run `docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md` v1.1 (six `.xgb` + two node
 
 ## §5 — Definition of Done
 
-- [ ] Step 1 — `ops::identity_get()` exists, returns `Ok(None)` on `NotFound`, tests pass
-- [ ] Step 2 — `AddressBook` + `SeenRecord` in `xgen-client/src/address_book.rs`; `xgen-client_address_book.json` load/save; missing file ⇒ empty book
-- [ ] Step 3 — F1 ∪ F2 fill from one drain, off the critical path
-- [ ] Step 4 — merge on encounter, higher `update_version` wins (carol seeds)
-- [ ] Step 5 — E1 + E2 + E3; `trust_assertion = None` yields no badge state (grace seed)
-- [ ] Step 6 — corpus loaded, five NOW-tier assertions pass
-- [ ] Every wire-absent rule tested from a **seed** and **marked with the reason**
-- [ ] `cargo` floor holds · `svelte-check` floor holds
-- [ ] Zero `skin.css` changes — it is Joe's file
+🔒 **ALL MET — LEG D CLOSED 2026-07-25 (J-586).** Built by Clair from v1.1; live-verified by Chat at `167055d` + working tree.
+
+- [x] Step 1 — `ops::identity_get()` + `identity_get_on` + pure `parse_identity_get_response`; `NotFound` ⇒ `Ok(None)`
+- [x] Step 2 — `AddressBook` + `SeenRecord` in `xgen-client/src/address_book.rs`; `xgen-client_address_book.json`; missing ⇒ empty book, corrupt ⇒ honest error
+- [x] Step 3 — F1 ∪ F2 from one drain, off the critical path, `last_seen` touched across the whole observed set
+- [x] Step 4 — merge on encounter, higher `update_version` wins (carol seeds, marked)
+- [x] Step 5 — E1 + E2 + E3 + `trust_lapsed`; `None` ⇒ no badge (seeds marked)
+- [x] Step 6 — corpus loaded, five NOW-tier assertions pass
+- [x] Every wire-absent rule tested from a **seed** and **marked with the reason**
+- [x] `cargo` floor moved **1553 → 1585 / 0 / 62 across 56** — the honest "Rust landed" signal, verified independently by Chat
+- [x] `svelte-check` holds **by scope** (zero frontend touched) — not re-measured, and said so
+- [x] Zero `skin.css`; 3 files, `xgen-client` only
+
+🔑 **LIVE ORCHESTRATION PASS — GREEN (Chat, J-586).** Against a real scratch node, with **no caller-side connection management**: cold `candidates 6 / fetched 6 / touched 0` · warm `candidates 0 / touched 6` · warm again **succeeded** (proving the early-return path clears) · a bogus space genuinely errored · a valid fill after that error **succeeded** (proving the error path clears). `last_seen` advanced across passes for all six. bob present having authored no message — **F2 proven live**. erin `is_ai: true` off the wire. Every record `update_version 0 / revoked false / trust_assertion None` — the wire ceiling exactly as §2 specifies.
+
+⚠️ **The live pass found the defect that committed tests could not:** `fill_from_space` was not re-entrant — the fetch loop's closing `goodbye` left `session.conn = Some(dead)`, and the **warm early return** leaked it on the most frequent path of all. Fixed by a wrapper that captures the inner result and clears on **every** exit, including the `?`-skipped error paths.
 
 📌 **"Commit pushed" is deliberately NOT on this list.** `Status: COMPLETED` in the header is the shipped signal; Joe owns the push.
-
----
-
 ## §6 — Out of scope — do NOT build these here
 
 - **Any UI.** The book is a data layer. Rendering names, badges and rosters is **M-RP-MEMBERS**, which unblocks after this build.

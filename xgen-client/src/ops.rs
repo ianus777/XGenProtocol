@@ -408,6 +408,115 @@ pub async fn register(
     })
 }
 
+// ── identity_get ────────────────────────────────────────────────────────────────
+
+/// A faithful projection of the `identity.record` wire response (spec 3.6.7).
+///
+/// Mirrors the SEVEN fields the wire actually carries — and ONLY those.
+/// `identity.record` deliberately does NOT carry `update_version`, `revoked`,
+/// or `trust_assertion` (measured `1fd594c`, re-confirmed `167055d`; code and
+/// Appendix I §IV.1 agree — this is decided, not drift). This type is the
+/// fetch boundary and must never *claim* data the wire did not deliver.
+///
+/// The address book's book-local fields for the wire-absent locked rules
+/// (§5 V2 / revocation-on-encounter, §6 not-renewed) live on `SeenRecord`,
+/// NOT here (M-RP-ADDRESS-BOOK Leg D, runbook §2 wire ceiling). `M13 Client
+/// Identity Lookup Widening` widens the wire later; when it lands, those
+/// fields become field-mapping on top of this type rather than new design.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FetchedIdentity {
+    pub identity_id: String,
+    pub display_name: Option<String>,
+    pub registered_at: String,
+    pub devices: Vec<xgen_core::wire::types::IdentityDeviceEntry>,
+    pub home_node: String,
+    /// AI declaration (spec 3.6.10). Serde-defaults to `false` when the wire
+    /// omits it, matching the human-record byte-identity rule (`types.rs:468`).
+    pub is_ai: bool,
+    pub ai_capabilities: Option<xgen_common::wire::AiCapabilities>,
+}
+
+/// Pure response parser for `identity_get`, split out so the
+/// Record / NotFound / unexpected branching is unit-testable without a live
+/// Node — the `members_projection` pattern (network shell thin, substance pure).
+fn parse_identity_get_response(
+    inbound: xgen_core::transport::connection::Inbound,
+) -> Result<Option<FetchedIdentity>> {
+    use xgen_core::{transport::connection::Inbound, wire::types::IdentityMessage};
+    match inbound {
+        Inbound::Identity(IdentityMessage::Record {
+            identity_id,
+            display_name,
+            registered_at,
+            devices,
+            home_node,
+            is_ai,
+            ai_capabilities,
+            ..
+        }) => Ok(Some(FetchedIdentity {
+            identity_id,
+            display_name,
+            registered_at,
+            devices,
+            home_node,
+            is_ai,
+            ai_capabilities,
+        })),
+        // NotFound is a NORMAL outcome — an identity the node has never seen.
+        // `Ok(None)`, never an error (runbook §4 Step 1). It also carries no
+        // "revoked" meaning: a revoked identity still returns its Record
+        // (D-127); NotFound is reserved for never-existed / erased.
+        Inbound::Identity(IdentityMessage::NotFound { .. }) => Ok(None),
+        other => anyhow::bail!("unexpected response to identity.get: {:?}", other),
+    }
+}
+
+/// Send one `identity.get` on an ALREADY-OPEN connection and parse the reply.
+///
+/// The connection is neither opened nor closed here — the caller owns its
+/// lifecycle. This is what lets [`fill_from_space`] batch many lookups on a
+/// single connection (the `drain_space_events` pattern) rather than a
+/// connect+goodbye per identity: `goodbye` closes the WebSocket
+/// (`connection.rs`), and `ensure_connected` reuses a `Some` connection
+/// without reconnecting, so a goodbye between lookups would strand the loop.
+async fn identity_get_on(
+    conn: &mut crate::session::ClientConnection,
+    identity_id: &str,
+) -> Result<Option<FetchedIdentity>> {
+    use xgen_core::wire::types::IdentityMessage;
+    let msg = IdentityMessage::Get {
+        protocol_version: "0.1".to_string(),
+        identity_id: identity_id.to_string(),
+    };
+    conn.send_identity(&msg)
+        .await
+        .context("failed to send identity.get")?;
+    let inbound = conn.recv().await.context("no response from Node")?;
+    parse_identity_get_response(inbound)
+}
+
+/// Fetch an Identity record from the home Node (spec 3.6.7).
+///
+/// **Precondition:** `ctx.session.identity` loaded by the dispatcher
+/// (`SessionState::ensure_identity`); `ensure_connected` authenticates as that
+/// identity. Mirrors `ops::register`'s request/response shape.
+///
+/// - `identity.record` ⇒ `Ok(Some(FetchedIdentity))`.
+/// - `identity.not_found` ⇒ `Ok(None)` — a normal outcome, not an error.
+/// - anything else ⇒ `bail!`.
+///
+/// Best-effort `goodbye` on completion (M5 one-shot semantics).
+pub async fn identity_get(
+    ctx: &mut OpContext<'_>,
+    identity_id: &str,
+) -> Result<Option<FetchedIdentity>> {
+    let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+    let result = identity_get_on(conn, identity_id).await;
+    // Courtesy goodbye — best-effort, errors swallowed (matches register).
+    let _ = conn.goodbye("client_disconnect").await;
+    result
+}
+
 // ── create-space ──────────────────────────────────────────────────────────────
 
 /// Result of `ops::create_space`. Carries the assigned `space_id`, the
@@ -2557,6 +2666,214 @@ pub async fn members(
     members_projection(args.space.as_str(), &events)
 }
 
+// ── address-book fill: F1 ∪ F2 (M-RP-ADDRESS-BOOK Leg D, Step 3) ──────────────────
+
+/// Whether an event is a MESSAGE (spoken content) event, whose author qualifies
+/// for F1 (author-on-sight).
+///
+/// 🔒 **Joe ruling B (2026-07-25): F1 is MESSAGE authors, not "any drained
+/// sender".** Every member authors their own `membership.join` (and the owner
+/// `state.space_create`), and those render as system notices — so counting all
+/// senders would put every member in F1, making F2 redundant and contradicting
+/// the lock's own rationale (§4: *"a member list built on F1 alone shows only
+/// talkers"* / *"everyone silent stays an XGID"*). F1 = people who have
+/// **spoken**; membership and state events do NOT qualify.
+fn is_message_event(t: &xgen_core::wire::types::EventType) -> bool {
+    use xgen_core::wire::types::EventType;
+    matches!(
+        t,
+        EventType::MessageText
+            | EventType::MessageFile
+            | EventType::MessageReaction
+            | EventType::MessageRedact
+    )
+}
+
+/// The full set of identities OBSERVED in a Space's drained DAG: F1 (distinct
+/// authors of MESSAGE events, Joe ruling B) ∪ F2 (projected Space members).
+/// Deterministic (`BTreeSet`) order — unit-testable without a live Node (the
+/// `members_projection` split).
+///
+/// ⚠️ **The union is the point of the lock (§4).** F1 alone misses silent
+/// members (bob — joined, never spoke); F2 alone misses authors who have left
+/// the Space. Neither is a superset of the other.
+fn observed_identities(
+    space: &str,
+    events: &[xgen_core::wire::types::Event],
+) -> Result<Vec<String>> {
+    use std::collections::BTreeSet;
+
+    let mut ids: BTreeSet<String> = BTreeSet::new();
+
+    // F1 — authors of MESSAGE events (Joe ruling B).
+    for e in events {
+        if is_message_event(&e.event_type) {
+            ids.insert(e.sender.as_str().to_string());
+        }
+    }
+
+    // F2 — current members (causal-replay projection over the same drain).
+    // Errors propagate; the caller logs and the background fill retries.
+    let projected = members_projection(space, events)?;
+    for m in &projected.members {
+        ids.insert(m.identity_id.as_str().to_string());
+    }
+
+    Ok(ids.into_iter().collect())
+}
+
+/// Split the observed set into `(to_fetch, to_touch)`: identities the book does
+/// NOT hold — the ones to `identity_get` — versus those it already holds, which
+/// are *touched* ([`AddressBook::touch`]) rather than re-fetched.
+///
+/// "Already held" is membership in the book: a re-fetch is a no-op today
+/// (`identity.record` always carries `update_version 0`, and `display_name`/
+/// `is_ai` are immutable node-side, runbook §2), so *held* == *held fresh*, and
+/// re-observing a held identity only needs its `last_seen` advanced. A freshness
+/// window (re-fetch after N) becomes meaningful only once `M13 Client Identity
+/// Lookup Widening` makes a re-fetch informative, and lands with it — not
+/// reserved here. Pure — unit-testable without a live Node.
+fn partition_observed(
+    observed: Vec<String>,
+    book: &crate::address_book::AddressBook,
+) -> (Vec<String>, Vec<String>) {
+    // `partition` routes the `true` arm — the unheld — into the first bucket.
+    observed.into_iter().partition(|id| !book.contains(id))
+}
+
+/// Report from one [`fill_from_space`] pass, for observability + testing.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct FillReport {
+    /// Observed identities the book did not already hold — the ones fetched.
+    pub candidates: usize,
+    /// `identity.record` returned and absorbed into the book.
+    pub fetched: usize,
+    /// `identity.not_found` returned — skipped, book left unpoisoned.
+    pub not_found: usize,
+    /// Already-held identities re-observed in this drain — their `last_seen`
+    /// advanced, no re-fetch (the observation contract, J-584).
+    pub touched: usize,
+}
+
+/// Absorb one fetch result into the book: `Some` ⇒ upsert (stamping
+/// `last_seen`); `None` (`identity.not_found`) ⇒ skip, book unchanged. Returns
+/// `true` iff a record was absorbed.
+///
+/// Pure over the book, so the NotFound-skip is unit-testable without a live
+/// Node. The `Some` arm uses the version-aware [`merge`](crate::address_book::AddressBook::merge)
+/// (§5 V2): a wire-fetched record (always `update_version 0`) never displaces a
+/// seeded higher version. In the live fill this is a plain insert — held
+/// identities are never re-fetched — but routing through `merge` keeps the
+/// wire-vs-seed precedence correct for Option C and for M13.
+fn absorb_fetch(
+    book: &mut crate::address_book::AddressBook,
+    fetched: Option<FetchedIdentity>,
+    now: &str,
+) -> bool {
+    match fetched {
+        Some(f) => {
+            book.merge(crate::address_book::SeenRecord::from_fetched(&f, now));
+            true
+        }
+        None => false, // NotFound — do NOT poison the book with a placeholder.
+    }
+}
+
+/// Fill the address book from a Space's live DAG: drain once, compute F1 ∪ F2
+/// minus held, fetch the remainder, upsert each stamping `last_seen`
+/// (runbook §4 Step 3). Returns a [`FillReport`]; the caller persists the book.
+///
+/// ⚠️ **MUST be run OFF THE CRITICAL PATH (Joe-locked).** The Space open must
+/// return immediately; the consumer (M-RP-MEMBERS) spawns this behind the open
+/// and the view updates as records land. Never gate a Space open on this loop —
+/// at N members it is an unbounded network wait in front of a UI action.
+///
+/// # Re-entrancy invariant — DO NOT "tidy away" the `conn` clears
+///
+/// 🔑 **`fill_from_space` MUST NOT return with a non-`None` `ctx.session.conn`
+/// on ANY path — success, early return, or error.** It is the first `ops::*`
+/// verb designed to be called **repeatedly on a live session**, so it must
+/// leave the session re-usable.
+///
+/// **Systemic root (filed for `session.rs`, NOT fixed here):** every one of the
+/// ~25 `goodbye` sites in `ops.rs` closes the WebSocket but leaves
+/// `session.conn = Some(dead)`, and `ensure_connected` reuses a `Some`
+/// connection without detecting that it is closed. This has never bitten
+/// because M5/M6 dispatchers are one-shot (a fresh session per command); the
+/// blanket fix belongs in `ensure_connected` (detect + reconnect a dead conn),
+/// touches every op, and is its own arc — M7's persistent `--aicontrol` session
+/// stands on the same mine. Until then, this verb self-cleans: the wrapper
+/// below clears `conn` on **every** exit (proven live at J-586 — Pass 2 failed
+/// on exactly the exits the mid-clear alone did not cover: the warm early
+/// return, and the post-goodbye exit).
+pub async fn fill_from_space(
+    ctx: &mut OpContext<'_>,
+    book: &mut crate::address_book::AddressBook,
+    space: &str,
+) -> Result<FillReport> {
+    let result = fill_from_space_inner(ctx, book, space).await;
+    // Exit invariant (see above): never hand the session back with a stale
+    // connection, on any path — success, early return, drain error, or fetch
+    // error. This single clear is why the verb is re-entrant.
+    ctx.session.conn = None;
+    result
+}
+
+async fn fill_from_space_inner(
+    ctx: &mut OpContext<'_>,
+    book: &mut crate::address_book::AddressBook,
+    space: &str,
+) -> Result<FillReport> {
+    // Pass 1 — drain the Space DAG and compute the observed set (F1 ∪ F2).
+    // `drain_space_events` opens, drains, and `goodbye`s (closing the socket),
+    // so from here `session.conn` is `Some(dead)` — the wrapper clears it on
+    // exit, and the mid-clear below resets it for the fetch loop.
+    let events = drain_space_events(ctx, space).await?;
+    let observed = observed_identities(space, &events)?;
+    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
+    // Split observed into unknown (fetch) and already-held (touch).
+    let (to_fetch, to_touch) = partition_observed(observed, book);
+
+    // The observation contract (J-584): re-observing a held identity advances
+    // its `last_seen` — no fetch (a re-fetch is a no-op under the wire ceiling)
+    // — and it keeps E3 from evicting someone who is demonstrably still present.
+    for id in &to_touch {
+        book.touch(id, &now);
+    }
+
+    let mut report = FillReport {
+        candidates: to_fetch.len(),
+        fetched: 0,
+        not_found: 0,
+        touched: to_touch.len(),
+    };
+    if to_fetch.is_empty() {
+        // Warm-book steady state — the common path. The wrapper clears the
+        // drain's dead connection on return (this used to leak it, J-586).
+        return Ok(report);
+    }
+
+    // The drain closed its WebSocket; force a fresh connection for the fetch
+    // loop (`conn` is a public field; `ensure_connected` only reconnects when
+    // it is `None`).
+    ctx.session.conn = None;
+
+    // Pass 2 — fetch the unknowns on ONE reused connection, goodbye once.
+    let conn = ctx.session.ensure_connected(ctx.node_override).await?;
+    for id in &to_fetch {
+        let fetched = identity_get_on(conn, id).await?;
+        if absorb_fetch(book, fetched, &now) {
+            report.fetched += 1;
+        } else {
+            report.not_found += 1;
+        }
+    }
+    let _ = conn.goodbye("client_disconnect").await;
+
+    Ok(report)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2789,6 +3106,81 @@ mod tests {
         assert_eq!(r.home_node.as_str(), "ws://127.0.0.1:8081/xgen");
         assert_eq!(r.spaces_joined, 0);
         assert!(r.state_file_age_seconds > 30);
+    }
+
+    // ── identity_get response parsing (M-RP-ADDRESS-BOOK Leg D, Step 1) ────────
+    //
+    // The network shell (`ensure_connected` → `send_identity` → `recv` →
+    // `goodbye`) shares `register`'s already-exercised transport path and needs
+    // a live Node; the testable substance is `parse_identity_get_response`,
+    // covered here over hand-built `Inbound` values (the `members_projection`
+    // split). Record ⇒ Some · NotFound ⇒ None · unexpected ⇒ error · a
+    // wire-omitted `is_ai` ⇒ false.
+
+    use xgen_core::transport::connection::Inbound;
+    use xgen_core::wire::types::IdentityMessage;
+
+    #[test]
+    fn identity_get_record_maps_to_some_preserving_display_name_and_is_ai() {
+        let inbound = Inbound::Identity(IdentityMessage::Record {
+            protocol_version: "0.1".into(),
+            identity_id: "xgen://pubkey/ed25519:CAROL".into(),
+            display_name: Some("Carol".into()),
+            registered_at: "2026-07-25T00:00:00Z".into(),
+            devices: vec![],
+            home_node: "xgen://pubkey/ed25519:NODE".into(),
+            is_ai: true,
+            ai_capabilities: None,
+        });
+        let got = parse_identity_get_response(inbound)
+            .unwrap()
+            .expect("identity.record must map to Some");
+        assert_eq!(got.identity_id, "xgen://pubkey/ed25519:CAROL");
+        assert_eq!(got.display_name.as_deref(), Some("Carol"));
+        assert!(got.is_ai, "is_ai must be preserved from the wire");
+    }
+
+    #[test]
+    fn identity_get_not_found_maps_to_none_not_an_error() {
+        // NotFound is a normal outcome (an identity the node has never seen):
+        // Ok(None), NOT an error (runbook §4 Step 1).
+        let inbound = Inbound::Identity(IdentityMessage::NotFound {
+            protocol_version: "0.1".into(),
+            identity_id: "xgen://pubkey/ed25519:GHOST".into(),
+        });
+        let got = parse_identity_get_response(inbound)
+            .expect("NotFound must NOT be an error");
+        assert!(got.is_none(), "NotFound must map to None");
+    }
+
+    #[test]
+    fn identity_get_unexpected_inbound_is_an_error() {
+        // Any non-identity-lookup response is a protocol violation for this op.
+        let inbound = Inbound::Identity(IdentityMessage::RegisterOk {
+            protocol_version: "0.1".into(),
+            identity_id: "xgen://pubkey/ed25519:X".into(),
+            registered_at: "2026-07-25T00:00:00Z".into(),
+        });
+        assert!(
+            parse_identity_get_response(inbound).is_err(),
+            "an unexpected inbound must bail, not silently succeed"
+        );
+    }
+
+    #[test]
+    fn identity_get_is_ai_defaults_false_when_wire_omits_it() {
+        // A human record: the wire omits `is_ai` entirely
+        // (skip_serializing_if = is_false, types.rs:468). Deserialising such a
+        // record must default it to false, and the parser must preserve that —
+        // otherwise every human would read as an AI.
+        let json = r#"{"type":"identity.record","protocol_version":"0.1","identity_id":"xgen://pubkey/ed25519:BOB","registered_at":"2026-07-25T00:00:00Z","devices":[],"home_node":"xgen://pubkey/ed25519:NODE"}"#;
+        let rec: IdentityMessage =
+            serde_json::from_str(json).expect("human record deserialises with is_ai defaulted");
+        let got = parse_identity_get_response(Inbound::Identity(rec))
+            .unwrap()
+            .expect("Record ⇒ Some");
+        assert!(!got.is_ai, "is_ai must default to false when the wire omits it");
+        assert_eq!(got.display_name, None, "absent display_name stays None");
     }
 }
 
@@ -3159,6 +3551,331 @@ mod pass_4_commit_1_tests {
             !node_state.members.contains_key(&ix(&bob_id)),
             "node winner: Bob is not a member"
         );
+    }
+
+    // ── address-book fill: F1 ∪ F2 (M-RP-ADDRESS-BOOK Leg D, Step 3) ───────────
+    //
+    // Pure candidate computation (`fill_candidates`) + the fetch-absorb step
+    // (`absorb_fetch`) are unit-tested here over hand-built event sequences —
+    // the `members_projection` split (network shell thin, substance pure). The
+    // async orchestrator `fill_from_space` shares `members`/`identity_get`'s
+    // already-exercised transport path and is exercised live at Step 6.
+    //
+    // F1 = MESSAGE authors ONLY (Joe ruling B, 2026-07-25). The union is the
+    // point of the lock: F1 alone misses silent members (bob), F2 alone misses
+    // authors who left (carol) — neither is a superset of the other.
+
+    fn seed_space(owner: &ed25519_dalek::SigningKey) -> (String, Event) {
+        let create = sign_event(
+            build_space_create_event(owner, "Team", None, 1, TEST_HOME, None, false),
+            owner,
+        );
+        let space_id = create.event_id.clone().unwrap().as_str().to_string();
+        (space_id, create)
+    }
+
+    /// Invite + join `who` into `space` (space-level), tip-chained onto `tip`.
+    /// Returns (invite, join, join_id) so a follow-on event can chain on.
+    fn invite_and_join(
+        owner: &ed25519_dalek::SigningKey,
+        who: &ed25519_dalek::SigningKey,
+        space_id: &str,
+        tip: &str,
+    ) -> (Event, Event, String) {
+        let who_id = identity_id_from_key(who);
+        let mut invite_u = build_membership_event(
+            owner,
+            space_id,
+            "",
+            EventType::MembershipInvite,
+            serde_json::json!({ "target_identity": who_id, "role": "member" }),
+        );
+        invite_u.prev_events = vec![ex(tip)];
+        let invite = sign_event(invite_u, owner);
+        let invite_id = invite.event_id.clone().unwrap().as_str().to_string();
+        let mut join_u =
+            build_membership_event(who, space_id, "", EventType::MembershipJoin, serde_json::json!({}));
+        join_u.prev_events = vec![ex(&invite_id)];
+        let join = sign_event(join_u, who);
+        let join_id = join.event_id.clone().unwrap().as_str().to_string();
+        (invite, join, join_id)
+    }
+
+    #[test]
+    fn observed_f2_catches_a_silent_member() {
+        // bob joins and never speaks. His only authored event is his join
+        // (membership, not a message) ⇒ he can enter ONLY via F2.
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let bob_id = identity_id_from_key(&bob);
+
+        let (space_id, create) = seed_space(&alice);
+        let (invite, join, _) = invite_and_join(&alice, &bob, &space_id, &space_id);
+        let events = vec![create, invite, join];
+        assert!(
+            !events.iter().any(|e| super::is_message_event(&e.event_type)),
+            "guard: this corpus has no message events, so F1 contributes nobody"
+        );
+
+        let observed = observed_identities(&space_id, &events).unwrap();
+        assert!(observed.contains(&bob_id), "silent member bob must enter via F2");
+    }
+
+    #[test]
+    fn observed_f1_catches_an_author_who_left() {
+        // carol joins, SPEAKS, then leaves. F2 no longer lists her (left), but
+        // F1 catches her because she posted a message — the case the union
+        // exists for, and the one F2 alone would miss.
+        use xgen_core::message::exchange::build_message_text_event;
+        let alice = keypair::generate();
+        let carol = keypair::generate();
+        let carol_id = identity_id_from_key(&carol);
+
+        let (space_id, create) = seed_space(&alice);
+        let (invite, join, join_id) = invite_and_join(&alice, &carol, &space_id, &space_id);
+        // carol speaks — the F1 trigger. room_id "" is fine: the membership
+        // projection ignores message events and F1 reads only type + sender.
+        let msg = sign_event(
+            build_message_text_event(&carol, &space_id, "", vec![join_id.clone()], "carol-msg"),
+            &carol,
+        );
+        let msg_id = msg.event_id.clone().unwrap().as_str().to_string();
+        let mut leave_u =
+            build_membership_event(&carol, &space_id, "", EventType::MembershipLeave, serde_json::json!({}));
+        leave_u.prev_events = vec![ex(&msg_id)];
+        let leave = sign_event(leave_u, &carol);
+        let events = vec![create, invite, join, msg, leave];
+
+        // F2 has dropped carol…
+        let projected = members_projection(&space_id, &events).unwrap();
+        assert!(
+            !projected.members.iter().any(|m| m.identity_id.as_str() == carol_id),
+            "carol left — she must NOT be in the F2 projection"
+        );
+        // …but F1 catches her.
+        let observed = observed_identities(&space_id, &events).unwrap();
+        assert!(observed.contains(&carol_id), "author-who-left carol must enter via F1");
+    }
+
+    #[test]
+    fn observed_member_and_author_appears_once() {
+        // alice is the owner (F2) AND posts a message (F1). She must appear
+        // exactly once — the union is a set, not a concatenation.
+        use xgen_core::message::exchange::build_message_text_event;
+        let alice = keypair::generate();
+        let alice_id = identity_id_from_key(&alice);
+
+        let (space_id, create) = seed_space(&alice);
+        let create_id = create.event_id.clone().unwrap().as_str().to_string();
+        let msg = sign_event(
+            build_message_text_event(&alice, &space_id, "", vec![create_id], "alice-msg"),
+            &alice,
+        );
+        let events = vec![create, msg];
+
+        let observed = observed_identities(&space_id, &events).unwrap();
+        assert_eq!(
+            observed.iter().filter(|c| *c == &alice_id).count(),
+            1,
+            "an identity that is both an author and a member appears once, not twice"
+        );
+    }
+
+    #[test]
+    fn partition_sends_held_to_touch_and_unheld_to_fetch() {
+        // bob is a member, but the book already holds him ⇒ he is NOT re-fetched
+        // (a re-fetch is a no-op under the wire ceiling; runbook §2) — he is
+        // touched instead (observation contract, J-584).
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let bob_id = identity_id_from_key(&bob);
+
+        let (space_id, create) = seed_space(&alice);
+        let (invite, join, _) = invite_and_join(&alice, &bob, &space_id, &space_id);
+        let events = vec![create, invite, join];
+
+        let mut book = crate::address_book::AddressBook::new();
+        book.insert(crate::address_book::SeenRecord::from_fetched(
+            &FetchedIdentity {
+                identity_id: bob_id.clone(),
+                display_name: Some("Bob".into()),
+                registered_at: "2026-07-25T00:00:00Z".into(),
+                devices: vec![],
+                home_node: TEST_HOME.into(),
+                is_ai: false,
+                ai_capabilities: None,
+            },
+            "2026-07-25T00:00:00Z",
+        ));
+
+        let observed = observed_identities(&space_id, &events).unwrap();
+        let (to_fetch, to_touch) = partition_observed(observed, &book);
+        assert!(!to_fetch.contains(&bob_id), "an already-held identity is not re-fetched");
+        assert!(to_touch.contains(&bob_id), "an already-held identity is touched instead");
+    }
+
+    #[test]
+    fn absorb_fetch_notfound_is_skipped_without_poisoning_the_book() {
+        // identity.not_found ⇒ Ok(None) ⇒ nothing entered. The book must NOT
+        // gain a placeholder for an identity the node has never seen.
+        let mut book = crate::address_book::AddressBook::new();
+        let absorbed = absorb_fetch(&mut book, None, "2026-07-25T12:00:00Z");
+        assert!(!absorbed, "NotFound must not be absorbed");
+        assert!(book.is_empty(), "NotFound must not poison the book");
+    }
+
+    #[test]
+    fn absorb_fetch_some_upserts_stamping_last_seen() {
+        let mut book = crate::address_book::AddressBook::new();
+        let fetched = FetchedIdentity {
+            identity_id: "xgen://pubkey/ed25519:DAN".into(),
+            display_name: Some("Dan".into()),
+            registered_at: "2026-07-25T00:00:00Z".into(),
+            devices: vec![],
+            home_node: TEST_HOME.into(),
+            is_ai: false,
+            ai_capabilities: None,
+        };
+        let absorbed = absorb_fetch(&mut book, Some(fetched), "2026-07-25T12:00:00Z");
+        assert!(absorbed, "a Record must be absorbed");
+        let rec = book.get("xgen://pubkey/ed25519:DAN").expect("record present");
+        assert_eq!(rec.display_name.as_deref(), Some("Dan"));
+        assert_eq!(rec.last_seen, "2026-07-25T12:00:00Z", "last_seen is stamped on absorb");
+    }
+
+    // ── Step 6: the corpus assembled, five NOW-tier cases asserted (Option A) ──
+    //
+    // Committed deterministic assembly of the seed corpus
+    // (docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md §4) over the Step-3 event
+    // builders. The FETCH is SIMULATED against an in-test node registry — Option
+    // A (Joe, 2026-07-25): a mock node would only verify the mock; the LIVE
+    // drain→get→absorb round-trip is a separate J-582-style operational pass
+    // (Chat's seat), and the corpus→node load was already proven live at J-582.
+    //
+    // Live-derivable cases (alice F1, bob F2, erin is_ai) come through the fill;
+    // dave (revoked) and frank (not-renewed) are ⚠️ SEEDED per §2 Option C —
+    // the wire carries neither `revoked` nor `trust_assertion`, so their state
+    // is overlaid book-internally, exactly as `M13` would later deliver it.
+    #[test]
+    fn corpus_assembles_the_five_now_tier_cases_and_round_trips() {
+        use crate::address_book::{AddressBook, SeenRecord};
+        use std::collections::HashMap;
+        use tempfile::tempdir;
+        use xgen_core::message::exchange::build_message_text_event;
+
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let erin = keypair::generate();
+        let carol = keypair::generate();
+        let dave = keypair::generate();
+        let frank = keypair::generate();
+        let idof = |k: &ed25519_dalek::SigningKey| identity_id_from_key(k);
+        let (alice_id, bob_id, erin_id, carol_id, dave_id, frank_id) = (
+            idof(&alice), idof(&bob), idof(&erin), idof(&carol), idof(&dave), idof(&frank),
+        );
+
+        // ── Build the corpus DAG as a single causal chain. Messages use
+        // room_id "" — the membership projection ignores message events and F1
+        // reads only type + sender (see Step-3 F1 test).
+        let (space_id, create) = seed_space(&alice);
+        let mut events = vec![create];
+
+        // bob — silent member (F2 only): invite + join, NO message.
+        let (inv, join, bob_jid) = invite_and_join(&alice, &bob, &space_id, &space_id);
+        events.extend([inv, join]);
+
+        // erin — AI, speaks (F1 + F2): invite + join + message.
+        let (inv, join, erin_jid) = invite_and_join(&alice, &erin, &space_id, &bob_jid);
+        events.extend([inv, join]);
+        let erin_msg = sign_event(
+            build_message_text_event(&erin, &space_id, "", vec![erin_jid], "erin-msg-1"),
+            &erin,
+        );
+        let mut tip = erin_msg.event_id.clone().unwrap().as_str().to_string();
+        events.push(erin_msg);
+
+        // alice — owner (F2) AND speaks (F1).
+        let alice_msg = sign_event(
+            build_message_text_event(&alice, &space_id, "", vec![tip.clone()], "alice-msg-1"),
+            &alice,
+        );
+        tip = alice_msg.event_id.clone().unwrap().as_str().to_string();
+        events.push(alice_msg);
+
+        // carol, dave, frank — each joins + speaks (F1 + F2).
+        for who in [&carol, &dave, &frank] {
+            let (inv, join, jid) = invite_and_join(&alice, who, &space_id, &tip);
+            events.extend([inv, join]);
+            let msg = sign_event(
+                build_message_text_event(who, &space_id, "", vec![jid], "msg-1"),
+                who,
+            );
+            tip = msg.event_id.clone().unwrap().as_str().to_string();
+            events.push(msg);
+        }
+
+        // ── The observed set is the full F1 ∪ F2 union.
+        let mut book = AddressBook::new();
+        let candidates = observed_identities(&space_id, &events).unwrap();
+        for want in [&alice_id, &bob_id, &erin_id, &carol_id, &dave_id, &frank_id] {
+            assert!(candidates.contains(want), "every corpus identity is observed: {want}");
+        }
+        assert!(candidates.contains(&bob_id), "bob (silent) enters via F2, not F1");
+
+        // ── Simulate the node registry (Option A) and run the fetch/absorb loop.
+        let mk = |ident: &str, name: &str, is_ai: bool| FetchedIdentity {
+            identity_id: ident.to_string(),
+            display_name: Some(name.to_string()),
+            registered_at: "2026-07-25T00:00:00Z".to_string(),
+            devices: vec![],
+            home_node: TEST_HOME.to_string(),
+            is_ai,
+            ai_capabilities: None,
+        };
+        let mut registry: HashMap<String, FetchedIdentity> = HashMap::new();
+        registry.insert(alice_id.clone(), mk(&alice_id, "alice", false));
+        registry.insert(bob_id.clone(), mk(&bob_id, "bob", false));
+        registry.insert(erin_id.clone(), mk(&erin_id, "erin", true)); // AI
+        registry.insert(carol_id.clone(), mk(&carol_id, "carol", false));
+        registry.insert(dave_id.clone(), mk(&dave_id, "dave", false));
+        registry.insert(frank_id.clone(), mk(&frank_id, "frank", false));
+
+        let now = "2026-07-25T13:00:00Z";
+        for cand in &candidates {
+            absorb_fetch(&mut book, registry.get(cand).cloned(), now);
+        }
+
+        // ── NOW-tier assertions (live-derivable).
+        assert!(book.get(&alice_id).is_some(), "alice present via F1 (authored) + F2 (owner)");
+        assert!(book.get(&bob_id).is_some(), "bob present via F2 (silent member)");
+        assert!(book.get(&erin_id).unwrap().is_ai, "erin present with is_ai = true");
+
+        // ── Option-C seeds (§2): the wire carries neither field, so dave's
+        // revocation and frank's lapsed assertion are overlaid book-internally.
+        let mut dave_seed = SeenRecord::from_fetched(registry.get(&dave_id).unwrap(), now);
+        dave_seed.revoked = true; // SEEDED — revocation-on-encounter (§2 Option C)
+        book.insert(dave_seed);
+        let mut frank_seed = SeenRecord::from_fetched(registry.get(&frank_id).unwrap(), now);
+        frank_seed.trust_assertion = Some(serde_json::json!({ "valid_until": "2026-01-15T00:00:00Z" })); // SEEDED (§2 Option C)
+        book.insert(frank_seed);
+
+        assert!(book.get(&dave_id).unwrap().revoked, "dave revoked (SEEDED, §2 Option C)");
+        assert_eq!(
+            book.get(&frank_id).unwrap().trust_lapsed(now),
+            Some(true),
+            "frank's not-renewed badge derivable (SEEDED, §2 Option C)"
+        );
+
+        // ── Survives a full save→load cycle with the corpus loaded.
+        let dir = tempdir().unwrap();
+        book.save(dir.path()).unwrap();
+        let reloaded = AddressBook::load(dir.path()).unwrap();
+        assert_eq!(reloaded, book, "the book survives save→load with the corpus loaded");
+
+        // ── No identity appears twice.
+        assert_eq!(book.len(), 6, "six identities, none duplicated");
+        let unique: std::collections::HashSet<_> = book.iter().map(|(k, _)| k.clone()).collect();
+        assert_eq!(unique.len(), 6, "all six ids distinct");
     }
 }
 

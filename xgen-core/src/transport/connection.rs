@@ -487,6 +487,31 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
 
     // ── Authentication ────────────────────────────────────────────────────────
 
+    /// Per-`recv` bound on the authentication handshake (Leg A-ter). Each auth
+    /// `recv().await` — the server awaiting the client's auth response, the client
+    /// awaiting the challenge, and the client awaiting auth_ok/auth_fail — is
+    /// wrapped in this timeout so a peer that completes the WS upgrade and then
+    /// goes silent cannot hold the connection (and, server-side, an
+    /// unauthenticated task and socket) indefinitely.
+    ///
+    /// This is a **per-`recv` bound, never an overall handshake cap** — the same
+    /// discipline the message-exchange verbs above (`send_event_confirmed`,
+    /// `upload_blob`, `fetch_blob`) apply to each drain.
+    ///
+    /// The value (15 s) equals `federation::handshake::WAIT_TIMEOUT_SECS` — the
+    /// crate's only other "wait for a peer's handshake response" bound — but is
+    /// **minted separately rather than reused**: federation capability
+    /// negotiation and transport authentication are distinct policies that happen
+    /// to share a value today, and coupling them would let tuning one silently
+    /// retune the other.
+    ///
+    /// 15 s is expected to become a configured value later; a future milestone
+    /// owns both the mechanism and which values adopt it. Note that
+    /// `connection.rs` holds no config path and must not acquire one — whatever
+    /// that mechanism is, the value arrives from the binary; this shared crate
+    /// never learns to read a file.
+    const AUTH_RECV_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+
     /// **Server-side** authentication (spec 3.3.4 Phase 2).
     /// Send challenge → verify auth response → send auth_ok or auth_fail.
     /// Returns the authenticated `identity_id` on success.
@@ -501,7 +526,17 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
         let (issued, challenge_msg) = auth::issue_challenge();
         self.send_transport(&challenge_msg).await?;
 
-        let inbound = self.recv().await?;
+        // Bounded per-recv (Self::AUTH_RECV_TIMEOUT) — a client that upgrades and
+        // then never sends its auth response must not hold this (still
+        // unauthenticated) task and socket open.
+        let inbound = tokio::time::timeout(Self::AUTH_RECV_TIMEOUT, self.recv())
+            .await
+            .map_err(|_| {
+                TransportError::UnexpectedMessage(
+                    "AUTHENTICATE",
+                    "timed out awaiting client auth response".to_string(),
+                )
+            })??;
         let auth_msg = match inbound {
             Inbound::Transport(ref tm @ TransportMessage::Auth { .. }) => tm.clone(),
             other => {
@@ -547,8 +582,16 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
         &mut self,
         signing_key: &SigningKey,
     ) -> Result<AuthOutcome, TransportError> {
-        // Receive challenge.
-        let nonce = match self.recv().await? {
+        // Receive challenge (bounded per-recv — Self::AUTH_RECV_TIMEOUT).
+        let nonce = match tokio::time::timeout(Self::AUTH_RECV_TIMEOUT, self.recv())
+            .await
+            .map_err(|_| {
+                TransportError::UnexpectedMessage(
+                    "AUTHENTICATE",
+                    "timed out awaiting challenge".to_string(),
+                )
+            })??
+        {
             Inbound::Transport(TransportMessage::Challenge { nonce, .. }) => nonce,
             other => {
                 return Err(TransportError::UnexpectedMessage(
@@ -562,8 +605,16 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
         let auth_msg = auth::build_auth_response(&nonce, signing_key);
         self.send_transport(&auth_msg).await?;
 
-        // Receive auth_ok or auth_fail.
-        match self.recv().await? {
+        // Receive auth_ok or auth_fail (bounded per-recv — Self::AUTH_RECV_TIMEOUT).
+        match tokio::time::timeout(Self::AUTH_RECV_TIMEOUT, self.recv())
+            .await
+            .map_err(|_| {
+                TransportError::UnexpectedMessage(
+                    "AUTHENTICATE",
+                    "timed out awaiting auth_ok/auth_fail".to_string(),
+                )
+            })??
+        {
             Inbound::Transport(TransportMessage::AuthOk {
                 identity_id, node_id, ..
             }) => Ok(AuthOutcome { identity_id, node_id }),
@@ -874,5 +925,82 @@ mod send_confirm_tests {
             .await;
         assert!(r.is_err());
         let _ = srv.await;
+    }
+
+    // ── Leg A-ter: authentication handshake recv bounds ─────────────────────────
+
+    // Control (N-163): when the server DOES speak — but with a message that is not
+    // a Challenge — client_authenticate returns immediately via the unexpected-
+    // message path, NOT via the timeout. Without this control the two timeout
+    // subjects below prove nothing: a function that always Err'd would pass them.
+    // Timeout and real-message both surface as UnexpectedMessage, so the variant
+    // alone cannot tell them apart — the distinguishing assertion is on the detail.
+    #[tokio::test]
+    async fn auth_control_returns_on_unexpected_message_not_timeout() {
+        let (mut client, mut server) = ws_pair().await;
+        let srv = tokio::spawn(async move {
+            // Speak in the challenge slot, but with the wrong message.
+            server
+                .send_transport(&TransportMessage::Goodbye {
+                    protocol_version: "0.1".into(),
+                    reason: "node_shutdown".into(),
+                    timestamp: "2026-07-25T00:00:00.000Z".into(),
+                })
+                .await
+                .unwrap();
+            server // hold the connection open until the client has its outcome
+        });
+        let key = crate::identity::keypair::generate();
+        match client.client_authenticate(&key).await {
+            Err(TransportError::UnexpectedMessage(phase, detail)) => {
+                assert_eq!(phase, "AUTHENTICATE");
+                assert!(
+                    !detail.contains("timed out"),
+                    "control returned via the timeout path, not the real-message path: {detail:?}"
+                );
+            }
+            other => panic!("expected UnexpectedMessage from a real message, got {other:?}"),
+        }
+        let _ = srv.await;
+    }
+
+    // Subject, client side: the server completes the WS upgrade (ws_pair) and then
+    // stays silent. client_authenticate must return Err at the bound, not hang.
+    // `start_paused` auto-advances virtual time when the runtime is idle, so this
+    // costs no real wall-clock — with no override seam (§2d) this is the only cheap
+    // way to exercise the 15 s bound.
+    #[tokio::test(start_paused = true)]
+    async fn client_authenticate_times_out_when_server_silent() {
+        let (mut client, server) = ws_pair().await;
+        let key = crate::identity::keypair::generate();
+        match client.client_authenticate(&key).await {
+            Err(TransportError::UnexpectedMessage(phase, detail)) => {
+                assert_eq!(phase, "AUTHENTICATE");
+                assert_eq!(detail, "timed out awaiting challenge");
+            }
+            other => panic!("expected a challenge timeout, got {other:?}"),
+        }
+        // Hold the server half to the end so the client parks on recv (→ timeout)
+        // instead of seeing a closed connection.
+        drop(server);
+    }
+
+    // Subject, server side (§2a locked S1 — the node side is bounded too): the
+    // client completes the WS upgrade and then stays silent after receiving the
+    // challenge. server_authenticate must return Err at the bound.
+    #[tokio::test(start_paused = true)]
+    async fn server_authenticate_times_out_when_client_silent() {
+        let (client, mut server) = ws_pair().await;
+        match server
+            .server_authenticate("xgen://pubkey/ed25519:TESTNODE")
+            .await
+        {
+            Err(TransportError::UnexpectedMessage(phase, detail)) => {
+                assert_eq!(phase, "AUTHENTICATE");
+                assert_eq!(detail, "timed out awaiting client auth response");
+            }
+            other => panic!("expected a client-auth-response timeout, got {other:?}"),
+        }
+        drop(client);
     }
 }

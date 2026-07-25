@@ -47,3 +47,12 @@ tempfile = "3"
 # reproduces the receiver-clock divergence the fix closes. Mirrors xgen-node's
 # M8.6 dev-dep pattern.
 xgen-common = { path = "../xgen-common", features = ["mock-clock"] }
+# Leg A-ter — `start_paused` / `tokio::time::pause` (the paused clock that fires
+# the authentication-handshake recv bounds in `connection.rs` without real
+# waiting). `test-util` is NOT part of `full`; without this declaration the
+# paused-time auth tests compile only via resolver-2 feature unification from
+# xgen-node's own `test-util` dev-dep — an undeclared cross-crate coupling that
+# breaks `cargo test -p xgen-core`. Declared here so they build standalone too.
+# Test builds only. Mirrors xgen-node's dev-dep pattern; do not delete as
+# "redundant" — `--workspace` masking the omission is exactly the trap.
+tokio = { version = "1", features = ["test-util"] }

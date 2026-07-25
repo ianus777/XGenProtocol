@@ -1,10 +1,44 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-24  
+> **Last updated:** 2026-07-25  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-588 — M-RP-MEMBERS Phase-0: the widget is 70 lines of Svelte over a Tauri command that does not exist, and the name it can show is the bottom of a three-layer chain
+
+**Date:** 2026-07-25 · **Seats:** Joe (the correction on seat discipline; all three decisions, delegated). Chat (grounding, Phase-0, records). **Design + records ONLY. ZERO code, ZERO `skin.css`.**
+
+**WHAT SHIPPED.** `tasks/M_RP_MEMBERS.md` **v1.1 ACTIVE** — Phase-0 written, §4/§6/§7 locked in place. No runbook, no code. Roadmap and PLAY moved 🟡 PENDING → 🟢 PLAY.
+
+🔑 **THE SESSION OPENED WITH A CORRECTION, AND IT WAS NOT THE ONE I EXPECTED.** I presented the vision, named three decisions as Joe's under D-123 — scope, unresolved-row form, row shape — and ended with *"I need only the scope lock to start writing Leg 0."* Joe pushed back and asked me to re-read my own text against D-123. **The three attributions were right. The last sentence was the defect.** Writing the Phase-0 is **mine**; I had gated my own work on a decision he had not been asked for yet, which inverts the J-578 pattern — the doc is written FIRST, with his decisions inside it as open §§ carrying a recommendation and the two lenses, and he locks INTO it. ⇒ **the recurring error is UNDER-stepping, not overstepping**, and it costs a whole turn plus the J-581 risk of a spared record. Noted to standing memory as a rider on D-123.
+
+🔑 **G1 — THE BOOK HAS NEVER RUN, AND I MEASURED IT RATHER THAN INHERITING IT.** Positive control (N-163): **257** `.rs` files excluding `target/` and `.claude/`, **809** `pub fn`. `fill_from_space|AddressBook::|address_book::` → **43 hits in exactly two files** — `address_book.rs` (22), `ops.rs` (21). **`app.rs` is not among them**, which the kickoff did not say and which matters: there is **no CLI verb either**, not merely no UI caller. And `xgen-client_address_book.json` exists **nowhere** under `%APPDATA%` or `%LOCALAPPDATA%` — the file has never been created outside tests.
+
+🔑 **G2/G3 — THE MILESTONE IS RUST, AND THE FRONTEND IS ALREADY BUILT.** `spaces-panel.svelte` (63 lines) and `rooms-panel.svelte` (66) are the literal template: store → `CLIENT_PLUGINS` row → thin widget → `EntityPanel`. **`members` is ALREADY in `REGION_IDS`** (`layout-default.ts:18`), already titled `'R7 · Members'` (:32), already a leaf in the default layout (:110) — it renders `RegionPlaceholder` only because no plugin row claims `regionId: 'members'`. ⇒ **~70 lines of Svelte.** Meanwhile `desktop.rs` exposes **16** `#[tauri::command]`s and **not one touches the book**: the widget cannot see it at all. *R7 was filed for months as a missing widget; it is a missing command.*
+
+📌 **G4 — the async precedent fits exactly and closes the timing lock for free.** `get_spaces` is a sync file read and is therefore NOT the precedent; `reanchor_space` (`desktop.rs:369`) is — `SessionState::new` → `ensure_identity` → `ensure_connected` → run → `goodbye`. A Tauri command is already off the render path, so **§4's off-critical-path lock costs nothing to honour**. And **D-129 was checked, not skipped**: each call builds a fresh session and drops it, nothing becomes persistent, so `ensure_connected` is untouched.
+
+⚠️ **G6 — THE FINDING THAT WOULD HAVE EMBARRASSED THE WIDGET LATER.** Ch2 §User Representation (L557–580) locks a **three-layer override chain**: contact alias → Space nickname → global display name. The book holds the **global name only**. The alias lives in `identity_private` (layer ③, zero code hits). The Space nickname lives in the membership record — and **`MemberEntry` (`ops.rs:2593`) carries `identity_id · role · joined_at · invited_by`, no name of any kind.** ⇒ **R7 v1 renders the LAST RESORT of the chain for everybody.** Correct, honest, and now on record — so nobody later reads a rendered name as one the user chose.
+
+⚠️ **AND THE N-097 TRAP WAS DESIGNED AROUND, NOT WALKED INTO — AGAIN.** `entity-avatar` already draws a revoked badge from `EntityFlags.revoked`, and the book's `revoked` is `false` on **every** record because the wire never sets it (§2 ceiling, four rules, J-587). **Feeding it would light a shipped affordance from a constant false** — exactly what stranded `entity-item.selected` at 6.1g. ⇒ **v1 feeds `flags.isAi` and nothing else**, and that is written into the DoD as a verifiable item rather than left as an intention.
+
+🔒 **THREE DECISIONS LOCKED, ALL THREE DELEGATED — recorded as provenance, not laundered as judgement.** Joe: *"lock all by your recomms"*. **§4 scope = B**, the members of the latched Space (the `rooms-panel` D3 latch reused; a panel labelled *Members* scoped to nothing is an address book, and the address book has no visual home yet). **§6 unresolved row = tail-8**, D-126's cheapest family, word form deferred. **§7 row shape = `secondary`/`meta`/`status` UNFED**, v1 shape-identical to R1/R2. All three are **his** areas under D-123, so each carries a DELEGATED provenance line and an explicit low re-open cost (a latch, a label format, a prop). *A delegated lock is a decision of record, not a decision examined; writing that down is what keeps a future reader from citing it as considered.*
+
+⚠️ **THE §4 COLLISION WAS NOT TRADED AWAY.** Under B, **§6's locked E2 per-entry delete has no UI to delete from** — a locked erasure control with no surface anywhere in the client — and the whole-book view still has no home. Filed against a future Settings / address-book surface, carried in §9, closed by nothing here. **§7 has a smaller sibling:** `role` and `joined_at` arrive **free** with the B `members` call and are then deliberately discarded. Recorded as a choice so it does not later read as an oversight.
+
+🔑 **THE J-587 STRUCTURAL FIX IS IN THE DoD, NOT IN THE PROSE.** Four defects last arc, one class: a single author writing six steps against a spec they were simultaneously interpreting. Care caught none; a **second reader working from the source** caught every one. ⇒ **Leg 0 does not close until Clair reads this Phase-0 against Ch2 §User Representation and §Cross-Space Discoverability, reporting against the source rather than against my text.** Chat cannot be its own second reader. **D-122 is expected to fire; it fired three times last arc.**
+
+**LEGS.** 0 Phase-0 (this) · **A** Rust read surface — a sync book read + an async fill trigger, moves the cargo floor · **B** store + widget + the 7th `CLIENT_PLUGINS` row, moves svelte-check · **C** live CDP verify at 9222, with the off-critical-path lock **exercised** · **D** records + close. **A and B split deliberately** — different floors, and one commit across both makes a regression ambiguous.
+
+**STATE.** HEAD `fa27121` at open, tree clean. Ports verified **by port**: `5173` held by PID 6252 `node` started **10:17:39**, age 14 min — fresh and Joe's, **left alone** (N-165 age check, not just occupancy); `5174 · 5175 · 8080 · 9222 · 9322 · 9422` all **0**. Floors untouched this session (design/records only): cargo **1585/0/62 across 56**, svelte-check **0 err / 34 warn / 15 files**, client registry **149**.
+
+**New `D`:** none — D-121/D-123/D-126/D-127/D-129 all apply unextended. **New `N`:** none — the reconstruction lives in `tasks/M_RP_MEMBERS.md` §1, where its consumers will look.
+
+**HANDOFF.** **M-RP-MEMBERS 🟢 PLAY**, Phase-0 locked. **Next: Clair's second-reader pass**, then Leg A. **M13** PENDING (four rules). **D-129** gated. **M-RP-PROCESSOR-SEED** still filed and unstarted.
 
 ---
 

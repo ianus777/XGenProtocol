@@ -471,6 +471,19 @@ fn parse_identity_get_response(
     }
 }
 
+/// How long to wait for the `identity.record`/`identity.not_found` reply to one
+/// `identity.get` before giving up on it (M-RP-MEMBERS Leg A-bis / T1).
+///
+/// `conn.recv()` had no timeout, so a node that accepted the request and never
+/// answered hung the fetch loop — and thus a background address-book fill — for
+/// the life of the process. 10 s by the shape analogue `resident::SEND_ACK_TIMEOUT`
+/// (one request, one reply, over the socket). This is the FIRST home for the
+/// identity.get recv policy, so it is a named local constant rather than a reuse
+/// of `SEND_ACK_TIMEOUT`: identity.get and the resident's send-ack correlation
+/// are distinct policies that merely share a value, and coupling them to one
+/// constant would let tuning one silently retune the other (the inverse D-067).
+const IDENTITY_GET_RECV_TIMEOUT: tokio::time::Duration = tokio::time::Duration::from_secs(10);
+
 /// Send one `identity.get` on an ALREADY-OPEN connection and parse the reply.
 ///
 /// The connection is neither opened nor closed here — the caller owns its
@@ -491,7 +504,17 @@ async fn identity_get_on(
     conn.send_identity(&msg)
         .await
         .context("failed to send identity.get")?;
-    let inbound = conn.recv().await.context("no response from Node")?;
+    // Bound the reply wait (Leg A-bis / T1): a node that accepts the request
+    // and never answers must not hang the fetch loop forever. The `?` on the
+    // loop caller (`fill_from_events`) means the FIRST timeout aborts the whole
+    // loop, so a dead node costs one bound (~10 s), not N (§2a).
+    let inbound = match tokio::time::timeout(IDENTITY_GET_RECV_TIMEOUT, conn.recv()).await {
+        Ok(r) => r.context("no response from Node")?,
+        Err(_elapsed) => anyhow::bail!(
+            "identity.get timed out after {}s",
+            IDENTITY_GET_RECV_TIMEOUT.as_secs()
+        ),
+    };
     parse_identity_get_response(inbound)
 }
 
@@ -2828,12 +2851,33 @@ async fn fill_from_space_inner(
     book: &mut crate::address_book::AddressBook,
     space: &str,
 ) -> Result<FillReport> {
-    // Pass 1 — drain the Space DAG and compute the observed set (F1 ∪ F2).
-    // `drain_space_events` opens, drains, and `goodbye`s (closing the socket),
-    // so from here `session.conn` is `Some(dead)` — the wrapper clears it on
-    // exit, and the mid-clear below resets it for the fetch loop.
+    // Pass 1 — drain the Space DAG ONCE. `drain_space_events` opens, drains,
+    // and `goodbye`s (closing the socket), so from here `session.conn` is
+    // `Some(dead)`; the wrapper clears it on exit and `fill_from_events` resets
+    // it for its own fetch loop.
     let events = drain_space_events(ctx, space).await?;
-    let observed = observed_identities(space, &events)?;
+    fill_from_events(ctx, book, space, &events).await
+}
+
+/// Everything a fill does AFTER the drain: compute the observed set (F1 ∪ F2),
+/// split held vs unheld, touch the held, fetch the unheld on one reused
+/// connection. Operates over already-drained `events` and opens NO drain of its
+/// own — so a caller that has already drained the Space DAG for another purpose
+/// (`fill_and_members`, which also needs the membership projection off the same
+/// events) can fill WITHOUT a second drain of the same DAG (Leg A-bis §1).
+///
+/// ⚠️ **Resets `ctx.session.conn` for its fetch loop and `goodbye`s at the end,
+/// so on return `session.conn` is `Some(dead)` again.** It does NOT clear on
+/// exit — the re-entrancy invariant belongs to the PUBLIC wrappers
+/// (`fill_from_space`, `fill_and_members`), which clear on every path. Keeping
+/// exactly one clear per public entry point is what keeps it auditable.
+async fn fill_from_events(
+    ctx: &mut OpContext<'_>,
+    book: &mut crate::address_book::AddressBook,
+    space: &str,
+    events: &[xgen_core::wire::types::Event],
+) -> Result<FillReport> {
+    let observed = observed_identities(space, events)?;
     let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
 
     // Split observed into unknown (fetch) and already-held (touch).
@@ -2876,6 +2920,53 @@ async fn fill_from_space_inner(
     let _ = conn.goodbye("client_disconnect").await;
 
     Ok(report)
+}
+
+/// Fill the address book AND return the Space's resolved membership from a
+/// SINGLE drain (M-RP-MEMBERS Leg A-bis). The R7 members widget needs both the
+/// roster (to render `state.members`) and the fill (to resolve those members'
+/// names from the address book). `members` drains, and `fill_from_space`
+/// drains; calling both would drain the same Space DAG twice, back to back —
+/// roughly doubling the cold-start window during which state ③ ("waiting for
+/// the others") is on screen (Phase-0 §4c-i). This drains ONCE and derives
+/// both from the same events.
+///
+/// The membership projection is derived directly from the drained events
+/// (`members_projection`). `fill_from_events`'s own `observed_identities`
+/// re-derives that projection internally, but that is a pure in-memory
+/// re-derivation — NOT a second drain. The network cost is paid exactly once,
+/// which is the whole point of this verb.
+///
+/// # Re-entrancy invariant — the same discipline as `fill_from_space`
+///
+/// 🔑 **Clears `ctx.session.conn = None` on EVERY exit** — success, projection
+/// error, or fetch error — so the next caller on this live session gets a
+/// re-usable connection. The systemic root (every `goodbye` leaves a
+/// `Some(dead)` conn, and `ensure_connected` reuses a `Some` blindly) is filed
+/// for `session.rs`, NOT fixed here — see `fill_from_space` and D-129.
+pub async fn fill_and_members(
+    ctx: &mut OpContext<'_>,
+    book: &mut crate::address_book::AddressBook,
+    space: &str,
+) -> Result<(FillReport, MembersResult)> {
+    let result = fill_and_members_inner(ctx, book, space).await;
+    // Exit invariant (see above): never hand the session back with a stale
+    // connection, on any path — success, projection error, drain error, or
+    // fetch error. This single clear is why the verb is re-entrant.
+    ctx.session.conn = None;
+    result
+}
+
+async fn fill_and_members_inner(
+    ctx: &mut OpContext<'_>,
+    book: &mut crate::address_book::AddressBook,
+    space: &str,
+) -> Result<(FillReport, MembersResult)> {
+    // ONE drain feeds BOTH the roster and the fill (Leg A-bis §1).
+    let events = drain_space_events(ctx, space).await?;
+    let members = members_projection(space, &events)?;
+    let report = fill_from_events(ctx, book, space, &events).await?;
+    Ok((report, members))
 }
 
 #[cfg(test)]

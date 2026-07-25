@@ -208,7 +208,12 @@ async fn connect_counted(
 /// Matches the pre-M-RP6.6 `service::run_ws_loop` timeout (10 s); the desktop
 /// scaffold used 2 s — the longer value is kept so a briefly-slow node does not
 /// read as DISCONNECTED on the first dial.
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+///
+/// `pub(crate)` since M-RP-MEMBERS Leg A-bis: `session::ensure_connected` reuses
+/// this exact constant to bound its own dial rather than mint a second connect
+/// timeout — a second connect timeout at a different value would be two homes
+/// for one policy (D-067). The value and its rationale live here, alone.
+pub(crate) const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The outcome of one connect → authenticate → drain session. The reconnect
 /// wrapper (Leg B) branches on this: `Disconnected` means "we had a live session

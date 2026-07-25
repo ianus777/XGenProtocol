@@ -31,6 +31,8 @@ use xgen_core::{
     transport::client::connect_url,
 };
 
+use crate::resident::CONNECT_TIMEOUT;
+
 /// Concrete WebSocket connection alias used throughout the Client. Matches
 /// the return type of `xgen_core::transport::client::connect_url`.
 pub type ClientConnection = xgen_core::transport::connection::Connection<
@@ -135,9 +137,22 @@ impl SessionState {
                 bail!("no node endpoint resolved (home_node empty and no override given)");
             }
             tracing::info!(node_url = %node, "Connecting to Node");
-            let mut conn = connect_url(node)
-                .await
-                .context("failed to connect to Node")?;
+            // Bound the dial (M-RP-MEMBERS Leg A-bis / T1): `connect_url` →
+            // `connect_async` had no timeout, so a black-hole node (accepts the
+            // TCP socket, never completes the WS handshake) hung this call
+            // forever. Bounding it in shared code fixes the desktop shell,
+            // `--batch`, and `--aicontrol` alike. Reuses `resident::CONNECT_TIMEOUT`
+            // (10 s) rather than minting a second connect timeout (D-067).
+            // NOTE: the auth handshake below (`client_authenticate`) is NOT
+            // bounded here — a node that completes the WS handshake then goes
+            // dark during auth stays unbounded; filed, not fixed this leg.
+            let mut conn = match tokio::time::timeout(CONNECT_TIMEOUT, connect_url(node)).await {
+                Ok(r) => r.context("failed to connect to Node")?,
+                Err(_elapsed) => bail!(
+                    "connection to Node timed out after {}s",
+                    CONNECT_TIMEOUT.as_secs()
+                ),
+            };
             let auth = conn
                 .client_authenticate(&signing_key)
                 .await

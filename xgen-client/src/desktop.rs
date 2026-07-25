@@ -641,27 +641,35 @@ fn get_address_book(
     crate::address_book::AddressBook::load(&data.0).map_err(|e| format!("{e:#}"))
 }
 
-/// Fill the address book from one Space's live DAG and persist it (M-RP-MEMBERS
-/// Leg A). The `reanchor_space` shape (runbook §1) — NOT the `get_spaces` shape:
-/// `fill_from_space` calls `ensure_connected`, so it needs a REAL session with a
-/// resolved `home_node`, not the throwaway empty-`home_node` `SessionState` that
-/// `whoami`/`spaces` get away with.
+/// Fill the address book from one Space's live DAG, persist it, AND return the
+/// Space's resolved membership (M-RP-MEMBERS Leg A / Leg A-bis). The
+/// `reanchor_space` shape (runbook §1) — NOT the `get_spaces` shape:
+/// `fill_and_members` calls `ensure_connected`, so it needs a REAL session with
+/// a resolved `home_node`, not the throwaway empty-`home_node` `SessionState`
+/// that `whoami`/`spaces` get away with.
+///
+/// Returns `(FillReport, MembersResult)` from a SINGLE drain (Leg A-bis): the R7
+/// widget needs the roster to render and the fill to resolve names, and draining
+/// twice would roughly double the cold-start window state ③ is on screen.
 ///
 /// Fire-and-forget from the frontend, OFF THE CRITICAL PATH (Joe-locked,
-/// address-book §4): the Space opens at once and the view refreshes (via a
-/// follow-up `get_address_book`) when this resolves. A Tauri command is already
-/// off the render path, so honouring that lock costs nothing here.
+/// address-book §4): the Space opens at once and the view populates from the
+/// returned roster (names resolving via the freshly-filled book) when this
+/// resolves. A Tauri command is already off the render path, so honouring that
+/// lock costs nothing here.
 ///
-/// The `FillLock` guard serialises overlapping fills (§3). `fill_from_space` is
+/// The `FillLock` guard serialises overlapping fills (§3). `fill_and_members` is
 /// re-entrant by design and self-cleans its connection on every exit (J-586) —
-/// this caller adds no connection management.
+/// this caller adds no connection management. The underlying dial and each
+/// `identity.get` reply are bounded (Leg A-bis / T1), so a black-hole node
+/// makes this command REJECT rather than hang the lock forever.
 #[tauri::command]
 async fn fill_space_records(
     space_id: String,
     data: tauri::State<'_, DataDir>,
     config: tauri::State<'_, ConfigPath>,
     lock: tauri::State<'_, FillLock>,
-) -> Result<crate::ops::FillReport, String> {
+) -> Result<(crate::ops::FillReport, crate::ops::MembersResult), String> {
     // Serialise concurrent fills across load → fill → save (§3): the loser of a
     // read-modify-write race would otherwise silently discard resolved records.
     let _guard = lock.0.lock().await;
@@ -685,10 +693,10 @@ async fn fill_space_records(
         node_override: None,
     };
 
-    let result = crate::ops::fill_from_space(&mut ctx, &mut book, &space_id).await;
+    let result = crate::ops::fill_and_members(&mut ctx, &mut book, &space_id).await;
 
     // Persist UNCONDITIONALLY, before propagating `result` (runbook §2 Step 6):
-    // `fill_from_space` takes `&mut book` and applies touches + absorbed fetches
+    // `fill_and_members` takes `&mut book` and applies touches + absorbed fetches
     // AS IT GOES, so on a mid-loop error the book already holds real
     // observations. Discarding them would throw away work that happened and force
     // the next fill to re-fetch. On an early error (nothing mutated) the save is

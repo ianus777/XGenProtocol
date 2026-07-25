@@ -1,6 +1,6 @@
 # M-RP-MEMBERS Leg A-bis — bound the fill, and give the roster a caller
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-25  
 > Language: English  
@@ -46,6 +46,25 @@ The two unbounded waits live in **shared** code: `ensure_connected` (`session.rs
 
 **Chat recommends T1 with configurable values defaulting to 5 s**, precisely because the defect is not R7's. ⚠️ **But the behaviour change on slow links is a real trade and it is Joe's**, not Chat's, to accept.
 
+🔒 **LOCKED — T1 (Joe, 2026-07-25).** ⚠️ **PROVENANCE: DELEGATED** — *"t1 as you recommend"*. Joe adopted Chat's recommendation without walking the options. **Recorded prominently because this one has REACH:** it changes shipped connection behaviour for `xgen-client` **desktop, `--batch` and `--aicontrol` alike**. If a future long-running batch begins failing on a slow link, **this is the line that explains why**, and re-opening it costs a config value, not a redesign.
+
+### ⚠️ §2a — CHAT'S RECOMMENDED VALUES WERE WRONG. MEASURED AFTER THE LOCK, BEFORE THE BUILD.
+
+Chat proposed **5 s** for both bounds, reasoning from `reanchor_space`'s `get_dag_tips` (5 s) and `sync_completion_timeout` (5 s). **Both are precedents for a different operation.** The codebase already has named constants for **these two specific operations**, and they say **10**:
+
+| Operation | Existing constant | Value |
+|---|---|---|
+| **connect** | `resident.rs:211` — `const CONNECT_TIMEOUT` | **10 s** |
+| **one request → one reply over the socket** | `resident.rs:785` — `pub const SEND_ACK_TIMEOUT` | **10 s** |
+| a multi-message drain | `sync_completion_timeout` | 5 s, configurable |
+| `get_dag_tips` request-reply | `desktop.rs:385` | 5 s |
+
+🔒 **CORRECTED DEFAULTS: connect = 10 s · each `identity.get` recv = 10 s.** For **connect** there is no judgement call — a second connect-timeout constant at a different value would be **two homes for one policy** (D-067). For **recv**, both 5 and 10 have precedent; the closest analogue **by shape** is `SEND_ACK_TIMEOUT` — one request, one reply, same socket — so 10.
+
+🔑 **AND THE TOTAL DOES NOT BLOW UP, BECAUSE THE FETCH LOOP ABORTS ON THE FIRST FAILURE.** `identity_get_on(conn, id).await?` propagates with `?`, so a dead node costs **one** timeout, not N. ⇒ realistic worst case to failure = **connect 10 + drain 5 + first fetch 10 ≈ 25 s**, *not* `10N`. A slow-but-alive node with N = 200 costs N × real latency, not N × the bound. ⚠️ **This is load-bearing for ③ and must not be broken:** if a future change makes the loop *continue* past a failed fetch, the worst case becomes `10N` and *"I am waiting for the others"* can run for half an hour. **If that changes, §4c-i's progress note stops being deferrable.**
+
+📌 **Chat's error, named:** the number was picked from **one** precedent without checking whether the codebase already had a constant for **this** operation. It did, twice. *Same defect class as the rest of this arc — a claim narrower than the thing it described.*
+
 📌 If T2 is chosen, record the shared-code defect as **filed, not fixed**, rather than letting it disappear.
 
 ---
@@ -64,9 +83,11 @@ Decompose so the fill and the roster projection **share a single drain**:
 
 📌 `fill_from_space` is **kept** — it has tests and it is the honest verb for "just fill." Two entry points over one body is not drift; two *bodies* would be.
 
-### Step 2 — the timeouts (per §2's lock)
+### Step 2 — the timeouts (per §2's lock, values per §2a)
 
-Per-step, **never an overall cap** — an overall cap aborts legitimate work on a large Space (Phase-0 §4c-i). Bound: the **connect**, and **each** `identity.get` `recv()`. Default 5 s each, config-tunable. ⇒ worst case `5 + 5 + 5N`, **always terminating**.
+Per-step, **never an overall cap** — an overall cap aborts legitimate work on a large Space (Phase-0 §4c-i). Bound the **connect** (`ensure_connected`) and **each** `identity.get` `recv()` (`identity_get_on`), per T1 — **in the shared code where they live**, so `--batch` and `--aicontrol` are fixed too.
+
+🔒 **Defaults 10 s each (§2a), configurable.** ⚠️ **Reuse `resident::CONNECT_TIMEOUT` for the connect rather than minting a second constant** — a second connect timeout at a different value is two homes for one policy.
 
 ### Step 3 — the command
 
@@ -90,6 +111,7 @@ No new registration if the name is kept. ⚠️ If renamed, **update `invoke_han
 - [ ] **ONE DRAIN PROVEN, NOT ASSUMED** — instrument or trace-log the drain and show **one** per `fill_space_records` call, not two
 - [ ] **Timeout EXERCISED, not asserted** — point the client at a black-hole endpoint (a listening socket that never replies) and show the command **rejects** at the bound instead of hanging
 - [ ] 🔑 **THE LOCK RELEASES AFTER A TIMEOUT** — a timed-out fill followed by a **successful** one, same process. *This is the leg that proves the `FillLock` deadlock is actually closed; without it the mutex is still a live hazard*
+- [ ] ⚠️ **THE FETCH LOOP STILL ABORTS ON FIRST FAILURE** (§2a) — assert one timeout, not N. This is what keeps the worst case at ~25 s instead of `10N`, and ③'s honesty depends on it
 - [ ] Roster returned live on 9222: `fill_space_records` → a `MembersResult` whose members match the seeded Space
 - [ ] Re-entrancy still green: two consecutive calls, second `touched > 0, fetched 0`, no connection error
 

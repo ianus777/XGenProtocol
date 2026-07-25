@@ -1,8 +1,8 @@
 # M-RP-ADDRESS-BOOK — client-side seen-records, the identity cache the UI reads names from
 > **Status**: ACTIVE  
-> Version: 1.6  
+> Version: 1.7  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-24  
+> **Last updated**: 2026-07-25  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -203,7 +203,7 @@ A local cache of **other people's** identity data. This is one of the project's 
 - ⚠️ **Joe's mutual "visit card" model diverges from Ch2**, which is emphatic: *"A contact is not a mutual connection … The other person is never notified and never sees your annotations."* An amendment, not a recollection. **Belongs to ③, not here.**
 - ⚠️ **Merged-presence display** — collapsing presence from several Spaces into one indicator erases the context boundary Ch2's Space-scoping exists to protect. Not a protocol breach; a user-model question. **Belongs to ④.**
 - 📌 The A/B/C roster walk of 2026-07-24 is **superseded** — the roster is not the members widget's data model. It survives only as **F2**, one fill source.
-- ⚠️ **THE WIRE CEILING — `identity.record` cannot carry three of the four locked rules (measured `1fd594c`, J-583).** Code (`xgen-core/src/wire/types.rs:455-473`) and spec (Appendix I §IV.1) **agree**: the only client-facing identity payload carries `identity_id`, `display_name`, `registered_at`, `devices`, `home_node`, `is_ai`, `ai_capabilities` — and **no `update_version`, no `revoked`/`revoked_at`, no `trust_assertion`**. The node returns `Some(record)` for a **revoked** identity exactly as for a valid one (`xgen-node/src/app.rs:3538-3551`); revocation is enforced only at session-open against the revoked identity's **own** login (`app.rs:1539`). ⇒ **§5 V2, §5 revocation-on-encounter and §6's not-renewed badge have no wire source.** 🔒 **Joe locked Option C (2026-07-24): build all six, drive those three from book-internal seeds**, so the logic is written and tested and the day the record widens it is field-mapping, not redesign. **Widening `identity.record` is a protocol change** (Appendix I + Ch3 + node + client + a federation-replication check) — **filed, out of arc, awaiting a milestone name from Joe.**
+- ⚠️ **THE WIRE CEILING — `identity.record` cannot carry three of the four locked rules (measured `1fd594c`, J-583).** Code (`xgen-core/src/wire/types.rs:455-473`) and spec (Appendix I §IV.1) **agree**: the only client-facing identity payload carries `identity_id`, `display_name`, `registered_at`, `devices`, `home_node`, `is_ai`, `ai_capabilities` — and **no `update_version`, no `revoked`/`revoked_at`, no `trust_assertion`**. The node returns `Some(record)` for a **revoked** identity exactly as for a valid one (`xgen-node/src/app.rs:3538-3551`); revocation is enforced only at session-open against the revoked identity's **own** login (`app.rs:1539`). ⇒ **§5 V2, §5 revocation-on-encounter and §6's not-renewed badge have no wire source.** 🔒 **Joe locked Option C (2026-07-24): build all six, drive those three from book-internal seeds**, so the logic is written and tested and the day the record widens it is field-mapping, not redesign. **Widening `identity.record` is a protocol change** (Appendix I + Ch3 + node + client + a federation-replication check) — **filed as `M13 Client Identity Lookup Widening`** (`tasks/M13_CLIENT_IDENTITY_LOOKUP_WIDENING.md`, Status PENDING, J-584). ⚠️ **D-127 decided there: a revoked Identity returns its record WITH `revoked` set, never `not_found` — `not_found` is reserved for ERASURE.** M13 converts every Option-C seed into a live wire path; neither milestone blocks the other.
 
 ---
 
@@ -224,4 +224,8 @@ A local cache of **other people's** identity data. This is one of the project's 
 
 📌 **Free for Leg D:** `clock advance` / `clock set` ship behind `--features harness-control` (`admin_ops.rs:4437`, `MockClock`); every seeded record carries `update_version: 0`, a known floor for carol v2.
 
-**M-RP-MEMBERS** unblocks after the book build. The **wire-widening** milestone and the **`identity.update` emitter** remain filed and unscheduled.
+🔑 **THE BOOK STORES OBSERVATIONS, NOT CURRENT TRUTH (Joe, 2026-07-25).** Each record means *"as of `last_seen`, this was the state."* A cached `revoked = true` can never become wrong; a cached `revoked = false` is **also** only true as of then ⇒ **staleness and absence must BOTH render as UNKNOWN, never as fine.** Generalises the J-582 badge rule to the whole book. 📌 **`registered_at` trimmed from `SeenRecord`** — provenance about them, needed neither to recognise nor to route, required by no locked rule. ⚠️ **The observational framing improves the GDPR footing but does NOT dissolve it** — a record keyed to an identifiable person is still personal data, and the client's user becomes the controller. Reduced, not removed.
+
+📌 **Reputation is deliberately NOT built here.** Stable identity + encounter history is exactly the substrate a reputation system needs, and it would arrive by accident. ⚠️ **On a no-anonymity protocol, reputation attaches to a real, permanent, legally-real person** — mob dynamics and unappealable scores become durable harm to a named human. Ch2-weight, Joe's, and **it must not shape the book's field set.**
+
+**M-RP-MEMBERS** unblocks after the book build. The **`identity.update` emitter** remains filed and unscheduled.

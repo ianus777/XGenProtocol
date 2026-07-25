@@ -4719,3 +4719,46 @@ All four are `use:envelope`-registered, so all four are CDP-readable. 🔑 **Not
 ### Scope
 
 **Vocabulary only.** It assigns no utility to any row, fixes no layout, and does not decide whether the row is fixed or plugin-extensible — that is FILED INTENT in `tasks/M_RP_SELF_GATE.md` §4, locking at **Phase-0**. ⚠️ If it becomes extensible it is a **plugin surface under D-112/D-113**, which is materially larger than a widget.
+
+---
+
+## D-127 — `identity.record` returns revoked Identities with a flag; `not_found` is reserved for erasure
+
+**Date:** 2026-07-25 · **Layer:** protocol (client-facing identity lookup) · **Ref:** M13 Client Identity Lookup Widening, D-088 (identity erasure = orphaned pubkey), D-121 (two lenses), D-123 (seats) · **Journal:** J-584 · **Code:** none yet — M13 is PENDING.
+
+⚠️ **PROVENANCE: Chat recommended, Joe DELEGATED ("by your recommendation", 2026-07-25).** This is a core-touching decision — it defines what the protocol says about a person — and was flagged as Joe's before he delegated it. **Recorded as delegated, not as a considered Joe-lock**, so that a later revisit reads the provenance correctly.
+
+**Decision:** when M13 widens `identity.record`, a lookup of a **revoked** Identity returns the record **with `revoked` set**, not `identity.not_found`.
+
+### Why
+
+- **The DAG is permanent.** Every event that Identity signed still exists and still renders. Revocation cannot retract history; it constrains what the Identity may do *going forward*. Answering `not_found` makes all of that history **permanently unattributable** — in a protocol founded on knowing who said things.
+- **"Revoked" and "never existed" are different facts.** Under `not_found` a revoked Identity, a mistyped key and a stranger's key are indistinguishable.
+- **§5 revocation-on-encounter is otherwise unimplementable** — it is defined as marking a cached record on re-encounter, and there is nothing to mark if the record vanishes.
+
+### The hard limit — DO NOT CONFLATE WITH ERASURE
+
+🔑 **`not_found` is the correct answer for ERASURE, and must stay reserved for it.** Erasure removes a person; revocation kills a credential. If both produce `not_found`, the protocol loses the ability to distinguish a compromised key from a withdrawn human — and would be answering the project's open federated right-to-be-forgotten question by accident, in the wrong layer.
+
+### Consequence for the address book
+
+A cached `revoked = true` is a **historical fact that can never become wrong**. A cached `revoked = false` is only true *as of `last_seen`* ⇒ **staleness and absence must both render as UNKNOWN, never as fine.** This generalises the J-582 badge rule from one field to the whole book.
+
+---
+
+## D-128 — Tier-required claims: proofs by default, encryption only for a reader known at issuance, and a ceiling on what a tier may demand
+
+**Date:** 2026-07-25 · **Layer:** protocol (Auth Module / Trust Assertion claims) · **Ref:** Appendix M §M.2 (`has_claim`, §3.8.5 check 7 required-claims gate), §M.3 `ModulePolicy`, D-121, D-123 · **Journal:** J-584 · **Code:** none — **M10 Auth Module Reference Set** territory, NOT M13.
+
+⚠️ **PROVENANCE: Chat recommended, Joe DELEGATED ("by your recommendation", 2026-07-25),** on Joe's own concept — an Auth Tier may require specified details, carried on the visit card.
+
+**Decision, three parts:**
+
+1. **Tier-required claims are PROOFS, not disclosures.** The existing claim vocabulary already settles this: `tier_verified: bool`, `email_verified: Option<bool>`, and `email_hash` — *"Salted SHA-256 … plaintext never permitted"* (Appendix M §M.2). A tier may require that a property be **proven**; it may not require the **value** be published. A professional tier can demand `credential_verified: true` plus a hash — a reader learns the credential is real without learning the licence number.
+2. **Encrypted claim values are permitted NARROWLY** — only where the intended reader is **known at issuance** (e.g. a regulator-readable field encrypted to one known public key). Mechanically this needs no wire change: `claims.extra` is `BTreeMap<String, Value>` and a base64 ciphertext is a `Value`.
+   - ⚠️ **Per-recipient or dynamic-audience encryption is STRUCTURALLY IMPOSSIBLE here.** `claims.extra` rides **inside the signed canonical form** (Appendix M §M.3, deliberately — *"keeps it inside the signed bytes"*). Re-encrypting per reader changes those bytes and invalidates the Ed25519 signature. Selective disclosure and signed-in-place ciphertext are mutually exclusive by construction. **Do not attempt to solve this by re-wrapping.**
+   - ⚠️ **Harvest-now-decrypt-later.** Identity records replicate across federated Nodes and persist. An encrypted value is published permanently with a countdown running on its cipher — a poor trade against a hash, which has no key to leak and nothing to decrypt later. Prefer hashing wherever the value need not be read back.
+   - 📌 **A visible key leaks the schema.** `medical_licence` as a plaintext key is fine. `immigration_status` or `health_condition` are cases where the *existence* of the claim is itself the sensitive fact. **Not decided here** — no consumer exists yet; recorded as a known gap for M10.
+3. **The protocol should BOUND what a tier may demand.** `claims.extra` is an **open namespace** — unknown keys are preserved and `has_claim` consults them — so absent a ceiling an Auth Module can make access conditional on ever-growing disclosure: *"disclose or lose your tier."* 🔑 **That is enshittification arriving through the Auth Module rather than through a platform** — the one vector the architecture does not currently close, reached by exactly the door tier-required claims opens. The ceiling's shape (proofs and hashes yes, plaintext personal data no, mirroring the `email_hash` rule) is **filed for M10**; imposing it before modules exist is far cheaper than after.
+
+📌 **The optional/required tension resolves one level up:** choosing a tier is voluntary, so disclosure is optional at tier selection rather than per field. **A blank visit card stays legal at T1.**

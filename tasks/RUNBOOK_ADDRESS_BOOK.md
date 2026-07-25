@@ -1,8 +1,8 @@
 # Runbook — M-RP-ADDRESS-BOOK Leg D: build the client-side address book
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-24  
+> **Last updated**: 2026-07-25  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -57,7 +57,7 @@ The node confirms this (`xgen-node/src/app.rs:3538-3551`): the lookup returns `S
 
 ⚠️ **NEVER populate a wire-absent field with a guess.** `update_version` defaults to `0`, `revoked` to `false`, `trust_assertion` to `None` on anything fetched. A fetched record must never *claim* an identity is valid — it simply has no opinion, and §6's display rule must treat absence as unknown, not as fine.
 
-📌 **Filed, not fixed:** widening `identity.record` is a protocol change (Appendix I + Ch3 + node + client, and a look at whether federation replication needs the same). It is **out of this arc** and awaits a milestone name from Joe.
+🔒 **FILED AS A MILESTONE: `M13 Client Identity Lookup Widening`** (`tasks/M13_CLIENT_IDENTITY_LOOKUP_WIDENING.md`, Status PENDING). It converts every seeded rule below into a live wire path. ⚠️ **D-127 decided there: a revoked Identity returns its record WITH `revoked` set, never `not_found`** — `not_found` stays reserved for erasure. Build Step 4/5/6 so that flag arriving from the wire needs no redesign. 📌 **Original filing note:** widening `identity.record` is a protocol change (Appendix I + Ch3 + node + client, and a look at whether federation replication needs the same). It is **out of this arc** and awaits a milestone name from Joe.
 
 ---
 ## §3 — Grounding facts (measured `1fd594c`)
@@ -112,12 +112,17 @@ pub async fn identity_get(
 | `display_name` | `Option<String>` | wire |
 | `is_ai` | `bool` | wire (serde default `false`) |
 | `home_node` | `String` | wire |
-| `registered_at` | `String` | wire |
 | `last_seen` | `String` (RFC-3339) | **book-local**, set on every touch |
 | `update_version` | `u64` | **book-local, default 0** — see §2 |
 | `revoked` | `bool` | **book-local, default false** — see §2 |
 | `trust_assertion` | `Option<Value>` | **book-local, default None** — see §2 |
 
+🔑 **THE BOOK STORES OBSERVATIONS, NOT CURRENT TRUTH (Joe, 2026-07-25).** Every record means *"as of `last_seen`, this was the state."* Two consequences that bind the whole build:
+
+- A cached `revoked = true` is a **historical fact that can never become wrong** — revocation does not un-happen.
+- A cached `revoked = false` is **also only "as of then"** ⇒ ⚠️ **staleness and absence must BOTH render as UNKNOWN, never as fine.** This generalises the J-582 badge rule from one field to the whole book, on a principle rather than as a special case.
+
+📌 **`registered_at` is deliberately NOT stored** (trimmed 2026-07-25). It is provenance about *them*, not needed to recognise them, not needed to route to them, and required by no locked rule — so the book does not keep it. Every remaining field earns its place: `identity_id` (key) · `display_name` (the point) · `is_ai` (§3.6.10 transparency, spec-mandated) · `home_node` (routing, to re-fetch) · `last_seen` (§6 E3) · the three wire-absent fields (locked rules, §2). If a surface ever needs `registered_at`, it is one `identity_get` away.
 `AddressBook` holds the records keyed by `identity_id` (a `BTreeMap<String, SeenRecord>` — deterministic serialisation order, which makes the file diffable and the tests stable).
 
 **Storage:** load/save `xgen-client_address_book.json` from the instance data dir, mirroring `app.rs:4613-4630`.
@@ -220,7 +225,7 @@ Run `docs/tests/scripts/ADDRESS_BOOK_SEED_CORPUS.md` v1.1 (six `.xgb` + two node
 ## §6 — Out of scope — do NOT build these here
 
 - **Any UI.** The book is a data layer. Rendering names, badges and rosters is **M-RP-MEMBERS**, which unblocks after this build.
-- **Widening `identity.record`.** A protocol change (Appendix I + Ch3 + node + client + a federation-replication check), filed in §2, awaiting a milestone name from Joe.
+- **Widening `identity.record`.** Now `M13 Client Identity Lookup Widening` (PENDING) — see §2. Do not build any part of it here.
 - **An `identity.update` emitter.** Nothing emits it (J-576); that gap is filed separately.
 - **③ contacts** — private encrypted annotations. Ch2 specifies **no contact-acquisition flow at all** (grepped; zero). Cannot be built until written.
 - **④ presence** — Space-scoped, TTL, explicitly *not stored and not an Event*.

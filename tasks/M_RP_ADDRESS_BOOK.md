@@ -1,6 +1,6 @@
 # M-RP-ADDRESS-BOOK — client-side seen-records, the identity cache the UI reads names from
 > **Status**: COMPLETED  
-> Version: 1.8  
+> Version: 1.9  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-25  
 > Language: English  
@@ -106,6 +106,9 @@
 
 - **A live node→client push channel DOES exist.** The client holds a home-Node WebSocket carrying `Inbound::Event` fan-out (`xgen-client/src/events_pipe.rs` header, EV-D3; `xgen-node/src/fanout.rs`). It is real and already carrying traffic.
 - **It cannot carry identity.** The entire DAG event space is `message.*` (text · file · reaction · redact), `state.*` (space · room · federation · mls · dm · status · node_priority · ai_operator) and `space.join_request`. **There is no `identity.*` event type.** Identity lives in the *control-message* layer, never in the DAG.
+  - ⚠️ **THE ENUMERATION ABOVE IS INCOMPLETE — CORRECTED 2026-07-25 (M-RP-MEMBERS §5).** It **omits the entire `Membership*` family**, which is eight first-class DAG event types: `MembershipInvite · MembershipJoin · MembershipLeave · MembershipKick · MembershipBan · MembershipNodeEject · MembershipNodeUnban · MembershipMute` (`xgen-common/src/wire.rs:43-58`). 🔒 **THE CONCLUSION OF THIS BULLET STANDS** — there is genuinely no `identity.*` event type, so V3 remains a protocol addition and §5's V2 lock is untouched. **It is the list that was wrong, not the finding.**
+  - 🔑 **WHY IT MATTERED, RECORDED SO THE COST IS VISIBLE:** M-RP-MEMBERS read this enumeration as the complete event space and concluded *"the roster is a network read"*, designing a **pull-on-scope-change** members widget. Joe challenged the premise; measurement then showed **membership changes are already fanned out to every connected member** (`xgen-node/src/fanout.rs:272,308`) and reach the frontend **unfiltered** (`resident.rs:407` → `app_client.svelte:517`). **A whole milestone was being designed against a missing line in a list.**
+  - 📌 **DEFECT CLASS, third occurrence this arc:** *a claim narrower than the thing it described, reused as if complete* — the J-587 family. The bullet answered *"can the DAG carry identity?"* and was **read as** *"what is in the DAG?"*
 - **Revocation is modelled, and it does propagate — node↔node only.** `IdentityRecord` carries `revoked: bool` + `revoked_at` (`xgen-core/src/identity/registry.rs`, 34 hits). `IdentityReplicateMessage::Replicate` pushes the full record plus `update_version` from home Node to replica Nodes (spec 3.13.4, `xgen-core/src/wire/types.rs:715`). **Replica Nodes are pushed to. Clients are not.**
 - **Client-side identity access is pull-only:** `identity.get` → `identity.record` / `identity.not_found` (spec 3.6.7). Request/response, one identity at a time.
 - **The client crate has zero revocation awareness** — one grep hit across all of `xgen-client`, at `app.rs:946`, and it is an unrelated AI-delegation CLI argument.

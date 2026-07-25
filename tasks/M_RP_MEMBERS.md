@@ -1,6 +1,6 @@
 # M-RP-MEMBERS — the R7 members widget over the address book
 > **Status**: ACTIVE  
-> Version: 1.6  
+> Version: 1.7  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-25  
 > Language: English  
@@ -170,17 +170,38 @@ ROADMAP L826 says *"R7 is a contact list, not a room roster."* But the book is *
 
 ⚠️ **CONSEQUENCE 1 — R7 HAS NO EMPTY STATE.** §4a-B1's *"Select a room"* empty state is **superseded**: the panel always holds at least one row.
 
-⚠️ **CONSEQUENCE 2 — A FIXTURE THAT LOOKS LIKE A RESULT MAKES THE PANEL LIE. 🔒 THE THREE STATES ARE NOW LOCKED (Joe, 2026-07-25):**
+⚠️ **CONSEQUENCE 2 — A FIXTURE THAT LOOKS LIKE A RESULT MAKES THE PANEL LIE. 🔒 THE PANEL HAS FIVE STATES, LOCKED (Joe, 2026-07-25):**
 
-| State | Renders |
-|---|---|
-| **room scoped** | self avatar **+ all in room** |
-| **nothing scoped** | **only self** |
-| **offline** | **only self + *"I cannot see the others"*** — explicitly **NOT** *"there are none"* |
+⚠️ **It is a TREE, not a 2×2** — with no scope there is no roster to ask about, and *"roster unknown"* is **three causes, not one**. Chat's earlier *"fourth cell"* framing was imprecise and is corrected here.
 
-🔑 **THE DISTINCTION IS CARRIED BY THE MESSAGE, NOT BY THE ROW COUNT.** States 2 and 3 render an identical single row; only the offline line separates them. That is the whole point — *silence in state 3 would be indistinguishable from state 2, and both would read as "nobody here".*
+```
+is there a scope?  (roomLatch.effectiveSpaceId)
+│
+├─ NO  ──────────────────► ①  self only, NO message
+│                            (unregistered · no spaces · no room ever
+│                             picked · latched room vanished)
+│                            ⚠️ THIS ABSORBS OFFLINE
+│
+└─ YES → is the roster known?
+         ├─ KNOWN ─────────► ②  self + all in room
+         └─ UNKNOWN, three causes:
+              ├─ in flight ────► ③  self + "I am waiting for the others"
+              │                    ⚠️ REQUIRES A BOUNDED FILL — see §4c-i
+              ├─ failed ────────► ④  self + "I cannot reach the others"
+              └─ offline ───────► ⑤  self + "I cannot see the others"
+```
 
-⚠️ **THE FOURTH CELL — scoped and offline are INDEPENDENT, so there are four, not three.** Scoping works offline (the room latch resolves against `KnownSpace` on disk), so **unscoped + offline** is reachable and unstated. ⇒ **Chat's reading, for Joe to confirm or overrule: UNSCOPED WINS.** With no room picked there are no *"others"* being blocked — claiming the connection is the obstacle would be a **second false statement**, blaming the network for a scope the user has not chosen. State 2's render, not state 3's.
+🔒 **① UNSCOPED ABSORBS OFFLINE (Joe-confirmed by adopting the tree).** With no room picked there are **no "others" being blocked**; saying *"I cannot reach/see the others"* would blame the network for a scope the user has not chosen — **a second false statement**.
+
+🔒 **③ → ④ IS A TRANSITION, NOT A SEPARATE RENDER** (Joe): *"if it is clear that request failed it changed to failed online appearance"*.
+
+🔑 **CHAT ARGUED FOR SILENCE AT ③ AND JOE'S ANSWER DEFUSED THE OBJECTION RATHER THAN OVERRIDING IT.** Chat's case was warning-fatigue — a warning that flashes on every room open stops being read, and then ⑤ fails when it matters. But *"I am waiting for the others"* is a **status, not a warning**: different register, objection void. The five messages share one voice — the panel speaking about **what it knows about itself**.
+
+📌 **④ vs ⑤ — both wordings are TRUE in both states, so the split is nuance, not correctness.** They are distinguished for the user by the **connection led**, not by the verb. ⚠️ **The thing that would make the distinction load-bearing is a RETRY affordance** — ④ is retryable, ⑤ is not. None exists today, so ④ and ⑤ may later collapse into one state at no cost to truth. Recorded so a future reader knows the split was a choice.
+
+🔑 **AND JOE'S ⑤ WORDING IS BETTER THAN A CAUSE-SPECIFIC ONE WOULD HAVE BEEN.** *"I cannot see the others"* names the **effect and never the cause**, which is why it is correct across every unknown branch. *"You are offline"* would be false in ④; *"could not load"* would be false in ⑤.
+
+⚠️ **REJECTED WORDING, AND WHY — recorded so it is not re-proposed.** *"I cannot see the others **online**"* was Joe's first cut for ④ and reads two ways: *while online* (intended) and *"the others **who are** online"* — **a presence claim**. Presence is layer ④, **unbuilt, with no client path and Space-scoped by design**. The panel must not assert the one thing it has no mechanism for. ⇒ *"I cannot reach the others"* (Joe, final).
 
 🔑 **AND THE PREDICATE IS NOT "OFFLINE" — THIS PART IS CHAT'S AND KEYING IT WRONG REPRODUCES THE LIE.** The connection state (`DISCONNECTED` on the status-bar led) is only **one** cause of an unavailable roster; a drain that fails while **online** (node refuses, Space gone, timeout) leaves the panel in exactly the same position and would render *"only self"* with **no explanation at all**. ⇒ the honest predicate is three-valued **on the roster**, not two-valued on the connection:
 
@@ -190,7 +211,39 @@ ROADMAP L826 says *"R7 is a contact list, not a room roster."* But the book is *
 
 🔒 **BINDING DATA SHAPE ON LEG B:** the roster crosses into the widget as an **`Option`-shaped value, never a bare array** — an empty array MUST NOT be conflatable with *not fetched*. The precedent already ships in this arc: `SeenRecord::trust_lapsed(now) -> Option<bool>`, where **`None` means "no opinion"** rather than `false`. *Same discipline, same reason: absence is a value, and collapsing it into emptiness is how a panel comes to assert something nobody measured.*
 
-📌 **The copy is Joe's** — *"I cannot see the others"* is recorded as the **meaning**, not as final wording.
+📌 **The copy is Joe's** — all three messages are recorded **verbatim as given**, not as approximations.
+
+### ⚠️ §4c-i — THE FILL IS UNBOUNDED, AND THE TIMEOUT IS A PRECONDITION OF ③ — NOT A DETAIL
+
+🔑 **JOE'S QUESTION, WHICH RESHAPED THIS SECTION: *"how then you can say in flight?"***
+
+**The frontend knows ③ from the PROMISE, not from the network** — the invoke was fired, the promise is pending, therefore *I asked and have not been answered*. That is observable with or without a timeout. **But the question cuts deeper, and it is right.**
+
+⚠️ **③ IS NOT A KNOWLEDGE STATE.** The panel's knowledge is **binary** — roster KNOWN or NOT KNOWN. ③, ④ and ⑤ are **all "not known"**; what separates them is not information but **context and elapsed time**: ⑤ the led is red and we know why · ④ the attempt has **concluded** in failure · ③ the attempt has **not concluded**.
+
+🔑 **⇒ ③ ONLY MEANS ANYTHING IF THE ATTEMPT IS GUARANTEED TO CONCLUDE.** Unbounded, *"I am waiting for the others"* is **a permanent condition wearing a state's clothes** — and saying *"I am waiting"* **commits the panel to eventually stopping**. ⇒ **the timeout is not a value attached to ③; it is what makes ③ SAYABLE.** *(Chat originally filed it as an open detail. Wrong category, corrected here.)*
+
+🔒 **CONSEQUENCE: IF THE FILL IS NOT BOUNDED, ③ MUST BE DROPPED** and *unknown* collapses to ④/⑤ — a worse panel, but an honest one. **There is no third option in which ③ ships unbounded.**
+
+📌 **And the failure hides itself:** navigating away and back fires a **fresh** fill, so the user experiences *"this room never shows its members"* rather than *"the app is stuck"*. Quieter, and still a lie.
+
+🔑 **⚠️ SCOPE OF THIS SECTION SHRANK (2026-07-25, §5 rewrite).** Written when the roster was assumed to be a **repeated pull**. It is not — §5 measured a live membership channel ⇒ **the fill is the COLD START ONLY.** So ③ bounds **one read at the start of a scope**, not an open-ended subscription, and the timeout polices a single call rather than a standing condition. **Everything below still holds for that one call**, and the `FillLock` deadlock is **unchanged and still real**.
+
+**Measured 2026-07-25:**
+
+| Path | Code | Bounded? |
+|---|---|---|
+| connect | `session.rs:138` → `connect_url(node).await` → `connect_async(url).await` | ❌ **no timeout** |
+| each of the N identity fetches | `identity_get_on` → `conn.recv().await` | ❌ **no timeout** |
+| the drain | `sync_completion_timeout` (5 s default, config) | ✅ bounded |
+
+⇒ **Joe's *"if it is clear that request failed"* MAY NEVER BECOME CLEAR.** A hung node leaves ③ *"I am waiting for the others"* on screen indefinitely — **true at t=0 and a lie by duration**, the same failure mode as every other state here, on a clock.
+
+⚠️ **AND IT MAKES CHAT'S OWN LEG A RECOMMENDATION A LIABILITY — owned.** The `FillLock` mutex (Leg A runbook §3, Chat's call) is held across load → fill → save. With an unbounded fill, **one hung call holds the lock for the life of the process and NO further fill can ever run.** That is not a stale message; it is a **silently dead feature**, and it is worse than the read-modify-write race the lock was added to prevent. **The mutex is only safe with a timeout.**
+
+🔒 **FIX — and Chat over-recommended last turn, corrected here.** Chat proposed a Rust timeout **and** a frontend escalation timer as equally necessary. **They are not.** A Rust-side `tokio::time::timeout` around the fill bounds the command, **releases the lock**, and makes the invoke **always resolve or reject** — at which point the frontend simply escalates ③ → ④ **on the rejection**, with no timer of its own. A separate frontend timer guards only against a stall *outside* the fill (the invoke bridge itself), and is **optional belt-and-braces, not a requirement**.
+
+🔓 **OPEN — THE TIMEOUT *VALUE* IS JOE'S** (the UX question *"how long before waiting becomes failed"*). ⚠️ **The timeout ITSELF is not open** — per the reframe above it is a precondition of ③, and the alternative is dropping ③, not shipping it unbounded. **Chat's default value until told otherwise: 20 s for the whole fill.** Reasoning: it must exceed the drain's own 5 s bound and leave room for N sequential `identity.get` round trips on a large Space, while staying short enough that ③ does not outstay its welcome. The `[sync] completion_timeout_seconds` config key is the precedent for making it tunable rather than a constant.
 
 ⚠️ **CONSEQUENCE 2b — THE FILTER CASE, STILL OPEN AND STILL JOE'S.** Once a search or filter exists, a **filter-immune** row styled like a match reports `search "bob" → Joe, Bob` — **the panel misreporting its own search.** ⇒ either the scope rides visibly on the panel, or **self reads as a fixture rather than a roster entry**. No filter ships in v1, so this binds the milestone that adds one.
 
@@ -206,9 +259,34 @@ ROADMAP L826 says *"R7 is a contact list, not a room roster."* But the book is *
 
 🔒 **Locked upstream (Joe, address-book §4): FILL RUNS OFF THE CRITICAL PATH.** The Space opens **at once**; records resolve behind and the view updates as they land. **Never gate a Space open on the fetch loop** — at N members that is an unbounded network wait in front of a UI action.
 
-**Chat's implementation reading (technical execution, not a Joe call):** the trigger is **a change in `roomLatch.effectiveSpaceId`** (§4a) — the same predicate R5 and R6 already act on. The widget or shell fires `fill_space_records(space_id)` as a fire-and-forget `invoke`; the store re-reads the book when it resolves. The panel renders from `members` **immediately**, with unresolved rows in the §6 form, and rows resolve in place.
+**Chat's implementation reading — ⚠️ REWRITTEN, THE PREMISE WAS WRONG (Joe, 2026-07-25).** This section previously said the trigger is a change in `roomLatch.effectiveSpaceId` and stopped there — **a pull-on-scope-change model**. Joe challenged it: *"the member list has to be dynamic, every time when someone appear in the room … or in some rate list checks who is in the scoped room."* **He is right, and the live mechanism already exists.**
 
-⚠️ **De-duplicate the trigger:** `effectiveSpaceId` does not change when you move between rooms **within** the same Space, so a naive per-room fire would re-fill on every room click. Fill on the **Space** transition only — and note that a warm re-fill is cheap by construction (`FillReport.touched`, J-586), so the failure mode here is noise, not correctness.
+🔑 **MEASURED END TO END, 2026-07-25 — MEMBERSHIP CHANGES ARE ALREADY PUSHED TO CONNECTED CLIENTS, AND NOTHING FILTERS THEM.**
+
+| Link | Code | Result |
+|---|---|---|
+| membership is a DAG event | `xgen-common/src/wire.rs:43-58` | **eight variants** — `MembershipInvite · Join · Leave · Kick · Ban · NodeEject · NodeUnban · Mute` |
+| recipients | `xgen-node/src/fanout.rs:272` — `space.members.keys()` | **every member of the Space** |
+| joiner catch-up | `fanout.rs:277` — only when `req.new_joiner.is_some()` | **additive history, NOT the delivery rule** |
+| delivery | `fanout.rs:308` — `senders.get(rid)`, every connection | already-connected members included |
+| the `:217` type match | `derive_event_nodes` | **the observer FILTER dimension — not an exclusion** |
+| resident receive | `xgen-client/src/resident.rs:395` | no `event_type` match |
+| resident forward | `resident.rs:407` — `(io.ingest)(ev)` | **verbatim** |
+| shell | `ui/client/src/app_client.svelte:517` — `ingest.push(event.payload)` | **verbatim** |
+
+⇒ **a `membership.*` event in a Space you belong to already reaches the frontend today, while connected. The roster can self-maintain.**
+
+🔒 **THEREFORE THE FILL IS THE COLD START, NOT THE MECHANISM.**
+- **Cold start** — on a change in `roomLatch.effectiveSpaceId` (§4a): one `fill_space_records`, off the critical path. ⚠️ **De-duplicate**: `effectiveSpaceId` does not change when moving between rooms **within** a Space, so fire on the **Space** transition only.
+- **Steady state** — a `membership.*` event for the scoped Space refreshes the roster. No second fetch of the whole DAG; the event carries the change.
+
+🔒 **POLLING IS REFUSED.** Joe offered *"or in some rate list checks"* as the alternative. The push path makes it unnecessary, and a poll would be **a second source of truth for something already delivered** — D-067, and it would also burn N `identity.get` round trips on a timer.
+
+🔑 **AND THE ONE EXCLUSION IN THE FAN-OUT INDEPENDENTLY JUSTIFIES §4c'S FIXTURE LOCK.** `fanout.rs:302` excludes the **author by identity** — *"an author's own connections do not see their own posted event echoed"* — and **every member authors their own `membership.join`** (J-586). ⇒ **you never receive your own join**, so a roster built purely from the live channel would be **missing you, invisibly**. Joe locked the self row as a fixture on offline-honesty grounds; it turns out to be **independently required** by the fan-out. *Two unrelated arguments, one answer.* 📌 The cold read is unaffected — `ops::members` replays the drained DAG, which contains your own join.
+
+⚠️ **WHAT IS **NOT** PROVEN, AND IS NOT CLAIMED: this path is traced STATICALLY.** No membership event has been **observed arriving live** — the Leg A live pass exercised only the fill. ⇒ **Leg B's DoD carries it as a required leg, EXERCISED not asserted** (two clients, a shared Space, a real join). *A traced path is a hypothesis with good sources.*
+
+⚠️ **AND THE CLAIM THAT MISLED THIS SECTION IS STILL IN THE RECORD.** `tasks/M_RP_ADDRESS_BOOK.md` §5 (Leg A, J-579) enumerates the DAG event space as *"`message.*`, `state.*` and `space.join_request`"* — **the entire `Membership*` family is omitted**. Its *conclusion* (no `identity.*` event exists) is **correct**; its *enumeration* is not, and Chat inherited it here as *"the roster is a network read"* without checking. **Corrected in place at the source doc.** 📌 Same defect class as J-587 and as §4a's latch: **a claim narrower than the thing it described, reused as if complete — third occurrence this arc.**
 
 ⇒ **the off-critical-path lock is EXERCISED, not asserted** (Leg C): open a Space, assert the panel paints before the fill returns, then assert rows resolve afterwards.
 
@@ -256,6 +334,8 @@ R7 is the first region with **real** candidates: `role` → `secondary`? `last_s
 **Leg B — the store + the widget.** `$common` address-book store + `members-panel.svelte` + the 7th `CLIENT_PLUGINS` row + shell hydration. **Scopes off `roomLatch.effectiveSpaceId` (§4a) — no new latch, no edit to `rooms-panel.svelte`.** Frontend only; moves the **svelte-check floor** (baseline 0 err / 34 warn / 15 files).
 
 **Leg C — live CDP verify (9222).** Registry delta · the §5 off-critical-path lock **exercised** · the §6 unresolved-row render, both cases · the honest empty states · churn-returns-to-baseline as the orphan proxy (N-092a: the client bridge is state-only, there is no `domCount` leg).
+
+🔒 **REQUIRED LEG, ADDED 2026-07-25 — LIVE MEMBERSHIP, EXERCISED NOT ASSERTED.** §5's push path is traced **statically only**; no membership event has been observed arriving. ⇒ **two clients, one shared Space, a real join** — assert the already-connected client's roster updates **without a re-fill**. ⚠️ **And assert the author exclusion too:** the **joiner's own** client must NOT receive its own `membership.join`, which is precisely why the self row is a fixture. A verify that only watches the observer proves half the mechanism.
 
 **Leg D — records + close.** JOURNAL + CLAUDE.md PLAY + ROADMAP + this doc, **one commit** (D-074).
 
@@ -308,6 +388,8 @@ R7 is the first region with **real** candidates: `role` → `secondary`? `last_s
 - [ ] Leg A: cargo floor re-measured, delta explained
 - [ ] Leg B: svelte-check floor re-measured, delta explained
 - [ ] Leg C: every claim CDP-measured by Chat, on the real client 9222; the off-critical-path lock **exercised**
+- [ ] 🔒 **Live membership EXERCISED** — two clients, one Space, a real join: the connected observer's roster updates with no re-fill, **and** the joiner does not receive its own event (§5 author exclusion)
+- [ ] 🔒 **The fill is BOUNDED** — §4c-i: without it, ③ is not sayable and the `FillLock` can deadlock the feature
 - [ ] `xgen-client_address_book.json` **exists after a normal session** — the milestone's one-line proof
 - [ ] `flags.revoked` verifiably UNFED
 - [ ] Records: JOURNAL + PLAY + ROADMAP + this doc in one commit

@@ -47,6 +47,7 @@
     collapsed = $bindable(false),
     selected = $bindable(),
     onActivate,
+    interactive = true,
     emptyText = 'No entries',
     id,
   }: {
@@ -58,6 +59,16 @@
     /** The selected entity id ($bindable). Undefined = no selection. */
     selected?: string;
     onActivate?: (id: string) => void;
+    /**
+     * M-RP-PANEL-INERT — whether the list is a single-select listbox (default) or an inert
+     * render-only list. Default `true` = today's behaviour verbatim (R1/R2 + the five sampler sites
+     * unchanged). When `false`: `<ul>`/`<li>` drop the `listbox`/`option` ARIA contract for
+     * `list`/`listitem`, and the click/keydown/roving/`aria-selected` paths are NOT wired — so the
+     * highlight can never be WRITTEN from inside the component. `selected` STILL flows to the row
+     * (the row renders state, it never produces it). Used by R7 (members), whose `selected` is a
+     * data-driven DM highlight with no feedback loop, so entity-panel's own selectAt would drift it.
+     */
+    interactive?: boolean;
     emptyText?: string;
     id?: string;
   } = $props();
@@ -129,37 +140,55 @@
     selected: selected ?? null,
     collapsed,
     hasEmpty: items.length === 0,
+    interactive,
   });
 </script>
+
+<!-- The row body is identical in both modes; only its <li> wrapper differs (interactive listbox
+     option vs inert listitem). A snippet keeps the EntityItem markup single-sourced. The wrapper is
+     split into two STATIC-role branches rather than one dynamic-role <li> so the a11y analyser can
+     prove each: role="option" carries the roving tabindex; role="listitem" carries none (a dynamic
+     role would read as "tabindex on a possibly-noninteractive element", M-RP-PANEL-INERT). -->
+{#snippet rowBody(item: EntityItemInput)}
+  <EntityItem
+    descriptor={item.descriptor}
+    variant="row"
+    secondary={item.secondary}
+    status={item.status}
+    meta={item.meta}
+    selected={item.descriptor.id === selected}
+    id={rowId(item.descriptor.id)}
+  />
+{/snippet}
 
 <Section {title} {badge} {collapsible} bind:collapsed id={cid('section')}>
   <ul
     use:envelope={{ name: 'entity-panel', id, debug }}
-    role="listbox"
+    role={interactive ? 'listbox' : 'list'}
     aria-label={title ?? 'entities'}
-    aria-multiselectable="false"
+    aria-multiselectable={interactive ? 'false' : undefined}
   >
     {#if items.length > 0}
       {#each items as item, i (item.descriptor.id)}
-        <li
-          bind:this={rowEls[i]}
-          role="option"
-          class="entity-panel-option"
-          aria-selected={item.descriptor.id === selected}
-          tabindex={i === activeIndex ? 0 : -1}
-          onclick={() => selectAt(i)}
-          onkeydown={onKey}
-        >
-          <EntityItem
-            descriptor={item.descriptor}
-            variant="row"
-            secondary={item.secondary}
-            status={item.status}
-            meta={item.meta}
-            selected={item.descriptor.id === selected}
-            id={rowId(item.descriptor.id)}
-          />
-        </li>
+        {#if interactive}
+          <li
+            bind:this={rowEls[i]}
+            role="option"
+            class="entity-panel-option"
+            aria-selected={item.descriptor.id === selected}
+            tabindex={i === activeIndex ? 0 : -1}
+            onclick={() => selectAt(i)}
+            onkeydown={onKey}
+          >
+            {@render rowBody(item)}
+          </li>
+        {:else}
+          <!-- Inert: a plain listitem. No tabindex, no click/keydown, no aria-selected — the row
+               renders `selected` (via the EntityItem) but can never WRITE it. -->
+          <li role="listitem" class="entity-panel-listitem">
+            {@render rowBody(item)}
+          </li>
+        {/if}
       {/each}
     {:else}
       <li class="entity-panel-empty" role="presentation">

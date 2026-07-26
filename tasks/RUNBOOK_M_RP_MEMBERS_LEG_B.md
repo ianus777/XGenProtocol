@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-MEMBERS LEG B: the address-book store and the R7 members widget
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  
@@ -50,6 +50,20 @@ pub struct FillMembersOutcome {
 
 ---
 
+### 🔒 §0c — M-RP-PANEL-INERT SHIPS FIRST (added v1.5, 2026-07-26)
+
+⚠️ **§G2 OF THE PHASE-0 WAS WRONG AND LEG B CANNOT PROCEED ON IT.** *"The pattern is literal"* was read as **`entity-panel` is a neutral list renderer**. It is an **interactive single-select listbox**: `<ul role="listbox">` (`:138`) of `<li role="option">` (`:146`), `onclick`/`onkeydown` (`:150-151`), and `selectAt` writing `selected` **unconditionally** at `:91` before `onActivate`. `cursor: pointer` and a focus ring in `skin.css:2604-2612`. **No `readonly`/`inert` prop exists.**
+
+🔑 **R1/R2 ARE CORRECT ONLY BECAUSE THEY CLOSE A LOOP R7 CANNOT** — `onActivate → selection.set()` feeds the bus, which flows back into `selected`. **L15 forbids R7 writing that bus**, so a click's write at `:91` is never corrected: **the wrong highlight sticks**, and in a group room **one click manufactures one**.
+
+⇒ 🔒 **`tasks/M_RP_PANEL_INERT.md` — `entity-panel` gains a non-interactive mode — SHIPS BEFORE LEG B, AS ITS OWN COMMIT.** Leg B then passes `interactive={false}` and touches `entity-panel` not at all.
+
+📌 **Chat recommended the opposite first** — reimplementing the list inside R7 (~70 lines) to avoid a core change — **having read §1's "do not touch entity-panel" as a COST when it is a SCOPE boundary.** The real change is ~10 lines. *The avoidance was seven times the size of the thing avoided.* Joe caught it by asking whether the decision was not already made.
+
+⚠️ **STILL NOT FIXED BY IT:** `.entity-item:hover` (`skin.css:2521`) is entity-item's own skin and survives. **L7's "no hover" is a skin carve-out for Joe regardless** — after PANEL-INERT it is the only one of six left.
+
+---
+
 ### ⚠️ §0b — A NAMED GAP LEG B MUST NOT PAPER OVER
 
 The registry reads **149**, matching the recorded floor exactly — but **the composition is not established.** J-563's model was *149 = empty store + the "No spaces yet" placeholder*, and *158 = 149 + 10 entity rows − 1 placeholder*. The live client right now shows **1 space, 1 room, and no placeholder**, which under that model predicts ~150.
@@ -77,7 +91,8 @@ The registry reads **149**, matching the recorded floor exactly — but **the co
 - ❌ `ui/common/lib/components/widgets/rooms-panel.svelte` — **§4a: R7 scopes off `roomLatch.effectiveSpaceId`. No new latch.** Copying R2's bare `let latchedSpaceId` would create a **third** latch, the exact D-067 drift surface `room-latch.svelte.ts` was lifted to prevent.
 - ❌ any `.rs` — Leg B moves `svelte-check`, not cargo. If a Rust change looks necessary, **STOP and hand back**; it belongs to a Leg A leg.
 - ❌ `ui/assets/skin.css` — **Joe's file** (D-123). Never folded into a Chat/Clair commit.
-- ❌ `entity-item.svelte` / `entity-avatar.svelte` / `entity-panel.svelte` — consumed as-is.
+- ❌ `entity-item.svelte` / `entity-avatar.svelte` — consumed as-is.
+- ❌ `entity-panel.svelte` — consumed **as it will be after `M-RP-PANEL-INERT`**, i.e. `<EntityPanel … interactive={false} />`. ⚠️ **DO NOT EDIT IT HERE.** See §0c.
 
 ---
 
@@ -195,7 +210,9 @@ is there a scope? (roomLatch.effectiveSpaceId)
 
 ## §6 — DEFINITION OF DONE
 
-- [ ] Leg A-quater shipped and committed **separately** (§0a); Leg B rebased on it
+- [x] Leg A-quater shipped and committed **separately** (§0a) — **CLOSED, J-595, commit `a0752e5`**
+- [ ] Leg B rebased on it and binding to `.fill` / `.roster`, not to a tuple
+📌 *Split from one box into two on 2026-07-26: the original conflated a condition already true with one that cannot be true until Leg B ships — an unflippable box, which is exactly what the task-file DoD rule exists to prevent. Chat's wording, so Chat amended it.*
 - [ ] `svelte-check` run and reported as **err / warn / files**, compared against **0 / 34 / 15**
 - [ ] Registry delta recorded **with store composition**, never as a bare total (§0b)
 - [ ] All five panel states reachable and each one **observed**, not reasoned about

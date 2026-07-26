@@ -1,6 +1,6 @@
 # M-RP-MEMBERS — the R7 members widget over the address book
 > **Status**: ACTIVE  
-> Version: 1.11  
+> Version: 1.12  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  
@@ -27,6 +27,12 @@
 **G1 — the book has never run.** `fill_from_space|AddressBook::|address_book::` → **43 hits, in exactly two files**: `xgen-client/src/address_book.rs` (22) and `xgen-client/src/ops.rs` (21). `app.rs` is **not** among them ⇒ there is no CLI verb either, not merely no UI caller. `xgen-client_address_book.json` exists **nowhere** in the AppData tree (`%APPDATA%` + `%LOCALAPPDATA%`, recursive) — the file has never been created in normal operation.
 
 **G2 — the R7 substrate is complete, and the pattern is literal.** `ui/common/lib/components/widgets/spaces-panel.svelte` (63 lines) and `rooms-panel.svelte` (66) are the template, three parts each: a `$common` store, a `CLIENT_PLUGINS` descriptor (`kind:'system'`, `surface:'region'`, `regionId`), and a thin widget mapping a protocol row → `EntityDescriptor` → `EntityPanel`. `members` is **already** in `REGION_IDS` (`ui/client/src/layout-default.ts:18`), already titled `'R7 · Members'` (:32), already a leaf in the default layout (:110). It renders `RegionPlaceholder` today because **no `CLIENT_PLUGINS` row claims `regionId: 'members'`** — this milestone adds the **7th** `surface:'region'` system row. Frontend cost ≈ 70 lines of Svelte.
+
+⚠️ **G2 IS WRONG WHERE IT MATTERS MOST — CORRECTED 2026-07-26 (Clair, found while opening Leg B; re-verified by Chat).** *"The pattern is literal"* was read as **`entity-panel` is a neutral list renderer**. **It is not. It is an interactive single-select listbox.** Measured: `entity-panel.svelte` is `<ul role="listbox">` (:138) of `<li role="option">` (:146) with `onclick={() => selectAt(i)}` (:150) and `onkeydown={onKey}` (:151); `selectAt` writes `selected = it.descriptor.id` **unconditionally** at :91, *before* calling `onActivate`. Skin: `.entity-panel-option { cursor: pointer }` (skin.css:2604-2608) and a `:focus-visible` ring (:2609-2612). **There is no `readonly`/`inert` prop** — the prop list is `items · title · badge · collapsible · collapsed · selected · onActivate · emptyText · id`.
+
+🔑 **AND R1/R2 ARE ONLY CORRECT BECAUSE THEY CLOSE A LOOP R7 CANNOT.** `onActivate → selection.set(regionId, …)` (`rooms-panel:49`, `spaces-panel:50`) feeds the global bus, whose value flows back into their `selected`. **R7 is forbidden from writing that bus (Leg B runbook L15)**, so `selected` is `` one-way — a click writes the child's copy at :91, nothing propagates back, and **the wrong highlight STICKS until the roster changes.** In a group room, where the highlight must be `null`, **one click manufactures one.**
+
+⇒ 🔒 **RESOLVED BY A NEW MILESTONE, NOT BY A WORKAROUND IN LEG B: `M-RP-PANEL-INERT` — `entity-panel` gains a non-interactive mode** (`tasks/M_RP_PANEL_INERT.md`). **It ships BEFORE Leg B.** ⚠️ *Chat first recommended reimplementing the list inside R7 (~70 lines) to avoid changing `entity-panel` — having read §1's "do not touch entity-panel" as a statement about COST when it is a statement about SCOPE. Joe asked whether that was not already decided; measurement then showed the `entity-panel` change is ~10 lines. **The avoidance was seven times the size of the thing avoided.***
 
 **G3 — the cost is Rust, and it is a command, not a capability.** `xgen-client/src/desktop.rs` exposes **16** `#[tauri::command]`s (`get_state` · `get_pacing_state` · `get_conn_stats` · `get_resident_status` · `resume_resident` · `send_message` · `get_substitutions` · `set_substitutions` · `get_ui_state` · `set_ui_state` · `get_window_geometry` · `apply_window_geometry` · `get_about_info` · `get_self_state` · `get_spaces` · `quit`). **None touches the address book.** The widget cannot see the book from the frontend at all.
 

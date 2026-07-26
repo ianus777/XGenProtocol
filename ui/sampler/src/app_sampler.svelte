@@ -979,6 +979,13 @@
     </div>
 
     <div class="s-row">
+      <div class="s-rowname">entity-panel · inert (M-RP-PANEL-INERT)</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-panel#inert</span><EntityPanel items={epSpaces} title="Members (inert)" interactive={false} selected="xgen://space/dev-2b11" id="inert" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
       <div class="s-rowname">room ripple (M-RP5.0c)</div>
       <div class="s-cells">
         <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-item#room-item</span><EntityItem descriptor={eaRoom} variant="row" meta="9" id="room-item" /></div>

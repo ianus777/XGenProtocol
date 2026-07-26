@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-24  
+> **Last updated:** 2026-07-26  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -4483,18 +4483,44 @@ The Phase-0 §2 argued *"in a space-filling tree there is no empty space to drop
 
 ---
 
-## D-121 — Every question and recommendation is examined through two named lenses first: user-visible impact, then resource cost
+## D-121 — Every question and recommendation is examined through three named lenses first: user-visible impact, then tier consequence, then resource cost
 
-**Date:** 2026-07-19 · **Layer:** Project-wide working principle (applies to Chat Claude, Clair, every runbook, every design walk, every option list put to Joe) · **Ref:** D-065 (honest behaviour over polite), D6 (never say sent when it is not), N-091 (no invented data on screen), "honest longer work over fast shortcuts" · **Journal:** J-559 · **Code:** none — this is a discipline, not a mechanism.
+**Date:** 2026-07-19 · **Amended:** 2026-07-26 (lens 3 added — see "THE THIRD LENS" below) · **Layer:** Project-wide working principle (applies to Chat Claude, Clair, every runbook, every design walk, every option list put to Joe) · **Ref:** D-065 (honest behaviour over polite), D6 (never say sent when it is not), N-091 (no invented data on screen), **D-093 (universal E2E · Retained-T4 durability floor · no shared copy across erasure-fate)**, "honest longer work over fast shortcuts" · **Journal:** J-559, **J-591** · **Code:** none — this is a discipline, not a mechanism.
 
-**Decision (Joe, 2026-07-19).** Before a question is put to Joe, and before any recommendation is made, it is examined through **two additional lenses, in this order and stated explicitly**:
+**Decision (Joe, 2026-07-19; third lens added by Joe 2026-07-26).** Before a question is put to Joe, and before any recommendation is made, it is examined through **three additional lenses, in this order and stated explicitly**:
 
 1. **User-visible impact** — what does a person using XGen actually see, feel, or come to believe as a result? Stated **per option**, not once for the question.
-2. **Resource cost** — what does it drain? Build time, bundle size, maintenance surface, test surface, future work created.
+2. **Tier consequence** — what does it do under the **auth-tier / retention model**? See the four questions below.
+3. **Resource cost** — what does it drain? Build time, bundle size, maintenance surface, test surface, future work created.
 
 Other views — architectural elegance, symmetry, tidiness, implementation convenience — are **tertiary**. They are still real and still recorded; they simply do not lead.
 
-**⚠️ THESE ARE ADDITIONAL LENSES, NOT A REPLACEMENT.** Every existing rule stands **unchanged and undiminished**: D-065, D6, N-091, D-110 / D-111, D-067, the no-anonymity core, GDPR / right-to-be-forgotten, wire-format discipline. **D-121 adds a mandatory pass; it does not create a trump card.**
+---
+
+### 🔑 THE THIRD LENS — TIER CONSEQUENCE (added 2026-07-26)
+
+**Four questions, asked per option:**
+
+1. **Does crypto-shred remain a real guarantee?** (D-093 clause 1 — universal E2E, no protocol escrow, the node content-blind.)
+2. **Does a T4 durability floor survive this?** 🔑 ***A durability floor with one copy is not a floor.*** Retained (T4) means *do not drop these ciphertext bytes*; an arrangement that leaves exactly one copy on one machine does not deliver it.
+3. **Whose tier governs — and is that decided DELIBERATELY or BY ACCIDENT?** Where two parties at different tiers share a record, something decides whose obligations apply. **If the answer is "whoever acted first", that is not a decision, it is a race** — and compliance obligations settled by click order are indefensible.
+4. **Is one party's erasure-fate silently imposed on another?** This is **D-093 clause 3 generalised** — that clause forbids one physical blob copy shared across differing erasure-fates *precisely because one record's policy would silently override another's*. The same shape recurs at conversation, Space and deployment scale.
+
+**⚠️ "NO TIER CONSEQUENCE" IS A LEGAL AND EXPECTED ANSWER**, exactly as "no user-facing impact" is. Most questions — tooling, probes, records, widget layout — have none. **Say so plainly and move to resource cost.** *A manufactured tier rationale is as bad as a manufactured UX one.*
+
+**⚠️ WHY IT RANKS ABOVE RESOURCE COST.** A tier breach is **a constraint violation, not an expense** — it cannot be bought off with more build time, and it is often invisible until the moment it matters. **Constraints are checked before costs.** 📌 *The ordering within the three is Chat's reading of Joe's "among user view and resource drain"; the lens itself is Joe's. Flipping 2 and 3 is his to do and changes nothing else.*
+
+**🔑 THE EVIDENCE THAT PROMPTED IT, AND IT IS EXACT (J-591).** Joe asked Chat to assert the four DM-hosting options (H1 race · H2 deterministic host · H3 race + discovery · H4 bilateral replication) **against T4**. The pass did three things no other lens had done:
+
+- ⚠️ **It invalidated Chat's principal objection to H4.** Chat had costed bilateral replication as *"two operators see the content instead of one"* — **false under D-093 clause 1: the node is content-blind at every tier**, so the number of nodes holding ciphertext does not change who can read it. *The objection had been stated twice and weighted heavily.*
+- **It supplied the decisive positive argument**, which neither user-impact nor resource cost could reach: **T4's durability floor needs more than one copy, and single-homing provides exactly one.**
+- **It exposed that single-home settles a compliance regime by accident of click order** — under H1 the retained-vs-erasable question for a whole conversation is answered by whoever clicked first.
+
+⇒ **H4 was locked on the strength of that pass.** *The user-impact and resource lenses had been applied and had produced a defensible but wrong lean; the tier lens reversed it.* 📌 **Same shape as J-559, one lens further out: the argument was not wrong, it was answering a question that ranks below the one that decides.**
+
+---
+
+**⚠️ THESE ARE ADDITIONAL LENSES, NOT A REPLACEMENT.** Every existing rule stands **unchanged and undiminished**: D-065, D6, N-091, D-110 / D-111, D-067, D-093, the no-anonymity core, GDPR / right-to-be-forgotten, wire-format discipline. **D-121 adds a mandatory pass; it does not create a trump card.**
 
 **⚠️ A COLLISION IS DISCUSSED, NEVER SILENTLY TRADED.** Where the best answer by user-visible impact conflicts with an existing rule — above all anything touching **identity, the wire, or anything irreversible** — the collision goes to Joe **unresolved**, named as a collision. *A rule that can be outranked by an appeal to user experience is not a rule, and the trades this project exists to refuse are exactly the ones that would feel good to a user in the moment.*
 

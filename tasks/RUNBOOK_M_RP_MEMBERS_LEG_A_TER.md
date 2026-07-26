@@ -1,8 +1,8 @@
 # M-RP-MEMBERS Leg A-ter — bound the authentication handshake, on both sides
-> **Status**: PENDING  
-> Version: 1.6  
+> **Status**: COMPLETED  
+> Version: 1.7  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-25  
+> **Last updated**: 2026-07-26  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -262,6 +262,12 @@ If anything here contradicts the code — a bound that cannot sit where §3 puts
 
 ## §6 — Handoff
 
-**Leg B** (store + `members-panel` + the 7th `CLIENT_PLUGINS` row) follows, against A-bis's measured `(FillReport, MembersResult)` signature and carrying Phase-0 §4c/§5's four bindings.
+✅ **CLOSED 2026-07-26 (J-591), commit `ec81338`.** Independently re-driven by Chat. **`cargo check --tests -p xgen-core` PASSES** — the exact command that failed before, and the Option-B proof. Floor **1585 → 1588 / 0 / 62 across 56**, exactly as predicted. Three tests, control reported with subjects, **0.02 s** under the paused clock (no real-time tax). `Cargo.lock` byte-unchanged, shown not asserted. Scope: `xgen-core` only.
 
-⚠️ **One Leg B input is decided here, not there:** §2b's answer determines how long state ③ can legitimately persist, and therefore whether §4c-i's progress note ships with Leg B or stays deferred.
+⚠️ **§5 FIRED, AND NOT WHERE THIS RUNBOOK PREDICTED.** §5 expected *"the duplex rig will not honour virtual time"* — it does. The real blocker was **one layer up: `test-util` is not a declared feature of `xgen-core`** (`tokio = ["full"]`, and `full` excludes it). 🔑 **Step 4 was written against a capability that was never checked to exist — and the answer was already in the repo, in xgen-node's own Cargo comment.** Ruled **B** by Chat (amending Chat's own `zero Cargo.*` DoD item, named as such): the dev-dep is **declared**, converting a hidden cross-crate feature leak into a stated dependency for one line.
+
+⚠️ **ONE DoD ITEM IS OPEN AND IS RECORDED AS OPEN — THE LIVE BLACK HOLE.** A peer that **upgrades then goes dark**, driven through the fill path, was attempted twice and **failed as a rig both times** (wrong WS magic GUID → rejected at 1.1 s; `HttpListener` died before the fill → refused at 3.1 s). 🔑 **Both announced themselves rather than passing falsely** — the elapsed time discriminates a broken rig from a result (1.1 s protocol error ≠ 10 s connect bound ≠ 15 s auth bound). ⇒ **PROVEN:** the bound fires at all three recvs, with a control. **NOT PROVEN:** that the fill path's *auth* bound fires end-to-end. 🔒 **Joe closed on the unit tests + static path and filed the live leg (DELEGATED).** 📌 *A proper Rust harness using `tokio-tungstenite::accept_async` — the shape `ws_pair` already uses in-process — would be reusable for every future bound and is the right way to close it.*
+
+**Deviations accepted:** associated const rather than module-level · `UnexpectedMessage` reused rather than a new `Timeout` variant (the file's own pattern) · tests in `send_confirm_tests`. 🔓 **Filed:** when a caller first wants to distinguish *peer slow* from *peer broken*, the **variant** is the right seam — a detail-string match is not.
+
+**Next:** the `run-*.ps1` Vite fix, then **Leg B** — which inherits Phase-0's four bindings plus the stale-bundle hazard.

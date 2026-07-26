@@ -1,8 +1,8 @@
 # M-RP-MEMBERS — the R7 members widget over the address book
 > **Status**: ACTIVE  
-> Version: 1.7  
+> Version: 1.11  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-25  
+> **Last updated**: 2026-07-26  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -164,7 +164,7 @@ ROADMAP L826 says *"R7 is a contact list, not a room roster."* But the book is *
 ⇒ **Three properties, and they are not the same property:**
 1. **ALWAYS PRESENT** — regardless of scope, roster, connection or registration.
 2. **ALWAYS FIRST** — ahead of the roster, independent of any sort.
-3. **FILTER-IMMUNE** — survives any future search or filter.
+3. ⚠️ **FILTER-IMMUNE — AMENDED 2026-07-25, SEE CONSEQUENCE 2b.** Originally *"survives any future search or filter"*. **Joe has since ruled that an ACTIVE SEARCH SHOWS RESULTS ONLY, WITHOUT SELF.** ⇒ the correct statement is **FIXTURE OF THE RESTING STATE**: self is unconditional while no search is running, and a running search replaces the list rather than adding to it.
 
 🔑 **AND THIS IS THE CAPABILITY BOUNDARY, NOT A PREFERENCE — MEASURED.** `KnownSpace` (`xgen-common/src/state.rs`) is `space_id · name · node_endpoint · role · rooms` — **no members field** — and `drain_space_events` is an `async` op over the connection. ⇒ **there is no cached membership anywhere; offline the roster is unreachable.** The address book still resolves *names* offline, but not *who is in this room*. Meanwhile `get_self_state` is keypair-derived and needs no network. **So offline, self is the ONLY identity R7 can honestly render** — the lock names a constraint the machine already had.
 
@@ -261,13 +261,157 @@ is there a scope?  (roomLatch.effectiveSpaceId)
 
 ⚠️ **AND TERMINATION IS NOT THE WHOLE OF ③'S HONESTY — FILED, NOT BUILT.** For N = 1–2 (every Space that exists today) the cold fill is a second. For N = 200 it is minutes: **terminating, but ③ would sit there saying *"I am waiting"* with nothing moving.** True, and useless. The fix is **progress** — *fetched k of N* — but `fill_space_records` returns **once, at the end**; there is no channel. 🔒 **Deliberately NOT built:** it would be built for a case that does not exist yet. **The trigger is a Space large enough to notice**, and the milestone that hits it should find this note rather than rediscover it as a bug.
 
-⚠️ **CONSEQUENCE 2b — THE FILTER CASE, STILL OPEN AND STILL JOE'S.** Once a search or filter exists, a **filter-immune** row styled like a match reports `search "bob" → Joe, Bob` — **the panel misreporting its own search.** ⇒ either the scope rides visibly on the panel, or **self reads as a fixture rather than a roster entry**. No filter ships in v1, so this binds the milestone that adds one.
+🔒 **CONSEQUENCE 2b — RESOLVED, AND NOT THE WAY CHAT FRAMED IT (Joe, 2026-07-25).** *"i meant filter as a temporary state, till you cancel it. if i looking for bob, for me it is search, and in this case are displayed just results without self avatar."*
+
+⚠️ **CHAT HAD POSED THIS AS A STYLING PROBLEM AND IT WAS A STATE PROBLEM.** The open question was framed as *"how do we make a filter-immune self row not look like a match"* — offering either *scope rides visibly on the panel* or *self reads as a fixture*. **Both answers were wrong because the premise was:** self is not shown during a search at all, so nothing needs distinguishing.
+
+🔑 **THE UNDERLYING DISTINCTION, WHICH THE ORIGINAL LOCK COLLAPSED:** *always present* and *filter-immune* were recorded as two of three co-equal properties. They are not co-equal. **Self is a fixture of the RESTING state.** A search is a **temporary mode you enter and cancel**, and while it runs the panel shows **results only** — self included in nothing, because self is not a result. ⇒ the panel never claims Joe matches *"bob"*, and it never has to be styled out of claiming it.
+
+⚠️ **AND THIS CREATES A SIXTH PANEL STATE THAT §4c'S "NO EMPTY STATE" DOES NOT COVER.** Consequence 1 says the panel always holds at least one row — **true in the resting state, FALSE during a search that matches nothing.** ⇒ a search with no matches is a **legitimate empty result**, and it needs its own copy (*"no matches"*, distinct from all five resting states, and 🔓 **the wording is Joe's**). 📌 *Recorded here rather than left for the search milestone to discover as a bug — the resting-state guarantee and the search-mode guarantee are different guarantees.*
+
+📌 **Binds whichever milestone adds a search; no filter ships in v1.**
 
 ⚠️ **CONSEQUENCE 3 — BINDING ON LEG B: ANY MEMBER COUNT DERIVES FROM THE ROSTER, NEVER FROM RENDERED ROWS.** Self renders when there is no roster at all, so a count taken off render-truth is wrong **exactly when it matters** (unscoped, offline). This inverts the usual render-truth getter convention **deliberately**: here render-truth and roster-truth diverge, and the roster is the one a human means by *"how many members"*.
 
 📌 **R3 IS NOT A SECOND SELF SURFACE — the D-067 question is WITHDRAWN (Joe, 2026-07-25).** *"in the self panel there is not an avatar in the true sense … just today there it is, but not for long"* — R3's current avatar is **scaffolding**, and the region is to be rebuilt with its own layout and functions (M-RP-SELF-GATE). **The true self avatar is R7's.** ⇒ no milestone may design against R3's present avatar or invest in it.
 
-🔓 **STILL OPEN, NOT BLOCKING:** does the self row **act** — does clicking it open the Self Card (the View-menu proposal)? Chat read it that way (an always-visible handle, the Discord shape); **Joe has not confirmed it.** Recorded as an unconfirmed reading, not a design.
+🔑 **WHAT THE MEMBERS WIDGET IS FOR — JOE, 2026-07-25. THIS IS THE INTERACTION MODEL AND IT WAS NOT PREVIOUSLY WRITTEN DOWN ANYWHERE.**
+
+> *"what for is the members' panel/widget? primary for dm and secondary for access to member's avatar settings/rmc. if you want to communicate with a group of people, you dont select those avatars in members list, but you create room and invite those people into it, by invitation in avatar's rmc."*
+
+⇒ **PRIMARY: left-click a member → DM them.** ⇒ **SECONDARY: right-click → that avatar's context menu** (settings, and **invite-to-room**).
+
+🔑 **AND THE NEGATIVE HALF IS THE LOAD-BEARING HALF: THE MEMBERS LIST IS NOT A GROUP-SELECTION SURFACE.** You do not multi-select avatars to start a group conversation. Group communication is **create a room, then invite** — and the invitation is issued **from the avatar's context menu**, not from the list. ⇒ **NO multi-select, NO checkboxes, NO "message selected" action, ever** — in this widget or any successor. 📌 *Recorded as a prohibition because a members list is the single most obvious place to add multi-select, and every future milestone will be tempted.*
+
+⚠️ **BINDING ON LEG B — AND NONE OF IT SHIPS IN LEG B.** Leg B renders rows. **Left-click, right-click and the context menu are all LATER**, and Leg B must not ship a hover, cursor or affordance that promises any of them.
+
+---
+
+### §4c-ii — 🔒 THE DM MODEL: WHAT A DM IS, WHERE IT LIVES, WHEN IT IS CREATED, AND WHAT IS NOT KEPT
+
+📌 *Established across one exchange with Joe, 2026-07-25/26. Recorded whole because the pieces only make sense together — and because two of Chat's contributions to it were wrong and are kept as such.*
+
+#### The measured facts
+
+| Fact | Where | Status |
+|---|---|---|
+| A DM is its own **Space**, created by a `dm_space_create` **root** — not a room inside an existing Space | `ops.rs:793` | ✅ measured |
+| Creation signs and sends **three events over ONE connection, in order**: `dm_space_create` → `room_create` → `membership.invite`. Ordering is the correctness contract; room/invite are **not** pending-buffered | `ops.rs:767-792` | ✅ measured |
+| The new Space records `node_endpoint = ` **the creator's home node** | `ops.rs:956` | ✅ measured |
+| **Federation is ENFORCED OFF in DM Spaces** — a real error variant, not a convention | `xgen-core/src/space/state.rs:67` | ✅ measured |
+| ⚠️ **NOTHING ROUTES BY `node_endpoint`.** Every op is `ensure_connected(ctx.node_override)`; `node_override` is a **context** field, never derived from a Space. `aicontrol` passes `None` at all 8 sites. The field is written and *printed* (`app.rs:2645`), never read to decide where to connect | `ops.rs` × many | ✅ measured |
+| `ops::self_open` and `ops::create_dm_space` both exist, tested — **neither has a Tauri command** (`desktop.rs` has 18, none reach them) | `ops.rs:1002` / `:793` | ✅ measured |
+| `state.space_migrate` is a real wire event; identities can **rehome** | `wire.rs:192` · `registry.rs:321` | ✅ measured |
+| 🔑 **THE CLIENT PERSISTS NO CONVERSATION CONTENT AT ALL.** `xgen-client` has **zero** dependency on `xgen-store-sqlite` (the node has 8). It writes five files: pid, address book, config, keypair, state, uistate | `xgen-client/Cargo.toml` | ✅ measured |
+
+🔑 **⇒ THE CLIENT IS A PURE VIEW OVER THE NODE'S DAG.** Everything displayed was drained moments earlier and discarded. **This one absence is also why §4c's roster is unreachable offline** — offline history, offline roster and DM durability are **three symptoms of one missing client-side store**, not three problems.
+
+#### Joe's four propositions, corrected
+
+1. ✅ **"I can DM any member — known or unknown — of a node I am valid on."** Correct. The DM Space is a root, independent of the room latch and of whatever Space is in scope. `create_dm_space` takes an **identity**, not an existing relationship.
+2. ⚠️ **"To DM a member of another node I must be valid on their node" — THE DIRECTION INVERTS.** The DM is hosted by **whoever creates it**. If you initiate, it lives on **your** node and **they** must be valid there; you need nothing from theirs. You need validity on their node only for DMs **they** started.
+3. ⚠️ **"With many friends I must be valid on all their home nodes" — only for the DMs they started.** 🔑 **But this exposes the real weakness: NOBODY DECIDES WHERE A DM LIVES — it is a side effect of who clicked first.** Ten friends can scatter across ten hosts by accident, chosen by neither party. ⚠️ **And it makes the duplicate case likely rather than exotic:** both click, two Spaces exist on two nodes, federation is off, and **nothing reconciles them** — a conversation that silently splits in two.
+4. ⚠️ **"The system should log me in automatically to his node" — coherent, and NOT what exists.** Three pieces are missing: **routing** (no op reads a Space's `node_endpoint`), **multi-node sessions** (`SessionState` holds ONE connection; ops null it and re-dial), and **auto-auth** (nothing selects a node from a Space and authenticates unprompted). 📌 *The good news is architectural:* **`node_endpoint` already stores exactly what this needs and nothing reads it** — a decision made and never wired, not a gap to design around.
+
+#### 🔒 CREATION IS LAZY — LOCKED (Joe, 2026-07-26)
+
+**LMC on a member → open the DM thread. No confirmation dialog.** Joe's evidence was Discord's own behaviour: opening a never-contacted person shows an **empty thread** (*"This is the beginning of your direct message history with …"*), no modal.
+
+🔑 **THE REASON IT IS SAFE IS THAT THE OPEN IS LAZY, NOT THAT IT IS GUARDED.** Opening sends nothing; the recipient learns nothing. **The irreversible act is the FIRST MESSAGE, not the click.**
+
+**Procedure:**
+- **Open** → scan known Spaces for an existing DM with that identity. **Exists** → open normally. **Does not** → open a **DRAFT THREAD**: an in-memory object holding only the target identity — no `space_id`, no `room_id`, nothing signed, nothing sent. Header renders from the address book, which is why it can name someone never messaged.
+- **First send** → `create_dm_space` (3 events) → message tip-chained onto the new room (**a 4th**) → draft promoted in place.
+
+⇒ **Opening ten drafts and sending to none leaves ZERO trace, local or remote.**
+
+⚠️ **CHAT PROPOSED A CONFIRMATION DIALOG AND IT WAS THE WRONG SHAPE.** Chat argued the click writes to the DAG so it must be guarded. **The better answer was to stop the click writing at all.** 🔑 *Chat reached for extra MECHANISM where an existing STATE already answered it — the second time in one session (see §4c consequence 2b, posed as a styling problem when it was a state problem). A bias in one direction, not random error.*
+
+⚠️ **OPEN — WHAT A PARTIAL FIRST SEND LEAVES BEHIND.** Lazy creation moves the irreversible act to first-send; **it does NOT make it atomic with the message.** Fails at create → clean, draft survives, retry. **Create succeeds, message fails → a Space exists and the recipient holds an invitation from you with no message in it** — exactly what lazy creation was adopted to prevent, relocated into a crash window. Torn inside the 3-event create → a Space with no room, or a room with no invite. 🔓 **Whether an invite-without-message is a defect or a legitimate state (*"someone started a conversation with you"*) is Joe's, and belongs in the interaction milestone's Phase-0.**
+
+#### 🔒 NO CLIENT-SIDE BACKUP — LOCKED (Joe, 2026-07-26): *"nothing will change. we have backup of the node, that has to be enough"*
+
+The options were **A** leave it (node is the sole store) · **B** client-side archive · **C** node-to-node DM replica (= federation, enforced off).
+
+🔑 **JOE LOCKED A ON THE ARGUMENT THAT SETTLED IT: NEITHER PARTY HAS A COPY, SO THERE IS NO ASYMMETRY TO CORRECT.** ⚠️ **Chat had claimed an asymmetry** — *"her history lives on your node at your discretion"* — implying the host's user holds something. **They do not.** Both parties are pure views; only the node stores. The dependency is on **who controls the node**, which is narrower than possession, and the node's own backup already covers it.
+
+⚠️ **THE ACCEPTED COST, NAMED SO IT IS NOT REDISCOVERED AS A BUG:** federation off means **exactly one copy exists, on one node, with no replica anywhere**. If the host node is lost, the conversation is lost for both parties. `state.space_migrate` is the escape hatch — **a deliberate act taken BEFORE the node is lost**, not resilience.
+
+📌 **AND IF A CLIENT-SIDE STORE IS EVER BUILT, IT IS NOT A DM FEATURE.** It is a **client cache layer**, and offline history, the offline roster (§4c) and DM durability all fall out of it together. **Sizing it as "should DMs be backed up" would size it wrong.**
+
+#### 🔒 HOST ASSIGNMENT — **RESOLVED: H4, BILATERAL REPLICATION (Joe, 2026-07-26): *"h4 definitely"***
+
+⚠️ **PROVENANCE: CONSIDERED.** Joe asked for *"rather proper than cheap"*, then asked for the options **asserted against T4** — and that pass is what decided it. 📌 **The T4 assertion was promoted to a standing project lens the same day — see D-121 lens 3.**
+
+**The options as they stood:**
+
+| | Shape | ① User-visible | ② Tier consequence | ③ Resource |
+|---|---|---|---|---|
+| **H1** | host by race (status quo) | none today | ⚠️ **compliance regime decided by who clicked first**; T4 floor = one copy | zero now, unbounded later |
+| **H2** | deterministic host (lower XGID's node) | duplicates impossible; auto-login is arithmetic | T4 floor still one copy | small |
+| **H3** | race + a general discovery mechanism | solves host lookup **and** cross-node invite discovery together | T4 floor still one copy | medium, new subsystem |
+| **🔒 H4** | **bilateral replication** — the DM lives on **both** participants' home nodes, synced between exactly those two | nobody registers on a foreign node · nobody depends on the other's operator · node loss survivable | ✅ **two independent ciphertext copies ⇒ a real durability floor**; each node applies **its own tier to its own copy** | largest — a core protocol change |
+
+🔑 **WHAT THE T4 PASS CHANGED, AND IT REVERSED CHAT'S LEAN.** Chat had costed H4 as *"two operators see the content instead of one"* and weighted it heavily. **D-093 clause 1 makes that false: universal E2E, no protocol escrow, the node CONTENT-BLIND at every tier.** Operators hold ciphertext they cannot read ⇒ **the number of nodes holding a DM does not change who can read it.** With the objection gone, three positives stood unopposed:
+
+1. 🔑 **A durability floor with one copy is not a floor.** Retained (T4) means *do not drop these bytes*; every single-home option leaves exactly one copy on one machine.
+2. **The erasure model already assumes replicas.** D-093 clause 2: destroy the per-blob key ⇒ *"every replica, **including unreachable federated homes**, is permanently unreadable."* ⇒ **replication does not weaken crypto-shred** — the guarantee is key-destruction, not byte-deletion.
+3. **Under H1, whose retention regime governs a whole conversation is answered by who clicked first.** ⚠️ *That is not a decision, it is a race — and it is the same shape D-093 clause 3 forbids at the blob layer: one physical copy carrying two records with two erasure-fates, one policy silently overriding the other.*
+
+⇒ **H4 dissolves host assignment, cross-node discovery and duplicate reconciliation simultaneously** — each party reads and writes their own node, so there is no host to assign, nothing to discover, and no foreign validity to acquire. **It also removes lock A's accepted cost without building a client cache.**
+
+#### ⚠️ WHAT H4 REQUIRES — TWO CHANGES, ONE OF THEM UNMEASURED
+
+1. **`DmFederationNotAllowed` NARROWS** from *"no federation"* to *"federation restricted to the participant set"*. 📌 **The guard's own comments already say this is the intent** — `runtime.rs:2224` *"no **third-party** node ever receives DM content"* and `state.rs:2957` *"privacy as a structural property"*. **A participant's own home node is not a third party**, so the narrowing serves the stated purpose rather than eroding it.
+2. 🔑 **A PAIR-DERIVED SPACE IDENTITY.** If `space_id` derives from the two **sorted XGIDs**, both parties creating independently produce the **same id** — the DAGs merge the way DAGs do, and **duplicates become structurally impossible rather than reconciled after the fact.**
+
+⚠️ **UNMEASURED, AND IT DECIDES WHETHER H4 IS A MILESTONE OR A REWRITE:** space ids are `xgen://hash/sha256:…`, content-addressed on the **signed root event** — and two people signing different roots produce different hashes. **Whether the id scheme can derive from the identity pair instead has NOT been checked.** 📌 *Chat offered to measure it before the lock; Joe locked H4 on principle first. The measurement is still owed and is Chat's.*
+
+#### 🔓 STILL OPEN INSIDE H4 — THE ONE PLACE IT MAY YET HAVE A REAL COST
+
+**If Bob crypto-shreds, does Alice's T4-retained copy survive?** This turns on **whether the content key is wrapped per-recipient**: if each party holds their own wrapped key, Bob destroying his does not touch Alice's; if there is one key, **Bob's erasure defeats Alice's retention obligation.**
+
+⚠️ **The wrapping mechanics are UNMEASURED and must not be assumed.** 📌 *Note this tension exists under EVERY option — it is inherent to a two-party record whose parties may sit at different tiers — but **H4 is the only option that gives each party a copy under their own policy to resolve it against.*** This is the live edge of the project's standing GDPR-vs-append-only tension, not a detail of DM hosting.
+
+#### 📌 UNMEASURED — **CHAT'S TO MEASURE, NOT JOE'S TO ANSWER.** Owed before the interaction milestone, not before Leg B
+
+⚠️ **These are MEASUREMENTS, not open decisions.** *They were first filed under 🔓 (Joe's lane) — a mislabel Joe caught. Items 1 and 4 are greps. Items 2 and 3 are greps that MAY promote into Joe decisions depending on what they find; until measured, there is no question to put to him.*
+
+1. **Are DM Spaces eligible for `state.space_migrate`?** DM constraints exist (`runtime.rs:2877`); whether they block migration is unknown. ⚠️ **This decides whether a DM can ever be moved off a dying node** — and under lock A it is the *only* remedy.
+2. **Does anything reconcile duplicate DM Spaces** for the same pair on two nodes?
+3. **How does an invitee on another node learn of an invitation** they must connect to that node to see?
+4. **Does any draft-thread concept exist in the client today?**
+
+⚠️ **NONE of the above blocks Leg B**, which renders rows and wires no interaction.
+
+---
+
+⚠️ **THE SELF ROW AND THE OTHER ROWS DO NOT DIVERGE AFTER ALL.** Chat had recorded an asymmetry — member rows workable, self row not — on the assumption that the self thread was unbuilt. **Measurement (below) shows both verbs exist and both lack only a Tauri command.** ⇒ **no asymmetry to design around.**
+
+🔑 **MEASURED 2026-07-25 — THE VERBS ALREADY EXIST. CHAT'S "THE TARGET DOES NOT EXIST" WAS WRONG, AND THE ERROR IS KEPT BECAUSE IT WAS MADE AND CORRECTED WITHIN ONE EXCHANGE.**
+
+| Verb | Where | CLI | batch | aicontrol | ⚠️ **Tauri** |
+|---|---|---|---|---|---|
+| `ops::create_dm_space` | `ops.rs:793` | ✅ | ✅ | ✅ | ❌ |
+| `ops::self_open` | `ops.rs:1002` | ✅ | ✅ | ✅ | ❌ |
+
+⇒ **BOTH interaction targets are BUILT at the ops level.** `self_open` returns `SelfThreadResult`, is **create-if-absent idempotent**, and carries an integration test (`self_open_creates_then_is_create_if_absent_idempotent`). `SELF_THREAD_LABEL` (`ops.rs:752`) is the shared key, applied by `create_dm_space` when invitee == creator and scanned by `self_open` — **one source of truth, already written.**
+
+⚠️ **WHAT IS MISSING IS THE UI SURFACE, AND ONLY THAT.** `desktop.rs` holds **18** `#[tauri::command]`s and **none** of them reaches either verb. 🔑 **This is the M-RP-MEMBERS LEG A SHAPE EXACTLY — the capability existed and the command did not.**
+
+📌 **CONSEQUENCE FOR THE INTERACTION MILESTONE: IT IS A COMMAND-SURFACE MILESTONE, NOT A FEATURE MILESTONE.** Wrapping two existing, tested `ops::` verbs as Tauri commands — the work Leg A already did twice for the book. **Materially cheaper than "build M11 first"**, which is what Chat's wrong claim would have implied to whoever read it.
+
+⚠️ **CHAT'S ERROR, NAMED:** *"the self thread is D-021 / M11, post-M10, and is not built"* was inferred from the ROADMAP position of M11 and **never checked against the code**. 🔑 *A roadmap says what is planned; it does not say what exists. The claim was one grep from being right and Chat asserted it instead — this arc's defect class, committed by Chat for at least the sixth time, and caught only because the claim was measured immediately after being written.*
+
+🔒 **BINDING ON LEG B — UNCHANGED, BUT FOR THE RIGHT REASON NOW.** The self row and member rows still ship **inert** in Leg B. ⚠️ **The justification is SCOPE (Leg B renders rows), NOT absence of capability.** Leg B must not ship a hover, cursor or affordance promising an interaction it does not wire.
+
+🔒 **THE SELF ROW ACTS, AND IT OPENS A DM (Joe, 2026-07-25).** *"self row in members' region? if so, it opens dm. similar to that in skype"* ⇒ clicking self opens the **self thread**, the Skype shape.
+
+⚠️ **CHAT'S EARLIER READING WAS WRONG AND IS RECORDED AS WRONG, NOT REPLACED.** Chat had read the self row as opening the **Self Card** (the View-menu proposal) and filed it as an unconfirmed reading. It is not the Self Card. *The reading was never confirmed and correctly carried as a reading — this is what that discipline is for.*
+
+🔑 **AND THE RULING'S TARGET EXISTS — SEE THE MEASUREMENT ABOVE.** `ops::self_open` is built, tested and idempotent; only its Tauri command is missing. ⚠️ **Chat initially recorded the opposite** (*"wiring the click would ship a lit affordance with nothing behind it"*) and corrected it on measurement within the same exchange.
+
+🔒 **BINDING ON LEG B: THE SELF ROW SHIPS INERT — ON SCOPE GROUNDS.** No click handler, no hover or cursor affordance implying one. **The design is decided here; only the wiring waits.** ⇒ the interaction milestone inherits this ruling and must find it rather than reinvent it — and since both verbs already exist, **lighting the row is a command-surface step, not a redesign.**
 
 🔒 **§4b NO LONGER BLOCKS LEG B (2026-07-25).** Its data half closed by construction at §4c; its remaining half was *"does a two-person DM want a members panel at all"*. Under §4c the panel renders **self + roster** everywhere, so a DM resolves by the ordinary rule — you and them — with **no special case to write**. ⇒ nothing about §4b needs answering before Leg B; if Joe later wants a DM to suppress or restyle the panel, that is an additive display change, not a prerequisite.
 
@@ -386,6 +530,22 @@ R7 is the first region with **real** candidates: `role` → `secondary`? `last_s
 1. **§7's storage rationale no longer describes the file.** Your own PII is in it. Harmless — your data, your disk — but the sentence is false.
 2. **§6's erasure reasoning was built on a third-party frame.** E1/E2/E3 still work; erasing your own record is meaningless rather than wrong. E3 never fires on self, since `touch` advances `last_seen` on every fill and you are always a member. Low severity.
 3. ⚠️ **THE REAL ONE — A SECOND HOME FOR YOUR OWN DISPLAY NAME.** `get_self_state` is authoritative; the book holds an **observation** of you. **One fact, two sources, and one of them is stale by construction — D-067.** Bound for this milestone by the §4b lock (R7 reads `selfState`), but the rule is a **convention, not a mechanism**: the next consumer that forgets it reintroduces the divergence.
+
+**🔒 LOCKED — S2, EXCLUDE SELF AT FILL (Joe, 2026-07-25).** ⚠️ **PROVENANCE: CONSIDERED, not delegated** — Joe chose the option Chat did **not** recommend, and named its consequence himself in the same breath. ⇒ **the drift becomes structurally impossible rather than a rule people must follow**, which is the stronger guarantee Chat had identified while still recommending the cheaper one.
+
+🔑 **JOE NAMED THE COST S2 CARRIES, AND IT IS A DESIGN CONSEQUENCE, NOT A SIDE EFFECT:** *"that means we need the setting interface to have somewhere else, maybe in settings > account sub menu (in the single place)."* ⇒ with self excluded from the book, **the book can no longer be the surface through which you edit your own record** — there is no record. The self-editing surface moves to **Settings › Account**, and *"in the single place"* is the binding half: **ONE pane, however many entry points** (the J-503 one-pane-two-entry-points precedent).
+
+🔒 **AND THE MENU SHAPE — CORRECTED 2026-07-25 (Joe):** *"i meant: View > Address Book, Self Card is analogous to File > Setting, Exit now."* ⇒ **THE VIEW MENU EXISTS**, holding **Address Book** and **Self Card** — structurally analogous to how File holds Settings and Exit. **Two distinct items, not a submenu.** Address Book opens its own modal; **Self Card opens the self widget** (§4c — it carries more logic than a card).
+
+⚠️ **CHAT READ THIS EXACTLY BACKWARDS AND THE ERROR IS KEPT.** Joe's *"like Settings and Exit"* was an analogy about **structure** — a menu holding two items — and Chat read it as an analogy about **location**, concluding *"the View-menu proposal is dropped, they go in File"*. 🔑 **The reading was filed as a reading and not a lock, which is the only reason it cost one sentence instead of a milestone.** ⇒ *the discipline earned its keep twice in one exchange — here, and at the self-row/Self-Card confusion above.*
+
+🔓 **STILL OPEN:** whether the self widget behind Self Card **is** Settings › Account or merely reaches it. Joe said *"maybe"*. ⚠️ **A "maybe" is not a design and must not harden by repetition.**
+
+📌 **Gates nothing.** Leg A is untouched; Leg B needs only the §4b lock, which already answers the question for R7. **S2 is an amendment to a CLOSED milestone and rides whichever milestone next touches the fill path.**
+
+---
+
+**The options as they stood, kept because the reasoning is load-bearing:**
 
 **🔓 OPEN — JOE'S, because it amends a CLOSED milestone (architecture).**
 - **S1 — leave the code; correct the two prose lines.** ① *User-visible:* nothing, **provided** every consumer resolves self from `selfState`. ② *Cost:* **zero code**, two sentence fixes in a COMPLETED doc.

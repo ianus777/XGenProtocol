@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-MEMBERS LEG B: the address-book store and the R7 members widget
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  
@@ -23,7 +23,9 @@
 | client registry (`__XGEN_DEBUG__.ids().length`) | **149** | ⚠️ total matches; **composition NOT established** — see §0b |
 | cargo | 1588 / 0 / 62 across 56 | not re-measured; Leg B touches no Rust |
 
-### ⚠️ §0a — LEG A-quater MUST SHIP FIRST. IT IS NOT PART OF THIS LEG.
+### ✅ §0a — LEG A-quater — CLOSED (J-595). SHIPPED AS ITS OWN COMMIT BEFORE LEG B.
+
+**Done (J-595):** `FillMembersOutcome { fill, roster }` shipped — 2 files, +25/−7, `xgen-client` only (`ops.rs` + `desktop.rs`). Both the public `fill_and_members` and the private `fill_and_members_inner` return `Result<FillMembersOutcome>`; `desktop.rs:672` returns `Result<crate::ops::FillMembersOutcome, String>`; the call site at `:696` flows through unchanged (no tuple destructuring). No `#[serde(rename_all)]` (grepped) ⇒ wire keys are `fill` / `roster`, inner fields snake_case, `FillReport`/`MembersResult` unchanged. **cargo HELD 1588 / 0 / 62 across 56** (a rename adds no coverage — the kickoff's "it moves" prediction was wrong, Rule 6); clippy 0 new lints; svelte-check 0/34/15 + registry 149 held by scope. **Leg B rebases on this.**
 
 Joe ruled the return shape: **positional tuple → named struct.** That is a **Rust** change and it **moves the cargo floor**. Phase-0 §8 splits A and B precisely so a regression is attributable: *"A moves the Rust floor, B moves svelte-check. One commit spanning both makes a regression ambiguous."*
 

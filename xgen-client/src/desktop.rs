@@ -648,9 +648,10 @@ fn get_address_book(
 /// a resolved `home_node`, not the throwaway empty-`home_node` `SessionState`
 /// that `whoami`/`spaces` get away with.
 ///
-/// Returns `(FillReport, MembersResult)` from a SINGLE drain (Leg A-bis): the R7
-/// widget needs the roster to render and the fill to resolve names, and draining
-/// twice would roughly double the cold-start window state ③ is on screen.
+/// Returns a `FillMembersOutcome` (`{ fill, roster }`) from a SINGLE drain
+/// (Leg A-bis): the R7 widget needs the roster to render and the fill to resolve
+/// names, and draining twice would roughly double the cold-start window state ③
+/// is on screen.
 ///
 /// Fire-and-forget from the frontend, OFF THE CRITICAL PATH (Joe-locked,
 /// address-book §4): the Space opens at once and the view populates from the
@@ -669,7 +670,7 @@ async fn fill_space_records(
     data: tauri::State<'_, DataDir>,
     config: tauri::State<'_, ConfigPath>,
     lock: tauri::State<'_, FillLock>,
-) -> Result<(crate::ops::FillReport, crate::ops::MembersResult), String> {
+) -> Result<crate::ops::FillMembersOutcome, String> {
     // Serialise concurrent fills across load → fill → save (§3): the loser of a
     // read-modify-write race would otherwise silently discard resolved records.
     let _guard = lock.0.lock().await;

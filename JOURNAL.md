@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-595 — Leg A-quater closed: the return shape is a named struct, and the floor held because a rename adds no coverage
+
+**Date:** 2026-07-26 · **Seats:** Chat designed §0a and locked the shape (J-594); Clair implemented from the locked runbook §0a, verified, and — per the kickoff DoD (D-074, records in the one commit) — wrote these records. Follows J-594; HEAD `cc29fbe` at open, tree clean. Joe pushes.
+
+**WHAT SHIPPED.** `FillMembersOutcome { fill, roster }` — the positional `(FillReport, MembersResult)` tuple returned by `fill_and_members` is now a named struct, so the R7 members widget (Leg B) binds to `.fill` / `.roster` rather than `.0` / `.1`. **2 files, +25 / −7, `xgen-client` only** (`ops.rs` · `desktop.rs`); ZERO `ui/**`, ZERO `skin.css`, ZERO `Cargo.*`, ZERO other `.rs`. Confirmed by `git diff --stat`. This is its own leg and its own commit precisely so the cargo floor and the svelte-check floor move in separate commits and a Leg B regression stays attributable (Phase-0 §8, runbook §0a).
+
+**THE THREE EDITS, PLUS THE STALE DOC COMMENT THEY MADE FALSE.**
+- `ops.rs` — new `#[derive(Debug, Clone, Serialize)] pub struct FillMembersOutcome { pub fill: FillReport, pub roster: MembersResult }`, placed immediately before `fill_and_members` (the function that produces it).
+- `ops.rs:fill_and_members` (public wrapper) → `Result<FillMembersOutcome>`; the wrapper stays a pure forward, its only job being to clear `ctx.session.conn` on every exit (the re-entrancy invariant, J-586).
+- `ops.rs:fill_and_members_inner` (private helper) → `Result<FillMembersOutcome>`, and its `Ok((report, members))` became `Ok(FillMembersOutcome { fill: report, roster: members })` — the natural assembly point. The runbook §0a named only the public function; changing the private helper to match is the structural-realisation latitude (D-063) — it keeps the public wrapper a pure forward instead of forcing a `.map(...)` there.
+- `desktop.rs:fill_space_records` → `Result<crate::ops::FillMembersOutcome, String>`; the call site at `:696` and its `result.map_err(...)` at `:707` flow through **unchanged** (no tuple destructuring existed). Its doc comment named `(FillReport, MembersResult)` — now `FillMembersOutcome ({ fill, roster })`, because a comment describing the old shape is a false record.
+
+**WIRE KEYS ARE `fill` AND `roster`, VERIFIED NOT ASSUMED.** No `#[serde(rename_all)]` on `FillMembersOutcome`, `FillReport`, or `MembersResult` — grepped; the only `rename_all` hit in `ops.rs` is the doc comment stating there is none. Inner fields stay snake_case (`FillReport`/`MembersResult` unchanged). `Serialize` was already imported (`ops.rs:25`) and both halves already derive it, so the nested derive compiles.
+
+**THE ONLY PRODUCTION CALLER IS `desktop.rs:696`**, and no test calls `fill_and_members` directly — grepped (`fill_and_members` appears only in the wrapper, its `_inner` call, `desktop.rs:696-700`, and prose/runbooks). `_inner` is called only by the wrapper. So this is the cheapest the change will ever be, exactly as §0a stated.
+
+**⚠️ FLOOR HELD — AND THE KICKOFF PREDICTION WAS WRONG, FLAGGED NOT ABSORBED (Rule 6).** `cargo test --workspace` = **1588 / 0 / 62 across 56** — **IDENTICAL to the A-ter floor**, summed programmatically, 56 terminator lines all present, case-sensitive `FAILED|panicked|error[` returned nothing (N-117 truncation dodged). The kickoff said *"This leg MOVES it — report the new triple, do not assert it is unchanged."* **It does not move.** A-quater is a pure return-shape rename that adds **zero tests** and changes **zero behaviour**, so the integer holds. This is the J-589 pattern — *IDENTICAL is the honest signal* for a change that adds a type but no coverage; Phase-0 §8's "A moves the *Rust* floor" is about *which* floor a regression is attributed to, not that the count changes. Reported as measured, not as predicted.
+
+**GATES:** `cargo clippy -p xgen-client` exit 0, **4 warnings, ALL pre-existing** (`desktop.rs:125` map_or · `:191` if-collapse · `:733` too-many-args · `resident.rs:1016` too-many-args) — **none in a line this leg edited**; zero new lints introduced. `cargo check -p xgen-client` clean in 7.59 s. svelte-check / registry NOT re-measured and held **by scope** (zero `ui/**` in the diff) — stated, not quoted (N-108): svelte-check 0/34/15, registry 149 remain Leg B's floors and this leg cannot have moved them.
+
+**SEAT NOTE.** The kickoff seat table assigns records to Chat, while the kickoff DoD requires JOURNAL + CLAUDE.md PLAY + ROADMAP + runbook §0a in the one commit under D-074. Two pieces of our own text, in tension — not a Joe decision. Per the kickoff's own *"under-stepping is the recurring error"* and the explicit DoD, Clair wrote the records this session and prepared the single commit; Joe pushes. Recorded so the resolution is visible rather than silent.
+
+**§0a is done.** Leg B (`address-book.svelte.ts` store + `members-panel.svelte` + the 7th `CLIENT_PLUGINS` descriptor + shell hydration) is next-active, unblocked, and rebases on this. `svelte-check 0/34/15` and `registry 149` are Leg B's floors — **and the registry total's composition is not established (runbook §0b): record it as "149 with a store containing N spaces / M rooms", never as a bare number.**
+
+---
+
 ## Entry J-594 — Leg B designed and locked: the DM answer was better than any option Chat offered, and R4 turned out to be an empty tile whose data does not reach the client
 
 **Date:** 2026-07-26 · **Seats:** Joe (ruled scope, the DM shape, the highlight mechanism, self-marking, the descriptor name, the sequencing); Chat (grounding, measurement, the runbook, records). Follows J-593; HEAD `2814fec` at open, tree clean. **No code — design and records only.**

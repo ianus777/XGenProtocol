@@ -2922,6 +2922,20 @@ async fn fill_from_events(
     Ok(report)
 }
 
+/// The outcome of [`fill_and_members`]: the [`FillReport`] from the address-book
+/// fill and the Space's resolved [`MembersResult`] roster, from a single drain.
+///
+/// M-RP-MEMBERS Leg A-quater replaced the prior positional
+/// `(FillReport, MembersResult)` tuple with this named struct so that the
+/// R7 members widget binds to `.fill` / `.roster` rather than to `.0` / `.1`.
+/// Purely a return-shape change — the two halves are unchanged. No
+/// `#[serde(rename_all)]`, so the wire keys are exactly `fill` and `roster`.
+#[derive(Debug, Clone, Serialize)]
+pub struct FillMembersOutcome {
+    pub fill: FillReport,
+    pub roster: MembersResult,
+}
+
 /// Fill the address book AND return the Space's resolved membership from a
 /// SINGLE drain (M-RP-MEMBERS Leg A-bis). The R7 members widget needs both the
 /// roster (to render `state.members`) and the fill (to resolve those members'
@@ -2948,7 +2962,7 @@ pub async fn fill_and_members(
     ctx: &mut OpContext<'_>,
     book: &mut crate::address_book::AddressBook,
     space: &str,
-) -> Result<(FillReport, MembersResult)> {
+) -> Result<FillMembersOutcome> {
     let result = fill_and_members_inner(ctx, book, space).await;
     // Exit invariant (see above): never hand the session back with a stale
     // connection, on any path — success, projection error, drain error, or
@@ -2961,12 +2975,15 @@ async fn fill_and_members_inner(
     ctx: &mut OpContext<'_>,
     book: &mut crate::address_book::AddressBook,
     space: &str,
-) -> Result<(FillReport, MembersResult)> {
+) -> Result<FillMembersOutcome> {
     // ONE drain feeds BOTH the roster and the fill (Leg A-bis §1).
     let events = drain_space_events(ctx, space).await?;
     let members = members_projection(space, &events)?;
     let report = fill_from_events(ctx, book, space, &events).await?;
-    Ok((report, members))
+    Ok(FillMembersOutcome {
+        fill: report,
+        roster: members,
+    })
 }
 
 #[cfg(test)]

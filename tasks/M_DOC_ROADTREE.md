@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.3  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  
@@ -77,7 +77,7 @@
 
 | Status | Must carry |
 |---|---|
-| ✅ **DONE** | `· J-nnn` — **non-negotiable.** The link is what licenses the prose to leave |
+| ✅ **DONE** | **a link to its canonical record** — non-negotiable. The link is what licenses the prose to leave. ⚠️ **Usually `· J-nnn`, but NOT always — see §4's first-pass finding: some closes are canonically recorded in a DESIGN DOCUMENT, not the journal, and the node points there instead** |
 | 🟢 **PLAY** | nothing extra — it is active now |
 | 🟡 **PENDING** · ⏸️ **POSTPONED** | **a trigger**, or `↳ trigger: none — filed, not scheduled` stated **explicitly** |
 | ❌ **CANCELLED** · ⬛ **DEPRECATED** | a reason, and a successor where one exists |
@@ -107,6 +107,97 @@
 ---
 
 ## §4 — ⚠️ THE MIGRATION PRECONDITION — TWO SETS, BOTH BOUNDED
+
+### 🔑 LEG B FIRST PASS — RUN 2026-07-26. **P1 COLLAPSES FROM 94 TO 5, AND THE LAST ONE IS STILL OPEN.**
+
+**The decomposition, measured:**
+
+| Step | Count |
+|---|---|
+| ✅ markers on lines carrying no `J-` reference | **94** |
+| … distinct **lines** they sit on | **90** |
+| … of which **INHERIT** a `J-` reference from an ancestor line in the same block (sub-items under a linked entry) | **77 — NOT AT RISK** |
+| … **true orphans** | **13** |
+| … of which are **not entries at all** — 4 legend rows defining the symbols (lines 30/35/42/1017) + 4 nodes of an old ASCII tree diagram (82/199/200/263) + 1 prose line | **8 — NOT AT RISK** |
+| ⇒ **GENUINE RISK SET** | **5 entries** |
+
+**The five, and their verdicts:**
+
+| Line | Entry | Verdict |
+|---|---|---|
+| 412 | XGID Adoption v1 design walkthrough + Phase 1 canonical sources commit (2026-05-20) | ✅ **RESOLVED — `J-102`**, itself a *"JOURNAL Gap 2 closure: retrospective entry"* |
+| 414 | Topological-sort wire-order non-determinism design phase closed (2026-05-22) | ✅ **RESOLVED — `J-097`** |
+| 376 | Federation Event Propagation **Pass 2** closed (2026-05-18) | ⚠️ **NOT IN THE JOURNAL — but canonically recorded in `docs/xgen_federation_propagation_design.md` (40 hits).** Redundant against **that** document |
+| 396 | Federation Event Propagation **Pass 3** closed (2026-05-18) | ⚠️ **Same — 57 hits in the design document.** Redundant against **that** document |
+| 372 | **M6 Phase 0** design phase closed (2026-05-18) | ✅ **RESOLVED — `docs/xgen_node_admin_ops_design.md`** (6 hits), the canonical M6 design document. **Same pattern as 376/396** |
+
+🔒 **P1 IS CLEARED. All five resolved: two to journal entries, three to design documents.**
+
+🔑 **AND THE PATTERN IS NOT A DEFECT — IT IS THE CORRECT HOME.** All three document-resolved entries are **design-phase closes with no code**. Such a close is canonically recorded in **the design document it closed**, not in the journal. ⇒ **§3's link rule was wrong as first written**, and it was wrong in the direction that would have destroyed information: *invent a J-number, or declare loss.* **Neither would have been true.**
+
+### 🔑 LEG B SECOND PASS — P2, AND IT IS BIGGER THAN 11
+
+**Enumerating every `## Entry J-nnn` heading across both journal files: 574 entries exist between J-001 and J-598. ⇒ 24 NUMBERS ARE MISSING.**
+
+| Set | Numbers | Reading |
+|---|---|---|
+| **A — one contiguous block of 13** | `J-021 … J-033` | ⚠️ **Smells like a numbering artifact, not thirteen lost entries** — a reset, a renumber, or a batch never allocated. **Not claimed either way.** |
+| **B — 10 scattered singles** | `J-067 · J-098 · J-109 · J-113 · J-123 · J-124 · J-125 · J-131 · J-132 · J-135` | 🔑 **These are the ones ROADMAP CITES.** A citation means someone, at the time of writing, **believed the entry existed.** That is a far stronger signal of real loss than set A |
+| **C — one straggler** | `J-171` | Missing, **never referenced by ROADMAP** |
+
+📌 **The 11 originally reported are set B plus `J-029`, which falls inside set A.**
+
+🔑 **AND THE PROJECT HAS ALREADY SOLVED THIS EXACT PROBLEM, TWICE — THE PRECEDENT IS ITS OWN.** `J-102` is *"JOURNAL Gap 2 closure: retrospective entry for XGID Adoption v1…"* and `J-103` is *"JOURNAL Gap 1 closure: retrospective entry for … Phase 7.5"*. ⇒ **retrospective gap-closure entries are an established, named practice here.** Set B is closed the same way, or each number is recorded as **never allocated**.
+
+⚠️ **CONSEQUENCE FOR THE MIGRATION, STATED PLAINLY: for set B's ten entries the ROADMAP LINE IS CURRENTLY THE ONLY TRACE.** ⇒ **their prose must NOT be deleted until the journal carries it.** Everything else in the document is free to go once §3's format is applied.
+
+🔒 **PRECONDITION STATUS: P1 CLEARED · P2 MEASURED, NOT CLEARED.** ⚠️ **The archive's delete condition is therefore NOT met**, and `docs/ROADMAP_ARCHIVE_2026-07-26.md` stays until set B is closed.
+
+🔓 **JOE'S DECISION — SUPERSEDED BY §4a BELOW; the framing here was wrong.** *Does set B get retrospective entries (the J-102/J-103 precedent), or is the ROADMAP prose kept in place?*
+
+### ⚠️ §4a — THE ABOVE READING WAS WRONG. RETRACTED AND CORRECTED (2026-07-26, after Joe asked for the context)
+
+⚠️ **CHAT'S RETRACTED CLAIM, quoted so it is not re-derived:** *"A citation means someone, at the time of writing, believed the entry existed. That is a far stronger signal of real loss than set A."* **FALSE.** It reasoned from a pattern without checking what produced the pattern — **the same defect shape as the M-RP6.6 gate-versus-author collapse, twice in one session.**
+
+🔑 **WHAT ACTUALLY PRODUCED SET B — A DOCUMENTED CONVENTION CHANGE, RECORDED IN J-129 SUB-SECTION 8.** The `> **Last updated:**` line in `CLAUDE.md`, `JOURNAL.md` and `ROADMAP.md` had grown into a **chain** — a running narrative appended to the header. Measured there: **CLAUDE.md ~125 KB of chain across lines 5-16, one line alone 71.8 KB; ROADMAP 80 KB in line 9 alone.** It caused two concrete failures — reads returned the chain instead of the document body (*"false state diagnosis followed"*), and edits grew fragile because `oldText` had to match an ever-larger string (*"the root of the prose-then-batch atomicity-slip family"*).
+
+⇒ **DOC-ONLY MILESTONE EVENTS WERE DELIBERATELY RECORDED AS HEADER-CHAIN ENTRIES WITH NO JOURNAL BODY** — ROADMAP names it verbatim as the *"chain-only doc-only milestone-event precedent"* for J-123 / J-124 / J-125. **At J-129 the chain was stripped.** The pointers went; the bodies had never existed. **Nothing was lost by accident. It was never written, by a rule, and then its index was deleted, by another rule.**
+
+🔑 **AND THE RECORD FOR THOSE EVENTS IS IN `ROADMAP.md`'s PAST SECTION**, in full body shape — `✅ **J-124 … runbook SHIPPED 2026-05-27**`, and likewise J-125, J-131, J-132, J-135. **ROADMAP became the de facto journal for that class of event.**
+
+🔑 **WHICH MAKES THIS MILESTONE THE SECOND HALF OF A TREATMENT THAT STARTED AT J-129.** J-129's own words: *"The chain was emergent prose that bled JOURNAL's job into the header line. Substantive narrative belongs in JOURNAL body entries."* **The Past section is the same prose bleeding into the same document's body.** Same defect, same three files, same cure — diagnosed by this project two months ago and half-treated. 📌 **Joe reached the diagnosis independently tonight without the J-129 text in view.**
+
+### 🔒 §4b — RULING: MIGRATE, PLUS A PROJECT-WIDE DESIGNATION RULE (Joe, 2026-07-26)
+
+🔒 **OPTION (a) — MIGRATE THE ROADMAP PROSE INTO `JOURNAL` AT THOSE NUMBERS**, with honest provenance (*migrated from ROADMAP; originally a stripped header-chain entry*). The journal becomes genuinely complete — the premise the whole roadtree rests on — and the roadtree comes out pure.
+
+🔒 **AND THE DESIGNATION-COLLISION RULE (Joe, general, not migration-local): WHERE A DESIGNATION IS DUPLICATED, THE ORIGINAL TAKES AN `a` SUFFIX AND THE NEW ONE TAKES `b`** — e.g. `J-044a` / `J-044b`.
+
+📌 **PROPOSAL: PROMOTE IT.** The rule is project-wide — it governs J-, D-, N- and M- designations alike, not just this migration. It belongs in `CLAUDE.md`'s conventions or as a D-entry, **not buried in a milestone task file.** 🔓 Joe's.
+
+### 🔑 §4c — THE RULE HAS IMMEDIATE RETROACTIVE WORK, AND IT SPLITS IN TWO. MEASURED 2026-07-26
+
+**581 entry headings across both journal files, 574 unique ⇒ SEVEN duplicated designations. No `a`/`b` suffix exists anywhere yet.** Comparing bodies byte-for-byte splits them cleanly:
+
+| Set | Designations | Bodies | Verdict |
+|---|---|---|---|
+| **Literal duplication** | `J-317 · J-318 · J-319 · J-320 · J-321` — five consecutive | **BYTE-IDENTICAL** (4853 / 3834 / 4275 / 5510 / 5443 chars, each pair exact) | ⚠️ **NOT a designation collision — a copy-paste or merge accident, ~24 KB of exact duplication.** 🔒 **The fix is DELETION of one copy. Suffixing would enshrine an accident as two events** |
+| **True collision** | `J-044 · J-045` | **DIFFER** (3017 vs 3653 · 2502 vs 2706) | ✅ **Exactly what Joe's rule is for — two distinct events sharing one number** |
+
+**The two true collisions, and which copy is which.** All four carry the same date (`2026-05-13`), so **date does not disambiguate — file order does**: the archive runs newest-first, so the **higher line number is the original**.
+
+| Designation | Original → `a` | New → `b` |
+|---|---|---|
+| **J-044** | line 17057 — *BATCH_FLAG_ph2: M1–M3 implemented (code complete, M4 walkthrough pending)* | line 16957 — *BATCH_FLAG_ph2: implementation review; error message fix; documentation updates* |
+| **J-045** | line 17161 — *XGEN_CORE_SPLIT_ph2: xgen-core crate split complete* | line 17128 — *Design note: `--batch` as a primary AI tool for tuning and debugging* |
+
+📌 **J-044's content corroborates the file order** — *implemented* precedes *implementation review*. ⚠️ **J-045's content is neutral between the two**, so that assignment rests on file order alone. **Stated, not hidden.**
+
+🔑 **AND THE PASS PRODUCED A FORMAT AMENDMENT, WHICH IS WHY IT RAN BEFORE THE REWRITE AND NOT AFTER.** §3 originally required `· J-nnn` on every ✅ node, *non-negotiable*. **Applied literally to lines 376 and 396 it would have forced one of two wrong outcomes: invent a link, or declare information loss** — when the record exists, correctly, in the design document that owns that work. ⇒ **§3's rule now reads *a link to its canonical record*, usually but not always a J-number.** 📌 **The 11 P2 refs are still J-numbers and are unaffected.**
+
+📌 **Cost revised: the P1 walk is not an afternoon — it was five entries and all five are resolved.** ⚠️ **The archive's delete condition is NOT yet met** — P2 set B is open.
+
+---
 
 🔒 **NOTHING IS DELETED UNTIL BOTH SETS ARE CLEARED.** This is what makes §2's claim true rather than asserted.
 

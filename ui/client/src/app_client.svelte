@@ -51,6 +51,10 @@
   // creates them, both `$common` region widgets that receive only a `regionId` (W-3/N-096).
   import { roomLatch } from '$common/stores/room-latch.svelte';
   import { echo } from '$common/stores/echo-state.svelte';
+  // M-RP-MEMBERS Leg B — the R7 members store. A PURE $state store fed by the shell (the roomLatch/gaps
+  // feeder shape): the $effect below watches `roomLatch.effectiveSpaceId` and drives the fill
+  // (fill_space_records + get_address_book), since W-3 forbids the $common store importing `invoke`.
+  import { addressBook } from '$common/stores/address-book.svelte';
   import { KeymapRegistry } from '$common/keymap/registry';
   import { accelerator } from '$common/keymap/accelerator';
 
@@ -152,6 +156,37 @@
     const sel = selection.current; // the sole tracked dependency
     untrack(() => roomLatch.note(sel));
   });
+
+  // M-RP-MEMBERS Leg B (§3) — feed the R7 address-book store from the room latch. The ONE writer path (the
+  // roomLatch feeder above, and the gaps feeder, are the shape): on a scope change, reset to inflight, then
+  // fill_space_records + get_address_book, then setResult — or setFailed on reject. The store's own
+  // late-guard (§3.5) discards a resolve whose spaceId no longer matches the current scope, so switching
+  // rooms twice quickly never renders Space A's roster under Space B's heading. No timer, no polling (L6/§3):
+  // the Rust `tokio::time::timeout` bounds the fill, so the invoke always resolves or rejects. untrack because
+  // loadMembers reads/writes the store's own $state (the roomLatch/gaps feeder precedent, N-136).
+  $effect(() => {
+    const sid = roomLatch.effectiveSpaceId; // the sole tracked dependency
+    untrack(() => loadMembers(sid));
+  });
+  async function loadMembers(sid) {
+    if (sid == null) {
+      addressBook.reset(); // state ① — no scope; no fill fired
+      return;
+    }
+    addressBook.setInflight(sid);
+    try {
+      // fill_space_records returns FillMembersOutcome { fill, roster } (Leg A-quater); the roster renders and
+      // the fill persists the address-book cache on disk, which get_address_book then reads back for the
+      // name resolution. tauriInvoke lazy-imports invoke (the browser-dev/no-Tauri path rejects → setFailed).
+      const outcome = await tauriInvoke('fill_space_records', { spaceId: sid });
+      const book = await tauriInvoke('get_address_book');
+      addressBook.setResult(sid, outcome.roster, book);
+    } catch (_) {
+      // ③ inflight → ④ failed (or ⑤ when the connection is down — the widget picks ⑤ by the connection led,
+      // not the phase, L5). A stale rejection is discarded by the store's late-guard.
+      addressBook.setFailed(sid);
+    }
+  }
 
   // M-RP6.3 Leg D2 — inject the send transport into the echo store (W-3: `$common` imports no shell dep, and
   // there are ZERO @tauri-apps imports under ui/common — so the composer reaches `send_message` ONLY through

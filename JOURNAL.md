@@ -8,6 +8,33 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-597 — M-RP-MEMBERS Leg B closed: R7 is live, all five states observed on the painted DOM, and the DM highlight rides PANEL-INERT's `selected`
+
+**Date:** 2026-07-26 · **Seat:** Clair (implementation from the locked runbook + node-less 9222 verify + these records, per the kickoff's D-074 DoD). Follows J-596; HEAD `ee15de5` at open. Joe pushes.
+
+**WHAT SHIPPED — THE R7 MEMBERS WIDGET IS REAL.** Four code files, all frontend: `ui/common/lib/stores/address-book.svelte.ts` (NEW — the store), `ui/common/lib/components/widgets/members-panel.svelte` (NEW — the widget), `ui/common/lib/plugins/registry.ts` (the 7th `CLIENT_PLUGINS` descriptor), `ui/client/src/app_client.svelte` (the shell feeder). **ZERO `.rs`, ZERO `skin.css`, ZERO `rooms-panel`/`entity-item`/`entity-panel`** — and **`layout-default.ts` needed NO edit**: `members` is already a leaf with a `REGION_NAMES` fallback, and `buildWidgetRegistry` DERIVES the placeholder→widget swap from the descriptor alone (the M-RP6.1l shape). One fewer file than the runbook's scope table listed, grounded not assumed.
+
+**THE ARCHITECTURE, GROUNDED BEFORE A LINE WAS WRITTEN.** Region widgets receive only a `regionId` (region-node) and read `$common` stores; the shell owns `invoke` (W-3). So the store is a **pure `$state` mirror** (the self-state/spaces-state shape) and the shell drives it: a new `$effect` watches `roomLatch.effectiveSpaceId` (the L1 scope) and, on a change, calls `fill_space_records` (Leg A-quater's `FillMembersOutcome`) + `get_address_book`, feeding the store's setters — the roomLatch/gaps feeder pattern exactly. The **late-response guard (§3.5) lives in the store's setters**: `setResult`/`setFailed` carry the `spaceId` they fired for and discard themselves if the scope moved on. `MemberEntry` has no name, so the widget resolves each member's `identity_id` → `display_name` from the address-book cache (`get_address_book`, a `#[serde(transparent)]` `{id: SeenRecord}` map), last-resort xgid-tail; **self is resolved from `selfState`, never the book** (L2).
+
+**THE WIDGET IS THE FIVE-STATE TREE OVER AN INERT `EntityPanel`.** `interactive={false}` (the milestone J-596 shipped for exactly this) — the rows are `listitem`, not a selection surface (Phase-0 line 284); the ONLY highlight is the DM counterpart, fed one-way through `selected` (L16), self unmarked (L17). No `onActivate`, so R7 never writes the global selection bus (L15 — writing it would silently change what R8 inspector shows). ④ vs ⑤ is picked by the connection, not the phase (L5).
+
+**⚠️ A SCOPE CONTRADICTION, FLAGGED NOT ABSORBED (Rule 6), AND RESOLVED THE WAY THE KICKOFF SAID TO.** §6 DoD demands *"all five states observed"* + *"late-guard exercised"*; §7 + the kickoff FIRST ACTION assign the live 9222 CDP verify to **Leg C** (*"NOT in this scope"*). The kickoff's own SEATS note anticipates exactly this — *"if the spec forbids what the DoD requires, that is the spec's defect… you flagged and proceeded — correct. Do the same again"* — and cites the M-RP-PANEL-INERT precedent (I added a sampler fixture the §1 scope did not list because the DoD needed a DOM verify). Applying it: I did a **node-less** 9222 verify (driving the store/connection via the DEV handles) to observe every state the DoD lists. **What genuinely stays Leg C:** the two-client real-join test and the real over-the-wire fill for ② (I verified ②'s *rendering* via an injected roster, not a live drain).
+
+**CDP-VERIFIED, REAL CLIENT 9222 (Rule 5, every leg driven; client then stopped clean, launcher `finally` reaped Vite, no leak):**
+- **§0b baseline recorded WITH composition: 160 === unique 160, store = 3 spaces / 5 rooms, no room latched.** State ① renders (self only). ⚠️ The runbook's "149 with 1 space/1 room" was a **different store state** — recorded with composition precisely to avoid the phantom-delta hunt §0b warns of.
+- **① no-scope** — self only, `hasMessage:false` (no message: blaming the network for a scope never chosen is a second false statement).
+- **② known (group)** — rows `["Joe","Alice Ng","Bob Lee"]` (self from `selfState`, others from the book), `memberCount:3` from the roster (L4), `counterpart:null`, all `listitem`.
+- **DM (L16/L17)** — `isDm:true`, rows `["Joe" unselected, "Bob Lee" SELECTED]`: the counterpart highlighted via PANEL-INERT's one-way `selected`, self unmarked.
+- **③/④/⑤** — *"I am waiting for the others"* / *"I cannot reach the others"* / *"I cannot see the others"*, Joe's copy verbatim off the painted DOM. **④ vs ⑤ proven distinguished by the connection** (identical `phase:'failed'`, `conn` READY→④ / DISCONNECTED→⑤), not the phase.
+- **Late-guard (§3.5) with a POSITIVE CONTROL (N-163):** `setInflight(A)` → stale `setResult(B)` **discarded** (still A/inflight) → matching `setResult(A)` **lands** (ready) — the guard discriminates by `spaceId`, it does not just drop everything.
+- **Churn returns to baseline** — ①→⑤→④→③→②→DM→guard→① left the registry at **exactly 160**, zero orphan/leak.
+
+**FLOOR:** `svelte-check` **0/34/15** (re-measured; 255 files — the two new files added, no new warnings — the honest Leg-B-moves-svelte-check signal). Client `vite build` clean. **Confirmed unfed (L9/L10):** the descriptor carries only `flags.isAi`; items are `{descriptor}` only, so `revoked`/`secondary`/`meta`/`status` are structurally absent.
+
+**RECORDS.** Folds in the runbook Chat pre-amended (§0c closing PANEL-INERT, §1 marking entity-panel consumed with `interactive={false}`) → COMPLETED with the §8 close. **L18 (§7's "shape-identical to R1/R2") remains Joe's** — the DM highlight is the additive departure. **Next-active: Leg C** — the live real-join membership test (two clients, a real `membership.join`, asserting the joiner does not receive its own) + the real-wire fill for state ②. No new D, no new N.
+
+---
+
 ## Entry J-596 — M-RP-PANEL-INERT closed: entity-panel gets an inert mode, and the ARIA contract was the load-bearing half
 
 **Date:** 2026-07-26 · **Seats:** Clair stopped at the top of Leg B rather than reconcile a contradiction silently and surfaced it (see below); Joe ruled the resolution (option C, its own milestone) and authored the spec; Chat re-verified Clair's six claims and amended the Leg-B records; Clair implemented + CDP-verified + wrote these records. Follows J-595; HEAD `a0752e5` at open. Joe pushes.

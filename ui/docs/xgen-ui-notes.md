@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.10  
+> Version: 1.11  
 > Date: May 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  
@@ -3422,3 +3422,21 @@ document*.
 ⚠️ **AND ONE WRITER DEFECT:** `Windows-MCP:FileSystem` mode=`write` emits **CRLF**. A new `tasks/*.md` (LF by convention) came out with CR=149. Caught only by counting raw bytes after the write — which is why that step is not optional.
 
 📌 **Practical rule.** A script that starts a process must be able to answer *"is the thing on that port mine?"* — not *"is anything on that port?"* If it cannot, its success reports are worthless in exactly the case they matter.
+
+---
+
+### N-167 — `core.autocrlf=true` means the CRLF-vs-LF split between repo files is an artifact of which tool wrote them last, not a convention git enforces
+
+**Date:** 2026-07-26 · HEAD `49ada53` · found restoring `JOURNAL.md` with `git checkout` (J-593).
+
+**The inherited rule** (carried in session briefs for several sessions): *"`Filesystem:edit_file` silently normalises CRLF→LF. `CLAUDE.md` and `docs/ROADMAP.md` are CRLF — use PowerShell for those. `JOURNAL.md`, `DECISIONS.md`, `tasks/*.md` are LF."*
+
+**Measured:** `core.autocrlf = true`, and `.gitattributes` pins **exactly one pattern** — `Cargo.toml text eol=lf` — for a documented reason (cargo rewrites manifests as LF on every build, which re-flagged them as modified). **Nothing else is pinned.**
+
+⇒ **Git normalises CRLF→LF on `add` and LF→CRLF on `checkout` for every other text file.** A `git checkout -- JOURNAL.md` returned a file with **CR=6734 where the working copy had CR=0**, and the subsequent diff was **35 insertions, zero whole-file churn**. Both endings commit to the *same blob*.
+
+🔑 **THE OBSERVATION IN THE RULE IS TRUE; THE CONSEQUENCE IT IMPLIES WAS NEVER CHECKED.** The files really do differ in the working tree — but that difference is **which tool last wrote each file**, not a policy, and it has **no effect on the commit, the diff, or the stored content**. Acting on it as though it were a policy produces work that changes nothing: converting a checked-out file "back" to LF is churn.
+
+📌 **What the rule should say instead.** Counting raw bytes after a write stays mandatory — it catches **real** failures (a tool that emits CRLF where a doc is compared byte-for-byte, a truncated write, a BOM). But **do not convert line endings to satisfy the split**, and do not treat a CRLF/LF mismatch as evidence of a defect. **The test that decides is `git diff --stat`**: if it shows only the intended hunks, the endings are irrelevant; if it shows the whole file, something really is wrong.
+
+⚠️ **This is the session's own defect class turned on a rule rather than on code: a claim narrower than the thing it described, reused as if complete.** It was never wrong about what it observed. It was never checked for what it implied.

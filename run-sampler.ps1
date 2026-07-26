@@ -18,6 +18,7 @@ $FrontendDir = "$Root\ui\sampler"
 $TauriDir    = "$Root\xgen-sampler"
 $env:CARGO_TARGET_DIR = "C:/cargo-targets/XGenProtocol"
 $VitePort    = 5175
+$host.UI.RawUI.WindowTitle = "XGen Sampler"
 
 # ── M-RP-DEVSERVER-GUARD — this launcher OWNS the Vite it starts ──────────────
 # THE DEFECT THIS REPLACES: `$vite` is the cmd.exe handle, and the process tree
@@ -74,6 +75,7 @@ if (-not (Test-Path "$FrontendDir\node_modules")) {
 Set-Location $TauriDir
 
 if ($Mode -eq "release") {
+    $host.UI.RawUI.WindowTitle = "XGen Sampler - release build"
     Write-Host "Building release .exe..."
     cargo tauri build
 } else {
@@ -81,6 +83,7 @@ if ($Mode -eq "release") {
     $holder = Get-PortOwnerPid -Port $VitePort
     if ($holder) {
         $hp = Get-CimInstance Win32_Process -Filter "ProcessId=$holder" -ErrorAction SilentlyContinue
+        $host.UI.RawUI.WindowTitle = "XGen Sampler - REFUSED (port $VitePort in use)"
         Write-Host "REFUSING TO START: port $VitePort is already held by PID $holder."
         if ($hp) { Write-Host "  $($hp.Name) :: $($hp.CommandLine)" }
         Write-Host "  Vite is strictPort:true, so our server would die and the readiness probe"
@@ -122,6 +125,7 @@ if ($Mode -eq "release") {
         exit 1
     }
 
+    $host.UI.RawUI.WindowTitle = if ($Debug) { "XGen Sampler - dev, Vite $VitePort, CDP 9422" } else { "XGen Sampler - dev, Vite $VitePort" }
     Write-Host "Vite ready on $VitePort (PID $(Get-PortOwnerPid -Port $VitePort), ours). Starting XGen Sampler (dev)..."
     $env:TAURI_SKIP_DEVSERVER_CHECK = "true"
     if ($Debug) {

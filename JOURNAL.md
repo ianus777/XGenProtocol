@@ -8,6 +8,43 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-593 — The guard reaches the surface Joe actually uses: five shortcuts, a test-bed that was invisible, and a scratch instance that keeps live legs off the real store
+
+**Date:** 2026-07-26 · **Seats:** Joe (named the gap — *"pls can you revise also shortcuts? like *_debug.lnk etc... i use it more often than .ps1 commands"* — and delegated the shape with *"go as proposed"*); Chat (measurement, shortcuts, window titles, records). Immediately follows J-592, whose commit `49ada53` was already pushed. **Separate entry rather than an append, because J-592 is a published contemporaneous record and this work happened after it.**
+
+🔑 **THE MILESTONE HAD SHIPPED INTO A SURFACE JOE DOES NOT USE.** J-592 hardened three `.ps1` launchers. Joe launches from the `.lnk` files. ***A guard he never sees is a guard that does not exist for him.*** The defect class is the session's own, one level out: **a fix scoped to where the code is, not to where the user is.**
+
+**MEASURED BEFORE TOUCHING ANYTHING.** `*.lnk` is in `.gitignore` with an explicit reason — *machine-specific: the .lnk hardcodes an absolute target path*. ⇒ **untracked, and therefore UNRECOVERABLE by `git checkout`.** All three existing shortcuts were copied to `temp/lnk-backup-20260726/` first. *The absence of version control raises the cost of a mistake; it does not lower the standard of care.*
+
+**FIVE SHORTCUTS, NORMALISED** — absolute path · `-NoProfile` · `-NoExit` · powershell icon · and a description that says **what it does to your data**:
+
+| Shortcut | Runs | |
+|---|---|---|
+| `run-client_debug.lnk` | `run-client.ps1 -Debug` | Vite 5173 · CDP 9222 |
+| `run-node_debug.lnk` | `run-node.ps1 -Debug` | Vite 5174 · CDP 9322 |
+| `run-sampler_debug.lnk` | `run-sampler.ps1 -Debug` | **NEW — did not exist at all** |
+| `run-node_service.lnk` | `run-node.ps1 --service` | **REAL data dir, WRITES to it.** No Vite |
+| `run-node_service_scratch.lnk` | `... --service --instance dev-scratch` | **NEW** — throwaway instance |
+
+🔑 **THE SAMPLER SHORTCUT DID NOT EXIST.** The RP component test-bed — the thing the whole UI track is built in — was **invisible from the only launcher surface Joe uses**. Nobody had noticed because everyone who looked was reading `.ps1` files.
+
+⚠️ **`-NoProfile` WAS PROPOSED WITH ITS RISK NAMED, AND THE RISK WAS MEASURED AWAY, NOT ARGUED AWAY.** If Joe's profile set anything the scripts leaned on, this would change behaviour silently. **No PowerShell profile exists on this machine — all four `$PROFILE` paths absent.** *The honest order is: name the risk, then go and look.*
+
+📌 **THE SCRATCH SHORTCUT IS NOT DECORATIVE, AND THAT WAS CHECKED RATHER THAN ASSUMED.** `xgen-node/src/main.rs:59` — `--instance` *segregates data and logs under `<data root>/instances/<label>>`* — is `global = true`, and **`--service` is a FLAG, not a subcommand** (`main.rs:57`), so `--service --instance dev-scratch` is valid ordering. Verified the extraction across all three arg shapes. Live legs previously ran against the real store at `C:\Users\Joe\AppData\Local\XGenProtocol` and **advanced `last_seen`**; there is now a one-click way not to. 🔓 **The label `dev-scratch` was DELEGATED (*"go as proposed"*), NOT locked — recorded as delegated, and one rename away.**
+
+**WINDOW TITLES — PUT IN THE `.ps1`, NOT THE `.lnk`.** Three launchers produced three windows all titled *Windows PowerShell*. 🔑 **J-592's guard made that worse rather than better: a script can now REFUSE, and Joe could not tell WHICH window refused.** `$host.UI.RawUI.WindowTitle` is set at the top and refined per branch — dev (port + CDP) · release · service (**naming the instance, or saying DEFAULT DATA DIR when there is none**) · `REFUSED (port NNNN in use)`. ***In the script rather than the shortcut so it holds however the script is launched*** — shortcut, terminal, or copied elsewhere. A shortcut-level fix would have worked for exactly one launch path.
+
+⚠️ **AND THE MECHANISM I DID NOT ADD.** The title assignment could throw in a non-interactive host, which would kill the launcher. Rather than wrapping it defensively, **it was driven in a non-interactive host and does not throw** — so no guard was written. *Ask what is true before adding machinery for what might be.*
+
+⚠️ **ONE WRITE FAILED SILENTLY AND WAS CAUGHT ONLY BY READING IT BACK.** A `.Replace()` on the task doc's Scope line matched nothing, because the search string was double-quoted and PowerShell ate the backticks. **The write reported success.** Re-driven single-quoted. *Same shape as the whole milestone: a report of success is not evidence of effect.*
+
+**VERIFY.** All five shortcuts **re-read from disk after writing**, not from the objects that wrote them · all three scripts parse clean, **CR=0 preserved** · `$InstanceLbl` correct across `--service --instance dev-scratch`, bare `--service`, and `-Debug` · title assignment non-throwing · `.lnk` backups present · ports all free at close.
+
+🔑 **AND RESTORING J-592 EXPOSED A RULE THIS PROJECT HAS BEEN CARRYING UNCHECKED.** `git checkout -- JOURNAL.md` returned the file with **CR=6734 where the working copy had CR=0**. The standing brief says `JOURNAL.md`/`DECISIONS.md`/`tasks/*.md` **are LF** and `CLAUDE.md`/`ROADMAP.md` **are CRLF**, and treats a mismatch as something to correct. **Measured: `core.autocrlf = true`, and `.gitattributes` pins EXACTLY ONE pattern — `Cargo.toml text eol=lf` — for a documented cargo-churn reason. Nothing else.** ⇒ git normalises both directions for every other text file; **both endings commit to the same blob.** The decisive check — `git diff --stat` on the CRLF file — returned **35 insertions and zero whole-file churn.** ⇒ ***the observation in the rule is true and the consequence it implies was never checked.*** The CRLF/LF split across the repo is **which tool last wrote each file**, not a policy; converting a checked-out file "back" is work that changes nothing. **Byte-counting after a write stays mandatory** — it catches real failures — but `git diff --stat` is what decides. → **N-167.** ⚠️ *The session's own defect class, turned on a rule instead of on code: a claim narrower than the thing it described, reused as if complete.*
+
+**No new D.** → **N-166 · N-167** · `tasks/M_RP_DEVSERVER_GUARD.md` v1.1 §4b · CLAUDE.md PLAY · ROADMAP v5.56.
+
+---
 ## Entry J-592 — The dev launchers stop lying: a readiness probe that could not tell "my server" from "a server", a process tree four deep, and two readers that failed confidently
 
 **Date:** 2026-07-26 · **Seats:** Joe (locked the fix shape and the scope — *"fix both"*); Chat (grounding, measurement, the scripts, verification, records). Delegated lane item ① from the M-RP-MEMBERS session brief. **HEAD at open `5339d5d` = origin, tree clean, all ports free.**

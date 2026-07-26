@@ -1,6 +1,6 @@
 # M-RP-DEVSERVER-GUARD — the dev launcher owns the Vite it starts
 > **Status**: COMPLETED  
-> Version: 1.0  
+> Version: 1.1  
 > Date: July 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  
@@ -17,7 +17,7 @@ against a bundle hours older than the code under test, with **every probe report
 Fixing after Leg B makes Leg B's evidence retroactively suspect; fixing during means changing
 the instrument mid-measurement. **Before was the only clean slot.**
 
-Scope: **4 `.ps1` files at repo root.** Zero Rust · zero `ui/**` · zero `.md` under `docs/`
+Scope: **4 `.ps1` files at repo root + 5 untracked `.lnk` shortcuts (see §4b).** Zero Rust · zero `ui/**` · zero `.md` under `docs/`
 other than records. **No floor moves** — nothing compiled, nothing bundled.
 
 ---
@@ -100,6 +100,46 @@ is the same defect class as the probe.
 
 ---
 
+## §4b — THE SHORTCUTS, WHICH ARE THE REAL ENTRY POINT
+
+🔑 **Joe launches from the `.lnk` files, not the `.ps1`.** A guard he never sees is a guard that
+does not exist for him.
+
+**MEASURED FIRST:** `*.lnk` is in `.gitignore` with an explicit reason — *machine-specific, the
+.lnk hardcodes an absolute target path*. ⇒ **untracked, and therefore unrecoverable by
+`git checkout`.** All three were backed up to `temp/lnk-backup-20260726/` before any edit.
+
+**FIVE SHORTCUTS, NORMALISED (absolute path · `-NoProfile` · `-NoExit` · powershell icon · a
+description that says what it does to your data):**
+
+| Shortcut | Runs | Notes |
+|---|---|---|
+| `run-client_debug.lnk` | `run-client.ps1 -Debug` | Vite 5173 · CDP 9222 |
+| `run-node_debug.lnk` | `run-node.ps1 -Debug` | Vite 5174 · CDP 9322 |
+| `run-sampler_debug.lnk` | `run-sampler.ps1 -Debug` | **NEW** — Vite 5175 · CDP 9422. Did not exist |
+| `run-node_service.lnk` | `run-node.ps1 --service` | **REAL data dir, WRITES to it.** No Vite |
+| `run-node_service_scratch.lnk` | `run-node.ps1 --service --instance dev-scratch` | **NEW** — throwaway instance |
+
+⚠️ **`-NoProfile` was proposed with its risk named and the risk MEASURED AWAY:** no PowerShell
+profile exists on this machine (all four `$PROFILE` paths absent), so it cannot change behaviour.
+
+📌 **The scratch shortcut is real, not decorative.** `xgen-node/src/main.rs:59` — `--instance`
+*segregates data and logs under `<data root>/instances/<label>`* — and it is `global = true`, so
+`--service --instance dev-scratch` is valid ordering (`--service` is a **flag**, not a
+subcommand). Live legs previously ran against the real store at
+`C:\Users\Joe\AppData\Local\XGenProtocol` and **advanced `last_seen`**. 🔓 **The label
+`dev-scratch` was DELEGATED, not locked — one rename away.**
+
+**WINDOW TITLES — IN THE `.ps1`, NOT THE `.lnk`.** Three launchers produced three windows all
+titled *Windows PowerShell*. With the guard in place that got worse, not better: a script can now
+**refuse**, and you could not tell which window refused. `$host.UI.RawUI.WindowTitle` is set at
+the top and refined per branch — dev (with port and CDP), release, service (**naming the instance,
+or saying DEFAULT DATA DIR when there is none**), and `REFUSED (port NNNN in use)`. 🔑 **Put in
+the script rather than the shortcut so it holds however the script is launched** — shortcut,
+terminal, or copied elsewhere. Verified the assignment does not throw even in a non-interactive
+host, rather than assuming it.
+
+---
 ## §5 — VERIFICATION
 
 All functions were **extracted from the file on disk and executed**, never retyped.
@@ -134,6 +174,8 @@ negative control** — N-163's requirement is not satisfied by merely *having* o
 - [x] G1/G2/G3 driven live with positive **and** valid negative controls
 - [x] `--service` confirmed Vite-free and untouched
 - [x] JOURNAL + CLAUDE.md PLAY + ROADMAP + this doc in one commit (D-074)
+- [x] Five shortcuts normalised; sampler + scratch-instance shortcuts created; originals backed up
+- [x] Mode-aware window titles in all three launchers, verified non-throwing
 - [x] N-166 recorded
 
 ---

@@ -15,6 +15,8 @@ $TauriDir    = "$Root\xgen-node"
 $WantDebug   = $args -contains "-Debug"
 $env:CARGO_TARGET_DIR = "C:/cargo-targets/XGenProtocol"
 $VitePort    = 5174
+$InstanceLbl = if ($args -contains "--instance") { $args[([Array]::IndexOf($args, "--instance")) + 1] } else { $null }
+$host.UI.RawUI.WindowTitle = "XGen Node"
 
 # ── M-RP-DEVSERVER-GUARD — this launcher OWNS the Vite it starts ──────────────
 # THE DEFECT THIS REPLACES: `$vite` is the cmd.exe handle, and the process tree
@@ -76,6 +78,7 @@ if (-not (Test-Path "$FrontendDir\node_modules")) {
 Set-Location $TauriDir
 
 if ($args[0] -eq "release") {
+    $host.UI.RawUI.WindowTitle = "XGen Node - release build"
     Write-Host "Building release .exe..."
     cargo tauri build
     $exe = "C:\cargo-targets\XGenProtocol\release\xgen-node-app.exe"
@@ -87,6 +90,7 @@ if ($args[0] -eq "release") {
 } elseif ($args -contains "--service") {
     # Forward all args to the binary (supports --instance, --port alongside --service)
     $forwardArgs = $args -join " "
+    $host.UI.RawUI.WindowTitle = if ($InstanceLbl) { "XGen Node - SERVICE (headless), instance $InstanceLbl" } else { "XGen Node - SERVICE (headless), DEFAULT DATA DIR" }
     Write-Host "Starting XGen Node in service mode (headless)..."
     $argList = ($args | ForEach-Object { $_ }) -join " "
     Invoke-Expression "cargo run -- $argList"
@@ -95,6 +99,7 @@ if ($args[0] -eq "release") {
     $holder = Get-PortOwnerPid -Port $VitePort
     if ($holder) {
         $hp = Get-CimInstance Win32_Process -Filter "ProcessId=$holder" -ErrorAction SilentlyContinue
+        $host.UI.RawUI.WindowTitle = "XGen Node - REFUSED (port $VitePort in use)"
         Write-Host "REFUSING TO START: port $VitePort is already held by PID $holder."
         if ($hp) { Write-Host "  $($hp.Name) :: $($hp.CommandLine)" }
         Write-Host "  Vite is strictPort:true, so our server would die and the readiness probe"
@@ -136,6 +141,7 @@ if ($args[0] -eq "release") {
             exit 1
         }
 
+        $host.UI.RawUI.WindowTitle = if ($WantDebug) { "XGen Node - dev, Vite $VitePort, CDP 9322" } else { "XGen Node - dev, Vite $VitePort" }
         Write-Host "Vite ready on $VitePort (PID $(Get-PortOwnerPid -Port $VitePort), ours). Starting XGen Node (dev)..."
         $env:TAURI_SKIP_DEVSERVER_CHECK = "true"
         if ($WantDebug) {

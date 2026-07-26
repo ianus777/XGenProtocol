@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-25  
+> **Last updated:** 2026-07-26  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -8,6 +8,50 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-592 — The dev launchers stop lying: a readiness probe that could not tell "my server" from "a server", a process tree four deep, and two readers that failed confidently
+
+**Date:** 2026-07-26 · **Seats:** Joe (locked the fix shape and the scope — *"fix both"*); Chat (grounding, measurement, the scripts, verification, records). Delegated lane item ① from the M-RP-MEMBERS session brief. **HEAD at open `5339d5d` = origin, tree clean, all ports free.**
+
+**WHAT SHIPPED.** `M-RP-DEVSERVER-GUARD — the dev launcher owns the Vite it starts.` 4 files, all `.ps1` at repo root: `run-client.ps1` · `run-node.ps1` · `run-sampler.ps1` · `cdp-debug.ps1`. **Zero Rust · zero `ui/**` ⇒ no floor moves.** Task doc `tasks/M_RP_DEVSERVER_GUARD.md` v1.0 `COMPLETED`. Joe pushes.
+
+**WHY BEFORE LEG B, NOT AFTER.** Leg B is frontend work. Under this defect it would have been verified against a bundle hours older than the code under test, **with every probe reporting success**. Fixing after makes Leg B's evidence retroactively suspect; fixing during changes the instrument mid-measurement. *Before was the only clean slot.*
+
+🔑 **THE HANDLE WAS NOT THE SERVER, AND THE TREE IS FOUR DEEP — MEASURED, NOT INFERRED.** `$vite = Start-Process cmd.exe /c "npm ... run dev" -PassThru`, cleaned up with `Stop-Process $vite`. Live trace: `cmd.exe` (ours) → `node` npm-cli.js → **a SECOND `cmd.exe /d /s /c vite`** → `node` vite.js, **the listener**. The cleanup killed **one of six** processes; npm survived and **respawned vite**. ⚠️ **The inherited brief said *"target the npm parent"*; the script's own handle sits one level above npm again.** `taskkill /T /F` from that handle reaps all six and releases the port — shown, not asserted.
+
+🔑 **AND THE PROBE ASKED THE WRONG QUESTION, WHICH IS WHY THE LEAK WAS INVISIBLE.** `Invoke-WebRequest localhost:5173` cannot distinguish *"my server started"* from *"a server is listening"*. All three `vite.config.js` are `strictPort: true` (5173 client · 5174 node · 5175 sampler — read, not recalled), so the next run's own Vite **dies on the taken port** while the probe is **answered by the leak** and prints *"Vite ready"*. ***The app then runs a stale bundle with no error anywhere.*** **The J-591 class exactly: a check that passes because something else supplied what was missing.**
+
+**TWO MORE, NEITHER IN THE BRIEF.** ③ the cleanup was **not in a `finally`** — Ctrl-C or a closed console skipped it entirely. ④ **`$env:TAURI_SKIP_DEVSERVER_CHECK = "true"` disables Tauri's own devserver check** — the second alarm that would have caught this was switched off by hand. 📌 **FLAGGED, NOT CHANGED — it may exist for a reason. 🔓 Joe's.**
+
+**THE FIX — THREE GUARANTEES THAT COVER EACH OTHER.** ① **PRE-FLIGHT REFUSAL**: port held ⇒ abort, **naming the holder's PID and command line**, printing the `taskkill` line. ② **OWNERSHIP ASSERTION**: the listener must be a **descendant of the process we spawned** (PPID walk, cycle-guarded). ③ **TREE KILL IN `finally`** — and `exit` inside `try` still runs it, so the abort paths clean up too. 🔑 **THE RESIDUAL GAP IS NAMED RATHER THAN HIDDEN:** a console closed mid-run skips `finally` — **① then makes the NEXT run refuse loudly instead of lying.** *Neither half is sufficient alone: ① leaves the check-then-start race, ② wastes the 15 s wait.*
+
+🔒 **JOE RULED SCOPE: ALL THREE, NOT THE CLIENT ALONE.** He asked whether node could be skipped. Measurement answered it: **two of the three sanctioned launchers start a Vite** — `run-client_debug.lnk` → 5173 and `run-node_debug.lnk` → 5174. ⚠️ **And a hypothesis of Chat's died on contact:** `--service` was suspected of starting a Vite; `run-node.ps1:37` routes it to `cargo run` and **starts none**. 📌 **5174 has already cost one session** to the wrong diagnosis *"an orphaned client vite"*. *A rule that holds for two of three scripts is not a rule — it is a footnote that will be forgotten under load.*
+
+**THE `-Launch` RIDER — RETIRED, NOT REPAIRED.** `cdp-debug.ps1 -Launch` set `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` (`:188`), which WebView2 ≥136 ignores per **D-104** — **contradicting the script's own header 150 lines above** — and ran `bin\xgen-client.exe`, **the 21-May release binary**. Two reassuring lines plus `exit 1`, and a plausible XGen window on screen. Under D-104 the overlay is the only route and `run-*.ps1 -Debug` already takes it ⇒ **nothing to repair.** It now **refuses and names the correct route**, and the usage header was corrected in the same pass. *A doc that contradicts its own code is the same defect class as the probe.*
+
+**VERIFICATION — functions EXTRACTED FROM DISK AND EXECUTED, never retyped.**
+
+| Leg | Result |
+|---|---|
+| Parse, all 4 scripts | ✅ `PSParser` 0 errors |
+| Line endings | ✅ CR=0 on all 4 (all were LF) |
+| Live chain listener → our handle | ✅ 4 hops, intact |
+| G1 on a genuinely held port | ✅ refused, named PID + `vite.js` cmdline |
+| G2 vs real ancestor / self | ✅ True / True |
+| G2 vs unrelated process / non-existent PID / reversed | ✅ False / False / False |
+| `Get-PortOwnerPid` on a free port | ✅ null |
+| G3 `taskkill /T` from our handle | ✅ 6 processes reaped, port released |
+
+⚠️ **ONE CONTROL FAILED AND THE CONTROL WAS WRONG, NOT THE CODE.** The first negative control asked whether the listener descended from `$PID` — but `$PID` was **the shell that spawned the chain**, so `True` was the correct answer to a question that tested nothing. 🔑 ***A negative control that shares an ancestor with the positive control is not a negative control.*** N-163 requires one; it is not satisfied by merely **having** one. Re-driven three ways.
+
+⚠️ **THREE INSTRUMENT DEFECTS FOUND THE SAME DAY, ALL REPORTING CONFIDENTLY.** ① PS 5.1 `Get-Content` **without `-Encoding UTF8`** mojibakes every repo doc and **reads exactly like file corruption** — the byte check showed clean UTF-8, no BOM; *the reader was the defect, not the file.* ② `[IO.File]::ReadAllBytes` with a **relative** path ignores PowerShell's `cd`: `len=0` from one call and `583537` from `Get-Item` on the same name **in the same invocation**. ③ `Windows-MCP:FileSystem` mode=`write` emits **CRLF** — a new `tasks/*.md` came out with CR=149, caught **only** by counting raw bytes after the write. → **N-166.**
+
+📌 **NOT DISCHARGED, RECORDED AS NOT DISCHARGED:** `svelte-check` (last known 0/34/15) and the client registry (last known 149) remain **stale for Leg B**. This milestone touched no `ui/**` and no Rust so it cannot have moved them, but the staleness **predates** this work and must be closed before Leg B opens.
+
+📌 **STILL OPEN AND CARRIED, NOT RE-ASKED:** the `fill_space_records` return shape (positional 2-tuple vs named struct) — **blocks Leg B's runbook**; Chat's recommendation is the **named struct** on the grounds that a later third value becomes a silent index shift at every call site. Also carried: the config milestone's name (follows the value list, not the reverse), Self Card vs Settings › Account, the partial-first-send remainder, and the search-matched-nothing copy.
+
+**No new D.** → JOURNAL J-592 · `tasks/M_RP_DEVSERVER_GUARD.md` v1.0 · N-166 · ROADMAP.
+
+---
 ## Entry J-591 — Leg A-ter closed: the auth handshake is bounded on both sides and its harness is declared rather than borrowed — and the DM model gets designed, which promotes a third project lens
 
 **Date:** 2026-07-26 · **Seats:** Joe (§5 ruling requested and delegated; S2; the View menu; the self row opens a DM; lazy creation; no client-side backup; **H4**; and the instruction that promoted the T4 assertion to a standing lens). Clair (A-ter implementation; the §5 escalation that found the real blocker). Chat (independent re-drive, the D-121 amendment, records).

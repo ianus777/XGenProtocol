@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.9  
+> Version: 1.10  
 > Date: May 2026  
-> **Last updated**: 2026-07-23  
+> **Last updated**: 2026-07-26  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -3401,3 +3401,24 @@ document*.
 ⚠️ **SECOND, UNRELATED: A DEV-SERVER ORPHAN SURVIVES ITS PARENT.** The Vite server found on 5173 had been running **33 hours** and its `npm` parent PID was already gone. `taskkill /T` on the surviving PID reaped a **grandchild at PID 34412** that a name-only `node.exe` filter would have left behind. ⇒ **the standing tree-kill rule is confirmed live, and process age is not bounded by parent lifetime** — a stale server can outlast the session that created it and silently serve two-day-old code to the next launcher, since `run-client.ps1` only waits for port 5173 to answer and cannot tell a fresh server from a stale one.
 
 📌 **Practical rule.** Before any UI measurement, check the **age** of whatever holds 5173, not merely that something does. Port-up ≠ current, exactly as port-up ≠ ready.
+---
+
+### N-166 — A launcher that starts a server must OWN it: the tree is four deep, and a readiness probe cannot tell "my server" from "a server"
+
+**Date:** 2026-07-26 · HEAD `5339d5d` · found closing the run-*.ps1 defect ahead of M-RP-MEMBERS Leg B (J-592).
+
+⚠️ **THE HANDLE IS NOT THE SERVER.** `run-*.ps1` held `$vite = Start-Process cmd.exe /c "npm ... run dev" -PassThru` and cleaned up with `Stop-Process $vite`. **Measured live, the tree is FOUR levels: `cmd.exe` (ours) -> `node` npm-cli.js -> a SECOND `cmd.exe /d /s /c vite` -> `node` vite.js (THE LISTENER).** The cleanup killed **one of six** processes; npm survived and RESPAWNED vite. Every run leaked a server.
+
+🔑 **AND THE PROBE COULD NOT SEE IT, BECAUSE IT ASKED THE WRONG QUESTION.** `Invoke-WebRequest localhost:5173` distinguishes nothing: all three Vite configs are `strictPort: true`, so the next run's own Vite **dies on the taken port** while the probe is **answered by the leak** and prints *"Vite ready"*. The app then runs a **stale bundle with no error anywhere** — every downstream probe passes, against code that is not the code under test.
+
+📌 **N-165 saw one half of this** (an orphan outliving its parent) and prescribed checking the orphan's **age**. That is a symptom rule. **The cause is ownership**: presence of a listener is not evidence that it is yours.
+
+**Fix shape — three guarantees that cover each other.** ① refuse pre-flight if the port is held, **naming the holder's PID and command line**; ② assert the listener is a **descendant of the process we spawned** (PPID walk); ③ `taskkill /T /F` in a **`finally`** (`exit` inside `try` still runs it). The residual gap — a console window closed mid-run skips `finally` — is covered by ①, which makes the **next** run refuse loudly rather than lie.
+
+⚠️ **A NEGATIVE CONTROL THAT SHARES AN ANCESTOR WITH THE POSITIVE CONTROL IS NOT A NEGATIVE CONTROL.** The first descendant check was validated against `$PID` as the "unrelated" ancestor — but `$PID` was the shell that **spawned the chain**, so `True` was the correct answer to a question that tested nothing. N-163 requires a control; it is not satisfied by merely **having** one. Re-driven against an unrelated live process, a non-existent PID, and the reversed direction.
+
+⚠️ **TWO READER DEFECTS FOUND THE SAME DAY, BOTH REPORTING CONFIDENTLY.** ① PS 5.1 `Get-Content` **without `-Encoding UTF8`** mojibakes every repo doc (`—` -> `â€"`) and reads exactly like file corruption; the byte-level check showed clean UTF-8, no BOM — **the reader was the defect, not the file**. ② `[IO.File]::ReadAllBytes` with a **relative** path ignores PowerShell's `cd`: it returned `len=0` while `Get-Item` on the same name returned `583537` **in the same invocation**. 📌 **Absolute paths only; `-Encoding UTF8` always.**
+
+⚠️ **AND ONE WRITER DEFECT:** `Windows-MCP:FileSystem` mode=`write` emits **CRLF**. A new `tasks/*.md` (LF by convention) came out with CR=149. Caught only by counting raw bytes after the write — which is why that step is not optional.
+
+📌 **Practical rule.** A script that starts a process must be able to answer *"is the thing on that port mine?"* — not *"is anything on that port?"* If it cannot, its success reports are worthless in exactly the case they matter.

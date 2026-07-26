@@ -3,9 +3,9 @@
 # window over the Chrome DevTools Protocol. Never target a release build
 # (release closes the devtools feature and the port). Spec: docs/CDP_DEBUG_HARNESS.md.
 #
-# Usage:
-#   .\cdp-debug.ps1 -App client -Launch -Mode eval -Expression "1+1"  # launch, eval, clean up
-#   .\cdp-debug.ps1 -App node   -Launch -Mode console -Seconds 8       # launch node, tail console 8 s
+# Usage: THIS SCRIPT ATTACHES. IT DOES NOT LAUNCH. Start the app with the matching
+# run-*.ps1 -Debug (the cdp.dev.conf.json overlay is the only route that opens the
+# port on WebView2 >=136 - D-104), then attach here. -Launch is RETIRED and refuses.
 #   .\cdp-debug.ps1 -App node -Mode state                              # attach to a RUNNING node, dump registry
 #   .\cdp-debug.ps1 -App client -Mode screenshot                       # attach to a RUNNING client, save PNG to temp\
 #   .\cdp-debug.ps1 -App client -Ordinal 1 -Mode eval -Expression "location.href"
@@ -184,11 +184,23 @@ function Show-Eval {
 
 try {
     if ($Launch) {
-        if (-not (Test-Path $Exe)) { throw "Exe not found: $Exe" }
-        $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$port"
-        $proc = Start-Process -FilePath $Exe -PassThru
-        $launchedPid = $proc.Id
-        Write-Host "Launched $Exe (PID $launchedPid), remote-debugging-port=$port"
+        # -Launch IS RETIRED, AND IT REFUSES RATHER THAN PRETENDING (M-RP-DEVSERVER-GUARD).
+        # It could not work and it FAILED CONVINCINGLY: it set
+        # WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, which WebView2 >=136 IGNORES (D-104, and
+        # this script's own header says so 150 lines above), and it ran $Exe, which
+        # defaults to bin\xgen-*.exe - a STALE RELEASE BINARY, not the dev build. The
+        # output was two reassuring lines ("Launched..." / "Cleaned up...") plus exit 1,
+        # and it put a plausible XGen window on screen. That is worse than no feature.
+        # THE ONLY CDP ROUTE IS THE cdp.dev.conf.json OVERLAY, which the run-*.ps1
+        # launchers already take. Launch there, then attach with this script.
+        Write-Host "-Launch IS RETIRED AND CANNOT WORK. WebView2 >=136 ignores the env-var"
+        Write-Host "route (D-104); the only CDP route is the cdp.dev.conf.json overlay."
+        Write-Host "Launch the app first, in its own window:"
+        Write-Host "    .\run-client.ps1 -Debug     (CDP 9222)"
+        Write-Host "    .\run-node.ps1 -Debug       (CDP 9322)"
+        Write-Host "    .\run-sampler.ps1 -Debug    (CDP 9422)"
+        Write-Host "then re-run this script WITHOUT -Launch to attach."
+        exit 1
     }
 
     # Resolve the page target. Fast TCP probe first (a refused port fails in ~ms,

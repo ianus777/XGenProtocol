@@ -1,6 +1,6 @@
 # M-RP-MEMBERS — the R7 members widget over the address book
 > **Status**: ACTIVE  
-> Version: 1.12  
+> Version: 1.15  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  
@@ -508,6 +508,70 @@ R7 is the first region with **real** candidates: `role` → `secondary`? `last_s
 **Leg D — records + close.** JOURNAL + CLAUDE.md PLAY + ROADMAP + this doc, **one commit** (D-074).
 
 📌 **A and B split deliberately:** A moves the Rust floor, B moves svelte-check. One commit spanning both makes a regression ambiguous.
+
+---
+
+## §8a — 🛑 THE BLOCKER: §5's STEADY STATE WAS NEVER BUILT, AND NO LEG WAS EVER ASSIGNED TO BUILD IT 🔓 JOE'S (architecture)
+
+**Found by Clair opening Leg C; verified independently by Chat from the code at `0466cb2`, 2026-07-26.**
+
+**THE MEASUREMENT — four reads, not a report:**
+
+| Claim | Code | Result |
+|---|---|---|
+| the only `addressBook` writers | `app_client.svelte:173/:176/:183/:187` | **all four inside `loadMembers`** |
+| the only `loadMembers` caller | `app_client.svelte:169` | inside the `$effect` whose **sole** tracked dependency is `roomLatch.effectiveSpaceId` (`:168`) |
+| what the live event reaches | `app_client.svelte:551-552` — `xgen-event` → `ingest.push` | **R5's store.** Nothing bridges `ingest` → `addressBook` |
+| the store's surface | `ui/common/lib/stores/address-book.svelte.ts` (145 lines) | **four methods only** — `setInflight · setResult · setFailed · reset`. No `addMember`, no `removeMember` |
+| `membership` anywhere in the shell | grep, `app_client.svelte` | **zero occurrences** |
+
+⇒ **R7's roster NEVER CHANGES after the fill until the room is re-latched.** §5 locked the steady state as the live membership channel; §8's Leg C was assigned to *verify* it; **no leg was ever assigned to build it.** Leg C's REQUIRED LEG asserts a behaviour that does not exist.
+
+📌 **§5's push path is otherwise CONFIRMED, and this is the half that does hold.** Re-measured 2026-07-26: `apply_fanout` (`fanout.rs:244`) is called from `app.rs:2020` once per accepted locally-submitted event, **before any event-type branch**, and is generic over the event — the only `event_type` match inside it is `derive_event_nodes` (the observer *filter* dimension, §5's table). ⇒ **`membership.join` rides exactly the same fan-out path as the `message` test at `fanout.rs:843`, and the author exclusion at `:301-307` applies to it identically.** The event does reach the frontend. **Only the last hop — frontend event → roster — is missing.**
+
+### THE FOUR OPTIONS — D-121 THREE LENSES, PER OPTION
+
+**(A) BUILD THE LIVE HANDLER, THEN VERIFY.** A `membership.*` branch on the **existing** `xgen-event` listener (`:551`), scoped to the current Space, plus `addMember`/`removeMember` on the store.
+- **① User-visible:** live *who is here*. A join appears and a leave disappears without re-entering the room.
+- **② Tier:** neutral. Reads an event already delivered; adds no persistence, no new copy, no erasure-fate change, no tier race.
+- **③ Resource:** real frontend work — eight `Membership*` variants to triage, ordering, dedup, name resolution for a joiner absent from the book. Moves `svelte-check`. Its own commit. **A bridge on an existing transport, not a new transport.**
+
+**(B) DESCOPE — R7 v1 IS A SNAPSHOT.** Accurate as of the last fill, refreshes on re-entry; steady state files as its own milestone.
+- **① User-visible:** the panel **silently omits people who are in the room**, and keeps showing people who have left.
+- **② Tier:** the departed-member row is the sharper edge — someone who left or was banned still renders as present. Not erasure in the D-093 sense, but the same shape at the UI: one party's state change invisible to another.
+- **③ Resource:** free now — **except it is not.** §3's hard rule is *"staleness and absence BOTH render as UNKNOWN, never as fine."* Under B, state ② says *"self + all in room"* when it means *"as of when you opened it"*, with no staleness signal. **That is the exact lie this milestone exists to prevent.** Making B honest needs an as-of-open marker — **new appearance work in Joe's lane, costing more than A.**
+
+**(C) VERIFY WHAT EXISTS, RECORD THE GAP AS UNMET.** Decides nothing; the milestone cannot close with a REQUIRED LEG unmet. **Listed for completeness only.**
+
+**(D) EVENT-TRIGGERED RE-FILL.** On a scoped `membership.*` event, re-run the existing fill.
+- **① User-visible:** **identical to A.**
+- **② Tier:** the one place D is genuinely worse than A — every membership event re-runs `fill_space_records`, which **re-persists the address-book cache to disk**. More writes of other people's identity records, triggered by other people's actions.
+- **③ Resource:** far cheaper — a few lines, no variant handling. But it **contradicts §5's lock**: it spends a drain plus a book fetch to learn what the event already said (a round-trip per join on a busy Space), and it makes the REQUIRED LEG's *"without a re-fill"* **unprovable by construction**.
+
+**CHAT PROPOSES, DOES NOT DECIDE: (A).** It delivers §5's lock, it is a bridge rather than a transport, and it is the only option under which the REQUIRED LEG is provable. **(D) is the honest fallback if A proves too big** — same user outcome, and the price is amending §5's lock **openly** rather than shipping B and letting state ② quietly lie.
+
+🔒 **RULING (Joe, 2026-07-26) — NONE OF THE FOUR. THE MECHANISM IS BUILT PROPERLY AND SHARED WITH THE ROOMS PANEL.** *"we have to build it properly and in this way that the mechanism will use also for rooms panel, where are all rooms of selected server and needs to be updated … if we will have such mechanism, it will have sense to use it intensively."* ⇒ **this is (A) with a second consumer, and it is recorded as its own decision — NOT as Joe picking (A)**, so no later reader collapses the two. ⚠️ **The widening was grounded before it was accepted, not after:** `spacesState.setSpaces` has **exactly one caller in the entire codebase** (`app_client.svelte:567`, the startup block), so the spaces/rooms tree is frozen **for the whole session** — worse than the roster, which at least reloads on a Space change. The `state.*` events that would refresh it already exist (`wire.rs:37-41`) and already arrive.
+
+🔒 **CARRIED OUT OF THIS MILESTONE (Joe, 2026-07-26): its own milestone —** *"we can do it as new milestone if needed"*. Phase-0 written to `tasks/M_RP_LIVEFEED_REFRESH.md` v1.1 ACTIVE — **M-RP-LIVEFEED-REFRESH — the live event router behind the members and rooms panels** (name locked by Joe, §3 there). **M-RP-MEMBERS §5 is satisfied by that milestone's Leg A, and this milestone's Leg C unblocks behind it.**
+
+📌 **CONSEQUENT SEQUENCING, ALSO JOE'S (proposal, not a decision):** under **A** or **D** the leg list needs a **build leg between B and C** — it moves `svelte-check` while Leg C moves nothing, and folding a build into a verify leg is the same attribution-mixing §8 splits A from B to prevent. **Superseded in practice by the ruling above** — the build leg now lives in `M_RP_LIVEFEED_REFRESH.md` §7 Leg A rather than in this document's §8.
+
+---
+
+## §8b — 🔑 THE META-FINDING: THREE GAPS, ONE SHAPE, AND THE AUTHORING HABIT BEHIND THEM
+
+**This Phase-0 locked three behaviours that no leg was assigned to build:**
+1. **§5 steady-state roster refresh** — §8a above.
+2. **§6 unresolved rows DISTINGUISHABLE** — shipped code renders `rec?.display_name ?? tail(id)`, so `not_found` (**permanent**) and record-without-a-name collapse to the **same tail-8**; and the **transient** case cannot occur at all, because the fill awaits roster *and* book before a single `setResult`.
+3. **The membership author-exclusion test** — §8's REQUIRED LEG demands it; no leg builds it, and it moves the **cargo** floor while the §5 handler moves **svelte-check**, so it cannot be folded into the build leg either.
+
+⇒ **Every leg did what it was told. Leg C was told to verify things nobody was told to build.**
+
+🔑 **THE HABIT — CHAT'S, NAMED SO IT STOPS:** *scope is written in FILES, requirements are written in BEHAVIOURS, and the two are never reconciled.* Three instances in three sessions — PANEL-INERT §1 omitted `app_sampler.svelte` while §4 required a DOM verification that needed it; Leg B §6 required *"all five states observed"* while §7 put observation in Leg C; and Phase-0 §8 assigned Leg C to verify §5, which no leg built.
+
+🔒 **RULE, APPLIED FROM HERE:** any DoD item containing **"observed"**, **"exercised"**, **"driven"** or **"measured"** MUST name its **surface** in the scope section, or the scope section is wrong. And before a leg list is locked, walk **every 🔒 in the document** and ask **WHICH LEG BUILDS THIS.**
+
+📌 **Clair flagged and proceeded correctly all three times.** She has been absorbing a defect that is Chat's to stop making.
 
 ---
 

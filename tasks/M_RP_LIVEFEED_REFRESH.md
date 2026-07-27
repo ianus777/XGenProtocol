@@ -1,6 +1,6 @@
 # M-RP-LIVEFEED-REFRESH — the live event router behind the members and rooms panels
 > **Status**: ACTIVE  
-> Version: 1.9  
+> Version: 1.10  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  
@@ -227,8 +227,9 @@ Joe's *"it will have sense to use it intensively"* is right about frequency and 
 🔑 **AND THE LOCK IS STRONGER THAN THE QUESTION IT ANSWERS.** §5f asked *should the client cache messages?* Joe answered a level up: **the client is a reader-sender and holds no user data.** That makes the message-cache answer a **consequence of a standing property**, not a milestone-local trade — and it means §5f's D-093 tension **never has to be adjudicated**, because the copy that would create it never exists. 📌 **The cleanest possible resolution of the hardest question in this arc: the tension is dissolved rather than balanced.**
 
 ⚠️ **ONE MEASURED EXCEPTION, SURFACED BECAUSE THE RECORD MUST NOT SAY WHAT THE DISK CONTRADICTS.** The client **does** persist third-party personal data today: `xgen-client_address_book.json` holds, per identity, `display_name · identity_id · home_node · is_ai · last_seen · revoked · trust_assertion` (`address_book.rs:78-111`). That is **other people's data, on the user's disk, outside their erasure reach** — the same shape as the cache concern, already shipped at smaller scale.
-- 📌 **It is NOT unbounded:** `T1_DEFAULT_RETENTION_DAYS = 182` (`address_book.rs:66`), explicitly distinguished from the tier renewal TTLs, which run the opposite direction.
-- ⚠️ **UNMEASURED, AND CHAT'S TO CLOSE:** whether **eviction is actually wired** or the constant is only declared. A retention policy that nothing enforces is a retention policy in name only. **Not claimed either way here.**
+- 📌 **A BOUND IS DECLARED:** `T1_DEFAULT_RETENTION_DAYS = 182` (`address_book.rs:66`), explicitly distinguished from the tier renewal TTLs, which run the opposite direction. ⚠️ **This bullet originally read *"It is NOT unbounded"* — corrected: a declared bound is not an enforced one, see the next bullet.**
+- ⚠️ **ANSWERED — DECLARED AND TESTED, NEVER WIRED (Chat, measured 2026-07-26 at `c44eb1d`).** `#[cfg(test)] mod tests` opens at `address_book.rs:335`. **Every** occurrence of `evict_older_than` and `T1_DEFAULT_RETENTION_DAYS` outside the declaration (`:66`) and the definition (`:285`) sits at **`:591 · :607 · :615 · :627 · :643` — all inside that test module.** A repo-wide search across every `.rs` in every crate (`.claude` excluded) returns **those seven lines and nothing else**. ⇒ **`evict_older_than` has ZERO production callers.** 🔑 **The 182-day retention is enforced by the test suite and by nothing that ever runs.** 📌 §5f's own sentence stands as written — *a retention policy that nothing enforces is a retention policy in name only* — and it is now **measured, not suspected.**
+- 🔑 **AND IT STRENGTHENS H1 RATHER THAN COMPLICATING IT.** H1's lens ③ said the eviction question *"dies with"* the file. It does more than die: **there was never a live bound to lose.** The book on disk is today **unbounded in fact**, so H1 removes an actual unbounded at-rest store of third-party data, not a bounded one. ⚠️ **If H1 is NOT taken, wiring the eviction is not a tidy-up — it is the difference between the record being true and being false.**
 - 🔓 **The reconciliation is Joe's:** either the reader-sender rule carries a named exception for identity records, or the address book is held to it. **Recorded, not resolved.**
 
 ---
@@ -285,7 +286,27 @@ Joe's *"it will have sense to use it intensively"* is right about frequency and 
 
 🔑 **BUT THE EXTENSION DISCIPLINE ALREADY EXISTS, AND ONE PRECEDENT IS DIRECTLY ON POINT.** `AuthOk` gained the Node's own `node_id` as an **additive optional field** — *"old nodes omit it, old clients ignore it — no `protocol_version` bump"* (`xgen-core/src/wire/types.rs:68-71`, citing Ch3 §3.0.3). ⇒ **adding a FIELD is cheap and precedented.**
 
-⚠️ **A NEW MESSAGE TYPE IS NOT THE SAME CLASS OF CHANGE.** An old node receiving an unknown request cannot answer it, so the additive-optional argument does not carry across. 📌 **`NegotiatedCapabilities` exists** (`xgen-node/src/app.rs:68`) and is the obvious mechanism for introducing a verb behind a capability flag rather than a version bump. ⚠️ **Its actual shape and whether it can carry this is UNMEASURED — named as the thing to measure, not claimed.**
+⚠️ **A NEW MESSAGE TYPE IS NOT THE SAME CLASS OF CHANGE.** An old node receiving an unknown request cannot answer it, so the additive-optional argument does not carry across.
+
+🛑 **`NegotiatedCapabilities` MEASURED — IT CANNOT CARRY THIS, FOR TWO INDEPENDENT REASONS (Chat, 2026-07-26 at `c44eb1d`). THE PROPOSAL IS WITHDRAWN.**
+
+⚠️ **AND THE POINTER ITSELF WAS WRONG.** §5h-i cited the shape as living at `xgen-node/src/app.rs:68`. **That line is an `use` statement.** The declaration is **`xgen-core/src/wire/types.rs:305`**. 📌 *An import is not a definition — the same species as the M-RP6.2/6.6 gate-versus-author collapse, caught here before it was built on.*
+
+**The measured shape, in full — it is two scalar strings:**
+
+```rust
+pub struct NegotiatedCapabilities {
+    pub serialisation: String,
+    pub protocol_version: String,
+}
+```
+
+1. ⚠️ **THERE IS NO FEATURE OR EXTENSION FIELD TO PUT A VERB BEHIND.** Two scalars, both single-valued. 🔑 **And the drop is deliberate, not an omission:** the *declared* side, `FederationCapabilities` (`types.rs:284-291`), **does** carry `extensions: Vec<String>` — and `handshake.rs:298` constructs the negotiated result from `serial` + `neg_version` **only**. ⇒ **extensions are DECLARED and never NEGOTIATED.** Nothing reads a negotiated extension because none survives the handshake.
+2. 🛑 **IT IS THE WRONG LINK ENTIRELY. IT IS NODE↔NODE, AND H2 IS CLIENT↔NODE.** `NegotiatedCapabilities` appears only inside `FederationMessage::Capabilities` (`types.rs:344`) — the **federation** handshake between two Nodes. **H2's verb rides `TransportMessage`, the client session.** 📌 Every non-test occurrence is federation code (`handshake.rs:41/:298/:619`, `app.rs:68/:2253`); the remaining five are reconnect and federation-push tests.
+
+🔑 **BUT THE CAPABILITY-FLAG PATTERN DOES EXIST IN THIS CODEBASE — ON A THIRD STRUCT.** `xgen-core/src/bootstrap/capability.rs` writes `"xgen.bootstrap"` into `capabilities.extensions` on a **`NodeAnnouncement`** (`node/announcement.rs:50`) at `:42-43` and reads it back at `:54` and `:107`. ⇒ **the discipline is precedented and working — just not on either the federation handshake or the client session.** ⚠️ **So H2 behind a flag is not impossible; it is UNBUILT on the link H2 needs**, and that is a different and larger statement than §5h-i's *"the obvious mechanism"*.
+
+⇒ 🔓 **THE QUESTION H2 NOW INHERITS, AND IT IS JOE'S:** does the **client session** get a capability-negotiation surface at all? That is a protocol-shaped decision in its own right — **it would be the mechanism by which every future client verb ships**, not a detail of this one. 📌 **Chat proposes it be named and scoped separately from H2 rather than smuggled in as H2's enabling work.**
 
 🔑 **AND THE REAL COST IS PROBABLY FEDERATION, NOT THE VERB.** *"Node returns visit cards"* only works if **that node holds the card.** Records today are derived from a Space DAG the node already hosts. A pubkey-keyed lookup for someone whose home Node is elsewhere is **a federated fetch**, with its own authorization, caching and failure semantics. ⇒ **the verb is the small half; deciding what happens when the answer lives on another Node is the milestone.**
 
@@ -294,7 +315,7 @@ Joe's *"it will have sense to use it intensively"* is right about frequency and 
 ⚠️ **BUT THE THREE THINGS THAT MAKE H2 A DESIGN PASS DO NOT GET CHEAPER WITH WILLINGNESS TO BUILD.** Naming them so the relaxed cost lens is not mistaken for a green light:
 1. 🔓 **THE SCOPE RULE IS THESIS-BEARING** (§5h-ii) — Joe's, and it is the whole decision.
 2. 🔓 **FEDERATION SEMANTICS** — what happens when the card lives on another Node. Design, not typing.
-3. ⚠️ **`NegotiatedCapabilities`' actual shape** — still UNMEASURED, still Chat's.
+3. ✅ **`NegotiatedCapabilities`' actual shape — MEASURED AND CLOSED (above). It cannot carry H2.** ⇒ replaced by a **larger** open item: 🔓 **whether the CLIENT session gets a capability-negotiation surface at all — Joe's, and scoped separately from H2.**
 
 #### 🔓 §5h-ii — DOES H2 TOUCH THE FUNDAMENTAL THESIS? (Joe asked in those terms, 2026-07-26)
 

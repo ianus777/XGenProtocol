@@ -8,6 +8,36 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-602 — the roadmap already contained the tree we were about to build, and the precondition blocking Leg C was guarding a loss that git makes impossible
+
+**Date:** 2026-07-26 · **Seat:** Chat (measurement + records). Follows J-601 the same evening. No code. Two documents, one new.
+
+🛑 **THE FINDING, AND IT IS ABOUT THIS MILESTONE'S OWN PREMISE.** `docs/ROADMAP.md` **lines 66–282 are a fenced ASCII tree of the milestone hierarchy — 215 node lines, 79,802 bytes, 10.5% of the file — under the heading *"Visual structure — nested view"*.** One node per line, structure from nesting, a status symbol on each node. **That is substantially the artefact §3 specifies and Leg C was scoped to build.** 🔑 **And it is maintained, not abandoned: the document states the rule in bold two lines above it — *"Same-commit discipline applies to the tree, no exceptions."*** ⚠️ **§4c called it *"an old ASCII tree diagram"*. It is not old.** That one unchecked word is why §4's decomposition counted **four** tree nodes where there are **seventy-five**.
+
+⚠️ **INSTANCE SIX OF THIS ARC'S RECURRING DEFECT AND THE LARGEST, BECAUSE IT IS ABOUT THE PREMISE: §1 MEASURED THE DOCUMENT'S SIZE AND ITS MARKER CENSUS AND NEVER ASKED WHAT ITS SECTIONS WERE.** It is Chat's. 🔑 **It surfaced because the P1 enumeration was RUN rather than re-read from its own summary** — the same lesson as J-599's counter-example, now paid twice.
+
+🔑 **THE TREE'S OWN CENSUS SETTLES §1's ARGUMENT BETTER THAN §1 DID.** Whole file: **592 ✅ · 69 🟢 · 69 🟡 · 22 ⏸️ · 20 ⬛ · 9 ❌.** Inside the tree: **241 ✅ · 8 🟢 · 3 🟡 · 5 ⏸️ · 5 ⬛ · 0 ❌.** ⇒ **§1's headline was *"nothing can have SIXTY-NINE things in play"*; inside the tree PLAY is EIGHT.** **The tree already behaves as a state board and the 69 comes entirely from the prose. §1 was right about the document and wrong about which part of it is sick.** 📌 **102 tree nodes carry a `J-` reference and 81 do not ⇒ Leg C's real link-audit surface is 81 nodes, not 775.**
+
+🔑 **AND §3's PROJECTION TURNS OUT TO HAVE BEEN PREDICTING SOMETHING ALREADY IN THE FILE.** §3 estimated the end state at **~70 KB**; the existing tree is **79,802 B** — **agreement to within 12%, arrived at from an independent direction.** Strongest evidence yet that the target shape is right.
+
+⚠️ **§4's 🔒 *"P1 IS CLEARED"* IS RETRACTED.** The 94-on-90 headline **reproduces exactly** at `a1d3630` (whole-file ✅ is now 592, up six from this session's own commits, **all carrying J-refs**, which is why the unlinked set is unchanged) — **what was wrong was the classification, not the count**: **75** ASCII-tree nodes (not 4) · **2** legend rows (not 4) · 2 bullets · **11** other. **Six unlinked non-tree lines were never in §4's risk list — `428 · 444 · 450 · 454 · 997 · 1023`**, unclassified and stated as open. 📌 **§4's *"8 — NOT AT RISK"* row also lists nine items and totals them as eight.**
+
+🔑 **THE SECTION MAP, MEASURED, IS WHAT MAKES LEG C COUNTABLE:** header/legend 4,503 B · **THE TREE 79,802** · how-to-use 12,871 · **PAST — settled 283,465 (37.4%)** · **PRESENT — playing now 362,121 (47.7%)** · near/far future 2,944 · cross-cutting 12,380 · how-to-read 827. 🔑 **THE MOST TELLING NUMBER IN THE ARC: *"Present — playing now"* IS LARGER THAN *"Past — settled"* — 281 lines averaging 1,289 bytes each. A section named *playing now* that is half the document is the diagnosis stating itself**, and it is the same shape as `CLAUDE.md`'s PLAY head, which is why §6 ruled both. **Delete target 645,586 B (85.1%); survivor ~113 KB.**
+
+🔒 **JOE LOCKED LEG C's SCOPE, ANSWERING A BOUNDED DIRECT QUESTION: *keep the tree that exists · apply §3's field rules to its nodes · delete the prose.*** 📌 **Recorded as a LOCK, not a delegation** — §6/§7 were delegated the same evening and the two acts must not be conflated. **Runbook `tasks/RUNBOOK_ROADTREE_LEGC.md` v1.0 ACTIVE:** three countable passes — **Pass 1 the 81-node link audit** (five-step resolution order, `record: not located` where nothing is found, **never an invented J-number**) · **Pass 2** 8 triggers + 5 deprecation reasons + arrows **only where the cited record documents the loose end** + **the 8 🟢 nodes checked against reality** · **Pass 3** the two-section deletion. Seven verifications, V1–V7.
+
+🔑 **AND THE PRECONDITION THAT HAD BLOCKED LEG C ALL SESSION WAS GUARDING A LOSS THAT CANNOT HAPPEN.** §4 required 775 entries be proven redundant before any deletion. **The archive is committed and git holds every byte of every version** ⇒ **nothing removed is recoverable-in-principle; it is recoverable in two commands.** ⚠️ **The bar was MIS-SET, not met early.** The real question is whether the surviving tree's links work — 81 lookups — **so §4's precondition is discharged by V7 (`git show a1d3630:docs/ROADMAP.md`), run BEFORE the deletion, not by the walk it originally specified.** 📌 **§8b and §8a stay open and real; neither gates anything now.**
+
+⚠️ **ONE DoD NUMBER MOVES AND IS NOT FUDGED:** §9's *under 100 KB* against a **~113 KB** end state. 🔓 **Chat proposes ≤ 120 KB** rather than trimming *how-to-use* and *cross-cutting*, **which are instructions and standing context, not chronicle** — cutting them to hit a round number would be optimising the metric rather than the document.
+
+⚠️ **THE HONEST CRITICISM OF THIS SESSION, RECORDED BECAUSE JOE ASKED THE QUESTION THAT FORCED IT** (*"so how we move on if you dont need my lock or approval?"*)**: three commits, zero code, and P1 went from 🔒 CLEARED to RETRACTED. Every finding was real and each prevented a wrong build — but the audit surfaced SIX defect instances and DID NOT CONVERGE.** 🔑 **A stopping condition should have been named before the audit started, not after the sixth instance.** The runbook's §0 bound and §7 reporting rule (*report `n/81`, not a narrative; a pass that cannot complete stops with its count and does not widen*) exist for exactly that, **and they only work if honoured during the pass.**
+
+**FLOORS.** Untouched, not re-measured — no code: cargo **1588 / 0 / 62 across 56** · svelte-check **0 / 34 / 15** · client registry **160 with 3 spaces / 5 rooms**.
+
+**RECORDS.** `tasks/M_DOC_ROADTREE.md` v1.4→1.7 (§4a-i the six-of-ten correction + the §4b amendment proposal · **§1b the tree finding and the corrected P1 decomposition** · §8 Leg C locked · §9 · §11) · **`tasks/RUNBOOK_ROADTREE_LEGC.md` v1.0 NEW** · `CLAUDE.md` PLAY · `docs/ROADMAP.md`. **No new D, no new N.** → J-602.
+
+---
+
 ## Entry J-601 — two owed measurements discharged: the address book's retention is enforced by nothing that runs, and the mechanism H2 was to ship behind is the wrong link
 
 **Date:** 2026-07-26 · **Seat:** Chat (measurement + records). Follows J-600 the same evening, while M-DOC-ROADTREE is blocked on Joe. No code. One document.

@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.7  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  
@@ -59,6 +59,57 @@
 🔑 **THE FINDING THAT REFRAMES THE WHOLE TASK: THERE ARE 69 🟢 PLAY MARKERS.** Nothing can have sixty-nine things simultaneously in play. ⇒ **PLAY is being used as *"this was in play when this was written"* — historical narration, not current state.** And **586 of 775 markers (76%) are ✅ DONE.**
 
 ⇒ **`ROADMAP.md` has become a chronicle. That is the defect, and it is upstream of any individual wrong entry.** Auditing 775 entries inside a 750 KB document would be days of work, most of it re-checking history that cannot change.
+
+---
+
+## 🛑 §1b — THE DOCUMENT ALREADY CONTAINS A MAINTAINED STATE TREE, AND §1 NEVER LOOKED. MEASURED 2026-07-26 AT `a1d3630`
+
+⚠️ **INSTANCE SIX OF THIS ARC'S RECURRING DEFECT, AND IT IS THE LARGEST: IT IS ABOUT THE MILESTONE'S OWN PREMISE, AND IT IS CHAT'S.** §1 measured the document's **size** and its **marker census** and never asked what its **sections** were. 🔑 **Found by running the P1 enumeration properly instead of re-reading the summary of it.**
+
+🔑 **`docs/ROADMAP.md` LINES 66–282 ARE A FENCED ASCII TREE OF THE MILESTONE HIERARCHY — 215 NODE LINES, 78,841 BYTES, 10.4% OF THE FILE — UNDER THE HEADING *"Visual structure — nested view"*.** One node per line, structure from nesting, a status symbol on each node. **That is substantially the artefact §3 specifies and Leg C was to build.**
+
+🔑 **AND IT IS NOT ABANDONED. THE DOCUMENT STATES ITS MAINTENANCE RULE IN BOLD, TWO LINES ABOVE IT:** *“Same-commit discipline applies to the tree, no exceptions. When updating ROADMAP.md for any state change, the tree also updates.”* ⚠️ **§4c called it *“an old ASCII tree diagram”*. It is not old. That single word carried an assumption that was never checked**, and it is why §4's decomposition counted **4** tree nodes where there are **75**.
+
+### The corrected P1 decomposition — re-run at `a1d3630`, not inherited
+
+📌 **The headline numbers REPRODUCE EXACTLY: 94 ✅ markers on 90 unlinked lines.** (Whole-file census is now **592 ✅**, up from 586 — six added by this session's three commits, **all carrying J-refs**, which is why the unlinked set is unchanged.) **What was wrong was the classification, not the count.**
+
+| Class | §4 said | **Measured** | Lines |
+|---|---|---|---|
+| ASCII-tree nodes | *"4 nodes of an old ASCII tree"* | ⚠️ **75** | 70 … 277, all inside the fence |
+| legend / table rows | 4 | **2** | 30, 35 |
+| bullets | *(inside the 4)* | **2** | 42, 292 |
+| everything else | 5 risk + 1 prose | **11** | 372, 376, 396, 412, 414, **428, 444, 450, 454, 997, 1023** |
+
+⚠️ **§4's *"8 — NOT AT RISK"* row lists 4 + 4 + 1 = NINE items and totals them as EIGHT.** Arithmetic slip, recorded rather than quietly fixed.
+
+⚠️ **AND THE RISK SET IS NOT 5.** §4 resolved `372 · 376 · 396 · 412 · 414` and closed P1. **Six further unlinked non-tree lines were never in that list: `428 · 444 · 450 · 454 · 997 · 1023`.** 📌 **Not yet classified — stated as open, not guessed at.** ⚠️ **§4's 🔒 *"P1 IS CLEARED"* is therefore RETRACTED.**
+
+### 🔑 What the tree's own census proves — and it sharpens §1's diagnosis rather than weakening it
+
+| Symbol | Whole document | **Inside the tree** |
+|---|---|---|
+| ✅ DONE | 592 | 241 |
+| 🟢 PLAY | **69** | ✅ **8** |
+| 🟡 PENDING | 69 | 3 |
+| ⏸️ POSTPONED | 22 | 5 |
+| ⬛ DEPRECATED | 20 | 5 |
+| ❌ CANCELLED | 9 | 0 |
+
+🔑 **§1's headline finding was *"nothing can have SIXTY-NINE things in play"*. Inside the tree, PLAY is EIGHT.** ⇒ **the tree already behaves as a state board; the 69 comes entirely from the prose sections.** **§1's diagnosis is right about the document and wrong about which part of it is sick.**
+
+📌 **102 tree nodes carry a `J-` reference; 81 do not.** That is Leg C's real link-audit surface — **81 nodes, not 775.**
+
+### 🔓 CONSEQUENCE FOR LEG C, AND IT IS JOE'S BECAUSE IT IS STRUCTURE
+
+**Leg C was scoped as *convert 775 prose entries into a tree that does not yet exist*. Measured, the work is different and smaller:**
+1. **The tree EXISTS and is maintained.** It is kept, not invented.
+2. **§3's FIELD RULES are what it lacks** — a canonical-record link on every ✅ (81 owed), a trigger on every 🟡/⏸️, an arrow on closed nodes. **That is the actual deliverable.**
+3. **The PROSE sections are the chronicle** — ~680 KB — **and they are what leaves.**
+
+🔑 **AND THE ARITHMETIC NOW CLOSES, WHICH IT DID NOT BEFORE.** §3 projected the end state at **~70 KB**. **The existing tree is 78,841 bytes.** ⇒ **the projection and the artefact already agree to within 12%** — §3 was, without knowing it, predicting the size of a thing already in the file. **That is corroboration from an independent direction, and it is the strongest evidence yet that the target shape is right.**
+
+⚠️ **§7's S1-versus-S2 ruling is UNAFFECTED and was decided on the correct grounds** — the tree it chose is the tree that exists. 📌 **§6's *"both"* is likewise unaffected**, though Leg D should now ask the same question first: **does `CLAUDE.md` also already contain a structure nobody measured?**
 
 ---
 
@@ -173,7 +224,39 @@
 
 ⇒ **DOC-ONLY MILESTONE EVENTS WERE DELIBERATELY RECORDED AS HEADER-CHAIN ENTRIES WITH NO JOURNAL BODY** — ROADMAP names it verbatim as the *"chain-only doc-only milestone-event precedent"* for J-123 / J-124 / J-125. **At J-129 the chain was stripped.** The pointers went; the bodies had never existed. **Nothing was lost by accident. It was never written, by a rule, and then its index was deleted, by another rule.**
 
-🔑 **AND THE RECORD FOR THOSE EVENTS IS IN `ROADMAP.md`'s PAST SECTION**, in full body shape — `✅ **J-124 … runbook SHIPPED 2026-05-27**`, and likewise J-125, J-131, J-132, J-135. **ROADMAP became the de facto journal for that class of event.**
+🔑 **AND THE RECORD FOR SOME OF THOSE EVENTS IS IN `ROADMAP.md`'s PAST SECTION**, in full body shape — `✅ **J-124 … runbook SHIPPED 2026-05-27**`, and likewise J-125, J-131, J-132, J-135. **ROADMAP became the de facto journal for that class of event.**
+
+### ⚠️ §4a-i — CORRECTION: *"SOME"* IS DOING WORK THE ORIGINAL SENTENCE DID NOT. **SIX OF THE TEN HAVE A BODY; FOUR HAVE NONE ANYWHERE.** MEASURED 2026-07-26 AT `a1d3630`
+
+⚠️ **THE SENTENCE ABOVE ORIGINALLY READ *"THE RECORD FOR THOSE EVENTS IS IN ROADMAP's PAST SECTION"* and named five examples.** Read as covering set B, it is **false for four of the ten** — and it was written without enumerating the other five. 🔑 **This is the FIFTH instance this session of the arc's recurring defect: a claim narrower than the thing it described, reused as if complete. It is Chat's.** 📌 The word *"some"* is inserted above so the sentence is true where it stands; the enumeration is here.
+
+**Every occurrence of each set-B number in `ROADMAP.md`, classified by whether the line is the entry's OWN record or a reference to it from elsewhere:**
+
+| Set-B number | ROADMAP refs | Own body in ROADMAP | Verdict |
+|---|---|---|---|
+| `J-135` | 7 | ✅ line 506 | body survives |
+| `J-132` | 5 | ✅ line 518 | body survives |
+| `J-131` | 10 | ✅ line 522 | body survives |
+| `J-125` | 27 | ✅ line 542 | body survives |
+| `J-124` | 24 | ✅ line 546 | body survives |
+| `J-123` | 15 | ✅ line 550 | body survives — 📌 **not named in the original sentence** |
+| `J-113` | 6 | ❌ none | ⚠️ **cited only** |
+| `J-109` | 8 | ❌ none | ⚠️ **cited only** |
+| `J-098` | **45** | ❌ none | ⚠️ **cited only — forty-five references and no record of its own** |
+| `J-067` | 1 | ❌ none | ⚠️ **cited only** |
+
+**Sampled to confirm the classification rather than trusting the pattern:** `J-067`'s single occurrence is *"the drift surface that produced F-003/F-004 in J-067"* (line 360) — another entry referring back. `J-098`'s are a Joe-lock citation (line 110), a cross-reference list (416) and *"Shape 2 per Joe-lock at J-098 session close"* (418). `J-109` and `J-113` appear almost entirely inside one recurring phrase, *"three-instance threshold met (J-099 + J-109 + J-113)"*. ⇒ **all four are referenced BY other records and hold none themselves.**
+
+🔑 **TWO CONSEQUENCES, AND THEY PULL IN OPPOSITE DIRECTIONS.**
+1. ✅ **THE MIGRATION IS SMALLER THAN §4b's RULING ASSUMED — SIX BODIES, NOT TEN.** §4b says *migrate the ROADMAP prose*; for four of the ten **there is no prose to migrate.**
+2. ⚠️ **AND THOSE FOUR ARE A DIFFERENT KIND OF THING, NOT A SMALLER ONE.** §4a's diagnosis — *never written by rule, then de-indexed by another rule* — **now applies with nothing to fall back on.** For the six, ROADMAP held the body all along. **For these four, no document has ever held one**, and the only honest record is a line stating that the number was cited by others and never itself written. 📌 **That is not information loss** (nothing was destroyed) **and it is not a gap to be filled with reconstruction** — inventing a body from the citations would be exactly the invent-a-link failure §4c already rejected once.
+
+🔓 **CONSEQUENT AMENDMENT PROPOSED TO §4b, JOE'S — THREE WORDS.** §4b reads *"migrate the ROADMAP prose into `JOURNAL` **at those numbers**"*. ⚠️ **That phrase is the only thing that forces `JOURNAL_ARCHIVE.md` open**, because those numbers fall inside its span — which is what §8b then ran into. **CHAT PROPOSES: *"labelled with those numbers, in a forward entry"*.** One new entry in `JOURNAL.md` carries the six surviving bodies, each labelled with the designation it was originally allocated, plus one line each for the four never written.
+- **① User-visible:** none, either way.
+- **② Tier:** none.
+- **③ Resource: one journal entry, against opening a frozen archive plus 28 citation re-points.** 🔑 **And the structural gain is the point, not the saving: §8b comes OFF the critical path.** It remains a real and unruled question — the 24 KB duplication and the `J-044`/`J-045` collisions still sit in the archive — but **nothing waits on it.**
+
+⚠️ **Searchability is the one thing this must not cost, and it does not:** a reader looking for `J-124` finds the forward entry by the same text search that finds anything else. **What it does cost is chronological position** — the six bodies sit at the end of the journal rather than at their 2026-05 slot. 📌 **Stated as the trade it is; the provenance line carries the original date.**
 
 🔑 **WHICH MAKES THIS MILESTONE THE SECOND HALF OF A TREATMENT THAT STARTED AT J-129.** J-129's own words: *"The chain was emergent prose that bled JOURNAL's job into the header line. Substantive narrative belongs in JOURNAL body entries."* **The Past section is the same prose bleeding into the same document's body.** Same defect, same three files, same cure — diagnosed by this project two months ago and half-treated. 📌 **Joe reached the diagnosis independently tonight without the J-129 text in view.**
 
@@ -283,7 +366,11 @@
 
 **Leg B — clear the precondition.** Walk P1's **94** unlinked DONE markers and P2's **11** unresolved refs. **Surface: `docs/ROADMAP.md`, `JOURNAL.md`, `JOURNAL_ARCHIVE.md`.** ⚠️ **No deletion happens in this leg.** Output is a link-or-redundant verdict per item, and any journal corrections P2 turns up. 📌 **P1 ✅ CLEARED at J-599. P2 measured, NOT cleared — its remedy is §8a below.**
 
-**Leg C — the migration.** Rewrite `ROADMAP.md` to §3's format. **Surface: `docs/ROADMAP.md`.** ✅ **Shape ungated — §7 ruled S1.** ⚠️ **Still blocked on §8a: nothing is deleted until P2 set B is closed (§4's own rule).**
+**Leg C — the migration.** 🔒 **SCOPE LOCKED (Joe, 2026-07-26): *keep the tree that exists · apply §3's field rules to its nodes · delete the prose.*** 📌 **A LOCK, not a delegation** — Joe answered a bounded direct question, unlike §6/§7. **Runbook: `tasks/RUNBOOK_ROADTREE_LEGC.md` v1.0 ACTIVE.** **Surface: `docs/ROADMAP.md`.** ✅ **UNBLOCKED.**
+
+🔑 **AND THE UNBLOCK IS §0 OF THAT RUNBOOK, NOT A WAIVER OF §4.** §4 demanded 775 entries be proven redundant before any deletion. **`ROADMAP_ARCHIVE_2026-07-26.md` is committed and git holds every byte of every version** ⇒ **nothing here is recoverable-in-principle; it is recoverable in two commands.** ⚠️ **The bar was mis-set, not met early:** the real question is *do the surviving tree's links work* — **81 lookups** — and that is Pass 1. 📌 **§4's precondition is therefore SATISFIED BY V7 (`git show a1d3630:docs/ROADMAP.md`), which runs BEFORE the deletion, not by the walk it originally specified.**
+
+⚠️ **ONE DoD NUMBER MOVES AND IT IS NOT FUDGED.** §9 requires ROADMAP *under 100 KB*; the surviving tree alone is **79,802 B** and the kept scaffolding brings the end state to **~113 KB**. 🔓 **Chat proposes §9's bar move to `≤ 120 KB`** — the alternative is trimming *"How to use this view"* (12.9 KB) and *"Cross-cutting"* (12.4 KB), which are **instructions and standing context, not chronicle**, and cutting them to hit a round number would be **optimising the metric rather than the document.**
 
 **Leg D — CLAUDE.md.** Same treatment on the PLAY head. **Surface: `CLAUDE.md`, `CLAUDE_HISTORY.md`.** ✅ **In scope — §6 ruled BOTH.** 🔓 **Its FORMAT is open** and opens with its own grounding pass (§6's rider): §3's node format is not assumed to transfer to a block document.
 
@@ -306,7 +393,7 @@
 **CHAT PROPOSES — a new leg, inserted between B and C:**
 
 > **Leg B-bis — the journal repair.** Three actions, one surface. **Surface: `JOURNAL.md`, `JOURNAL_ARCHIVE.md`** (ROADMAP is **read-only** in this leg — its prose is copied out, not yet removed).
-> 1. **Migrate** the ten set-B bodies into `JOURNAL` at their own numbers, each carrying the provenance line *“migrated from ROADMAP; originally a stripped header-chain entry (J-129 §8)”*.
+> 1. **Migrate** the **six surviving set-B bodies** into `JOURNAL` (§4a-i — `J-123 · J-124 · J-125 · J-131 · J-132 · J-135`), each carrying the provenance line *“migrated from ROADMAP; originally a stripped header-chain entry (J-129 §8)”*, **plus one line each recording `J-067 · J-098 · J-109 · J-113` as cited-but-never-written.** ⚠️ **Do NOT reconstruct a body for those four from their citations.** 🔓 **Whether this lands in the archive at those numbers or as a forward entry labelled with them is §4a-i's open amendment — and it decides whether this leg touches `JOURNAL_ARCHIVE.md` at all.**
 > 2. **Delete** one copy of each byte-identical `J-317–J-321` block. ⚠️ **Verify byte-identity immediately before deleting, not from this document's record of it** — a duplicate re-verified is cheap; a wrong delete is unrecoverable outside git.
 > 3. **Split** `J-044` → `J-044a`/`J-044b` and `J-045` → `J-045a`/`J-045b`, **retiring both bare numbers** (normative, per the discriminator rule). ⚠️ **`J-045`'s assignment rests on FILE ORDER ALONE** — §4c states this and it must survive into the entry text, not just this task file.
 > ⚠️ **Every existing citation of `J-044` / `J-045` must be re-pointed in the same commit** — ROADMAP, CLAUDE.md, DECISIONS.md, other task files. **A retired bare number left cited is the exact silent-mis-point failure the convention forbids.** ➕ **Unmeasured: how many such citations exist.** Chat owes that count before the leg is runbooked.
@@ -332,7 +419,7 @@
 
 | Ruled action | Target numbers | File that holds them |
 |---|---|---|
-| §4b **migrate** set B | `J-067 · J-098 · J-109 · J-113 · J-123 · J-124 · J-125 · J-131 · J-132 · J-135` | ⚠️ **`JOURNAL_ARCHIVE.md`** — all ten fall inside its declared span `J-375 … J-046` |
+| §4b **migrate** set B | `J-067 · J-098 · J-109 · J-113 · J-123 · J-124 · J-125 · J-131 · J-132 · J-135` | ⚠️ **`JOURNAL_ARCHIVE.md`** — all ten fall inside its declared span `J-375 … J-046`. 📌 **Only if *"at those numbers"* stands** — §4a-i's amendment removes this row from the table entirely |
 | §4c **delete** the duplicates | `J-317 · J-318 · J-319 · J-320 · J-321` | ⚠️ **`JOURNAL_ARCHIVE.md`, both copies** — L1208/L1228 · L1248/L1270 · L1292/L1312 · L1332/L1352 · L1372/L1400 |
 | §4c **split** the collisions | `J-044 · J-045` | ⚠️ **`JOURNAL_ARCHIVE.md`** — L16957/L17057 · L17128/L17161 |
 
@@ -384,7 +471,7 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 - [ ] All **94** P1 items **measured**: journal link found, or redundancy confirmed in writing — **Leg B**
 - [ ] All **11** P2 refs **measured**: entry located, or absence recorded — **Leg B**
 - [ ] The **`ARCHIVED`-versus-repair question (§8b) ruled** by Joe, and the ruling recorded where a future reader of `JOURNAL_ARCHIVE.md` will find it — **precedes Leg B-bis**
-- [ ] The **ten set-B bodies present in a journal file**, each carrying its provenance line — **Leg B-bis**
+- [ ] The **six surviving set-B bodies present in a journal file**, each carrying its provenance line, **and the four never-written numbers recorded as such** (§4a-i) — **Leg B-bis**
 - [ ] `J-317`–`J-321` **re-verified byte-identical, then reduced to one copy each**, count re-measured after — **Leg B-bis**
 - [ ] `J-044`/`J-045` split to `a`/`b`, **bare numbers retired**, and **all 28 surviving citations individually re-pointed** — **Leg B-bis**
 - [ ] Every ✅ node in the new tree carries `· J-nnn` — **Leg C**
@@ -410,13 +497,17 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 ## §11 — Handoff
 
 ✅ **RULED 2026-07-26 (delegated):** §6 — **BOTH** · §7 — **S1, the tree.**
+✅ **LOCKED 2026-07-26 (a considered answer to a bounded question, NOT delegated):** **Leg C's scope** — keep the tree, link its nodes, delete the prose. **Runbook `tasks/RUNBOOK_ROADTREE_LEGC.md` v1.0.**
 
-🛑 **BLOCKED ON JOE, IN THIS ORDER — EACH GATES THE NEXT:**
-1. **§8b — what `ARCHIVED` means when the archive is wrong.** Chat proposes **R3** (unfreeze → repair → re-freeze as one dated event). ⚠️ **This is a project-wide guarantee, not a process step, and it is the reason Leg C cannot open yet.**
-2. **§8a — does `Leg B-bis` exist, between B and C?** Chat proposes yes. **Sequencing is Joe's.**
+🟢 **LEG C IS OPEN AND IS CHAT'S TO RUN. Nothing below blocks it.**
 
-⚠️ **§6/§7 ARE RULED AND LEG C IS STILL SHUT.** The gate that was named at session open cleared; **a different one was found underneath it by measuring the work rather than describing it.** 📌 Stated plainly so it is not read as the same gate re-asked.
+🔓 **STILL OPEN FOR JOE — NONE OF IT GATING:**
+1. **§4a-i** — the three-word amendment to §4b (*"at those numbers"* → *"labelled with those numbers, in a forward entry"*). Cheapest item on the board; **takes §8b off the critical path permanently.**
+2. **§8b** — what `ARCHIVED` means when the archive is wrong. Chat proposes **R3**. ⚠️ **Still a real question** — 24 KB of duplication and the `J-044`/`J-045` collisions do not go away.
+3. **§8a** — does `Leg B-bis` exist. Sequencing.
+4. **§9's size bar** — 100 KB → 120 KB (Leg C §1).
+5. **§1b's question for Leg D** — does `CLAUDE.md` also already contain a structure nobody measured?
 
-**Not blocked, Chat's to run now:** the Leg C runbook (it can be authored against a ruled format; it cannot be *executed* until §8b lands) · Leg B's remaining P1 write-up.
+⚠️ **THE AUDIT SURFACED SIX DEFECT INSTANCES IN ONE SESSION AND DID NOT CONVERGE.** The runbook's §0 bound and §7 reporting rule exist to stop that, **and they only work if honoured during the pass rather than merely written down.**
 
-**Chat owes, carried:** the registry composition model · address-book eviction, declared versus wired · `NegotiatedCapabilities`' shape · the Ch0–Ch2 thesis read.
+**Chat owes, carried:** the registry composition model (needs a live client ⇒ INTERACTIVE) · the Ch0–Ch2 thesis read (272,516 B across three chapters) · the six unclassified P1 lines `428 · 444 · 450 · 454 · 997 · 1023` (§1b) — **absorbed into Leg C Pass 1, not carried separately.**

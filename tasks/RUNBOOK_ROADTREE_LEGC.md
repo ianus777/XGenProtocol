@@ -1,6 +1,6 @@
 # RUNBOOK — M-DOC-ROADTREE Leg C: keep the tree, link its nodes, delete the chronicle
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  
@@ -16,7 +16,7 @@
 
 📌 **Provenance: a LOCK, not a delegation.** Chat framed a bounded proposal and Joe answered it directly. Recorded as such because `M_DOC_ROADTREE.md` §6/§7 were **delegated**, and the two must not be read as the same act.
 
-🔑 **AND THE PRECONDITION THAT BLOCKED THIS FOR A SESSION WAS GUARDING A LOSS THAT CANNOT HAPPEN.** §4 required proving 775 entries redundant before deleting any. But `docs/ROADMAP_ARCHIVE_2026-07-26.md` is committed, and **git holds every byte of every version of this file**. Nothing removed here is recoverable-in-principle — it is recoverable in two commands. ⇒ **the real bar is not *prove the prose redundant*, it is *the surviving tree's links work*.** That is 81 lookups, and it is what this runbook does.
+🔑 **AND THE PRECONDITION THAT BLOCKED THIS FOR A SESSION WAS GUARDING A LOSS THAT CANNOT HAPPEN.** §4 required proving 775 entries redundant before deleting any. But `docs/ROADMAP_ARCHIVE_2026-07-26.md` is committed, **git holds every byte of every version of this file**, and 🔒 **the tag `roadtree-pre-legc` marks the exact pre-edit state (Joe, 2026-07-26 — *"for any occasion, especially if we would have to make fallback"*).** Nothing removed here is recoverable-in-principle — it is recoverable in **one command**: `git reset --hard roadtree-pre-legc`. ⇒ **the real bar is not *prove the prose redundant*, it is *the surviving tree's links work*.** That is **86 lookups**, and it is what this runbook does.
 
 ---
 
@@ -42,7 +42,9 @@
 
 ⚠️ **THAT MISSES `M_DOC_ROADTREE.md` §9's *"under 100 KB"* DoD BY ~13 KB, AND THE NUMBER IS NOT FUDGED HERE.** The tree alone is 79.8 KB. Either the DoD moves to **under 120 KB**, or *"How to use this view"* (12.9 KB) and *"Cross-cutting"* (12.4 KB) are trimmed as their own decision. 🔓 **Chat proposes moving the DoD number:** those two sections are instructions and standing context, not chronicle, and **trimming them to hit a round number would be optimising the metric rather than the document.**
 
-**Tree contents, measured:** 215 node lines inside the fence at L66–282 · **241 ✅ · 8 🟢 · 3 🟡 · 5 ⏸️ · 5 ⬛ · 0 ❌ · 1 ⚫** · **102 status nodes carry a `J-` reference, 81 do not.**
+**Tree contents, measured:** 215 node lines inside the fence at L66–282 · **241 ✅ · 8 🟢 · 3 🟡 · 5 ⏸️ · 5 ⬛ · 0 ❌ · 1 ⚫** · **191 status nodes: 105 carry a `J-` reference, 86 do not.**
+
+⚠️ **THE HEADLINE NUMBER WAS 81 IN v1.0 AND IT WAS WRONG — IT IS 86.** The first census counted only ✅ 🟢 🟡 and **omitted ⏸️ ⬛ ⚫**. 🔑 **§5's emoji trap firing on this runbook's own bounding number**, caught at the start of Pass 1 by running the complete pattern rather than the one already written down.
 
 ---
 
@@ -58,18 +60,18 @@
 
 ## §3 — The three passes, in order. Each is countable.
 
-### PASS 1 — THE LINK AUDIT. **81 nodes. This is the whole substantive job.**
+### PASS 1 — THE LINK AUDIT. **86 nodes. This is the whole substantive job.**
 
-For each of the 81 status nodes inside the fence carrying no `J-` reference, resolve **a link to its canonical record** and append it in §3's shape: `· J-nnn` or `· <design-document>`.
+For each of the 86 status nodes inside the fence carrying no `J-` reference, resolve **a link to its canonical record** and append it in §3's shape: `· J-nnn`, `· DECISIONS.md D-nnn`, or `· <design-document>`.
 
 **Resolution order, cheapest first — stop at the first hit:**
-1. **Inherit from the node's tree ancestor.** A child of a linked parent inherits it; **append the parent's link explicitly** rather than relying on visual nesting. ⚠️ **Reason it is written out: the prose that made the nesting legible is being deleted in Pass 3.**
+1. **Inherit from the node's DIRECT parent only.** 🔒 **Never climb past an unlinked parent** — §5 records why: the climb produces confident wrong links. **56 of 86 resolve here.**
 2. **The Past/Present prose entry for the same milestone**, before it is deleted. 🔑 **This is why Pass 1 runs BEFORE Pass 3, and the ordering is load-bearing.**
 3. **`JOURNAL.md` / `JOURNAL_ARCHIVE.md`** by title match.
 4. **A design document** — `docs/xgen_*_design.md`, `docs/xgen_*_phase0.md`, `tasks/*`. §4c established this is a legitimate canonical record, **not a fallback**.
 5. **None found** ⇒ mark `· record: not located` and **list it in the close.** ⚠️ **Never invent a J-number.** §4c rejected exactly that once already.
 
-**Output: 81 rows, one verdict each.** Reported as `n/81`.
+**Output: 86 rows, one verdict each.** Reported as `n/86`.
 
 ### PASS 2 — TRIGGERS AND ARROWS. **8 + 5 nodes.**
 
@@ -96,16 +98,23 @@ Delete `## Past — settled` (L332–663) and `## Present — playing now` (L664
 | V4 | no milestone lost | names in deleted prose ∩ tree node names | **0 orphans** |
 | V5 | file size | `Get-Item .Length` | **≤ 120 KB** (§1's open DoD question) |
 | V6 | scope | `git diff --stat` | **`docs/ROADMAP.md` only**, plus the D-074 records |
-| V7 | recoverability | `git show a1d3630:docs/ROADMAP.md` | **758,913 bytes retrievable** |
+| V7 | recoverability | `git show roadtree-pre-legc:docs/ROADMAP.md` | **758,913 bytes retrievable** |
 
 ⚠️ **V7 IS NOT CEREMONY.** It is the check that makes §0's argument **true rather than asserted**, and it runs **before Pass 3, not after.**
+
+🔑 **V7 WAS WRONG IN v1.0 AND THE FIX IS A CLASS FIX, NOT AN INSTANCE FIX.** It read `git show a1d3630:docs/ROADMAP.md` — **the MEASUREMENT commit, not the PRE-DELETION commit.** `1c3f3d1` landed the J-602 entry afterwards, so ROADMAP was **already not** what that command retrieves: **V7 would have passed while proving the wrong thing.** ⇒ **anchored to the TAG `roadtree-pre-legc`, deliberately placed at the last state before Leg C edits any document.** 📌 **A hash pasted into a document goes stale the moment anything else commits; a tag is placed at the state you mean and stays there.**
+
+⚠️ **AND THE TAG IS A RESTORE POINT, NOT ONLY A VERIFICATION ANCHOR (Joe, 2026-07-26: *"for any occasion, especially if we would have to make fallback"*).** `git reset --hard roadtree-pre-legc` returns the whole tree. 📌 **Recorded in `CLAUDE.md` as a ♻️ Recovery anchor beside `m-rp6.0-gate-go`** — **a tag nobody can find is not a fallback.**
 
 ---
 
 ## §5 — Traps specific to this leg
 
 - ⚠️ **PS 5.1 emoji matching:** `Select-String -SimpleMatch` on a surrogate-pair emoji returns **zero**. 🟢 = `\uD83D\uDFE2` · 🟡 = `\uD83D\uDFE1` · ⏸️ = `\u23F8` · ⬛ = `\u2B1B` · ❌ = `\u274C`. **✅ is `\u2705` and is BMP** — it matches either way, **which is exactly how a partial census can look complete.** Use `[regex]::Matches` for all six.
-- ⚠️ **Every line number in this runbook is valid at `a1d3630` only.** Each commit shifts them. **Re-derive section boundaries by heading text, never by stored line number.**
+- ⚠️ **Every line number in this runbook is valid at `a1d3630` only.** Each commit shifts them. **Re-derive section boundaries by heading text, never by stored line number.** 🔑 **Same disease as V7's original hash** — a stored coordinate goes stale silently while still looking authoritative.
+- 🛑 **AN ANCESTOR WALK THAT KEEPS CLIMBING PAST AN UNLINKED PARENT PRODUCES CONFIDENT WRONG LINKS (Pass 1, measured).** **30 of the 86 nodes have a direct parent carrying no `J-` ref.** A walk that climbs further lands on an unrelated ancestor — `L197 M2 Node Pipe Server` inherited from *XGID Retrofit Pass series*. 🔒 **RULE: inherit from the DIRECT parent only. Everything else is resolved by hand.** 📌 **Caught by spot-checking six rows, not by trusting eighty-four.**
+- 🛑 **TITLE-REGEX LOOKUP AGAINST JOURNAL HEADINGS PRODUCES FALSE POSITIVES.** `Phase 7 B3` matched `J-107 — Persistence-amendment…`; `Phase 7.5 design` matched `J-093 — Phase 9 Commit 3…`. **Both rejected.** 🔒 **A wrong link is worse than a missing one** — `record: not located` is a legal outcome and an invented link is not.
+- ⚠️ **A PARTIAL SYMBOL CENSUS LOOKS EXACTLY LIKE A COMPLETE ONE.** §1's *"81 nodes"* omitted ⏸️ ⬛ ⚫; **the real count is 86.** Corrected throughout. **This is the §5 emoji trap firing on the runbook's own headline number.**
 - ⚠️ **`.claude/worktrees/` holds eight copies of the tree.** Exclude `.claude` from every repo-wide search.
 - ⚠️ **`Get-Content` without `-Encoding UTF8` mojibakes this file** and reads exactly like corruption. Absolute paths, always `-Encoding UTF8`.
 - ⚠️ **`core.autocrlf=true` ⇒ CRLF and LF commit to the same blob (N-167).** Never convert line endings to satisfy a convention; `git diff --stat` decides.
@@ -114,7 +123,7 @@ Delete `## Past — settled` (L332–663) and `## Present — playing now` (L664
 
 ## §6 — DoD
 
-- [ ] **Pass 1: 81/81** nodes resolved — link found, or `record: not located` recorded **and listed in the close**
+- [ ] **Pass 1: 86/86** nodes resolved — link found, or `record: not located` recorded **and listed in the close**
 - [ ] **Pass 2: 8/8** triggers · **5/5** deprecation reasons · arrows added **only** where the cited record documents the loose end
 - [ ] **Pass 2: 8/8** 🟢 PLAY nodes confirmed actually in play
 - [ ] **Pass 3:** `Past — settled` and `Present — playing now` deleted whole; `Near future` / `Far future` folded then deleted
@@ -128,7 +137,7 @@ Delete `## Past — settled` (L332–663) and `## Present — playing now` (L664
 
 ## §7 — Reporting discipline
 
-🔒 **Chat reports a fraction, not a narrative: `n/81`, then `n/8`, then the byte delta.** Findings that are not blockers are collected and reported **at the close**, not mid-pass.
+🔒 **Chat reports a fraction, not a narrative: `n/86`, then `n/8`, then the byte delta.** Findings that are not blockers are collected and reported **at the close**, not mid-pass.
 
 ⚠️ **THE REASON THIS SECTION EXISTS:** the audit surfaced **six defect instances in one session and did not converge.** §0's bound is what stops that — **and it only works if it is honoured during the pass, not merely written here.**
 

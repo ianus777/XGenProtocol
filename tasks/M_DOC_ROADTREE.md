@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  
@@ -33,6 +33,16 @@
 | `JOURNAL_ARCHIVE.md` | 2,333,803 bytes | **358 entries** |
 | `CLAUDE.md` | 608,702 bytes | one line is **124,299 chars** |
 | `CLAUDE_HISTORY.md` | 869,178 bytes | prior PLAY blocks (D-094) |
+
+⚠️ **§1a — RE-MEASURED 2026-07-26 23:07 AT `ec0d305`. THE DENOMINATOR HAS MOVED, AND THE ARCHIVE CLAIM WAS NEVER TRUE AS WRITTEN.**
+
+| Quantity | §1 as written (at `0466cb2`) | Measured at `ec0d305` |
+|---|---|---|
+| `docs/ROADMAP.md` | 749,717 B / 1,017 lines | **755,033 B / 1,025 lines** — +5,316 B / +8 lines across `78d44f9` + `ec0d305`, **both doc-only commits** |
+| `docs/ROADMAP_ARCHIVE_2026-07-26.md` | *"byte-identical at 749,717"* (§8 Leg A) | **749,428 B** — ⚠️ **NOT byte-identical, and never was.** The archive's header was replaced with `Status: ARCHIVED`, a 289-byte difference. It is **content-identical, header-differing** |
+| `CLAUDE.md` longest line | 124,299 chars | **124,299 — confirmed unchanged** |
+
+📌 **Neither delta changes any ruling.** The archive's purpose — a recoverable pre-migration copy — is unaffected; only the word *byte-identical* was wrong, and §8 Leg A is corrected below. 🔑 **But the drift itself is the argument for the milestone:** two doc-only commits carrying no new work grew the state board by 5 KB in one evening. **§3's ~70 KB projection now runs against 755 KB.**
 
 **Status-marker census of `ROADMAP.md`:**
 
@@ -230,7 +240,7 @@
 
 ---
 
-## §6 — 🔓 DECISION 4: SCOPE — ROADMAP ALONE, OR ROADMAP + THE CLAUDE.md PLAY HEAD? JOE'S
+## §6 — 🔒 DECISION 4: SCOPE — BOTH. ROADMAP **AND** THE CLAUDE.md PLAY HEAD (Joe, 2026-07-26)
 
 `ROADMAP.md` and the `CLAUDE.md` PLAY block are **paired under D-074** — they travel in the same commit on every state change. `CLAUDE.md` is **608,702 bytes with a single 124,299-character line** and has the identical disease: append-only narration in a document meant to show current state.
 
@@ -238,32 +248,127 @@
 - **② Tier:** none.
 - **③ Resource:** the split mechanism is the same for both, so doing them together is **cheaper than doing them twice**. Doing only ROADMAP leaves the two **free to disagree**, which is the state D-074 exists to prevent.
 
-**CHAT PROPOSES: BOTH.** 🔓 **OPEN.**
+**CHAT PROPOSED: BOTH.**
+
+🔒 **RULED — BOTH. ⚠️ PROVENANCE: DELEGATED, NOT A CONSIDERED LOCK.** Joe: *"both points by your recommendations."* **Recorded as delegation** per the standing convention that *"as you recommend"* is not the same act as a lock. 📌 **The practical consequence of that distinction: if Leg D's first pass shows the PLAY head does not fit §3's node format, that is not a Joe reversal — it is the delegation reaching its limit, and it comes back to him.**
+
+🔑 **AND THE SCOPE RULING CARRIES ONE THING CHAT'S PROPOSAL EXPLICITLY DID NOT:** Leg D is in scope, but **§3's format is NOT assumed to be Leg D's format.** The two documents share a *disease* (append-only narration in a document meant to show current state); they do **not** demonstrably share a *cure*. ROADMAP is 586 closed nodes in a nested structure; the PLAY head is a **block sequence**, its worst offender a single 124,299-character line. ⚠️ **Applying a node format to a block document without measuring it first is exactly the "claim narrower than the thing it described, reused as if complete" defect.** ⇒ **Leg D opens with its own grounding pass, and its format is 🔓 OPEN until that pass runs.**
 
 ---
 
-## §7 — 🔓 DECISION 5: DOES THE TREE GROUP BY STRUCTURE, OR BY STATUS? JOE'S
+## §7 — 🔒 DECISION 5: BY STRUCTURE. IT IS A TREE, NOT A BOARD (Joe, 2026-07-26)
 
 §3's format takes its shape from **nesting alone** — no track/status/date columns. That is a bet that **structure is what Joe navigates by**.
 
 - **(S1) BY STRUCTURE — the tree as specified.** ① You find a thing by knowing where it lives. ③ One document, one ordering.
 - **(S2) BY STATUS — "what is in play right now" as its own section.** ① You find a thing by knowing its state. ⚠️ **That is a board, not a tree**, and it is a different document from the one §3 describes.
 
-⚠️ **THIS CHANGES EVERYTHING DOWNSTREAM AND MUST BE ANSWERED BEFORE LEG B.** **CHAT PROPOSES S1** — the status symbols already make state greppable within a tree, whereas structure cannot be recovered from a status grouping. 🔓 **OPEN.**
+⚠️ **THIS CHANGES EVERYTHING DOWNSTREAM AND MUST BE ANSWERED BEFORE LEG B.** **CHAT PROPOSED S1** — the status symbols already make state greppable within a tree, whereas structure cannot be recovered from a status grouping.
+
+🔒 **RULED — S1, BY STRUCTURE. ⚠️ PROVENANCE: DELEGATED, NOT A CONSIDERED LOCK** (same act as §6; Joe: *"both points by your recommendations"*).
+
+🔑 **THE TWO REASONS, RESTATED SO LEG C CAN BE CHECKED AGAINST THEM RATHER THAN AGAINST A PREFERENCE:**
+1. **RECOVERABILITY IS ASYMMETRIC.** State is recoverable from a tree by one grep on a symbol. **Structure is NOT recoverable from a status grouping** — once a node sits under *DONE* rather than under its arc, the arc it belonged to is gone from the document and can only be reconstructed from the journal.
+2. **A BOARD RE-CREATES THE ORIGINATING DEFECT.** M-RP6.2's deferral was lost because nothing *adjacent to it* said so. A status grouping puts a closed node and its `→ successor` **in different sections** — which is precisely the separation §3's arrow-on-the-closed-node exists to abolish. ⇒ **S2 would have been format and mechanism working against each other.**
+
+⚠️ **THE COST S1 DOES NOT PAY, STATED AND NOT HIDDEN: the tree does not answer *"what is in play right now"* at a glance.** The 69 🟢 markers prove that question is currently unanswerable anyway, and §10 already files that no convention forces 🟢 to be exclusive. 📌 **If that glance turns out to be what the file is wanted for, the answer is a derived view, never a second grouping of the same nodes** — a second grouping is a second source of truth (D-067), the same objection that killed `ROADMAP_HISTORY.md` at §2.
 
 ---
 
 ## §8 — Legs
 
-**Leg 0 — Phase-0.** This document. No code. 🔓 Gated on §6 and §7.
+**Leg 0 — Phase-0.** This document. No code. ✅ **UNGATED — §6 and §7 both ruled 2026-07-26 (delegated).**
 
-**Leg A — the pause + the archive.** ⏸️ M-RP-MEMBERS Leg C with its trigger (§5), in `ROADMAP.md` + `CLAUDE.md` PLAY + the GitHub board. ✅ **The archive is already taken** — `docs/ROADMAP_ARCHIVE_2026-07-26.md`, byte-identical at 749,717, header ARCHIVED, **carrying its own delete condition**. **Surface: `docs/ROADMAP.md`, `CLAUDE.md`, board field `d0103551`.**
+**Leg A — the pause + the archive.** ⏸️ M-RP-MEMBERS Leg C with its trigger (§5), in `ROADMAP.md` + `CLAUDE.md` PLAY + the GitHub board. ✅ **The archive is already taken** — `docs/ROADMAP_ARCHIVE_2026-07-26.md`, **content-identical, header replaced with `Status: ARCHIVED` (749,428 B vs the source's then-749,717 — ⚠️ corrected from "byte-identical", §1a)**, **carrying its own delete condition**. **Surface: `docs/ROADMAP.md`, `CLAUDE.md`, board field `d0103551`.**
 
-**Leg B — clear the precondition.** Walk P1's **94** unlinked DONE markers and P2's **11** unresolved refs. **Surface: `docs/ROADMAP.md`, `JOURNAL.md`, `JOURNAL_ARCHIVE.md`.** ⚠️ **No deletion happens in this leg.** Output is a link-or-redundant verdict per item, and any journal corrections P2 turns up.
+**Leg B — clear the precondition.** Walk P1's **94** unlinked DONE markers and P2's **11** unresolved refs. **Surface: `docs/ROADMAP.md`, `JOURNAL.md`, `JOURNAL_ARCHIVE.md`.** ⚠️ **No deletion happens in this leg.** Output is a link-or-redundant verdict per item, and any journal corrections P2 turns up. 📌 **P1 ✅ CLEARED at J-599. P2 measured, NOT cleared — its remedy is §8a below.**
 
-**Leg C — the migration.** Rewrite `ROADMAP.md` to §3's format. **Surface: `docs/ROADMAP.md`.** 🔓 Shape gated on §7.
+**Leg C — the migration.** Rewrite `ROADMAP.md` to §3's format. **Surface: `docs/ROADMAP.md`.** ✅ **Shape ungated — §7 ruled S1.** ⚠️ **Still blocked on §8a: nothing is deleted until P2 set B is closed (§4's own rule).**
 
-**Leg D — CLAUDE.md.** Same treatment on the PLAY head. **Surface: `CLAUDE.md`, `CLAUDE_HISTORY.md`.** 🔓 Gated on §6.
+**Leg D — CLAUDE.md.** Same treatment on the PLAY head. **Surface: `CLAUDE.md`, `CLAUDE_HISTORY.md`.** ✅ **In scope — §6 ruled BOTH.** 🔓 **Its FORMAT is open** and opens with its own grounding pass (§6's rider): §3's node format is not assumed to transfer to a block document.
+
+---
+
+### ⚠️ §8a — THREE PIECES OF RULED WORK HAVE NO LEG, AND ONE OF THEM CONTRADICTS THE LEG IT WOULD FALL INTO. 🔓 SEQUENCING IS JOE'S
+
+🔑 **FOUND BY APPLYING `M_RP_MEMBERS.md` §8b's OWN RULE TO THIS DOCUMENT** — *walk every 🔒 and ask WHICH LEG BUILDS THIS.* **§4b and §4c lock three concrete actions. §8 as written builds none of them:**
+
+| Ruled work | Where it is locked | Which leg builds it |
+|---|---|---|
+| **MIGRATE** the ten set-B entries' prose from ROADMAP's Past section into `JOURNAL.md` at those numbers, with honest provenance | §4b, 🔒 Joe | — **none** |
+| **DELETE** one copy of the byte-identical `J-317 … J-321` blocks (~24 KB) | §4c, 🔒 | — **none**, ⚠️ **and Leg B says *"No deletion happens in this leg"*** |
+| **SPLIT** `J-044` / `J-045` into `a` / `b` and **retire the bare numbers** | §4c + the CLAUDE.md convention, 🔒 | — **none** |
+
+⚠️ **THIS IS INSTANCE FOUR OF THE SAME DEFECT, AND IT IS CHAT'S AGAIN** — *scope written in FILES, requirements written in BEHAVIOURS, never reconciled.* §8's legs are named by **file surface** (ROADMAP · CLAUDE.md · JOURNAL); §4's rulings are named by **behaviour** (migrate · delete · split). **Nobody reconciled them.** 📌 **Filed as a live instance rather than absorbed silently, per the standing rule.**
+
+🔑 **AND THE ORDERING IS NOT COSMETIC — IT IS LOAD-BEARING.** §4's rule is that **nothing is deleted until both precondition sets clear**. For set B, **the ROADMAP line is currently the only trace.** ⇒ **Leg C cannot rewrite ROADMAP until that prose lives in JOURNAL**, or the rewrite destroys the only copy. **The journal work is a HARD PREDECESSOR of the migration, not a tidy-up after it.**
+
+**CHAT PROPOSES — a new leg, inserted between B and C:**
+
+> **Leg B-bis — the journal repair.** Three actions, one surface. **Surface: `JOURNAL.md`, `JOURNAL_ARCHIVE.md`** (ROADMAP is **read-only** in this leg — its prose is copied out, not yet removed).
+> 1. **Migrate** the ten set-B bodies into `JOURNAL` at their own numbers, each carrying the provenance line *“migrated from ROADMAP; originally a stripped header-chain entry (J-129 §8)”*.
+> 2. **Delete** one copy of each byte-identical `J-317–J-321` block. ⚠️ **Verify byte-identity immediately before deleting, not from this document's record of it** — a duplicate re-verified is cheap; a wrong delete is unrecoverable outside git.
+> 3. **Split** `J-044` → `J-044a`/`J-044b` and `J-045` → `J-045a`/`J-045b`, **retiring both bare numbers** (normative, per the discriminator rule). ⚠️ **`J-045`'s assignment rests on FILE ORDER ALONE** — §4c states this and it must survive into the entry text, not just this task file.
+> ⚠️ **Every existing citation of `J-044` / `J-045` must be re-pointed in the same commit** — ROADMAP, CLAUDE.md, DECISIONS.md, other task files. **A retired bare number left cited is the exact silent-mis-point failure the convention forbids.** ➕ **Unmeasured: how many such citations exist.** Chat owes that count before the leg is runbooked.
+
+- **① User-visible:** none, either way.
+- **② Tier:** none.
+- **③ Resource:** the three actions share one surface, one verification method and one commit ⇒ **cheaper as one leg than distributed across B and C.** Splitting them would also put a **deletion** inside a leg that forbids deletion.
+
+🔓 **OPEN — order of work is Joe's (D-123).** Chat can write it; Chat does not get to insert a leg into the sequence.
+
+---
+
+### 🛑 §8b — AND MEASURING THAT LEG'S SURFACE FOUND SOMETHING THAT OUTRANKS IT: **EVERY PIECE OF §4's RULED RETROACTIVE WORK TARGETS A FILE THAT DECLARES ITSELF IMMUTABLE.** MEASURED 2026-07-26 AT `ec0d305`
+
+🔑 **`JOURNAL_ARCHIVE.md`'s OWN HEADER, QUOTED:**
+
+> `> **Status:** ARCHIVED`
+> *“This document is the frozen archive of older XGen Protocol development-journal entries… **Entries are verbatim and unaltered; do not modify.**”*
+
+**And Joe's own status taxonomy: `ARCHIVED — Frozen historical record, do not modify.`**
+
+**WHERE THE WORK ACTUALLY LANDS — enumerated, not inferred:**
+
+| Ruled action | Target numbers | File that holds them |
+|---|---|---|
+| §4b **migrate** set B | `J-067 · J-098 · J-109 · J-113 · J-123 · J-124 · J-125 · J-131 · J-132 · J-135` | ⚠️ **`JOURNAL_ARCHIVE.md`** — all ten fall inside its declared span `J-375 … J-046` |
+| §4c **delete** the duplicates | `J-317 · J-318 · J-319 · J-320 · J-321` | ⚠️ **`JOURNAL_ARCHIVE.md`, both copies** — L1208/L1228 · L1248/L1270 · L1292/L1312 · L1332/L1352 · L1372/L1400 |
+| §4c **split** the collisions | `J-044 · J-045` | ⚠️ **`JOURNAL_ARCHIVE.md`** — L16957/L17057 · L17128/L17161 |
+
+📌 **`JOURNAL.md` is clean: zero duplicate headings, zero set-B numbers.** The entire retroactive workload sits in the one file nobody is allowed to touch. **⇒ Leg B-bis as §8a proposes it cannot be executed as written.**
+
+🔑 **AND THE DUPLICATION MECHANISM IS NOT WHAT §4c ASSUMED.** §4c reads *“a copy-paste or merge accident”*, which implies a contiguous five-entry block pasted twice. **The measured line order is `321,321,320,320,319,319,318,318,317,317` — each entry doubled IN PLACE, not the block repeated.** ⚠️ **A block paste would read `321,320,319,318,317,321,320,319,318,317`. It does not.** ⇒ **The cause was per-entry, most likely a write that emitted each entry twice** — stated as the better-supported reading, **not** as established. 📌 **The remedy is unchanged (delete one copy of each); the record of WHY is corrected.**
+
+➕ **CITATION LOAD FOR THE `a`/`b` SPLIT — MEASURED, DISCHARGING §8a's OWED COUNT.** Repo-wide `.md`, `.claude` excluded:
+
+| Designation | Total refs | Excluding this task file and `ROADMAP_ARCHIVE` | Files needing a re-point |
+|---|---|---|---|
+| `J-044` | 26 | **16** | `BATCH_FLAG_ph2.md` 3 · `M2_NODE_PIPE_SERVER.md` 2 · `ROADMAP.md` 1 · `CLAUDE.md` 1 · `DECISIONS.md` 2 · `JOURNAL.md` 4 · `JOURNAL_ARCHIVE.md` 3 |
+| `J-045` | 22 | **12** | `BATCH_FLAG_ph2.md` 1 · `XGEN_CORE_SPLIT_ph2.md` 1 · `ROADMAP.md` 2 · `CLAUDE.md` 2 · `JOURNAL.md` 4 · `JOURNAL_ARCHIVE.md` 2 |
+
+⚠️ **Each of the 28 must be resolved to `a` or `b` INDIVIDUALLY — a bare `J-044` in `DECISIONS.md` means one of the two events and there is no mechanical way to tell which.** 📌 **This is the real cost of the split, and it is larger than the split itself.**
+
+---
+
+#### 🔓 THE DECISION §8b FORCES — WHAT DOES `ARCHIVED` MEAN WHEN THE ARCHIVE IS WRONG? **JOE'S. NOT CHAT'S TO DELEGATE-AWAY.**
+
+⚠️ **This is not a process question — it sets what an archival guarantee is worth project-wide, and the project's whole IP-provenance claim rests on that guarantee.** Chat proposes; Chat must not rule.
+
+**(R1) THE ARCHIVE IS TRULY IMMUTABLE.** §4b/§4c are **withdrawn as stated**; corrections land as **new forward entries in `JOURNAL.md`** that say *“J-044 designates two events; they are hereafter J-044a and J-044b”*, and the archive keeps its defects with a pointer.
+① None. ② None. ③ **Cheapest** — ~2 new entries, zero re-points, no deletion. ⚠️ **But the 24 KB of duplication STAYS, the ten entries STAY missing, and every reader must know to check a corrections list.** 🔑 **It preserves the guarantee by preserving the errors.**
+
+**(R2) ARCHIVED MEANS “NO NEW CONTENT”, NOT “NO REPAIR”.** A bounded exception: **deduplication, designation-splitting and gap-filling are REPAIRS; adding new narrative is not.** §4b/§4c execute in place; the archive's header gains an explicit amendment clause and a `Last updated`.
+① None. ② None. ③ Highest — the full 28-citation re-point plus the migration. ⚠️ **Its real cost is precedent: once “repair” is a legal reason to edit an archive, the class of things that count as repair is decided case by case, by whoever is editing.**
+
+**(R3) UNFREEZE, REPAIR, RE-FREEZE — AS ONE NAMED, DATED EVENT.** The archive goes `ARCHIVED → ACTIVE` for exactly one commit, takes §4b + §4c, and returns to `ARCHIVED` with a **`Repaired: 2026-07-xx (J-nnn)`** line naming precisely what changed and why.
+① None. ② None. ③ Same as R2, **plus one status round-trip.** 🔑 **The difference from R2 is that the exception is an EVENT with a date and a journal number, not a STANDING CLAUSE** — so it cannot be invoked again without repeating the whole visible act. ⚠️ **And git already holds the pre-repair bytes**, so “verbatim and unaltered” survives as a recoverable claim rather than a file-level one.
+
+**CHAT PROPOSES R3.** The defects are real and R1 leaves them in place forever; R2 buys the same repair by permanently weakening the word `ARCHIVED`; **R3 pays once, in public, and the guarantee's exception is itself part of the record.** 🔓 **OPEN — and it gates Leg B-bis, which gates Leg C.**
+
+📌 **A smaller one riding along:** the archive's own header says *“Live window (J-395 … J-376) continues in `JOURNAL.md`”* — **`JOURNAL.md` now runs J-376 … J-599.** The header is stale **and unfixable under its own rule**, which is the same collision in miniature.
+
+---
 
 **Leg E — the bidirectional sweep.** ⚠️ **Not only *is every roadmap entry true*, but *is every known work item ON the roadmap*.** **Surface: this session's open threads** — M-RP-LIVEFEED-REFRESH · the resync sibling · the outbox · H1 · H2 · D-130 · the address-book eviction question · `NegotiatedCapabilities` · the Ch0–Ch2 thesis read. **They exist in chat and in one task document and nowhere else.** They are the natural test case for whether the sweep works.
 
@@ -278,11 +383,16 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 - [ ] M-RP-MEMBERS Leg C reads ⏸️ **with its trigger** in ROADMAP, CLAUDE.md and the board — **Leg A**
 - [ ] All **94** P1 items **measured**: journal link found, or redundancy confirmed in writing — **Leg B**
 - [ ] All **11** P2 refs **measured**: entry located, or absence recorded — **Leg B**
+- [ ] The **`ARCHIVED`-versus-repair question (§8b) ruled** by Joe, and the ruling recorded where a future reader of `JOURNAL_ARCHIVE.md` will find it — **precedes Leg B-bis**
+- [ ] The **ten set-B bodies present in a journal file**, each carrying its provenance line — **Leg B-bis**
+- [ ] `J-317`–`J-321` **re-verified byte-identical, then reduced to one copy each**, count re-measured after — **Leg B-bis**
+- [ ] `J-044`/`J-045` split to `a`/`b`, **bare numbers retired**, and **all 28 surviving citations individually re-pointed** — **Leg B-bis**
 - [ ] Every ✅ node in the new tree carries `· J-nnn` — **Leg C**
 - [ ] Every 🟡 / ⏸️ node carries a trigger **or an explicit `trigger: none`** — **Leg C**
 - [ ] Every existing ⏸️ **POSTPONED** entry (**22** of them) **audited for a resume trigger** — **Leg C**
 - [ ] No `→` arrow points at a journal entry that does not record the loose end — **Legs B + C**
-- [ ] ROADMAP re-**measured** under 100 KB — **Leg C**
+- [ ] ROADMAP re-**measured** under 100 KB — **Leg C** 📌 *baseline is now 755,033 B (§1a), not 749,717*
+- [ ] `CLAUDE.md`'s PLAY head **grounded and its format ruled** before any rewrite — **Leg D** (§6's rider)
 - [ ] All nine of this session's threads present or explicitly declined — **Leg E**
 - [ ] Archive deleted, or its retention **stated with a reason** — **Leg F**
 
@@ -299,6 +409,14 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 
 ## §11 — Handoff
 
-**Blocked on Joe:** §6 (scope) · §7 (tree versus board).
-**Not blocked:** Leg A (the pause is ruled) · Leg B (the precondition walk needs no decision).
+✅ **RULED 2026-07-26 (delegated):** §6 — **BOTH** · §7 — **S1, the tree.**
+
+🛑 **BLOCKED ON JOE, IN THIS ORDER — EACH GATES THE NEXT:**
+1. **§8b — what `ARCHIVED` means when the archive is wrong.** Chat proposes **R3** (unfreeze → repair → re-freeze as one dated event). ⚠️ **This is a project-wide guarantee, not a process step, and it is the reason Leg C cannot open yet.**
+2. **§8a — does `Leg B-bis` exist, between B and C?** Chat proposes yes. **Sequencing is Joe's.**
+
+⚠️ **§6/§7 ARE RULED AND LEG C IS STILL SHUT.** The gate that was named at session open cleared; **a different one was found underneath it by measuring the work rather than describing it.** 📌 Stated plainly so it is not read as the same gate re-asked.
+
+**Not blocked, Chat's to run now:** the Leg C runbook (it can be authored against a ruled format; it cannot be *executed* until §8b lands) · Leg B's remaining P1 write-up.
+
 **Chat owes, carried:** the registry composition model · address-book eviction, declared versus wired · `NegotiatedCapabilities`' shape · the Ch0–Ch2 thesis read.

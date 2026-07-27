@@ -1,6 +1,6 @@
 # RUNBOOK — M-DOC-ROADTREE Leg C: keep the tree, link its nodes, delete the chronicle
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  
@@ -16,31 +16,40 @@
 
 📌 **Provenance: a LOCK, not a delegation.** Chat framed a bounded proposal and Joe answered it directly. Recorded as such because `M_DOC_ROADTREE.md` §6/§7 were **delegated**, and the two must not be read as the same act.
 
+⚠️ **AND THE TAG WAS RE-CUT ONCE (2026-07-26) BECAUSE ITS ANNOTATION CARRIED FIGURES FROM `a1d3630`.** `git tag -f` + `git push --force origin roadtree-pre-legc`. 📌 **Provenance: DELEGATED** (*"we go by your recomm"*), not a considered lock.
+
+🛑 **THIS IS NOT A PRECEDENT FOR §8b, AND MUST NOT BE CITED AS ONE.** §8b asks *may we edit a published immutable record because it is wrong* — and the answer proposed there is **R3: repair as a visible, dated event**, precisely because silent in-place fixes erode a guarantee. **Force-rewriting a pushed tag has the same SHAPE and a different SUBSTANCE:**
+- `JOURNAL_ARCHIVE.md` is immutable **because the project promises it** — an IP-provenance claim with a reader who relies on it. **Editing it costs something real.**
+- A git tag is immutable **by distribution convention only**, and the sole reason is other people's clones. **There are none — Joe is the only pusher.** **Nothing is promised about a tag's annotation text.**
+
+⇒ **The tag re-cut is a typo fix on a label. §8b remains open and unruled.**
+
 🔑 **AND THE PRECONDITION THAT BLOCKED THIS FOR A SESSION WAS GUARDING A LOSS THAT CANNOT HAPPEN.** §4 required proving 775 entries redundant before deleting any. But `docs/ROADMAP_ARCHIVE_2026-07-26.md` is committed, **git holds every byte of every version of this file**, and 🔒 **the tag `roadtree-pre-legc` marks the exact pre-edit state (Joe, 2026-07-26 — *"for any occasion, especially if we would have to make fallback"*).** Nothing removed here is recoverable-in-principle — it is recoverable in **one command**: `git reset --hard roadtree-pre-legc`. ⇒ **the real bar is not *prove the prose redundant*, it is *the surviving tree's links work*.** That is **86 lookups**, and it is what this runbook does.
 
 ---
 
-## §1 — Grounding (measured 2026-07-26 at `a1d3630`; HEAD = origin, tree clean)
+## §1 — Grounding (re-measured 2026-07-26 **at the tag `roadtree-pre-legc` = `1c3f3d1`**; working copy delta **0**)
 
-**`docs/ROADMAP.md` = 758,913 bytes / 1,029 lines.** Section map, measured, not described:
+⚠️ **v1.0/v1.1 GROUNDED AT `a1d3630` WHILE V7 ANCHORED AT THE TAG — TWO ANCHORS IN ONE DOCUMENT, WHICH IS THE DEFECT V7's OWN FIX WAS ABOUT.** `1c3f3d1` added the J-602 ROADMAP entry (**+2,509 B**), so every v1.1 figure was 2,509 B stale against the state Leg C actually starts from. **All numbers below are now on ONE anchor**, verified `git cat-file -s` blob = working copy = **761,422**, delta **0**.
 
-| Section | Lines | Bytes | Share | Leg C verb |
-|---|---|---|---|---|
-| header · legend · update discipline | 1–59 | 4,503 | 0.6% | **KEEP** |
-| **Visual structure — nested view (THE TREE)** | 60–283 | **79,802** | **10.5%** | 🔑 **KEEP + REPAIR** |
-| How to use this view | 284–331 | 12,871 | 1.7% | **KEEP**, re-point at the repaired tree |
-| **Past — settled** (62 `###` subsections) | 332–663 | **283,465** | 37.4% | ⚠️ **DELETE** |
-| **Present — playing now** | 664–944 | **362,121** | **47.7%** | ⚠️ **DELETE** |
-| Near future | 945–956 | 1,455 | 0.2% | **FOLD INTO TREE** |
-| Far future | 957–986 | 1,489 | 0.2% | **FOLD INTO TREE** |
-| Cross-cutting | 987–1014 | 12,380 | 1.6% | **KEEP** |
-| How to read this document | 1015–1029 | 827 | 0.1% | **KEEP** |
+**`docs/ROADMAP.md` = 761,422 bytes / 1,031 lines.** Section map:
 
-🔑 **THE SINGLE MOST TELLING NUMBER IN THE ARC: *"Present — playing now"* IS 362 KB AND LARGER THAN *"Past — settled"*.** 281 lines averaging **1,289 bytes each**. **A section named *playing now* that is half the document is the diagnosis stating itself** — and it is the same shape as `CLAUDE.md`'s PLAY head, which is why §6 ruled both.
+| Section | Lines | Bytes | Leg C verb |
+|---|---|---|---|
+| header · legend · update discipline | 1–59 | 4,100 | **KEEP** |
+| **Visual structure — nested view (THE TREE + how-to-use)** | 60–331 | **92,673** | 🔑 **KEEP + REPAIR** |
+| **Past — settled** (62 `###` subsections) | 332–663 | **283,465** | ⚠️ **DELETE** |
+| **Present — playing now** | 664–946 | **364,630** | ⚠️ **DELETE** |
+| Near future | 947–958 | 1,455 | **FOLD INTO TREE** |
+| Far future | 959–988 | 1,489 | **FOLD INTO TREE** |
+| Cross-cutting | 989–1016 | 12,380 | **KEEP** |
+| How to read this document | 1017–1031 | 827 | **KEEP** |
 
-**Delete target: 645,586 B (85.1%). Survivor: ~113 KB.**
+🔑 **THE SINGLE MOST TELLING NUMBER IN THE ARC: *"Present — playing now"* IS 364,630 B AND LARGER THAN *"Past — settled"*.** 283 lines averaging **1,289 bytes each**. **A section named *playing now* that is half the document is the diagnosis stating itself** — and it is the same shape as `CLAUDE.md`'s PLAY head, which is why §6 ruled both.
 
-⚠️ **THAT MISSES `M_DOC_ROADTREE.md` §9's *"under 100 KB"* DoD BY ~13 KB, AND THE NUMBER IS NOT FUDGED HERE.** The tree alone is 79.8 KB. Either the DoD moves to **under 120 KB**, or *"How to use this view"* (12.9 KB) and *"Cross-cutting"* (12.4 KB) are trimmed as their own decision. 🔓 **Chat proposes moving the DoD number:** those two sections are instructions and standing context, not chronicle, and **trimming them to hit a round number would be optimising the metric rather than the document.**
+**Delete target: 648,095 B (85.1%). Survivor: 113,327 B ≈ 113 KB.**
+
+⚠️ **THAT MISSES `M_DOC_ROADTREE.md` §9's *"under 100 KB"* DoD BY ~13 KB, AND THE NUMBER IS NOT FUDGED HERE.** The tree fence alone is **79,802 B**. Either the DoD moves to **under 120 KB**, or *"How to use this view"* (12.9 KB) and *"Cross-cutting"* (12.4 KB) are trimmed as their own decision. 🔓 **Chat proposes moving the DoD number:** those two sections are instructions and standing context, not chronicle, and **trimming them to hit a round number would be optimising the metric rather than the document.**
 
 **Tree contents, measured:** 215 node lines inside the fence at L66–282 · **241 ✅ · 8 🟢 · 3 🟡 · 5 ⏸️ · 5 ⬛ · 0 ❌ · 1 ⚫** · **191 status nodes: 105 carry a `J-` reference, 86 do not.**
 
@@ -98,7 +107,7 @@ Delete `## Past — settled` (L332–663) and `## Present — playing now` (L664
 | V4 | no milestone lost | names in deleted prose ∩ tree node names | **0 orphans** |
 | V5 | file size | `Get-Item .Length` | **≤ 120 KB** (§1's open DoD question) |
 | V6 | scope | `git diff --stat` | **`docs/ROADMAP.md` only**, plus the D-074 records |
-| V7 | recoverability | `git show roadtree-pre-legc:docs/ROADMAP.md` | **758,913 bytes retrievable** |
+| V7 | recoverability | `git cat-file -s $(git rev-parse roadtree-pre-legc:docs/ROADMAP.md)` | **761,422 bytes retrievable** |
 
 ⚠️ **V7 IS NOT CEREMONY.** It is the check that makes §0's argument **true rather than asserted**, and it runs **before Pass 3, not after.**
 
@@ -110,8 +119,9 @@ Delete `## Past — settled` (L332–663) and `## Present — playing now` (L664
 
 ## §5 — Traps specific to this leg
 
+- 🛑 **V7 MUST NOT READ THROUGH A POWERSHELL PIPELINE. MEASURED:** `git show roadtree-pre-legc:docs/ROADMAP.md | Out-String` returns **762,453 bytes across 655 lines**; the file is **761,422 bytes across 1,031 lines**. PS 5.1 re-encodes and re-wraps git's stdout, so **both numbers are wrong and neither looks obviously wrong.** 🔒 **Use `git cat-file -s` on the blob** — it reports the stored object size and never touches a pipeline. ⚠️ **A verification that goes through a lossy transport is not a verification.**
 - ⚠️ **PS 5.1 emoji matching:** `Select-String -SimpleMatch` on a surrogate-pair emoji returns **zero**. 🟢 = `\uD83D\uDFE2` · 🟡 = `\uD83D\uDFE1` · ⏸️ = `\u23F8` · ⬛ = `\u2B1B` · ❌ = `\u274C`. **✅ is `\u2705` and is BMP** — it matches either way, **which is exactly how a partial census can look complete.** Use `[regex]::Matches` for all six.
-- ⚠️ **Every line number in this runbook is valid at `a1d3630` only.** Each commit shifts them. **Re-derive section boundaries by heading text, never by stored line number.** 🔑 **Same disease as V7's original hash** — a stored coordinate goes stale silently while still looking authoritative.
+- ⚠️ **Every line number in this runbook is valid AT THE TAG `roadtree-pre-legc` ONLY.** Each commit shifts them. **Re-derive section boundaries by heading text, never by stored line number.** 🔑 **Same disease as V7's original hash** — a stored coordinate goes stale silently while still looking authoritative.
 - 🛑 **AN ANCESTOR WALK THAT KEEPS CLIMBING PAST AN UNLINKED PARENT PRODUCES CONFIDENT WRONG LINKS (Pass 1, measured).** **30 of the 86 nodes have a direct parent carrying no `J-` ref.** A walk that climbs further lands on an unrelated ancestor — `L197 M2 Node Pipe Server` inherited from *XGID Retrofit Pass series*. 🔒 **RULE: inherit from the DIRECT parent only. Everything else is resolved by hand.** 📌 **Caught by spot-checking six rows, not by trusting eighty-four.**
 - 🛑 **TITLE-REGEX LOOKUP AGAINST JOURNAL HEADINGS PRODUCES FALSE POSITIVES.** `Phase 7 B3` matched `J-107 — Persistence-amendment…`; `Phase 7.5 design` matched `J-093 — Phase 9 Commit 3…`. **Both rejected.** 🔒 **A wrong link is worse than a missing one** — `record: not located` is a legal outcome and an invented link is not.
 - ⚠️ **A PARTIAL SYMBOL CENSUS LOOKS EXACTLY LIKE A COMPLETE ONE.** §1's *"81 nodes"* omitted ⏸️ ⬛ ⚫; **the real count is 86.** Corrected throughout. **This is the §5 emoji trap firing on the runbook's own headline number.**

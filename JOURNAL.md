@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-26  
+> **Last updated:** 2026-07-28  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -8,9 +8,39 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-605 — the clock defect corrected at twelve points, and the brief was wrong about its own defect in three ways
+
+**Date:** 2026-07-28 · **Seat:** Chat (measurement + records). Provenance **DELEGATED** — Joe said *lock and go by your recomms*, so the substance is mine, not a lock. No code — zero `.rs`, zero `ui/**`.
+
+🔒 **THE DEFECT.** The last commit genuinely dated 2026-07-26 is `ec0d305` at 23:03. Nine commits followed: five on **2026-07-27**, four on **2026-07-28**. Every document written across them stamped itself 2026-07-26. Git timestamps are authoritative and were unaffected.
+
+🔒 **CORRECTED — SIX HEADERS, FIVE JOURNAL DATE LINES, ONE PROSE CLAUSE.** `CLAUDE.md`, `JOURNAL.md`, `docs/ROADMAP.md`, `tasks/M_DOC_ROADTREE.md` and `tasks/RUNBOOK_ROADTREE_LEGC.md` → 2026-07-28 · `tasks/M_RP_LIVEFEED_REFRESH.md` → **2026-07-27** · J-600, J-601, J-602 → 2026-07-27 · J-603, J-604 → 2026-07-28. Nine other documents stamped 2026-07-26 were verified **correct** and left alone, J-599 among them.
+
+⚠️ **THE SESSION BRIEF WAS WRONG ABOUT ITS OWN DEFECT IN THREE WAYS, ALL THE RECURRING CLASS.** It said **five** documents — there are six. It said the later work happened **2026-07-28** — it spans two days, and a blanket correction would have written a new wrong date into `M_RP_LIVEFEED_REFRESH`. It said the fix reaches **the tag annotation** — the annotation carries no date at all, and its tagger timestamp was already right. **A DEFECT DESCRIBED FROM MEMORY IS ITSELF A CLAIM THAT NEEDS MEASURING.**
+
+📌 **THE TAG IS NOT TOUCHED, BUT IT DOES CARRY A WRONG NUMBER.** `roadtree-pre-legc` predicts *Leg C deletes 648095 bytes, leaving about 113327*. The actual result is **43,308** as a blob and **43,741** on disk. That is a forecast written before the work, not a clock error, and a tag is immutable by distribution convention. Recorded here rather than re-cut.
+
+🔑 **THE CORRECTION EXPOSED A FALSE CLAUSE THE WRONG DATE HAD BEEN HIDING.** J-600 read *Follows J-599 the same evening*. J-599 landed 2026-07-26 23:03 and J-600 2026-07-27 19:11 — twenty hours and two evenings apart. It was never true; the shared wrong date made it look true. Corrected to *the next evening*. J-598→J-599, J-600→J-601 and J-601→J-602 were each checked against their commits and are true, unchanged.
+
+🔒 **RULING — `Last updated` IS THE DATE THE CONTENT LAST CHANGED, NOT THE DATE THE FILE WAS LAST WRITTEN.** A metadata repair therefore bumps no `Version` and stamps nothing TODAY that did not change in substance today. The convention *Last updated = TODAY on every touched file* would otherwise have destroyed the information this repair restores. Made under delegation and overturnable.
+
+🔒 **RULING — THIS IS A RECORDS REPAIR, NOT MILESTONE WORK, SO D-074 DOES NOT APPLY.** No PLAY block, no roadtree node. Nothing about the work state changed, and a PLAY entry saying the dates were wrong would add to exactly the accretion Leg D exists to remove. Overturnable.
+
+⚠️ **THREE DEFECTS OF MINE IN ONE FILE, AND NOT ONE OF THEM RAISED AN ERROR.** First, the journal pass indexed an ordered hashtable with **integer keys**, which PowerShell resolved **positionally instead of by key**; every lookup returned null and every replacement wrote an empty date. Caught only because the file shrank 1,477,037 → 1,476,987 characters and the 50-character deficit is exactly five dates times ten. Second, restoring a blank line offset by `+7` against a five-character anchor and split `## Entry` across two lines. Third, and worst, the file ended the pass as **five concatenated copies of itself**, 1,477,037 → 7,408,363 characters — caught by counting occurrences of the document title, which should never exceed one. ⇒ **ASSERT THE INVARIANTS OF THE WHOLE DOCUMENT BEFORE EVERY WRITE, NOT THE SIZE OF THE CHANGE.** A positional write into a raw string is checked by nothing: no anchor fails, no error is raised, the write succeeds, and the only witness is the bytes.
+
+📌 **THE REASON THAT COST NOTHING IS THAT THE FILE WAS TRACKED AND THE TREE WAS CLEAN.** `git checkout -- JOURNAL.md` returned all 1,477,037 characters, twice. The counter-example is worth keeping alongside Leg C's: **a clean tree is a working undo, and it stops being one the moment an edit is committed to make room for the next.**
+
+📌 **THE REPO IS MIXED-EOL AND THE SIZES IN THE STATE BLOCK ARE DISK SIZES.** `ROADMAP`, `JOURNAL`, `M_DOC_ROADTREE` and `RUNBOOK_ROADTREE_LEGC` are CRLF on disk; `CLAUDE.md`, `DECISIONS.md` and `M_RP_LIVEFEED_REFRESH` are LF. `core.autocrlf=true`, the blobs are identical and the tree is clean, so N-167 holds and nothing is converted. But a disk size and a blob size differ by exactly the line count: ROADMAP is **43,741 on disk and 43,308 as a blob**, and both are true. ⇒ **A SIZE WITHOUT ITS LENS IS NOT A MEASUREMENT.**
+
+**VERIFICATION.** `git diff -U0` read line by line across all six files: every changed line is a date or the one J-600 clause, no EOL churn, nothing else touched. Document-title count 1, J-605 count 1, J-604 count 1, final length asserted against the pre-edit length plus this entry before the write.
+
+**RECORDS.** No `Version` bumped on any document. This entry is the only addition.
+
+---
+
 ## Entry J-604 — M-DOC-ROADTREE Leg C CLOSED: the roadmap is 43,741 bytes and every node points at a record
 
-**Date:** 2026-07-26 · **Seat:** Chat (execution + records). Closes Leg C. No code — zero `.rs`, zero `ui/**`.
+**Date:** 2026-07-28 · **Seat:** Chat (execution + records). Closes Leg C. No code — zero `.rs`, zero `ui/**`.
 
 🔒 **`docs/ROADMAP.md`: 761,422 → 43,741 bytes. 94.3% smaller.** The maintained ASCII tree is kept and repaired; `Past — settled` (283 KB) and `Present — playing now` (365 KB) are deleted; `How to use this view` is replaced by a decode key.
 
@@ -34,7 +64,7 @@ property purposes. Entries are written contemporaneously with the work described
 
 ## Entry J-603 — six ROADMAP-only records recovered into the journal, and four numbers recorded as never written
 
-**Date:** 2026-07-26 · **Seat:** Chat (records). Written under M-DOC-ROADTREE Leg C, between stage 1 (the tree repair) and stage 2 (the prose deletion). No code.
+**Date:** 2026-07-28 · **Seat:** Chat (records). Written under M-DOC-ROADTREE Leg C, between stage 1 (the tree repair) and stage 2 (the prose deletion). No code.
 
 🔒 **WHY THIS ENTRY EXISTS.** `M_DOC_ROADTREE.md` §4b originally ruled *migrate the ROADMAP prose into JOURNAL **at those numbers***. ⚠️ **Those three words forced `JOURNAL_ARCHIVE.md` open** — the file whose own header reads *"Entries are verbatim and unaltered; do not modify"* — because every set-B number falls inside its span. 🔒 **Joe amended it (2026-07-26) to *"labelled with those numbers, in a forward entry"***, and this is that entry. 📌 **The archive is never touched. §8b — what `ARCHIVED` means when the archive is wrong — stays open, honest, and blocks nothing.**
 
@@ -154,7 +184,7 @@ property purposes. Entries are written contemporaneously with the work described
 
 ## Entry J-602 — the roadmap already contained the tree we were about to build, and the precondition blocking Leg C was guarding a loss that git makes impossible
 
-**Date:** 2026-07-26 · **Seat:** Chat (measurement + records). Follows J-601 the same evening. No code. Two documents, one new.
+**Date:** 2026-07-27 · **Seat:** Chat (measurement + records). Follows J-601 the same evening. No code. Two documents, one new.
 
 🛑 **THE FINDING, AND IT IS ABOUT THIS MILESTONE'S OWN PREMISE.** `docs/ROADMAP.md` **lines 66–282 are a fenced ASCII tree of the milestone hierarchy — 215 node lines, 79,802 bytes, 10.5% of the file — under the heading *"Visual structure — nested view"*.** One node per line, structure from nesting, a status symbol on each node. **That is substantially the artefact §3 specifies and Leg C was scoped to build.** 🔑 **And it is maintained, not abandoned: the document states the rule in bold two lines above it — *"Same-commit discipline applies to the tree, no exceptions."*** ⚠️ **§4c called it *"an old ASCII tree diagram"*. It is not old.** That one unchecked word is why §4's decomposition counted **four** tree nodes where there are **seventy-five**.
 
@@ -184,7 +214,7 @@ property purposes. Entries are written contemporaneously with the work described
 
 ## Entry J-601 — two owed measurements discharged: the address book's retention is enforced by nothing that runs, and the mechanism H2 was to ship behind is the wrong link
 
-**Date:** 2026-07-26 · **Seat:** Chat (measurement + records). Follows J-600 the same evening, while M-DOC-ROADTREE is blocked on Joe. No code. One document.
+**Date:** 2026-07-27 · **Seat:** Chat (measurement + records). Follows J-600 the same evening, while M-DOC-ROADTREE is blocked on Joe. No code. One document.
 
 **✅ OWED ITEM ② CLOSED — THE ADDRESS BOOK'S RETENTION IS DECLARED AND TESTED, AND WIRED TO NOTHING.** `M_RP_LIVEFEED_REFRESH.md` §5f recorded `T1_DEFAULT_RETENTION_DAYS = 182` as a bound and flagged *whether eviction is actually wired* as unmeasured. **Measured at `c44eb1d`: `#[cfg(test)] mod tests` opens at `address_book.rs:335`, and every use of `evict_older_than` / `T1_DEFAULT_RETENTION_DAYS` beyond the declaration (`:66`) and the definition (`:285`) sits at `:591 · :607 · :615 · :627 · :643` — all inside that test module.** A repo-wide `.rs` search across every crate (`.claude` excluded) returns **those seven lines and nothing else** ⇒ **`evict_older_than` has ZERO production callers.** 🔑 **The 182-day retention is enforced by the test suite and by nothing that ever runs.** §5f's own sentence — *a retention policy that nothing enforces is a retention policy in name only* — turns out to describe the shipped state exactly; it is now **measured, not suspected**, and the bullet that read *"It is NOT unbounded"* is **corrected in place**, because the record must not assert what the disk contradicts.
 
@@ -206,7 +236,7 @@ property purposes. Entries are written contemporaneously with the work described
 
 ## Entry J-600 — M-DOC-ROADTREE: both gating decisions ruled, and measuring the work they unblocked found a harder gate underneath — every ruled repair targets a file that says do not modify
 
-**Date:** 2026-07-26 · **Seat:** Chat (measurement + records). Follows J-599 the same evening. No code. One document.
+**Date:** 2026-07-27 · **Seat:** Chat (measurement + records). Follows J-599 the next evening. No code. One document.
 
 **THE TWO §6/§7 GATES ARE RULED.** §6 — **scope is BOTH**, `ROADMAP.md` **and** the `CLAUDE.md` PLAY head; §7 — **S1, the tree**, structure not status. ⚠️ **PROVENANCE IS DELEGATED, NOT A CONSIDERED LOCK** (Joe: *"both points by your recommendations"*), recorded that way per the standing convention. 📌 **The practical weight of that distinction is stated in §6:** if Leg D's grounding shows the PLAY head does not fit §3's node format, that is the delegation reaching its limit, not a reversal, and it returns to Joe.
 

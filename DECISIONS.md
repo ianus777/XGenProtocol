@@ -3914,6 +3914,24 @@ MP-F1b's (iii) closes cross-node DM convergence without weakening DM privacy: a 
 
 **Relationship to other decisions:** D-065 (built-when-consumed / no empty machinery — the build/codify line is D-065 applied); D-095/D-097 (`$common` substrate / sampler test-bed — the engine is `common` infra, no catalogue row; verified in the sampler); N-056 (the implementing note + the taxonomy table). Arc-local kinds-2/3/4 details stay in the task doc/N-056 until built (D-069).
 
+**AMENDMENT (M-RP-PROCESSOR-WIRE — where the attachment may land, 2026-07-28). The claim that the plug points are structurally gated is WITHDRAWN.**
+
+🔒 **Default OFF everywhere; plug in only where it matters** (Joe-locked J-560). The processor attachment is never present by default. **The consumer opts in per call site, and that is the entire mechanism.**
+
+🔑 **THE DISCRIMINATOR IS THE CONTEXT OF THE CALL SITE, NOT THE COMPONENT TYPE.**
+
+- **Composing** — prose written in flow, where the transformation is visible and correctable as it happens ⇒ **plug in**.
+- **Configuring** — a value stored and reused, where the rewrite lands silently and nobody is watching ⇒ **do not**.
+- **Byte-exact** — values that must round-trip unchanged ⇒ **never**; a correctness rule, not a preference. **Two sources, both binding:** byte-exact **because of what the value is** (XGIDs, tokens, passwords) and byte-exact **because of what it is for** (a setting whose meaning is an exact letter combination — the substitution rule text is the live instance).
+
+⚠️ **WITHDRAWN — *"`password-field` and `textfield` do not forward `{...rest}`, so processing them is structurally impossible."*** That describes what five components happen to do today, not a property of the design. `{...rest}` forwarding is the **capability** by which the attachment lands; a component that does not forward simply cannot host it *yet*, and a text field that needed the processor would be made to forward, exactly as `textarea` does. ⇒ **COMPONENT TYPE IS NOT A GATE.**
+
+🔑 **THE PROOF IS ON ONE COMPONENT.** `composer-panel.svelte:113` and `substitutions-editor.svelte:147` both import the same file — `$core/components/data-independent/textarea.svelte`. The first lands `{...processor(substitutions.rules)}`; the second must **never** — processing the textarea where the rules are authored is a feedback loop, and typing `:)` into the rule list rewrites the rule being written. **Same component, opposite treatment, decided entirely at the call site.**
+
+⚠️ **AND THERE IS NO STRUCTURAL BACKSTOP.** The design **does** trust every future call site, because **the call site is the only place the context is known.** A value silently rewritten by a user's own rule is a real harm and nothing below the call site will catch it. ⇒ **EVERY NEW TEXT-INPUT CALL SITE IS A DECISION, NOT A DEFAULT** — which is why it is written here rather than left to the pattern.
+
+📌 **Measured 2026-07-28:** the client+common tree still has exactly two text-input call sites, unchanged since J-560. `converter-field`, `number` and `textarea` forward `{...rest}`; `password-field` and `textfield` do not — **recorded as current state, not as a rule.**
+
 ---
 
 ## D-100 — Substitution pairs: the ` | `/first-space grammar, a single-string TOML home, and a source-agnostic rule store

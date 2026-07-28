@@ -8,6 +8,31 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-610 — the last gap closes by retracting a clause of the lock it came from
+
+**Date:** 2026-07-28 · **Seat:** Chat (records). **Joe LOCKED all**, including the retraction of part of his own J-560 lock. No code — zero `.rs`, zero `ui/**`. One document.
+
+🔒 **D-099 THIRD AMENDMENT — WHERE THE PROCESSOR ATTACHMENT MAY LAND.** Default OFF everywhere; **the consumer opts in per call site, and that is the entire mechanism.** The discriminator is **the context of the call site, not the component type**: *composing* — prose in flow, transformation visible and correctable — plug in · *configuring* — a value stored and reused, rewrite lands silently — do not · *byte-exact* — never, and a correctness rule rather than a preference.
+
+🔒 **THE BYTE-EXACT CLASS HAS TWO SOURCES AND ONLY THE SECOND GENERALISES (Joe, 2026-07-28).** Byte-exact **because of what the value is** — XGIDs, tokens, passwords — and byte-exact **because of what it is for**: a setting whose meaning is an exact letter combination. **Both existing copies carried only the first.** 📌 The live instance of the second was sitting in the same file the rule already excluded — the substitution rule text itself.
+
+⚠️ **A CLAUSE OF THE J-560 LOCK IS WITHDRAWN, ON JOE'S CALL.** *"`password-field` and `textfield` do not forward `{...rest}`, so processing them is structurally impossible"* describes **what five components happen to do today, not a property of the design.** A text field that needed the processor would be made to forward, exactly as `textarea` does. ⇒ **COMPONENT TYPE IS NOT A GATE**, and `{...rest}` forwarding is a **capability**, not a guarantee.
+
+🔑 **THE PROOF WAS IN MY OWN OUTPUT AND I READ PAST IT.** `composer-panel.svelte:113` and `substitutions-editor.svelte:147` **import the same file** — `$core/components/data-independent/textarea.svelte`, aliased `Textarea` and `TextArea`. One lands `{...processor(...)}`; the other must never. **Same component, opposite treatment, decided entirely at the call site** — which means gate ① does no work in the only case that matters, and I had listed both call sites two turns before I claimed the gate was structural.
+⚠️ **AND I HAD PROMOTED IT TO "THE SAFETY PROPERTY".** One turn earlier I wrote that non-forwarding *"makes processing structurally impossible — which is the safety property, not a side effect of the design."* **It is the side effect.** Joe overturned it by reasoning from **context**, where I had reasoned from **the component list** — a list I had produced myself, from a table that also contained the counter-example. ⇒ **A TABLE THAT ANSWERS THE QUESTION YOU ASKED CAN STILL CONTRADICT THE CLAIM YOU DREW FROM IT.**
+
+📌 **THE REAL POSTURE IS WEAKER AND IS NOW STATED AS SUCH.** There is **no structural backstop**. The design trusts every future call site, because **the call site is the only place the context is known**, and nothing below it can see whether a value is prose or a password. ⇒ **EVERY NEW TEXT-INPUT CALL SITE IS A DECISION, NOT A DEFAULT** — written down precisely because it cannot be enforced.
+
+🔒 **GAP 2 CLOSES, AND WITH IT ALL FOUR.** **Gap 1 was never a gap** — `ui/docs/xgen-ui-notes.md` carries a **fourth-instance** version of the same generalisation and is on the session-open list; my measurement had searched two phrasings across four files and concluded repo-wide. **Gap 3 → D-132** (`INTERACTIVE — HANDS OFF` as a custody transfer). **Gap 4 → D-133** (the `Owes:` line, `COMPLETED` not `ARCHIVED`). **Gap 2 → this amendment.**
+
+📌 **WHY AN AMENDMENT AND NOT A NEW NUMBER.** D-099 owns the processor architecture and **already carried the mechanism** — P-1a: the engine ships as a forwarded attachment and the atomic spreads `{...rest}`. What it lacked was the **policy**: 0 mentions of `password-field`/`textfield`, 0 of COMPOSING. Precedent for amending rather than minting: D-099's own M-RP4.1 and M-RP4.5 amendments, and D-100's second amendment (J-566, *no new D-number*).
+
+⚠️ **STILL OWED — §6a's OWN RECORD.** The 17 block verdicts, the four gaps as first found, and the **five stale self-declarations** (L195, L199, L241, L245, L249) are not yet on disk. **J-608 still reads "at least 8" and "4–6" where the Phase-0 brief now reads six and fourteen.** That drift closes with §6a's record, not with this commit.
+
+**RECORDS.** `DECISIONS.md` — **D-099 third amendment**, LF preserved, no new D-number. **No ROADMAP node** (R-3: a standing decision carries a force, not a state). `CLAUDE.md` untouched (P2).
+
+---
+
 ## Entry J-609 — two Joe-locked conventions get numbers, and the clause that had never fired was wrong
 
 **Date:** 2026-07-28 · **Seat:** Chat (records). **Joe LOCKED** the `COMPLETED` correction and confirmed both readings; the promotions themselves are his rules being written down, not new decisions. No code — zero `.rs`, zero `ui/**`. One document, two decisions minted.

@@ -1,6 +1,6 @@
 # RUNBOOK — M-DOC-ROADTREE Leg C: keep the tree, link its nodes, delete the chronicle
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  
@@ -37,7 +37,7 @@
 | Section | Lines | Bytes | Leg C verb |
 |---|---|---|---|
 | header · legend · update discipline | 1–59 | 4,100 | **KEEP** |
-| **Visual structure — nested view (THE TREE + how-to-use)** | 60–331 | **92,673** | 🔑 **KEEP + REPAIR** |
+| **Visual structure — nested view (THE TREE + how-to-use)** | 60–331 | **92,673** | 🔑 **KEEP + REPAIR** — ⚠️ **the how-to-use half is REWRITE, see §8.2** |
 | **Past — settled** (62 `###` subsections) | 332–663 | **283,465** | ⚠️ **DELETE** |
 | **Present — playing now** | 664–946 | **364,630** | ⚠️ **DELETE** |
 | Near future | 947–958 | 1,455 | **FOLD INTO TREE** |
@@ -152,3 +152,110 @@ Delete `## Past — settled` (L332–663) and `## Present — playing now` (L664
 ⚠️ **THE REASON THIS SECTION EXISTS:** the audit surfaced **six defect instances in one session and did not converge.** §0's bound is what stops that — **and it only works if it is honoured during the pass, not merely written here.**
 
 ⚠️ **A pass that cannot complete stops and says so with its count. It does not widen.**
+
+---
+
+# §8 — PASS RESULTS, AND THE SCOPE THE PASSES FOUND (2026-07-26, at the tag)
+
+📌 **§§8.1–8.7 were locked in conversation across one sitting and are written here because a decision in chat is not a record.**
+
+## §8.1 — PASS 1 ✅ COMPLETE: 83/83 · 0 not located · 3 reclassified
+
+| Resolution route | n |
+|---|---|
+| direct parent carries the link | 56 |
+| D-entry nodes → `DECISIONS.md` | 9 |
+| XGID Adoption v1 subtree, once its container resolved | 6 |
+| M-series → `J-074` · `J-075` · `J-077` · `J-078` | 4 |
+| container nodes → `J-095` and `J-102 + J-103` | 2 |
+| 🟢 needs no link per §3 | 1 |
+| **the hard five** — M1 → `J-073` · ⬛ M6-original → `DECISIONS.md D-069` · Phase 7 B3 → `tasks/archive/FEDERATION_PROPAGATION_PHASE_7_B3_AMENDMENT.md` · Phase 7.5 design → `J-093` · Phase 7.5 impl → `J-103` | 5 |
+| **reclassified to Pass 2** (⏸️ needs a trigger, not a link) | 3 |
+
+⚠️ **`J-093` was a REJECTED false positive that turned out correct.** The title regex matched on incidental words; it is right only because `J-103`'s **body** states *“Design phase closed at J-093”*. **A false positive that happens to be true is still a broken method.**
+
+## §8.2 — PASS 2 ✅ COMPLETE, and §1's census counted the wrong thing
+
+⚠️ **§1 counted symbol OCCURRENCES; a state board is made of NODES.** Corrected: **✅ 172** (not 241) · **🟢 4** (not 8) · 🟡 3 · **⏸️ 3** (not 5) · **⬛ 4** (not 5) · ⚫ 1. **The gap is prose: a ✅ node's text names other ✅ items inline.**
+
+🛑 **THE TRIGGER AUDIT FOUND A STALE NODE — THE DEFECT THIS MILESTONE EXISTS FOR.** `🟡 Component sampler — dev exhibit app (deferred, post-textfield)`: **`ui/sampler/` holds 1,896 files, crate `xgen-sampler` is on disk, `J-422` closed it (M-RP3.0)**, and its trigger fired earlier still at M-RP2.12/J-417. ⇒ **🟡 → ✅ · J-422.** 🔑 **A trigger fired, the work shipped, the roadmap never noticed — the M-RP6.2/M-RP6.6 shape verbatim.**
+
+**Triggers:** ✅ already compliant — `Multi-device arc` · `Slovak translation` · `DPI resistance`. **`Clean-table UI milestone`** gains `↳ trigger: Round-2 audit GO + M10 closed`, 📌 **transcribed from parent L247 and marked as transcribed**. **`Registry file encryption`** → `↳ trigger: none — filed, not scheduled`: *“rides the D-080/085 framework”* **names a home, not a condition**, and D-085 shipped at J-232. ⚠️ **`DPI resistance`'s *“resume when Phase 3 opens”* may point at a DEAD phase** — `⬛ Phase 3 (J-153) — COLLAPSED`; two different Phase 3s. **Flagged, not fabricated.** **⬛ 4/4 already carry reason + successor.**
+
+## §8.3 — 🛑 V4 FAILED BEFORE THE DELETION: TEN MILESTONES EXIST ONLY IN A RIVAL TREE
+
+🔑 **`How to use this view` (L284–331) contains a SECOND TREE in a THIRD notation** — ASCII pipes, status in **square brackets** (`[CLOSED J-269]`). **§1 marked that section KEEP. It holds content the main tree never received:**
+
+| Absent from the main tree | Record |  | Absent | Record |
+|---|---|---|---|---|
+| `M8.5` finalization | **J-279** | | `Arc F` space migration | **J-252** |
+| `Arc A` doc-drift | **J-233** | | `Arc G` jurisdictional ns | **J-250** |
+| `Arc B` forward-compat | **J-235** | | `Arc H` E2E encryption | **J-257** |
+| `Arc D` privilege model | **J-244** | | `Arc I` GDPR erasure | **J-253** |
+| `Arc E` primitive completion | **J-248** | | `Round 2` pre-UI gate | **J-390** |
+
+⚠️ **AND THE RIVAL TREE IS WRONG ABOUT M8.7.** It reads *“D3 MLS operationalisation (openmls) [CLOSED J-302]”*; the main tree and J-302 both say **“concurrent-commit resolution (R only)”**, *“no key material”*. 🔒 **`openmls` is ABSENT from `Cargo.lock` — measured. D3 is NOT discharged.** 🔑 **A reader of the decode section would conclude MLS shipped in June.**
+
+⇒ **`How to use this view` is REWRITTEN as the decode key** — node grammar, field rules, exemptions. **No second tree, no frozen snapshot** (it answers *“what's playing right now?”* with **M-RP2.3 / J-403** and admits its own bullets froze at ~J-256).
+
+## §8.4 — FIVE FORMAT RULES LOCKED DURING THE PASS
+
+**R-1 — LEADING SYMBOL ON EVERY NODE.** 🔒 Joe. 4 parenthetical containers normalise; 15 unstatused containers gain one.
+
+**R-2 — CONTAINER STATUS IS DERIVED AND PROPAGATES.** 🔒 Joe. *all children ✅ ⇒ ✅ · any child 🟢 ⇒ 🟢 · otherwise the weakest live state*, root exempt. 🔑 **A milestone with unfinished children is not done.**
+
+**R-3 — A CONTAINER OF NON-WORK CARRIES NO STATUS AT ALL.** 🔒 Joe. It carries a link instead. 🔑 **A standing rule has a FORCE, not a STATE** — `🟢 D-065`, `🟢 D-069`, `🟢 Honest longer work` were all false, **and R-2 would have manufactured a 🟢 container out of them.** ⇒ all 12 `Cross-cutting principles` children collapse to one `· DECISIONS.md` link *(delegated)*. 📌 **The branch cited 11 of 129 decisions and stopped at D-078 — an ABANDONED mirror, not a mirror.**
+
+**R-4 — IF A NODE NEEDS A QUALIFIER TO BE TRUE, IT NEEDS A CHILD INSTEAD.** 🔒 Joe (*“those DONE on H and I looked like some conditional DONE”*). ⚠️ **A ✅ with a subtraction clause in its prose is a claim the symbol contradicts.**
+
+**R-5 — §3 GAINS A NODE LENGTH BOUND** (see §8.5a). Without one the chronicle simply relocates into the tree.
+
+## §8.5 — THE SIX CONDITIONAL-DONES (17 candidates read individually → 6 verdicts)
+
+| Line | The subtraction |
+|---|---|
+| **L210** | `Phase 7 — A1 Federation mgmt HONEST-SUBSET: list + defederate (2 of 7); 5 verbs → D-071 arc` |
+| **L212** | `Phase 9 read subset — audit-events DEFERRED (log unbuilt); force-eject A4-D1 gated` |
+| **L204** | `Phase 1 (R1 rooms) — members deferred (no local data source)` |
+| **L228** | `M7-completion cluster — FIVE explicitly OUT, each with a named home` |
+| **L235** | `M8.7 (R only) — S + home-DS serialization + loser-rebuild folded into the production openmls-client arc` ⚠️ **openmls absent** |
+| **L239** | `Multiparty tests — all-green-except-{MP-C-06, MP-C-16}, both ⏸️ → M10` |
+
+📌 **Resolved by a later link in their own chain:** L226 → L227 → L228; L136 → Pass 2. **Descriptive, not subtractive:** L144 · L147 · L148 · L149 · L152 · L165 · L234. 🔑 **The regex gave 17 CANDIDATES; reading gave 6 VERDICTS.**
+
+### 🛑 §8.5a — L239 IS NOT A NODE, IT IS A CHRONICLE IN ONE LINE
+
+One tree row carries the **entire multiparty arc** — MP-R1→MP-R3, MP-F1…MP-F14, J-324 through J-357, commit hashes, falsified hypotheses. ⚠️ **This is the 124,299-char-line disease INSIDE the tree we agreed to keep.** §1's premise was *tree good, prose bad*; **the prose migrated into a tree node, because a tree node has no length limit.**
+
+🔒 **RESOLUTION (delegated): COLLAPSE, do not split** → `✅ **Multiparty tests** — R1+R2+R3 · J-356 → M10 (MP-C-06, MP-C-16)`. **`tasks/HANDOFF_MP_R3.md` §3 already holds the 37-scenario ledger** — reproducing it in the tree is D-067.
+
+## §8.6 — ARC H AND ARC I, GRAFTED UNDER R-4
+
+```
+🟡 Arc H — E2E encryption                 🟡 Arc I — GDPR erasure
+├── ✅ design + interface lock · J-257    ├── ✅ design + D-088 · J-253
+└── 🟡 PG-05 implementation              ├── 🟡 content erasure
+    ↳ trigger: D3 — RFC 9420/openmls    │   ↳ trigger: PG-05 ships
+      (measured ABSENT from Cargo.lock)  └── 🟡 identity orphaning
+                                             ↳ trigger: none — PG-05-independent;
+                                               rides the Tier-1 auth-module rebuild
+```
+
+🔑 **J-253's sequencing finding, verbatim:** *“PG-05 (Arc H) precedes the content-erasure implementation; the identity-orphan half is PG-05-independent and could ride the Tier-1 auth-module rebuild.”*
+
+🔑 **FIVE NODES CARRY ONE UNFINISHED THING:** `Arc H` · `Arc I` · `M8.5` residue · `Round 2` (GO with *gap register Open 1/13*) · the existing `🟡 Multi-device (R2-F09)`. **All of it is D3 / PG-05.** ⇒ **under R-2 the container reads 🟡 once and says why; today the tree says ✅ six times and the gap is invisible.**
+
+⚠️ **`ARC_H_E2E_IMPL.md:94` is this project's own precedent:** *“PG-05 → interface-locked / impl-deferred — **not** ✅ DONE (D-065; PG-02 shape)”*. **Arc H already refused the false ✅. A bare ✅ here would break a rule its own sibling honoured.**
+
+## §8.7 — REVISED EXECUTION ORDER
+
+1. Graft the ten (§8.3); Arc H/I per §8.6
+2. Apply Pass 1's 83 links + Pass 2's status corrections
+3. Split the six conditional-DONEs (§8.5); collapse L239 (§8.5a)
+4. Apply R-1, R-2, R-3
+5. ⬛→✅ for `Storage-Engine` (L232); delete the ⚫ legend row. ⚠️ **`CLAUDE_HISTORY.md`'s 65 ⚫ are a DIFFERENT notation — Leg D, untouched**
+6. Rewrite `How to use this view` as the decode key
+7. **V1–V7**
+8. **Then** Pass 3, the deletion
+
+⚠️ **STEPS 1–6 ARE ALL SCOPE FOUND DURING THE PASS, NOT IN v1.0's PLAN.** Recorded as growth rather than absorbed silently — that habit is what produced `M_DOC_ROADTREE.md` §8a.

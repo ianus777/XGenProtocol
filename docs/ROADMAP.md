@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 5.65  
+> Version: 6.0  
 > Date: May 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  
@@ -32,7 +32,6 @@ The canonical coarse-grained view of where the XGen Protocol project has been, w
 | ⏸️ | POSTPONED | Paused with a known resume condition. Will resume when condition is met. |
 | ❌ | CANCELLED | Stopped. Will not ship. Different from deprecated — no replacement, just won't happen. |
 | ⬛ | DEPRECATED | Superseded by named replacement. Named replacement always cited. |
-| ⚫ | CLOSED | A finished arc or milestone folded into the historical record — settled and not superseded. Close in meaning to ✅ DONE; distinct from ⬛ DEPRECATED, which cites a named replacement. |
 
 ## Update discipline — mandatory
 
@@ -66,268 +65,286 @@ A structural at-a-glance of the project's milestone hierarchy. Past entries are 
 ```
 XGen Protocol
 │
-├── Federation Event Propagation milestone (✅ DONE 2026-05-25 at J-119; workspace 627 tests at close)
-│   ├── ✅ Pass 2 design (10 F-items locked)
-│   ├── ✅ Pass 3 design (canonical doc + runbook shipped)
-│   ├── ✅ Phase 1 implementation (F-6 + F-7 wire shape)
-│   ├── ✅ Phase 2 implementation (F-4 validation unification)
-│   ├── ✅ Phase 3 implementation (F-1a tip exchange)
-│   ├── ✅ Phase 4 implementation (F-1 federation push)
-│   ├── ✅ Phase 5 implementation (F-1c per-peer record + reconnect)
-│   ├── ✅ Phase 6 implementation (F-10 unknown-signer Identity)
-│   ├── ✅ Phase 7 implementation (F-3 federation-relationship gate)
-│   │   └── ✅ Phase 7 B3 amendment (predecessor-chain + step-11 closure)
-│   ├── ✅ Phase 7.5 milestone (cold-start bootstrap)
-│   │   ├── ✅ Phase 7.5 design (4 framework decisions)
-│   │   └── ✅ Phase 7.5 implementation (5 commits, JOURNAL gap flagged)
-│   ├── ✅ Phase 9 implementation (deployment integration tests; CLOSED 2026-05-25 at J-119 via the 3b arc J-110/J-111/J-112/J-118)
-│   │   ├── ✅ Phase 9 survey (14 failure-mode catalogue + 12 scenarios)
-│   │   ├── ✅ Phase 9 Commit 1 (G1 observability)
-│   │   ├── ✅ Phase 9 Commit 2 (flake fixes)
-│   │   ├── ✅ Phase 9 Commit 3a (harness + Scenario 1 regression witness with #[ignore])
-│   │   ├── ✅ Phase 9 Commit 3b-2-equivalent (J-110) — Scenarios 5 + 6 + Phase 7.5 §5 extended skip-set + room_create narrowness regression (4 tests across 2 new modules; workspace 592 → 596)
-│   │   ├── ✅ Phase 9 Commit 3b-3-pre (J-111) — harness extension (push-attempt counter + tracing-Layer composition + install_harness_subscriber per-test installer) + G2 trace-event retrofit (local_node_id field on apply_federation_push + 4 G2 federation-push trace events; workspace 596 → 599)
-│   │   ├── ✅ Phase 9 Commit 3b-3 (J-112) — Compound C2 (F-5 anti-transitivity under push queue depth) test against extended harness (workspace 599 → 600)
-│   │   ├── ✅ Phase 9 Commit 3b-4 runbook authoring (J-114) — runbook shipped at tasks/FEDERATION_PROPAGATION_PHASE_9_COMMIT_3B_4_IMPL.md Status: ACTIVE v1.0 (~57.5 KB, eight sections); D-078 promoted in same atom (Path B.i — "Production-grounded test enumeration" as protocol-test-layer sibling to D-077 meta-layer); three-instance threshold met (J-099 + J-109 + J-113)
-│   │   ├── ✅ Phase 9 Commit 3b-4 (J-118) — NodeRuntime-level Scenario 4 (20 forgery tests under amended contract per J-113) + C5 + C7 + C9 + C10 (workspace 600 → 627, +27)
-│   │   └── ✅ Phase 9 milestone close (J-119) — Federation Event Propagation umbrella milestone PLAY → DONE; M6 (new) + XGID Retrofit Pass 1 unblock simultaneously; per-phase shipped state in `docs/xgen_federation_propagation_design.md` §15 Implementation Complete
-│   ├── ✅ Persistence-amendment sub-amendment milestone (sibling to bidirectional + topological-sort + Phase 7.5; opened 2026-05-23 per J-104; CLOSED 2026-05-24 per J-108)
-│   │   ├── ✅ Audit phase (canonical doc shipped 2026-05-23 at tasks/PHASE_7_5_PERSISTENCE_AMENDMENT.md v1.0; COMPLETED v1.1 at design-close J-105; body §1–§11 stays authoritative as historical record of audit-at-lock-time per topo-sort + bidirectional precedents)
-│   │   ├── ✅ Design phase (four Joe-locks at tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_DESIGN.md v1.0 — Q1 (a).ii + (a).iii.β + candidate D-NNN flag; Q2 (a) return-vector; Q3 all-three drain helpers; Q4 (a) sentinel-tree in-scope; eleven sections sibling-in-shape to FEDERATION_TOPOSORT_DESIGN.md; **amended v1.1 → v1.2 at J-107 re-walk** with §3 Y-lock subsection recording (a).iii.β → (a).iii.α revert + bidirectional sustainability frame + §8 expanded scope of candidate D-NNN to cover five `ingest_event` silents + three drain helpers + M6 reject paths + B3 apply_event dependency)
-│   │   ├── ✅ Implementation runbook authoring (shipped 2026-05-23 at tasks/PHASE_7_5_PERSISTENCE_AMENDMENT_IMPL.md v1.0; ~95 KB, eight sections; sibling-in-shape to FEDERATION_TOPOSORT_IMPL.md v1.2; six runbook-structural Joe-locks at §1.1 + §2.3; two pre-draft code-trace findings shaped §4 + §4a narrow scope; J-106; **amended v1.0 → v1.1 at J-107 re-walk** with §4 amendments .1-.10 reflecting (a).iii.α revert + §4.9 package-scoped-verification correction text + new §7.8 discipline-notes sub-section naming D-077 origin)
-│   │   ├── ✅ Track 1 re-walk canonical-record amendments (Y-lock revert (a).iii.β → (a).iii.α; D-077 promoted to DECISIONS.md as new principle bidirectional sustainability discipline at silent-discard / fallible-discard sites; **eight-file atomic commit per D-074 tenth instance** — expanded from seven when bridge-handoff folded in per anti-tempfile-deletion discipline; J-107; sibling-shape to topo-sort design-phase re-walk J-099/J-100 but directional-asymmetry-distinct — record-of-already-locked-decision vs decision-input)
-│   │   ├── ✅ Implementation (✅ Commit 1 doc-pass `0ca29e6`; ✅ Commit 2 Q1 (a).iii.α binary-void signature + `tracing::error!` + (a).ii sort-on-replay defensive layer + verbatim code-comment block at runtime.rs:181 `f4f0e4e`; ✅ Commit 2a Q2+Q3 return-vector + `additional_persisted` aggregation through dispatch_event → process_inbound persist-loops + 5 new unit tests `c88fd73`; ✅ Commit 3 sentinel-tree refinement + verify 8/8 GREEN `a677244` — three within-Commit-3 audit gaps closed atomically per D-077 first worked instance: abort-fold + identity-registry-persist + space-event-store-persist; federation-registry-persist audited and confirmed safe via downstream production path)
-│   │   └── ✅ Milestone close (Commit 4 at J-108 — twelve-file atomic per D-074 eleventh instance; collapses Phase 9 Commit 3b-1 into milestone close per Q4(a) lock; sentinel-tree four files crowned as activating integration regression locks; Scenario 3 transition FAIL → PASS verified at integration level; J-NNN freezes at runtime.rs:181 + design doc §15 + survey-findings M16 + design + impl runbook body markers; runbook v1.1 → v1.2 COMPLETED; ROADMAP v1.22 → v1.23; CLAUDE.md PLAY flip to Phase 9 Commit 3b-2-equivalent RESUMES; grep guardrail scope discipline codified at JOURNAL J-108 sub-section 8 as fifth project instance of surfacing-gap-becomes-codified-discipline pattern)
-│   ├── ✅ Bidirectional federation_nodes phase (sibling to Phase 7.5; closed 2026-05-21 per J-096)
-│   │   ├── ✅ Audit phase (canonical doc shipped 2026-05-21 at tasks/FEDERATION_BIDIRECTIONAL_NODES_AUDIT.md v1.0)
-│   │   ├── ✅ Design phase (Q1 Reading (i) + Shape A + A.1 locked 2026-05-21; design task file at tasks/FEDERATION_BIDIRECTIONAL_NODES_DESIGN.md v1.0; D-075 promoted)
-│   │   └── ✅ Implementation (4 commits: e975162 + a730eda + cbceb41 + f051039 + Commit 4 close; runbook at tasks/FEDERATION_BIDIRECTIONAL_NODES_IMPL.md v1.1 COMPLETED; 571 → 577 tests, +6 unit; J-096)
-│   └── ✅ Topological-sort wire-order non-determinism phase (sibling to bidirectional federation_nodes; opened 2026-05-21 per J-096; CLOSED 2026-05-23 per J-101)
-│       ├── ✅ Audit phase (canonical doc shipped 2026-05-22 at tasks/FEDERATION_TOPOSORT_AUDIT.md v1.0; amended v1.1 at Step 2 of design-phase re-walk — §11 added recording framing gap)
-│       ├── ✅ Design phase (three locks at tasks/FEDERATION_TOPOSORT_DESIGN.md v1.0 — Q3.ii + Q2 middle + Q2.γ + Q1 Shape A v1; amended v1.1 at Step 2 of design-phase re-walk — §11 added recording Q4 causal-DAG-respecting order + Q1 supplement Path B; D-076 promoted to DECISIONS.md then amended in place at Step 2)
-│       ├── ✅ Implementation runbook authoring (shipped 2026-05-22 at tasks/FEDERATION_TOPOSORT_IMPL.md v1.0; revised v1.0 → v1.1 at Step 3 J-100; COMPLETED v1.2 at milestone close J-101)
-│       ├── ✅ Implementation — five-commit Clair-facing sequence shipped per revised runbook v1.1 (J-101 milestone close)
-│       │   ├── ✅ Step 1 (J-098-session-close Joe-lock conversation) — Path B locked at event-construction layer; Path A + Path C rejected; D-076 amends in place
-│       │   ├── ✅ Step 2 (canonical-record amendments + Rule 0 addition + JOURNAL J-099 — eight-file atomic commit per D-074)
-│       │   ├── ✅ Step 3 (runbook v1.0 → v1.1 revision — shipped at J-100, five-file atomic commit per D-074; "Commit 2a" naming Joe-locked at Step 3 open)
-│       │   ├── ✅ Commit 1 doc-pass (parents of 0543a86)
-│       │   ├── ✅ Commit 2 determinism layer (0543a86) — Shape A v1 sort fix at fanout.rs:193 + sibling Site 1 sort + 4 unit tests including wire-order witness
-│       │   ├── ✅ Commit 2a causality layer (4a6fd74) — Path B fix at build_room_create_event + validator companions unified per D-067 Option E across is_dag_root_type and validate_dag_structure + 17-site dag-test fixtures under Posture β; two layered B3-shape surfaces closed atomically
-│       │   ├── ✅ Commit 3 Phase 9 Scenario 1 second #[ignore] lift (b370dc7) — doc-comment rewrite to 5-event chronology + 3-decision regression-lock framing; 8/8 green verification runs
-│       │   └── ✅ Commit 4 milestone close per D-074 (J-101) — 8 files atomic; M15 catalogue row added; four J-NNN freezes (line 1140 retroactive J-096; line 1141 + M15 + phase9 doc-comment → J-101)
-│       └── ✅ Phase 9 Commit 3b arc completed under the closed Federation Event Propagation milestone (3b-2-equivalent J-110 + 3b-3-pre J-111 + 3b-3 J-112 + 3b-4 J-118 + milestone close J-119; covered above under the Phase 9 implementation row)
+├── ✅ **Federation Event Propagation** — F-1…F-10 wire + validation · J-119
+│   ├── ✅ **Pass 2 design** — 10 F-items locked · J-119
+│   ├── ✅ **Pass 3 design** — canonical doc + runbook · J-119
+│   ├── ✅ **Phase 1** — F-6 + F-7 wire shape · J-119
+│   ├── ✅ **Phase 2** — F-4 validation unification · J-119
+│   ├── ✅ **Phase 3** — F-1a tip exchange · J-119
+│   ├── ✅ **Phase 4** — F-1 federation push · J-119
+│   ├── ✅ **Phase 5** — F-1c per-peer record · J-119
+│   ├── ✅ **Phase 6** — F-10 unknown-signer hold · J-119
+│   ├── ✅ **Phase 7** — F-3 federation-relationship gate · J-119
+│   │   └── ✅ **Phase 7 B3 amendment** — predecessor-chain + step-11 closure · tasks/archive/FEDERATION_PROPAGATION_PHASE_7_B3_AMENDMENT.md
+│   ├── ✅ **Phase 7.5** — cold-start bootstrap · J-119
+│   │   ├── ✅ **design** — 4 framework decisions · J-093
+│   │   └── ✅ **implementation** — 5 commits · J-103
+│   ├── ✅ **Phase 9** — deployment integration · J-119
+│   │   ├── ✅ **survey** — 14 failure-mode catalogue · J-119
+│   │   ├── ✅ **Commit 1** — G1 observability · J-119
+│   │   ├── ✅ **Commit 2** — flake fixes · J-119
+│   │   ├── ✅ **Commit 3a** — harness + Scenario 1 regression · J-119
+│   │   ├── ✅ **Commit 3b-2** — Scenario 2 · J-110
+│   │   ├── ✅ **Commit 3b-3-pre** — harness extension · J-111
+│   │   ├── ✅ **Commit 3b-3** — Compound C2 · J-112
+│   │   ├── ✅ **Commit 3b-4 runbook** · J-114 (J-109, J-113)
+│   │   ├── ✅ **Commit 3b-4** — NodeRuntime-level · J-118 (J-113)
+│   │   └── ✅ **milestone close** · J-119
+│   ├── ✅ **Persistence-amendment sub-milestone** · J-104
+│   │   ├── ✅ **audit** · J-105
+│   │   ├── ✅ **design** — four Joe-locks · J-107
+│   │   ├── ✅ **runbook** · J-106
+│   │   ├── ✅ **Track 1 re-walk amendments** · J-107
+│   │   ├── ✅ **implementation** — Commit 1 doc-pass `0ca29e6` · J-107
+│   │   └── ✅ **milestone close** — Commit 4 · J-108
+│   ├── ✅ **Bidirectional federation_nodes** · J-096
+│   │   ├── ✅ **audit** · J-096
+│   │   ├── ✅ **design** — Q1 Reading (i) + Shape A · J-096
+│   │   └── ✅ **implementation** — 4 commits · J-096
+│   └── ✅ **Topological-sort wire-order determinism** · J-096
+│       ├── ✅ **audit** · J-096
+│       ├── ✅ **design** — three locks · J-098
+│       ├── ✅ **runbook** · J-100
+│       ├── ✅ **implementation** — five-commit sequence · J-101
+│       │   ├── ✅ **Step 1** — Joe-lock conversion · J-098
+│       │   ├── ✅ **Step 2** — canonical-record amendments + Rule 0 · J-099
+│       │   ├── ✅ **Step 3** — runbook v1.0 → v1.1 · J-100
+│       │   ├── ✅ **Commit 1** — doc-pass · J-101
+│       │   ├── ✅ **Commit 2** — determinism layer `0543a86` · J-101
+│       │   ├── ✅ **Commit 2a** — causality layer `4a6fd74`, Path B · J-101
+│       │   ├── ✅ **Commit 3** — Phase 9 Scenario 1 second `#[ignore]` · J-101
+│       │   └── ✅ **Commit 4** — milestone close per D-074 · J-101
+│       └── ✅ **Phase 9 Commit 3b arc** — completed under the close · J-110
 │
-├── XGID Adoption v1 milestone (✅ DONE 2026-05-20)
-│   ├── ✅ Design walkthrough (Q1–Q6 locked, 2 sessions)
-│   ├── ✅ Phase 1 canonical sources (8-artefact atomic commit, a5f3c8b)
-│   ├── ✅ Phase 2 doc-tree sweep (classification table, 70e3e5a)
-│   │   ├── ✅ Pre-walk Scope-A-vs-Scope-B Joe-lock (Scope B)
-│   │   ├── ✅ Pre-walk SK appendix housekeeping (2 files → DEPRECATED)
-│   │   └── ✅ 23-doc classification walk (6 groups A–F)
-│   └── ✅ Implementation (Clair's 2 production commits + hygiene + close, J-095)
-│       ├── ✅ Commit 1 (c95584a) — xgen-common XGID types + 5 invariance tests
-│       ├── ✅ Commit 2 (24a255b) — SpaceLocalMetadata.introducer_node_id retype
-│       ├── ✅ Hygiene commit (904441b) — workspace clippy under Rust 1.95.0 (NOT XGID code)
-│       └── ✅ Milestone-close commit — JOURNAL J-095 + Ch4 pointer + cross-doc flips
+├── ✅ **XGID Adoption v1** · J-095
+│   ├── ✅ **design walkthrough** — Q1–Q6 locked · J-095
+│   ├── ✅ **Phase 1 canonical sources** — 8-artefact atomic · J-095
+│   ├── ✅ **Phase 2 doc-tree sweep** — classification table · J-095
+│   │   ├── ✅ **Scope-A-vs-B pre-walk lock** · J-095
+│   │   ├── ✅ **SK appendix housekeeping** · J-095
+│   │   └── ✅ **23-doc classification walk** — 6 groups A–F · J-095
+│   └── ✅ **implementation** — 2 production commits · J-095
+│       ├── ✅ **Commit 1** `c95584a` — xgen-common XGID types · J-095
+│       ├── ✅ **Commit 2** `24a255b` — SpaceLocalMetadata · J-095
+│       ├── ✅ **hygiene** `904441b` — workspace clippy · J-095
+│       └── ✅ **milestone close** · J-095
 │
-├── ✅ XGID Retrofit Pass series — all 5 passes CLOSED (Pass 1 J-122 → Pass 5 J-148)
-│   ├── ✅ Pass 1 — core data structures (CLOSED 2026-05-26 at J-122; seven atomic commits 403ef3f + 8a94dee + 75e81b4 + 774fe9d + 4895446 + 096162e + this Commit 6; plus J-121 hygiene atom 1dd909e; test count 489 at close per Path A workspace-broken intermediate; +5 invariance tests A–E)
-│   │   ├── ✅ Commit 1 (403ef3f) — canonical-form module move (xgen-core → xgen-common; re-export shim preserved)
-│   │   ├── ✅ Commit 2 (8a94dee) — convenience constructors on flavour wrappers (`from_event` / `from_space_create` / `from_room_create`; `from_assertion` deferred to Pass 2 with code-comment flag)
-│   │   ├── ✅ Commit 3 (75e81b4) — xgen-common data-structure retypes + 5 invariance tests A–E
-│   │   ├── ✅ Commit 4 (774fe9d) — xgen-core data-structure retypes (lib-clean per Path A Joe-lock; Borrow<str> additive API added at implementation kickoff over per-site explicit-wrap-with-comment churn)
-│   │   ├── ✅ Commit 4a (4895446) — xgen-core test-fixture projection sweep (split from Commit 4 mid-implementation per Joe-lock when ~296 fixture errors surfaced)
-│   │   ├── ✅ Commit 5 (096162e) — Appendix C + Appendix I retypes
-│   │   ├── ✅ J-121 hygiene atom (1dd909e) — gate NodeXgid import to tests in exchange.rs (lib-level unused-import warning surfaced at Commit 6 verification gate; sibling-shape to J-095 hygiene 904441b)
-│   │   └── ✅ Commit 6 milestone close (J-122) — runbook v2.0 → v2.1 COMPLETED + CLAUDE.md PLAY flip + this ROADMAP v1.32 → v1.33 + JOURNAL J-122 nine-section entry + HANDOFF flipped COMPLETED v1.1
-│   ├── ✅ Pass 2 — xgen-core (code-only, zero doc work) — CLOSED 2026-05-27 at J-126; three-commit Clair-facing sequence (5892e9e + 22765a0 + 58b94a5) + this Commit 3 milestone-close commit; test count 491 at close per Path A workspace-broken intermediate (+2 vs J-122 baseline of 489); zero recurrences (first project milestone to ship with zero recurrences since the framework was named)
-│   │   ├── ✅ Design phase (J-123; single principle locked at tasks/XGID_RETROFIT_PASS_2_DESIGN.md v1.0 — identifier slots retype, descriptive-string slots stay String, project at call-site via Borrow<str>; two architectural decisions Q2.8 partial HashMap retyping + Q5 validate_steps_8_13 deprecate-and-schedule per D-071 own-arc; ~31 KB lighter than trilogy per §1.2 precedent-departure self-defense)
-│   │   ├── ✅ Implementation runbook (J-124; `tasks/XGID_RETROFIT_PASS_2_IMPL.md` ACTIVE v1.0 ~43 KB eight sections + §4a contingent; three-commit base + contingent Commit 2a shape; three Joe-lock checkpoints; runbook lighter than Pass 1 per Pass-internal-consistency framing)
-│   │   ├── ✅ Commit 1 doc-pass (`5892e9e` at J-125; design Status ACTIVE → COMPLETED v1.0 → v1.1 + new §6.7 Shape α entry; ROADMAP v1.34 → v1.35; CLAUDE PLAY flip; JOURNAL chain entry; runbook header chain; pre-Clair audit clean across six dimensions; checkpoint #1 fires post-commit)
-│   │   ├── ✅ Commit 2 (`22765a0`) — xgen-core algorithm-bearing retypes all five surfaces atomic (lib-clean per Path A; validate_event + ValidationOutcome at exchange.rs; NodeRuntime::dispatch_event + DispatchOutcome at runtime.rs; PendingBuffer arrival hooks at pending.rs; FederationRegistry + IdentityRegistry method APIs at registry.rs; accept_message; plus per-surface unit tests at runbook §4.7; deprecation attributes applied to validate_steps_8_13 + accept_event per design doc §4.2 Q5.b)
-│   │   ├── ✅ Commit 2a (`58b94a5`) — xgen-core test-fixture projection sweep (Joe-lock checkpoint #3 split-trigger fired at 93 errors > ~50 threshold; nine xgen-core test modules updated across dag/pending.rs + node/runtime.rs + node/tests/phase9_* + identity/replication.rs + federation/{mod,registry}.rs + message/exchange.rs `#[allow(deprecated)]` test-mod attribute; sibling-shape to Pass 1 Commit 4a precedent)
-│   │   ├── ✅ Commit 3 milestone close (J-126) — this commit; runbook v1.0 → v1.1 COMPLETED + design doc §6.7 J-NNN-placeholder freeze + CLAUDE PLAY flip + ROADMAP v1.35 → v1.36 + JOURNAL J-126 body entry
-│   │   ├── ✅ (code) validate_event, ValidationOutcome
-│   │   ├── ✅ (code) NodeRuntime::dispatch_event, DispatchOutcome
-│   │   ├── ✅ (code) PendingBuffer arrival hooks
-│   │   ├── ✅ (code) FederationRegistry / IdentityRegistry APIs
-│   │   └── ✅ (code) accept_message signature
-│   ├── ✅ Pass 3 design (J-127) — xgen-node + Appendix D scope; full seven-surface walk closed across two same-day sessions at v1.2; single governing principle inherited from Pass 2 unchanged; six architectural decisions locked at §4.1-§4.6 with §4.3 format-boundary preservation consolidated (wire OR persistence) at v1.2 sibling-shape to D-076 v1 → v1.1; three candidate D-NNNs (γ+δ+ε) flagged-not-promoted; layered-B3 confirmed null at full seven-surface scope (third Pass-arc instance, pattern durable)
-│   ├── ✅ Pass 3 implementation runbook (J-128 v1.0; amended v1.0 → v1.1 at J-129 Track 1 canonical-record amendment — surfaces #1↔#2 + #5↔#6 ordering swapped at v1.0; `handle_federation_incoming` mis-located to federation_session.rs (production at xgen-node/src/app.rs:976); runbook now matches design doc §2 verbatim)
-│   ├── ✅ Pass 3 J-130 drift-fix atom (silent gitignore-skip closure — J-129 atomic claim was five-file but git received four because `tasks/HANDOFF_TOPOSORT_RUNBOOK_AUTHORING.md` was explicitly gitignored at .gitignore:58; candidate D-NNN-η "claimed-atomic-file-count vs git-actually-shipped-file-count at canonical-record amendment commits" flagged-not-promoted per D-069; four-file atomic per D-074 (twenty-seventh instance); Pass 3 "Honest longer work" count increments to TWO — Sub-shape D gitignored-path silent-skip slip)
-│   ├── ✅ Pass 3 Commit 1 doc-pass (J-131; this commit) — three-file atomic per D-074 (twenty-eighth instance) per Lock #3 per-commit cadence — but honest count is two files because post-J-129 strip-the-chain discipline + sibling-shape to J-123/J-124/J-125 chain-only doc-only milestone-event precedent means JOURNAL.md gets no edit (no body, no chain to update post-strip); ROADMAP v1.39 → v1.40 + visual tree Commit 1 row + Past entry + Present flip; CLAUDE PLAY flip "Commit 1 against amended v1.1" → "Commit 2 (Commit 1 doc-pass ✅)"; design doc + runbook untouched per Option C hybrid minimal (design doc COMPLETED v1.2 at J-127; runbook ACTIVE v1.1 at J-129); Joe-lock checkpoint #1 fires post-ship for three drift-detection points (ROADMAP version bump + visual tree row ✅; CLAUDE PLAY flip ✅; honest two-file-vs-three-file count discrepancy surfaced for Joe at checkpoint #1)
-│   ├── ✅ Pass 3 J-132 Path-(iii) amend-in-place at checkpoint #1 resolution (runbook §3.2 third-file line rewritten "JOURNAL.md chain entry only" → "JOURNAL.md NOT amended post-strip"; §3.1 file-count corrected three → two; new §9.4 amendment-provenance; single-file atom per D-074 twenty-ninth instance; runbook v1.1 → v1.2)
-│   ├── ✅ Pass 3 J-133 design doc §2 v1.2 → v1.3 Track 1 amendment at checkpoint #2 (two parameter-attribution drifts caught by Clair's D-078 verification: §2.3 Q3.6 non-existent parameter on `apply_federation_push`; §2.5 Q5.14 `OutboundMsg` mis-attribution — production at app.rs:1165 is `run_federation_session_post_handshake` parameter not OutboundMsg field; §2.5 sub-region enumeration omission of `run_federation_session_post_handshake` closed; candidate D-NNN-κ opens flagged-not-promoted at two instances; two-file atomic per D-074 thirtieth instance)
-│   ├── ✅ Pass 3 J-134 design doc §2 v1.3 → v1.4 in-place rewrite-correction of J-133's own Q3.6 v1.3 + D-NNN-κ promoted to D-079 (Clair's J-134 atom-prep D-078 grep found `SpaceState.federation_nodes` is already `Vec<NodeXgid>` retyped at Pass 1 Commit 4 `774fe9d`; the J-133 Q3.6 v1.3 rewrite carried a wrong claim production doesn't honor; three-instance threshold met across two distinct catch-events — promotion to **D-079** "Design-doc Q-table grounded by symbol-definition grep"; canonical cautionary instance recorded — fix-author re-instantiates the discipline-failure being fixed; three-file atomic per D-074 thirty-first instance; "Honest longer work" Pass 3 count increments to TWO — recurrence shape)
-│   ├── ✅ Pass 3 J-135 runbook v1.2 → v1.3 add T11 by name (D-078 application at test-enumeration layer; T11 `run_federation_session_post_handshake_spawned_task_owns_typed_captures` pins async-spawned forced-owned NodeXgid + Vec<SpaceXgid> capture-shape at app.rs:1152; Joe-lock checkpoint #2 follow-on after the J-133 Q5.14 v1.3 rewrite added the function to §2.5 sub-region 2; single-file atom per D-074 thirty-second instance)
-│   ├── ✅ Pass 3 Commit 2 SHIPPED (J-136 `67fb48d`) — seven-surface retype atomic per D-074 thirty-third instance under Path 2 (Commit 2a split) per Joe-lock checkpoint #3; xgen-core/src/node/runtime.rs Surface #1 + #2 (six per-space HashMap keys → SpaceXgid + dispatch_event peer_node_id → Option<&NodeXgid>); xgen-node/src/federation_session.rs Surface #3 + J-134 Finding B annotation drop closing D-079; xgen-node/src/fanout.rs Surface #4 (ClientSenders IdentityXgid + FederationPeerSenders NodeXgid + FanoutRequest.new_joiner + event_space_id Option<SpaceXgid> + apply_fanout + collect_sync_history + compute_federation_delta + topological_sort_events HashSet<EventXgid>); xgen-node/src/app.rs Surface #5 (12 in-memory identifier slots + handle_federation_incoming T8 forced-owned + run_federation_session_post_handshake T11 per Q5.14 v1.3 13-param matrix + ConnectedClientInfo IdentityXgid + 4 persistence-format String per §4.3 + Q3-overload projection); xgen-node/src/reconnect.rs Surface #6 (three spawned functions forced-owned + AttemptCursor HashMap<NodeXgid, u32>); docs/xgen_appendix_d_en.md Surface #7 (four markdown table classification rows annotated typed-XGID-in-memory + String on-disk/wire per §4.3); xgen-{common,core,node} libs CLEAN; clippy --lib -D warnings CLEAN; cargo build --workspace deliberately broken at xgen-client only per Path A; **Joe-lock checkpoint #3: 638 test-fixture errors (xgen-core 160 + xgen-node 478) >> ~50 threshold → Path 2 (Commit 2a split) locked**; ten-file atomic; two discipline data points surfaced for JOURNAL body (Pass-arc pre-walk Pass 3 marker sparsity; Surface #4 "verification only" vs actual-lift discrepancy); "Honest longer work" count does NOT increment (within-milestone substantive event, stays at TWO)
-│   ├── ✅ Pass 3 Commit 2a SHIPPED (J-137 `0cdf0ad`) — test-fixture sweep + 11 per-surface tests T1-T11 atomic per D-074 thirty-fourth instance; 638 test-fixture errors closed (xgen-core 160 + xgen-node 478) via parallel-subagent delegation under per-crate guard-rails (xgen-core 4 files / 0 deviations; xgen-node ~20 files / 6 minor deviations all honest-reported per Rule 1); T1-T11 added per §4.7 by name at runtime.rs (T1-T4) + federation_session.rs (T5) + fanout.rs (T6) + app.rs (T7+T8+T11) + reconnect.rs (T9+T10); 8/8 GREEN runs verification rigour per §5.3 + §4.9 (5 isolated + 3 workspace consecutive); test count stable at 589 = 34 xgen-common lib + 8 invariance + 453 xgen-core + 88 xgen-node lib + 6 precedence (+11 vs pre-sweep 578); both clippy gates clean (`--lib` + `--tests` -D warnings); `cargo build --workspace` deliberately broken at xgen-client only per Path A; pre-existing flakes did NOT fire; thirty-file atomic; runbook v1.4 → v1.5 + new §9.7 amendment-provenance recording parallel-subagent-sweep discipline data point; "Honest longer work" Pass 3 count stays at TWO inherited from J-129 + J-134
-│   └── ✅ Pass 3 milestone CLOSED (J-138; this commit) — runbook ACTIVE → COMPLETED v1.5 → v1.6 + DoD checklist verified; design doc §6.1 J-NNN placeholder frozen retroactively to J-138 per J-108 codification + Pass 2 §6.7 freeze pattern + header chain entry; CLAUDE PLAY flip "Commit 2a ✅" → "Pass 3 milestone CLOSED at J-138; standby for next-milestone selection (Pass 4 + M6 (new) both ready)"; ROADMAP v1.42 → v1.43 + visual tree row 🟢 → ✅ + Past entry + Near future Pass 3 line removed; final test count 589 (+98 vs Pass 2 J-126 baseline of 491); 8/8 GREEN at J-137 milestone-bearing boundary + single workspace re-verification pass at this milestone-close boundary; layered-B3 audit answer: zero (third Pass-arc no-finding instance — three-instance chain durable); Pass 3 "Honest longer work" final count: TWO recurrences (J-129 + J-134, both prospective catches at canonical-record-amendment layer); four candidate D-NNNs (γ + δ + ε + format-boundary) status recorded at JOURNAL J-138 Sub-section 8 promotion-watch (none promoted per D-069); five-file atomic per D-074 (thirty-fifth instance + fourteenth milestone-close)
-│   │   ├── ✅ (code) federation_session.rs handler identifier slots — Surface #3 at Commit 2
-│   │   ├── ✅ (code) fanout.rs Client/FederationPeer Senders + FanoutRequest + event_space_id + apply_fanout + collect_sync_history + compute_federation_delta + topological_sort_events — Surface #4 at Commit 2
-│   │   ├── ✅ (code) app.rs handler identifier slots + handle_federation_incoming (T8) + run_federation_session_post_handshake (T11) + ConnectedClientInfo — Surface #5 at Commit 2
-│   │   ├── ✅ (code) reconnect.rs three spawned functions + AttemptCursor — Surface #6 at Commit 2
-│   │   ├── ✅ (code) NodeRuntime six per-space HashMap keys + dispatch_event peer_node_id — Surfaces #1 + #2 at Commit 2
-│   │   ├── ✅ (doc) Appendix D four markdown table classification rows annotated — Surface #7 at Commit 2
-│   │   └── ✅ Per-surface tests T1-T11 + test-fixture sweep (638 errors) — Commit 2a (J-137)
-│   ├── ✅ Pass 4 milestone CLOSED (J-146; this commit) — Commit 1 retype atomic (J-145 `3869d4c`, 8/8 GREEN, 637 tests) + Commit 2 close; layered-B3 null (four-instance chain); `cargo build --workspace` RESTORED at Pass 4 (Path A closed ahead of §2.9 Pass-5 expectation); "honest longer work" final FOUR; Pass 5 scope reduced 4→2 items; design phase had closed at J-140 (`tasks/XGID_RETROFIT_PASS_4_DESIGN.md` Status ACTIVE → COMPLETED v1.0 → v1.2 single-session full close — two-session split eligible per Pass 3 J-127 Sub-section 8 data point (c) but not exercised per "let us move ahead" mid-session pivot from Option II pause to Option I continue; honest framing recorded at §6.2 + §7.5; §3 governing principle locked inherited unchanged from Pass 2 + Pass 3 — four-instance Pass-arc inheritance; all five §4 anchors locked: §4.1 Surface #1 M5 Ops Layer composite (31 identifier retypes + 12 descriptive stays + 3 borderline locks for `home_node`/`node` NodeXgid + `source` String stay + Pass 1 additive-API extension Option β + serde-transparent wire-neutrality + honest recon corrections per Rule 5); §4.2 format-boundary preservation Option γ split (D-NNN-format-boundary promotion-watch STAYS OPEN at 3 structurally-distinct instances across 2 Pass-arc); §4.3 CLI arg parsing Option α (clap parse stays String at 16 identifier-shaped Args slots); §4.4 doc-vs-code Option γ hybrid split (runbook commit-sequence pre-framed at 8-9 commits); §4.5 D-NNN-ε promotion-watch CLOSED by honest framing per D-065 + D-079; §5 layered-B3 null at full eight-surface scope — four-instance Pass-arc no-finding chain established; §6 historical/future-pointer Shape α pointer-style fill + §6.2 two-session walk shape eligible-but-not-exercised at Pass 4 (bimodal Pass-arc precedent); §7 discipline notes five sub-sections; §7.6 candidate skipped per minimal-broadening discipline; four-file atomic per D-074 thirty-seventh instance)
-│   │   ├── ✅ (design) full close at J-140 (v1.0 → v1.2; §3 + §4.1 + §4.2 + §4.3 + §4.4 + §4.5 + §5 + §6 + §7 all locked)
-│   │   ├── ✅ (runbook) `tasks/XGID_RETROFIT_PASS_4_IMPL.md` authored at J-141 (Status ACTIVE v1.0; 8-9 commits Option B Joe-locked-by-recommendation; three Joe-lock checkpoints; +15 per-surface tests T1-T15 enumerated)
-│   │   ├── ✅ (code) Commit 1 SHIPPED (J-145 `3869d4c`) — ONE consolidated xgen-client retype atomic (Pass-3 shape, RE-LOCKED at J-143): all seven surfaces + xgen-common §4.1.b additive-API + Surface #8 doc fragments + T1–T15; 8/8 GREEN (637 tests); checkpoints #2+#3 closed; Commit 1a did NOT fire (0 fixture errors). Surface #1 ops.rs = 49 String slots per §4.1.a [grep-corrected from 46 at J-142].
-│   │   ├── ✅ (code) Surface #2 CLI Dispatcher (app.rs — clap Args stay String, project at dispatch arm; in Commit 1)
-│   │   ├── ✅ (code) Surface #3 Batch Pipe Dispatch (batch.rs — get_dag_tips stays &str; in Commit 1)
-│   │   ├── ✅ (code) Surface #4 Tauri Shell (desktop.rs — transparent consumption, 0 direct slots; in Commit 1)
-│   │   ├── ✅ (code) Surface #5 Session State (session.rs ClientIdentity.identity_id→IdentityXgid; home_node stays String; ClientStateEvent no identifier slots; in Commit 1)
-│   │   ├── ✅ (code) Surface #6 AI Resident (ai_service.rs AiPacingTracker key→SpaceXgid + ai_behavior.rs EventContext.ai_identity_id→&IdentityXgid; in Commit 1)
-│   │   ├── ✅ (code) Surface #7 Pacing + Temperature (pacing.rs keys + temperature.rs; subject_id stays String per D-061; in Commit 1)
-│   │   ├── ✅ (doc) Appendix F client-side sections — Surface #8 annotated; shipped in Pass 4 Commit 1 (J-145 `3869d4c`), Pass 4 CLOSED J-146
-│   │   ├── ✅ (doc) xgen_aicontrol_implementation.md — Surface #8 annotated; shipped in Pass 4 Commit 1 (J-145 `3869d4c`), Pass 4 CLOSED J-146
-│   │   └── ✅ (doc) Ch6 §6.15 client-side spec — Surface #8 annotated; shipped in Pass 4 Commit 1 (J-145 `3869d4c`), Pass 4 CLOSED J-146
-│   └── ✅ Pass 5 — CLOSED J-148 (confirm-clean: Audit 1 = 1 trace fix F-1; Audit 2 clean; D-081 promoted)
-│       ├── (code) test fixture builders
-│       ├── (code) integration test helpers
-│       ├── (code) trace event field types
-│       ├── (code) log line formatters
-│       ├── (code) debug/Display impls
-│       ├── (doc) Appendix G log line convention
-│       └── [at close: wire-format invariance promise promoted to cross-cutting]
+├── ✅ **XGID Retrofit Pass series** — all 5 passes closed · J-122 → J-148
+│   ├── ✅ **Pass 1** — core data structures · J-122
+│   │   ├── ✅ **Commit 1** `403ef3f` — canonical-form module · J-122
+│   │   ├── ✅ **Commit 2** `8a94dee` — convenience constructors · J-122
+│   │   ├── ✅ **Commit 3** `75e81b4` — xgen-common data-structures · J-122
+│   │   ├── ✅ **Commit 4** `774fe9d` — xgen-core data-structures · J-122
+│   │   ├── ✅ **Commit 4a** `4895446` — xgen-core test-fixtures · J-122
+│   │   ├── ✅ **Commit 5** `096162e` — Appendix C + I · J-122
+│   │   ├── ✅ **J-121 hygiene atom** `1dd909e` · J-121
+│   │   └── ✅ **Commit 6** — milestone close · J-122
+│   ├── ✅ **Pass 2** — xgen-core, code-only · J-126
+│   │   ├── ✅ **design** — single principle locked · J-123
+│   │   ├── ✅ **runbook** · J-124
+│   │   ├── ✅ **Commit 1** — doc-pass `5892e9e` · J-125
+│   │   ├── ✅ **Commit 2** `22765a0` — five surfaces atomic · J-126
+│   │   ├── ✅ **Commit 2a** `58b94a5` — test-fixture projection sweep · J-126
+│   │   ├── ✅ **Commit 3** — milestone close · J-126
+│   │   ├── ✅ **(code) validate_event / ValidationOutcome** · J-126
+│   │   ├── ✅ **(code) NodeRuntime::dispatch_event / DispatchOutcome** · J-126
+│   │   ├── ✅ **(code) PendingBuffer arrival hooks** · J-126
+│   │   ├── ✅ **(code) FederationRegistry / IdentityRegistry** · J-126
+│   │   └── ✅ **(code) accept_message signature** · J-126
+│   ├── ✅ **Pass 3** — xgen-node + Appendix D · J-138
+│   │   ├── ✅ **design** · J-127
+│   │   ├── ✅ **runbook** · J-128 (J-129)
+│   │   ├── ✅ **J-130 drift-fix atom** · J-130
+│   │   ├── ✅ **Commit 1** — doc-pass · J-131
+│   │   ├── ✅ **J-132 Path-(iii) amend-in-place** · J-132
+│   │   ├── ✅ **J-133 design §2 v1.2 → v1.3** · J-133
+│   │   ├── ✅ **J-134 design §2 v1.3 → v1.4** · J-134
+│   │   ├── ✅ **J-135 runbook v1.2 → v1.3** · J-135
+│   │   ├── ✅ **Commit 2** `67fb48d` · J-136
+│   │   ├── ✅ **Commit 2a** `0cdf0ad` · J-137
+│   │   ├── ✅ **milestone close** · J-138
+│   │   ├── ✅ **(code) federation_session.rs** · J-138
+│   │   ├── ✅ **(code) fanout.rs Sender maps** · J-138
+│   │   ├── ✅ **(code) app.rs handler slots** · J-138
+│   │   ├── ✅ **(code) reconnect.rs spawned fns** · J-138
+│   │   ├── ✅ **(code) NodeRuntime per-space HashMap keys** · J-138
+│   │   ├── ✅ **(doc) Appendix D classifications** · J-138
+│   │   └── ✅ **per-surface tests T1–T11 + fixture sweep** · J-137
+│   ├── ✅ **Pass 4** · J-146
+│   │   ├── ✅ **design** — v1.0 → v1.2 · J-140
+│   │   ├── ✅ **runbook** · J-141
+│   │   ├── ✅ **Commit 1** `3869d4c` · J-145 (J-142, J-143)
+│   │   ├── ✅ **Surface #2 CLI dispatcher** — app.rs · J-145
+│   │   ├── ✅ **Surface #3 batch pipe dispatch** — batch.rs · J-145
+│   │   ├── ✅ **Surface #4 Tauri shell** — desktop.rs · J-145
+│   │   ├── ✅ **Surface #5 session state** — session.rs · J-145
+│   │   ├── ✅ **Surface #6 AI resident** — ai_service.rs · J-145
+│   │   ├── ✅ **Surface #7 pacing + temperature** · J-145
+│   │   ├── ✅ **(doc) Appendix F client-side** · J-145
+│   │   ├── ✅ **(doc) xgen_aicontrol_implementation.md** · J-145
+│   │   └── ✅ **(doc) Ch6 §6.15 client spec** · J-145
+│   └── ✅ **Pass 5** — confirm-clean, 1 trace fix · J-148
+│       ├── ✅ **(code) test fixture builders** · J-148
+│       ├── ✅ **(code) integration test helpers** · J-148
+│       ├── ✅ **(code) trace event field types** · J-148
+│       ├── ✅ **(code) log line formatters** · J-148
+│       ├── ✅ **(code) debug/Display impls** · J-148
+│       ├── ✅ **(doc) Appendix G log line convention** · J-148
+│       └── ✅ **wire-format invariance promise** — promoted at close · J-148
 │
-├── M-series trunk
-│   ├── ✅ M1 Binary Consolidation
-│   ├── ✅ M2 Node Pipe Server
-│   ├── ✅ M3 AI Operator Role
-│   ├── ✅ M4 AI Client Binary
-│   ├── ✅ M5 ops::* refactor
-│   ├── ⬛ M6 (original) Multiparty baseline — DEPRECATED, replaced by M9
-│   ├── ✅ M6 (new) Node admin write path — COMPLETE (all 7 verb categories A1–A7; 16 core verbs + 4 D-071 arcs + node-policy J-197)
-│   │   ├── ✅ Phase 0 design (3 passes + Block 4; 33 verbs, Appendix K)
-│   │   ├── ✅ Phase 1 (R1 `rooms`) — J-152; `members` deferred (no local data source), `federate` → Phase 7
-│   │   ├── ✅ Phase 2 (J-153) — admin_ops/audit skeletons + EventAccepted wire + envelope event_id + rejection correlation (J-081 §5 gap closed)
-│   │   ├── ⬛ Phase 3 (J-153) — COLLAPSED (reads bucketed into category phases per Block 4/Appendix K)
-│   │   ├── ✅ Phase 4 (J-154) — A6 Logging & audit: 5 verbs + audit-write primitive + runtime log-level reload
-│   │   ├── ✅ Phase 5 (J-155) — A5 Identity registry: 4 verbs; AdminContext → runtime-aware (P5); immediate revoke auth gate
-│   │   ├── ✅ Phase 6 (A3 Bootstrap config) RESOLVED — not finished inline; reordered into its own D-071 bootstrap-client (A3) arc, CLOSED J-195 (framed send-path + `[bootstrap]` config/store + 5 verbs + `BOOT_71xx`); see the A3 ✅ line below. (J-156 deferral marker reconciled J-280.)
-│   │   ├── ✅ Phase 7 (J-156) — A1 Federation mgmt HONEST-SUBSET: list + defederate (2 of 7); 5 verbs → D-071 federation-admin-control arc
-│   │   ├── ✅ Backing audit (J-157, `tasks/M6_BACKING_AUDIT.md`) — A2 fully absent, A4 node-policy absent; ~14 ship / ~19 → 4 D-071 arcs; Phases 6+8 ship no verbs
-│   │   ├── ✅ Phase 9 read subset (J-157) — A4 `space list-hosted` (backed); `audit-events` DEFERRED (§3.11.8 log unbuilt → protocol-audit-log arc); force-eject A4-D1 gated; node-policy arc
-│   │   ├── ✅ Phase 10 (J-158) — A7 Plugin `list`+`status` (honest-thin: static compiled-in registry, no telemetry)
-│   │   ├── ✅ Phase 9 (J-159) — A4 force-eject + node-unban (`membership.node_eject`/`node_unban`, Node-signed, wire 3043); M6 admin write-path COMPLETE at 16 verbs
-│   │   ├── ✅ A4 force-eject Option B (J-160) — live fan-out + federation push (apply_fanout + apply_federation_push after persist; AdminContext sender maps threaded via the pipe); 16 verbs all live-propagating
-│   │   ├── ✅ D-071 arc AUDIT phase (J-161) — backing audit of all 4 arcs (federation-admin-control · bootstrap-client · auth-module-registry · protocol-audit-log); all GAP-HIGH; `tasks/M6_*_AUDIT.md`
-│   │   ├── ✅ D-071 arc design STUBS opened (J-162) — 4 PENDING design docs `tasks/M6_*_DESIGN.md` (decision scaffolds; arc-local FAC/BC/AMR/PAL-D# IDs); 4 audit cross-refs flipped + bumped v1.1
-│   │   ├── ✅ M6 held doc work cleared (J-163) — §5.1/§6.A4 Option A→B amendment (admin-ops design v1.15) + M6_BACKING_AUDIT.md A4-row fix (v1.1)
-│   │   ├── ✅ protocol-audit-log arc CLOSED (J-169) + doc-honesty reconciled (J-170) — writer (J-166, hook inside `persist_event`, Shape β, 8 live types/D-078) + reader `space audit-events` (J-167) + rebuild `space audit-rebuild` PAL-D3 (J-168) + close (J-169); §3.11.8 protocol log now built (`protocol_audit.rs`); 738 tests
-│   │   ├── ✅ federation-admin-control 2a CLOSED (J-178) — Commits 1–5: state+migration · flag+queue · pause-point · accept/reject/initiate verbs · close; `accept`/`reject`/`initiate` SHIPPED; default-off invariant held; 760 tests
-│   │   ├── ✅ federation-admin-control 2b (policy) — CLOSED (J-183); `set-policy`/`show-policy` + `policy_permits` enforcement at both sites, default-permit; whole federation-admin-control arc CLOSED (A1 7/7 ✅)
-│   │   ├── ✅ auth-module-registry (A2) — CLOSED (J-185→J-189); `AuthModuleXgid` (D-083) + `AuthModuleRegistry` + 5 verbs (`list`/`register`/`revoke`/`set-tiers`/`test`); A2 5/5 ✅
-│   │   ├── ✅ bootstrap-client (A3) — CLOSED (J-190→J-195); `[bootstrap]` config seed + `BootstrapRegistrationStore` + `bootstrap/signing.rs` + `bootstrap_client.rs` (framed send-path, NOT HTTP) + `bootstrap_keepalive.rs` (scheduler + re-advertise) + 5 verbs (`show`/`register`/`deregister`/`set-info`/`set-tiers`) + `BOOT_71xx`; A3 5/5 ✅; 831 tests
-│   │   └── ✅ node-policy (5th/final D-071 deferral, 2 verbs — `set/show-node-policy`) — audit + design (NP-D1–D6 LOCKED) + runbook J-196; C1 store + verbs + threading SHIPPED J-197; C2 doc-close J-197 (Fork X, no checkpoint, no DECISIONS change)
-│   ├── ✅ M7 family — DONE (`--aicontrol` v1 J-205 · events J-212 · completion J-223 · standalone J-226)
-│   │   ├── ✅ M7 --aicontrol v1 — CLOSED (J-205, command-pipes-only) — shared `xgen-common::aicontrol` substrate + client (`ops::*`) + node (`admin_ops::*`) command pipes; adapter (D-065), `--batch` untouched (D-066); C1 J-201 · C2 J-202 · C4 J-204 · C6 close J-205; 898 tests. Events pipe (C3/C5) DEFERRED → **M7-events arc**.
-│   │   ├── ✅ M7-events arc — CLOSED J-212 (client + node `.events` event-observation pipes). C1 `ClientSenders`→`Vec<(ConnId,Sender)>` retype (J-207) · C2 pure `Filter`/`parse`/`matches` substrate + EV-D4 v1.1 (J-208) · C3 node observer registry, Shape β process-global (J-209) · C4 node `.events` pipe `events_pipe.rs` — registry writer (J-210) · C5 client `.events` pipe — second same-identity WS riding the C1 retype, closing the J-203 collision (J-211) · C6 doc-only close (J-212). EV-D1–EV-D6 (arc-local, D-069); adapter over the retype (D-065); `--batch` untouched (D-066). **939**/0/1 (+41 across the arc); build + clippy clean. Deferred-on: AC-D4 token + AC-D6 idempotency (`--aicontrol` hardening arc), AC-D5 verbs (client-feature arc), client↔node `.events` integration test (✅ CLOSED J-229)
-│   │   ├── ✅ M7-completion cluster — CLOSED at J-223 (six code commits; closes the `--aicontrol`-shaped remainder of M7; M7C-D1–D4 arc-local per D-069; 965/0/1). **Block A** ✅ client-feature (AC-D5 — `members` J-217 · `leave` J-218 · `create-dm-space` J-219 + node DM-init arm) → **Block B** ✅ hardening (AC-D4 token J-220 · AC-D6 idempotency J-221) → **Block C** ✅ `nodes`/`ordered_nodes` widening (J-222). Deferred to named homes: per-driver-identity control plane (M7C-D1/D2 end-state B) → privilege-model arc · plugin-write → temperature-plugin arc · pipelined handler → own arc · `migrate-start` → migration subsystem · live config reload → M7-standalone. **Explicitly OUT, each with a named home:** plugin-write verbs → temperature-plugin arc (gated on a 2nd plugin) · `CONCURRENT_COMMAND_NOT_ALLOWED` / pipelined handler → own arc (AC-D4 stays compatible) · `migrate-start` → migration subsystem · per-driver-identity control plane (M7C-D1/D2 end-state B) → privilege-model arc · live config reload → M7-standalone
-│   │   └── ✅ M7-standalone — live config reload CLOSED (J-226) — `__RELOAD_CONFIG__` handler: re-read → all-or-nothing gate → diff/classify → apply `[logging].level` live → report; CP-1 dedicated `Arc<Mutex<NodeConfig>>` baseline; no write-back (F-R2); §2.6.3 corrected (M7S-D1/D6); 984/0/1 (+19). **M7 family DONE** (`--aicontrol` v1 · events · completion · standalone)
-│   ├── ✅ M8 — state-resolution convergence CLOSED (J-241) [= Arc C, which borrowed the M8 number-slot; slot since vacated — M8 now = A/B metrics, see naming note below] — wired `derive_resolved` onto the node apply path + proved convergence (C1 in-process · C2 seam · C3 two-node); M9 not triggered; A/B metrics → M9
-│   ├── ✅ Durable EventStore — EventStore trait + vanilla file backend + minimal durability floor CLOSED (J-228); D-080 implemented, engines = later module; C1 `bfe5cd8` + C2 `2eb3b0c`, 995/0/1
-│   ├── ⚫ Storage-Engine / Plugin-Framework — CLOSED (J-232); compile-time plugin/module spine + first plugin (`xgen-store-sqlite`) behind J-228's `EventStore` trait; first `system·node` slot instance of the module-framework stance. C1–C5 + S shipped (1024/0/2 + 2 e2e); a selected engine is the live per-Space store + durability authority. Promoted D-085 (module framework) / D-086 (module identity) / D-087 (assurance enforcement); D-080 unchanged
-│   ├── ✅ M8.6 — Federation stress (clock-injection seam + C4 spawn-leak gauge + connect-timeout + the 4 compounds C1/C4/C6/C8) — CLOSED J-294 (Commit 1+2a+2b; 1201/0/2; sensitivity witness recorded; two below-the-lock test-scope narrowings → phase9 suite)
-│   │   └── ✅ INV-EXP — invite-expiry replay-gate fix CLOSED (J-298) — 3044/3045 admission gates run iff `origin == LocallySubmitted` (skip on `ReceivedViaFederation`), made correct on the drain path by per-entry origin in `PendingBuffer` (C1); 3044 clock → `self.clock.now_utc()` (D-090). C1 per-entry origin · C2 gate-guard+clock · C3 repro + 4 per-path + mixed-origin (6 tests) · C4 close; 1207/0/2 (+6); both sensitivity witnesses recorded (C1 batch-revert RED, C2 guard-revert RED); INV-D#/arc-local (D-069), no DECISIONS change (D-090 landed J-296)
-│   ├── ✅ M8.7 — concurrent-commit resolution (R only) CLOSED J-302 (Phase-0 OPENED J-299; design Joe-LOCKED J-300; runbook + CC-D5 J-301; SHIPPED single commit J-302 — `mls.commit` conflict domain CC-D2 `(room,target_epoch)` + CC-D3 lexicographic tiebreak + CC-D5 `RoomState.mls_commit_tip` observable; convergence repro + sensitivity witness GREEN; 1212/0/2; CC-D# arc-local; S + home-DS serialization + loser-rebuild folded into the production openmls-client arc, L)
-│   ├── ✅ M9 — build strategic multiparty test harness — CLOSED J-307 (xgen-mptest harness; both Round-0 smokes green; 5 findings → tasks/M9_findings.md)
-│   │   ├── ✅ M9.1 — event timestamp-bound validation (F1/gap G6) — CLOSED J-311
-│   │   └── ✅ M9.2 — harness-enablement seams (F2 fresh-peer initiate + F3 clock-advance + F4 raw-send; fenced test tooling) — CLOSED J-315
-│   ├── ✅ Multiparty tests — unnumbered; runs the M9 harness through escalating MP-R1 → MP-R2 → MP-R3; MP-R1 (deterministic floor) FIX PHASE — loop-to-green (D10); MP-F2 + MP-F3 shipped (J-324/J-326); MP-A-09 clean PASS; MP-F1a ✅ (J-328, facet-2/delivery); MP-F4 ✅ (J-331); MP-F1b (cross-node DM, iii) ✅ SHIPPED + CLOSED (J-333, Design Z: parties-set + identity-replicate hook, F-3 intact; MP-C-07 harness-green-with-boundary; invariant E → D-091) — loop-to-green thin verbs ALL SHIPPED: auth-tier ✅ / MP-F5 ✅ / ban ✅ / room_update ✅ (+D-092 4-arm rule) / thread×3 ✅ (J-339); all 5 formerly-BLOCKED scenarios witnessed; **MP-R1 ✅ CLOSED (J-340)** — R1 rerun all-green-to-criterion on `a9fbd98` (all-green-except-MP-C-06, MP-C-07 harness-green-with-boundary); next = **MP-R2** (scale + real-clock); production identity→home-node discovery routed (M10-era); **MP-R2 Phase-0 ✅ + design ✅ Joe-LOCKED (J-341)** — 6 forks locked by-recomms (residents→R3, R2 test-crate-only); the §2 design falsification refined the axis model (only `nodes`/`clients` are dial-spawn axes — rate = net-new pacing, connection-churn = net-new infra; 3 climb mechanisms: spawn-scale / paced-intensity / connection-churn); MP-R2-D1..D6; 14 R2 rows (7 coop + 7 adv) + MP-A-01(ii) infra-borne, MP-A-08→R3; test-crate-only; RUN gate held (`bench.rs` box-ceiling first); next = Clair (runbook `tasks/MP_R2_SCALE_IMPL.md`); **MP-R2 build phase C1–C6 ✅ code-complete box-free (J-342)** — 10 code commits on main (test-crate-only, lib 85/0, zero production touch); C3-scope refined (catch-up only; restart/migration→C6); **MP-A-06 (equivocation) re-routed →R3** (two-node injector = MP-A-08 class); MP-C-12 grounding verdict (client-verb STOP/D3, injector-path eligible — Joe's C6e call); MP-A-11/A-21 built; ~20 box-gated `#[ignore]` smokes await the RUN; next = box-gated RUN (bench first) → C7 close; **C6e ✅ built (J-343)** — MP-C-12 built-with-D3-boundary (injector-path node-blindness, `6730f3e`; client-decrypt half D3-gated); build phase FULLY code-complete (11 commits); **MP-R2 box-gated RUN complete → FIX-PHASE opened (loop-to-green, bounded gate, J-344)** — spawn-scale floor MP-C-05 ✅ GREEN-to-64 (no break-point) + all *drivable* protocol props GREEN (bench ceiling ~1288); 4 findings surfaced+routed (MP-F7 churn-oracle · MP-F8 migration-undrivable · MP-F9 late-fed-backfill [possibly-protocol, load-bearing for R3] · MP-F10 director-deadlock); R2 stays 🟢 — gate={F7,F8,F9,F10} each GREEN-on-rerun or Joe-routed → R2 rerun → true close; next-active = MP-F9 D-071 Phase-0. **R3 inherits the same loop-to-green rerun character (J-344).** **MP-F9 Phase-0 ✅ + design ✅ Joe-LOCKED (J-345)** — late-fed backfill gap PINNED = PROTOCOL (bounded: events backfill, identities don't — unknown-signer F-10 holds the whole backfill); terminal-state A (fix-in-fix-phase, conditional on the confirming re-run); design-locked F9-D1 (backlog-push-on-establish) / F9-D2 (generalized trigger, R3-reuse) / F9-D3 (delta-signers) + F10-D1 (dependency-ordered director); next = MP-F9 implementation runbook (exec step 1 = confirming re-run) → Joe-lock → implement. **MP-F9 + MP-F10 ✅ SHIPPED + terminal on their defined surfaces (J-346)** — C2 `8f8e79d` in-session ordered identity delivery (signers sent over the session conn *before* the Space-DAG delta; the J-345 F-3/Design-Z hypothesis FALSIFIED by exec-step-1 — create-F-10-held → children REJECTED "space not found" at the F-4 pre-check runtime.rs:992, dropped; spike 8/8 → terminal-A-extended re-locked) + C3 `1216365` F10-D1 dependency-ordered single-owner director (no deadlock); Smoke 1 GREEN ×2; Smoke 2 ran to completion (F10 symptom gone) but RED ×2 — pinned by a bounded throwaway node-side diagnostic to a **distinct, fourth mechanism**: an F-3 federation-relationship gap (late node C's `federation_nodes` never gets pushing peer A → the whole regular-Space content F-3-held, no drain) — the third inferred-mechanism falsified-by-observation this arc. Routing Joe-LOCKED: MP-F9 (identity catch-up) + MP-F10 (director) **terminal, both gate items CLOSED**; the MP-A-01(ii) residual (mechanically MP-F1b/Design-Z, solved for DMs, needed for a regular Space late-federating onto a third node) recorded as **MP-F11** and **routed → R3 as a named dependency** (does NOT re-open the gate — named-and-routed, not green-by-redefinition; the in-phase Design-Z generalization declined as it touches the J-345-fenced F-3 surface, F1B-D5 precedent). Orthogonal departed-signer breadcrumb → **MP-F12** (own home). **Gate now = {MP-F8, MP-F7}**; R2 stays 🟢; no Appendix F (no CLI verb); no DECISIONS change (pin-by-observation-before-routing = a promotion candidate). `MP_findings` v1.14→v1.15 (+MP-F11/F12, MP-F9/F10 CLOSED, MP-A-01(ii)→R3); matrix v1.16→v1.17; next = **MP-F8** (expose `migration initiate` over aicontrol, build task) → MP-F7 → R2 rerun → true close. **MP-F8 ✅ CLOSED on its defined surface (J-347)** — fence LOCKED **unfenced** (MIG-D1; Clair's grounding refined the J-344 "fenced like add-peer/clock" route-note — migration is a production admin verb, sibling to the unfenced `federation initiate`, not a harness fabrication seam); C1 shipped (`9e52f00`) the one unfenced aicontrol arm (`"migration initiate" => cap!(admin_ops::migration_initiate…)`, ctx-complete; xgen-node 290/0, default-build dispatch unit GREEN, M9.2 fence prime invariant held); Appendix F out (existing node admin verb, not a new client CLI verb). Box-gated MP-C-16 witness **proved C1** (verb resolves + *executes* to a real `MIG_6010`, no longer UNKNOWN_COMMAND) but the row stayed RED on a **distinct** mechanism, pinned by a bounded diagnostic (×3): the signed `space_create.home_node` = a WS URL (`ws://…/xgen`) while `migration_initiate` checks `home_node == rt.node_id` (pubkey id) — two identifier namespaces → MIG_6010. Root: `home_node` is typed `NodeXgid` but `ops::create_space` writes the client's `session.home_node` (a WS URL per J-278, the only node id the client learns); node stores signed content verbatim → universal NodeXgid contract violation, migration just the first path to hit it. Routing Joe-LOCKED: recorded as **MP-F13** (J-278/F1B-D5 home-node-identity family, same root as the horizoned F1B-D5 "production identity→home-node discovery") and **routed → R3 as a named dependency** (does NOT re-open the gate; the symptom-fix fork — migration-compares-own-URL — flagged-not-taken, papers over the contract violation; node-normalize-on-ingest blocked by signed content). **Gate now = {MP-F7}** (sole remaining); R2 stays 🟢. `MP_findings` v1.15→v1.16 (MP-F8 CLOSED, +MP-F13); matrix v1.17→v1.18; `docs/xgen_aicontrol_implementation.md` migration verb line; arc-doc `tasks/MP_F8_MIGRATION_AICONTROL.md`→COMPLETED (`56a2d6e`). Next = **MP-F7** (churn oracle, the last gate item; own D-071 Phase-0 to pin protocol vs client-query vs oracle-authoring) → R2 rerun → true close. **MP-F7 ✅ GREEN-on-rerun → MP-R2 ✅ CLOSED (J-348)** — kind pinned (b) a real leave→rejoin convergence fault (rejoin anchored to the `space_create` root → concurrent with the leave on `membership:{space}:a1` → `derive_resolved` elects leave via deterministic Layer-1 leave>join priority → a1 non-member; the MP-F4/J-331 family); fixed via **Fork A client-side causal anchoring** (C1 `8358bb5`: a `ClientState.last_local_events` map separate from `KnownSpace`; `ops::leave` persists the leave's event_id, `ops::join` reads it on the `get_dag_tips`-empty fallback so the rejoin descends from its own leave; best-effort — absent anchor degrades to root = first-join unchanged); D-076 spine proven RED-on-revert in xgen-core (framed against the MP-F4 A1-falsification: key-separation ≠ ordering, create the causal edge); witness **MP-C-11 GREEN-on-rerun** (4 rungs 2→8 clients, break_point=None, incl. the rung-0 LogicFault floor); xgen-core 691/0, clippy `--all-features` clean. **All four gate items terminal** (F7 GREEN-on-rerun · F8 CLOSED · F9 terminal · F10 terminal). **MP-R2 close criterion CERTIFIED: all-green-except-{MP-C-16, MP-A-01(ii)}, both R3-routed as named dependencies** (MP-C-16→MP-F13 home_node/J-278 family; MP-A-01(ii)→MP-F11 regular-Space late-third-node F-3 catch-up) — the R1 "all-green-except-MP-C-06" shape; MP-C-11 fixed, not a third carve-out. **What green MP-R2 certifies:** spawn-scale floor (MP-C-05 GREEN to 64 clients) + every drivable protocol property under real-clock + the four findings resolved-or-named — NOT the R3 capstone scale, NOT the two named R3 deps. Carried to R3 (named deps): MP-F11 + MP-F13 (+ pre-existing MP-A-08, MP-A-06); routed to own homes: MP-F12 (departed-signer). R3 inherits the loop-to-green rerun character (J-344); the round-close discipline now has two instances (R1 J-322, R2 J-348) — a standing DECISIONS-promotion candidate. `MP_findings` v1.16→v1.17 (MP-F7 RESOLVED + fix-phase note CLOSED); matrix v1.18→v1.19 (MP-C-11 GREEN + §6 CLOSED); arc-doc `tasks/MP_F7_LEAVE_REJOIN_ANCHOR.md`→COMPLETED (`b7f0532`). Next = **MP-R3** (capstone: max the box bears, ~1,562-process ceiling, chaos overlay stacked; opens its own D-071 Phase-0 with MP-F11/F13/MP-A-08/MP-A-06 as named inbound deps). **MP-R3 Phase-0 + design ✅ Joe-LOCKED (J-349)** — R3-D1..D7 locked by-recomms. **3 scope forks:** D1 residents-multiplexer **routed to its own `xgen-client` arc** (ceiling = re-benched process wall; `residents_per_process` decorative — one process per actor today) · D2 **relationship-level** partition (defederate↔refederate, rides MP-F11) → **MP-A-08 harness-green-with-boundary** (no-reconnect-deadlock half = transport-level seam, routed) · D6 **MP-F11 fixed in-round** (generalize Design-Z populate+drain to regular Spaces on establish, F-3 intact) + **MP-F13 carried red-with-reason** (J-278/F1B-D5). **4 mechanical:** D3 multi-target raw-wire injector (test-crate; oracle reused) · D4 chaos-on-dial hybrid two-seam + liveness probe + elastic settle + churn-at-scale oracle (fixes the J-348 ≥2-projection edge) · D5 CEILING hardening (aggregate-RSS + OOM-exit + client-RSS re-bench) · D7 row set (9 + chaos overlay) + named builds (topology star→star+mesh, flood no-drain). **Close = all-green-except-MP-C-16** (single carve-out, tightest of the 3 rounds; MP-A-01(ii) greens once MP-F11 lands). R3 inherits the loop-to-green bounded-gate rerun (J-344); carried deps decided pre-RUN, not gate items. At full Multiparty close: the consolidated R1+R2+R3 ledger + the breadcrumb sweep (MP-F2-followon→M10, D-091 tidy verified). All R3-D# arc-local (D-069); no DECISIONS promotion. Audit + design ACTIVE (→ COMPLETED at the true close). Next = Clair authors `tasks/MP_R3_CAPSTONE_IMPL.md` (runbook) → box-gated RUN (re-bench first) → bounded-gate fix-phase → close. **MP-R3 build phase ✅ code-complete box-free (J-350)** — six commits on main (C1 `f571e9d` injector / C2a `86a141c` chaos seam / C2b `f03ca08` oracle / C3 `bc62ed7` topology+flood / C4 `3905cf1` CEILING / C5 `9ac7780` MP-F11 fix); **C5 the only production change** (`xgen-core` + `xgen-node` `stream_federation_delta` hook — Design-Z generalized to regular Spaces on establish, F-3 intact, spine-proven RED-on-revert); C1–C4 test-crate-only. DoD: workspace 0-error, clippy `--all-features` clean, fast suite 1366/0 + 56 box-gated `#[ignore]` (5 new R3: equivocation/partition/chaos/topology/flood), xgen-core 693/0, xgen-node 290/0. **MP-A-01(ii) (C5's load-bearing witness) RUN-deferred, not claimed green box-free**; the R3 catalog Result cells stay PENDING → PASS/FAIL at the RUN; matrix §6 +J-350 (v1.19→v1.20); `MP_findings` untouched (MP-F11 RESOLVED flips at RUN/close). Next = Joe frees the box → box-gated RUN (re-bench first, R3-D5c client RSS) → bounded-gate fix-phase → close all-green-except-MP-C-16 → the consolidated R1+R2+R3 ledger + the breadcrumb sweep. **MP-R3 box-gated RUN #1 complete → FIX-PHASE open (J-351)** — re-bench FIRST: node ceiling **~1384** (retires 1288/1562), box bears the ≤64-client climb, no recalibration. **Result: all-green-except-{MP-C-16, MP-C-14}.** **MP-F11 RESOLVED** (MP-A-01(ii) red→green 3/3, hook correct); MP-A-08 green-with-boundary 4/4; MP-A-06 4/4; MP-R3-CHAOS 3/3; MP-C-05/MP-C-11 climbs + MP-A-07/MP-A-18 break_point=None; MP-C-16 red-with-reason (MP-F13, M10+). **One new finding — MP-F14** (regular-Space pre-join-message backfill; a leaf joining *after* the creator's post never gets it — **gap-2** of the J-333/MP-F11/MP-F1b family, distinct from C5/MP-F11's establish-path catch-up; pinned ×8, a settle-race route falsified mid-pin). **Fix-phase open, BOUNDED gate = {MP-F14} only.** **MP-F14 is R3-grade → fix-it gate item, NOT a carve-out** (rerun-to-green: a row carves only if its blocker awaits M10+ — MP-C-16 qualifies via MP-F13/J-278; MP-C-14 has no future-milestone home / no future round). Terminal = (a) GREEN-on-rerun. `MP_findings` v1.17→v1.18 (MP-F11 RESOLVED, +MP-F14, MP-A-01(ii) GREEN); matrix §6 +J-351 RUN #1 record (v1.20→v1.21). Audit/design/runbook/IMPL stay ACTIVE. Next = **MP-F14 D-071 Phase-0** (Clair audit) → design → Joe-lock → runbook → implement (spine-first) → **R3 rerun** to all-green-except-MP-C-16 → MP-R3 close + the consolidated R1+R2+R3 ledger + the §3.1 breadcrumb sweep (last round → also the milestone close). **MP-F14 fix-arc authored + runbook ✅ Joe-LOCKED (J-352)** — audit `58132ba` / design MP-F14-D1..D7 `1d68467` / runbook (exec-step-1 shape) `456529a`; D1/D3/D4/D5/D6/D7 locked, D2 = Fork A (outbound re-stream on `federation_nodes`-growth, narrowest) pending the **box-gated exec-step-1 re-trace** (trace authoritative; Fork B member-join fallback). Net-new outbound trigger on reused C5/Design-Z machinery. Next = exec-step-1 box-gated re-trace (Clair, freed box) → fork lock → spine-first fix → D5 enrichment → box witness → MP-C-14 RED→GREEN → R3 rerun to all-green-except-MP-C-16 → MP-R3 close + the consolidated R1+R2+R3 ledger + the breadcrumb sweep. **MP-F14 exec-step-1 DONE — box-gated re-trace FALSIFIED Fork A → re-locked (J-353)** — the trace disproved the federation_nodes-growth hypothesis (federation_nodes were correct, p0 WAS delivered; MP-F14-D7 fired — the MP-F9 risk). **Actual root:** p0 HeldPending on the peer for a missing causal predecessor that never drains — its `get_dag_tips` `prev_events` frontier (batch.rs:96, the MP-F4 fix) includes a `state.federation_add` tip (vantage-specific/directional D-075, oracle-excluded `INFRA_EVENT_KINDS`) that never converges → permanent miss. **The MP-F4/J-331 causal-frontier family** (NOT MP-F11/federation_nodes). **Re-locked fix (MP-F14-D2 supersedes Fork A):** exclude infra kinds from the cooperative frontier (batch.rs:145-161, client-side, one fn) so anchoring agrees with convergence; safety = MP-F4 no-regression (spine #2); bind the exclusion set to the oracle's `INFRA_EVENT_KINDS` (set-identity test). Chat independently re-grounded both pillars on `main` — verified a real root fix, not a results-hack. Arc-docs re-locked v1.1 (`9faab4f`); `MP_findings` v1.18→v1.19. Gate disposition unchanged (fix-in-round, GREEN-on-rerun). Next = spine-first Commit 1 (box-free, `xgen-client`; needs Joe's go on the re-shaped §3) → D5 enrichment → box witness → R3 rerun to all-green-except-MP-C-16 → MP-R3 close + the consolidated R1+R2+R3 ledger + the breadcrumb sweep. **MP-F14 Commit 1 SHIPPED + pushed (J-354, `ad6340b`)** — the re-shaped §3 fix landed: exclude infra kinds (`state.federation_add`) from the cooperative frontier `get_dag_tips` returns (extracted pure `cooperative_frontier`; all cooperative callers inherit), so a new event's `prev_events` anchoring agrees with the convergence contract. Pickup-verify PASSED (typed `EventType` → Option A holds). **Crate-location refinement (D-065):** `EventType` is defined in `xgen-common` (xgen-core re-exports), and Rust coherence forces the inherent `is_federation_infra()` + `INFRA_EVENT_KINDS` + the no-drift set-identity guard into **xgen-common**; **xgen-core re-exports the const** so the locked surface `xgen_core::INFRA_EVENT_KINDS` resolves — lock intent met, definition-site crate moved one down; folded into runbook §0.1 same commit. Three touches + oracle re-point, box-free. DoD all-green: workspace 0-error, clippy `--all-features` clean, both spine tests GREEN + **RED-on-revert recorded both directions** (under-exclusion→#1, over-exclusion→#2/MP-F4 regression), set-identity guard GREEN; xgen-common 141/0 · xgen-core 693/0 · xgen-client 108/0 · xgen-mptest-lib 107/0; DM untouched. `MP_findings` + matrix §6 **untouched** (MP-F14 flips RESOLVED + MP-C-14 flips GREEN at the §5 box-gated witness/rerun, not at a code commit). Next = **§4 / Commit 2** (`xgen-mptest`, box-free) — the D5 leaf-content enrichment (gate leaf sends on join; 3-class oracle: pre-join `p0` / post-join leaf / post-join creator; `p0` stays authored before the joins) → §5 box witness (MP-C-14 RED→GREEN, stable) + R3 rerun to all-green-except-MP-C-16 → MP-R3 close + the consolidated R1+R2+R3 ledger + the breadcrumb sweep. **MP-F14 Commit 2 SHIPPED + pushed (J-355, `20a6377`)** — the D5 leaf-content 3-class enrichment of the MP-C-14 smoke (`xgen-mptest/tests/mp_r3_topology.rs` only, `sweep.rs` untouched, box-free): (a) `p0` kept pre-join (load-bearing, not relaxed); (b) each leaf post `p{i}` gated on its own join-landing (join exports `a{i}_joined`, carried in an inert gate field — `Command` has no `deny_unknown_fields`); (c) a post-join creator post `pf` gated on all three leaf joins. **Oracle hardening (D-065):** `convergence_verdict` set-equality alone admits a mutually-absent green, so the test additionally asserts each authored post's `event_id` is present on **every** node's transcript — (a)/(b)/(c) positively witnessed; `StarPlusMesh` generator path untouched. Regression guard: fast no-spawn `mp_c_14_template_wires_3_class_coverage`. DoD all-green: build 0-error, clippy `--all-features` clean, enriched smoke stays `#[ignore]`, fast suite 0-failed, lib 107/0, `star_plus_mesh_emits_leaf_cross_links` GREEN. `MP_findings` + matrix §6 untouched (no production change / no witness). Next = **§5 box-gated witness** (freed box) — enriched `mp_r3_topology` → MP-C-14 RED→GREEN stably → R3 rerun to all-green-except-MP-C-16 → §6 MP-R3 close = the multiparty milestone close + the consolidated R1+R2+R3 ledger + the §3.1 breadcrumb sweep. **MP-R3 ✅ CLOSED (J-356) → the Multiparty-tests milestone ✅ CLOSED.** MP-F14 terminal — Commit 1 `ad6340b` (`get_dag_tips` cooperative-frontier infra-exclusion, MP-F4/J-331 family; typed `is_federation_infra()` + re-exported `xgen_core::INFRA_EVENT_KINDS` + set-identity guard; 2 RED-on-revert spine tests) + Commit 2 `20a6377` (D5 3-class enrichment) + correction `339b770` (leaf room-join — `message.text` requires `is_room_member`; the D5 join-race framing under-diagnosed it; D-065 catch). Box-gated witness **MP-C-14 RED→GREEN stable 5/5**; MP-A-01(ii) + MP-A-08 GREEN. **Close = all-green-except-{MP-C-06, MP-C-16}, both ⏸️ DEFERRED → M10** (re-home capability gap; MP-F13 home-node discovery / J-278) — named future-milestone deps re-run when those land, not defects. **Consolidated R1+R2+R3 ledger DELIVERED** (`tasks/HANDOFF_MP_R3.md` §3: 37 scenarios — 35 ✅, 2 ⏸️-M10; the MP-F1…F14 findings table; net summary). §3.1 breadcrumb sweep: MP-F2-followon → M10; D-091 tidy → done. `MP_findings` v1.19→v1.20 (MP-F14 RESOLVED); matrix v1.21→v1.22 (MP-C-14 GREEN, §6 close record); arc-docs MP-F14 AUDIT/DESIGN/IMPL + `HANDOFF_MP_R3` → COMPLETED. **R1 (J-340) + R2 (J-348) + R3 (J-356) all CLOSED.** **Round-2 checkpoint audit ✅ DONE (J-357)** — post-multiparty coherence sweep, verdict GO; 1 finding (RC-F-01, 3010/3011 doc-internal double-definition → M10); **next-active = M10**. Reconciled post-multiparty chain (J-357, supersedes the stale "→ UI → M10 → M11" ordering): M10 → M11 → M12 (attachments) → Round-2 final pre-UI gate → UI → Streams (standalone, post-UI).
-│   ├── ✅ M10 — Auth Module reference set (Tier-1 ref module + one parameterized T2–T4 mock; UI-gate) — CLOSED J-375
-│   ├── ✅ M11 — `self` thread (D-021; client/Space feature reusing the user's existing identity) — SHIPPED + CLOSED J-378, shape B self-DM (D1 guard-at-construction)
-│   └── ✅ M12 — attachments (full attachment functionality; pre-UI — lands before UI dev start) — OPENED J-379, forks F1–F9 Joe-LOCKED; Phase-0 audit ✅ DONE J-380 (GO); design Joe-LOCKED J-381 (M12-D1..D10); M12.1 ✅ SHIPPED + CLOSED J-382 (C1–C5, 1429/0); M12.2 ✅ SHIPPED + CLOSED J-385 (M12.2a J-384 fetch/--attach/F6 + M12.2b J-385 F9 data-root, both binaries; 1445/0, e2e 2/2); next-active = M12.3 (federation fetch-by-hash + F3 + 10003 blob_unavailable)] Phase-0 audit DONE + design Joe-LOCKED J-386 (M12.3-D1..D6: β multiplex-the-federation-session fetch, lazy-default F3, Retained-eager reserved-hook, sync miss-signal, typed 10003); next-active = Clair M12.3 runbook] M12.3 SHIPPED+CLOSED J-387; M12.4 (erasure) Phase-0 audit DONE + design Joe-LOCKED J-388 (M12.4-D1..D9; M12-D6 promoted -> D-093); next-active = Clair M12.4 runbook = M12 final sub-arc] M12.4 SHIPPED+CLOSED J-389 = M12 (attachments) CLOSED (all four sub-arcs M12.1 J-382 / M12.2 J-385 / M12.3 J-387 / M12.4 J-389; in-suite 1463/0, box e2e green); Round-2 final pre-UI gate ✅ DONE J-390 (Pass-2 whole-codebase audit, verdict GO; R2G-F01..F04 routed, all S3/S4, none UI-blocking); next-active = UI (clean-table build)
+├── 🟡 **M-series trunk**
+│   ├── ✅ **M1** — binary consolidation · J-073
+│   ├── ✅ **M2** — node pipe server · J-074
+│   ├── ✅ **M3** — AI operator role · J-075
+│   ├── ✅ **M4** — AI client binary · J-077
+│   ├── ✅ **M5** — ops::* refactor · J-078
+│   ├── ⬛ **M6 (original)** — multiparty baseline, descoped 2026-05-17 · DECISIONS.md D-069 → M9
+│   ├── ✅ **M6 (new)** — node admin write path · J-197
+│   │   ├── ✅ **Phase 0 design** — 3 passes + Block 4, 33 verbs · J-197
+│   │   ├── ✅ **Phase 1** — R1 `rooms` · J-152
+│   │   │   └── 🟡 **`members` verb** — no local data source at Phase 1
+│   │   │       ↳ trigger: a local members data source exists
+│   │   ├── ✅ **Phase 2** — admin_ops/audit skeletons + EventAccepted wire · J-153 (J-081)
+│   │   ├── ⬛ **Phase 3** — collapsed; reads bucketed into category phases · J-153
+│   │   ├── ✅ **Phase 4** — A6 logging & audit, 5 verbs · J-154
+│   │   ├── ✅ **Phase 5** — A5 identity registry, 4 verbs · J-155
+│   │   ├── ✅ **Phase 6** — A3 bootstrap config · J-195 (J-280)
+│   │   ├── ✅ **Phase 7** — A1 federation mgmt: `list` + `defederate` · J-156
+│   │   │   └── ✅ **remaining 5 verbs** — routed to the federation-admin-control arc · J-178
+│   │   ├── ✅ **backing audit** · J-157
+│   │   ├── ✅ **Phase 9 read subset** — A4 `space list-hosted` · J-157
+│   │   │   ├── ✅ **`audit-events`** — routed to the protocol-audit-log arc · J-169 (J-166, J-167, J-168, J-170)
+│   │   │   └── ✅ **force-eject A4-D1** — landed at Option B · J-160
+│   │   ├── ✅ **Phase 10** — A7 plugin `list` + `status` · J-158
+│   │   ├── ✅ **Phase 9** — A4 force-eject + node-unban · J-159
+│   │   ├── ✅ **A4 force-eject Option B** — live fan-out · J-160
+│   │   ├── ✅ **D-071 arc audit** · J-161
+│   │   ├── ✅ **D-071 arc design stubs** — 4 scaffolds opened · J-162
+│   │   ├── ✅ **M6 held doc work cleared** · J-163
+│   │   ├── ✅ **protocol-audit-log arc** · J-169
+│   │   ├── ✅ **federation-admin-control 2a** · J-178
+│   │   ├── ✅ **federation-admin-control 2b** — policy · J-183
+│   │   ├── ✅ **auth-module-registry (A2)** · J-185 (J-189)
+│   │   ├── ✅ **bootstrap-client (A3)** · J-190
+│   │   └── ✅ **node-policy** — 5th/final D-071 deferral · J-196
+│   ├── ✅ **M7 family** · J-205 → J-226
+│   │   ├── ✅ **M7 --aicontrol v1** — command pipes · J-205 (J-201, J-202, J-204)
+│   │   ├── ✅ **M7-events arc** — `.events` observation pipes · J-212 (J-203, J-207, J-208, J-209, J-210, J-211, J-229)
+│   │   ├── ✅ **M7-completion cluster** · J-223 (J-217, J-218, J-219, J-220, J-221, J-222)
+│   │   │   ├── 🟡 **plugin-write verbs** ↳ trigger: a second plugin exists
+│   │   │   ├── 🟡 **pipelined handler / CONCURRENT_COMMAND_NOT_ALLOWED** ↳ trigger: none — filed, not scheduled
+│   │   │   ├── 🟡 **`migrate-start`** ↳ trigger: the migration subsystem opens
+│   │   │   ├── 🟡 **per-driver-identity control plane** ↳ trigger: the privilege-model arc opens
+│   │   │   └── ✅ **live config reload** — routed to M7-standalone · J-226
+│   │   └── ✅ **M7-standalone** — live config reload · J-226
+│   ├── ✅ **M8** — state-resolution convergence · J-241
+│   ├── ✅ **Durable EventStore** — trait + vanilla impl · J-228
+│   ├── ✅ **Storage-Engine / Plugin-Framework** — C1–C5 + S shipped · J-232
+│   ├── 🟡 **Protocol gap-closure arcs** — PG register
+│   │   ├── ✅ **Arc A** — doc-drift · J-233
+│   │   ├── ✅ **Arc B** — forward-compat / PG-09 · J-235
+│   │   ├── ✅ **Arc C** — borrowed the M8 slot · J-241
+│   │   ├── ✅ **Arc D** — privilege model / PG-13 + PG-12-min · J-244
+│   │   ├── ✅ **Arc E** — primitive completion / PG-03 + PG-08 · J-248
+│   │   ├── ✅ **Arc F** — space migration / PG-11 · J-252
+│   │   ├── ✅ **Arc G** — jurisdictional namespacing / PG-04 · J-250
+│   │   ├── 🟡 **Arc H** — E2E encryption / PG-05
+│   │   │   ├── ✅ **design + interface lock** · J-257
+│   │   │   └── 🟡 **PG-05 implementation** — real MLS on the live event path
+│   │   │       ↳ trigger: D3 — RFC 9420 / openmls in the build
+│   │   └── 🟡 **Arc I** — GDPR erasure / PG-02
+│   │       ├── ✅ **design + D-088** · J-253
+│   │       ├── 🟡 **content erasure** — crypto-shred ↳ trigger: PG-05 implementation ships
+│   │       └── 🟡 **identity orphaning** ↳ trigger: none — PG-05-independent; rides the Tier-1 auth-module rebuild
+│   ├── ✅ **M8.5** — finalization: INV + F-5 + S5 rebind · J-279
+│   ├── ✅ **M8.6** — federation stress, clock-injection · J-294
+│   │   └── ✅ **INV-EXP** — invite-expiry replay-gate fix · J-298 (J-296)
+│   ├── ✅ **M8.7** — concurrent-commit resolution, R · J-302 (J-299, J-300, J-301)
+│   │   └── 🟡 **S + home-DS serialization + loser-rebuild** — folded into the production openmls-client arc
+│   │       ↳ trigger: D3 — RFC 9420 / openmls in the build
+│   ├── ✅ **M9** — strategic multiparty test harness · J-307
+│   │   ├── ✅ **M9.1** — event timestamp-bound validation · J-311
+│   │   └── ✅ **M9.2** — harness-enablement seams · J-315
+│   ├── ✅ **Multiparty tests** — R1 + R2 + R3 · J-356 · ledger at tasks/HANDOFF_MP_R3.md §3
+│   │   └── 🟡 **MP-C-06 + MP-C-16** — re-home capability gap ↳ trigger: M10 lands
+│   ├── ✅ **M10** — auth module reference set, Tier-1 · J-375
+│   ├── ✅ **M11** — `self` thread, D-021 · J-378
+│   └── ✅ **M12** — attachments · J-379 (J-380, J-381, J-382, J-384, J-385, J-386, J-387, J-388, J-389)
 │
-├── ✅ Pre-UI documentation-optimization phase — COMPLETE (J-396; DO-1..DO-5, DO-5 = JOURNAL.md windowing)
-├── ✅ Appendix F/I audit-against-code — CLOSED (J-398) — AF ✅ (J-397, Appendix F v1.13) + AI ✅ (J-398, Appendix I v1.7; new appendices M/N/O; event_trace → Appendix G v1.2); AI-F17 routed → code fix
-│   └── ✅ AI-F17 — IdentityMessage::Record gains is_ai/ai_capabilities (Joe-LOCKED J-400; CLOSED code-side J-401, populated on identity.get; ~1466 tests)
-├── UI (clean-table rebuild — the post-M10 endpoint; built fresh after pre-UI work, Round-2 GO; the J-390 final pre-UI gate ✅ DONE)
-│   ├── ⬛ UI Phase 2 visual merge — DEPRECATED (J-284): element-modelling/visual-merge approach abandoned → superseded by the clean-table UI milestone
-│   ├── ⬛ Mockup stock-take + reconcile-to-as-built — DEPRECATED: the May-era mockup-reconciliation plan (ui/docs concept + run briefings) superseded by the component-library-first build
-│   ├── 🟢 UI component-library / substrate (RP track) — D-095 `ui/{client,node,common,core,assets}` mirrors the crate workspace; base substrate (logic/envelope/debug, N-023/N-024) + first `core` component `toggle` registry-verified live in both apps (M-RP2.3, J-403); component index ACTIVE + second `core` component `button` (event-out; M-RP2.4, J-405) — throwaway Button.svelte retired + third `core` component `textfield` (string bind-in; M-RP2.5, J-407) — three binding shapes complete + `button` retrofit / `toggle` switch role (M-RP2.6, J-410) + first skin pass / L2 vocabulary founded (M-RP2.7, J-412) + `select` (M-RP2.8, J-413) + display-di `label` (M-RP2.9, J-414) + `paragraph` (M-RP2.10, J-415) + `image` (M-RP2.11, J-416) + `textfield` `type`-fold (M-RP2.12, J-417) + `textarea` (M-RP2.13, J-418) + `number` (M-RP2.14, J-419) + `range` (M-RP2.15, J-420); **sampler test-bed arc M-RP3 started — `xgen-sampler` Tauri/WebView2 app, component track paused (M-RP3.0, J-422); populated — all 10 components live, 22-cell matrix + skin-swap (M-RP3.1, J-423); component di track resumed — `date` date-input family fold (M-RP2.16, J-425); `color` native swatch atomic (M-RP2.17, J-426); `file` native file picker, first bind:files/FileList (M-RP2.18, J-427); `select-multiple` last input-family atomic, first string[] array value-type (M-RP2.19, J-430); `led` fourth simple display-di, caller-supplied colour map, first data-coloured atomic (M-RP2.20, J-431); `link` first navigation-kind di, atomic <a href> (M-RP2.21, J-432); sampler tabbed by class×arity — four-panel di/dd container (M-RP3.2, J-433); `status-indicator` first di composite, root <div class=status-indicator> = led+label+optional link (M-RP2.22, J-434); text-processor engine — kind-1 transformer (string→string, live) as a forwarded common attachment + textarea processor-host, opens the M-RP4 arc; four-kind taxonomy codified (D-099), build-one (M-RP4.0, J-435); user-owned substitution pairs — source-agnostic `$common` store + ` | `/first-space grammar, presets retired, client TOML→command→store (M-RP4.2, J-441); sampler real config-load path + clean-slate-on-start — all 3 binaries wipe+regen config on start (D-101), sampler host subset-gen + get_substitutions, frontend literal retired (M-RP4.4, J-443/J-444); the **`widget` tier** concept-locked (Level-2 app-assembly above the di/dd × atomic/composite grid; home `ui/common`; one-tier-+-Phase) — **M-RP4.3 reordered** after the di-composite backlog + the widget definition, since M-RP4.3 is the first widget (J-445/N-059) + `star-rating` third di composite, self-contained Shape B (composes no child components; refines the composite definition, D-069 watch) (M-RP2.24, J-447) + `file-field` fourth di composite, child-composite Shape A (hidden `file` atomic + drop-zone + list; matrix +2/cell -> 68->74; passive slice only, no remove/progress) (M-RP2.25, J-448) + `combobox` fifth di composite, rich **owned-popup** (own `<ul role=listbox>`, native `<datalist>` reverted — text-only/unstyleable; matrix +2/cell -> 74->80; establishes the reusable owned-popup pattern -> color-picker) (M-RP2.26, J-449) + `chip` standalone di token (22nd `core`), first self-computed-colour di (hash(label)->HSL muted band, shell-independent), prerequisite for `tag-select`; the N-064 used-internally-without-registration pattern; matrix 80->83 (M-RP2.27, J-450)** + `tag-select` 6th di composite, the chip consumer (reuses owned-popup + composes textfield/chip; N-064 made real via `register` prop; general width system; matrix 83->89; closes the N-054 backlog) (M-RP2.28, J-451)** + `color-picker` 7th di composite, 24th `core`, compact themed answer to native `<input type=color>` (owned-popup N-063; anchor textfield+palette icon; SV surface + hue/alpha ranges + HEXA/RGBA/HSVA model selector + native EyeDropper + 8 recents; value #rrggbbaa, float-HSV lossless; ranges register only-while-open, matrix +2/cell 89->93) (M-RP2.29, J-452)** + the **`widget` tier** spec — N-059 concept-lock promoted to a formal spec (`ui/docs/xgen-widget-tier.md` v1.0 → **D-102** + N-067); the `widget` = a **UI plugin**, the pluggable **Level-2** tier above the di/dd×atomic/composite grid (home `ui/common`); same mechanism as a protocol/auth plugin, one divergence — the invocation channel replaced by a **reactive `$common` store binding** (read + write-back); checkable constraint set **W-1..W-11** (incl. store-mediated I/O, one aggregate getter, the **dd-socket** defined ahead of any dd-component); two-layer verify (pure→sampler 5th WIDGET tab / effect→real shell, D-097); first **buildable** widget = `substitutions-editor` (M-RP4.3), `temperature-indicator` first **conceived** but dd-blocked; **v1.0 first-instance-provisional** (widget-spec, J-453)** + **M-RP4.3 `substitutions-editor` ✅** — the FIRST widget built + closed (J-454); a one-textarea `[substitutions]` rules editor → `$common` store → live morph, host-injected `set_substitutions` persist (seam-only real-shell verify, session-only under D-101); W-3/W-8 firmed to spec v1.1; the seed `-->`/`<--`→`->`/`<-` substring-shadowing fix (D-100 amend); pure layer sampler-verified (registry 93→97) (M-RP4.3, J-454)** + **M-RP4.1 kind-3 filter/guard ✅** — `number` min/max clamp (J-455); `ClampRule`+`applyClamp` pure core (idempotent, `number|null`) + change-triggered `clamp.ts` attachment + `number` clamp-host (`{...rest}`); 2 of 4 processor kinds built; sampler-verified (registry 97→98) (M-RP4.1, J-455)** + **M-RP4.5 kind-2 converter/bridge ✅** — the new di atomic `converter-field` (25th `core`), `string↔T` (M-RP4.5, J-456); the one processor kind that is a component not an attachment (two reps of different type can't ride one `bind:value`); `PARSE_FAILED`+`Converter<T>`+`intlNumber` pure core (`Intl.NumberFormat` + `formatToParts` parser) + `<generics=T>` host owning `value`/`text`/`invalid`; parse on change/blur, raw on focus, reject-and-mark on fail (value held), Tier-1 (no caps); 3 of 4 processor kinds built; sampler-verified (registry 98→100)** + **M-RP2.30 `meter` ✅** — the 26th `core`, 5th simple display-di, root `<meter>` (M-RP2.30, J-457); read-only sibling of `range` (di, NOT dd — a value+range primitive, not a domain materialization); full-width default + `width?`; founds the `--warn` amber L2 token; native semantic fills (optimum green/sub amber/over red) via `::-webkit-meter-*` pseudos, PROVISIONAL; sampler-verified (registry 100→106, 6 cells, 0 orphans)** + **M-RP2.30a `meter` `fill?` ✅** — additive custom-fill amendment (M-RP2.30a, J-458); optional `fill?` (hex/`var(--token)`) → inline `--meter-fill` → value-pseudos read `var(--meter-fill, <semantic>)`, overriding optimum semantics (led/chip mechanism, option A); getter gains `fill`; sampler-verified (registry 106→108, 0 orphans)** + **M-RP2.31 `section` ✅** — the 27th `core`, di atomic-ish collapsible **disclosure container**, root `<section>` (M-RP2.31, J-459); optional header (title + `badge?` string + chevron) over a `children` body slot; `collapsible?`/`collapsed?` ($bindable) hide the body via `[data-collapsed]`; nesting by construction; chevron reuses combobox glyphs; **supersedes the seed `section-header`** (⬛ DEPRECATED); sampler-verified (registry 108→114, 0 orphans)** + **M-RP2.31a `section` `width?` ✅** — additive settable-width amendment (M-RP2.31a, J-460); optional `width?` string → inline width, unset = 100%; `min-width:160px` floor; getter gains `width`; sampler-verified (registry 114→115, 0 orphans)** + **M-RP5.0 `entity-avatar` ✅** — the **dd track opens for real**: the **first data-dependent component** (dd-atomic), first `data-dependent/` occupant, root `<figure role="img">` (M-RP5.0, J-462); shape branches on kind (identity/DM = circle, non-DM space = rounded-square); source-agnostic **`EntityDescriptor`** seam (the W-11 dd-socket; `core` imports no protocol types); the shared **`seedColour`** base helper factored out of `chip` (byte-identical, 0-regression); `variant` presence/list (size/content derived); isAi spark + revoked grey/slash self-drawn badges; `onActivate?` menu seam reserved; sampler DD·atomic panel populated, CDP-verified (registry 115→124, 9 cells, seed shell-independent, 0 orphans)** + **M-RP5.1 `entity-item` ✅** — the **first dd-composite** (renamed from `container-list-item`), variant-driven display unit (avatar + name + secondary + meta/status); single-knob derive (`row→list · card→card · nav→labeled · inline→presence`); composes the real `entity-avatar` child (`__avatar` self-registers → matrix multiplies); global **width rule (N-076)** unset→100%/set→value/min-width floor (retro-refs meter/section); `entity-avatar` `variant` widened `+ labeled | card` (additive, pre-announced at M-RP5.0, 0-regression); sampler DD·composite panel populated, CDP-verified (registry 124→138, +14 = 7 composites + 7 `__avatar` children, derive-map literal, 0 orphans) (M-RP5.1, J-463)** + **M-RP5.1a `status` + M-RP5.1b avatar slot ✅** — the self-status dd-atomic (`badge`/`line`/`full`, backed by Track A `state.status` via a source-agnostic view-model) + the additive `entity-avatar` `status?` bottom-right corner-slot (composes `status badge`; `__status` self-registers); **expired → mounted-but-empty** (root always registers, `expired:true` CDP-readable, `data-empty` collapses — corrects the runbook's "not rendered"); the `.status[data-variant]` scope avoids the combobox/tag-select naming collision; sampler DD·atomic cells + avatar-with-status, CDP registry 138→146 (+8), 0 orphans, avatar/item cells unchanged (M-RP5.1a/5.1b, J-464)** + **M-RP5.2 `entity-panel` ✅** — the **last dd-composite** (closes the dd-composite tier): a roving-focus, single-select **listbox** wrapping `section` (chrome) + `entity-item ×N` rows; owns keyboard focus + selection + empty state; `spaces-panel` = a consumer preset. Root outermost `<section>`, panel getter on the inner `<ul class=entity-panel role=listbox>`; roving tabindex (one 0, rest −1) + Arrows/Home/End/Enter + `bind:selected`↔`aria-selected`; empty message + collapse pass-through. **+corner-fix H** (isAi spark → top-right, status stays bottom-right) + **`entity-item` status-forward amendment** (status once per variant: card = inline line, row/nav/inline = avatar corner badge; card-space 0-regression). Sampler DD·composite cells, CDP registry 146→173 (+27), 0 orphans, keyboard nav + selection + corner-fix no-overlap verified (M-RP5.2, J-465)** + **M-RP4.9 sampler static-header ✅** — sampler-infra only (no component/registry touch): the shell became a `height:100%` flex column with a **fixed header** (title + `client|node` toggle + tab bar, `flex:0 0 auto`) over a confined body scroller (`.sampler-scroll` `flex:1;overflow-y:auto;min-height:0`); tab labels renamed `DI Atomics / DI Composites / DD Atomics / DD Composites / Widgets` (ids stable → N-053 routing + CDP unaffected); CDP registry unchanged at 173, header-fixed-while-body-scrolls + doc-not-scrollable verified (M-RP4.9, J-466)** + **M-RP5.0c `room` kind ✅** — a third entity kind (a location peer to space): `EntityDescriptor.kind += 'room'` + an `entity-avatar` shape branch `room → hexagon` (clip-path); ring/seed/initials/status inherit; **ripples free** through `entity-item`/`entity-panel` (no item/panel code change); status badge nudged onto the hex hull (PROVISIONAL); CDP registry 173→185 (+12), 0 orphans, data-shape=hexagon + clip-path + centered initials + item/panel hex avatars, identity/space/DM 0-regression (M-RP5.0c, J-467)** + **M-RP5.0d hexagon badge-clip fix ✅** — the fill-layer refactor (option A): shape + seed move onto an inner `.ea-fill` (`inset:0; z-index:-1`), root `<figure>` transparent/un-clipped/`overflow:visible` so the status badge + isAi spark sit on TRUE corners un-sliced; the hexagon `.status` nudge removed (badge back to `-3px`); resolves the M-RP5.0c PROVISIONAL badge-clip (the diagonal-ring limitation remains, fill carries it); registry unchanged 185, 0 orphans (M-RP5.0d, J-468)** + **M-RP5.3 `entity-context-menu` ✅** — the widget tier opens on the dd side: the **SECOND widget** + the **first real W-11 dd-socket consumer** (binds `EntityDescriptor` + a self-status view-model; `core` protocol-free); a gesture-agnostic overlay (`open(anchor)`/`close()`) with the **W-2 behaviour machine** (open→focus-in→roving→dispatch→close; dismiss Esc/outside-click/select-then-close/focus-leave) + **portal-to-body + flip/shift**; header composes `entity-avatar`+name+`status full`; base ships the universal `identity` item (W-8 slots reserved); two-layer verify green — pure (sampler 9422) + effect (real client 9222, host round-trip), Joe-lock sampler-also-portals; registry 185→186, 0 orphans (M-RP5.3, J-469)**
-│   │   └── 🟡 Component sampler — dev exhibit app (deferred, post-textfield; design-of-record N-028): `ui/sampler/` (D-095-mirror-exempt), build-phases A/B/C, class×phase matrix, live skin-swap
-│   ├── 🟡 Clean-table UI milestone — the live UI build (replaces the deprecated visual-merge approach)
-│   └── 🟡 Multi-device arc (R2-F09 — D3-gated; surfaces when the UI prototype exercises device add/remove)
+├── ✅ **Pre-UI documentation-optimization phase** · J-396
+├── ✅ **Appendix F/I audit-against-code** · J-398 (J-397)
+│   └── ✅ **AI-F17** — IdentityMessage::Record gains is_ai · J-400 (J-401)
+├── ✅ **Round 2** — final pre-UI whole-codebase gate, GO · J-390
+│   └── 🟡 **gap register** — Open 1/13 (PG-02) ↳ trigger: Arc I closes
 │
-├── Parallel workstreams
-│   └── ⏸️ Slovak translation pass — POSTPONED (lowest priority; resume = English docs reach a stable end-state, or need arises)
-│       └── [first concrete touchpoint: xgen_appendix_a_sk.md + _b_sk.md DEPRECATED 2026-05-20]
+├── 🟡 **UI** — clean-table rebuild, the post-M10 endpoint · J-390
+│   ├── ⬛ **UI Phase 2 visual merge** — element-modelling approach abandoned · J-284 → clean-table UI milestone
+│   ├── ⬛ **Mockup stock-take + reconcile-to-as-built** — superseded by the component-library-first build · J-284
+│   ├── 🟢 **UI component-library / substrate** — RP track, D-095 `ui/{client,node,common,core,assets}` · J-403
+│   │   ├── ✅ **M-RP2 di atomics** — 2.3–2.21, 2.30–2.31a; 27 `core` components · J-403 (J-405, J-407, J-410, J-412, J-413, J-414, J-415, J-416, J-417, J-418, J-419, J-420, J-425, J-426, J-427, J-430, J-431, J-432, J-457, J-458, J-459, J-460)
+│   │   ├── ✅ **M-RP2 di composites** — 2.22, 2.24–2.29; owned-popup pattern founded · J-434 (J-447, J-448, J-449, J-450, J-451, J-452)
+│   │   ├── ✅ **M-RP3 sampler** — `xgen-sampler` test-bed, tabbed by class×arity, static header · J-422 (J-423, J-433, J-466)
+│   │   ├── ✅ **M-RP4 processors + widget tier** — 4 processor kinds, D-099/D-102, first two widgets · J-435 (J-441, J-443, J-444, J-445, J-453, J-454, J-455, J-456)
+│   │   └── ✅ **M-RP5 dd track** — `entity-avatar` → `entity-panel` → `entity-context-menu` · J-462 (J-463, J-464, J-465, J-467, J-468, J-469)
+│   ├── 🟡 **Clean-table UI milestone** — the live UI build
+│   │   ↳ trigger: Round-2 audit GO + M10 closed *(transcribed from the UI container)*
+│   └── 🟡 **Multi-device arc** — R2-F09 ↳ trigger: the UI prototype exercises device add/remove
 │
-├── Open areas (deferred, not scheduled)
-│   ├── ⏸️ Registry file encryption — identity/federation registries at rest; deferred (candidate storage/security module, rides the D-080/085 framework)
-│   └── ⏸️ DPI resistance (D-023; Phase 3 — resume when Phase 3 opens)
+├── ⏸️ **Parallel workstreams**
+│   └── ⏸️ **Slovak translation pass** — first touchpoint `xgen_appendix_a_sk.md`
+│       ↳ trigger: English docs reach a stable end-state, or need arises
 │
-├── Discipline / JOURNAL hygiene (✅ both follow-ups closed)
-│   ├── ✅ JOURNAL Gap 1 — Phase 7.5 implementation retrospective entry (closed 2026-05-23 per J-103)
-│   │   └── (commits 12cfe5a + aa2433f + 1be7189 + ecbbf19 + 8859093)
-│   └── ✅ JOURNAL Gap 2 — XGID Adoption v1 design+Phase 1 retrospective entry (closed 2026-05-23 per J-102)
-│       └── (commit a5f3c8b)
+├── ⏸️ **Open areas** — deferred, not scheduled
+│   ├── ⏸️ **Registry file encryption** — identity/federation registries at rest
+│   │   ↳ trigger: none — filed, not scheduled
+│   └── ⏸️ **DPI resistance** — D-023 ↳ trigger: Phase 3 opens ⚠️ ambiguous — the M6 Phase 3 is COLLAPSED (J-153)
 │
-└── Cross-cutting principles (continuous, not milestone-shaped)
-    ├── 🟢 D-069 — Design discipline (canonical-document rule)
-    ├── ✅ D-070 — Two events of equal importance, opposite direction
-    ├── ✅ D-071 — Audit-precedes-dependency discipline
-    ├── ✅ D-072 — XGID Adoption v1
-    ├── ✅ D-073 — Field-name-vs-type discipline
-    ├── ✅ D-074 — Milestone-close commits MUST include JOURNAL.md
-    ├── ✅ D-075 — state.federation_add is one party's act; federation_nodes is vantage-aware derived projection
-    ├── ✅ D-076 — Wire-order determinism is a sender-side normative property for Node-to-Node federation
-    ├── ✅ D-077 — Bidirectional sustainability discipline at silent-discard / fallible-discard sites (meta-layer above no-drift-surface discipline family; promoted J-107 persistence-amendment re-walk; backfilled to tree at J-114 atomic per α.a cascade-close)
-    ├── ✅ D-078 — Production-grounded test enumeration (protocol-test-layer sibling to D-077 meta-layer; promoted J-114 Phase 9 Commit 3b-4 runbook-authoring atom; three-instance threshold met J-099 + J-109 + J-113)
-    ├── 🟢 D-065 — Honest behaviour over polite behaviour
-    └── 🟢 Honest longer work over fast shortcuts (not yet promoted to D-NNN)
+├── ✅ **Discipline / JOURNAL hygiene** — both retrospective gap-closures shipped
+│   ├── ✅ **JOURNAL Gap 1** — Phase 7.5 implementation retrospective · J-103
+│   └── ✅ **JOURNAL Gap 2** — XGID Adoption v1 design + Phase 1 retrospective · J-102
+│
+└── **Cross-cutting principles** — standing decisions, continuous not milestone-shaped · DECISIONS.md
 ```
 
-### How to use this view
+### How to read this view
 
-The tree is read top-down for navigation: scan to the cluster you care about, then drop into the prose Past/Present/Near future/Far future sections below for the detail. Status icons match the legend; nesting depth reflects logical containment, not strict commit order.
+The tree above is the **state board**. It is the authoritative current state of the project. Nothing below it overrides it.
 
-Three views fall out naturally:
-
-**Note (reconciliation, 2026-06-21):** the "playing right now" / "live frontier" narrative bullets below are a **historical snapshot frozen ~J-256/J-258**; the authoritative current state is the **tree above** + the **Present** section below. The bullets are kept as a close-history ledger.
-
-- **What's settled?** Scan for ✅ marks. Most of Federation Event Propagation, all of XGID Adoption v1, M1–M5, D-070–D-073.
-- **What's playing right now?** **The UI component-library / substrate track (RP)** — D-095 tier split + base substrate (N-023/N-024) + first `core` component (`toggle`) registry-verified live in both apps (M-RP2.3, J-403); the clean-table UI build follows. Pre-UI chain fully closed (doc-opt J-396 · AFI J-398 · AI-F17 J-401). *Historical close-ledger follows (frozen ~J-256):* Most recent close: **Arc H (E2E encryption / MLS, PG-05) CLOSED 🔷 INTERFACE-LOCKED at J-256 (2026-06-04; C1 `ee06168` J-255 + C2 `ffda2af` J-256 + close)** — the built-but-unwired Phase-2 epoch scheme operationalised onto the live `message.*` path + the `enc:` v2 **envelope** (per-message `CK` wrapped under the epoch key, a **D-088 amendment** giving crypto-shred its granularity) + the **content-blindness proof** (server-blindness real + proven on the wire) + KeyPackage lifecycle (5001/5002) + epoch-advance (commit-race fenced to D3). PG-05 closes interface-locked (real RFC 9420 = D3, cascade `D-088 → PG-05 → D3`); **the last Round-1 D-071 arc — all Round-1 arcs now closed.** Prior: **Arc I (GDPR erasure / right-to-be-forgotten, PG-02) CLOSED design-only at J-253 (2026-06-04; D-088)** — erasure *architecture* locked (crypto-shred content / orphan identity / monotonic tier-graded permission, protocol-binds-endpoints + Auth-Module-declares-interior); implementation deferred behind PG-05 (Arc H), so PG-02 stays OPEN as implementation. Prior: **Arc F — Space Migration subsystem (PG-11) CLOSED at J-251 (2026-06-04)** — C1 core completion (pure `transition()` + the `apply_space_migrate` cutover applier flipping `home_node` source→dest, AF-D1/D2) + C2 node driver (`migration_driver.rs` source+destination halves, 12-msg dispatch, EventStore bridge, retention AF-D5, `migration initiate` operator verb; two-node e2e flips `home_node` on **both** Nodes) + doc-only close (wire **6009 `migration_authority`** superseded the C2-guessed 6007). **Next-active = Joe selects the next arc.** The prior close is **Arc G — jurisdictional namespacing (PG-04) (J-249 open → J-250 close, 2026-06-04)** — C1 `SpaceState.jurisdiction` set-once at create (ch3 §3.7.3 + AppC) + C2 `FederationPolicy.allowed_jurisdictions` + `jurisdiction_permits` AND-composed with `policy_permits` at both federation sites (strict undeclared-denied) + `--allowed-jurisdiction` operator surface + ch3 MAY clause + close ch3 §3.6.7 central-aggregation MUST-NOT; honest dormant-but-correct, all AG-D# arc-local. Before it, **Arc E — primitive completion (J-245 open → J-248 close, 2026-06-04)** — PG-03 `TrustAssertion` (the third SignedPrimitive; struct + canonical sign/verify + the full §3.8.5 `validate_assertion` wired into registration; C1, J-246) + PG-08 `Thread` (`thread.*` events + `ThreadStatus` + `ThreadState`, rides M8 convergence; C2, J-247); all AE-D# arc-local. Before it, **Arc D — privilege-model / enforcement-hardening (J-242 open → J-244 close, 2026-06-03)** — PG-13 tier-gate on join + PG-12-min per-Room overrides (C1+C2, J-243), PG-10 reclassified NO-GAP. Before it, **M8 — state-resolution convergence (J-241)** — the built-but-unwired seven-layer `resolve()` wired onto the node apply path + convergence proved at three levels (C1 in-process · C2 runtime seam · C3 two-node), M9 not triggered. Before it, the **Storage-Engine / Plugin-Framework milestone (J-232, 2026-06-03)** — compile-time plugin/module spine + first plugin (`xgen-store-sqlite`) behind J-228's `EventStore` trait, a selected engine now the live per-Space store + durability authority (D-085/086/087; D-080 unchanged). Before it, **Durable EventStore at J-228 (2026-06-02)** — the `EventStore` trait + vanilla file backend + minimal durability floor, implementing D-080 (storage engines stay a later module behind the trait). Before it, the **M7 family** closed end-to-end (`--aicontrol` v1 J-205 · events J-212 · completion J-223 · standalone J-226) and the **M6 (new) admin write-path** completed (all seven verb categories + the four D-071 arcs + node-policy, J-197). **Next-active: Joe selects the next arc — all Round-1 D-071 arcs now closed; remaining work: PG-02 GDPR content-erasure *implementation* (gated on PG-05 real crypto = D3) · M9 (build strategic multiparty test harness) · M10 (Tier-1 Auth Module reference set — a UI-gate prerequisite, and the home of D-088's identity-orphan erasure half)**. D-065, D-067, D-069, D-074, D-078, and the "honest longer work over fast shortcuts" principle apply continuously.
-- **What's the live frontier?** **UI — the component-library / substrate track (RP) is active** (D-095 + substrate + first `core` component live in both apps, M-RP2.3 J-403); the clean-table UI build is the next milestone; mockup stock-take ⬛ deprecated. Pre-UI chain closed (doc-opt J-396 · AFI J-398 · AI-F17 J-401). *Historical milestone ledger follows (frozen ~J-256):* The **storage-engine / plugin-framework milestone closed at J-232** (spine + first plugin `xgen-store-sqlite` behind J-228's `EventStore` trait shipped; D-085/086/087 locked). **M8 (state-resolution convergence) CLOSED at J-241** (convergence wired onto the node apply path + proved C1/C2/C3; M9 not triggered). **Arc D (privilege-model / enforcement-hardening) CLOSED at J-244** (PG-13 + PG-12-min shipped C1+C2 J-243; PG-10 NO-GAP). **Arc E (primitive completion) CLOSED at J-248** (PG-03 `TrustAssertion` C1 J-246 + PG-08 `Thread` C2 J-247; full Role object model spun OUT to a later privilege-model arc, per-Room-type Thread behaviour → client/UI milestone). **Arc G (jurisdictional namespacing, PG-04) CLOSED at J-250** (J-249 open → C1+C2+close; `SpaceState.jurisdiction` set-once + `FederationPolicy.allowed_jurisdictions` AND-composed at both federation sites + ch3 MAY clause + §3.6.7 central-aggregation MUST-NOT; dormant-but-correct, all AG-D# arc-local). **Arc I (GDPR erasure, PG-02) CLOSED design-only at J-253** (erasure architecture locked via **D-088** — crypto-shred content / orphan identity / monotonic tier-graded permission; PG-02 stays OPEN as *implementation*, gated on PG-05/Arc H). **Arc F (Space Migration, PG-11) CLOSED at J-251** (C1 core completion + C2 node driver + doc-only close; node driver wired, two-node e2e flips `home_node` on both Nodes; wire 6009 added). **Arc H (E2E encryption, PG-05) CLOSED 🔷 INTERFACE-LOCKED at J-256** (J-254 open → C1 J-255 → C2 J-256 → close; the Phase-2 epoch scheme wired onto the live `message.*` path + the `enc:` v2 envelope [D-088 amendment, AH-D1] + content-blindness proof + KeyPackage lifecycle + epoch-advance; server-blindness real + proven, real RFC 9420 = D3). **Gap-audit register 10 done · 1 interface-locked (PG-05, Arc H) · 1 NO-GAP · 1 open (PG-02, gated on D3)** — **all Round-1 D-071 arcs now closed.** Remaining work (gap audit §4): **PG-02** GDPR content-erasure *impl* (gated on PG-05 real crypto = D3) · **M9** (build strategic multiparty test harness) · **M10** (Tier-1 Auth Module reference set — UI-gate), plus the heavier subsystem arcs named at each M7 close — privilege-model / control-plane-identity · temperature-plugin (gated on a 2nd plugin existing) · pipelined-handler · migration subsystem. Promoted to milestones (J-284): M8.6 federation stress (clock-injection seam + C1/C4/C6/C8, built+run in-milestone; NEXT-ACTIVE) · M8.7 D3 MLS operationalisation. Deprecated/postponed: UI Phase 2 visual merge ⬛ DEPRECATED (→ clean-table UI milestone) · Slovak translation ⏸️. Everything else is done, waiting on one of those, or further out. **Round 2 (UI-gate) executed at J-258 (2026-06-05): CONDITIONAL GO** — codebase coherent, only R2-F01 (client/node resolution divergence) touches UI correctness; next-active = Joe selects the fix ordering (R2-F01 fix-arc · doc housekeeping F02-F05/F07 · operator-terminology arc F06 · M10 · UI). See `tasks/ROUND_2_AUDIT.md`.
-
-Milestone naming — stabilised 2026-06-05 (R2-F05). Two parallel designation systems; the multiparty test is deliberately unnumbered so it can shift without M-series renumbering.
+**Node format** — one node, one line, structure from nesting:
 
 ```
-M-series (numbered, operational)
-|- M1-M7 .............. done
-|- M8 ................. strong multiparty test / diagnostic          [CLOSED J-269]
-|- M8.5 ............... finalization: INV + F-5 + S5 fixes  [CLOSED J-278; A·B·C done]
-|- M8.6 ............... federation stress: clock seam + C1/C4/C6/C8  [CLOSED J-294]
-|- INV-EXP ............. invite-expiry replay-gate fix (M8.6/C8 follow-on)  [CLOSED J-298]
-|- M8.7 ............... D3 MLS operationalisation (openmls)          [CLOSED J-302]
-|- M9 ................. build strategic multiparty test harness      [CLOSED J-307]
-|- M10 ................ Auth Module reference set (UI-gate)          [DONE J-375]
-`- M11 ................ self thread (D-021; reuses existing identity)  [SHIPPED + CLOSED J-378]
-
-Gap-audit arcs A-I (PG-gap closures)
-|- Arc A,B,D,E,F,G,H,I . closed
-`- Arc C .............. state-resolution convergence (closed J-241)
-                        borrowed the M8 slot; slot vacated -> M8 now = A/B metrics
-
-Strategic milepoint (no M#, floats freely): Multiparty test
-Gate (COMPLETE 2026-06-05): Round 2 -> GO -> R2-F01 (CLOSED J-264, A-pure)
-Gate Pass 2 (final pre-UI, COMPLETE 2026-06-17, J-390): whole-codebase delta + cross-arc (M10/M11/M12) -> GO -> UI next; R2G-F01..F04 routed (S3/S4, none UI-blocking)
-             -> R2-F06 (CLOSED J-266, zero-rename); R2-F09 PULLED (multi-device, D3-gated)
-Post-gate chain (locked 2026-06-05; M8.5 inserted J-269; M8.6/M8.7 inserted J-284; M11 inserted J-287): M8 (diagnostic, CLOSED)
-             -> M8.5 (finalization: INV invitee-bootstrap + F-5 anti-transitivity + S5 rebind)
-             -> M8.6 (federation stress: clock-injection seam + the four deferred compounds C1/C4/C6/C8, built + run in-milestone)
-             -> INV-EXP (invite-expiry replay-gate fix; M8.6/C8 follow-on, before M8.7) [CLOSED J-298]
-             -> M8.7 (D3 MLS operationalisation: real RFC 9420/openmls behind the Arc-H locked interface + concurrent-commit resolution) [Phase-0 OPENED J-299; runbook authored J-301; M8.7 = R only (concurrent-commit conflict domain); S+L = production openmls-client arc]
-             -> M9 (build strategic multiparty test harness)
-             -> Multiparty tests (strategic milestone, unnumbered) [CLOSED J-356] -> Round-2 checkpoint audit [DONE J-357, GO] -> M10 (Auth Module ref set) [M10.4 DONE J-371] -> M11 (self account, D-021) [CLOSED J-378] -> M12 (attachments) [OPENED J-379, F1–F9 locked; Phase-0 audit DONE J-380, GO; design Joe-LOCKED J-381 (M12-D1..D10); M12.1 SHIPPED+CLOSED J-382; M12.2 designed J-383 (M12.2-D1..D6, split M12.2a/b); M12.2 SHIPPED+CLOSED J-385 (J-384 trio + J-385 F9 data-root); M12.3 Phase-0 audit DONE + design Joe-LOCKED J-386 (M12.3-D1..D6)] M12.3 SHIPPED+CLOSED J-387 (federation fetch-blob-by-hash); M12.4 erasure Phase-0 audit DONE + design Joe-LOCKED J-388 (M12.4-D1..D9; M12-D6 promoted -> D-093); M12.4 SHIPPED+CLOSED J-389 = M12 CLOSED (redact + blob-delete + Retained-refusal 10004; in-suite 1463/0, box e2e green)] -> Round-2 final pre-UI gate [✅ DONE J-390, Pass-2 GO] -> documentation-optimization [✅ COMPLETE J-396; DO-1..DO-5] -> Appendix F/I audit-against-code [✅ CLOSED J-398; AI-F17 J-401] -> mockup stock-take [⬛ DEPRECATED — superseded by component-library-first build] -> UI component-library / substrate [🟢 ACTIVE, RP track; M-RP2.3 J-403, M-RP2.4 J-405, M-RP2.5 J-407, M-RP2.6 J-410, M-RP2.7 J-412, M-RP2.8 J-413, M-RP2.9 J-414, M-RP2.10 J-415, M-RP2.11 J-416, M-RP2.12 J-417, M-RP2.13 J-418, M-RP2.14 J-419; sampler 🟡 deferred] -> clean-table UI build [🟡] -> Streams (standalone, post-UI plane)
+<status> **<name>** — <description> · <canonical record> → <successor>
+    ↳ trigger: <condition>
 ```
 
-Depth-asymmetry note: settled Past clusters (M-series M1–M5, completed Federation phases) show one line per milestone with no internal phase breakdown, mirroring the prose section's principle that detail accumulates as a track approaches and reduces when it settles. Live and Near-future clusters show full internal nesting because that detail is currently load-bearing for navigation.
+| Field | Rule |
+|---|---|
+| `<status>` | A **leading** symbol from the Status legend. Never parenthetical, never mid-line. |
+| `**<name>**` | The milestone or arc identifier. Never bare — always carries a short descriptive title. |
+| `· <canonical record>` | Where the work is written down: a `J-nnn` journal entry, a `DECISIONS.md D-nnn`, or a design document under `tasks/`. **A node closing a chain of commits cites the whole chain** — `· J-212 (J-207, J-208, J-209, J-210, J-211)` — not just the last one. |
+| `→ <successor>` | On a **closed** node, what it unblocks or hands off to. Written on the closed node so whoever closes a milestone sees what it releases, on the same line. |
+| `↳ trigger:` | Required on every 🟡 and ⏸️ **leaf**. `trigger: none — filed, not scheduled` is a legal and complete answer. |
 
----
+**Six rules govern the tree. They exist because each one was broken at least once.**
+
+- **R-1 — every node leads with a status symbol.** A status written inside parentheses is invisible to `grep '^✅'`.
+- **R-2 — a container's status is derived from its children**: all children ✅ ⇒ ✅ · any child 🟢 ⇒ 🟢 · otherwise the weakest live state. The root is exempt. **A milestone with unfinished children is not done.**
+- **R-2a — a derived container carries no trigger.** The condition is written once, on the leaf that owns it. Copying it up the tree creates places to go stale.
+- **R-3 — a container of non-work carries no status at all**, only a link. A standing decision has a *force*, not a *state*; it is never "in play" and never "done". Standing decisions live in `DECISIONS.md` and are linked from here, not mirrored here.
+- **R-4 — if a node needs a qualifier to be true, it needs a child instead.** `✅ … (2 of 7)` is a claim its own symbol contradicts. The finished half keeps ✅ and its link; the unfinished half becomes a 🟡 child with a trigger; the parent derives via R-2.
+- **R-5 — a node's descriptive text stays under ~160 characters.** Without a bound, a chronicle simply relocates from prose into a tree row. **R-5a: the bound applies to the description, not to the link chain** — citing records is what the tree is for.
+
+**Where the detail lives.** The tree carries state and a pointer. It does not carry narrative.
+
+| You want | Read |
+|---|---|
+| what happened, and why | `JOURNAL.md` (live window) · `JOURNAL_ARCHIVE.md` (older) — by the `J-nnn` on the node |
+| a standing decision | `DECISIONS.md` — by `D-nnn` |
+| an active milestone's design and legs | `tasks/` — the task doc named on the node |
+| the multiparty scenario ledger | `tasks/HANDOFF_MP_R3.md` §3 — 37 scenarios, R1+R2+R3 |
+| UI component and substrate notes | `ui/docs/xgen-ui-notes.md` — N-numbered, append-only |
+
+**Maintenance.** Same-commit discipline applies to this tree, no exceptions — D-074: a state change moves `docs/ROADMAP.md`, `CLAUDE.md`'s PLAY head, `JOURNAL.md` and the task doc in one commit. When a node closes, the closer writes its `· J-nnn` and its `→ successor` in the same edit. **A trigger that has fired is a defect: the node it guards is stale by definition.**
 
 ## Past — settled
 

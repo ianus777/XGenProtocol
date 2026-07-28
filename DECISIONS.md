@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-26  
+> **Last updated:** 2026-07-28  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -4807,3 +4807,27 @@ A cached `revoked = true` is a **historical fact that can never become wrong**. 
 🔑 **A DATE WOULD BE ARBITRARY; A TRIGGER CANNOT BE MISSED.** Fixed early it is one function in `session.rs`. Discovered late it is 24 call sites failing intermittently, in an arc that will look like it broke something unrelated.
 
 📌 **Shape of the eventual fix:** make `ensure_connected` detect a closed connection and reconnect, rather than trusting `Option::is_some` as a liveness proxy. Per-op `conn = None` is a workaround, correct only where it is written.
+
+---
+
+## D-131 — A citation proven broken is annotated at the site, never silently repaired, and investigated only when work reaches it
+
+**Date:** 2026-07-28 · **Layer:** project-management discipline (canonical records) · **Ref:** J-607, D-065 (honest over polite), D-094 (archiving), the designation-suffix convention · **Lineage:** the annotation form was invented during M-DOC-ROADTREE Leg C and applied four times in `docs/ROADMAP.md` before it was named.
+
+⚠️ **PROVENANCE: Joe proposed the rule; Chat measured the surface and recommended the form. DELEGATED.**
+
+**Decision.** When a citation to a canonical record (`J-nnn`, `D-nnn`, `N-nnn`) is proven not to resolve, it is **annotated in place** with what is known and otherwise left intact. It is **not** silently repointed and it is **not** deleted. Working out what it should have said happens **when work next reaches that site**, not on discovery.
+
+**Form — inline, at the site.** `· J-098 — never written, see J-603` · `D-030 — bare retired, see D-030a/D-030b` · `D-130 — never written`. The annotation carries **what is known**, never a guess.
+
+🔑 **WHY ANNOTATE RATHER THAN REPAIR.** A broken citation is not an edit, it is a question — *what did this mean?* — and answering it needs the surrounding work. **Repairing on discovery turns a bounded documentation pass into an unbounded archaeology pass**, and the guess it produces is indistinguishable from a fact once written down.
+
+🔑 **AND WHY NOT LEAVE IT SILENT.** An unresolvable citation reads exactly like a resolvable one: `D-130` looks like a decision until someone opens this file. **The annotation converts a silent false claim into a visible open question** — D-065 applied to the records themselves.
+
+📌 **AN ANNOTATION IS SAFE TO FREEZE.** A repaired link inside a frozen archive is a claim nobody can re-check; an annotated one tells the future reader not to trust it. Archiving under **D-094 therefore does not gate on link repair.**
+
+**The surface, measured at J-607 (2026-07-28).** 22,664 citation sites across 245 live-surface files; **474 unresolved — 2.09%** — across only **20 distinct designations**. The work is per-designation, not per-site, and it resolves to four knots: the **D-030…D-056 bare-retirement cluster** (7 designations, 110 sites, one historical renumbering pass) · **records never written** (`J-098`, `J-109`, `J-113` — 268 sites, **already investigated at J-603**) · the **J-044/J-045 collision** (12 sites, open as `M_DOC_ROADTREE.md` §8b) · **genuinely uninvestigated** (`N-092a`, `N-092b`, `N-095b`, `J-067`, `J-171`, `J-81` — 84 sites).
+
+⚠️ **THIS DECISION DOES NOT AUTHORISE A RETROACTIVE ANNOTATION SWEEP.** Annotating 474 sites now is the same unbounded pass the rule exists to prevent. The register above **is** the record; sites are annotated as work reaches them.
+
+📌 **D-130 IS SKIPPED, NOT AVAILABLE.** It is cited in the `CLAUDE.md` PLAY head and reserved for a decision whose wording is still open with Joe. This one takes **D-131**.

@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-607 — the broken-link net measured: 474 sites, 20 designations, four knots, and one of them was already untangled
+
+**Date:** 2026-07-28 · **Seat:** Chat (measurement + records). Provenance **DELEGATED** — Joe proposed the rule, Chat measured the surface and recommended the form. No code — zero `.rs`, zero `ui/**`. Two documents, one decision minted.
+
+🔒 **D-131 MINTED.** A citation proven broken is **annotated at the site with what is known**, never silently repaired, never deleted, and investigated only when work next reaches that site. Form is inline, and the annotation carries the finding rather than a guess.
+
+⚠️ **THE ARGUMENT I HAD BEEN MAKING WAS WRONG, AND JOE'S WAS RIGHT.** T1 — repair all six citations before any block moves — rested on *a block archived with a dead pointer keeps it forever, because `CLAUDE_HISTORY.md` is frozen*. **That holds for a repair. It does not hold for an annotation.** An annotated broken link is **safe to freeze**: it tells the future reader precisely what not to trust, which is what an archive should carry. ⇒ **Archiving under D-094 does not gate on link repair.** T1 withdrawn.
+
+🔒 **THE SURFACE, MEASURED.** 22,664 citation sites across 245 live-surface files (`tasks/archive/` excluded); **474 unresolved — 2.09% — across only 20 distinct designations.** ⇒ **THE WORK IS PER-DESIGNATION, NOT PER-SITE**, and the 474 collapse into four knots:
+
+- **the D-030…D-056 bare-retirement cluster** — `D-030` `D-031` `D-037` `D-038` `D-039` `D-055` `D-056`, **110 sites**. Every one has an `a` and a `b` and **no bare survivor**, so all seven are the retired half of a collision split. Seven designations, **one historical renumbering pass, one investigation**.
+- **records never written** — `J-098` `J-109` `J-113`, **268 sites**, and **already investigated at J-603**. 57% of the net was untangled before it was counted.
+- **the J-044/J-045 collision** — 12 sites, already open as `M_DOC_ROADTREE.md` §8b.
+- **genuinely uninvestigated** — `N-092a` `N-092b` `N-095b` `J-067` `J-171` `J-81`, **84 sites**.
+🔑 **AND THE FORM WAS NOT INVENTED TODAY.** `docs/ROADMAP.md` already carries four instances written during Leg C — `· J-114 (J-109, J-113 — never written, see J-603)` and `· J-098 — never written, see J-603`. **D-131 names a convention the repo was already practising in one place.** A rule that generalises an existing practice arrives with evidence that it works, which is a better footing than a rule invented at a whiteboard.
+
+⚠️ **NO RETROACTIVE SWEEP, AND THE DECISION SAYS SO IN ITS OWN TEXT.** Annotating 474 sites now is exactly the unbounded pass the rule exists to prevent. The register inside D-131 **is** the record; sites get annotated as work reaches them.
+
+⚠️ **A DEFECT OF MINE THAT LOOKED LIKE A CATASTROPHE.** The first repo-wide scan returned **22,664 of 22,664 unresolved — 100%** — including `D-065`, `D-069` and `D-074`, which plainly exist and are cited over a thousand times each. Cause: `[IO.File]::ReadAllText('DECISIONS.md')` with a **relative path**. **.NET APIs do not honour PowerShell's `cd`**, so every resolution set came back empty and every citation failed. My own recorded convention says absolute paths, always, and I did not follow it. ⇒ **A CHECKER THAT REPORTS 100% FAILURE IS REPORTING ON ITSELF, NOT ON THE CORPUS.** Had that number been believed for one turn it would have manufactured a crisis out of a typo.
+
+📌 **D-130 IS SKIPPED, NOT TAKEN.** It is cited in the `CLAUDE.md` PLAY head and reserved for a decision whose wording is still open with Joe. This one took **D-131**.
+
+📌 **NO ROADMAP NODE, AND THAT IS R-3 WORKING.** A standing decision has a **force, not a state** — it is never in play and never done — so it is linked from `DECISIONS.md`, never mirrored as a tree node. D-074's ROADMAP limb is correctly empty here for the same structural reason the `CLAUDE.md` limb is empty under P2.
+
+**RECORDS.** `DECISIONS.md` — **D-131 minted**, `Last updated` → 2026-07-28 · `tasks/M_DOC_ROADTREE_LEGD_PHASE0_BRIEF.md` v1.0 → **v1.1**, §4 gains the repo-wide register and **§6c is ruled ✅** with T1 withdrawn in its own text. `docs/ROADMAP.md` and `CLAUDE.md` deliberately untouched.
+
+---
+
 ## Entry J-606 — Leg D opens: the archive it needs already exists, the rule lapsed five weeks ago, and the state board is missing 66 of the milestones it is meant to hold
 
 **Date:** 2026-07-28 · **Seat:** Chat (grounding + measurement + records). Provenance **DELEGATED** — Joe: *go by your recomm*. No code — zero `.rs`, zero `ui/**`. Three documents, one new.

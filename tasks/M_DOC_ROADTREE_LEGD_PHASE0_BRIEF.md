@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — LEG D PHASE-0 BRIEF
 
-> Version: 1.0  
+> Version: 1.1  
 > **Status:** ACTIVE  
 > **Last updated**: 2026-07-28  
 > Author: JozefN  
@@ -85,6 +85,8 @@ Counted by reading the first code point above U+2000 on each headline and tallyi
 
 📌 `J-123` was a false positive of mine: it exists as `### J-123 — recovered body`. **The journal now carries two heading grammars** — native `## Entry J-NNN` and J-603 recovered bodies `### J-NNN`. Any census keyed on one silently misses the other.
 
+📌 **AND THE SIX ARE A LOCAL VIEW OF A REPO-WIDE SURFACE (J-607).** Across 245 live-surface files: **22,664 citation sites, 474 unresolved — 2.09% — over only 20 distinct designations.** The work is **per-designation, not per-site**, and it collapses to four knots: the **D-030…D-056 bare-retirement cluster** (7 designations, 110 sites, one historical renumbering) · **records never written** (`J-098`, `J-109`, `J-113` — 268 sites, **already investigated at J-603**) · the **J-044/J-045 collision** (12 sites, open as §8b) · **genuinely uninvestigated** (`N-092a`, `N-092b`, `N-095b`, `J-067`, `J-171`, `J-81` — 84 sites). Ruled by **D-131**: annotate, do not repair.
+
 ---
 
 ## ⚠️ 5. METHOD DEFECTS EARNED IN THIS PASS — ALL MINE
@@ -119,14 +121,16 @@ The 42 ✅ blocks have a destination D-094 already names. The 17 live blocks sta
 
 **Recommend S1.** 📌 B2 can be archived block by block with a mechanical rule; **B1 has no block boundaries to move**. Leg C grew to roughly three times its lock because each expansion was individually correct — B1 needs its own grounding pass before anyone rules a format for it.
 
-### 🔓 6c — THE SIX BROKEN CITATIONS: REPAIR NOW OR INSIDE LEG D?
+### ✅ 6c — RULED: BROKEN CITATIONS ARE ANNOTATED, NOT REPAIRED (D-131, delegated 2026-07-28)
 
-| option | ① user-visible | ② tier | ③ resource cost |
-|---|---|---|---|
-| **T1 — own commit now, before any block moves** | none | none | 6 edits; no block is ever archived carrying a dead pointer |
-| **T2 — repair as each block is touched** | none | none | zero extra commits; a block archived before its turn keeps the dead pointer **permanently**, because `CLAUDE_HISTORY.md` is frozen |
+**T1 is withdrawn, and the argument that supported it was wrong.** T1 rested on *a block archived with a dead pointer keeps it forever*. That holds for a **repair**. It does not hold for an **annotation**, which survives freezing and tells the future reader precisely what not to trust. ⇒ **Archiving under D-094 does not gate on link repair.**
 
-**Recommend T1.** ⚠️ `D-130` and `N-092b` are cited but were never written — that is not a link repair. It is either a record Joe still owes or a citation that must be withdrawn, and **only Joe can say which**.
+🔒 **D-131** — a citation proven broken is **annotated in place with what is known**, never silently repointed, never deleted, and investigated only when work reaches that site. Form is inline: `· J-098 — never written, see J-603` · `D-030 — bare retired, see D-030a/D-030b`.
+
+📌 **THE SIX ARE PART OF A REPO-WIDE SURFACE THAT IS SMALLER THAN IT LOOKS.** 22,664 citation sites across 245 live-surface files; **474 unresolved (2.09%) across only 20 distinct designations** — four knots, and one of them (`J-098`/`J-109`/`J-113`, 268 sites) was **already investigated at J-603**. Register lives in D-131.
+
+⚠️ **NO RETROACTIVE SWEEP.** Leg D annotates only the sites it touches. `D-130` and `N-092b` stay cited-and-annotated until Joe rules whether they are records still owed or citations to withdraw.
+
 ---
 
 ## 🛑 7. WHAT IS **NOT** ESTABLISHED

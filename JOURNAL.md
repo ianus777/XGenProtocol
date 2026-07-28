@@ -8,6 +8,31 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-609 — two Joe-locked conventions get numbers, and the clause that had never fired was wrong
+
+**Date:** 2026-07-28 · **Seat:** Chat (records). **Joe LOCKED** the `COMPLETED` correction and confirmed both readings; the promotions themselves are his rules being written down, not new decisions. No code — zero `.rs`, zero `ui/**`. One document, two decisions minted.
+
+🔒 **D-132 — `INTERACTIVE — HANDS OFF`.** Driving a live xgen app is a **custody transfer**, requested and released, never assumed. Promoted because it existed in **four non-identical copies and none in a file read at session open**: `tasks/M_RP_LOCK_RECHECK.md` §3 (COMPLETED — findable, not read), the `CLAUDE.md` PLAY head, `docs/ROADMAP_ARCHIVE_2026-07-26.md` (ARCHIVED) and J-568.
+
+🔑 **JOE'S FRAMING INVERTED THE RULE I HAD BEEN READING.** I read it as *notify Joe when I am driving*. Joe: *"it is warning for me that i have to leave full unreserved ui playground to you"* — ⇒ **THE DEFAULT IS THAT JOE IS IN THE APP**, exploring and checking the UI by hand. The warning **interrupts his normal use; it does not announce mine.** Every other clause then follows instead of being a list: *never a standing condition*, because an interruption cannot be open-ended · *does not fire for cargo, npm or git*, because nothing of his is being interrupted · the all-clear is mandatory even when the run dies, because it is **the return half of the transfer**.
+
+⚠️ **AND THE PROHIBITION LIST WAS THE WEAK CLAUSE.** §3 read *Do not: click, scroll, focus the window, open dialogs*. **A list of prohibitions implies anything unlisted is permitted** — the opposite of a total handover. Replaced with the handover stated whole. 📌 **The copy most likely to be read next was the `CLAUDE.md` one, which had silently dropped both stated limits** (the background-process limit and the harness/dev-port limit).
+🔒 **D-133 — THE `Owes:` LINE.** A parent doc stays ACTIVE only while it still owes the work it spawned. It answers the question J-568's sweep exposed: *this doc's own milestone closed, so why does it still read ACTIVE?*
+
+🔑 **JOE'S READING WAS RIGHT AND MINE WAS A FORMATTING OBSERVATION.** I had flagged that `M_RP_FONTS.md` joins ID and title with an em dash where the other two use a space, and called it a detail the rule leaves unsettled. ⚠️ **That was my addition — a prose variation elevated into a rule gap.** Joe proposed instead that `Owes:` names a **parent and the sub-milestones it still owes**. Checked against J-568's opening — *two are real parents with real open work* — **and he is right.** 🔑 **The reading earns itself: every clause follows from it** where under mine they were an arbitrary list. An empty line closes the doc **because a parent owing nothing is not a parent with open work** · leg runbooks never get one **because a leg spawns nothing** · the one-physical-line bound holds **because a parent with that many children is a container, not a parent**.
+
+🔒 **THE CORRECTION — AN EMPTY `Owes:` FLIPS `Status` TO `COMPLETED`, NOT `ARCHIVED` (Joe, 2026-07-28).** J-568 Q1 said ARCHIVED. Measured: **0 of 127 task docs are ARCHIVED** (109 COMPLETED · 9 PENDING · 8 ACTIVE · 1 DEPRECATED); **the same sweep closed its own two stale docs as COMPLETED** (J-508, J-509); and all **13** ARCHIVED files repo-wide are frozen historical records — `CLAUDE_HISTORY.md`, `JOURNAL_ARCHIVE.md`, the ROADMAP archive, `docs/backup/*`. ⇒ **A finished parent is not frozen-do-not-modify.**
+
+⚠️ **THE CLAUSE HAD NEVER FIRED, WHICH IS WHY IT SURVIVED.** All three live `Owes:` lines still carry items, so no line has ever emptied. ⇒ **AN UNEXERCISED CLAUSE IN AN UNWRITTEN RULE IS THE CHEAPEST THING TO GET WRONG AND THE HARDEST TO NOTICE** — nothing runs it, so nothing contradicts it.
+
+📌 **RECORDED SO NEITHER IS "FIXED" LATER:** the `Owes:` ID is **where the work now lives**, usually a child (`M-RP6.6-INGEST`, `M-RP-FONTS-WOFF2`) but sometimes a **re-home** (`M-RP-SKIN ConnStats row-swap` came out of M-RP6.6 and was routed to the appearance milestone) · and **five of the eight ACTIVE task docs correctly carry no line at all**, because their own milestone is still in flight.
+
+📌 **GAPS 1 AND 2 ARE NOT PROMOTED HERE.** The three-instance defect pattern (`CLAUDE.md` L90) and the text-processor wiring policy (L175) remain open. The wiring policy is a **Joe-lock whose wording is his**; the defect pattern needs an N-number, not a D. Both stay in the head until then, and **neither blocks the Leg D move so long as their blocks are not archived first**.
+
+**RECORDS.** `DECISIONS.md` — **D-132 and D-133 minted**, LF preserved, `Last updated` already 2026-07-28. **No ROADMAP node** — R-3: a standing decision carries a force, not a state (same reasoning as D-131). `CLAUDE.md` untouched.
+
+---
+
 ## Entry J-608 — §6a ruled by reading the blocks instead of counting them, and the recommendation the reading killed was my own
 
 **Date:** 2026-07-28 · **Seat:** Chat (measurement + records). **Joe LOCKED E**; the option was authored by Chat. No code — zero `.rs`, zero `ui/**`. Two documents.

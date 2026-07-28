@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — LEG D PHASE-0 BRIEF
 
-> Version: 1.2  
+> Version: 1.3  
 > **Status:** ACTIVE  
 > **Last updated**: 2026-07-28  
 > Author: JozefN  
@@ -98,19 +98,31 @@ Counted by reading the first code point above U+2000 on each headline and tallyi
 
 ## 🔓 6. OPEN FOR JOE — NONE OF IT GATES THE NEXT MEASUREMENT
 
-### ✅ 6a — RULED: E — RE-READ FOR STATE, THEN LEAVE THE RESIDUE (Joe locked 2026-07-28; option authored by Chat)
+### 🟢 6a — E IS RULED; THE RULING IS NOT THE WORK — RE-READ FOR STATE, THEN LEAVE THE RESIDUE (Joe locked 2026-07-28; option authored by Chat)
 
 **C** — every block is classified by **what its own text says**, not by its lead symbol. Blocks that self-declare closed join the 42 and archive under D-094. **D** — the residue stays in the live head and is dealt with when work next reaches it, which is **D-131's logic applied to blocks instead of citations**.
 
 ⚠️ **R2 IS WITHDRAWN, AND READING THE 22 IS WHAT KILLED IT.** R2 was recommended off the symbol census **without reading the blocks**. Reading them shows two things.
 
-🔑 **THE LEAD SYMBOL MARKS THE FINDING INSIDE THE BLOCK, NOT THE BLOCK'S STATE.** L193 leads 🔒 and opens *Leg C ✅ CLOSED (J-604)*; L249 leads 🔒 and says *LEG A DONE*; L251 leads 🔒 and says *DONE (J-568)*; L195, L199 and L201 lead 🛑 🛑 🔑 and are all M-DOC-ROADTREE legs that Leg C closed. **At least 8 of the 22 self-declare closed in their own first sentence.** ⇒ **SORTING BY SYMBOL WOULD FILE FINISHED WORK AS STANDING DECISIONS.**
+🔑 **THE LEAD SYMBOL MARKS THE FINDING INSIDE THE BLOCK, NOT THE BLOCK'S STATE.** L193 leads 🔒 and opens *Leg C ✅ CLOSED (J-604)*; L249 leads 🔒 and says *LEG A DONE*; L251 leads 🔒 and says *DONE (J-568)*; L195, L199 and L201 lead 🛑 🛑 🔑 and are all M-DOC-ROADTREE legs that Leg C closed. **Six of the 22 self-declare closed in their own first sentence** — L75, L177, L193, L249, L251, L255. ⚠️ **CORRECTED from an earlier claim of eight**: L195, L199 and L201 do **not** self-declare closed, they were **superseded** when Leg C closed. Superseded needs a judgement about what superseded it; self-declared-closed needs only reading, and the two must not be counted together. ⇒ **SORTING BY SYMBOL WOULD FILE FINISHED WORK AS STANDING DECISIONS.**
 
 🔑 **AND THEIR DESIGNATIONS ALREADY HAVE CANONICAL HOMES.** `N-118`, `N-120`, `N-124`, `N-124a` and `N-124b` all have headings in `ui/docs/xgen-ui-notes.md`; `D-122` and `D-123` both have headings in `DECISIONS.md`. These blocks are **session narrative about a record that is already canonical**, not orphans awaiting promotion. ⇒ **PROMOTE WAS THE WRONG VERB.**
 
-📌 **THE PROMOTION SUCCESSOR MILESTONE MAY NOT EXIST AS SEPARATE WORK.** R2 needed 22 judgements and its own milestone. On this reading the residue is roughly **4–6 blocks** — M-RP-MEMBERS Leg C blocked/paused, M-RP-LIVEFEED-REFRESH, the H1/H2 address-book question, the J-564 sequencing lock — and D-131 already covers them. **Worth knowing before that milestone is named.**
+📌 **THE PROMOTION SUCCESSOR MILESTONE MAY NOT EXIST AS SEPARATE WORK.** R2 needed 22 judgements and its own milestone. On this reading C's measured output is **6 self-declared closed · 1 blocked · 1 live · 14 declaring no state at all**, so **14 blocks go to the check** (⚠️ corrected from an eyeball estimate of 4–6, which was a guess at the *final residue*, not a count of the work) — M-RP-MEMBERS Leg C blocked/paused, M-RP-LIVEFEED-REFRESH, the H1/H2 address-book question, the J-564 sequencing lock — and D-131 already covers them. **Worth knowing before that milestone is named.**
 
 ⚠️ **WHAT C IS NOT.** C is **reading, not measurement**. It classifies; it does not license the archive move. That still waits on §7 item 2 as corrected below.
+
+**Status derives from the children, per R-2.**
+
+| child | state | |
+|---|---|---|
+| the ruling — **E** | ✅ | Joe locked 2026-07-28 |
+| **C** — classify all 81 by their own text | ✅ | run: **42 of 42** ✅ blocks self-declare closed, so the symbol is reliable on the DONE set and lies only on the non-work set |
+| the **operative-instruction check** | 🟢 | 5 of the 14 stateless blocks done; the 6 self-declared-closed still to confirm |
+| the **residue disposition** | 🟡 | ↳ trigger: the operative-instruction check completes |
+
+⚠️ **THIS SECTION CARRIED ✅ AND SHOULD NOT HAVE.** A ✅ needing the qualifier *the ruling is closed but its execution is not* is **R-4's own example** — a claim its own symbol contradicts. Corrected to 🟢, deriving from the children above. 📌 **§6c's ✅ is correct by contrast:** D-131 is minted and forbids a sweep, so it has **no unfinished children**. Same symbol, different truth, and only the child list tells them apart.
+
 ### 🔓 6b — DOES B1 GET THE SAME TREATMENT AS B2?
 
 | option | ① user-visible | ② tier | ③ resource cost |

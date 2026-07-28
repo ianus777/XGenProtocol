@@ -4831,3 +4831,69 @@ A cached `revoked = true` is a **historical fact that can never become wrong**. 
 ⚠️ **THIS DECISION DOES NOT AUTHORISE A RETROACTIVE ANNOTATION SWEEP.** Annotating 474 sites now is the same unbounded pass the rule exists to prevent. The register above **is** the record; sites are annotated as work reaches them.
 
 📌 **D-130 IS SKIPPED, NOT AVAILABLE.** It is cited in the `CLAUDE.md` PLAY head and reserved for a decision whose wording is still open with Joe. This one takes **D-131**.
+---
+
+## D-132 — `INTERACTIVE — HANDS OFF`: driving a live xgen app is a custody transfer, requested and released, never assumed
+
+**Date:** 2026-07-28 · **Layer:** working discipline (live verification) · **Ref:** J-609; first locked by Joe 2026-07-21 at J-568 Q1/Q2, first used in `tasks/M_RP_LOCK_RECHECK.md` §3 · **Lineage:** D-065 (honest over polite), D-123 (seats).
+
+⚠️ **PROVENANCE: Joe's rule, locked 2026-07-21. Promoted here 2026-07-28 because it existed in four non-identical copies and none of them in a file read at session open.**
+
+🔒 **THE DEFAULT THIS RULE INTERRUPTS.** When an xgen app is running, **Joe is in it** — exploring, checking the UI by hand. That is the normal state, not the exception. In Joe's words, the warning is *a warning for me that I have to leave full unreserved UI playground to you*. ⇒ **THE WARNING IS NOT A NOTIFICATION. IT IS A REQUEST FOR CUSTODY**, and the all-clear is the return half.
+
+**Decision.** Any leg whose reading requires the UI untouched is marked **`INTERACTIVE — HANDS OFF`**. Before driving it, the driver posts in chat:
+
+```
+🛑 HANDS OFF — live measurement running
+   App:     <client 9222 | node 9322 | sampler 9422>
+   Reading: <what is being measured>
+   Do not:  <the app is not to be touched at all>
+   Expect:  <duration>
+```
+
+and **always**, including when the run dies or is abandoned:
+
+```
+✅ ALL CLEAR — measurement done, the app is yours again
+```
+
+🔑 **THE HANDOVER IS TOTAL, NOT ENUMERATED.** The original wording listed *click, scroll, focus the window, open dialogs*. ⚠️ **A list of prohibitions implies that anything unlisted is permitted**, which is the opposite of the rule. The app is handed over whole and handed back whole.
+
+**Fires for:** registry counts (all seven axes, N-155) · computed style or geometry · scroll and focus legs · keystroke-by-keystroke legs · echo counts · anything with quiescence as a precondition.
+**Does NOT fire for:** cargo · npm · svelte-check · git scope · files on disk. ⚠️ *Warning on those would train Joe to ignore the warning, which is worse than missing one.*
+
+🔒 **NEVER A STANDING CONDITION.** A hands-off window is minutes, requested and released. **Forced, not preferred:** a total handover cannot be open-ended — an interruption with no stated end is indistinguishable from being locked out of your own app.
+
+⚠️ **STATED LIMIT — this protects against Joe's hands, not against a background process.** Port checks and the quiescent-baseline rule remain the guard against everything else.
+
+⚠️ **HARNESS LIMIT.** Dev ports are fixed (client 5173/9222), so **two clients cannot run at once**. Node and sampler are separate and can be measured while Joe is in the client. If this becomes real friction, a second dev port set is a small change — **file it, do not tolerate it**.
+
+📌 **THE STANDING DEFAULT OUTRANKS THE CONVENTION: THE APP IS JOE'S.** If he is in it, the driver waits. *His walking through the app is the highest-yield verification this project has — three defects in one day that no automated leg caught.*
+
+📌 **WHY IT NEEDED A NUMBER.** It lived in `tasks/M_RP_LOCK_RECHECK.md` §3 (COMPLETED — findable, not read), `CLAUDE.md`'s PLAY head (**which silently dropped both stated limits**), `docs/ROADMAP_ARCHIVE_2026-07-26.md` (ARCHIVED) and J-568. ⇒ **THE COPY MOST LIKELY TO BE READ NEXT WAS THE ONE MISSING THE LIMITS.**
+---
+
+## D-133 — The `Owes:` line: a parent doc stays ACTIVE only while it still owes the work it spawned
+
+**Date:** 2026-07-28 · **Layer:** project-management discipline (task-doc headers) · **Ref:** J-609; first locked by Joe 2026-07-21 at J-568 Q1 · **Lineage:** D-074 (atomic canonical records); the five-status vocabulary.
+
+⚠️ **PROVENANCE: Joe's rule, locked 2026-07-21 and quoted then as "very strict and unexpanded". Promoted here 2026-07-28; the meaning below is Joe's reading, confirmed against the record 2026-07-28.**
+
+🔑 **THE QUESTION IT ANSWERS.** The sweep at J-568 found five task files reading `Status: ACTIVE` while the ROADMAP recorded their milestones closed — *a DoD signal that needs a human to interpret it has stopped being a signal*. Two were genuinely stale. **Two were real parents with real open work.** ⇒ `Owes:` answers *this doc's own milestone closed, so why is it still ACTIVE?* — **because it is a parent that still owes the work it spawned.**
+
+**Decision — the format, strict and unexpanded.** A parent doc gains **one header line**: milestone IDs with short titles, separated by ` · `, **nothing else — no reasons, no dates, no parentheticals**.
+
+```
+> Owes: M-RP6.4 room-history backfill · M-RP6.7 resident pong timeout · M-RP6.8 view-latch persistence
+```
+
+- **One physical line.** *If it does not fit, the doc owns too much and should be split — the line's length is the signal.*
+- **An item leaves when it closes.** The debt shrinks as the children close.
+- **Leg runbooks never get one.** A leg spawns nothing; it is not a parent.
+- **Not applied retroactively** — only to files a sweep touches.
+
+🔒 **CORRECTION — AN EMPTY `Owes:` FLIPS `Status` TO `COMPLETED`, NOT `ARCHIVED`** (Joe, 2026-07-28). J-568 Q1 said ARCHIVED. ⚠️ **The clause had never fired** — all three live `Owes:` lines still carry items — so the error survived unexercised. Measured: **0 of 127 task docs are ARCHIVED** (109 COMPLETED · 9 PENDING · 8 ACTIVE · 1 DEPRECATED), the same sweep closed its own two stale docs as **COMPLETED** (J-508, J-509), and all 13 ARCHIVED files repo-wide are frozen historical records — `CLAUDE_HISTORY.md`, `JOURNAL_ARCHIVE.md`, the ROADMAP archive, `docs/backup/*`. ⇒ **A finished parent is not frozen-do-not-modify; it is COMPLETED.** *`Owes:` empty plus `ACTIVE` remains a contradiction anyone can spot* — only the flip target changes.
+
+📌 **THE ID IS WHERE THE WORK NOW LIVES, WHICH IS USUALLY BUT NOT ALWAYS A CHILD.** `M-RP6.6-INGEST` and `M-RP-FONTS-WOFF2` are true children of their parents. **`M-RP-SKIN ConnStats row-swap` is a re-home** — the row-swap came out of M-RP6.6 and was routed to the separate appearance milestone. Both are the parent still owing the item; recorded so the re-home does not read as a mistake.
+
+📌 **AN ACTIVE DOC WITHOUT AN `Owes:` LINE IS NOT A GAP.** Five of the eight ACTIVE task docs carry none, correctly: they are ACTIVE because **their own milestone is still in flight**, not because they are parents holding spawned work. Only a parent whose own milestone closed needs the line.

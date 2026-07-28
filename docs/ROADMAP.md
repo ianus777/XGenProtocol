@@ -87,8 +87,8 @@ XGen Protocol
 │   │   ├── ✅ **Commit 3b-2** — Scenario 2 · J-110
 │   │   ├── ✅ **Commit 3b-3-pre** — harness extension · J-111
 │   │   ├── ✅ **Commit 3b-3** — Compound C2 · J-112
-│   │   ├── ✅ **Commit 3b-4 runbook** · J-114 (J-109, J-113)
-│   │   ├── ✅ **Commit 3b-4** — NodeRuntime-level · J-118 (J-113)
+│   │   ├── ✅ **Commit 3b-4 runbook** · J-114 (J-109, J-113 — never written, see J-603)
+│   │   ├── ✅ **Commit 3b-4** — NodeRuntime-level · J-118 (J-113 — never written, see J-603)
 │   │   └── ✅ **milestone close** · J-119
 │   ├── ✅ **Persistence-amendment sub-milestone** · J-104
 │   │   ├── ✅ **audit** · J-105
@@ -103,10 +103,10 @@ XGen Protocol
 │   │   └── ✅ **implementation** — 4 commits · J-096
 │   └── ✅ **Topological-sort wire-order determinism** · J-096
 │       ├── ✅ **audit** · J-096
-│       ├── ✅ **design** — three locks · J-098
+│       ├── ✅ **design** — three locks · J-098 — never written, see J-603
 │       ├── ✅ **runbook** · J-100
 │       ├── ✅ **implementation** — five-commit sequence · J-101
-│       │   ├── ✅ **Step 1** — Joe-lock conversion · J-098
+│       │   ├── ✅ **Step 1** — Joe-lock conversion · J-098 — never written, see J-603
 │       │   ├── ✅ **Step 2** — canonical-record amendments + Rule 0 · J-099
 │       │   ├── ✅ **Step 3** — runbook v1.0 → v1.1 · J-100
 │       │   ├── ✅ **Commit 1** — doc-pass · J-101

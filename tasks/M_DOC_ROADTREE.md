@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.7  
+> Version: 1.8  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-26  
 > Language: English  

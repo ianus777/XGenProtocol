@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — LEG D PHASE-0 BRIEF
 
-> Version: 1.1  
+> Version: 1.2  
 > **Status:** ACTIVE  
 > **Last updated**: 2026-07-28  
 > Author: JozefN  
@@ -98,20 +98,19 @@ Counted by reading the first code point above U+2000 on each headline and tallyi
 
 ## 🔓 6. OPEN FOR JOE — NONE OF IT GATES THE NEXT MEASUREMENT
 
-### 🔓 6a — WHERE DO THE 22 NON-WORK BLOCKS GO?
+### ✅ 6a — RULED: E — RE-READ FOR STATE, THEN LEAVE THE RESIDUE (Joe locked 2026-07-28; option authored by Chat)
 
-The 42 ✅ blocks have a destination D-094 already names. The 17 live blocks stay. **The 22 🔒 🔑 🛑 ⚠️ blocks are the whole question**: a lock is not superseded when the work around it closes, and R-3 says a container of non-work carries a FORCE, not a STATE. This is the exact class Leg C nearly erased.
+**C** — every block is classified by **what its own text says**, not by its lead symbol. Blocks that self-declare closed join the 42 and archive under D-094. **D** — the residue stays in the live head and is dealt with when work next reaches it, which is **D-131's logic applied to blocks instead of citations**.
 
-| option | ① user-visible | ② tier | ③ resource cost |
-|---|---|---|---|
-| **R1 — archive all 22 with the 42** | none | none | cheapest; **buries live locks in a file marked ARCHIVED** |
-| **R2 — promote by kind: 🔒 to `DECISIONS.md` or the standing conventions, 🔑 ⚠️ to `xgen-ui-notes.md` or the roadtree, 🛑 to the roadtree as blocked nodes; archive the remainder** | none | none | 22 separate judgements; the only route that leaves the live head genuinely small |
-| **R3 — keep all 22 in the live head, archive only the 42** | none | none | least risk of loss; head stays large and the problem returns |
+⚠️ **R2 IS WITHDRAWN, AND READING THE 22 IS WHAT KILLED IT.** R2 was recommended off the symbol census **without reading the blocks**. Reading them shows two things.
 
-**Recommend R2.** It is the only option honouring both D-094 (a *small* live head) and R-3 (non-work is not work-state).
+🔑 **THE LEAD SYMBOL MARKS THE FINDING INSIDE THE BLOCK, NOT THE BLOCK'S STATE.** L193 leads 🔒 and opens *Leg C ✅ CLOSED (J-604)*; L249 leads 🔒 and says *LEG A DONE*; L251 leads 🔒 and says *DONE (J-568)*; L195, L199 and L201 lead 🛑 🛑 🔑 and are all M-DOC-ROADTREE legs that Leg C closed. **At least 8 of the 22 self-declare closed in their own first sentence.** ⇒ **SORTING BY SYMBOL WOULD FILE FINISHED WORK AS STANDING DECISIONS.**
 
-⚠️ **R2 IS THE PROMOTION SUCCESSOR THE BRIEF ALREADY FLAGS AS ITS OWN MILESTONE AND WARNS MUST NOT BE INFERRED AS DONE.** If R2 is chosen it is a named milestone with its own runbook, not a Leg D sub-step.
+🔑 **AND THEIR DESIGNATIONS ALREADY HAVE CANONICAL HOMES.** `N-118`, `N-120`, `N-124`, `N-124a` and `N-124b` all have headings in `ui/docs/xgen-ui-notes.md`; `D-122` and `D-123` both have headings in `DECISIONS.md`. These blocks are **session narrative about a record that is already canonical**, not orphans awaiting promotion. ⇒ **PROMOTE WAS THE WRONG VERB.**
 
+📌 **THE PROMOTION SUCCESSOR MILESTONE MAY NOT EXIST AS SEPARATE WORK.** R2 needed 22 judgements and its own milestone. On this reading the residue is roughly **4–6 blocks** — M-RP-MEMBERS Leg C blocked/paused, M-RP-LIVEFEED-REFRESH, the H1/H2 address-book question, the J-564 sequencing lock — and D-131 already covers them. **Worth knowing before that milestone is named.**
+
+⚠️ **WHAT C IS NOT.** C is **reading, not measurement**. It classifies; it does not license the archive move. That still waits on §7 item 2 as corrected below.
 ### 🔓 6b — DOES B1 GET THE SAME TREATMENT AS B2?
 
 | option | ① user-visible | ② tier | ③ resource cost |
@@ -136,7 +135,7 @@ The 42 ✅ blocks have a destination D-094 already names. The 17 live blocks sta
 ## 🛑 7. WHAT IS **NOT** ESTABLISHED
 
 1. **That any block is redundant.** A resolving citation proves a record exists. **It does not prove the block's substance is in it.** That is exactly the step that turned *git holds every byte* into *the prose is redundant* in Leg C. **NOT MEASURED.**
-2. **That the 42 ✅ blocks are safe to move.** D-094 makes archiving a **move, not a delete**, which lowers the stake — but a move into a file marked ARCHIVED is still a claim that nothing live depends on the content. **NOT MEASURED.**
+2. **That any block is safe to move — and this question was stated wrongly here at first.** ⚠️ **CORRECTED 2026-07-28.** The original wording asked whether anything would be *lost*. Under **D-094 archiving is a move**: the bytes stay in the repo and nothing is lost. The real risk is narrower — **a rule still in force stops being read**, because `CLAUDE.md` is read at session open and `CLAUDE_HISTORY.md` is not. ⇒ **THE TEST IS: does this block carry an operative instruction to a future session that is written nowhere in the session-open set** (`CLAUDE.md`, recent `JOURNAL`, `docs/ROADMAP.md`, `DECISIONS.md`, `ui/docs/xgen-ui-notes.md`, active `tasks/` docs)? 📌 Seven designations are **already cleared** by it — `N-118`/`N-120`/`N-124`/`N-124a`/`N-124b` sit in the UI notes and `D-122`/`D-123` in `DECISIONS.md`, both on that list. **STILL NOT MEASURED for the rest.**
 3. **What L29 contains.** 124,299 chars, never parsed. **NOT MEASURED.**
 4. **What region C duplicates.** 139 lines of M1-M6 and Phase 1/2 blocks the roadtree now owns. **NOT MEASURED.**
 
@@ -158,7 +157,10 @@ Leg C's runbook V1-V7 paid for itself four times in one session. Leg D writes it
 
 ## 📌 9. NEXT MEASUREMENT — NOT GATED ON SECTION 6
 
-The substance pass on the 42 ✅ blocks: open each block's cited entry primary body and check that the block's locks, numbers and defects actually appear there. That is the only thing that converts section 7 item 2 from **NOT MEASURED** into a result.
+The **operative-instruction check** over whatever set C produces: for each block, does it carry an instruction to a future session that the session-open set does not already hold? That is Leg D's **first execution step** and the only thing that converts §7 item 2 into a result.
+
+⚠️ **A MARKER TRIAGE IS NOT THAT CHECK.** Counting `OPEN`/`OWED`/`trigger`/`BLOCKED` against `CLOSED`/`DONE` scored **L193 — the Leg C closure entry — at 7 open markers**, because a closure names what it filed and what remains. ⇒ **VOCABULARY IS NOT STATE.** Run on the block's claim, not on its word list.
+
 ---
 
 ## 🛑 10. A FINDING FROM OUTSIDE LEG D'S SCOPE — THE STATE BOARD OMITS THE WORK

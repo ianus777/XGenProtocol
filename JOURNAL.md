@@ -8,6 +8,29 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-608 — §6a ruled by reading the blocks instead of counting them, and the recommendation the reading killed was my own
+
+**Date:** 2026-07-28 · **Seat:** Chat (measurement + records). **Joe LOCKED E**; the option was authored by Chat. No code — zero `.rs`, zero `ui/**`. Two documents.
+
+🔒 **§6a — E RULED.** **C:** classify each of the 22 by **what its own text says, not by its lead symbol**; blocks that self-declare closed archive with the 42. **D:** the residue stays in the live head and is handled when work next reaches it — **D-131 applied to blocks instead of citations**.
+
+⚠️ **R2 WAS MINE, AND I RECOMMENDED IT WITHOUT READING THE BLOCKS.** The symbol census said 9 🔒, 7 🔑, 3 🛑, 3 ⚠️, and I built promote-by-kind on that alone. Reading the 22 broke it in two independent ways.
+
+🔑 **THE LEAD SYMBOL MARKS THE FINDING INSIDE THE BLOCK, NOT THE BLOCK'S STATE.** L193 leads 🔒 and its first sentence is *Leg C ✅ CLOSED (J-604)*. L249 leads 🔒 and says *LEG A DONE*. L251 leads 🔒 and says *DONE (J-568)*. L195, L199 and L201 lead 🛑 🛑 🔑 and are the three M-DOC-ROADTREE legs that Leg C closed. **At least 8 of the 22 self-declare closed in their own opening sentence.** ⇒ **R2 WOULD HAVE FILED FINISHED WORK INTO `DECISIONS.md` AS STANDING DECISIONS.**
+
+🔑 **AND THE BLOCKS ARE NOT ORPHANS.** `N-118`, `N-120`, `N-124`, `N-124a` and `N-124b` all have headings in `ui/docs/xgen-ui-notes.md`; `D-122` and `D-123` both have headings in `DECISIONS.md`. The blocks are **session narrative about a record that is already canonical**. ⇒ **PROMOTE WAS THE WRONG VERB, AND THE PROMOTION-SUCCESSOR MILESTONE MAY NOT EXIST AS SEPARATE WORK.** The residue looks like **4–6 blocks**. Recorded now, because a milestone is much harder to un-name than to name.
+
+🔒 **§7 ITEM 2 CORRECTED — THE DOCUMENT WAS ASKING THE WRONG QUESTION.** It asked whether archiving would *lose* anything. **Under D-094 archiving is a move**: the bytes stay in the repo, one file away. The real risk is narrower — **a rule still in force stops being read**, because `CLAUDE.md` is read at session open and `CLAUDE_HISTORY.md` is not. ⇒ **THE TEST IS WHETHER A BLOCK CARRIES AN OPERATIVE INSTRUCTION TO A FUTURE SESSION THAT THE SESSION-OPEN SET DOES NOT ALREADY HOLD.** Seven designations are already cleared by it. 📌 **A narrow true question is worth more than a broad one nobody can answer.**
+⚠️ **AND A TRIAGE I RAN AND THEN THREW AWAY.** Counting `OPEN`/`OWED`/`trigger`/`BLOCKED` against `CLOSED`/`DONE` scored **L193 — the Leg C closure entry — at seven open markers**, because a closure names what it filed and what remains. ⇒ **VOCABULARY IS NOT STATE.** Second discarded triage in two sessions; both measured the shape of the words instead of the claim.
+
+⚠️ **A DEFECT OF MINE, CAUGHT BY THE LENGTH CHECK I WROTE INTO J-605.** Rewriting §9 as `$t.Substring(0,$c) + $new` **discarded everything after the insertion point and deleted §10 outright** — 2,063 characters, the state-board finding. The file went 15,053 → 13,943 and **the 1,110-character drop was the only signal**: no anchor failed, no error was raised, the write succeeded. §10 recovered **byte-exact from HEAD** via `git cat-file -p` through `cmd` redirection, because a PowerShell pipe re-encodes. ⇒ **A POSITIONAL REWRITE MUST CARRY ITS TAIL EXPLICITLY**, and ⇒ **THE LENGTH ASSERTION IS THE ONLY THING BETWEEN A REWRITE AND A SILENT TRUNCATION.** 📌 The check written down in J-605 paid for itself two entries later.
+
+📌 **PROVENANCE IS MIXED AND THE RECORD SAYS SO.** Joe wrote *i would go by your recomm*, asked whether the measurement should come first, and then — after the framing was corrected — *locked*. The option is Chat's; the act is Joe's. Recorded as **LOCKED, option authored by Chat**, rather than forced into either bucket.
+
+**RECORDS.** `tasks/M_DOC_ROADTREE_LEGD_PHASE0_BRIEF.md` v1.1 → **v1.2** — §6a ruled ✅, §7 item 2 corrected, §9 rewritten as the operative-instruction check, §10 restored · `tasks/M_DOC_ROADTREE.md` v1.9 → **v1.10**, §8's open-decisions line replaced. **No ROADMAP node change** — Leg D is still 🟢 and its state did not move. `CLAUDE.md` untouched (P2).
+
+---
+
 ## Entry J-607 — the broken-link net measured: 474 sites, 20 designations, four knots, and one of them was already untangled
 
 **Date:** 2026-07-28 · **Seat:** Chat (measurement + records). Provenance **DELEGATED** — Joe proposed the rule, Chat measured the surface and recommended the form. No code — zero `.rs`, zero `ui/**`. Two documents, one decision minted.

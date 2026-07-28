@@ -8,6 +8,29 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-611 — §6b ruled S1, Leg E created, and §6a's check finally reaches disk
+
+**Date:** 2026-07-28 · **Seat:** Chat (measurement + records). Provenance **DELEGATED** — Joe: *go by your recomm*. No code — zero `.rs`, zero `ui/**`. Three documents.
+
+🔒 **§6b — S1 RULED: LEG D COVERS B2 ONLY.** B2 is **81 discrete `> ###` blocks**, each with a findable start and end, so the leg is *move, verify byte-identical, count in equals count out*. **B1 has no boundaries to move** — its bulk is **L29, one line of 124,299 characters** appended to across dozens of sessions, and nothing can happen to it until someone reads it and decides where one statement ends and the next begins. ⇒ **PARSING, NOT MOVING, AND A DIFFERENT KIND OF RISK.** 📌 The precedent is one leg old: Leg C was locked as *keep the tree, link its nodes, delete the prose* and came in at roughly **three times** that.
+
+⚠️ **THE COST OF S1 IS STATED IN THE RECORD, NOT DISCOVERED LATER.** Leg D takes `CLAUDE.md` from **640,645 → ~410,000 bytes** — 36% off — and **L29 survives untouched.** The file stays large and its worst line is unchanged. **S1 is bounded and it finishes; it does not fix what made the file unreadable.** Taken deliberately, with the trade named.
+
+🔒 **LEG E CREATED — the B1 prose and the 124,299-char accretion line.** 🟡 PENDING, ↳ trigger: Leg D closes. It opens with **its own grounding pass**: what L29 contains has never been measured, only sized. 🔓 **The descriptive title is Joe's** (D-123 — naming); the letter is mechanical.
+🔒 **§6a's CHECK REACHES DISK — 17 BLOCKS, FOUR CANDIDATE GAPS, ALL FOUR CLOSED.** Of the 22 non-work blocks, **17 were checked** (7 self-declared closed + 10 stateless) and **5 stay live** and need none. Verdicts: **L90 was never a gap** — `ui/docs/xgen-ui-notes.md` carries a **fourth-instance** version of the same generalisation and is on the session-open list, and my measurement had searched **two phrasings across four files** and concluded repo-wide · **L175 → D-099 third amendment** (J-610), written rather than copied because both existing copies carried a wrong framing · **L251 → D-132** (`INTERACTIVE — HANDS OFF`) and **D-133** (the `Owes:` line), both J-609.
+
+📌 **AND THE FOUR HAVE ONE SHAPE.** Every candidate was **a convention, rule or defect-class that was never given a number**. Not one was milestone narrative. ⇒ **THE CHECK IS NOT LOOKING FOR LOST CONTENT; IT IS LOOKING FOR UNNUMBERED RULES** — which is why 17 blocks of dense record produced four items and not forty.
+
+⚠️ **FIVE STALE SELF-DECLARATIONS, AND THEY EXPOSE A LIMIT IN E ITSELF.** **L195** and **L199** declare `🟢 PLAY`; **Leg C closed them**. **L241**, **L245** and **L249** each say M-RP-LOCK-RECHECK is ACTIVE; `tasks/M_RP_LOCK_RECHECK.md` reads **COMPLETED v1.2**. ⇒ **C CLASSIFIES BY WHAT THE BLOCK SAYS, AND WHAT IT SAYS WAS TRUE WHEN WRITTEN.** E needs a third input at move time — **the block's claim checked against current state** in `docs/ROADMAP.md` and the task docs. Cheap wherever a task doc exists, and it is the difference between archiving a closed block and archiving one that still claims to be live.
+
+📌 **THE CHECK IS NOT FINISHED — THE 42 ✅ BLOCKS ARE UNTOUCHED.** They are the bulk of what moves. The 42/42 agreement between symbol and self-declaration says the risk is lower there, but **agreement is not the check**, and §6a's child row for them stays 🟡 with the move as its trigger.
+
+📌 **THE J-608 DRIFT CLOSES HERE.** J-608 recorded *"at least 8"* self-declared-closed and a residue of *"4–6 blocks"*. The measured numbers are **six** and **fourteen**, corrected in the Phase-0 brief at v1.2 while the journal still carried the old ones. **This entry is where the journal catches up** — flagged as open drift in J-609 and J-610 rather than left silent.
+
+**RECORDS.** `tasks/M_DOC_ROADTREE_LEGD_PHASE0_BRIEF.md` v1.3 → **v1.4** — §6b ruled ✅, §6a's children table updated with the check results, the four verdicts and the staleness limit · `tasks/M_DOC_ROADTREE.md` v1.10 → **v1.11** — §6b ruled and **Leg E** written into §8 · `docs/ROADMAP.md` v6.2 → **v6.3** — Leg D narrowed to B2, **Leg E added** with its trigger, R-2 derivation unchanged. `CLAUDE.md` untouched (P2).
+
+---
+
 ## Entry J-610 — the last gap closes by retracting a clause of the lock it came from
 
 **Date:** 2026-07-28 · **Seat:** Chat (records). **Joe LOCKED all**, including the retraction of part of his own J-560 lock. No code — zero `.rs`, zero `ui/**`. One document.

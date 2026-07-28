@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.10  
+> Version: 1.11  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-28  
 > Language: English  
@@ -382,8 +382,10 @@
 
 🔑 **IT IS NOT A FORMAT-INVENTION PROBLEM.** **D-094 already rules PLAY-block archiving**, `CLAUDE_HISTORY.md` already holds **185 archived blocks**, and the rule **lapsed 2026-06-22**. 81 blocks have accreted in the live head since, with a clean boundary — history J-81…J-405, head J-519…J-604 — and **zero duplication in either direction**. Census of the 81: **42 ✅ · 17 live (🟢🟡) · 22 non-work (🔒🔑🛑⚠️)**.
 
-🔒 **§6a AND §6c ARE RULED; §6b REMAINS OPEN.** **§6a — E (Joe locked 2026-07-28, option authored by Chat):** classify each block by **what its own text says, not by its lead symbol**; blocks that self-declare closed archive with the 42, and the residue stays in the live head to be handled when work next reaches it — D-131 applied to blocks instead of citations. ⚠️ **R2 IS WITHDRAWN.** Reading the 22 showed the lead symbol marks the **finding inside** the block, not the block's state (L193 leads 🔒 and opens *Leg C ✅ CLOSED*), and that their designations — `N-118`, `N-120`, `N-124`, `N-124a`, `N-124b`, `D-122`, `D-123` — **already have canonical headings**. 📌 **The promotion-successor milestone may not exist as separate work; the residue looks like 4–6 blocks.** **§6c — D-131:** a citation proven broken is annotated at the site, never silently repaired. 🔓 **§6b STILL OPEN** — whether B1 and its 124,299-char accretion line are in scope (Chat recommends **S1**, B2 only).
+🔒 **§6a AND §6c ARE RULED; §6b REMAINS OPEN.** **§6a — E (Joe locked 2026-07-28, option authored by Chat):** classify each block by **what its own text says, not by its lead symbol**; blocks that self-declare closed archive with the 42, and the residue stays in the live head to be handled when work next reaches it — D-131 applied to blocks instead of citations. ⚠️ **R2 IS WITHDRAWN.** Reading the 22 showed the lead symbol marks the **finding inside** the block, not the block's state (L193 leads 🔒 and opens *Leg C ✅ CLOSED*), and that their designations — `N-118`, `N-120`, `N-124`, `N-124a`, `N-124b`, `D-122`, `D-123` — **already have canonical headings**. 📌 **The promotion-successor milestone may not exist as separate work; the residue looks like 4–6 blocks.** **§6c — D-131:** a citation proven broken is annotated at the site, never silently repaired. 🔒 **§6b RULED — S1 (delegated 2026-07-28): LEG D COVERS B2 ONLY.** B2 is 81 discrete `> ###` blocks with findable starts and ends; **B1 has no boundaries to move** — its bulk is L29, one line of 124,299 chars. ⚠️ **Stated cost:** Leg D takes `CLAUDE.md` **640,645 → ~410,000 B** and **L29 survives untouched**. Bounded and finishing, but it does not fix what made the file unreadable.
 🛑 **NOTHING IS AUTHORISED FOR DELETION.** Phase-0 §7 lists four things **NOT MEASURED**, the first being that a resolving citation proves a record exists and **not** that the block's substance is in it.
+
+**Leg E — the B1 prose and the 124,299-char accretion line.** 🟡 **PENDING.** ↳ trigger: Leg D closes. **Surface: `CLAUDE.md` L21–70.** 🔑 **It opens with its own grounding pass** — what L29 contains has never been measured, only sized, and nothing can move until someone reads it and decides where one statement ends and the next begins. ⇒ **PARSING, NOT MOVING.** 🔓 **The descriptive title is Joe's** (D-123 — naming); the letter is mechanical.
 
 📌 **LEG D SHIPS NO PLAY BLOCK (P2, delegated 2026-07-28).** D-074's `CLAUDE.md` limb is deliberately empty for this milestone: adding block 82 to the head Leg D exists to drain would grow the defect it is closing. Recorded so the omission is never read as drift.
 ### ⚠️ §8a — THREE PIECES OF RULED WORK HAVE NO LEG, AND ONE OF THEM CONTRADICTS THE LEG IT WOULD FALL INTO. 🔓 SEQUENCING IS JOE'S

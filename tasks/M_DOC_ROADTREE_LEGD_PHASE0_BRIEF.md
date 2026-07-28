@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — LEG D PHASE-0 BRIEF
 
-> Version: 1.3  
+> Version: 1.4  
 > **Status:** ACTIVE  
 > **Last updated**: 2026-07-28  
 > Author: JozefN  
@@ -117,21 +117,36 @@ Counted by reading the first code point above U+2000 on each headline and tallyi
 | child | state | |
 |---|---|---|
 | the ruling — **E** | ✅ | Joe locked 2026-07-28 |
-| **C** — classify all 81 by their own text | ✅ | run: **42 of 42** ✅ blocks self-declare closed, so the symbol is reliable on the DONE set and lies only on the non-work set |
-| the **operative-instruction check** | 🟢 | 5 of the 14 stateless blocks done; the 6 self-declared-closed still to confirm |
-| the **residue disposition** | 🟡 | ↳ trigger: the operative-instruction check completes |
+| **C** — classify all 81 by their own text | ✅ | **42 of 42** ✅ blocks self-declare closed ⇒ the symbol is reliable on the DONE set and **lies only on the non-work set** |
+| **operative-instruction check** — the 22 non-work blocks | ✅ | **17 checked** (7 self-declared closed + 10 stateless); 5 stay live and need none |
+| **operative-instruction check** — the 42 ✅ blocks | 🟡 | ↳ trigger: the move opens |
+| the **residue disposition** | ✅ | the residue stays in the live head under D-131 |
 
 ⚠️ **THIS SECTION CARRIED ✅ AND SHOULD NOT HAVE.** A ✅ needing the qualifier *the ruling is closed but its execution is not* is **R-4's own example** — a claim its own symbol contradicts. Corrected to 🟢, deriving from the children above. 📌 **§6c's ✅ is correct by contrast:** D-131 is minted and forbids a sweep, so it has **no unfinished children**. Same symbol, different truth, and only the child list tells them apart.
 
-### 🔓 6b — DOES B1 GET THE SAME TREATMENT AS B2?
+🔒 **WHAT THE CHECK FOUND — 17 BLOCKS, FOUR CANDIDATE GAPS, ALL FOUR NOW CLOSED.**
 
-| option | ① user-visible | ② tier | ③ resource cost |
-|---|---|---|---|
-| **S1 — Leg D covers B2 only; B1 becomes its own leg** | none | none | keeps Leg D mechanical and bounded |
-| **S2 — Leg D covers B1 + B2 together** | none | none | one pass, but couples a mechanical move to a 124,299-char line that must first be **parsed** |
+| gap | verdict |
+|---|---|
+| L90 — the three-instance defect pattern | **never a gap.** `ui/docs/xgen-ui-notes.md` carries a **fourth-instance** version and is on the session-open list. My measurement had searched two phrasings across four files and concluded repo-wide |
+| L175 — the processor wiring policy | **D-099 third amendment** (J-610). Both existing copies carried a wrong framing, so it was written rather than copied |
+| L251 — `INTERACTIVE — HANDS OFF` | **D-132** (J-609) |
+| L251 — the `Owes:` line | **D-133** (J-609) |
 
-**Recommend S1.** 📌 B2 can be archived block by block with a mechanical rule; **B1 has no block boundaries to move**. Leg C grew to roughly three times its lock because each expansion was individually correct — B1 needs its own grounding pass before anyone rules a format for it.
+📌 **EVERY CANDIDATE WAS A CONVENTION, RULE OR DEFECT-CLASS THAT WAS NEVER GIVEN A NUMBER.** Not one was milestone narrative. ⇒ **THE CHECK IS NOT LOOKING FOR LOST CONTENT; IT IS LOOKING FOR UNNUMBERED RULES.**
 
+⚠️ **FIVE STALE SELF-DECLARATIONS — AND THEY EXPOSE A LIMIT IN E ITSELF.** **L195** and **L199** declare `🟢 PLAY`; Leg C closed them. **L241**, **L245** and **L249** all say M-RP-LOCK-RECHECK is ACTIVE; `tasks/M_RP_LOCK_RECHECK.md` reads **COMPLETED v1.2**. ⇒ **C CLASSIFIES BY WHAT THE BLOCK SAYS, AND WHAT IT SAYS WAS TRUE WHEN WRITTEN.** E therefore needs a third input at move time: **the block's claim checked against current state** in `docs/ROADMAP.md` and the task docs. Cheap wherever a task doc exists, and it is the difference between archiving a closed block and archiving one that still says it is live.
+### ✅ 6b — RULED: S1 — LEG D COVERS B2 ONLY (delegated 2026-07-28)
+
+**B1 leaves Leg D's scope and becomes its own leg.** Leg D archives the B2 blocks and stops.
+
+🔑 **WHY THEY CANNOT SHARE A LEG.** B2 is **81 discrete `> ###` blocks** — each one has a findable start and end, so the whole leg is *move block, verify byte-identical, count in equals count out*. **B1 has no boundaries to move.** Its bulk is **L29, a single line of 124,299 characters**, a `Next-active (UI/RP track):` line appended to across dozens of sessions. Nothing can happen to it until someone **reads it and decides where one statement ends and the next begins**. ⇒ **THAT IS PARSING, NOT MOVING, AND IT IS A DIFFERENT KIND OF RISK.**
+
+📌 **AND THE PRECEDENT IS ONE LEG OLD.** Leg C was locked as *keep the tree, link its nodes, delete the prose* and came in at roughly **three times** that, because each expansion was individually correct and the aggregate was never re-locked. S2 would weld a scriptable job to an unestimated interpretive one.
+
+⚠️ **THE HONEST COST OF S1, STATED SO IT IS NOT DISCOVERED LATER.** Leg D takes `CLAUDE.md` from **640,645 → ~410,000 bytes** (36% off) and **L29 survives untouched**. The file stays large and its worst line is unchanged. **S1 is bounded and finishes; it does not fix the thing that made the file unreadable.** That is the trade, taken deliberately.
+
+🔓 **LEG E IS CREATED AND ITS TITLE IS JOE'S.** Chat proposes **Leg E — the B1 prose and the 124,299-char accretion line**. The letter is mechanical (next after D); **the descriptive title is naming and therefore Joe's** (D-123). It opens with **its own grounding pass** — what L29 contains has never been measured, only sized.
 ### ✅ 6c — RULED: BROKEN CITATIONS ARE ANNOTATED, NOT REPAIRED (D-131, delegated 2026-07-28)
 
 **T1 is withdrawn, and the argument that supported it was wrong.** T1 rested on *a block archived with a dead pointer keeps it forever*. That holds for a **repair**. It does not hold for an **annotation**, which survives freezing and tells the future reader precisely what not to trust. ⇒ **Archiving under D-094 does not gate on link repair.**

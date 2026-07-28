@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.8  
+> Version: 1.9  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-28  
 > Language: English  
@@ -376,6 +376,17 @@
 
 ---
 
+**Leg C — CLOSED (J-604).** ✅ `docs/ROADMAP.md` **761,422 → 43,741 B, 94.3% smaller**. The tree was kept and repaired, ten missing milestones grafted, `Past` and `Present` deleted, and five format rules R-1…R-5 written into the decode key with R-6 for link chains. ⚠️ **THE 120 KB AMENDMENT ABOVE IS WITHDRAWN** — the end state beat the original 100 KB bar by more than half. Runbook `tasks/RUNBOOK_ROADTREE_LEGC.md` v1.4 COMPLETED.
+
+**Leg D — `CLAUDE.md`.** 🟢 **PLAY.** **Phase-0: `tasks/M_DOC_ROADTREE_LEGD_PHASE0_BRIEF.md` v1.0 ACTIVE (J-606).** **Surface: `CLAUDE.md`, `CLAUDE_HISTORY.md`.**
+
+🔑 **IT IS NOT A FORMAT-INVENTION PROBLEM.** **D-094 already rules PLAY-block archiving**, `CLAUDE_HISTORY.md` already holds **185 archived blocks**, and the rule **lapsed 2026-06-22**. 81 blocks have accreted in the live head since, with a clean boundary — history J-81…J-405, head J-519…J-604 — and **zero duplication in either direction**. Census of the 81: **42 ✅ · 17 live (🟢🟡) · 22 non-work (🔒🔑🛑⚠️)**.
+
+🔓 **THREE DECISIONS OPEN FOR JOE, none gating the next measurement** — **§6a** where the 22 non-work blocks go (Chat recommends **R2**, promote by kind; and R2 is **its own milestone**, not a Leg D step) · **§6b** whether B1 and its 124,299-char accretion line are in scope (Chat recommends **S1** — B2 only) · **§6c** whether the six broken citations are repaired in their own commit first (Chat recommends **T1**).
+
+🛑 **NOTHING IS AUTHORISED FOR DELETION.** Phase-0 §7 lists four things **NOT MEASURED**, the first being that a resolving citation proves a record exists and **not** that the block's substance is in it.
+
+📌 **LEG D SHIPS NO PLAY BLOCK (P2, delegated 2026-07-28).** D-074's `CLAUDE.md` limb is deliberately empty for this milestone: adding block 82 to the head Leg D exists to drain would grow the defect it is closing. Recorded so the omission is never read as drift.
 ### ⚠️ §8a — THREE PIECES OF RULED WORK HAVE NO LEG, AND ONE OF THEM CONTRADICTS THE LEG IT WOULD FALL INTO. 🔓 SEQUENCING IS JOE'S
 
 🔑 **FOUND BY APPLYING `M_RP_MEMBERS.md` §8b's OWN RULE TO THIS DOCUMENT** — *walk every 🔒 and ask WHICH LEG BUILDS THIS.* **§4b and §4c lock three concrete actions. §8 as written builds none of them:**

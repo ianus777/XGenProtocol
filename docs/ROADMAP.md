@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.1  
+> Version: 6.2  
 > Date: May 2026  
 > **Last updated**: 2026-07-28  
 > Language: English  
@@ -289,6 +289,16 @@ XGen Protocol
 │   ├── 🟡 **Clean-table UI milestone** — the live UI build
 │   │   ↳ trigger: Round-2 audit GO + M10 closed *(transcribed from the UI container)*
 │   └── 🟡 **Multi-device arc** — R2-F09 ↳ trigger: the UI prototype exercises device add/remove
+│
+├── 🟢 **M-DOC-ROADTREE** — the canonical records become state boards · J-598
+│   ├── ✅ **Leg 0 Phase-0** — scope ruled BOTH, node format ruled · J-598 (J-600)
+│   ├── ✅ **Leg A pause + archive** — M-RP-MEMBERS Leg C paused; `ROADMAP_ARCHIVE_2026-07-26.md` taken · J-598
+│   ├── 🟡 **Leg B precondition**
+│   │   ├── ✅ **P1 unlinked DONE markers** — 94 → 5, all five resolve · J-599
+│   │   └── 🟡 **P2 unresolved refs** — measured, not cleared
+│   │       ↳ trigger: §8a ruled — whether `Leg B-bis` exists
+│   ├── ✅ **Leg C `docs/ROADMAP.md`** — 761,422 → 43,741 B; tree kept, prose deleted, five format rules · J-604 (J-602, J-603)
+│   └── 🟢 **Leg D `CLAUDE.md`** — Phase-0 written; D-094 archiving lapsed 2026-06-22, 81 blocks accreted · J-606
 │
 ├── ⏸️ **Parallel workstreams**
 │   └── ⏸️ **Slovak translation pass** — first touchpoint `xgen_appendix_a_sk.md`

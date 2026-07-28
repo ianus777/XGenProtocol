@@ -8,6 +8,33 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-606 — Leg D opens: the archive it needs already exists, the rule lapsed five weeks ago, and the state board is missing 66 of the milestones it is meant to hold
+
+**Date:** 2026-07-28 · **Seat:** Chat (grounding + measurement + records). Provenance **DELEGATED** — Joe: *go by your recomm*. No code — zero `.rs`, zero `ui/**`. Three documents, one new.
+
+🔒 **LEG D IS NOT A FORMAT-INVENTION PROBLEM. IT IS A LAPSED CONVENTION.** **D-094** already rules PLAY-block archiving — *relocate superseded content to a frozen ARCHIVED sibling with a forward pointer; never rewrite history* — and requires a **small live working head**. `CLAUDE_HISTORY.md` already holds **185 archived blocks**, 869,178 B, `Status: ARCHIVED`. It was **last applied 2026-06-22**. Since then **81 blocks have accreted** in the live head, with a clean boundary — history J-81…J-405, head J-519…J-604 — and **not one block headline's lead J-number present in both**. ⚠️ **The earlier framing, that Leg D must rule a new node grammar for the PLAY head, was mine and it was wrong.**
+
+🔒 **THE CENSUS OF THE 81.** **42 ✅ done · 17 live (15 🟢 + 2 🟡) · 22 non-work (9 🔒 + 7 🔑 + 3 🛑 + 3 ⚠️)**. Counted by reading the first code point above U+2000 on each headline and tallying by code point, **with the total asserted equal to the headline count**. The 42 have a destination D-094 names; the 17 stay; **the 22 are the whole question** — a lock is not superseded when the work around it closes.
+
+🔒 **`CLAUDE.md` IS FIVE DOCUMENTS IN ONE FILE.** A preamble + standing conventions (L1–19) · **B1 the PLAY head prose and its 124,299-char accretion line (L21–70, 197,164 B)** · **B2 the 81 blockquoted blocks (L71–271, 370,342 B)** · the MANDATORY behaviour rules (L273–306) · a DONE archive (L307–542) · reference (L543–821). 🔑 **B1 + B2 are 88.6% of the file.** The DONE archive that looks like the obvious target is **5%**. 📌 The rules sit in **two places 252 lines apart**, and **a format ruled for B2 does not transfer to B1** — B1 has no block boundaries to move.
+
+⚠️ **372 DESIGNATIONS IN THE PLAY HEAD, SIX BROKEN.** `D-030` and `D-056` are **retired bare numbers** — both were collision-split and both halves exist, `D-056b` used 21 times. `D-117` was never issued; it is reserved for the fold axis inside another decision's body. **`D-130` and `N-092b` have zero mentions anywhere** — cited but never written. `N-092a` is mentioned once and never issued as a note. 📌 **366 of 372 resolve, which cuts AGAINST a deletion argument, not for one.**
+🛑 **A FINDING FROM OUTSIDE LEG D'S SCOPE: THE STATE BOARD OMITS THE WORK.** Measured while placing Leg D's roadmap node — **66 of the 75 milestone IDs named in the live PLAY head have no presence in `docs/ROADMAP.md`.** Nine appear. Absent include **both currently-playing milestones**, `M-DOC-ROADTREE` and `M-RP-LIVEFEED-REFRESH`, plus `M-RP-MEMBERS`, the entire `M-RP6.x` and `M-RP7.x` series, and `M-SEC-TLS` / `M-SEC-AUTHSESS`.
+
+📌 **AND IT IS NOT A LEG C DEFECT — THE CHECK SAYS SO.** Leg C's **V4** was defined as *names in deleted prose ∩ tree node names*; its result, **0 milestones lost**, is **correct as scoped**. Leg C did not lose them. They were never in `ROADMAP.md`. **Checked before writing, because the opposite reading was the tempting one and it would have been an accusation.**
+
+⚠️ **THE GAP IS VISIBLE ON THE FACE OF THE TREE.** The container `🟢 UI component-library / substrate` has five children and **all five are ✅**. Under **R-2**, a container whose children are all ✅ derives ✅. It reads 🟢 only because of children that are not there. ⇒ **A DERIVED STATUS COMPUTED OVER AN INCOMPLETE CHILD SET IS NOT DERIVED, IT IS ASSERTED.** Chat recommends **U1**: add only the `M-DOC-ROADTREE` node now and file the RP back-fill as its own milestone, because **adding one node to a branch 66 behind makes the tree look maintained**.
+
+🔒 **P2 — LEG D SHIPS NO PLAY BLOCK (delegated 2026-07-28).** D-074's `CLAUDE.md` limb is deliberately empty for this milestone. Adding block 82 to the head Leg D exists to drain would grow the defect it is closing. Recorded here so the omission is never read as drift.
+
+⚠️ **THREE METHOD DEFECTS OF MINE IN THIS PASS.** (1) A designation regex that did not encode the project's own suffix convention — `\bJ-\d{2,3}\b` cannot match `N-124a`, and three lines read as uncited that were not. (2) **A symbol census by `.Contains()` returned 75 for five different symbols** — impossible, and it looked like data; redone by code point with a total assertion. The trap was written down in the session brief and **the warning was not enough; only the self-checking total caught it**. (3) A token-uniqueness triage over a 495-file corpus flagged 924 of 7,369 tokens as unique to the PLAY head — but the top scorers were the blocks' **own headlines**, unique by construction. ⇒ **UNIQUE WORDING IS NOT UNIQUE CONTENT.** The triage is **discarded**, not reported as a finding.
+
+📌 **AND ONE OVERCLAIM CAUGHT BEFORE THE BRIEF SHIPPED.** §3 first read as though `CLAUDE_HISTORY.md` were a discovery. `M_DOC_ROADTREE.md` §1 already lists it at 869,178 B as *prior PLAY blocks (D-094)*. Corrected in place: what is new is that the rule **lapsed**, when, and by how much.
+
+**RECORDS.** **NEW** `tasks/M_DOC_ROADTREE_LEGD_PHASE0_BRIEF.md` v1.0 ACTIVE — §0–§10, including §6a/§6b/§6c open for Joe with three lenses each, §7's four **NOT MEASURED** items, and §8's V1–V7 written before the argument · `docs/ROADMAP.md` v6.1 → **v6.2**, `M-DOC-ROADTREE` node added with Legs 0/A/B/C/D under R-1…R-6 · `tasks/M_DOC_ROADTREE.md` v1.8 → **v1.9**, Leg C closure and Leg D written into §8. `CLAUDE.md` deliberately untouched.
+
+---
+
 ## Entry J-605 — the clock defect corrected at twelve points, and the brief was wrong about its own defect in three ways
 
 **Date:** 2026-07-28 · **Seat:** Chat (measurement + records). Provenance **DELEGATED** — Joe said *lock and go by your recomms*, so the substance is mine, not a lock. No code — zero `.rs`, zero `ui/**`.

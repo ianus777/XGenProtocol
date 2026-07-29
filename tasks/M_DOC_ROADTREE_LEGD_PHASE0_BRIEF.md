@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — LEG D PHASE-0 BRIEF
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-29  
 > Language: English  
@@ -11,7 +11,7 @@
 
 ⚠️ **HEADER BROUGHT TO CONVENTION AT v1.5 (2026-07-29).** v1.1–v1.4 carried `> **Status:**` for `> **Status**:`, `Version` above `Status`, and no Date, Language, Credits or License lines. Recorded rather than corrected silently.
 
-🛑 **§6a's MOVE-SET COUNT IS SUPERSEDED — SEE `tasks/RUNBOOK_ROADTREE_LEGD.md` §A (v1.0, J-612).** This document says **six** blocks self-declare closed; the session kickoff said **seven**. **Both are wrong.** Reading all 22 on disk gives **four** (L177 L193 L251 L255) plus **four stale-closed** (L175 L241 L245 L249) — L75 declares no closure at all and L241 declares another milestone active. The runbook's §A table, which carries an evidence string on every row, is the authority from here.
+🛑 **§6a's MOVE-SET COUNT IS SUPERSEDED — SEE `tasks/RUNBOOK_ROADTREE_LEGD.md` §A (v1.1, J-613).** This document says **six** blocks self-declare closed; the session kickoff said **seven**; the runbook at v1.0 said **fifty** in the move set. **All three are wrong, and for one reason — each classified a bucket handed to it instead of all 81 blocks.** The measured move set is **62** (65 under §3a W1): 42 ✅ + 4 self-declared closed + 5 stale-closed among the 22 + **11 blocks the census called 🟢 live that are phase-0 records of milestones this same head later closes**. ⚠️ **THE 17 🟢🟡 BLOCKS WERE NEVER CLASSIFIED IN THIS DOCUMENT** — they were taken as live by lead symbol, which is what ruling E forbids. The runbook's §A, one row per block with an evidence string, is the authority from here.
 
 ---
 

@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-613 — the census was a symbol count read as a partition: eleven blocks marked 🟢 PLAY are closed work, and the head contradicts itself in the same file
+
+**Date:** 2026-07-29 · **Seat:** Chat (measurement + records). Provenance **DELEGATED** — Joe: *go*. No code — zero `.rs`, zero `ui/**`. Three documents.
+
+🛑 **§A WAS SCOPED WRONG AND THE SCOPE ERROR IS THE FINDING.** v1.0 classified **22** blocks because the census reads *42 ✅ · 17 live (🟢🟡) · 22 non-work*. **That is a symbol count, and it was read as a partition.** The 17 were taken as live **by their lead symbol** — the exact reading **ruling E** was made to forbid — and were therefore never classified at all. ⇒ **A CLASSIFICATION THAT ACCEPTS SOMEONE ELSE'S PARTITION HAS NOT CLASSIFIED; IT HAS RE-SORTED ONE BUCKET.**
+
+🔑 **ELEVEN OF THE SEVENTEEN ARE CLOSED WORK, AND THE PROOF IS INSIDE `CLAUDE.md` — NOT IN THE TASK DOCS.** Every one is a **phase-0 or design-lock block whose milestone this same head later closes**: **L123** declares *NEXT-ACTIVE — M-RP7.5* and **L125** reads *M-RP7.5 CLOSED (J-528)* · **L259** declares *M-RP-PROCESSOR-WIRE … 🟢 PLAY* and **L189** reads *CLOSED (J-563)* · **L219** locks M-RP-MEMBERS **Leg B** and **L213** closes Leg B · likewise L145 L151 L155 L161 L165 L167 L191 L261. ⇒ **THE LIVE HEAD CONTRADICTS ITSELF IN ELEVEN PLACES, AND A CLOSURE BLOCK TWENTY LINES BELOW IS STRONGER EVIDENCE THAN ANY EXTERNAL FILE HEADER.**
+
+🔑 **AND THE DISCRIMINATOR THAT SEPARATES THEM IS SHARP.** **L219 archives, L229 stays** — both are M-RP-MEMBERS 🟢 blocks and the arc is still ACTIVE. L219 locks **Leg B**, which L213 closed; L229 is the **arc's** phase-0 and the arc is open at Leg C. ⇒ **A PHASE-0 BLOCK DIES WITH ITS PHASE, NOT WITH ITS MILESTONE.**
+
+⚠️ **A SUSPECT LIST IS NOT A CHECK — SECOND INSTANCE IN TWO ENTRIES.** v1.0 verified the *M-RP-LOCK-RECHECK REMAINS ACTIVE* clause against the three blocks the documents named. Grepping the file finds it on **five**: L241, **L243**, L245, **L247**, L249. **L243** was in my own 22 and I classified it *stateless* from its opening without grepping its body; **L247** is a ✅ block and was outside every list ever drawn. ⇒ **RUN THE PREDICATE OVER THE WHOLE CORPUS, NOT OVER THE NAMES YOU WERE HANDED.**
+
+🔒 **THE MOVE SET IS 62, ASSERTED NOT EYEBALLED.** 42 ✅ + 4 self-declared closed (L177 L193 L251 L255) + 5 stale-closed (L175 L241 L243 L245 L249) + 11 mis-symbolled (L123 L145 L151 L155 L161 L165 L167 L191 L219 L259 L261) = **62**; 3 superseded + 10 live/pending + 4 stateless + 2 held = **19**; **62 + 19 = 81**, the measured block count. 📌 **Fourth count in four documents** — kickoff 7, brief 6, runbook v1.0 50, now 62 — **and every revision came from re-deriving the set, never from re-reading a count.**
+
+🔒 **§B GAINS AN ORDER OF SOURCES.** A claim is checked **first against the closure blocks in `CLAUDE.md` itself**, then against `docs/ROADMAP.md` and the `tasks/` header. The internal source is preferred because **a document cannot be out of sync with itself**, and it caught all eleven.
+
+🔒 **V9 ADDED.** No closure block is separated from its phase-0: for each of the eleven, **both ends must land in `CLAUDE_HISTORY.md`**, so an arc is never split across two files.
+
+⚠️ **TWO ✅ BLOCKS CARRY DEFECTS THAT TRAVEL WITH THEM.** **L247** (M-RP-FONTS DONE) carries the stale LOCK-RECHECK clause. **L143** (M-RP6.6 CLOSED) names a milestone whose `tasks/M_RP6_6_RESIDENT.md` still reads **ACTIVE** — the inverse mismatch, annotated and **not** resolved; resolving it is M-RP6.6's business, not Leg D's.
+
+⚠️ **THE EOL CONVENTION NOTE WAS WRONG AND DISK SAYS SO.** `CLAUDE.md` is **LF**, not CRLF — disk equals blob at 640,645, and a CRLF file's disk size exceeds its blob by exactly its line count. `CLAUDE_HISTORY.md` and `DECISIONS.md` are LF too. The CRLF file is **`docs/ROADMAP.md`** (44,758 − 44,313 = 445 = its line count). Corrected in the runbook §1 by measurement, not by amending the note in place.
+
+🔓 **§3a IS NOW NEARLY ANSWERED BY §A.** L195, L199 and L201 declare 🟢 PLAY on legs Leg C closed — the same thing the eleven do, one arc closer to home. **W1** (archive all three, annotated) is the consistent option rather than merely the recommended one, **but it widens §6a's D and stays Joe's.** It gates nothing: the 62 move without it.
+
+**RECORDS.** `tasks/RUNBOOK_ROADTREE_LEGD.md` v1.0 → **v1.1** — §A rebuilt as all 81 blocks in three tables with an evidence string per row, §B given its source order, V9 added, §1 EOL correction · `tasks/M_DOC_ROADTREE_LEGD_PHASE0_BRIEF.md` v1.5 → **v1.6** · `tasks/M_DOC_ROADTREE.md` v1.12 → **v1.13** — move set corrected and the census line annotated as a symbol count. **NO `CLAUDE.md` PLAY block** (P2). **NO ROADMAP node** — §10 U1 still 🔓.
+
+---
+
 ## Entry J-612 — the Leg D move set was a count, not a set: 22 blocks classified with evidence, and neither source list was right
 
 **Date:** 2026-07-29 · **Seat:** Chat (measurement + records). Provenance **DELEGATED** — Joe: *go*. No code — zero `.rs`, zero `ui/**`. One new document.

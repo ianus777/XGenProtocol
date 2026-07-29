@@ -1,0 +1,38 @@
+{
+  "note": "Leg D move data. All non-ASCII is \\uXXXX-escaped so this file is pure ASCII on disk and cannot be mojibaked by a PS 5.1 read. Consumed by legd-move.ps1.",
+  "batchHeading": "## \ud83d\udfe2 Leg D archive batch \u2014 65 PLAY blocks lifted verbatim from the live head (J-615). D-094 re-applied after a five-week lapse; F1c \u2014 blocks are byte-identical, this heading is the only thing written.",
+  "preambleAdd": "\u26a0\ufe0f **THIS FILE IS ARCHIVED AND STILL GROWS \u2014 F2b, 2026-07-29 (J-615).** Project vocabulary defines ARCHIVED as *frozen historical record, do not modify*, while **D-094 requires superseded PLAY blocks to be moved into this file**. The two have contradicted each other since this file was created; the contradiction stayed invisible because D-094 lapsed on 2026-06-22 and was never applied twice. **The single sanctioned exception is named here: a D-094 archive batch may be inserted at the top of this file, and nothing else may be edited.** No existing block is ever altered, reordered or removed.",
+  "annotations": {
+    "123": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP7.5 is CLOSED at L125 of this same head (J-528). Claim was true when written.]",
+    "143": " [\u26a0\ufe0f RECORD MISMATCH 2026-07-29 (J-615) \u2014 this block closes M-RP6.6, but tasks/M_RP6_6_RESIDENT.md still reads ACTIVE. Recorded, not resolved: resolving it is M-RP6.6's business, not Leg D's.]",
+    "145": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 the M-RP6.3 arc is CLOSED at L173 of this same head (J-560). Claim was true when written.]",
+    "151": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP6.3 Leg C is CLOSED at L153 and L157 of this same head. Claim was true when written.]",
+    "155": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP6.3 Leg C2 is CLOSED at L157 of this same head (J-550). Claim was true when written.]",
+    "161": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP6.3 Leg D is CLOSED at L163 and L173 of this same head. Claim was true when written.]",
+    "165": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP6.9 is CLOSED at L169 of this same head (J-556). Claim was true when written.]",
+    "167": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP6.9 is CLOSED at L169 of this same head (J-556). Claim was true when written.]",
+    "175": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP-PROCESSOR-WIRE is CLOSED at L189 of this same head (J-563); tasks/M_RP_PROCESSOR_WIRE.md reads COMPLETED v1.4. The rule this block found is homed as the D-099 third amendment (J-610). Claim was true when written.]",
+    "191": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP-PROCESSOR-SEED is CLOSED at L253 and superseded at L255 of this same head. Claim was true when written.]",
+    "193": " [\u26a0\ufe0f SPENT QUESTION 2026-07-29 (J-615) \u2014 Leg D's format is no longer unruled: \u00a76a=E, \u00a76b=S1, \u00a76c=D-131, all closed 2026-07-28. Claim was true when written.]",
+    "195": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 Leg C is CLOSED at L193 of this same head (J-604). Archived under \u00a73a W1, delegated 2026-07-29. Claim was true when written.]",
+    "199": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 Leg C is CLOSED at L193 of this same head (J-604). Archived under \u00a73a W1, delegated 2026-07-29. Claim was true when written.]",
+    "201": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 Leg B is superseded by the Leg C close at L193 of this same head (J-604). Archived under \u00a73a W1, delegated 2026-07-29. Claim was true when written.]",
+    "219": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP-MEMBERS Leg B is CLOSED at L213 of this same head (J-597). The arc remains ACTIVE at Leg C; a phase-0 block dies with its phase, not with its milestone. Claim was true when written.]",
+    "241": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP-LOCK-RECHECK reads COMPLETED v1.2 in tasks/M_RP_LOCK_RECHECK.md and is closed at L239 of this same head. D-123 itself is headed in DECISIONS.md. Claim was true when written.]",
+    "243": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP-LOCK-RECHECK reads COMPLETED v1.2 in tasks/M_RP_LOCK_RECHECK.md and is closed at L239 of this same head. D-122 itself is headed in DECISIONS.md. Claim was true when written.]",
+    "245": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP-LOCK-RECHECK reads COMPLETED v1.2 in tasks/M_RP_LOCK_RECHECK.md and is closed at L239 of this same head. Claim was true when written.]",
+    "247": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 the trailing M-RP-LOCK-RECHECK clause is stale: that milestone reads COMPLETED v1.2 and is closed at L239 of this same head. The M-RP-FONTS closure this block reports is unaffected. Claim was true when written.]",
+    "249": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP-LOCK-RECHECK is no longer active: tasks/M_RP_LOCK_RECHECK.md reads COMPLETED v1.2 and L239 of this same head closes it. Claim was true when written.]",
+    "259": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP-PROCESSOR-WIRE is CLOSED at L189 of this same head (J-563). Claim was true when written.]",
+    "261": " [\u26a0\ufe0f CLAIM STALE 2026-07-29 (J-615) \u2014 M-RP6.3 Leg D2 is CLOSED at L173 of this same head (J-560). Claim was true when written.]"
+  },
+  "stayAnnotations": {
+    "179": " [\u26a0\ufe0f ITEM \u2460 STALE 2026-07-29 (J-615) \u2014 M-RP-MSG-NEWLINE is CLOSED at L183 of this same head (J-565); tasks/M_RP_MSG_NEWLINE.md reads COMPLETED v1.0. The rest of the sequencing lock stands. Block stays live.]"
+  },
+  "moveExtra": [177, 193, 251, 255, 175, 241, 243, 245, 249, 123, 145, 151, 155, 161, 165, 167, 191, 219, 259, 261, 195, 199, 201],
+  "expectedMove": 65,
+  "expectedStay": 16,
+  "expectedBlocks": 81,
+  "b2Start": 71,
+  "b2End": 262
+}

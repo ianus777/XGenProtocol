@@ -1,8 +1,8 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.3  
+> Version: 6.4  
 > Date: May 2026  
-> **Last updated**: 2026-07-28  
+> **Last updated**: 2026-07-29  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -298,9 +298,9 @@ XGen Protocol
 │   │   └── 🟡 **P2 unresolved refs** — measured, not cleared
 │   │       ↳ trigger: §8a ruled — whether `Leg B-bis` exists
 │   ├── ✅ **Leg C `docs/ROADMAP.md`** — 761,422 → 43,741 B; tree kept, prose deleted, five format rules · J-604 (J-602, J-603)
-│   ├── 🟢 **Leg D `CLAUDE.md` B2** — 81 blocks; D-094 archiving lapsed 2026-06-22 · J-606 (J-608, J-609, J-610, J-611)
+│   ├── ✅ **Leg D `CLAUDE.md` B2** — 65 of 81 blocks archived, 640,645 → 316,680 B (50.6%); D-094 re-applied after a five-week lapse · J-615 (J-606, J-608–J-614)
 │   └── 🟡 **Leg E `CLAUDE.md` B1** — the prose and the 124,299-char accretion line
-│       ↳ trigger: Leg D closes
+│       ↳ trigger: Leg D closes — **FIRED J-615**; ready to open, descriptive title is Joe's (D-123)
 │
 ├── ⏸️ **Parallel workstreams**
 │   └── ⏸️ **Slovak translation pass** — first touchpoint `xgen_appendix_a_sk.md`

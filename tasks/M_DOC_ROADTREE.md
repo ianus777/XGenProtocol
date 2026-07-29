@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.13  
+> Version: 1.14  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-29  
 > Language: English  
@@ -378,7 +378,11 @@
 
 **Leg C — CLOSED (J-604).** ✅ `docs/ROADMAP.md` **761,422 → 43,741 B, 94.3% smaller**. The tree was kept and repaired, ten missing milestones grafted, `Past` and `Present` deleted, and five format rules R-1…R-5 written into the decode key with R-6 for link chains. ⚠️ **THE 120 KB AMENDMENT ABOVE IS WITHDRAWN** — the end state beat the original 100 KB bar by more than half. Runbook `tasks/RUNBOOK_ROADTREE_LEGC.md` v1.4 COMPLETED.
 
-**Leg D — `CLAUDE.md`.** 🟢 **PLAY.** **Phase-0: `tasks/M_DOC_ROADTREE_LEGD_PHASE0_BRIEF.md` v1.6 ACTIVE (J-606).** **Runbook: `tasks/RUNBOOK_ROADTREE_LEGD.md` v1.1 ACTIVE (J-613)** — §A the block classification, §B the third input, §C the move procedure, §D the checks V1–V8, §E the hold set. **Surface: `CLAUDE.md`, `CLAUDE_HISTORY.md`.**
+**Leg D — `CLAUDE.md` B2. ✅ CLOSED (J-615).** **640,645 → 316,680 B — 50.6%**, beating the §6b forecast of ~410,000 by 93,000. **65 of 81 blocks archived, 16 remain, 65 + 16 = 81 asserted.** `CLAUDE_HISTORY.md` 869,178 → 1,197,988 B, 185 → 186 `## ` headings — **one** heading written, every block byte-identical (F1c). **23 annotations** applied at the sites of stale claims, travelling with their blocks (D-131 form). ⚠️ **L29 SURVIVES AT 124,299 CHARS** — 39% of the remaining file, and Leg E's whole subject. Runbook `tasks/RUNBOOK_ROADTREE_LEGD.md` v1.3 COMPLETED · Phase-0 brief v1.6. Executed by `legd-move.ps1` + `legd-annotations.json`, dry-run first, refusing to write unless every assertion passed.
+
+**Owes:** §E L75 — the M-RP-SKIN corner-triangle countdown has no home · §E L235 — M-RP-SELF-SURFACE has no task doc and no ROADMAP node.
+
+🔒 **THREE RULINGS DELEGATED 2026-07-29 (Joe: *go as you recommend*), options authored by Chat.** **§F1c** — the archive uses `## ` headings and the head writes `> ###`; the batch lands verbatim **under one `## ` batch heading**, which is the only form that keeps D-094's *never a rewrite* while leaving the archive's structure conforming. **§F2b** — `CLAUDE_HISTORY.md` stays **ARCHIVED**, and the D-094 insert is written into its preamble as its **single sanctioned exception**; the vocabulary had contradicted itself since the file was created and only the lapse hid it. **§3a W1** — L195, L199, L201 archive annotated, because they declare 🟢 PLAY on closed legs exactly as the eleven mis-symbolled blocks do.
 
 🔑 **IT IS NOT A FORMAT-INVENTION PROBLEM.** **D-094 already rules PLAY-block archiving**, `CLAUDE_HISTORY.md` already holds **185 archived blocks**, and the rule **lapsed 2026-06-22**. 81 blocks have accreted in the live head since, with a clean boundary — history J-81…J-405, head J-519…J-604 — and **zero duplication in either direction**. Census of the 81: **42 ✅ · 17 live (🟢🟡) · 22 non-work (🔒🔑🛑⚠️)**. ⚠️ **THIS IS A SYMBOL CENSUS AND NOTHING MORE — IT WAS READ AS A PARTITION AND THAT COST TWO REVISIONS (J-613).** *"17 live"* names the blocks that **lead** with 🟢🟡; **eleven of them are closed work.**
 
@@ -387,7 +391,7 @@
 
 🛑 **THE MOVE SET IS 62 BLOCKS — THIRD REVISION, ONE CAUSE (J-613).** Kickoff said 7 self-declared closed, Phase-0 §6a said 6, runbook v1.0 said a move set of 50. **Each classified a bucket it was handed rather than all 81 blocks.** Measured: **42 ✅ + 4 self-declared closed** (L177 L193 L251 L255) **+ 5 stale-closed** (L175 L241 L243 L245 L249) **+ 11 that the census called 🟢 live** (L123 L145 L151 L155 L161 L165 L167 L191 L219 L259 L261) **= 62**; **19 stay**; 62 + 19 = 81 ✔. 🔑 **THE DECISIVE EVIDENCE IS INSIDE `CLAUDE.md`:** every one of those eleven is a phase-0 or design-lock block whose milestone **this same head later closes** — L123 against L125, L259 against L189, L219 against L213. ⚠️ **THE 17 🟢🟡 BLOCKS HAD NEVER BEEN CLASSIFIED**, only counted as live by lead symbol, which is exactly what ruling E forbids. 🔓 **L195 L199 L201 remain open under §3a (W1 recommended)**; under W1 the set is 65. **2 held** for pointing at milestones with no record anywhere (L75 → M-RP-SKIN, L235 → M-RP-SELF-SURFACE). `tasks/RUNBOOK_ROADTREE_LEGD.md` §A is the authority.
 
-**Leg E — the B1 prose and the 124,299-char accretion line.** 🟡 **PENDING.** ↳ trigger: Leg D closes. **Surface: `CLAUDE.md` L21–70.** 🔑 **It opens with its own grounding pass** — what L29 contains has never been measured, only sized, and nothing can move until someone reads it and decides where one statement ends and the next begins. ⇒ **PARSING, NOT MOVING.** 🔓 **The descriptive title is Joe's** (D-123 — naming); the letter is mechanical.
+**Leg E — the B1 prose and the 124,299-char accretion line.** 🟡 **PENDING.** ↳ trigger: Leg D closes — **FIRED 2026-07-29 (J-615)**. **Surface: `CLAUDE.md` L21–70.** 🔑 **It opens with its own grounding pass** — what L29 contains has never been measured, only sized, and nothing can move until someone reads it and decides where one statement ends and the next begins. ⇒ **PARSING, NOT MOVING.** 🔓 **The descriptive title is Joe's** (D-123 — naming); the letter is mechanical.
 
 📌 **LEG D SHIPS NO PLAY BLOCK (P2, delegated 2026-07-28).** D-074's `CLAUDE.md` limb is deliberately empty for this milestone: adding block 82 to the head Leg D exists to drain would grow the defect it is closing. Recorded so the omission is never read as drift.
 ### ⚠️ §8a — THREE PIECES OF RULED WORK HAVE NO LEG, AND ONE OF THEM CONTRADICTS THE LEG IT WOULD FALL INTO. 🔓 SEQUENCING IS JOE'S

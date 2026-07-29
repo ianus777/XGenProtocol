@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-615 — Leg D executes: 65 of 81 blocks archived, `CLAUDE.md` halved, and every check that mattered was an assertion rather than a reading
+
+**Date:** 2026-07-29 · **Seat:** Chat (technical execution + records). Provenance **DELEGATED** — Joe: *go as you recommend*, which locked **§F1c**, **§F2b** and **§3a W1** in one act; all three options were authored by Chat. No code — zero `.rs`, zero `ui/**`.
+
+✅ **THE MOVE RAN AND LEG D IS CLOSED.** `CLAUDE.md` **640,645 → 316,680 B — 50.6%**, beating §6b's stated forecast of ~410,000 by 93,000 because the move set grew from 49 to 65 as the classification was re-derived three times. **821 → 687 lines, 81 → 16 blocks.** `CLAUDE_HISTORY.md` **869,178 → 1,197,988 B**, 2,218 → 2,366 lines, **185 → 186 `## ` headings — exactly one heading written**. ⚠️ **L29 SURVIVES AT 124,299 CHARS**, now **39% of the remaining file**. That trade was taken deliberately at §6b and it is Leg E's whole subject.
+
+🔒 **THE THREE RULINGS, AND WHY EACH WAS THE ONLY CONSISTENT ANSWER.** **F1c** — the archive writes `## `, the head writes `> ###`, and the drift happened *because* D-094 lapsed; lifting the 65 verbatim **under one `## ` batch heading** is the only form that satisfies both D-094's *never a rewrite* and the archive's own structure. **F2b** — `CLAUDE_HISTORY.md` keeps **Status: ARCHIVED** and its preamble now names the D-094 insert as its **single sanctioned exception**; the vocabulary had contradicted itself since the file was created, and only the lapse kept anyone from hitting it twice. **W1** — L195, L199 and L201 archive annotated, because they declare 🟢 PLAY on closed legs in exactly the way the eleven mis-symbolled blocks do, and shelving the same defect twice would have been the inconsistency.
+
+🔑 **EXECUTED BY A SCRIPT THAT REFUSES TO WRITE.** `legd-move.ps1` + `legd-annotations.json`, both committed, dry-run first. **The script is ASCII-only by construction:** a BOM-less UTF-8 `.ps1` is read as ANSI by PS 5.1, so every non-ASCII string it writes is `\uXXXX`-escaped in the JSON and decoded at run time. ⇒ **THE ENCODING TRAP WAS DESIGNED OUT RATHER THAN TESTED FOR.**
+
+🔒 **WHAT WAS ASSERTED BEFORE A SINGLE BYTE MOVED.** L29 = 124,299 · history headings = 185 · block count = 81 · **L263 is a `> **` standing item, proving B2 ends at L262** · symbol census totals to 81 · 42 blocks carry ✅ · move set = 65 with no duplicate insert · stay set = 16 · 65 + 16 = 81 · 23 annotations, each on a verified headline and each on the correct side of the move · **V9** — all eleven phase-0 blocks travel with their closure block · line arithmetic closes · first and last non-empty line intact · **V1** — every moved block byte-identical in history **and** absent from the head · exactly one new `## ` heading · the four standing items past L262 still in the head.
+
+⚠️ **TWO OF MY OWN CHECKS FAILED FIRST, AND BOTH FAILURES WERE THE CHECK'S.** `.Contains('trusted-mouse')` is case-sensitive and the head says `TRUSTED-MOUSE` — a real guard reporting a fault in itself. And *last line intact* was comparing `''` to `''`, because splitting a file that ends in a newline leaves an empty final element. ⇒ **A CHECK THAT PASSES ON EMPTINESS IS NOT A CHECK** — the same shape as the checker that once reported 22,664 of 22,664 unresolved. Replaced with a last-**non-empty**-line assertion, which is what the guard was always meant to be.
+
+📌 **AND ONE INHERITED CLAIM FELL WHILE UPDATING THE TREE.** The session brief holds that **66 of 75 milestone IDs have no node in `docs/ROADMAP.md`, including both currently-playing milestones**. `M-DOC-ROADTREE` **has** a node with a full six-child subtree — Leg 0 through Leg E — and Leg D was updated in place. `M-RP-LIVEFEED-REFRESH` is genuinely absent (zero hits). ⇒ **THE 66 FIGURE NEEDS RE-DERIVING BEFORE ANY BACK-FILL MILESTONE IS BUILT ON IT.** Fourth time this session that a described number failed on being opened.
+
+🔓 **LEG D IS COMPLETED WITH A NON-EMPTY `Owes:` (D-133), NOT ARCHIVED.** `§E L75 — the M-RP-SKIN corner-triangle countdown has no home` · `§E L235 — M-RP-SELF-SURFACE has no task doc and no ROADMAP node`. Both blocks **stay in the live head** until their targets exist; archiving an obligation whose target has no record would file it against nothing.
+
+🔓 **LEG E's TRIGGER HAS FIRED** and its descriptive title is Joe's (D-123). What it faces is **parsing, not moving**: L29 has only ever been sized, never read.
+
+**RECORDS.** `CLAUDE.md` · `CLAUDE_HISTORY.md` v1.1 → **v1.2** (F2b preamble, batch inserted at the top per *newest-archived-first*) · `docs/ROADMAP.md` v6.3 → **v6.4** — Leg D 🟢 → ✅ with the measured result, Leg E's trigger marked FIRED · `tasks/RUNBOOK_ROADTREE_LEGD.md` v1.2 → **v1.3 COMPLETED** with §10 the execution record · `tasks/M_DOC_ROADTREE.md` v1.13 → **v1.14** · `legd-move.ps1` and `legd-annotations.json` NEW. **NO `CLAUDE.md` PLAY block** (P2) — the head this leg drained does not gain block 17 announcing that it was drained.
+
+---
+
 ## Entry J-614 — the move stops one step short: the archive file rejects the procedure written for it, and the last block's range would have swallowed four standing items
 
 **Date:** 2026-07-29 · **Seat:** Chat (measurement + records). Provenance **DELEGATED** — Joe: *go ahead*. No code. **NO BYTES MOVED** — `CLAUDE.md` and `CLAUDE_HISTORY.md` are untouched at `dba8ce7`.

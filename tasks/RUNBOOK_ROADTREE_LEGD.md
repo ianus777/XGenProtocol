@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — LEG D RUNBOOK — the `CLAUDE.md` B2 archive move
-> **Status**: ACTIVE  
-> Version: 1.2  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-29  
 > Language: English  
@@ -232,13 +232,34 @@ Project status vocabulary: **ARCHIVED — frozen historical record, do not modif
 
 ---
 
-## 🔓 9. OPEN FOR JOE
+## ✅ 10. EXECUTION RECORD — THE MOVE RAN 2026-07-29 (J-615)
 
-🛑 **TWO OF THESE BLOCK THE MOVE. THE REST DO NOT.**
+**Rulings applied:** §F1c · §F2b · §3a W1 — all delegated by Joe (*go as you recommend*), options authored by Chat.
 
-1. 🛑 **§F1 — F1a / F1b / F1c.** How the 62 land in an archive that uses a different heading form. Recommend **F1c**. **BLOCKING.**
-2. 🛑 **§F2 — F2a / F2b / F2c.** Whether a file marked ARCHIVED may be written to at all. Recommend **F2b**. **BLOCKING.**
-3. **§3a — W1 / W2 / W3** for L195, L199, L201. Recommend **W1**. Not blocking; the 62 move without it.
-4. **Leg E's descriptive title** (B1 + the 124,299-char L29).
-5. **§10 U1** — add the `M-DOC-ROADTREE` node, and **name the ROADMAP back-fill milestone** for the 66 absent IDs.
-6. **The M-RP-SKIN countdown's home** (§E), M-RP-SKIN being an appearance milestone.
+| measure | before | after |
+|---|---|---|
+| `CLAUDE.md` | 640,645 B · 821 lines · 81 blocks | **316,680 B · 687 lines · 16 blocks** |
+| `CLAUDE_HISTORY.md` | 869,178 B · 2,218 lines · 185 `## ` | **1,197,988 B · 2,366 lines · 186 `## `** |
+| reduction | | **50.6%** — the §6b forecast was ~410,000 B, beaten by 93,000 |
+| L29 | 124,299 chars | **124,299 chars, untouched** — Leg E's target |
+
+**Executed by `legd-move.ps1` + `legd-annotations.json`, both committed.** The script is ASCII-only by construction: a BOM-less UTF-8 `.ps1` is read as ANSI by PS 5.1, so every non-ASCII string it writes is `\uXXXX`-escaped in the JSON and decoded at run time. It refuses to write unless all assertions pass, and it was run dry first.
+
+**Assertions that passed, in order:** L29 = 124,299 · history headings = 185 · block count = 81 · **L263 is a `> **` standing item, so B2 ends at L262** · symbol census totals to 81 · 42 blocks carry ✅ · move set = 65 with no duplicate · stay set = 16 · 65 + 16 = 81 · 23 annotations, each on a verified headline, each on the correct side of the move · **V9** all 11 phase-0/closure pairs travel together · line arithmetic closes · first and last non-empty line intact · L29 unchanged · **V1** every moved block byte-identical in history and absent from the head · exactly one new `## ` heading · the four standing items past L262 still in the head.
+
+⚠️ **TWO OF MY OWN CHECKS FAILED FIRST, AND BOTH WERE THE CHECK'S FAULT.** `.Contains('trusted-mouse')` is case-sensitive and the head says `TRUSTED-MOUSE`; and the raw last element of a split on a file ending in a newline is the empty string, so *last line intact* was comparing `''` to `''` and proving nothing. Replaced with a last-**non-empty**-line assertion. ⇒ **A CHECK THAT PASSES ON EMPTINESS IS NOT A CHECK** — the same shape as the checker that once reported 22,664 of 22,664 unresolved.
+
+**Still in the head, by design (16 blocks):** the 3 live milestones + 2 pending + 4 stateless findings + 1 partially-stale sequencing lock (annotated, ① only) + 4 standing items + **the 2 held under §E**.
+
+🔓 **LEG D OWES:** `§E L75 — the M-RP-SKIN corner-triangle countdown has no home` · `§E L235 — M-RP-SELF-SURFACE has no task doc and no ROADMAP node`. Both blocks stay in the live head until their targets exist. Under D-133 this milestone is **COMPLETED with a non-empty `Owes:`**, not ARCHIVED.
+
+---
+
+## 🔓 11. OPEN FOR JOE
+
+✅ **§F1 (F1c), §F2 (F2b) AND §3a (W1) WERE DELEGATED AND ARE SPENT.** What remains gates nothing in this leg:
+
+1. **Leg E's descriptive title** (B1 + the 124,299-char L29). Its trigger has **fired**.
+2. **§10 U1** — ⚠️ **partly disproved by measurement:** `M-DOC-ROADTREE` **does** have a node in `docs/ROADMAP.md` with a full six-child subtree, so the claim that both playing milestones are absent from the tree was wrong. `M-RP-LIVEFEED-REFRESH` really is absent (zero hits). The 66-absent-ID figure needs re-deriving before anything is built on it. **Naming the back-fill milestone is still Joe's.**
+3. **The M-RP-SKIN countdown's home** and **M-RP-SELF-SURFACE's missing records** — the two `Owes:` items above.
+4. **H1 · H2's scope rule · the visit-card verb · M_RP_MEMBERS §6/§8 · the GitHub board** — untouched by this leg.

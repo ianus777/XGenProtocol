@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — LEG D RUNBOOK — the `CLAUDE.md` B2 archive move
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-29  
 > Language: English  
@@ -148,13 +148,15 @@ They declare `🟢 PLAY` on M-DOC-ROADTREE legs that Leg C closed. §6a's **D** 
 
 ## 🔒 4. §C — THE MOVE PROCEDURE
 
+🛑 **§C DOES NOT RUN UNTIL §F IS LOCKED.** Opening `CLAUDE_HISTORY.md` disproved three of the steps below as they were first written. They are corrected here; the two that need a ruling are in §F.
+
 1. **Freeze the input.** `git status --porcelain` empty. A clean tree is the undo and stops being one at commit.
-2. **Extract by range**, never by headline.
+2. **Extract by range**, never by headline. ⚠️ **AND THE LAST BLOCK'S RANGE IS NOT OPEN-ENDED.** B2 ends at **L262**, not L271: L263–L269 are four standing `> **` items — the trusted-mouse harness, M-RP7.2's eight design locks, **M-RP-FOCUS**, and Track A — which are **not blocks and must not move**. An end-of-region default of 271 would have carried all four into the archive without touching a single headline.
 3. **Annotate before moving** (§B). Annotations travel with the block.
-4. **Append to `CLAUDE_HISTORY.md`** in live-head order under D-094; boundary preserved (history J-81–J-405, head J-519–J-604, zero duplication).
+4. **Insert at the TOP of `CLAUDE_HISTORY.md`**, immediately after the `---` on L13. ⚠️ **NOT APPENDED.** The file's own preamble states *order is newest-archived-first*; appending at the tail would file this batch behind blocks from project start. Relative head order is preserved **within** the batch.
 5. **Delete from `CLAUDE.md`** highest line first, so earlier ranges keep their indices.
-6. **Run V1–V8 before writing and again after.**
-7. **Never a rewrite.** A moved block is byte-identical to its annotated pre-move text.
+6. **Run V1–V9 before writing and again after.**
+7. **Never a rewrite.** A moved block is byte-identical to its annotated pre-move text — see §F1, where that rule and the archive's heading convention collide.
 
 📌 **MOVE SET: 62 BLOCKS** (65 under W1) — **not 49, not 50.** Third revision, and each revision came from re-deriving the set rather than re-reading the count.
 
@@ -174,7 +176,39 @@ They declare `🟢 PLAY` on M-DOC-ROADTREE legs that Leg C closed. §6a's **D** 
 
 ---
 
-## ⚠️ 6. §E — THE HOLD SET
+## 🛑 6. §F — THE ARCHIVE FILE DOES NOT ACCEPT THIS BATCH AS §C DESCRIBED
+
+Measured in `CLAUDE_HISTORY.md`: **185 `## ` headings · zero `> ###` blocks · 2,218 lines · Status ARCHIVED, Version 1.1, Last updated 2026-06-22.** Its preamble states, in its own words, that blocks were *lifted verbatim* per **D-094** — *a move, never a rewrite* — that **order is newest-archived-first**, and that the file is **ARCHIVED — do not edit**.
+
+🔑 **THE HEAD'S BLOCK FORMAT CHANGED AFTER THE LAST ARCHIVING RUN AND NOBODY NOTICED, BECAUSE NOTHING HAS BEEN ARCHIVED SINCE.** The archive holds `## ` blocks; the live head writes `> ### `. D-094 lapsed on 2026-06-22 and the format drifted underneath it. ⇒ **A LAPSED RULE DOES NOT SIT STILL; THE THING IT GOVERNS MOVES AWAY FROM IT.**
+
+### 🔓 F1 — verbatim lift vs. the archive's heading convention
+
+| option | ① user-visible | ② tier | ③ resource cost |
+|---|---|---|---|
+| **F1a** — lift the 62 verbatim as `> ###` | none | none | zero transform; archive carries two block formats; V1 byte-identity holds exactly |
+| **F1b** — rewrite each `> ### **X**` to `## X` | none | none | 62 transforms; archive stays uniform; **breaks D-094's own words — *never a rewrite*** |
+| **F1c** — lift verbatim **under one `## ` batch heading** | none | none | 1 heading written, 62 blocks untouched; archive gains a conforming `## ` entry **and** every block stays byte-identical |
+
+**Recommend F1c.** It is the only option that satisfies both rules at once: the archive's structure sees a conforming heading, and D-094's verbatim requirement is met block for block. Proposed heading: `## 🟢 Leg D archive batch — 62 PLAY blocks lifted from the live head (J-614, D-094 re-applied after a 5-week lapse)`.
+
+### 🔓 F2 — the file says ARCHIVED, and ARCHIVED means do not modify
+
+Project status vocabulary: **ARCHIVED — frozen historical record, do not modify.** D-094 nevertheless requires blocks to be moved *into* it. **The convention contradicts itself and has done so since the file was created**; it went unnoticed because the rule lapsed before anyone hit it twice.
+
+| option | ① user-visible | ② tier | ③ resource cost |
+|---|---|---|---|
+| **F2a** — Status ARCHIVED → ACTIVE | none | none | 1 header line; but the file is not *active work*, and the word then means nothing here |
+| **F2b** — keep ARCHIVED, write the D-094 append into the preamble as the single sanctioned exception | none | none | 1 header bump + 1 preamble sentence; **names the exception that already exists in practice** |
+| **F2c** — new file `CLAUDE_HISTORY_2.md` for this batch | none | none | new file, new pointer, a second place to look; the 185 stay frozen |
+
+**Recommend F2b.** The exception is real whether or not it is written down — D-094 has always required exactly this. F2c splits the archive to protect a word.
+
+📌 **BOTH ARE CHEAP AND NEITHER IS CHAT'S.** They set records convention, not technical execution. ⚠️ **THE MOVE IS BLOCKED ON F1 AND F2** — unlike §3a, which blocks nothing.
+
+---
+
+## ⚠️ 7. §E — THE HOLD SET
 
 **L75 — the M-RP-SKIN countdown.** Re-points the M-RP-7.1 SE-corner-triangle obligation at **M-RP-SKIN**, which has **no task doc and no ROADMAP node**. Archiving it files an undischarged obligation against nothing. **Home the countdown first.**
 
@@ -184,11 +218,13 @@ They declare `🟢 PLAY` on M-DOC-ROADTREE legs that Leg C closed. §6a's **D** 
 
 ---
 
-## ⚠️ 7. DEFECTS FOUND IN THIS PASS
+## ⚠️ 8. DEFECTS FOUND IN THIS PASS
 
 - **🔑 THE PARTITION WAS INHERITED, AND THAT IS THE WHOLE DEFECT.** v1.0 classified 22 blocks because the census said *22 non-work · 17 live · 42 ✅*. **The 17 were "live" by lead symbol only** — the exact reading ruling E was made to forbid — and **eleven of them are closed work.** ⇒ **A CLASSIFICATION THAT ACCEPTS SOMEONE ELSE'S PARTITION HAS NOT CLASSIFIED; IT HAS RE-SORTED ONE BUCKET.**
 - **THE MOVE SET WAS CARRIED AS A COUNT ACROSS FOUR DOCUMENTS** — kickoff 7, brief 6, runbook v1.0 50, actual 62. Same recurring class: *a claim narrower than the thing it describes, reused as if complete.*
 - **A SUSPECT LIST IS NOT A CHECK.** v1.0 verified the `M-RP-LOCK-RECHECK REMAINS ACTIVE` clause on the three blocks the documents named. Grepping the file finds it on **five** — L241, **L243**, L245, **L247**, L249 — and L247 is a ✅ block, outside every earlier list. ⇒ **RUN THE PREDICATE OVER THE WHOLE CORPUS, NOT OVER THE NAMES YOU WERE HANDED.**
+- **🔑 THE LAST BLOCK'S RANGE WAS OPEN-ENDED AND WOULD HAVE SWALLOWED FOUR STANDING ITEMS.** The range builder defaulted the final block's end to L271, the region terminator. **B2 actually ends at L262**; L263–L269 hold the trusted-mouse harness, M-RP7.2's eight design locks, **M-RP-FOCUS** and Track A — `> **` lines, not `> ###` blocks. ⇒ **A REGION TERMINATOR IS NOT A BLOCK TERMINATOR**, and the error is invisible to every headline-based check because no headline is involved.
+- **THE ARCHIVE FILE WAS NEVER OPENED BEFORE §C WAS WRITTEN.** Three of seven steps were wrong: append vs. insert-at-top, the heading form, and the permission to write at all. ⇒ **A PROCEDURE WRITTEN AGAINST ONE END OF A MOVE IS HALF A PROCEDURE.**
 - **`tasks/M_DOC_ROADTREE_LEGD_PHASE0_BRIEF.md` HAD A NON-CONFORMING HEADER** — corrected at v1.5 with the correction recorded in the file. ⚠️ `JOURNAL.md`'s header carries the same defect and is **left as found**; rewriting a canonical header is not this leg's business.
 - **🔑 `Filesystem:edit_file` NORMALISES THE ENTIRE FILE TO LF — MEASURED.** `JOURNAL.md` was CRLF on disk (1,534,320 disk vs 1,526,965 blob; the 7,355 difference is exactly its line count). After an edit that **added** ~5 KB, disk read **1,531,984 with 0 CRLF**. ⇒ **A DISK BYTE COUNT THAT FALLS WHILE CONTENT IS ADDED IS REPORTING ON THE TOOL.** Harmless to git — `git diff --numstat` showed 27 insertions, 1 deletion, no EOL churn.
 - **THE CRLF CONVENTION NOTE WAS WRONG.** `CLAUDE.md` is LF, not CRLF; `docs/ROADMAP.md` is the CRLF file. Corrected in §1 by measurement.
@@ -196,9 +232,13 @@ They declare `🟢 PLAY` on M-DOC-ROADTREE legs that Leg C closed. §6a's **D** 
 
 ---
 
-## 🔓 8. OPEN FOR JOE — NONE OF IT GATES THE MOVE
+## 🔓 9. OPEN FOR JOE
 
-1. **§3a — W1 / W2 / W3** for L195, L199, L201. Recommend **W1**.
-2. **Leg E's descriptive title** (B1 + the 124,299-char L29).
-3. **§10 U1** — add the `M-DOC-ROADTREE` node, and **name the ROADMAP back-fill milestone** for the 66 absent IDs.
-4. **The M-RP-SKIN countdown's home** (§E), M-RP-SKIN being an appearance milestone.
+🛑 **TWO OF THESE BLOCK THE MOVE. THE REST DO NOT.**
+
+1. 🛑 **§F1 — F1a / F1b / F1c.** How the 62 land in an archive that uses a different heading form. Recommend **F1c**. **BLOCKING.**
+2. 🛑 **§F2 — F2a / F2b / F2c.** Whether a file marked ARCHIVED may be written to at all. Recommend **F2b**. **BLOCKING.**
+3. **§3a — W1 / W2 / W3** for L195, L199, L201. Recommend **W1**. Not blocking; the 62 move without it.
+4. **Leg E's descriptive title** (B1 + the 124,299-char L29).
+5. **§10 U1** — add the `M-DOC-ROADTREE` node, and **name the ROADMAP back-fill milestone** for the 66 absent IDs.
+6. **The M-RP-SKIN countdown's home** (§E), M-RP-SKIN being an appearance milestone.

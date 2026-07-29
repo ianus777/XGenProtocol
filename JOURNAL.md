@@ -8,6 +8,26 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-614 — the move stops one step short: the archive file rejects the procedure written for it, and the last block's range would have swallowed four standing items
+
+**Date:** 2026-07-29 · **Seat:** Chat (measurement + records). Provenance **DELEGATED** — Joe: *go ahead*. No code. **NO BYTES MOVED** — `CLAUDE.md` and `CLAUDE_HISTORY.md` are untouched at `dba8ce7`.
+
+🛑 **§C WAS WRITTEN AGAINST ONE END OF A MOVE. OPENING THE OTHER END DISPROVED THREE OF ITS SEVEN STEPS.** `CLAUDE_HISTORY.md` measures **185 `## ` headings, ZERO `> ###` blocks, 2,218 lines, Status ARCHIVED, last updated 2026-06-22**. ⇒ **A PROCEDURE WRITTEN AGAINST ONE END OF A MOVE IS HALF A PROCEDURE.**
+
+🔑 **THE HEAD'S BLOCK FORMAT DRIFTED AWAY FROM THE ARCHIVE WHILE THE RULE WAS LAPSED.** The archive holds `## ` blocks lifted when that was the head's form; the head now writes `> ### `. Nothing has been archived since 2026-06-22, so nothing forced the two to meet. ⇒ **A LAPSED RULE DOES NOT SIT STILL; THE THING IT GOVERNS MOVES AWAY FROM IT.** 🔓 **§F1 — F1a verbatim as `> ###` · F1b rewrite to `## ` · F1c verbatim under one `## ` batch heading.** **F1c recommended**: the only option that keeps D-094's *never a rewrite* **and** gives the archive a conforming entry.
+
+🛑 **AND THE ARCHIVE SAYS IT MAY NOT BE WRITTEN TO.** Its header reads **Status: ARCHIVED**, and project vocabulary defines ARCHIVED as *frozen historical record, do not modify*. **D-094 requires blocks to be moved into it.** ⇒ **THE CONVENTION HAS CONTRADICTED ITSELF SINCE THE FILE WAS CREATED, AND ONLY THE LAPSE HID IT** — the rule was never applied twice. 🔓 **§F2 — F2a flip to ACTIVE · F2b keep ARCHIVED and name the D-094 append as its one sanctioned exception · F2c open `CLAUDE_HISTORY_2.md`.** **F2b recommended**: the exception is real whether or not it is written down.
+
+⚠️ **ORDER WAS ALSO WRONG.** §C said *append*. The archive's own preamble says **order is newest-archived-first**, so the batch belongs at the **TOP**, after the `---` on L13. Appending would have filed 2026-07 work behind blocks from project start.
+
+🔑 **THE ONE THAT WOULD HAVE DONE REAL DAMAGE: THE LAST BLOCK'S RANGE HAD NO UPPER BOUND.** The range builder defaulted the final block's end to **L271**, the region terminator. **B2 ends at L262.** L263–L269 hold four standing `> **` items — the trusted-mouse harness, **M-RP7.2's eight design locks**, **M-RP-FOCUS**, and **Track A** — none of them blocks, all of them live. ⇒ **A REGION TERMINATOR IS NOT A BLOCK TERMINATOR.** ⚠️ **NO HEADLINE-BASED CHECK CAN SEE THIS** — V1–V9 all count and compare headlines, and not one of them involves a headline here. It was caught by reading the twenty lines past the end of the region, for no reason other than that the region had to end somewhere.
+
+📌 **THE PATTERN ACROSS J-612, J-613 AND J-614 IS ONE PATTERN.** Each stop came from **opening something that had been described rather than read** — the blocks behind a count, the seventeen behind a symbol, the archive behind a procedure. **Not one was caught by re-reading the document that carried the error.**
+
+**RECORDS.** `tasks/RUNBOOK_ROADTREE_LEGD.md` v1.1 → **v1.2** — **§F added** (F1, F2, both with D-121 lenses and both **BLOCKING**), §C steps 2 and 4 corrected, §9 re-ordered so the two blocking rulings sit above the four that gate nothing. §3a unchanged and still not blocking. **NO `CLAUDE.md` PLAY block** (P2). **NO ROADMAP node** — §10 U1 still 🔓.
+
+---
+
 ## Entry J-613 — the census was a symbol count read as a partition: eleven blocks marked 🟢 PLAY are closed work, and the head contradicts itself in the same file
 
 **Date:** 2026-07-29 · **Seat:** Chat (measurement + records). Provenance **DELEGATED** — Joe: *go*. No code — zero `.rs`, zero `ui/**`. Three documents.

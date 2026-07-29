@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-617 — §4a-i locked, and the leg list had issued the letter E twice
+
+**Date:** 2026-07-29 · **Seat:** Chat (records, verification). Provenance **DELEGATED** — Joe: *go by your last paragraph*, closing **two** acts at once: **(1) §4a-i is LOCKED by Chat's recommendation** without being independently examined, and **(2) the `Leg E` collision renumber is delegated as records work.** ⚠️ **It closed NEITHER §8b NOR §8a NOR any naming** — those were named in the same paragraph as staying open, and they stay open. No code.
+
+🔒 **§4a-i — LOCKED. THREE WORDS, AND THEY MOVE A GATE.** §4b's option (a) read *migrate the ROADMAP prose into `JOURNAL` **at those numbers*** and now reads *labelled with those numbers, in a forward entry*. 🔑 **That phrase was the ONLY thing forcing `JOURNAL_ARCHIVE.md` open for the migration** ⇒ the migration row leaves §8b's target table, and **nothing on the main path waits on the `ARCHIVED`-versus-repair ruling any more.** ⚠️ **§8b IS NOT ANSWERED AND NOT WITHDRAWN** — the 24 KB of duplicated `J-317`–`J-321` and the `J-044`/`J-045` collisions still sit in the archive, it still gates Leg B-bis **specifically**, and it is still Joe's. **What the lock bought is that only B-bis waits behind it.** 📌 **B-bis shrinks from three actions to two** and is worth re-deciding at that size.
+
+🛑 **AND RE-READING §8b TO CHECK MY OWN RECOMMENDATION FOUND A COLLISION IN THE LEG LIST.** §6b created **`Leg E` — the B1 prose** at J-611. §8b's tail already held **`Leg E` — the bidirectional sweep** and **`Leg F` — records + close**, ninety lines below **in the same document**. 🔑 **One leg list, two unrelated `Leg E`s — and the second pair had NO node in `docs/ROADMAP.md` at all, so the milestone's own CLOSING leg was invisible on the board.** ⇒ **M-DOC-ROADTREE had no recorded path to its own close.**
+
+🔒 **RESOLVED BY RENUMBER, NOT BY SUFFIX, AND THE DISTINCTION IS THE ARGUMENT.** §4b's `a`/`b` collision rule governs **designations** — `J-`, `D-`, `N-` — permanent identifiers whose citations must never silently re-point; renumbering one of those is explicitly forbidden. **Leg letters are positional within one document**, so the rule does not reach them. The B1-prose leg **keeps `E`** because it is the one already cited by `ROADMAP.md`, `RUNBOOK_ROADTREE_LEGD.md`, the Phase-0 brief and five JOURNAL entries; the sweep → **`F`**, the close → **`G`**. `Leg G` was free repo-wide.
+
+⚠️ **I CLAIMED THE RE-POINT COST WAS ZERO BEFORE MEASURING IT. IT IS FOUR LINES.** Classified all **16** repo-wide `Leg E` hits **by referent** before touching one, rather than counting them: 11 point at the B1-prose leg (which keeps `E`), **2 at the sweep** (§8b tail + §9 DoD), **2 at the close**, and **2 belong to `M-RP-LIVEFEED-REFRESH`'s own Leg E** — a different milestone, same letter, deliberately untouched. 🔑 **The census would have said sixteen; the partition says four.** 📌 **JOURNAL entries citing `Leg E` were NOT rewritten** — they are contemporaneous records, true of the state they describe.
+
+🛑 **RETRACTION CARRIED OUT ON J-616 IN PLACE.** J-616 reported that `CLAUDE.md` carries no block for J-615 and read it as an oversight. **It is a ruling** — §8's *"LEG D SHIPS NO PLAY BLOCK (P2, delegated 2026-07-28) … recorded so the omission is never read as drift."* 🔑 **I read it as drift, in the same entry that names *a claim narrower than the thing it describes* three separate times, for the same reason each time: I checked one document against itself and never opened the one that governs it.** The retraction is written into J-616 above the original wording rather than replacing it silently, per §4a's precedent. **The staleness annotation on the `M-DOC-ROADTREE` PLAY block stands; it is genuinely stale.**
+
+⚠️ **AND A SECOND CLAIM FROM THIS SESSION IS WITHDRAWN, THOUGH IT NEVER REACHED DISK.** In chat I reported having *paid* §8a's owed `J-044`/`J-045` citation count. **§8b discharged it on 2026-07-26 at `ec0d305` — 26/22 refs, 28 needing an individual `a`/`b` resolution — three days before I re-measured it.** My raw scan (36/29) used different exclusions and does not supersede it. **§8b's 28 is authoritative and is recorded in §11 as spent.**
+
+📌 **§11 REBUILT.** It still described the pre-Leg-C world — *"LEG C IS OPEN AND IS CHAT'S TO RUN"* — five sessions after Leg C closed. Now carries the leg states, the ruled list, four open items, and an explicit **SPENT** list so §9's 100 KB bar, §1b's Leg D question and §8a's citation count are not re-opened by a future reader.
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/M_DOC_ROADTREE.md` v1.14 → **v1.15** (§4b amended and the lock's provenance recorded · §4a-i marked ruled · §8b's migrate row marked VOID · §8 gains the collision record · §9 DoD re-lettered · §11 rebuilt) · `docs/ROADMAP.md` v6.5 → **v6.6** (Leg F and Leg G gain their first nodes) · `CLAUDE.md` PLAY head · `JOURNAL.md` J-616 retraction + this entry. **No new D, no new N.**
+
+**Next-active.** Unchanged and still Joe's: **§5 of `tasks/RUNBOOK_LIVEFEED_LEG_A.md`** on the critical path. On this milestone: **§8b**, **§8a at its new size**, and the two names.
+
+---
+
 ## Entry J-616 — the Leg 0 second-reader pass: §6's event table named no subject field, and the router it described would have removed the moderator
 
 **Date:** 2026-07-29 · **Seat:** Chat (grounding, measurement, records). Provenance **DELEGATED** — Joe: *go*, on a turn that had put three things on the table at once. **Recorded as closing all three: (1) correct §6 in place rather than annotate it, (2) author the Leg A runbook, (3) take the records commit.** ⚠️ **It did NOT lock the runbook's §5** — that is a bounded question with a user-visible surface and it is still open and Joe's. No code, no `.rs`, no `ui/**`.
@@ -28,7 +54,9 @@ property purposes. Entries are written contemporaneously with the work described
 
 📌 **ROADMAP: THE MILESTONE GAINS ITS FIRST NODE.** `docs/ROADMAP.md` v6.4 → **v6.5**. `M-RP-LIVEFEED-REFRESH` returned **zero** hits before this entry — it is the one milestone J-615's re-derivation confirmed genuinely absent — and now carries six leg children with every trigger named. ⚠️ **`M-RP-MEMBERS` IS STILL ABSENT AND ITS Leg C PAUSE IS STILL UNRECORDED THERE.** Left alone on purpose: back-filling it belongs to the milestone whose **name is Joe's**, and folding it in here would have made this commit the back-fill by accident.
 
-⚠️ **AND ONE THING FOUND WHILE WRITING THE PLAY BLOCK, REPORTED NOT REPAIRED.** `CLAUDE.md`'s head carries **no block for J-615** — Leg D's own close — and its `M-DOC-ROADTREE` block still reads at J-598 state: `v1.0`, `ROADMAP` at 749,717 B, the PLAY head at 608,702 B, both 🔓 OPEN items long since ruled. **Annotated in D-131 form, not rewritten** (`[⚠️ CLAIM STALE 2026-07-29 (J-616) — …]`). 🔑 **A session that drains a document is exactly the session most likely to forget to write itself into it.**
+⚠️ **AND ONE THING FOUND WHILE WRITING THE PLAY BLOCK, REPORTED NOT REPAIRED.** `CLAUDE.md`'s `M-DOC-ROADTREE` block still reads at J-598 state: `v1.0`, `ROADMAP` at 749,717 B, the PLAY head at 608,702 B, both 🔓 OPEN items long since ruled. **Annotated in D-131 form, not rewritten** (`[⚠️ CLAIM STALE 2026-07-29 (J-616) — …]`).
+
+🛑 **RETRACTION, ADDED 2026-07-29 (J-617) — THE PARAGRAPH ABOVE ORIGINALLY OPENED BY REPORTING THAT `CLAUDE.md` CARRIES NO BLOCK FOR J-615 AND FRAMED IT AS AN OVERSIGHT, WITH THE LINE *"a session that drains a document is exactly the session most likely to forget to write itself into it."* THAT WAS FALSE AND IS STRUCK.** `tasks/M_DOC_ROADTREE.md` §8 rules it explicitly: *"**LEG D SHIPS NO PLAY BLOCK (P2, delegated 2026-07-28).** D-074's `CLAUDE.md` limb is deliberately empty for this milestone: adding block 82 to the head Leg D exists to drain would grow the defect it is closing. **Recorded so the omission is never read as drift.**"* 🔑 **I read the omission as drift — the exact reading that sentence was written to prevent — and I did it in the same entry that names *a claim narrower than the thing it describes* three times.** The cause is the same one: I checked `CLAUDE.md` against itself and never opened the task document that governs it, having read §10 of a **different** milestone's doc instead. **The staleness annotation stands; only the J-615 claim is retracted.**
 
 **FLOORS UNTOUCHED AND DELIBERATELY NOT RE-MEASURED** (zero `.rs`, zero `ui/**` in `git diff --stat`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
 

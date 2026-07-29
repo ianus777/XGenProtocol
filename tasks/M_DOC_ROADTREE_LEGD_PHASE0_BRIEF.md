@@ -1,10 +1,17 @@
 # M-DOC-ROADTREE — LEG D PHASE-0 BRIEF
-
-> Version: 1.4  
-> **Status:** ACTIVE  
-> **Last updated**: 2026-07-28  
+> **Status**: ACTIVE  
+> Version: 1.5  
+> Date: Jul 2026  
+> **Last updated**: 2026-07-29  
+> Language: English  
 > Author: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
+> License: BSL 1.1 (converts to GPL upon project handover)  
 > Seat: Chat (grounding + measurement). Provenance of every recommendation here: **DELEGATED**.  
+
+⚠️ **HEADER BROUGHT TO CONVENTION AT v1.5 (2026-07-29).** v1.1–v1.4 carried `> **Status:**` for `> **Status**:`, `Version` above `Status`, and no Date, Language, Credits or License lines. Recorded rather than corrected silently.
+
+🛑 **§6a's MOVE-SET COUNT IS SUPERSEDED — SEE `tasks/RUNBOOK_ROADTREE_LEGD.md` §A (v1.0, J-612).** This document says **six** blocks self-declare closed; the session kickoff said **seven**. **Both are wrong.** Reading all 22 on disk gives **four** (L177 L193 L251 L255) plus **four stale-closed** (L175 L241 L245 L249) — L75 declares no closure at all and L241 declares another milestone active. The runbook's §A table, which carries an evidence string on every row, is the authority from here.
 
 ---
 

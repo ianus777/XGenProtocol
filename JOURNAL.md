@@ -1,10 +1,36 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-28  
+> **Last updated:** 2026-07-29  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-612 — the Leg D move set was a count, not a set: 22 blocks classified with evidence, and neither source list was right
+
+**Date:** 2026-07-29 · **Seat:** Chat (measurement + records). Provenance **DELEGATED** — Joe: *go*. No code — zero `.rs`, zero `ui/**`. One new document.
+
+🔒 **`tasks/RUNBOOK_ROADTREE_LEGD.md` v1.0 EXISTS — 13,809 B, 151 lines.** Leg D had rulings and no execution document. It now carries §A the classification, §B the third input, §C the move procedure, §D the checks V1–V8, §E the hold set.
+
+🛑 **THE MOVE SET WAS A NUMBER CARRIED ACROSS THREE DOCUMENTS AND NEVER RE-READ.** The session kickoff carried **7** self-declared-closed blocks (L75 L177 L193 L241 L249 L251 L255); the Phase-0 brief §6a carried **6** (dropping L241). ⇒ **BOTH ARE WRONG, AND THEY ARE WRONG IN THE SAME PLACE.** Reading the blocks on disk: **L75 declares no closure at all** — its own text reads *"→ M-RP7.3 OPENS WITH IT"* and it re-points the SE-corner countdown at **M-RP-SKIN** — and **L241 declares another milestone active**, not itself closed. 🔑 **A BLOCK THAT NAMES A CLOSURE IS NOT A BLOCK THAT DECLARES ITS OWN.** §9 of the brief predicted exactly this for the marker triage; it was then committed one layer up, as a count.
+
+🔒 **§A — ALL 22 NON-WORK BLOCKS CLASSIFIED, EVERY ROW CARRYING THE BLOCK'S OWN WORDS AS EVIDENCE.** Measured result: **4 self-declared closed** (L177 L193 L251 L255) · **4 stale-closed** (L175 L241 L245 L249) · **3 superseded** (L195 L199 L201) · **3 live and correct** (L197 L203 L209) · **1 live but partially stale** (L179) · **5 stateless and already homed** (L87 L90 L103 L108 L243) · **2 held** (L75 L235). ⇒ **THE MOVE SET IS 50 BLOCKS, NOT 49** — 42 ✅ + 4 + 4 — **and the composition changed, not merely the count.**
+
+⚠️ **L175 IS A NEW STALE ROW AND IT WAS NOT ON EITHER LIST.** It reads *"THE TEXT PROCESSOR IS WIRED TO NOTHING"*; `tasks/M_RP_PROCESSOR_WIRE.md` reads **COMPLETED v1.4**. The stale count is **five in the source documents, seven in fact** once §B is run against every block that names a milestone rather than only against the ones already suspected. 📌 Also confirmed: **L179's ① `M-RP-MSG-NEWLINE` is marked 🟢** while `M_RP_MSG_NEWLINE.md` reads **COMPLETED v1.0** — a stale item inside a block that is otherwise live.
+
+🔒 **§B — THE THIRD INPUT IS NOW A WRITTEN RULE, NOT A NOTED LIMIT.** Every block whose claim names a milestone is checked against `docs/ROADMAP.md` **and** its `tasks/` doc header before it moves; the correction is **annotated in place** in D-131 form and travels with the block into history, never a silent repair. Where no task doc exists the block is **held, not guessed at**.
+
+⚠️ **§E — TWO BLOCKS MUST NOT MOVE YET, AND BOTH FOR THE SAME REASON: THEY POINT AT MILESTONES THAT EXIST NOWHERE ELSE.** **L75** re-points the M-RP-7.1 SE-corner-triangle obligation at **M-RP-SKIN** — which has **no `tasks/` doc and no ROADMAP node**, so archiving the block files an undischarged obligation against nothing. **L235** claims a design lock for **M-RP-SELF-SURFACE** — also no task doc, no node — so §B cannot check it. ⇒ **AN OBLIGATION WHOSE TARGET HAS NO RECORD IS NOT ARCHIVABLE; IT IS UNHOMED.**
+
+🔓 **ONE QUESTION OPENED FOR JOE, AND IT WIDENS §6a's D BY THREE BLOCKS.** L195, L199 and L201 declare `🟢 PLAY` on M-DOC-ROADTREE legs that Leg C closed. §6a's **D** sends the residue to the live head; the four stale-closed rows differ from these three **only in who closed them** — a task doc or this arc. **W1** archives all three annotated (recommended), **W2** leaves them annotated in the head, **W3** leaves them untouched. ⚠️ Chat will not take W1 on its own: it changes what archives, and that is scope.
+
+⚠️ **TWO HEADER DEFECTS FOUND WHILE MEASURING, FILED NOT FIXED.** `tasks/M_DOC_ROADTREE_LEGD_PHASE0_BRIEF.md` has `> **Status:**` for `> **Status**:`, `Version` above `Status`, and **no Date, Language, Credits or License lines at all**. `JOURNAL.md`'s own header has the same colon defect and the same missing fields. Both are content-bearing conventions and neither is repaired silently.
+
+📌 **V8 ADDED TO THE CHECK SET.** *Assert the invariants of the whole document before every write, not the size of the change* — line count, block count, symbol census, first line, **last line intact**, and **L29 still 124,299**. It is the only class of check that has ever caught a positional-rewrite tail deletion.
+
+**RECORDS.** `tasks/RUNBOOK_ROADTREE_LEGD.md` **v1.0** NEW · `tasks/M_DOC_ROADTREE_LEGD_PHASE0_BRIEF.md` v1.4 → **v1.5** — header brought to convention, §6a's move-set count annotated as corrected, §A pointed at the runbook · `tasks/M_DOC_ROADTREE.md` v1.11 → **v1.12** — Leg D points at its runbook. **NO `CLAUDE.md` PLAY block** (P2 — adding block 82 to the head Leg D drains would grow the defect it closes). **NO ROADMAP node this commit** — §10 U1 is 🔓 and unlocked.
 
 ---
 

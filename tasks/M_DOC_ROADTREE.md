@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.16  
+> Version: 1.18  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-29  
 > Language: English  
@@ -268,7 +268,7 @@
 
 🔒 **AND THE DESIGNATION-COLLISION RULE (Joe, general, not migration-local): WHERE A DESIGNATION IS DUPLICATED, THE ORIGINAL TAKES AN `a` SUFFIX AND THE NEW ONE TAKES `b`** — e.g. `J-044a` / `J-044b`.
 
-📌 **PROPOSAL: PROMOTE IT.** The rule is project-wide — it governs J-, D-, N- and M- designations alike, not just this migration. It belongs in `CLAUDE.md`'s conventions or as a D-entry, **not buried in a milestone task file.** 🔓 Joe's.
+✅ **PROMOTED — `D-134` MINTED 2026-07-29 (J-619). MARKER STRUCK.** The rule is project-wide (`J-`/`D-`/`N-`/`M-`) and now lives in `DECISIONS.md`, with the `CLAUDE.md` block reduced to a signpost. 🔒 **Joe CONFIRMED it and AMENDED it in the same act:** the split extends past `a`/`b` to `c` and beyond, and **designations are ISSUED UNIQUE — the split is a repair applied at revision, never an issuing path.** 📌 **Rule ② (addendum, bare number survives) was verified against the record and carried into D-134 alongside ①**; both were measured 2026-07-29, ① at 7 of 7. ~~PROPOSAL: PROMOTE IT. The rule is project-wide — it governs J-, D-, N- and M- designations alike, not just this migration. It belongs in `CLAUDE.md`'s conventions or as a D-entry, not buried in a milestone task file. 🔓 Joe's.~~
 
 ### 🔑 §4c — THE RULE HAS IMMEDIATE RETROACTIVE WORK, AND IT SPLITS IN TWO. MEASURED 2026-07-26
 
@@ -393,7 +393,9 @@
 
 🛑 **THE MOVE SET IS 62 BLOCKS — THIRD REVISION, ONE CAUSE (J-613).** Kickoff said 7 self-declared closed, Phase-0 §6a said 6, runbook v1.0 said a move set of 50. **Each classified a bucket it was handed rather than all 81 blocks.** Measured: **42 ✅ + 4 self-declared closed** (L177 L193 L251 L255) **+ 5 stale-closed** (L175 L241 L243 L245 L249) **+ 11 that the census called 🟢 live** (L123 L145 L151 L155 L161 L165 L167 L191 L219 L259 L261) **= 62**; **19 stay**; 62 + 19 = 81 ✔. 🔑 **THE DECISIVE EVIDENCE IS INSIDE `CLAUDE.md`:** every one of those eleven is a phase-0 or design-lock block whose milestone **this same head later closes** — L123 against L125, L259 against L189, L219 against L213. ⚠️ **THE 17 🟢🟡 BLOCKS HAD NEVER BEEN CLASSIFIED**, only counted as live by lead symbol, which is exactly what ruling E forbids. ✅ **SPENT — §3a W1 was RULED (delegated) 2026-07-29 and the move set closed at 65** (marker struck 2026-07-29, J-618). ~~L195 L199 L201 remain open under §3a (W1 recommended)~~; under W1 the set is 65. **2 held** for pointing at milestones with no record anywhere (L75 → M-RP-SKIN, L235 → M-RP-SELF-SURFACE). `tasks/RUNBOOK_ROADTREE_LEGD.md` §A is the authority.
 
-**Leg E — the two-way closure log.** 🟡 **PENDING.** 🔒 **TITLE LOCKED (Joe, 2026-07-29, J-618** — a direct answer to a bounded question, **not** a delegation; chosen from three candidates that were themselves derived from the grounding measurement below, after Chat's earlier proposal *"the next-active chain"* **failed the test Joe set for it**). ↳ trigger: Leg D closes — **FIRED 2026-07-29 (J-615)**. **Surface: `CLAUDE.md` L21–70.** ⇒ **PARSING, NOT MOVING.**
+**Leg E — the two-way closure log.** 🟡 **PENDING.** 🔒 **TITLE LOCKED (Joe, 2026-07-29, J-618** — a direct answer to a bounded question, **not** a delegation; chosen from three candidates that were themselves derived from the grounding measurement below, after Chat's earlier proposal *"the next-active chain"* **failed the test Joe set for it**). ↳ trigger: Leg D closes — **FIRED 2026-07-29 (J-615)**. **Surface: `CLAUDE.md`'s prose head — from the `## 🟢 UI component-library / substrate` heading down to the first `> ### ` PLAY block.** ⇒ **PARSING, NOT MOVING.**
+
+🛑 **⚠️ THE LINE MOVED ON THE DAY THIS WAS WRITTEN, AND THE POSITION MUST NOT BE TRUSTED. USE THE CONTENT HANDLE.** At J-619 the five-line designation-convention block above it was collapsed to one line, so **`L29` → `L25` and the surface `L21–70` → `L17–66`** — the line itself byte-identical and untouched by git. 🔑 **A LINE NUMBER INTO `CLAUDE.md` IS A FRAGILE CITATION PRECISELY BECAUSE THIS PROJECT DRAINS THAT FILE** — J-615 archived 65 blocks out of it, and any edit above the line moves it again. ⇒ **IDENTIFY IT BY CONTENT, NOT POSITION:** it is the **only line in `CLAUDE.md` over 20,000 chars**, it is **124,299 chars**, and it opens `**Next-active (UI/RP track):** M-RP2.6 ✅ CLOSED (J-410)`. 📌 **Every `L29` in this document, in `RUNBOOK_ROADTREE_LEGD.md` and in the LEG D brief was written when the number was true; they are NOT re-pointed** — the handle above supersedes them. ⚠️ **`M_DOC_ROADTREE_LEGD_PHASE0_BRIEF.md` still reads `Status: ACTIVE` although Leg D closed at J-615; flagged, not flipped.**
 
 🔑 **§8-E GROUNDING PASS — PART ONE RUN 2026-07-29 (J-618). L29's SHAPE IS NO LONGER UNMEASURED.**
 
@@ -559,11 +561,10 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 🟡 **Leg E — the two-way closure log.** 🔒 Title locked (Joe, J-618). Trigger **FIRED (J-615)**. **Grounding part one done** (the seam at char 18,426); **part two — internal statement boundaries — outstanding.**
 🟡 **Leg F — the bidirectional sweep** · 🟡 **Leg G — records + close.**
 
-🔒 **RULED:** §6 **BOTH** · §7 **S1, the tree** · **Leg C's scope** · §6a **E** · §6b **S1** · §6c **D-131** · §3a **W1** · **§4a-i's amendment** · **the `Leg E` collision** · **§8b — R2 with Joe's boundary** · **Leg E's title**.
+🔒 **RULED:** §6 **BOTH** · §7 **S1, the tree** · **Leg C's scope** · §6a **E** · §6b **S1** · §6c **D-131** · §3a **W1** · **§4a-i's amendment** · **the `Leg E` collision** · **§8b — R2 with Joe's boundary** · **Leg E's title** · **§4b's rule promoted → `D-134`**.
 
-🔓 **STILL OPEN FOR JOE — TWO, AND NEITHER GATES ANYTHING:**
-1. **§4b's designation-collision rule** — promote it out of this task file into a `CLAUDE.md` convention or a D-entry. It governs `J-`/`D-`/`N-`/`M-` project-wide and is currently buried in one milestone's task file.
-2. **The back-fill milestone's name** — `M-RP-MEMBERS` still has no `ROADMAP.md` node and its Leg C pause is still unrecorded there. 📌 **Strictly this belongs to Leg F's sweep, not to this list.**
+🔓 **STILL OPEN FOR JOE — ONE, AND IT GATES NOTHING:**
+1. **The back-fill milestone's name** — `M-RP-MEMBERS` still has no `ROADMAP.md` node and its Leg C pause is still unrecorded there. 📌 **Strictly this belongs to Leg F's sweep, not to this list.**
 
 ✅ **SPENT, recorded so they are not re-opened:** §9's 100 KB size bar · §1b's Leg D structure question · §8a's owed `J-044`/`J-045` citation count (**28, discharged at §8b 2026-07-26**) · **§8a's sequencing** (an output of §8b) · §4a's superseded framing · Leg C's structure consequence · Leg D's format question.
 

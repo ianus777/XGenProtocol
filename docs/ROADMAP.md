@@ -310,8 +310,8 @@ XGen Protocol
 │   │   ↳ unblocked by §8b ruled R2 (Joe, J-618): ARCHIVED = no new records, correction always permitted. Not yet runbooked
 │   ├── ✅ **Leg C `docs/ROADMAP.md`** — 761,422 → 43,741 B; tree kept, prose deleted, five format rules · J-604 (J-602, J-603)
 │   ├── ✅ **Leg D `CLAUDE.md` B2** — 65 of 81 blocks archived, 640,645 → 316,680 B (50.6%); D-094 re-applied after a five-week lapse · J-615 (J-606, J-608–J-614)
-│   ├── 🟡 **Leg E the two-way closure log** — `CLAUDE.md` L21–70; L29's two opposite-running halves meet at char 18,426 · J-618
-│   │   ↳ trigger: Leg D closes — **FIRED J-615**. Title locked (Joe, J-618); grounding part two outstanding
+│   ├── 🟡 **Leg E the two-way closure log** — `CLAUDE.md`'s prose head; the 124,299-char line's two opposite-running halves meet at char 18,426 · J-618
+│   │   ↳ trigger: Leg D closes — **FIRED J-615**. Title locked (Joe, J-618); grounding part two outstanding. ⚠️ identify the line BY CONTENT, not position — it moved L29 → L25 at J-619
 │   ├── 🟡 **Leg F bidirectional sweep** — is every known work item ON the roadmap, not just is every entry true · J-617
 │   └── 🟡 **Leg G records + close** — delete `ROADMAP_ARCHIVE_2026-07-26.md` iff Leg B cleared · J-617
 │       ↳ ⚠️ F and G were `Leg E`/`Leg F` in the task doc and had NO node here until J-617; `E` collided

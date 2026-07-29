@@ -8,6 +8,42 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-619 — D-134 minted: the designation-collision rule leaves the file this project periodically empties
+
+**Date:** 2026-07-29 · **Seat:** Chat (records, verification). Provenance **DELEGATED** — Joe: *go*, after answering Q3a and Q3b directly. ⚠️ **The RULE is Joe's and so is the amendment; only the writing and the evidence are Chat's.** No code.
+
+🔒 **Q3a CONFIRMED AND AMENDED IN ONE ACT (Joe).** The confirmation: a duplicated designation is suffixed in the order the copies appear **in the record**, bare number retired. **The amendment: `c` and beyond** — every prior statement of the rule stopped at `a`/`b`, and **nothing guaranteed a collision involves only two copies.** 🔑 **AND A SECOND AMENDMENT THAT MATTERS MORE, GIVEN IN PASSING:** *"normally will be issued proper nonidentical designations … in some accidents … will be deployed this mechanism … in a moment of revision."* ⇒ **the primary rule is that designations are ISSUED UNIQUE; the split is a REPAIR APPLIED AT REVISION, not an issuing path.** ⚠️ **Chat's formalisation had described the notation without ever saying it was remedial** — which invites a future reader to reach for `a`/`b` as a normal way to allocate a number.
+
+🔒 **Q3b: YES — `D-134` MINTED.** 📌 **The reason is that `CLAUDE.md` is the file this project periodically empties** — 65 blocks archived out of it at J-615 — and the rule is **normative** (retiring a bare number is not cosmetic). A normative rule must not live only in the briefing. The `CLAUDE.md` block is **reduced to a signpost, not deleted**.
+
+🛑 **AND THE FRAMING CORRECTED A MIS-FRAMING OF CHAT'S THAT HAD RUN THROUGH TWO SUMMARIES.** Chat reported Q3 twice as *"§4b's rule is buried in one milestone's task file"*. **It was not.** It had lived in `CLAUDE.md` L13–17 since **2026-07-26 — the same day §4b proposed promoting it** — and in a **broader** form than §4b's, covering the addendum case too. 🔑 **The real open item was never *promote it*; it was the `⚠️ CONFIRM OR AMEND` flag the block had carried unanswered for three days.** Found by grepping the corpus rather than by recalling it.
+
+✅ **BOTH HALVES OF THE CONVENTION MEASURED BEFORE BEING WRITTEN DOWN AS RULE.** ① **collision split — 7 of 7**: `D-030 · 031 · 037 · 038 · 039 · 055 · 056` each have **zero** bare headings in `DECISIONS.md` and one `a` + one `b`; **139 `D-` headings total and those fourteen are the ONLY lettered ones**, so the `D-` family contains no addendum case at all. ② **addendum — bare number survives**: `N-124` (14 refs + its own block heading) + `a` 9 + `b` 6 · `M-RP2.30` 9 + `a` 7 · `M-RP2.31` 6 + `a` 5. ⇒ **the discriminator — does the bare number still exist — holds across all four families with no exceptions, and no third notation is needed.**
+
+⚠️ **THE EVIDENCE TYPES DIFFER AND D-134 SAYS SO RATHER THAN SMOOTHING IT.** ① counts **headings** in one file (authoritative); ② counts **references** across six files, because `N-` and `M-RP` have no headings file. **References are a proxy, not a census of definitions.**
+
+🛑 **`a` MEANS FIRST IN THE RECORD, NOT FIRST IN THE FILE — AND CHAT MISREAD EXACTLY THAT, IN THIS SESSION, WHICH IS WHY THE RULE NOW SAYS IT OUT LOUD.** Reading *"the order they appear in the record"* as file position, Chat reported a **direct conflict** between Joe's rule and §4c's assignment and asked him to choose. **There was no conflict.** §4c was not stating a competing rule — it was establishing which entry is earlier, using the archive's newest-first sort as the evidence. Joe: *"this was already revision of the finding … just the case substantiation."* 🔑 **In a newest-first file the higher line number is the EARLIER record. A reader who has to infer that will infer it wrong in half of all files.**
+
+⚠️ **AND ONE THING IN JOE'S MESSAGE WAS DECLINED RATHER THAN RECORDED.** He wrote *"for various reason known by you (ai)"*. **The causes are NOT known.** §8b explicitly downgraded the `J-317`–`J-321` mechanism to *"the better-supported reading, not established"*, and **no cause is recorded anywhere for `J-044`/`J-045`.** ⇒ **D-134 §6 states that the mechanism exists because collisions occur, not because anyone knows why** — writing an unestablished cause into a permanent decision record would be the defect this project keeps naming.
+
+📌 **D-134 §6 ALSO CARRIES THE NON-OBVIOUS EXCLUSION: NOT EVERY DUPLICATE IS A COLLISION.** `J-317`–`J-321` are byte-identical ⇒ **one copy is DELETED, not suffixed**; suffixing them would enshrine an accident as two distinct events. **The test is whether the bodies differ.**
+
+⚠️ **A SEAT NOTE, FILED AGAINST CHAT.** Rule ② was **not part of Joe's question** — Chat noticed it in the same `CLAUDE.md` block and appended it to Q3 twice without saying so. Joe had to ask *"is this concluding the third question?"* to stop it. 🔑 **Second time in one session that Chat widened a question Joe had already answered.** ② was carried into D-134 on the correct basis instead: **it is a description of practice, so it was VERIFIED rather than asked about.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `DECISIONS.md` — **`D-134` NEW**, 139 → 140 entries · `CLAUDE.md` — the five-line convention block reduced to a one-line signpost at D-134, plus a PLAY block · `tasks/M_DOC_ROADTREE.md` v1.16 → **v1.17** (§4b's promote-proposal marked done, §11's open list 2 → 1) · this entry. 📌 **No ROADMAP node — a standing decision takes none.** **No new N.**
+
+🛑 **AND MINTING THE RULE AGAINST SILENT MIS-POINTING BROKE CITATIONS IN THE SAME COMMIT.** Collapsing the five-line convention block to one signpost shifted everything below it up by four: **`CLAUDE.md` L29 → L25**, surface `L21–70` → `L17–66`. ✅ **The 124,299-char line is byte-identical and untouched by git** — verified, and it is still the only line in the file over 20,000 chars. 🔑 **BUT D-134 §5 EXISTS TO FORBID EXACTLY THIS SHAPE — a citation that silently points at the wrong thing — and Chat produced it in the commit that mints D-134.** ⚠️ **Line numbers into `CLAUDE.md` are a fragile citation form PRECISELY BECAUSE THIS PROJECT DRAINS THAT FILE**; J-615 archived 65 blocks out of it and any future edit above the line moves it again.
+
+✅ **MEASURED AND PARTITIONED, NOT COUNTED — AND THE FIRST PREDICATE WAS WRONG.** A bare `L29` search returned two extra files; opened, both are in `tasks/archive/` and their hits are **substring matches inside `L2941` / `L2951` / `L2967`**, spec line numbers with nothing to do with `CLAUDE.md`. Re-run bounded (`L29(?![0-9])`): **29 hits across 7 files** — **10 in `JOURNAL.md` / `JOURNAL_ARCHIVE.md`** (contemporaneous, never rewritten) · **6 in `RUNBOOK_ROADTREE_LEGD.md`** (COMPLETED, a Leg D verification table true when written) · **1 in a `CLAUDE.md` PLAY block** (the record of the measurement) · **12 forward-looking**, which are the ones Leg E will read as instructions.
+
+🔒 **FIXED BY REPLACING POSITION WITH A CONTENT HANDLE, NOT BY RENUMBERING.** The live `M_DOC_ROADTREE.md` and `docs/ROADMAP.md` now identify the target as **the only line in `CLAUDE.md` over 20,000 chars, 124,299 chars, opening `**Next-active (UI/RP track):** M-RP2.6 ✅ CLOSED (J-410)`** — stable under any edit above it. Leg E's surface is likewise given structurally (*from the `## 🟢 UI component-library` heading to the first `> ### ` block*) rather than as a line range. 📌 **Historical `L29` references are NOT re-pointed** — they were true when written and the handle supersedes them. ⚠️ **Filed, not fixed: `M_DOC_ROADTREE_LEGD_PHASE0_BRIEF.md` still reads `Status: ACTIVE` although Leg D closed at J-615.**
+
+**Next-active.** 🔓 **ONE item left for Joe on this milestone and it gates nothing:** the back-fill milestone's name. 🟡 **Chat's, ungated:** runbook **Leg B-bis** (now unblocked and now governed by D-134) · **Leg E grounding part two** · LIVEFEED §6a. ⚠️ **Two milestones still read 🟢 PLAY at once; still unruled.**
+
+---
+
 ## Entry J-618 — two rulings, a seat correction, and a name that did not survive the test Joe set for it
 
 **Date:** 2026-07-29 · **Seat:** Chat (grounding, measurement, records). **Three decisions land here and their provenance differs — stated separately because collapsing them would launder two of them.** No code; zero `.rs`, zero `ui/**`.

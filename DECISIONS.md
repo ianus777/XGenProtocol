@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-28  
+> **Last updated:** 2026-07-29  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -4915,3 +4915,69 @@ and **always**, including when the run dies or is abandoned:
 📌 **THE ID IS WHERE THE WORK NOW LIVES, WHICH IS USUALLY BUT NOT ALWAYS A CHILD.** `M-RP6.6-INGEST` and `M-RP-FONTS-WOFF2` are true children of their parents. **`M-RP-SKIN ConnStats row-swap` is a re-home** — the row-swap came out of M-RP6.6 and was routed to the separate appearance milestone. Both are the parent still owing the item; recorded so the re-home does not read as a mistake.
 
 📌 **AN ACTIVE DOC WITHOUT AN `Owes:` LINE IS NOT A GAP.** Five of the eight ACTIVE task docs carry none, correctly: they are ACTIVE because **their own milestone is still in flight**, not because they are parents holding spawned work. Only a parent whose own milestone closed needs the line.
+
+---
+
+## D-134 — Designations are issued unique; a duplicate is repaired by lettered split, and the bare number is retired
+
+**Date:** 2026-07-29 · **Layer:** project-wide records discipline (all designation families) · **Ref:** J-619; `M_DOC_ROADTREE.md` §4b, §4c; the `CLAUDE.md` standing-convention block of 2026-07-26 · **Lineage:** D-094 (windowing), D-074 (atomic canonical records), D-131 (broken citations are annotated, never silently repaired).
+
+⚠️ **PROVENANCE.** §4b's collision rule is **Joe's, 2026-07-26**. Chat formalised it into a `CLAUDE.md` standing-convention block the same day, marked *⚠️ CONFIRM OR AMEND*, **and it stood unconfirmed for three days.** Joe **confirmed and amended it 2026-07-29** — the amendment is the third-and-beyond case and the framing in §1 below. **Both are his.** The evidence tables are Chat's, measured 2026-07-29.
+
+### §1 — THE PRIMARY RULE, WHICH IS NOT THE SPLIT
+
+🔒 **DESIGNATIONS ARE ISSUED UNIQUE. THAT IS THE RULE.** The lettered split below is **a repair mechanism for an accident**, applied **at a moment of revision** — when a duplicate is discovered by Joe or by an AI seat reviewing the record. ⚠️ **It is NOT a way of allocating designations, and nothing may be issued as `X-nnna` in the first instance.**
+
+🔑 **STATED BECAUSE THE EARLIER DRAFT READ THE OTHER WAY.** Chat's formalisation described the notation without saying it was remedial, which invites a future reader to reach for `a`/`b` as a normal issuing path. **Joe's framing is what makes the record correct.**
+
+### §2 — ① THE COLLISION SPLIT: THE BARE NUMBER IS RETIRED
+
+🔒 **Where one designation was issued more than once for UNRELATED things, the copies are suffixed in the order they appear IN THE RECORD — `a`, then `b`, then `c`, and so on — and the bare number CEASES TO EXIST.** Applies identically to `J-` · `D-` · `N-` · `M-`.
+
+📌 **THE THIRD-AND-BEYOND CASE IS JOE'S AMENDMENT (2026-07-29).** Every prior statement of this rule stopped at `a`/`b`. **Nothing guarantees a collision involves only two copies**, and a rule that stops at two would have to be re-decided the first time three appear.
+
+🛑 **`a` MEANS FIRST IN THE RECORD, NOT FIRST IN THE FILE, AND IN A NEWEST-FIRST FILE THOSE ARE OPPOSITE.** `JOURNAL_ARCHIVE.md` runs newest-first ⇒ **the HIGHER line number is the EARLIER record** ⇒ it takes `a`. ⚠️ **Written explicitly because Chat misread exactly this on 2026-07-29** — reading *"order they appear in the record"* as file position, and manufacturing a contradiction with §4c that did not exist. **A reader who has to infer this will infer it wrong in half of all files.**
+
+✅ **EVIDENCE — measured over `DECISIONS.md` headings, 2026-07-29. The rule was practised SEVEN times before it was ever written down, and it holds 7 of 7:**
+
+| family | bare heading | `a` | `b` |
+|---|---|---|---|
+| `D-030` · `D-031` · `D-037` · `D-038` · `D-039` · `D-055` · `D-056` | **0 each** | 1 each | 1 each |
+
+📌 **139 `D-` headings total, and the fourteen above are the ONLY lettered ones** — so the `D-` family contains no addendum case at all, and every letter in it is a collision split.
+
+### §3 — ② THE ADDENDUM: THE BARE NUMBER SURVIVES
+
+🔒 **A follow-on that EXTENDS OR CORRECTS an existing record takes the next free letter while the original KEEPS ITS BARE NUMBER.**
+
+✅ **EVIDENCE — measured across `CLAUDE.md`, `CLAUDE_HISTORY.md`, `JOURNAL.md`, `JOURNAL_ARCHIVE.md`, `DECISIONS.md`, `docs/ROADMAP.md`, 2026-07-29:**
+
+| family | bare | `a` | `b` |
+|---|---|---|---|
+| `N-124` | **14 refs, own block heading** | 9 | 6 |
+| `M-RP2.30` | **9** | 7 | 0 |
+| `M-RP2.31` | **6** | 5 | 0 |
+
+⚠️ **EVIDENCE TYPE DIFFERS BETWEEN §2 AND §3 AND THE DIFFERENCE IS STATED RATHER THAN SMOOTHED.** §2 counts **headings** in one file, which is authoritative. §3 counts **references** across six files, because `N-` and `M-RP` designations have no single headings file; the bare `N-124` does carry its own block heading in `CLAUDE.md`, which is the strongest single piece of §3's evidence. **References are a proxy, not a census of definitions.**
+
+### §4 — THE DISCRIMINATOR, AND WHY IT NEEDS NO NEW NOTATION
+
+🔑 **ASK WHETHER THE BARE NUMBER STILL EXISTS.** Present ⇒ the letters are **addenda**. Absent ⇒ the letters are a **collision split**. ✅ **Measured above across all four families with no exceptions** ⇒ the two conventions coexist unambiguously and **no third mark is needed.**
+
+🔒 **WHICH MAKES RETIRING THE BARE NUMBER NORMATIVE, NOT COSMETIC.** A collision split that leaves the bare number in place destroys the only discriminator there is.
+
+### §5 — 🛑 NEVER RESOLVE A COLLISION BY RENUMBERING ONE SIDE TO A FREE NUMBER
+
+⚠️ **Every existing citation of the old number would then silently point at the wrong record**, and citations are how this project's chronicle is navigated at all. **The split is the only permitted repair.** 📌 **Corollary: every surviving citation of a retired bare number must be re-pointed to `a` or `b` INDIVIDUALLY** — there is no mechanical way to tell which a bare citation meant. Measured for the two live cases: **28 citations.**
+
+### §6 — WHAT THIS ENTRY DOES **NOT** CLAIM
+
+🛑 **THE CAUSES OF THE KNOWN DUPLICATES ARE NOT ESTABLISHED, AND THIS RECORD DOES NOT ASSERT THEM.** `M_DOC_ROADTREE.md` §8b downgraded the `J-317`–`J-321` mechanism to *"most likely a write that emitted each entry twice — the better-supported reading, not established"*; **no cause is recorded anywhere for `J-044` / `J-045`.** ⇒ **This mechanism exists because collisions occur, not because anyone knows why they occur.** Establishing causes is separate measurement work and is not owed by this decision.
+
+⚠️ **AND NOT EVERY DUPLICATE IS A COLLISION.** `J-317`–`J-321` are **byte-identical pairs** ⇒ **one copy is DELETED, not suffixed.** 🔑 **Suffixing them would enshrine an accident as two distinct events** — the opposite of what this rule is for. **The test is whether the bodies differ.**
+
+### §7 — STANDING WORK THIS RULE GOVERNS
+
+🟡 **`M-DOC-ROADTREE` Leg B-bis executes the only two known live collisions**, under §8b's ruling that `JOURNAL_ARCHIVE.md` may be corrected: `J-044` → `J-044a` (L17057) / `J-044b` (L16957) · `J-045` → `J-045a` (L17161) / `J-045b` (L17128), **28 citations re-pointed individually**, both bare numbers retired.
+
+📌 **The `CLAUDE.md` standing-convention block is reduced to a pointer at this entry** rather than deleted — the briefing keeps the signpost, the permanent record keeps the rule. **Rationale: `CLAUDE.md` is periodically drained (65 blocks archived at J-615); a normative rule must not live only in the file this project empties.**

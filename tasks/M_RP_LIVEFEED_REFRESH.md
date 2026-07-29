@@ -1,8 +1,8 @@
 # M-RP-LIVEFEED-REFRESH — the live event router behind the members and rooms panels
 > **Status**: ACTIVE  
-> Version: 1.10  
+> Version: 1.11  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-27  
+> **Last updated**: 2026-07-29  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -339,14 +339,22 @@ pub struct NegotiatedCapabilities {
 
 ## §6 — Which events, which consumer
 
-| Event | Consumer store | Effect |
-|---|---|---|
-| `MembershipJoin` | address-book | add the member to the roster; resolve the name (book, else xgid tail) |
-| `MembershipLeave · Kick · Ban · NodeEject` | address-book | remove the member from the roster |
-| `MembershipInvite · Mute · NodeUnban` | — | **v1: ignored, deliberately.** Neither changes who is in the room *now*. Recorded so the omission reads as a choice |
-| `StateSpaceCreate · StateDmSpaceCreate` | spaces-state | add the Space to the tree |
-| `StateRoomCreate` | spaces-state | add the room under its Space |
-| `StateRoomUpdate · StateSpaceUpdate` | spaces-state | update the existing entry in place |
+⚠️ **THE ROUTER BRANCHES ON A JSON STRING, NOT ON A RUST NAME.** `Event` carries `#[serde(rename = "type")]` (`xgen-common/src/wire.rs:476`), `desktop.rs:395` emits the whole `Event` verbatim, and `app_client.svelte:551` pushes it into `ingest` untouched ⇒ **the webview sees `payload.type` holding the wire string** (`"membership.join"`, not `MembershipJoin`). The first column below is therefore written as the wire string; the Rust variant is the same row's identity, not the thing the branch tests.
+
+| Event — `payload.type` | Consumer store | ⚠️ Whose identity the row is about | Effect |
+|---|---|---|---|
+| `membership.join` | address-book | **`sender`** — the joiner signs their own join | add the member to the roster; resolve the name (book, else xgid tail) |
+| `membership.leave` | address-book | **`sender`** — the leaver signs their own leave | remove the member from the roster |
+| `membership.kick` · `membership.ban` | address-book | **`content.target_identity`** — ⚠️ `sender` is the **MODERATOR** | remove the member from the roster |
+| `membership.node_eject` | address-book | **`content.target_identity`** — ⚠️ `sender` is the **NODE** | remove the member from the roster |
+| `membership.invite` · `membership.mute` · `membership.node_unban` | — | — | **v1: ignored, deliberately.** None of the three changes who is in the room *now*. Recorded so the omission reads as a choice |
+| `state.space_create` · `state.dm_space_create` | spaces-state | — (`space_id`) | add the Space to the tree |
+| `state.room_create` | spaces-state | — (`space_id`; ⚠️ `room_id` is the EMPTY STRING — the event **is** the Room, `xgen-common/src/wire.rs:466-467`) | add the room under its Space |
+| `state.room_update` · `state.space_update` | spaces-state | — | update the existing entry in place |
+
+🛑 **§6-i — THE SUBJECT FIELD IS NOT UNIFORM ACROSS THE REMOVE ROWS, AND UNTIL v1.11 THIS TABLE COLLAPSED ALL FOUR INTO ONE (Leg 0 second-reader pass, Chat, 2026-07-29).** v1.10 read `MembershipLeave · Kick · Ban · NodeEject` as a single row — *"remove the member from the roster"* — and named **no field at all**. Grounded: `protocol_audit.rs:110-113` puts `identity_id` = `sender` for `leave`; `:121-135` puts `kicked_id` / `banned_id` = **`content.target_identity`** with `sender` recorded separately as `kicker_id` / `banner_id`; `admin_ops.rs:4207` builds `node_eject` as `{ "target_identity": … }` and `emit_node_membership_event` signs it with **`rt.node_keypair`** ⇒ its `sender` is the node. **A router reading `sender` uniformly removes the moderator, or the node, instead of the person who was removed** — and it would pass on `join` and `leave`, which are the first two things Leg D exercises. ⇒ **the defect would have shipped looking correct.** 🔑 **This is the recurring species — a claim narrower than the thing it describes — and it fell the moment `wire.rs` and the node emitters were OPENED, not on any re-read of this document.**
+
+📌 **`target_identity` IS A CONVENTION, NOT A TYPE.** The only struct that declares it is `MembershipMuteContent` (`xgen-common/src/wire.rs:712-713`) — the one membership event this milestone **ignores**. `kick` / `ban` / `node_eject` build the field as raw `serde_json::json!`. ⇒ **the router must read it defensively and drop the event if it is absent**, because no compiler is holding the producers to it.
 
 ⚠️ **SCOPING IS A CORRECTNESS REQUIREMENT, NOT AN OPTIMISATION.** A `membership.*` event for a Space the user is not currently scoped to must not touch the roster on screen. The scope check is `roomLatch.effectiveSpaceId`, the same one the fill uses.
 
@@ -356,9 +364,25 @@ pub struct NegotiatedCapabilities {
 
 ---
 
+### 🛑 §6a — THE `membership.*` HALF OF THE TABLE IS A PARTITION. THE `state.*` HALF IS NOT. (Leg 0 second-reader pass, Chat, 2026-07-29)
+
+**Both halves were checked in the same direction and then in the reverse direction — not *do the names in §6 exist*, but *does §6 name everything the wire carries*. The two halves came back different.**
+
+✅ **`membership.*` — COMPLETE.** `xgen-common/src/wire.rs` carries **exactly 8** `membership.*` strings (`invite · join · leave · kick · ban · node_eject · node_unban · mute`, declared L43-L58, mapped L180-L187, parsed L274-L281). §6 names **all 8** — 1 add, 4 remove, 3 deliberately ignored. ⇒ **Leg A's event surface is closed, and Leg A's runbook may open on it.**
+
+🛑 **`state.*` — 5 OF 14. NINE ARE UNNAMED, AND §6 HAS NO "IGNORED" ROW FOR THEM.** The wire carries fourteen `state.`-prefixed strings; §6 names five. Unnamed: `state.federation_add` · `state.node_priority` · `state.dm_promote` · `state.space_migrate` · `state.ai_operator_delegate` · `state.ai_operator_revoke` · `state.space_pacing` · `state.space_temperature_visibility` · `state.mls_group_init`.
+
+⚠️ **AND ONE OF THEM CANNOT BE FOUND BY READING RUST VARIANT NAMES AT ALL: `MlsGroupInit` → `"state.mls_group_init"`** (`wire.rs:232`). A branch written as `type.startsWith('state.')` catches it; a table written in variant names never sees it. 🔑 **The wire string and the variant name are different namespaces, and §6 was written in the wrong one** — the same root as the `payload.type` note above.
+
+📌 **`state.dm_promote` and `state.space_migrate` are the two that plausibly change the Space tree**, which is Leg B's whole subject. The rest are policy, AI-operator and crypto events. **None of this is measured yet — what is measured is that the table does not account for them.**
+
+⇒ **§6a GATES LEG B's RUNBOOK, NOT LEG A's.** Leg B may not open until every `state.*` string has a row: consumed, or ignored with the reason written. 🔑 **A census is not a partition — second instance of that species in eight days, and the first one also survived every re-read of the document that carried it.**
+
+---
+
 ## §7 — Legs
 
-**Leg 0 — Phase-0.** This document. ⚠️ **Read by a second reader against §6's event table and `wire.rs` before any runbook opens.** No code.
+**Leg 0 — Phase-0.** This document. ✅ **SECOND-READER PASS DONE 2026-07-29 (Chat), against `xgen-common/src/wire.rs` + the node emitters, in BOTH directions.** Three findings, all landed in §6 at v1.11: the `payload.type` namespace, §6-i's non-uniform subject field (**would have shipped a correct-looking router**), §6a's `state.*` partition gap. **§7's precondition is discharged for Leg A and NOT for Leg B.** No code.
 
 **Leg A — the router + the members consumer.** The `membership.*` branch on the existing `xgen-event` listener plus `addMember`/`removeMember` on the address-book store. **Surface: `ui/client/src/app_client.svelte`, `ui/common/lib/stores/address-book.svelte.ts`.** Frontend only; moves the **`svelte-check`** floor (baseline 0 err / 34 warn / 15 files). **Satisfies `M_RP_MEMBERS.md` §5 and unblocks its Leg C.**
 
@@ -387,6 +411,9 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item below that says "observe
 - [ ] §5's reconnect rule **exercised**, once ruled — **Leg C + Leg D**
 - [ ] `svelte-check` floor re-**measured** on the final tree, no new warnings — **Legs A, B, C**
 - [ ] registry count **measured** with composition, churn returns to baseline — **Leg D**
+- [ ] §6-i's subject field: `membership.kick` **exercised** and the **TARGET** leaves the roster while the **MODERATOR** stays — **Leg D**
+
+🛑 **AND THAT LAST ITEM IS NEW AT v1.11 BECAUSE THE DoD HAD A HOLE THE SIZE OF §6-i.** Every membership item above observes `membership.join` — the one variant whose subject **is** `sender`. ⇒ **a router that read `sender` uniformly would have passed this entire DoD.** 🔑 Applying `M_RP_MEMBERS.md` §8b's rule to itself: **a DoD that only exercises the easy variant is a check that cannot fail on the hard one.** ⚠️ `kick` needs a node-admin op to drive it, not a second client — **that is a real addition to Leg D's surface and it is named here rather than discovered there.**
 
 ---
 

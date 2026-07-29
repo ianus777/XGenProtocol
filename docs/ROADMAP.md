@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.4  
+> Version: 6.5  
 > Date: May 2026  
 > **Last updated**: 2026-07-29  
 > Language: English  
@@ -286,6 +286,15 @@ XGen Protocol
 │   │   ├── ✅ **M-RP3 sampler** — `xgen-sampler` test-bed, tabbed by class×arity, static header · J-422 (J-423, J-433, J-466)
 │   │   ├── ✅ **M-RP4 processors + widget tier** — 4 processor kinds, D-099/D-102, first two widgets · J-435 (J-441, J-443, J-444, J-445, J-453, J-454, J-455, J-456)
 │   │   └── ✅ **M-RP5 dd track** — `entity-avatar` → `entity-panel` → `entity-context-menu` · J-462 (J-463, J-464, J-465, J-467, J-468, J-469)
+│   ├── 🟢 **M-RP-LIVEFEED-REFRESH** — the live event router behind the members and rooms panels · J-598
+│   │   ├── ✅ **Leg 0 Phase-0** — routing shape + delta-vs-fill boundary locked; second-reader pass over §6 vs `wire.rs` done, three findings · J-616 (J-598, J-601)
+│   │   ├── 🟡 **Leg A router + members consumer** — runbook `tasks/RUNBOOK_LIVEFEED_LEG_A.md` v1.0 PENDING; two files, frontend only
+│   │   │   ↳ trigger: §5 of the runbook locked by Joe (the unresolved-name render)
+│   │   ├── 🟡 **Leg B spaces/rooms consumer**
+│   │   │   ↳ trigger: §6a cleared — 9 of 14 `state.*` wire strings still have no row
+│   │   ├── 🟡 **Leg C reconnect rule** ↳ trigger: §5 of the milestone ruled (Joe)
+│   │   ├── 🟡 **Leg D live verify** — two identities, one observer; `membership.kick` added at v1.11
+│   │   └── 🟡 **Leg E records + close**
 │   ├── 🟡 **Clean-table UI milestone** — the live UI build
 │   │   ↳ trigger: Round-2 audit GO + M10 closed *(transcribed from the UI container)*
 │   └── 🟡 **Multi-device arc** — R2-F09 ↳ trigger: the UI prototype exercises device add/remove

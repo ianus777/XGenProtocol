@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.6  
+> Version: 6.7  
 > Date: May 2026  
 > **Last updated**: 2026-07-29  
 > Language: English  
@@ -305,11 +305,13 @@ XGen Protocol
 │   ├── 🟡 **Leg B precondition**
 │   │   ├── ✅ **P1 unlinked DONE markers** — 94 → 5, all five resolve · J-599
 │   │   └── 🟡 **P2 unresolved refs** — measured, not cleared
-│   │       ↳ trigger: §8a ruled — whether `Leg B-bis` exists
+│   │       ↳ trigger: Leg B-bis runs
+│   ├── 🟡 **Leg B-bis journal repair** — dedup `J-317`–`J-321` (25,127 B) · split `J-044`/`J-045`, 28 citations re-pointed individually · header fix · J-618
+│   │   ↳ unblocked by §8b ruled R2 (Joe, J-618): ARCHIVED = no new records, correction always permitted. Not yet runbooked
 │   ├── ✅ **Leg C `docs/ROADMAP.md`** — 761,422 → 43,741 B; tree kept, prose deleted, five format rules · J-604 (J-602, J-603)
 │   ├── ✅ **Leg D `CLAUDE.md` B2** — 65 of 81 blocks archived, 640,645 → 316,680 B (50.6%); D-094 re-applied after a five-week lapse · J-615 (J-606, J-608–J-614)
-│   ├── 🟡 **Leg E `CLAUDE.md` B1** — the prose and the 124,299-char accretion line
-│   │   ↳ trigger: Leg D closes — **FIRED J-615**; ready to open, descriptive title is Joe's (D-123)
+│   ├── 🟡 **Leg E the two-way closure log** — `CLAUDE.md` L21–70; L29's two opposite-running halves meet at char 18,426 · J-618
+│   │   ↳ trigger: Leg D closes — **FIRED J-615**. Title locked (Joe, J-618); grounding part two outstanding
 │   ├── 🟡 **Leg F bidirectional sweep** — is every known work item ON the roadmap, not just is every entry true · J-617
 │   └── 🟡 **Leg G records + close** — delete `ROADMAP_ARCHIVE_2026-07-26.md` iff Leg B cleared · J-617
 │       ↳ ⚠️ F and G were `Leg E`/`Leg F` in the task doc and had NO node here until J-617; `E` collided

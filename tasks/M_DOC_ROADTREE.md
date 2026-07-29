@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.15  
+> Version: 1.16  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-29  
 > Language: English  
@@ -100,7 +100,7 @@
 
 📌 **102 tree nodes carry a `J-` reference; 81 do not.** That is Leg C's real link-audit surface — **81 nodes, not 775.**
 
-### 🔓 CONSEQUENCE FOR LEG C, AND IT IS JOE'S BECAUSE IT IS STRUCTURE
+### ✅ CONSEQUENCE FOR LEG C — SPENT (Leg C closed J-604; marker struck 2026-07-29, J-618)
 
 **Leg C was scoped as *convert 775 prose entries into a tree that does not yet exist*. Measured, the work is different and smaller:**
 1. **The tree EXISTS and is maintained.** It is kept, not invented.
@@ -214,7 +214,7 @@
 
 🔒 **PRECONDITION STATUS: P1 CLEARED · P2 MEASURED, NOT CLEARED.** ⚠️ **The archive's delete condition is therefore NOT met**, and `docs/ROADMAP_ARCHIVE_2026-07-26.md` stays until set B is closed.
 
-🔓 **JOE'S DECISION — SUPERSEDED BY §4a BELOW; the framing here was wrong.** *Does set B get retrospective entries (the J-102/J-103 precedent), or is the ROADMAP prose kept in place?*
+✅ **SPENT — SUPERSEDED BY §4a BELOW; the framing here was wrong** (marker struck 2026-07-29, J-618). *Does set B get retrospective entries (the J-102/J-103 precedent), or is the ROADMAP prose kept in place?*
 
 ### ⚠️ §4a — THE ABOVE READING WAS WRONG. RETRACTED AND CORRECTED (2026-07-26, after Joe asked for the context)
 
@@ -337,7 +337,7 @@
 
 🔒 **RULED — BOTH. ⚠️ PROVENANCE: DELEGATED, NOT A CONSIDERED LOCK.** Joe: *"both points by your recommendations."* **Recorded as delegation** per the standing convention that *"as you recommend"* is not the same act as a lock. 📌 **The practical consequence of that distinction: if Leg D's first pass shows the PLAY head does not fit §3's node format, that is not a Joe reversal — it is the delegation reaching its limit, and it comes back to him.**
 
-🔑 **AND THE SCOPE RULING CARRIES ONE THING CHAT'S PROPOSAL EXPLICITLY DID NOT:** Leg D is in scope, but **§3's format is NOT assumed to be Leg D's format.** The two documents share a *disease* (append-only narration in a document meant to show current state); they do **not** demonstrably share a *cure*. ROADMAP is 586 closed nodes in a nested structure; the PLAY head is a **block sequence**, its worst offender a single 124,299-character line. ⚠️ **Applying a node format to a block document without measuring it first is exactly the "claim narrower than the thing it described, reused as if complete" defect.** ⇒ **Leg D opens with its own grounding pass, and its format is 🔓 OPEN until that pass runs.**
+🔑 **AND THE SCOPE RULING CARRIES ONE THING CHAT'S PROPOSAL EXPLICITLY DID NOT:** Leg D is in scope, but **§3's format is NOT assumed to be Leg D's format.** The two documents share a *disease* (append-only narration in a document meant to show current state); they do **not** demonstrably share a *cure*. ROADMAP is 586 closed nodes in a nested structure; the PLAY head is a **block sequence**, its worst offender a single 124,299-character line. ⚠️ **Applying a node format to a block document without measuring it first is exactly the "claim narrower than the thing it described, reused as if complete" defect.** ⇒ **Leg D opens with its own grounding pass, and its format is ✅ SPENT — the pass ran and Leg D closed at J-615 (marker struck 2026-07-29, J-618).**
 
 ---
 
@@ -372,9 +372,9 @@
 
 🔑 **AND THE UNBLOCK IS §0 OF THAT RUNBOOK, NOT A WAIVER OF §4.** §4 demanded 775 entries be proven redundant before any deletion. **`ROADMAP_ARCHIVE_2026-07-26.md` is committed and git holds every byte of every version** ⇒ **nothing here is recoverable-in-principle; it is recoverable in two commands.** ⚠️ **The bar was mis-set, not met early:** the real question is *do the surviving tree's links work* — **81 lookups** — and that is Pass 1. 📌 **§4's precondition is therefore SATISFIED BY V7 (`git show a1d3630:docs/ROADMAP.md`), which runs BEFORE the deletion, not by the walk it originally specified.**
 
-⚠️ **ONE DoD NUMBER MOVES AND IT IS NOT FUDGED.** §9 requires ROADMAP *under 100 KB*; the surviving tree alone is **79,802 B** and the kept scaffolding brings the end state to **~113 KB**. 🔓 **Chat proposes §9's bar move to `≤ 120 KB`** — the alternative is trimming *"How to use this view"* (12.9 KB) and *"Cross-cutting"* (12.4 KB), which are **instructions and standing context, not chronicle**, and cutting them to hit a round number would be **optimising the metric rather than the document.**
+⚠️ **ONE DoD NUMBER MOVES AND IT IS NOT FUDGED.** §9 requires ROADMAP *under 100 KB*; the surviving tree alone is **79,802 B** and the kept scaffolding brings the end state to **~113 KB**. ✅ **SPENT — Leg C landed at 43,741 B and beat the original 100 KB bar by more than half; the 120 KB amendment was WITHDRAWN at J-604** (marker struck 2026-07-29, J-618). ~~Chat proposes §9's bar move to `≤ 120 KB`~~ — the alternative is trimming *"How to use this view"* (12.9 KB) and *"Cross-cutting"* (12.4 KB), which are **instructions and standing context, not chronicle**, and cutting them to hit a round number would be **optimising the metric rather than the document.**
 
-**Leg D — CLAUDE.md.** Same treatment on the PLAY head. **Surface: `CLAUDE.md`, `CLAUDE_HISTORY.md`.** ✅ **In scope — §6 ruled BOTH.** 🔓 **Its FORMAT is open** and opens with its own grounding pass (§6's rider): §3's node format is not assumed to transfer to a block document.
+**Leg D — CLAUDE.md.** Same treatment on the PLAY head. **Surface: `CLAUDE.md`, `CLAUDE_HISTORY.md`.** ✅ **In scope — §6 ruled BOTH.** ✅ **SPENT — the grounding pass ran and Leg D closed at J-615** (marker struck 2026-07-29, J-618). ~~Its FORMAT is open~~ and opens with its own grounding pass (§6's rider): §3's node format is not assumed to transfer to a block document.
 
 ---
 
@@ -391,14 +391,30 @@
 🔒 **§6a, §6b AND §6c ARE ALL RULED (§6b — S1, B2 only, J-611).** **§6a — E (Joe locked 2026-07-28, option authored by Chat):** classify each block by **what its own text says, not by its lead symbol**; blocks that self-declare closed archive with the 42, and the residue stays in the live head to be handled when work next reaches it — D-131 applied to blocks instead of citations. ⚠️ **R2 IS WITHDRAWN.** Reading the 22 showed the lead symbol marks the **finding inside** the block, not the block's state (L193 leads 🔒 and opens *Leg C ✅ CLOSED*), and that their designations — `N-118`, `N-120`, `N-124`, `N-124a`, `N-124b`, `D-122`, `D-123` — **already have canonical headings**. 📌 **The promotion-successor milestone may not exist as separate work; the residue looks like 4–6 blocks.** *[⚠️ SUPERSEDED — the measured residue is 14 blocks (J-611), and §A's read re-cuts it again (J-612).]* **§6c — D-131:** a citation proven broken is annotated at the site, never silently repaired. 🔒 **§6b RULED — S1 (delegated 2026-07-28): LEG D COVERS B2 ONLY.** B2 is 81 discrete `> ###` blocks with findable starts and ends; **B1 has no boundaries to move** — its bulk is L29, one line of 124,299 chars. ⚠️ **Stated cost:** Leg D takes `CLAUDE.md` **640,645 → ~410,000 B** and **L29 survives untouched**. Bounded and finishing, but it does not fix what made the file unreadable.
 🛑 **NOTHING IS AUTHORISED FOR DELETION.** Phase-0 §7 lists four things **NOT MEASURED**, the first being that a resolving citation proves a record exists and **not** that the block's substance is in it.
 
-🛑 **THE MOVE SET IS 62 BLOCKS — THIRD REVISION, ONE CAUSE (J-613).** Kickoff said 7 self-declared closed, Phase-0 §6a said 6, runbook v1.0 said a move set of 50. **Each classified a bucket it was handed rather than all 81 blocks.** Measured: **42 ✅ + 4 self-declared closed** (L177 L193 L251 L255) **+ 5 stale-closed** (L175 L241 L243 L245 L249) **+ 11 that the census called 🟢 live** (L123 L145 L151 L155 L161 L165 L167 L191 L219 L259 L261) **= 62**; **19 stay**; 62 + 19 = 81 ✔. 🔑 **THE DECISIVE EVIDENCE IS INSIDE `CLAUDE.md`:** every one of those eleven is a phase-0 or design-lock block whose milestone **this same head later closes** — L123 against L125, L259 against L189, L219 against L213. ⚠️ **THE 17 🟢🟡 BLOCKS HAD NEVER BEEN CLASSIFIED**, only counted as live by lead symbol, which is exactly what ruling E forbids. 🔓 **L195 L199 L201 remain open under §3a (W1 recommended)**; under W1 the set is 65. **2 held** for pointing at milestones with no record anywhere (L75 → M-RP-SKIN, L235 → M-RP-SELF-SURFACE). `tasks/RUNBOOK_ROADTREE_LEGD.md` §A is the authority.
+🛑 **THE MOVE SET IS 62 BLOCKS — THIRD REVISION, ONE CAUSE (J-613).** Kickoff said 7 self-declared closed, Phase-0 §6a said 6, runbook v1.0 said a move set of 50. **Each classified a bucket it was handed rather than all 81 blocks.** Measured: **42 ✅ + 4 self-declared closed** (L177 L193 L251 L255) **+ 5 stale-closed** (L175 L241 L243 L245 L249) **+ 11 that the census called 🟢 live** (L123 L145 L151 L155 L161 L165 L167 L191 L219 L259 L261) **= 62**; **19 stay**; 62 + 19 = 81 ✔. 🔑 **THE DECISIVE EVIDENCE IS INSIDE `CLAUDE.md`:** every one of those eleven is a phase-0 or design-lock block whose milestone **this same head later closes** — L123 against L125, L259 against L189, L219 against L213. ⚠️ **THE 17 🟢🟡 BLOCKS HAD NEVER BEEN CLASSIFIED**, only counted as live by lead symbol, which is exactly what ruling E forbids. ✅ **SPENT — §3a W1 was RULED (delegated) 2026-07-29 and the move set closed at 65** (marker struck 2026-07-29, J-618). ~~L195 L199 L201 remain open under §3a (W1 recommended)~~; under W1 the set is 65. **2 held** for pointing at milestones with no record anywhere (L75 → M-RP-SKIN, L235 → M-RP-SELF-SURFACE). `tasks/RUNBOOK_ROADTREE_LEGD.md` §A is the authority.
 
-**Leg E — the B1 prose and the 124,299-char accretion line.** 🟡 **PENDING.** ↳ trigger: Leg D closes — **FIRED 2026-07-29 (J-615)**. **Surface: `CLAUDE.md` L21–70.** 🔑 **It opens with its own grounding pass** — what L29 contains has never been measured, only sized, and nothing can move until someone reads it and decides where one statement ends and the next begins. ⇒ **PARSING, NOT MOVING.** 🔓 **The descriptive title is Joe's** (D-123 — naming); the letter is mechanical.
+**Leg E — the two-way closure log.** 🟡 **PENDING.** 🔒 **TITLE LOCKED (Joe, 2026-07-29, J-618** — a direct answer to a bounded question, **not** a delegation; chosen from three candidates that were themselves derived from the grounding measurement below, after Chat's earlier proposal *"the next-active chain"* **failed the test Joe set for it**). ↳ trigger: Leg D closes — **FIRED 2026-07-29 (J-615)**. **Surface: `CLAUDE.md` L21–70.** ⇒ **PARSING, NOT MOVING.**
+
+🔑 **§8-E GROUNDING PASS — PART ONE RUN 2026-07-29 (J-618). L29's SHAPE IS NO LONGER UNMEASURED.**
+
+| region of L29 | share | what it is |
+|---|---|---|
+| chars **0 – 18,426** | 14.8% | a closed-milestone log running **OLDEST-FIRST** — J-410 climbing to J-435 |
+| char **18,426** | — | a single `Entry (Rule 0): this PLAY → JOURNAL J-503` pointer. **Occurs EXACTLY ONCE in the whole line.** The seam |
+| chars **18,426 – 124,299** | 85.2% | a second closed-milestone log running **NEWEST-FIRST** — J-503 falling to J-454 |
+
+**Whole-line content:** 141 `J-` references (**79 distinct**) · 197 `M-RP` milestone mentions · 61 ✅ · 31 `CLOSED (J-…)`.
+
+🛑 **AND THE MEASUREMENT KILLED CHAT'S PROPOSED NAME, WHICH IS WHY IT WAS RUN FIRST.** Chat proposed *"the next-active chain"* on a count of **11** `Next-active` strings. Opened: **only 2 of the 11 are structural heads; the other 9 sit mid-sentence.** The line is not a pointer appended to eleven times — it is **a log of closed milestones**, and the name described a feature incidental to it. 🔑 **Fifth instance this session of a claim narrower than the thing it describes, and it fell to opening rather than counting.**
+
+✅ **GOOD NEWS FOR THE LEG: the seam is a SINGLE FINDABLE POINT, not a gradient** — char 18,426, marked by a string that occurs once.
+⚠️ **BAD NEWS: THE PARSE MUST HANDLE A DIRECTION REVERSAL.** Anything written assuming one ordering **silently mis-orders 85% or 15% of the output** depending on which half it was tested against. 📌 **A parser tested on one half is a probe that cannot fail on the other.**
+📌 **STILL UNMEASURED (part two of the grounding pass):** where one *statement* ends and the next begins **within** each half. The seam is found; the internal boundaries are not.
 
 🛑 **AND THE LETTER `E` WAS ISSUED TWICE — FOUND AND RESOLVED 2026-07-29 (J-617), DELEGATED.** When §6b created *Leg E — the B1 prose* at J-611, §8b's tail already held **`Leg E` — the bidirectional sweep** and **`Leg F` — records + close**, ninety lines below in this same file. **One document, one leg list, two unrelated `Leg E`s** — and the second pair was never carried into `docs/ROADMAP.md` at all, so the milestone's own **closing leg had no node on the board.** 🔑 **THE MILESTONE COULD NOT HAVE CLOSED WITHOUT SOMEONE NOTICING, WHICH IS THE ONLY REASON IT WAS SURVIVABLE.** 🔒 **RESOLVED BY RENUMBER, NOT BY SUFFIX:** the B1-prose leg **keeps `E`** — it is the one `ROADMAP.md`, `RUNBOOK_ROADTREE_LEGD.md`, the Phase-0 brief and five JOURNAL entries already cite — the sweep becomes **`F`**, the close becomes **`G`**. 📌 **The `a`/`b` collision rule (§4b) deliberately does NOT apply here:** it governs **designations** (`J-`, `D-`, `N-`), which are permanent identifiers whose citations must never silently re-point. **Leg letters are positional within one document**, `Leg G` was free repo-wide, and the whole re-point cost was **four lines in this file** — measured by classifying all sixteen repo-wide `Leg E` hits by referent before touching one. ⚠️ **JOURNAL entries citing `Leg E` are contemporaneous records and were NOT rewritten** — they describe the state at the time they were written and remain true.
 
 📌 **LEG D SHIPS NO PLAY BLOCK (P2, delegated 2026-07-28).** D-074's `CLAUDE.md` limb is deliberately empty for this milestone: adding block 82 to the head Leg D exists to drain would grow the defect it is closing. Recorded so the omission is never read as drift.
-### ⚠️ §8a — THREE PIECES OF RULED WORK HAVE NO LEG, AND ONE OF THEM CONTRADICTS THE LEG IT WOULD FALL INTO. 🔓 SEQUENCING IS JOE'S
+### ✅ §8a — THREE PIECES OF RULED WORK HAVE NO LEG, AND ONE OF THEM CONTRADICTS THE LEG IT WOULD FALL INTO. ✅ ANSWERED AS AN OUTPUT OF §8b (2026-07-29, J-618) — NOT A SEPARATE RULING
 
 🔑 **FOUND BY APPLYING `M_RP_MEMBERS.md` §8b's OWN RULE TO THIS DOCUMENT** — *walk every 🔒 and ask WHICH LEG BUILDS THIS.* **§4b and §4c lock three concrete actions. §8 as written builds none of them:**
 
@@ -415,7 +431,7 @@
 **CHAT PROPOSES — a new leg, inserted between B and C:**
 
 > **Leg B-bis — the journal repair.** Three actions, one surface. **Surface: `JOURNAL.md`, `JOURNAL_ARCHIVE.md`** (ROADMAP is **read-only** in this leg — its prose is copied out, not yet removed).
-> 1. **Migrate** the **six surviving set-B bodies** into `JOURNAL` (§4a-i — `J-123 · J-124 · J-125 · J-131 · J-132 · J-135`), each carrying the provenance line *“migrated from ROADMAP; originally a stripped header-chain entry (J-129 §8)”*, **plus one line each recording `J-067 · J-098 · J-109 · J-113` as cited-but-never-written.** ⚠️ **Do NOT reconstruct a body for those four from their citations.** 🔓 **Whether this lands in the archive at those numbers or as a forward entry labelled with them is §4a-i's open amendment — and it decides whether this leg touches `JOURNAL_ARCHIVE.md` at all.**
+> 1. **Migrate** the **six surviving set-B bodies** into `JOURNAL` (§4a-i — `J-123 · J-124 · J-125 · J-131 · J-132 · J-135`), each carrying the provenance line *“migrated from ROADMAP; originally a stripped header-chain entry (J-129 §8)”*, **plus one line each recording `J-067 · J-098 · J-109 · J-113` as cited-but-never-written.** ⚠️ **Do NOT reconstruct a body for those four from their citations.** ✅ **SPENT — §4a-i's amendment was LOCKED (delegated) 2026-07-29: the migration is a FORWARD ENTRY in `JOURNAL.md` and this leg does NOT touch `JOURNAL_ARCHIVE.md` for it** (marker struck 2026-07-29, J-618). ~~Whether this lands in the archive at those numbers or as a forward entry labelled with them is §4a-i's open amendment — and it decides whether this leg touches `JOURNAL_ARCHIVE.md` at all.~~
 > 2. **Delete** one copy of each byte-identical `J-317–J-321` block. ⚠️ **Verify byte-identity immediately before deleting, not from this document's record of it** — a duplicate re-verified is cheap; a wrong delete is unrecoverable outside git.
 > 3. **Split** `J-044` → `J-044a`/`J-044b` and `J-045` → `J-045a`/`J-045b`, **retiring both bare numbers** (normative, per the discriminator rule). ⚠️ **`J-045`'s assignment rests on FILE ORDER ALONE** — §4c states this and it must survive into the entry text, not just this task file.
 > ⚠️ **Every existing citation of `J-044` / `J-045` must be re-pointed in the same commit** — ROADMAP, CLAUDE.md, DECISIONS.md, other task files. **A retired bare number left cited is the exact silent-mis-point failure the convention forbids.** ➕ **Unmeasured: how many such citations exist.** Chat owes that count before the leg is runbooked.
@@ -424,7 +440,7 @@
 - **② Tier:** none.
 - **③ Resource:** the three actions share one surface, one verification method and one commit ⇒ **cheaper as one leg than distributed across B and C.** Splitting them would also put a **deletion** inside a leg that forbids deletion.
 
-🔓 **OPEN — order of work is Joe's (D-123).** Chat can write it; Chat does not get to insert a leg into the sequence.
+✅ **OUTPUT OF §8b, NOT AN INPUT (2026-07-29, J-618).** §8b ruled the archive **may** be edited ⇒ **`Leg B-bis` EXISTS**; §4a-i moved the migration to a forward entry ⇒ **two actions, not three**; and there is only one place left in the sequence ⇒ **the ordering was never free.** 📌 Chat's proposal below stands as written except that **row 1 is spent**. ~~OPEN — order of work is Joe's (D-123). Chat can write it; Chat does not get to insert a leg into the sequence.~~
 
 ---
 
@@ -473,7 +489,24 @@
 **(R3) UNFREEZE, REPAIR, RE-FREEZE — AS ONE NAMED, DATED EVENT.** The archive goes `ARCHIVED → ACTIVE` for exactly one commit, takes §4b + §4c, and returns to `ARCHIVED` with a **`Repaired: 2026-07-xx (J-nnn)`** line naming precisely what changed and why.
 ① None. ② None. ③ Same as R2, **plus one status round-trip.** 🔑 **The difference from R2 is that the exception is an EVENT with a date and a journal number, not a STANDING CLAUSE** — so it cannot be invoked again without repeating the whole visible act. ⚠️ **And git already holds the pre-repair bytes**, so “verbatim and unaltered” survives as a recoverable claim rather than a file-level one.
 
-**CHAT PROPOSES R3.** The defects are real and R1 leaves them in place forever; R2 buys the same repair by permanently weakening the word `ARCHIVED`; **R3 pays once, in public, and the guarantee's exception is itself part of the record.** 🔓 **OPEN — and it gates Leg B-bis, which gates Leg C.**
+**CHAT PROPOSED R3.** ⚠️ **NOT TAKEN. See the ruling below.**
+
+🔒 **§8b RULED — R2, WITH JOE'S OWN BOUNDARY (Joe, 2026-07-29, J-618). A CONSIDERED ANSWER TO A BOUNDED QUESTION, NOT A DELEGATION.**
+
+> **`ARCHIVED` means NO NEW RECORDS. Correction of an existing record is permitted whenever a defect is found.**
+> — Joe: *"correctly 'no new records', but we cannot know if there are another, now not detected errors, which we discover in the future. so i would say 'no new records, but correctable each time it needs it'."*
+
+🔑 **JOE'S REASON IS STRONGER THAN THE ONE CHAT WROTE FOR R2, AND IT DEFEATS R3 ON ITS OWN TERMS.** Chat's R2 entry offered only *same cost as R3, plus precedent risk*. Joe's argument is the real case: **R3 assumes repair is a ONE-TIME EVENT, and nothing supports that assumption.** The seven collisions surfaced only because somebody counted headings; **nothing else in a 2,333,803-byte file has been counted.** ⚠️ **Under R3 every future discovery becomes a fresh ceremony, and that friction pushes a finder toward NOT REPORTING what they find** — the opposite of what an archive is for. 📌 **Chat's R3 recommendation is WITHDRAWN, not overruled on taste.**
+
+⚠️ **THE CLAUSE BELOW IS CHAT'S, NOT JOE'S — PROPOSED IN THE SAME TURN AND NOT SEPARATELY CONFIRMED. IT IS REVERSIBLE AND SHOULD BE READ AS A DRAFT OF JOE'S RULING, NOT AS PART OF IT.** It exists because Chat named *"whoever is editing decides what counts as a repair"* as R2's cost; **Joe's *no new records* already closes most of that, and the clause only makes the boundary explicit.**
+
+- **PERMITTED:** removing an exact duplicate · splitting a designation that names two events · correcting the file's own header metadata
+- **FORBIDDEN:** adding, removing or rewording the substance of any entry
+- **REQUIRED:** every repair leaves a dated `Repaired:` line naming what changed — 🔑 **this keeps the one genuinely good property R3 had (each repair is visible and dated) while granting the standing permission Joe actually ruled for**
+
+✅ **CONSEQUENCE — §8a IS ANSWERED AS AN OUTPUT, NOT AS A SEPARATE QUESTION.** The archive may be edited ⇒ **Leg B-bis EXISTS**, with **two** actions (§4a-i having moved the migration to a forward entry), **one surface**, and only one place left in the sequence. 📌 **§8a needs no separate ruling.**
+
+📌 **B-bis ALSO INHERITS THE HEADER FIX**, now legal under the ruling: the archive's own header still says *"Live window (J-395 … J-376) continues in `JOURNAL.md`"*, and `JOURNAL.md` holds **242 entries, J-617 … J-376** (measured 2026-07-29). Under R1 that sentence was **unfixable by its own rule**; it is now simply a repair.
 
 📌 **A smaller one riding along:** the archive's own header says *“Live window (J-395 … J-376) continues in `JOURNAL.md`”* — **`JOURNAL.md` now runs J-376 … J-599.** The header is stale **and unfixable under its own rule**, which is the same collision in miniature.
 
@@ -518,22 +551,20 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 
 ## §11 — Handoff
 
-⚠️ **REFRESHED 2026-07-29 (J-617). The list below supersedes the pre-Leg-C state this section carried.**
+⚠️ **REFRESHED 2026-07-29 (J-618). SEVEN DEAD OPEN-LOCK MARKERS WERE STRUCK IN THIS PASS** — they sat on questions closed by Legs C and D, by §4a-i and by §3a W1, and **none had ever been unmarked.** 🔑 **That was the whole of Joe's stated orientation problem: the document read as if a dozen things were open when three were.**
 
 ✅ **CLOSED:** Leg 0 · Leg A · **Leg C (J-604** — 761,422 → 43,741 B**)** · **Leg D (J-615** — 640,645 → 316,680 B, 65 of 81 blocks archived**)**.
-🟡 **Leg B — P1 cleared (J-599), P2 measured and NOT cleared.** Its remedy is §8a.
-🔓 **Leg B-bis — proposed, never approved.** 📌 **Now TWO actions, not three:** §4a-i's lock moved the migration into a forward `JOURNAL.md` entry, so B-bis carries the `J-317`–`J-321` dedup and the `J-044`/`J-045` split. ⚠️ **Both remaining actions still target `JOURNAL_ARCHIVE.md` ⇒ B-bis still needs §8b ruled before it can RUN** — what the amendment bought is that **nothing else waits behind it.**
-🟡 **Leg E — `CLAUDE.md` B1 + the 124,299-char L29.** Trigger **FIRED (J-615)**. 🔓 **Descriptive title is Joe's.**
-🟡 **Leg F — the bidirectional sweep** · 🟡 **Leg G — records + close.** Both gained ROADMAP nodes at J-617; neither had one before.
+🟡 **Leg B — P1 cleared (J-599), P2 measured and NOT cleared.** Cleared by B-bis.
+🟡 **Leg B-bis — the journal repair. EXISTS as of §8b's ruling.** **Two actions, one surface (`JOURNAL_ARCHIVE.md`):** ① delete one copy of each byte-identical `J-317`–`J-321` pair (**25,127 B**, re-verified on disk 2026-07-29) ② split `J-044`/`J-045` into `a`/`b` and re-point **28** citations, each resolved individually. 📌 **Plus the header fix**, now legal. **Not yet runbooked.**
+🟡 **Leg E — the two-way closure log.** 🔒 Title locked (Joe, J-618). Trigger **FIRED (J-615)**. **Grounding part one done** (the seam at char 18,426); **part two — internal statement boundaries — outstanding.**
+🟡 **Leg F — the bidirectional sweep** · 🟡 **Leg G — records + close.**
 
-🔒 **RULED:** §6 — **BOTH** · §7 — **S1, the tree** (delegated 2026-07-26) · **Leg C's scope** (locked 2026-07-26) · §6a **E** · §6b **S1** · §6c **D-131** · **§4a-i's amendment (delegated 2026-07-29)** · **the `Leg E` collision (delegated 2026-07-29)**.
+🔒 **RULED:** §6 **BOTH** · §7 **S1, the tree** · **Leg C's scope** · §6a **E** · §6b **S1** · §6c **D-131** · §3a **W1** · **§4a-i's amendment** · **the `Leg E` collision** · **§8b — R2 with Joe's boundary** · **Leg E's title**.
 
-🔓 **STILL OPEN FOR JOE — AND AFTER §4a-i, NONE OF IT GATES LEG E:**
-1. **§8b** — what `ARCHIVED` means when the archive is wrong. Chat proposes **R3**. ⚠️ **Still real and still gating Leg B-bis specifically** — 24 KB of duplication and the `J-044`/`J-045` collisions do not go away — but it is off the main path.
-2. **§8a** — does `Leg B-bis` exist, and where in the sequence. 📌 **Worth re-deciding at its new two-action size.**
-3. **Leg E's descriptive title**, and the **back-fill milestone's name** — `M-RP-MEMBERS` still has no ROADMAP node and its Leg C pause is still unrecorded there.
-4. **§4b's designation-collision rule** — promote it out of this task file into `CLAUDE.md`'s conventions or a D-entry. It is project-wide and currently buried.
+🔓 **STILL OPEN FOR JOE — TWO, AND NEITHER GATES ANYTHING:**
+1. **§4b's designation-collision rule** — promote it out of this task file into a `CLAUDE.md` convention or a D-entry. It governs `J-`/`D-`/`N-`/`M-` project-wide and is currently buried in one milestone's task file.
+2. **The back-fill milestone's name** — `M-RP-MEMBERS` still has no `ROADMAP.md` node and its Leg C pause is still unrecorded there. 📌 **Strictly this belongs to Leg F's sweep, not to this list.**
 
-✅ **SPENT, recorded so they are not re-opened:** §9's 100 KB size bar (Leg C landed at 43,741 B — the 120 KB amendment was withdrawn) · §1b's *does `CLAUDE.md` already contain an unmeasured structure* question (Leg D found the block structure and used it) · §8a's owed `J-044`/`J-045` citation count (**discharged at §8b, 2026-07-26: 28 re-points, each needing individual `a`/`b` resolution**).
+✅ **SPENT, recorded so they are not re-opened:** §9's 100 KB size bar · §1b's Leg D structure question · §8a's owed `J-044`/`J-045` citation count (**28, discharged at §8b 2026-07-26**) · **§8a's sequencing** (an output of §8b) · §4a's superseded framing · Leg C's structure consequence · Leg D's format question.
 
-**Chat owes, carried:** the registry composition model (needs a live client ⇒ INTERACTIVE) · the Ch0–Ch2 thesis read (272,516 B across three chapters).
+**Chat owes, carried:** the registry composition model (needs a live client ⇒ INTERACTIVE) · the Ch0–Ch2 thesis read (272,516 B across three chapters) · **Leg E grounding part two**.

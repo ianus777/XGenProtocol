@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-LIVEFEED-REFRESH Leg A: the router and the members consumer
-> **Status**: PENDING  
-> Version: 1.0  
+> **Status**: ACTIVE  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-29  
 > Language: English  
@@ -14,7 +14,7 @@
 
 **Leg A of `M-RP-LIVEFEED-REFRESH` — the live event router behind the members and rooms panels.** Parent: `tasks/M_RP_LIVEFEED_REFRESH.md` v1.11.
 
-⚠️ **THIS RUNBOOK IS `PENDING`, NOT LOCKED.** §5 carries one open question with a real user-visible surface and it is **Joe's**. Clair does not open this document until its Status reads `ACTIVE` and §5 carries a lock. Authored by Chat under D-123: open §§ carry recommendations plus D-121 lenses; Joe locks.
+⚠️ **THIS RUNBOOK IS `ACTIVE` AND §5 IS CLOSED (Chat, 2026-07-29).** 🔑 **v1.0 and v1.1 both routed §5 to Joe and BOTH WERE WRONG ON THE SEAT.** Joe asked why it was his; it was not. **Joe owns choices between honest options — `M_RP_MEMBERS.md` §6's word form is one. He does not own whether the client asserts something it does not know.** §5② had one honest answer and three dishonest ones, already determined by §6's own governing rule (*staleness AND absence both render UNKNOWN, never as fine*), by D-065, and by the `revoked`-unfed precedent (N-097). ⚠️ **Presenting four options when one was live is UNDER-STEPPING — the named recurring seat error — and the mechanism was that the finding broke §2 of this same runbook two hours after Chat wrote it.** Routing it to Joe was a way of not owning a scope change of Chat's own. **Recorded rather than absorbed.**
 
 🔒 **PRECONDITION DISCHARGED.** §7 of the parent required a second-reader pass over §6's event table against `wire.rs` before any runbook opens. Done 2026-07-29; three findings landed in the parent at v1.11. **The `membership.*` surface is a closed partition — 8 of 8 — which is what makes Leg A openable while Leg B is not** (§6a: the `state.*` half is 5 of 14).
 
@@ -38,14 +38,17 @@
 
 ---
 
-## §2 — Scope: exactly two files
+## §2 — Scope: exactly three files
 
 | File | Change |
 |---|---|
-| `ui/common/lib/stores/address-book.svelte.ts` | `addMember(spaceId, entry)` and `removeMember(spaceId, identityId)` — two new setters, same guard shape as `setResult` |
+| `ui/common/lib/stores/address-book.svelte.ts` | `addMember(spaceId, entry)` and `removeMember(spaceId, identityId)` — two new setters, same guard shape as `setResult`; plus the **unresolved marker** §5 requires |
 | `ui/client/src/app_client.svelte` | one router function on the existing `:551` listener; the `ingest.push` at `:552` stays byte-identical |
+| `ui/common/lib/components/widgets/members-panel.svelte` | **ONE branch** in `toDescriptor`: a member the book was never consulted for carries **no `isAi` claim** rather than `isAi: false` (§5) |
 
-🛑 **NOTHING ELSE.** No `.rs`. No new store. No new Tauri command. No change to `loadMembers`, to the `$effect` at `:169`, or to `members-panel`. **A diff touching a third file is out of scope and stops the leg** (§4 of the parent: the router mutates the same store the fill populates, and gets no privileged setters).
+🔑 **THE THIRD FILE IS §5's ANSWER, NOT SCOPE CREEP, AND IT IS UNAVOIDABLE.** The `?? false` is evaluated at render time from `_book`; `MemberEntry` has no `isAi` field, so **the router cannot reach it from the store side at all.** ⚠️ **A two-file Leg A necessarily ships a false claim.** 📌 **Widening §2 is not widening the leg:** the floors moved are still **`svelte-check` only**, and the A/B split that keeps regressions attributable is untouched.
+
+🛑 **NOTHING ELSE.** No `.rs`. No new store. No new Tauri command. No change to `loadMembers`, to the `$effect` at `:169`, or to `members-panel`'s five-state tree, its self fixture, its DM counterpart or its inert contract. **A diff touching a fourth file is out of scope and stops the leg** (§4 of the parent: the router mutates the same store the fill populates, and gets no privileged setters).
 
 ---
 
@@ -97,28 +100,61 @@ One function in `app_client.svelte`, called from the existing listener. Shape, n
 
 ---
 
-## §5 — 🔓 OPEN, JOE'S: HOW DOES A LIVE-JOINED MEMBER RENDER BEFORE THE BOOK KNOWS THEIR NAME?
+## §5 — 🔓 OPEN, JOE'S: WHAT DOES A LIVE-JOINED MEMBER LOOK LIKE BEFORE THE BOOK KNOWS THEM?
 
-**The situation, measured:** `addMember` writes into `_roster`. It does **not** write `_book`, and the joiner will not be in `_book` — the book is filled by `fill_space_records`, which this leg deliberately does not call. The widget resolves `identity_id` → `_book`, else the **tail-8 xgid**.
+⚠️ **v1.0 OF THIS SECTION ASKED A NARROWER QUESTION THAN THE SITUATION CONTAINS, AND ITS RECOMMENDATION IS WITHDRAWN.** It asked only about the NAME. Walking the render path end to end found a **second** consequence that is worse than the first, and a **scope collision** with §2. Same species as §6-i — caught by opening the thing, not by re-reading the text.
 
-⚠️ **AND THAT TAIL-8 IS ALREADY OVERLOADED.** `M_RP_MEMBERS.md` §6 records that shipped code collapses `not_found` and no-display-name to the same tail-8 render. **A live-joined member becomes a THIRD case wearing the same face** — and unlike the other two, this one resolves by itself a moment later.
+### §5-i — THE RENDER PATH, MEASURED 2026-07-29 AT `a390a26`
 
-### (A) SHIP THE TAIL-8, FILE THE GAP — Chat recommends
-1. **User-visible:** the new member appears **immediately** as `xgid…a1b2c3d4`, and stays that way until the next Space re-latch fires a fill. On a quiet Space that could be the rest of the session.
-2. **Resource:** zero. It is what the widget already does.
-3. **Tier:** honest — the client is not asserting a name it does not have. Widens an already-filed defect **without deepening it**; the third case is added to `M_RP_MEMBERS.md` §6's open item rather than fixed here.
+`toDescriptor` (`members-panel.svelte`) is the only name path for a non-self row:
 
-### (B) FIRE `get_address_book` AFTER AN ADD
-1. **User-visible:** the name appears if the Rust book already holds that identity from an earlier Space. **⚠️ For a genuinely new person it changes nothing** — the book is filled by the DAG drain, and nobody drained them yet. ⇒ **helps only the case that was already going to be fine.**
-2. **Resource:** one invoke per join, plus a whole-book replace into `_book` on the live path. Third writer to a store §4 wants to keep single-writer.
-3. **Tier:** adds an invoke to `$common`'s feeder path for a mostly-empty win.
+```
+name:  rec?.display_name ?? tail(m.identity_id)
+flags: { isAi: rec?.is_ai ?? false }
+where  rec  = addressBook.book[m.identity_id]
+       tail = (xgid) => xgid.split('/').pop() || xgid
+```
 
-### (C) FIRE A FULL `fill_space_records` ON JOIN
-1. **User-visible:** correct names, always.
-2. **Resource:** a full Space DAG drain per join. **This is the fill the milestone exists to avoid**, and parent §4's closing note names exactly this misreading.
-3. **Tier:** ⛔ defeats the milestone. Listed so the rejection is on the record, not to be chosen.
+A live-added member is **not in `_book`** ⇒ `rec` is `undefined` ⇒ both fallbacks fire.
 
-🔓 **Joe's.** ⚠️ **This is the only item in Leg A with a user-visible surface. Everything else in this runbook is derived from an existing lock or is invisible plumbing.**
+🛑 **① THE FALLBACK NAME IS NOT A TAIL-8. IT IS THE WHOLE FINAL PATH SEGMENT, AND IT IS CLIPPED FROM THE WRONG END.** An identity id is `xgen://pubkey/ed25519:<base64>` (`auth.rs:133` `PUBKEY_URI_PREFIX + pubkey_b64`; `mod.rs:267` builds the same shape) ⇒ `tail()` returns **`ed25519:<~44 chars>`**. `entity-item.svelte:123` renders it into `.ei-name`, which `skin.css:2452-2458` styles `overflow: hidden; text-overflow: ellipsis; white-space: nowrap` — **left-anchored, no `direction: rtl`.** ⇒ the user sees **`ed25519:AbCd…`**, and 🔑 **the `ed25519:` prefix is IDENTICAL on every identity in the system, so the clip discards the only distinguishing bytes.** ⚠️ **TWO unresolved members are indistinguishable FROM EACH OTHER**, not merely from resolved ones. 📌 **This is a `M_RP_MEMBERS.md` §6 lock-versus-build gap, NOT Leg A's:** §6 locked *tail-8*, which would have kept the distinguishing end; the shipped code keeps the constant head. **Filed here because Joe locked *tail-8* and should know the build does something else. It is not this leg's to fix.**
+
+🛑 **② AND THE WORSE ONE: `?? false` TURNS *UNKNOWN* INTO *DEFINITELY NOT AN AI*.** `EntityFlags.isAi` is **`isAi?: boolean`** (`ui/core/lib/components/data-dependent/types.ts`) — the type **has** a third state and the widget collapses it. ⇒ **an AI identity that joins live renders with no AI badge, as a human.**
+
+🔑 **THIS IS THE N-097 TRAP, MIRRORED, AND LEG A IS WHAT CREATES IT.** `M-RP-MEMBERS` refused to feed `flags.revoked` precisely because *lighting a shipped affordance from a constant false* is a lie. This is the same defect inverted: **an absent record UNLIGHTS a badge that should be lit.** ⚠️ **It cannot happen today** — the roster only ever arrives from a fill, and the fill always populates the book in the same breath (`app_client.svelte:183-187`). **The roster-without-book state does not currently exist. Leg A invents it.** ⇒ the panel's own governing rule — *staleness and absence both render UNKNOWN, never as fine* — is broken by this leg unless something is done.
+
+🛑 **③ THE SCOPE COLLISION: LEG A AS §2 SCOPES IT CANNOT FIX ②.** The `?? false` is evaluated **at render time, in `members-panel.svelte`**, from `_book`. `MemberEntry` carries no `isAi` field, so **the router cannot influence it from the store side at all.** ⇒ **any honest fix touches a THIRD file, and §2 says a third file stops the leg.** The collision is real and is not resolvable by writing the router more carefully.
+
+### §5-ii — THE OPTIONS, RE-DERIVED
+
+**(A) SHIP AS-IS — two files, accept both consequences.**
+- ① **User-visible:** the member appears instantly as `ed25519:…`, indistinguishable from any other unresolved row, **until the room is re-latched** — the fill's only trigger is the `$effect` on `roomLatch.effectiveSpaceId` (`:169`), so on a room nobody leaves, **that is the rest of the session.** ⚠️ **And an AI joiner is rendered as a human for the same duration.**
+- ② **Resource:** zero.
+- ③ **Tier:** the name half is honest. ⚠️ **The `isAi` half is a false claim the client did not previously make.**
+
+**(B) RE-FETCH `get_address_book` AFTER AN ADD — still two files.**
+- ① **User-visible:** resolves name **and** `isAi` **iff the Rust book already holds that identity from an earlier Space.** For a genuinely new person nothing changes — the book is filled by a DAG drain and nobody drained them. ⇒ **helps the case that was already going to resolve, and misses the case that motivates the question.**
+- ② **Resource:** one invoke per join plus a whole-book replace into `_book` on the live path — a second writer to a store §4 wants single-writer.
+- ③ **Tier:** narrows the false window, does not close it. **A partial fix to a correctness claim is still a correctness claim.**
+
+**(C) FULL `fill_space_records` ON JOIN.** ⛔ A whole Space DAG drain per join — **the fill this milestone exists to avoid**; §4's closing note names this misreading by name. Listed so the rejection is on the record.
+
+**(D) DON'T ASSERT WHAT IS NOT KNOWN — three files.** The widget learns to tell *book consulted, no name* from *book never consulted*, and renders the second as explicitly unresolved with **no `isAi` claim** (`isAi` is already optional — the type needs nothing).
+- ① **User-visible:** the joiner appears immediately and **reads as unresolved rather than as a stranger with an odd name and a confident not-an-AI**.
+- ② **Resource:** a marker from the router, plus a branch in `members-panel.svelte`. ⚠️ **Breaks §2's two-file scope.**
+- ③ **Tier: the only option that asserts nothing false.** 📌 **And its RENDER FORM is not a new question** — it is `M_RP_MEMBERS.md` §6's *distinguishable unresolved rows*, locked at J-588 with the **word form deferred and explicitly Joe's**. D does not open a decision; it **triggers one that has been sitting open since J-588.**
+
+### §5-iii — 🔒 CLOSED: **D — DON'T ASSERT WHAT IS NOT KNOWN. §2 WIDENS TO THREE FILES.**
+
+🔒 **Chat's, taken 2026-07-29, not delegated and not Joe's to be asked for.** A and B ship the panel making a claim about a person the client cannot support, on a network whose entire premise is that **you know who you are talking to**. ⚠️ **The one place this project has repeatedly refused to cut a corner is exactly here** (`revoked` unfed · `entity-item.selected` stranded · *observations, not current truth*). **`isAi: false` from an absent record would be the first time it did.**
+
+**What ships:**
+- A live-added member carries an **unresolved marker** the fill's members do not.
+- `toDescriptor` branches on it: **`flags` omits `isAi` entirely** rather than defaulting it. `isAi?: boolean` is already optional — **the type change is nothing, only the collapse is removed.**
+- **The NAME is unchanged** — `tail()` as today. 📌 **Finding ① is `M_RP_MEMBERS.md` §6's lock-versus-build gap, not this leg's**, and is filed there, not fixed here.
+- 🔑 **D IS A SUBTRACTION. NOTHING NEW APPEARS ON SCREEN**, so §6's still-deferred word form is **not** required and stays deferred and Joe's.
+
+⚠️ **THE ONE THING THAT DOES GO TO JOE, AND IT GATES NOTHING:** he locked **tail-8** at J-588; the build renders the constant `ed25519:` head instead (§5-i ①). **His lock and the shipped code disagree.** It belongs to `M_RP_MEMBERS`, it blocks no leg here, and it is filed rather than silently accepted.
 
 ---
 
@@ -138,10 +174,11 @@ One function in `app_client.svelte`, called from the existing listener. Shape, n
 - [ ] R2 asserted in code: `kick` / `ban` / `node_eject` read `content.target_identity`, with **no `sender` fallback**
 - [ ] R3 asserted in code: add-existing and remove-absent are both no-ops
 - [ ] the three ignored `membership.*` strings return explicitly, each with the parent's §6 reason in a comment
+- [ ] **§5's answer built: a live-added member carries the unresolved marker, and `toDescriptor` OMITS `isAi` for it — never `false`**
 - [ ] `ingest.push` byte-identical; no store gained a privileged setter (parent §2)
 - [ ] `svelte-check` re-measured and quoted; **cargo NOT re-run — a cargo change means scope was exceeded**
-- [ ] exactly two files in the diff
-- [ ] §5 locked by Joe **before** this leg opens, and the locked option is what shipped
+- [ ] exactly three files in the diff
+- [ ] `M_RP_MEMBERS.md` §6 carries the **tail-8 lock-versus-build gap** (§5-i ①), filed not fixed
 
 📌 **`Owes:` on close — `M_RP_MEMBERS.md` §6's third unresolved-row case**, added there whichever way §5 lands.
 

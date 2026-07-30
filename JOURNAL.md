@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-626 — Leg B-ter spawned and titled, and `D-133` forbade the mechanism I had recommended
+
+**Date:** 2026-07-30 · **Seat:** Chat (records). Provenance **LOCK × 2** — Joe ruled the scope call (**spawn the set-B migration as its own leg**) and then the title (**(a) *the eleven that resolve nowhere***, chosen from three candidates). No code.
+
+🛑 **`D-133` FORBIDS THE MECHANISM I RECOMMENDED, AND JOE LOCKED MY WORDING.** I proposed *"spawn it as its own leg with an `Owes:` line"*. Read off disk before writing: **"Leg runbooks never get one. A leg spawns nothing; it is not a parent"** — so B-bis's runbook cannot carry one — and **"an ACTIVE doc without an `Owes:` line is not a gap … they are ACTIVE because their own milestone is still in flight"** — so `M_DOC_ROADTREE.md` does not need one either, since Legs E/F/G are in flight. 🔑 **THE INTENT SURVIVES AND ONLY THE MECHANISM CHANGES:** the debt is carried by §11's leg list and by Leg G's ordering constraint, which is how every other leg dependency in this milestone is recorded. 📌 **Second time today a phrase of mine propagated into a lock — §4's *nearly moot* was the first. The pattern is that MY framing becomes HIS ruling, so my framing has to be checked against the governing doc BEFORE it is offered, not after.**
+
+✅ **`Leg B-ter — the eleven that resolve nowhere`.** ID checked against the whole milestone doc: live IDs are A · B · B-bis · C · D · E · F · G, plus `E-bis` **withdrawn before minting** (J-621) ⇒ `B-ter` is free and follows the `bis` precedent. 📌 **Joe's title reason is recorded because it beat the alternatives on their own ground:** (b) *the set-B migration* silently drops `J-029` — set B is ten, P2 is eleven — and (c) hard-codes counts this arc has already retired three of.
+
+🛑 **THE FINDING THAT MAKES THIS LEG URGENT: LEG C DELETED ALL SIX MIGRATABLE BODIES FROM `ROADMAP.md`.** Measured: refs fell **7→2 · 5→2 · 10→1 · 27→1 · 24→1 · 15→1** for `J-135 J-132 J-131 J-125 J-124 J-123`; their own bodies now exist **only** in `docs/ROADMAP_ARCHIVE_2026-07-26.md` at **L512 · L524 · L528 · L548 · L552 · L556**. ⚠️ **§4a stated the condition explicitly — *their prose must NOT be deleted until the journal carries it* — and it was deleted first.** ⇒ 🛑 **HARD ORDERING CONSTRAINT MINTED: LEG G MUST NOT RUN BEFORE LEG B-TER.** Leg G deletes that archive iff Leg B clears; **had it run, six bodies would be gone permanently.** 🔑 **Nobody's plan contained this constraint until now** — the archive was being retained for two stale *references*, and it turns out to be the sole source for six *records*.
+
+**LEG B-TER's SCOPE — THREE CLASSES, AND THEY ARE NOT THE SAME KIND OF THING:** ① **six bodies to migrate** from the archive ② **four cited-only with no record anywhere** — `J-113 J-109 J-098` (**45 references and no record of its own**) `J-067` ③ **`J-029`, disposition genuinely open** — P2 counts it, §4a-i's table does not cover it, it falls inside set A, whose reading was *not claimed either way*. 📌 **Stated as three classes precisely so the leg is not planned as "eleven of the same thing"** — the recurring defect of this arc.
+
+✅ **`RUNBOOK_ROADTREE_LEGB_BIS.md` v1.2 → v1.3, ACTIVE → COMPLETED.** Its two unmet DoD items are marked **re-homed**, not dropped or ticked. **Owes on close: nothing — but not for the original reason**, which was false and was retracted at J-625.
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/RUNBOOK_ROADTREE_LEGB_BIS.md` v1.3 **COMPLETED** · `tasks/M_DOC_ROADTREE.md` v1.24 → **v1.25** · `docs/ROADMAP.md` v6.13 → **v6.14** · `CLAUDE.md` PLAY head · this entry. **No new D, no new N — an ordering constraint is a leg property, not a rule.**
+
+**Next-active.** 🔓 **Joe: sequencing** — Leg E P1 is runnable now; Leg B-ter needs a runbook first. 📌 **Neither is a gate.**
+
+---
+
 ## Entry J-625 — Leg B-bis's repair executed and verified, and three of the runbook's own figures were wrong
 
 **Date:** 2026-07-30 · **Seat:** Chat (records, verification, cleanup). Provenance **LOCK** — Joe chose **① B-bis first** over Chat's recommendation to run it at the head of a fresh session; then **DELEGATED** × 3 (*go*) through §2, §1a and the P2 re-measurement. No code.

@@ -1,6 +1,6 @@
 # RUNBOOK — M-DOC-ROADTREE Leg B-bis: the journal repair
-> **Status**: ACTIVE  
-> Version: 1.2  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-30  
 > Language: English  
@@ -14,7 +14,7 @@
 
 **Leg B-bis of `M-DOC-ROADTREE` — the journal repair.** Parent: `tasks/M_DOC_ROADTREE.md` v1.18. Governed by **`D-134`** (designations are issued unique; a duplicate is repaired by lettered split, bare number retired).
 
-✅ **THIS RUNBOOK IS `ACTIVE` AS OF 2026-07-30 (J-624). §4 CARRIES A LOCK** — Joe ruled **(A) re-point**, governing **one line**. 🛑 **THE REPAIR EXECUTED AND VERIFIED 2026-07-30 (J-625) — BUT THE LEG IS NOT CLOSED: §6 DEMANDS TWO THINGS NO PROCEDURE SECTION DESCRIBES** (Leg B P2 cleared · the six set-B bodies migrated). ⚠️ **§6's *Owes on close: nothing* IS FALSE.** Scope call open, Joe's — see §6.
+✅ **THIS RUNBOOK IS `COMPLETED` AS OF 2026-07-30 (J-626).** §4 carried a lock (Joe, (A) re-point, one line); the repair executed and verified at J-625. 🛑 **§6's two unmet items were NOT dropped — they are RE-HOMED to `Leg B-ter — the eleven that resolve nowhere`** (Joe's lock, J-626), because they are **authoring, not repair**, and no procedure section here ever described them. 📌 **No `Owes:` line is issued — `D-133`: "Leg runbooks never get one. A leg spawns nothing; it is not a parent."** The debt is carried by `M_DOC_ROADTREE.md` §11's leg list and by Leg G's ordering constraint.
 
 🔒 **UNBLOCKED BY §8b's RULING (Joe, 2026-07-29, J-618):** *`ARCHIVED` means no new records; correction of an existing record is permitted whenever a defect is found.* Under the previous reading this leg could not exist.
 
@@ -131,12 +131,12 @@ Retained for the record, **annotated not deleted**: the archived body stays unto
 - [x] `JOURNAL_ARCHIVE.md` heading census **353 / 353, equal** — ✅ **358/351 → 353/353**
 - [x] archive header names the live window as measured, not as remembered — ✅ **J-624 … J-376 (249)**; ⚠️ **§1c named ONE defective sentence, there were TWO** — the span's low end read `J-046` when the archive reaches **`J-001`**
 - [x] `Repaired:` line added per §8b's clause, naming what changed — ✅
-- [ ] 🛑 **Leg B P2 re-measured and cleared** — **RE-MEASURED, NOT CLEARED (J-625).** All eleven still have no journal entry. ⚠️ **THIS LEG CANNOT CLEAR IT** — P2 is entries never written, not duplicates, and **no procedure section here describes the work**
-- [ ] 🛑 **the six surviving set-B bodies + four never-written numbers (§4a-i)** — **UNSPECIFIED IN THIS RUNBOOK'S BODY.** ⚠️ **Leg C removed `J-029`/`J-067` from `ROADMAP.md`; their only trace is `ROADMAP_ARCHIVE_2026-07-26.md`** ⇒ **retention is load-bearing**
+- [→] 🛑 **Leg B P2 re-measured and cleared** — **RE-MEASURED, NOT CLEARED (J-625); RE-HOMED to `Leg B-ter` (J-626).** All eleven still have no journal entry. **This leg could never clear it** — P2 is entries never written, not duplicates, and no procedure section here describes the work
+- [→] 🛑 **the six surviving set-B bodies + four never-written numbers (§4a-i)** — **RE-HOMED to `Leg B-ter` (J-626).** ⚠️ **Leg C DELETED all six bodies from `ROADMAP.md`; they survive ONLY in `ROADMAP_ARCHIVE_2026-07-26.md`** ⇒ 🛑 **Leg G must not run before Leg B-ter**
 - [x] `docs/ROADMAP_ARCHIVE_2026-07-26.md` retention or deletion is **Leg G's**, not this leg's — ✅ **retained; its delete-condition is correctly unmet**
 - [x] **the `28` figure corrected wherever it appears** — ✅ **three live sites** (`D-134` §5, `D-134` §7, `M_DOC_ROADTREE` §10) corrected to **12** with the superseded value **annotated, not erased**. 📌 **§6's enumeration omitted `D-134`; *wherever it appears* was broader than its own list.**
 
-🛑 **OWES ON CLOSE — THE ORIGINAL *"nothing"* IS RETRACTED (J-625).** This leg owes **the set-B migration**: six retrospective bodies into a journal file + four numbers recorded as never allocated. 🔓 **JOE'S SCOPE CALL:** spawn it as its own leg with a `D-133` `Owes:` line (**Chat's recommendation** — it is authoring, not repair), or widen this runbook. **D-121:** ① no user-visible impact ② roughly doubles the leg ③ elegance tertiary.
+✅ **OWES ON CLOSE — NOTHING, BUT NOT FOR THE ORIGINAL REASON (J-626).** The original *"nothing — this leg discharges §8a"* was **false** and was retracted at J-625. The two owed items are now **re-homed to `Leg B-ter — the eleven that resolve nowhere`**, so this runbook closes owing nothing. 📌 **`D-133` forbids a leg runbook from carrying an `Owes:` line at all**; the re-home is recorded in `M_DOC_ROADTREE.md` §11 and in Leg G's ordering constraint.
 
 🔑 **THREE FIGURES IN THIS RUNBOOK WERE WRONG AND ARE CORRECTED IN PLACE, ANNOTATED NOT ERASED:** §1a's **`25,127 B` is a CHARACTER count** — true delta **−25,614** (25,609 body bytes + 5 terminators) · §1c's live-window figure was stale · **§3.4's claim that §1c is *"independent, any time"* is false** — the header asserts a count §1a changes, so §1c MUST run after §1a.
 

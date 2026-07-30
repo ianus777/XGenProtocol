@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.13  
+> Version: 6.14  
 > Date: May 2026  
 > **Last updated**: 2026-07-30  
 > Language: English  
@@ -308,13 +308,17 @@ XGen Protocol
 │   │   ├── ✅ **P1 unlinked DONE markers** — 94 → 5, all five resolve · J-599
 │   │   └── 🟡 **P2 unresolved refs** — RE-MEASURED J-625, **NOT cleared**: all 11 still have no journal entry
 │   │       ↳ ⚠️ Leg C removed `J-029`/`J-067` from this file — **their only trace is `ROADMAP_ARCHIVE_2026-07-26.md`** ⇒ its retention is LOAD-BEARING and Leg G's delete-condition is correctly unmet
-│   │       ↳ trigger: the set-B migration runs (six bodies + four never-allocated numbers)
-│   ├── 🟢 **Leg B-bis journal repair** — repair EXECUTED and VERIFIED; leg NOT closed · J-625
+│   │       ↳ trigger: **Leg B-ter** runs (six bodies migrated · four recorded as never allocated · `J-029` disposed)
+│   ├── ✅ **Leg B-bis journal repair** — executed, verified, CLOSED · J-626 (J-625)
 │   │   ↳ ✅ census **358/351 → 353/353 EQUAL** · `J-317`–`J-321` one copy each deleted (**−25,614 B measured** — the runbook's `25,127 B` was a CHARACTER count) · survivors byte-identical to `6863702`
-│   │   ↳ ✅ `J-044`→`J-044a`/`J-044b` · `J-045`→`J-045a`/`J-045b` — 🛑 settled by ARTEFACT EVIDENCE, **not** by `D-134` §2's sort-direction premise, which is FALSE for this file (archive is newest-first only down to ~L14898, then an original oldest-first block `J-001`→`J-047`)
+│   │   ↳ ✅ `J-044`→`J-044a`/`J-044b` · `J-045`→`J-045a`/`J-045b` — 🛑 settled by ARTEFACT EVIDENCE, **not** by `D-134` §2's sort-direction premise, which is FALSE for this file (newest-first only to ~L14898, then an original oldest-first block `J-001`→`J-047`)
 │   │   ↳ ✅ 11 citations re-pointed individually (`ROADMAP_ARCHIVE:348` held under §4's lock) · `Repaired:` line written · header corrected — span low end read `J-046`, archive reaches `J-001`
-│   │   ↳ 🛑 **NOT CLOSED — §6 demands two things no procedure section describes:** Leg B P2 cleared · the six set-B bodies migrated. ⚠️ *Owes on close: nothing* RETRACTED
-│   │   ↳ 🔓 **Joe's scope call:** spawn the set-B migration as its own leg with an `Owes:` line (Chat's rec), or widen B-bis
+│   │   ↳ 📌 its two unmet DoD items were **re-homed to Leg B-ter**, not dropped; `D-133` forbids a leg runbook carrying an `Owes:` line
+│   ├── 🟡 **Leg B-ter the eleven that resolve nowhere** — spawned + titled by Joe · J-626
+│   │   ↳ scope: **six bodies to migrate** `J-135 J-132 J-131 J-125 J-124 J-123` · **four cited-only with no record anywhere** `J-113 J-109 J-098` (45 refs, no record of its own) `J-067` · **`J-029` disposition open**
+│   │   ↳ 🛑 **sole source is `ROADMAP_ARCHIVE_2026-07-26.md`** — Leg C DELETED all six bodies from this file (refs 7→2 · 5→2 · 10→1 · 27→1 · 24→1 · 15→1); §4a required they NOT be deleted until the journal carried them
+│   │   ↳ trigger: none — runnable once runbooked. **It is AUTHORING, not repair**
+│   │   ↳ clears: **Leg B P2**
 │   ├── ✅ **Leg C `docs/ROADMAP.md`** — 761,422 → 43,741 B; tree kept, prose deleted, five format rules · J-604 (J-602, J-603)
 │   ├── ✅ **Leg D `CLAUDE.md` B2** — 65 of 81 blocks archived, 640,645 → 316,680 B (50.6%); D-094 re-applied after a five-week lapse · J-615 (J-606, J-608–J-614)
 │   ├── 🟡 **Leg E the two-way closure log** — `CLAUDE.md`'s prose head; one closure log in THREE head notations · J-623
@@ -325,6 +329,7 @@ XGen Protocol
 │   │   ↳ ⚠️ identify the line BY CONTENT, not position — it moved L29 → L25 at J-619. ⚠️ untested (runbook §4c): within-A, within-B, A↔B, A↔C twins. **Next: P1 extraction**
 │   ├── 🟡 **Leg F bidirectional sweep** — is every known work item ON the roadmap, not just is every entry true · J-617
 │   └── 🟡 **Leg G records + close** — delete `ROADMAP_ARCHIVE_2026-07-26.md` iff Leg B cleared · J-617
+│       ↳ 🛑 **ORDER-CONSTRAINED: MUST NOT RUN BEFORE LEG B-TER** — that archive is the **sole surviving source** for the six set-B bodies; had Leg G run first they would be gone permanently
 │       ↳ ⚠️ F and G were `Leg E`/`Leg F` in the task doc and had NO node here until J-617; `E` collided
 │
 ├── ⏸️ **Parallel workstreams**

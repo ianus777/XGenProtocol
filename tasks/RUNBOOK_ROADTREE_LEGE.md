@@ -1,6 +1,6 @@
 # RUNBOOK — M-DOC-ROADTREE Leg E, the two-way closure log
-> **Status**: PENDING  
-> Version: 1.1  
+> **Status**: ACTIVE  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-30  
 > Language: English  
@@ -51,6 +51,7 @@
 
 - **97 heads** total — 📌 **superseding `95` (J-627).**
 - **B holds 4 stub segments that are NOT records** — under 100 chars: `J-447 (star-rating` **18** · `J-446 (password-field` **21** · `J-461 (PROTO-STATUS.2 — Track A, see head note` **46** · `J-448` **93**. Two are pointers; two are stubs whose real record is in C.
+  - 📌 **CONVENTION NAMED 2026-07-30 (J-628) — NOT A DISCREPANCY, AND NOT REPAIRED.** These four figures measure the **payload only**. P1 measures **head-to-head**, which includes the trailing `) / ` delimiter (**4 chars**), and therefore reads **22 · 25 · 50 · 97**. Both readings are correct; **neither stated its convention.** ⇒ **STATE THE CONVENTION ALONGSIDE ANY SPAN FIGURE IN THIS LEG.**
 - ⇒ **93 records** — 📌 **superseding `91` (J-627).**
 - **C's 26 heads split 14 closure-bearing / 12 not** — 📌 **superseding *24 heads, 11 / 13* (J-627).** The 12 are forward-looking entries (M-RP5.4, M-RP6.1, M-RP5.5 …). ✅ **The delegated adoption at J-623 — *they travel into the archive annotated* — STANDS; only the count moved.**
 - **11 known B↔C collisions** (§4).
@@ -83,9 +84,31 @@
 1. Assert exactly one line over 20,000 chars; assert its length is **124,299**. If either fails, **STOP** — the file has changed under the runbook and §1's offsets are void.
 2. Extract heads per region using §1a's per-region predicate.
 3. Assert head counts **1 + 19 / 51 / 25 + 1**. Any deviation **STOPS** the pass.
-4. Cut records at head positions. Assert the concatenated record spans sum to **124,299** with no gap and no overlap.
+4. Cut records at head positions. Assert **(a)** the first head sits at **0** (no leading gap), **(b)** **zero duplicate head positions** (no overlap), **(c)** the head list is **strictly ascending**.
+   - 🛑 **SHARPENED 2026-07-30 (J-628). SUPERSEDED TEXT ANNOTATED, NOT ERASED.** This step read: *“assert the concatenated record spans sum to **124,299** with no gap and no overlap.”* ⚠️ **THAT ASSERTION CANNOT FAIL.** Consecutive differences over a sorted list always sum to the span they cover — **the sum closes by construction.** It is the *shape* of verification, not verification. **(a), (b) and (c) are the three checks that can actually fail.** 📌 **Found by running the very runbook whose assert-and-STOP had just caught the fifth notation defect — the arc's own rule, turned on itself.**
 5. Classify B's 51 segments into **47 records + 4 stubs** by the under-100-char test, then **read all four** to confirm each is a pointer or a stub. ⚠️ The threshold is a finding aid, not the verdict.
 6. 🛑 **Assert nothing about record content from a marker.** A resolving citation proves a record exists, **not** that its substance is in it (Phase-0 §7).
+
+### §3r — P1 RESULT: ✅ CLEARED 2026-07-30 (J-628)
+
+**Re-run from §3.1 against the J-627-corrected assertions. Nothing stopped.**
+
+| step | assert | measured |
+|---|---|---|
+| §3.1 | one line > 20,000 · length **124,299** | **1 · 124,299** ✔ |
+| §3.3 | **1 + 19 / 51 / 25 + 1 = 97** | **97** ✔ |
+| §3.4 | first **0** · duplicates **0** · strictly ascending | **0 · 0 · yes** ✔ |
+| §3.5 | **47 records + 4 stubs** | **47 + 4** ✔ |
+
+✅ **93 RECORDS.** ✅ **A's independent cross-check held** — 20 `CLOSED (J-nnn)` marks against 1 + 19 heads. ✅ **C splits 14 closure-bearing / 12 not** — 11 `CLOSED (J-nnn)` **+ 3 `DONE (J-nnn)`**: J-473 (the emoji-form head, @113,632) · J-483 `M-RP-CDP1` · J-485 `M-RP5.6 B`. Last head **@123,902**; smallest span **22**.
+
+🔑 **THE LAST UNWIDENED NARROW PREDICATE WAS WIDENED AND ITS HITS READ INDIVIDUALLY.** `**Next-active` occurs **8** times line-wide: **1 in A (@0 — the head)**, **6 in B** (@41,090 · 48,588 · 49,396 · 62,308 · 68,885 · 74,262), **1 in C** (@121,699). All seven non-heads sit mid-sentence after `].` or `too).`. ⇒ **§1c's claim is now MEASURED rather than INHERITED.**
+
+🔑 **§1c's `52 / 50` RECONCILES TO 51 BY MEASUREMENT.** Widening B's delimiter predicate to bare `J-nnn (` returns **2** extras: **@18,426 is the seam head, already counted**, and **@85,891 is `Prior: J-487 (` — a mid-record BACKWARD pointer.** ⇒ **50 delimiters + 1 seam head = 51**, with exactly one genuine non-head. 📌 **The apparent 51-vs-50 discrepancy was a missing convention, not a bad count.**
+
+⚠️ **STILL NEVER TESTED, UNCHANGED BY THIS PASS:** within-A · within-B · A↔B · A↔C twins. **P1 parsed; it did not de-duplicate.**
+
+🟡 **NEXT: §4, P2 — the eleven collisions, per-pair hand verdicts. NOT STARTED.**
 
 ---
 

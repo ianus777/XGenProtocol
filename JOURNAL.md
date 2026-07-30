@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-628 — Leg E P1 cleared on re-run, and the runbook that caught the fifth defect carried two of its own
+
+**Date:** 2026-07-30 · **Seat:** Chat (measurement, records). Provenance **LOCKED** — Joe: *go for 1)*, then *go by your recomm*. 📌 **The second closed THREE options: no P2 tonight · §3.4 sharpened WITH its old text annotated · §1b's convention annotated, not repaired.** No code.
+
+✅ **P1 RE-RUN FROM §3.1 AGAINST THE J-627-CORRECTED ASSERTIONS. EVERY GATE PASSED; NOTHING STOPPED.** §3.1 — exactly **one** line over 20,000 chars, length **124,299**, opener at index 0. §3.3 — **1 + 19 / 51 / 25 + 1 = 97 heads**. §3.5 — **47 records + 4 stubs**. ⇒ **93 records.**
+
+✅ **THE INDEPENDENT CROSS-CHECKS HELD.** A's 1 + 19 heads are confirmed by **20 `CLOSED (J-nnn)` marks** measured separately. C's **26** heads split **14 closure-bearing / 12 not** — **11 `CLOSED` + 3 `DONE`**: J-473 (the emoji-form head @113,632) · J-483 `M-RP-CDP1` · J-485 `M-RP5.6 B`. B's 51 = the seam head `J-503 (` @18,426 plus **50** `) / ` delimiters. Last head **@123,902**; smallest span **22**.
+
+🔑 **THE LAST UNWIDENED NARROW PREDICATE WAS WIDENED, AND ITS HITS READ ONE BY ONE.** J-627's forward rule says *run a widened predicate against every narrow one and read its extra hits individually* — bold-`M` had been widened, `**Next-active` had not. It occurs **8** times line-wide: **1 in A (@0, the head)**, **6 in B** (@41,090 · 48,588 · 49,396 · 62,308 · 68,885 · 74,262), **1 in C** (@121,699); all seven non-heads sit mid-sentence after `].` or `too).`. 📌 **§1c asserted this at J-622 and it was true — but it is only now MEASURED rather than INHERITED, and inheriting is how four of the five defects in this arc entered.**
+
+🔑 **§1c's `52 / 50` RECONCILED TO 51 BY MEASUREMENT, NOT BY ARITHMETIC.** Widening B's delimiter predicate to bare `J-nnn (` returns **2** extras: **@18,426 is the seam head, already counted**, and **@85,891 is `Prior: J-487 (` — a mid-record BACKWARD pointer**, the only genuine non-head. ⇒ **50 + 1 = 51.** 📌 **The apparent 51-vs-50 discrepancy was a missing convention, not a bad count — and it would have read exactly like a bad count.**
+
+🛑 **DEFECT ONE, AND IT IS IN THE RUNBOOK'S OWN ASSERTION LANGUAGE.** §3.4 said *“assert the concatenated record spans sum to **124,299** with no gap and no overlap.”* **That assertion cannot fail.** Consecutive differences over a sorted list always sum to the span they cover — **the sum closes by construction.** My probe reported `span sum = 124299` and it was worth nothing. ⇒ **SHARPENED to the three checks that CAN fail: first head at 0 (no leading gap) · zero duplicate positions (no overlap) · strictly ascending.** All three passed. 📌 **The arc already had this rule — *a summation that closes by construction is not verification, it is the shape of verification* — and the runbook written under that rule still contained an instance of it. The rule was known and not applied to the instrument.**
+
+🛑 **DEFECT TWO — TWO CORRECT MEASUREMENTS THAT LOOK LIKE A CONTRADICTION.** §1b's stub lengths read **18 · 21 · 46 · 93**; P1 reads **22 · 25 · 50 · 97** — **each exactly 4 more.** §1b measures the **payload**; P1 measures **head-to-head**, which includes the trailing `) / ` delimiter (**4 chars**). **Neither figure is wrong and neither stated its convention.** ⇒ **ANNOTATED, NOT REPAIRED**, per the arc's standing rule. 📌 **A uniform offset is the tell that the disagreement is definitional rather than numerical — four figures differing by exactly the same amount is not an error pattern.**
+
+⚠️ **WHAT P1 DID NOT DO.** It **parsed**; it did **not** de-duplicate. Within-A, within-B, A↔B and A↔C twins remain **NEVER TESTED** (runbook §4c) — unchanged by this pass and stated here so the clear result is not read as a wider clearance than it is. 📌 **A claim narrower than the thing it describes, reused as if complete, is this arc's named defect class.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/RUNBOOK_ROADTREE_LEGE.md` v1.1 → **v1.2**, **PENDING → ACTIVE** (§1b convention annotated · §3.4 sharpened with its superseded text quoted · new **§3r** result section) · `tasks/M_DOC_ROADTREE.md` v1.26 → **v1.27** (§11 Leg E + Joe's open ①) · `docs/ROADMAP.md` v6.15 → **v6.16** (Leg E node, three new ↳ rows; **CRLF restored after `edit_file`, re-measured 51,117 B / 479 lines / 479 CRLF pairs / 0 bare LF**) · `CLAUDE.md` PLAY head · this entry. **No new D, no new N.**
+
+**Next-active.** 🟡 **Leg E §4, P2 — the eleven collisions, per-pair hand verdicts. NOT STARTED**; deferred by Joe's lock rather than blocked. 🔓 **Joe: sequencing** (P2 · Leg B-ter, which still needs a runbook).
+
+---
+
 ## Entry J-627 — Leg E P1 stopped on its own assertion, and the census's head vocabulary was incomplete
 
 **Date:** 2026-07-30 · **Seat:** Chat (measurement, records). Provenance **DELEGATED** — Joe: *go ahead*, taken as **Leg E P1** (the option named as runnable now; B-ter needs a runbook first). 📌 **Read as delegated rather than as a lock, and said so before acting.** No code.

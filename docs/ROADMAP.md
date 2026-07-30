@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.14  
+> Version: 6.15  
 > Date: May 2026  
 > **Last updated**: 2026-07-30  
 > Language: English  
@@ -323,8 +323,9 @@ XGen Protocol
 │   ├── ✅ **Leg D `CLAUDE.md` B2** — 65 of 81 blocks archived, 640,645 → 316,680 B (50.6%); D-094 re-applied after a five-week lapse · J-615 (J-606, J-608–J-614)
 │   ├── 🟡 **Leg E the two-way closure log** — `CLAUDE.md`'s prose head; one closure log in THREE head notations · J-623
 │   │   ↳ 📘 **RUNBOOKED** `tasks/RUNBOOK_ROADTREE_LEGE.md` v1.0 PENDING — the authority from here. Trigger FIRED J-615; title locked Joe J-618
-│   │   ↳ ✅ P0 census complete — heads **A 1+19 · B 51 (4 stubs) · C 24** = 95 heads, 91 records; boundaries RE-DERIVED FROM HEAD POSITIONS: A 0–18,426 · B 18,426–**110,488** · C –124,299, sum **124,299** — B/C seam 28 chars earlier than the superseded reading
-│   │   ↳ 🛑 **NO UNIFORM RECORD HEAD EXISTS** — each region needs its own predicate AND a second independent one to check it; four successive shapes each came from trusting one
+│   │   ↳ ✅ P0 census + P1 assertion pass — heads **A 1+19 · B 51 (4 stubs) · C 25 + 1 emoji-form** = **97 heads, 93 records** (📌 superseding *95 / 91*, J-627); boundaries RE-DERIVED FROM HEAD POSITIONS: A 0–18,426 · B 18,426–**110,488** · C –124,299, sum **124,299**
+│   │   ↳ 🛑 **P1 STOPPED ON ITS OWN ASSERTION (J-627)** — §1a had combined C's head count from the OLD boundary 110,516 with the re-derived span 110,488; and a **FOURTH head form** `**<emoji> M-<id>` at 113,632 was invisible to `**M-`
+│   │   ↳ 🛑 **NO UNIFORM RECORD HEAD EXISTS** — each region needs its own predicate AND a second independent one to check it; **five successive passes each came from trusting one**, and §3's assert-and-STOP is what finally caught the fifth
 │   │   ↳ 🛑 `82` retired (J-622); 11 B↔C collisions read pair by pair — **8 B ⊃ C · 2 C ⊃ B · 1 divergent** ⇒ NO mechanical merge; **deletes nothing without a per-pair hand verdict**
 │   │   ↳ ⚠️ identify the line BY CONTENT, not position — it moved L29 → L25 at J-619. ⚠️ untested (runbook §4c): within-A, within-B, A↔B, A↔C twins. **Next: P1 extraction**
 │   ├── 🟡 **Leg F bidirectional sweep** — is every known work item ON the roadmap, not just is every entry true · J-617

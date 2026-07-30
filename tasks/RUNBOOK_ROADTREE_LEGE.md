@@ -1,6 +1,6 @@
 # RUNBOOK — M-DOC-ROADTREE Leg E, the two-way closure log
 > **Status**: PENDING  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-30  
 > Language: English  
@@ -28,10 +28,18 @@
 |---|---|---|---|---|
 | **A** | 0 – 18,426 | 18,426 | `**Next-active (UI/RP track):**` *(once — the line's first record)* | 1 |
 | **A** | " | " | `**M-<id>` bold, milestone-first | 19 |
-| **B** | 18,426 – 110,488 | 92,062 | `J-nnn (` **at a `) / ` delimiter** | 51 |
-| **C** | 110,488 – 124,299 | 13,811 | `**M-<id>` bold, milestone-first | 24 |
+| **B** | 18,426 – 110,488 | **92,062** | `J-nnn (` **at a `) / ` delimiter** | 51 *(4 stubs)* |
+| **C** | 110,488 – 124,299 | **13,811** | `**M-<id>` bold, milestone-first | **25** |
+| **C** | " | " | 🔑 **`**<emoji> M-<id>` — THE FOURTH HEAD FORM** | **1** |
 
 **18,426 + 92,062 + 13,811 = 124,299 ✔**
+
+🛑 **CORRECTED 2026-07-30 (J-627) BY P1's OWN ASSERT-AND-STOP. SUPERSEDED FIGURES ANNOTATED, NOT ERASED:**
+- ⚠️ **C read `24` and TOTAL read `95`.** The `24` was measured from the **old** boundary **110,516**; the span in the same row is the **re-derived** 110,488 — **two figures from different passes, combined as if consistent.** From 110,488 the strict predicate finds **25**; the extra head is `**M-RP2.23 ✅ CLOSED (J-446)` at exactly **110,488**, **the very record whose position proved the old boundary wrong at J-622.**
+- ⚠️ **THE HEAD VOCABULARY WAS INCOMPLETE.** `**M-` cannot match `**🟢 M-RP6.0 Pre-UI Node↔Client Functional Gate — ✅ DONE (J-473): GO.` at **113,632** — a **status emoji** sits between the bold marker and the milestone ID. Widened predicate `\*\*[^A-Za-z\*]{0,6}M-` yields 8 extra line-wide hits; **7 are mid-record** (the `Next-active` head's own tail at 28 · prose milestone lists at 34,215 / 34,314 · parentheticals at 76,913 / 86,035 / 87,614 / 95,653) and **exactly 1 is a genuine head.**
+- ⚠️ **C's closure split used one predicate too.** `CLOSED (J-nnn)` alone gives 11; C also carries `DONE (J-nnn)` × 3 — J-473 · J-483 (`M-RP-CDP1`) · J-485 (`M-RP5.6`).
+
+🔑 **FIFTH NOTATION VARIANT MISSED BY A PREDICATE IN THIS ARC, AND §1c PREDICTED IT.** The P0 census enumerated three head forms and asserted a total; **it never tested its own vocabulary for completeness.** ⇒ **ENUMERATING NOTATIONS IS NOT PROVING THE ENUMERATION COMPLETE. RUN A WIDENED PREDICATE AGAINST EVERY NARROW ONE AND READ ITS EXTRA HITS INDIVIDUALLY.**
 
 📌 **The boundaries above are derived FROM head positions.** The sum is a *consequence* of independently located heads, not an input. Part two's boundaries put the B/C seam at 110,516; the true seam is **110,488** — C's first head `**M-RP2.23` opens 28 chars earlier.
 
@@ -41,10 +49,10 @@
 
 ### §1b Counts
 
-- **95 heads** total.
+- **97 heads** total — 📌 **superseding `95` (J-627).**
 - **B holds 4 stub segments that are NOT records** — under 100 chars: `J-447 (star-rating` **18** · `J-446 (password-field` **21** · `J-461 (PROTO-STATUS.2 — Track A, see head note` **46** · `J-448` **93**. Two are pointers; two are stubs whose real record is in C.
-- ⇒ **91 records.**
-- **C's 24 heads split 11 closure-bearing / 13 not.** The 13 are forward-looking entries (M-RP5.4, M-RP6.1, M-RP5.5, M-RP5.6 …).
+- ⇒ **93 records** — 📌 **superseding `91` (J-627).**
+- **C's 26 heads split 14 closure-bearing / 12 not** — 📌 **superseding *24 heads, 11 / 13* (J-627).** The 12 are forward-looking entries (M-RP5.4, M-RP6.1, M-RP5.5 …). ✅ **The delegated adoption at J-623 — *they travel into the archive annotated* — STANDS; only the count moved.**
 - **11 known B↔C collisions** (§4).
 
 ### §1c 🛑 The negative result, which is the load-bearing one
@@ -74,7 +82,7 @@
 
 1. Assert exactly one line over 20,000 chars; assert its length is **124,299**. If either fails, **STOP** — the file has changed under the runbook and §1's offsets are void.
 2. Extract heads per region using §1a's per-region predicate.
-3. Assert head counts **1 + 19 / 51 / 24**. Any deviation **STOPS** the pass.
+3. Assert head counts **1 + 19 / 51 / 25 + 1**. Any deviation **STOPS** the pass.
 4. Cut records at head positions. Assert the concatenated record spans sum to **124,299** with no gap and no overlap.
 5. Classify B's 51 segments into **47 records + 4 stubs** by the under-100-char test, then **read all four** to confirm each is a pointer or a stub. ⚠️ The threshold is a finding aid, not the verdict.
 6. 🛑 **Assert nothing about record content from a marker.** A resolving citation proves a record exists, **not** that its substance is in it (Phase-0 §7).

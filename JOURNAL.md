@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-627 — Leg E P1 stopped on its own assertion, and the census's head vocabulary was incomplete
+
+**Date:** 2026-07-30 · **Seat:** Chat (measurement, records). Provenance **DELEGATED** — Joe: *go ahead*, taken as **Leg E P1** (the option named as runnable now; B-ter needs a runbook first). 📌 **Read as delegated rather than as a lock, and said so before acting.** No code.
+
+🛑 **P1 STOPPED AT §3.3 ON ITS SECOND ASSERTION, EXACTLY AS DESIGNED. NO EXTRACTION RAN.** Step 1 passed — one line over 20,000 chars, length **124,299**, unchanged despite three PLAY blocks being added to `CLAUDE.md` since the census. Step 3 failed: **C reported 25 heads against an asserted 24**, total 96 against 95.
+
+🔑 **CAUSE ONE — §1a COMBINED TWO FIGURES FROM DIFFERENT PASSES.** C's head count `24` was measured from the **old** boundary **110,516**; the span in the same table row is the **re-derived** **110,488**. From the correct boundary the strict predicate finds **25**, and the extra head is `**M-RP2.23 ✅ CLOSED (J-446)` sitting at exactly **110,488** — 📌 **the very record whose position proved the old boundary wrong at J-622.** The correction was already in the document, one row away from the figure it invalidated.
+
+🛑 **CAUSE TWO — A FOURTH HEAD FORM, AND THE CENSUS NEVER TESTED ITS OWN VOCABULARY.** `**M-` cannot match **`**🟢 M-RP6.0 Pre-UI Node↔Client Functional Gate — ✅ DONE (J-473): GO.`** at **113,632**: a **status emoji** sits between the bold marker and the milestone ID. A widened predicate `\*\*[^A-Za-z\*]{0,6}M-` returns **8** extra line-wide hits; **read individually, 7 are mid-record** — the `Next-active` head's own tail at 28 · prose milestone lists at 34,215 / 34,314 · parentheticals at 76,913 / 86,035 / 87,614 / 95,653 — **and exactly 1 is a genuine head.**
+
+🛑 **CAUSE THREE — C's CLOSURE SPLIT ALSO USED ONE PREDICATE.** `CLOSED (J-nnn)` alone gives 11; C also carries **`DONE (J-nnn)` × 3** — J-473 · J-483 (`M-RP-CDP1`) · J-485 (`M-RP5.6`). ⇒ **14 closure-bearing / 12 not.** ✅ **The delegated adoption at J-623 — *C's non-closure heads travel into the archive annotated* — STANDS; only its count moved (13 → 12).**
+
+✅ **CORRECTED: A 20 · B 51 (4 stubs) · C 26 = 97 heads · 93 records.** Partition unchanged and still a consequence rather than an input: **18,426 + 92,062 + 13,811 = 124,299 ✔**.
+
+🔑 **THE FORWARD RULE, AND IT IS THE FIFTH TIME A PREDICATE MISSED A NOTATION IN THIS ARC.** J-621 gave *enumerate the notations before counting*; J-622 sharpened it to *re-derive the boundaries from the enumeration*. **Both were followed here and both were insufficient**, because the census enumerated three head forms and then **asserted a total without ever testing whether the enumeration was complete.** ⇒ **ENUMERATING NOTATIONS IS NOT PROVING THE ENUMERATION COMPLETE. RUN A WIDENED PREDICATE AGAINST EVERY NARROW ONE AND READ ITS EXTRA HITS INDIVIDUALLY.** 📌 **This is the first time in the arc that the defect was caught by a written assertion rather than by a question from outside the text** — §3's assert-and-STOP did what four previous passes needed Joe or Clair to do.
+
+⚠️ **AND ONE OF MY PROBES WAS BROKEN AND I ALMOST BELIEVED IT.** A nested-array loop flattened under PowerShell, so all three regions measured the same slice and reported identical 19/20 while a second figure in the same output contradicted it. **Discarded and re-run with explicit variables.** 📌 **The tell was internal inconsistency, not implausibility — a probe that reports the same number for three different inputs is reporting on itself.**
+
+⚠️ **A malformed `edit_file` call — new text pasted into `oldText` — aborted WHOLE.** File verified unchanged at 9,750 B, Version 1.0, before retrying. 📌 **All-or-nothing is the safe failure here; the check was that it had not partially applied.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/RUNBOOK_ROADTREE_LEGE.md` v1.0 → **v1.1** (§1a table, §1b counts, §3.3's assertion) · `tasks/M_DOC_ROADTREE.md` · `docs/ROADMAP.md` · `CLAUDE.md` PLAY head · this entry. **Superseded figures ANNOTATED, NOT ERASED. No new D, no new N.**
+
+**Next-active.** 🟡 **Leg E P1 re-run from §3.1 against the corrected assertions** — not started; the pass stopped and the grounding was fixed instead. 🔓 **Joe: sequencing.**
+
+---
+
 ## Entry J-626 — Leg B-ter spawned and titled, and `D-133` forbade the mechanism I had recommended
 
 **Date:** 2026-07-30 · **Seat:** Chat (records). Provenance **LOCK × 2** — Joe ruled the scope call (**spawn the set-B migration as its own leg**) and then the title (**(a) *the eleven that resolve nowhere***, chosen from three candidates). No code.

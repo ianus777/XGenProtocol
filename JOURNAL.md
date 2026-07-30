@@ -8,6 +8,44 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-621 — the third shape for one line: it is a closure log end to end, and my predicate had been hiding three quarters of it
+
+**Date:** 2026-07-30 · **Seat:** Chat (measurement, records). Provenance **DELEGATED** — Joe: *go as you recommend*. ⚠️ **AND CHAT HAD NOT ACTUALLY STATED A RECOMMENDATION** — the prior turn listed three naming candidates and defended one as *"a real option, not a face-saver"* without ever naming a pick. **Named before acting: narrow Leg E to A + C and spawn `Leg E-bis` for B.** 🛑 **That recommendation was then disproved by the next probe and is WITHDRAWN.** No code.
+
+⚠️ **CLOCK: THE SESSION CROSSED MIDNIGHT.** Opened 2026-07-29 14:59; this entry is written 2026-07-30 06:17. **J-620's commit `9f26b54` is timestamped 2026-07-30T06:15 while J-620's entry and headers read 2026-07-29.** 📌 **Not rewritten — the writing may genuinely have happened before midnight and which side cannot be established** (the preceding commit `5a0086b` is 2026-07-29T21:55). **Flagged here so the gap is a recorded fact rather than a discovered one; git timestamps are authoritative.** All records from this entry forward date **2026-07-30**.
+
+🛑 **THE LINE IS ONE CLOSURE LOG END TO END, IN TWO INVERTED NOTATIONS.** Part one had called it *two logs with a 93,205-char narrative hole*. Measured properly:
+
+| region | chars | share | records | notation | J-order |
+|---|---|---|---|---|---|
+| **A** | 0–18,426 | 14.8% | **20** | `**M-RPx ✅ CLOSED (J-nnn):**` — milestone first | **strictly ascending**, 19/19 monotonic, J-410 → J-435 |
+| **B** | 18,426–110,516 | **74.1%** | **51** | `J-nnn (M-RPx … ✅ CLOSED/DONE …)` — **J-ref FIRST** | mostly descending |
+| **C1** | 110,516–111,445 | — | **4** | milestone first | **ascending**, J-446 → J-469 |
+| **C2** | 122,026–123,912 | — | **7** | milestone first | **strictly descending**, J-460 → J-454 |
+
+✅ **≈ 82 records · 61 closure marks · every region delimited.** B splits on `) / J-nnn` into **51 segments covering 91,890 chars plus exactly 200 delimiter chars = 92,090** — a complete partition, verified by summation, not asserted. Segment lengths 18 → 7,795; **41 of 51 under 2,000.**
+
+🛑 **THIS IS THE THIRD SHAPE REPORTED FOR THE SAME LINE, AND THE FAILURE WAS IDENTICAL ALL THREE TIMES: PICK ONE NOTATION, COUNT IT, REPORT THE SHAPE IT IMPLIES.**
+① *"A next-active chain appended 11 times"* — from counting `Next-active`. **Killed by Joe's own test:** only 2 of 11 are structural.
+② *"Two closure logs running in opposite directions"* — from counting J-reference **ordering**. ⚠️ **This one reached `docs/ROADMAP.md`, the task doc, a PLAY block AND the name Joe locked.**
+③ *"Two logs with a 93,205-char narrative hole"* — from counting `✅ CLOSED\s*\(J-\d+\)`, **a predicate region B cannot match because B puts the J-ref FIRST.** B holds 5 `✅ CLOSED`, 5 `✅ DONE`, 21 checkmarks; **the regex saw zero and 74% of the line was declared not a log.**
+
+🔑 **AND THE FORWARD RULE IS NOT THE ONE THIS SESSION KEPT WRITING DOWN.** *"Open the thing"* was honoured all three times — the line **was** opened and sampled at seven points. ⚠️ **What was skipped is PRIOR to that: ENUMERATE THE NOTATIONS BEFORE COUNTING ANY OF THEM.** A predicate built from one notation reports the absence of the others **as the absence of the thing**. 🛑 **AND SAMPLING CANNOT CATCH IT:** all seven region-B samples were read as *design narrative* because each landed mid-record, and **a mid-record sample of a `J-nnn (…)` log is indistinguishable from prose.** The samples were real evidence for a false conclusion.
+
+✅ **JOE'S LOCKED TITLE SURVIVES, AND THE RECORD SAYS WHY THAT IS LUCK.** *The two-way closure log* — it **is** a closure log end to end and it genuinely runs two ways (ascending in A and C1, descending in B and C2). 📌 **It was locked on part one's reading; part two disproved that reading and the title still holds.** ⚠️ **Written down explicitly because it would be easy to present this as the measurement being vindicated rather than the name surviving in spite of it.**
+
+🛑 **`Leg E-bis` WITHDRAWN BEFORE IT EXISTED.** Recommended one turn earlier on the ground that **B had no delimiter and was therefore an unbounded unknown**. ⚠️ **It has one, and the very next probe found it.** ⇒ **Leg E covers all three regions, ≈ 82 records. No new leg, no new designation, nothing to renumber.** 🔑 **A leg proposed to quarantine an unknown, where the unknown was one measurement deep.**
+
+⚠️ **STILL UNMEASURED, NAMED SO IT IS NOT ASSUMED CLOSED:** whether the ≈ 82 records are **distinct** — the `J-317` lesson applies to this line too and nobody has checked · what the **10 B-segments over 3,000 chars** contain, since a 7,795-char record may itself be several · whether A's and C's counts are complete under a **notation-agnostic** predicate rather than the milestone-first one that just failed.
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/M_DOC_ROADTREE.md` v1.19 → **v1.20** (grounding part two · part one annotated **superseded, kept not repaired** · §11's Leg E row · owed item discharged) · `docs/ROADMAP.md` v6.8 → **v6.9** (Leg E node re-grounded) · `CLAUDE.md` PLAY head · this entry. 📌 **`Last updated` is 2026-07-30 on both touched docs.** **No new D, no new N.**
+
+**Next-active.** 🔓 **Joe: §4 of the B-bis runbook** (one line) · the back-fill milestone's name (non-gating). 🟡 **Chat, ungated: runbook Leg E** — grounding is complete and it is the largest single artefact left. 📌 **B-bis and Leg E are independent (`JOURNAL_ARCHIVE.md` vs `CLAUDE.md`) and can be written in either order.**
+
+---
+
 ## Entry J-620 — Leg B-bis runbooked, and the citation count everyone had been planning against was a reference count
 
 **Date:** 2026-07-29 · **Seat:** Chat (measurement, records). Provenance **DELEGATED** — Joe: *go*, closing three things at once: **(1) record the sequencing he had already ruled, (2) re-derive the citation set, (3) author the B-bis runbook.** ⚠️ **It did NOT answer §4 of that runbook**, which is his and which the runbook holds open. No code.

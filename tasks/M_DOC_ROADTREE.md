@@ -1,8 +1,8 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.19  
+> Version: 1.20  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-29  
+> **Last updated**: 2026-07-30  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -395,9 +395,35 @@
 
 **Leg E — the two-way closure log.** 🟡 **PENDING.** 🔒 **TITLE LOCKED (Joe, 2026-07-29, J-618** — a direct answer to a bounded question, **not** a delegation; chosen from three candidates that were themselves derived from the grounding measurement below, after Chat's earlier proposal *"the next-active chain"* **failed the test Joe set for it**). ↳ trigger: Leg D closes — **FIRED 2026-07-29 (J-615)**. **Surface: `CLAUDE.md`'s prose head — from the `## 🟢 UI component-library / substrate` heading down to the first `> ### ` PLAY block.** ⇒ **PARSING, NOT MOVING.**
 
+🔑 **§8-E GROUNDING PASS — PART TWO RUN 2026-07-30 (J-621). IT CORRECTED PART ONE, AND PART ONE HAD ALREADY REACHED THE ROADMAP AND A LOCKED NAME.**
+
+🛑 **THE LINE IS ONE CLOSURE LOG END TO END, IN TWO INVERTED NOTATIONS. PART ONE'S "TWO LOGS WITH A NARRATIVE HOLE" WAS AN ARTEFACT OF THE PREDICATE.**
+
+| region | chars | share | records | notation | J-order |
+|---|---|---|---|---|---|
+| **A** | 0 – 18,426 | 14.8% | **20** | `**M-RPx ✅ CLOSED (J-nnn):**` — milestone first | **strictly ascending** J-410 → J-435 (19/19 monotonic) |
+| **B** | 18,426 – 110,516 | **74.1%** | **51** | `J-nnn (M-RPx … ✅ CLOSED/DONE …)` — **J-ref FIRST** | mostly descending |
+| **C1** | 110,516 – 111,445 | — | **4** | milestone first | **ascending** J-446 → J-469 |
+| **C2** | 122,026 – 123,912 | — | **7** | milestone first | **strictly descending** J-460 → J-454 |
+
+✅ **≈ 82 RECORDS TOTAL. 61 closure marks in the line.** ✅ **EVERY REGION HAS A DELIMITER:** A and C on the `✅ CLOSED (J-nnn)` marker; **B on `) / J-nnn`, which splits it into 51 segments covering 91,890 chars + exactly 200 delimiter chars = 92,090 — a COMPLETE partition, verified by summation.** Segment lengths 18 → 7,795; 41 of 51 under 2,000.
+
+🛑 **AND THIS IS THE THIRD SHAPE CHAT REPORTED FOR THIS ONE LINE. THE FAILURE IS IDENTICAL EACH TIME: PICK ONE NOTATION, COUNT IT, REPORT THE SHAPE IT IMPLIES.**
+1. **"A next-active chain, appended 11 times"** — from counting `Next-active` strings. **Killed by Joe's own test:** only 2 of the 11 are structural.
+2. **"Two closure logs running in opposite directions"** — from counting J-reference *ordering*. **Reached `docs/ROADMAP.md`, this document, a PLAY block AND the name Joe locked.**
+3. **"Two logs with a 93,205-char narrative hole"** — from counting `✅ CLOSED\s*\(J-\d+\)`, a predicate **B cannot match because B puts the J-ref FIRST.** B holds 5 `✅ CLOSED`, 5 `✅ DONE` and 21 checkmarks; the regex saw zero and 74% of the line was declared *not a log*.
+
+🔑 **FORWARD RULE, AND IT IS NOT THE USUAL ONE.** *"Open the thing"* was followed all three times — the line WAS opened and sampled. ⚠️ **What was skipped is prior: ENUMERATE THE NOTATIONS BEFORE COUNTING ANY OF THEM.** A predicate built from one notation reports the absence of the others as the absence of the thing. 📌 **Sampling did not catch it either** — the seven samples of region B were read as *design narrative* because each was mid-record, and a mid-record sample of a `J-nnn (…)` log looks exactly like prose.
+
+✅ **JOE'S LOCKED TITLE SURVIVES AND IS NOW BETTER SUPPORTED THAN WHEN HE CHOSE IT.** *The two-way closure log* — it **is** a closure log end to end, and it genuinely runs **two ways** (ascending in A and C1, descending in B and C2). 📌 **The title was locked on part one's reading; part two disproved that reading and the title still holds. Recorded because it would be easy to present this as vindication of the measurement rather than luck.**
+
+🛑 **`Leg E-bis` WAS RECOMMENDED AND IS WITHDRAWN BEFORE IT EXISTED.** Chat proposed narrowing Leg E to A + C and spawning `Leg E-bis` for B, on the ground that **B had no delimiter.** ⚠️ **It has one, found by the next probe.** ⇒ **Leg E covers ALL THREE regions, ≈ 82 records. No new leg. `Leg E-bis` was never minted and takes no designation.**
+
+⚠️ **STILL UNMEASURED, AND NAMED SO IT IS NOT ASSUMED CLOSED:** whether the ≈ 82 records are **distinct** (no designation appears twice — the `J-317` lesson applies to this line too) · what the **10 B-segments over 3,000 chars** contain, since a 7,795-char record may itself be several · whether A's and C's marker counts are complete under a notation-agnostic predicate rather than the milestone-first one.
+
 🛑 **⚠️ THE LINE MOVED ON THE DAY THIS WAS WRITTEN, AND THE POSITION MUST NOT BE TRUSTED. USE THE CONTENT HANDLE.** At J-619 the five-line designation-convention block above it was collapsed to one line, so **`L29` → `L25` and the surface `L21–70` → `L17–66`** — the line itself byte-identical and untouched by git. 🔑 **A LINE NUMBER INTO `CLAUDE.md` IS A FRAGILE CITATION PRECISELY BECAUSE THIS PROJECT DRAINS THAT FILE** — J-615 archived 65 blocks out of it, and any edit above the line moves it again. ⇒ **IDENTIFY IT BY CONTENT, NOT POSITION:** it is the **only line in `CLAUDE.md` over 20,000 chars**, it is **124,299 chars**, and it opens `**Next-active (UI/RP track):** M-RP2.6 ✅ CLOSED (J-410)`. 📌 **Every `L29` in this document, in `RUNBOOK_ROADTREE_LEGD.md` and in the LEG D brief was written when the number was true; they are NOT re-pointed** — the handle above supersedes them. ⚠️ **`M_DOC_ROADTREE_LEGD_PHASE0_BRIEF.md` still reads `Status: ACTIVE` although Leg D closed at J-615; flagged, not flipped.**
 
-🔑 **§8-E GROUNDING PASS — PART ONE RUN 2026-07-29 (J-618). L29's SHAPE IS NO LONGER UNMEASURED.**
+🔑 **§8-E GROUNDING PASS — PART ONE RUN 2026-07-29 (J-618). 🛑 SUPERSEDED BY PART TWO ABOVE (J-621) — KEPT, NOT REPAIRED.** Its measurements of *position* (the seam at char 18,426, the region shares, the J-order runs) are correct and still used. ⚠️ **Its INTERPRETATION — that the line is two logs with a narrative hole — is disproved:** the predicate `✅ CLOSED\s*\(J-\d+\)` cannot match region B, which puts the J-ref first. 📌 **Kept because it is the record of how the wrong shape was reached, and because part one's own numbers are what part two built on.**
 
 | region of L29 | share | what it is |
 |---|---|---|
@@ -560,7 +586,7 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 ✅ **CLOSED:** Leg 0 · Leg A · **Leg C (J-604** — 761,422 → 43,741 B**)** · **Leg D (J-615** — 640,645 → 316,680 B, 65 of 81 blocks archived**)**.
 🟡 **Leg B — P1 cleared (J-599), P2 measured and NOT cleared.** Cleared by B-bis.
 🟡 **Leg B-bis — the journal repair. EXISTS as of §8b's ruling. RUNBOOKED at J-620: `tasks/RUNBOOK_ROADTREE_LEGB_BIS.md` v1.0 PENDING**, §4 open (may an ARCHIVED body be re-pointed — governs ONE line). **Two actions, one surface (`JOURNAL_ARCHIVE.md`):** ① delete one copy of each byte-identical `J-317`–`J-321` pair (**25,127 B**) ② split `J-044`/`J-045` into `a`/`b` and re-point **12** citations, each resolved individually. 📌 **Plus the header fix**, now legal. 🛑 **THE `28` FIGURE WAS A REFERENCE COUNT, NOT A CITATION COUNT, AND IS SUPERSEDED:** 87 bare hits partition to **4 definition sites · 71 discussion · 12 citations** (runbook §2, per-hit table).
-🟡 **Leg E — the two-way closure log.** 🔒 Title locked (Joe, J-618). Trigger **FIRED (J-615)**. **Grounding part one done** (the seam at char 18,426); **part two — internal statement boundaries — outstanding.**
+🟡 **Leg E — the two-way closure log.** 🔒 Title locked (Joe, J-618) — **and it survived part two disproving the reading it was chosen from.** Trigger **FIRED (J-615)**. ✅ **GROUNDING COMPLETE (parts one and two):** ≈ **82 records** in **two inverted notations**, every region delimited — A 20 · **B 51 on `) / J-nnn`, a complete partition** · C1 4 · C2 7. 📌 **`Leg E-bis` was recommended and withdrawn before minting** — B turned out to have a delimiter. ⚠️ **Still unmeasured: record distinctness, and what the 10 B-segments over 3,000 chars contain.** **Runbookable.**
 🟡 **Leg F — the bidirectional sweep** · 🟡 **Leg G — records + close.**
 
 🔒 **RULED:** §6 **BOTH** · §7 **S1, the tree** · **Leg C's scope** · §6a **E** · §6b **S1** · §6c **D-131** · §3a **W1** · **§4a-i's amendment** · **the `Leg E` collision** · **§8b — R2 with Joe's boundary** · **Leg E's title** · **§4b's rule promoted → `D-134`**.
@@ -572,4 +598,4 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 
 🛑 **NOT SPENT AFTER ALL — §8a's OWED CITATION COUNT WAS WRONG, AND §8b's `28` IS SUPERSEDED (J-620).** §8b measured **26 + 22 = 48 bare references** on 2026-07-26 and reported **28** as *surviving re-points* — but it never partitioned **citations** from **discussion of the collision itself.** Re-run 2026-07-29 over 507 `.md` files and **read per hit**: **87 bare hits = 4 definition sites · 71 discussion · 12 citations.** 🔑 **The true figure is 12**, tabulated per hit with its resolved target in `RUNBOOK_ROADTREE_LEGB_BIS.md` §2. ⚠️ **And the first pass of THAT measurement was also wrong** — a keyword classifier dropped two real citations while keeping seven of this session's own sentences; it was caught only because §8b's older per-file table named files the filter had emptied. 📌 **A keyword classifier on a corpus that discusses itself fails in both directions at once.**
 
-**Chat owes, carried:** the registry composition model (needs a live client ⇒ INTERACTIVE) · the Ch0–Ch2 thesis read (272,516 B across three chapters) · **Leg E grounding part two**.
+**Chat owes, carried:** the registry composition model (needs a live client ⇒ INTERACTIVE) · the Ch0–Ch2 thesis read (272,516 B across three chapters). ✅ **Leg E grounding part two — DISCHARGED J-621.**

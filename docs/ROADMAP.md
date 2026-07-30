@@ -1,8 +1,8 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.8  
+> Version: 6.9  
 > Date: May 2026  
-> **Last updated**: 2026-07-29  
+> **Last updated**: 2026-07-30  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -313,8 +313,9 @@ XGen Protocol
 │   │   ↳ ⚠️ the earlier **28** was a REFERENCE count, not a citation count — 87 bare hits partition to 4 headings · 71 discussion · 12 citations
 │   ├── ✅ **Leg C `docs/ROADMAP.md`** — 761,422 → 43,741 B; tree kept, prose deleted, five format rules · J-604 (J-602, J-603)
 │   ├── ✅ **Leg D `CLAUDE.md` B2** — 65 of 81 blocks archived, 640,645 → 316,680 B (50.6%); D-094 re-applied after a five-week lapse · J-615 (J-606, J-608–J-614)
-│   ├── 🟡 **Leg E the two-way closure log** — `CLAUDE.md`'s prose head; the 124,299-char line's two opposite-running halves meet at char 18,426 · J-618
-│   │   ↳ trigger: Leg D closes — **FIRED J-615**. Title locked (Joe, J-618); grounding part two outstanding. ⚠️ identify the line BY CONTENT, not position — it moved L29 → L25 at J-619
+│   ├── 🟡 **Leg E the two-way closure log** — `CLAUDE.md`'s prose head; ≈ 82 closure records in TWO INVERTED NOTATIONS, every region delimited · J-621
+│   │   ↳ trigger: Leg D closes — **FIRED J-615**. Title locked (Joe, J-618); grounding COMPLETE — A 20 · B 51 on `) / J-nnn` · C1 4 · C2 7. Runbookable
+│   │   ↳ ⚠️ identify the line BY CONTENT, not position — it moved L29 → L25 at J-619. 🛑 part one's *two logs with a narrative hole* was a predicate artefact, corrected J-621
 │   ├── 🟡 **Leg F bidirectional sweep** — is every known work item ON the roadmap, not just is every entry true · J-617
 │   └── 🟡 **Leg G records + close** — delete `ROADMAP_ARCHIVE_2026-07-26.md` iff Leg B cleared · J-617
 │       ↳ ⚠️ F and G were `Leg E`/`Leg F` in the task doc and had NO node here until J-617; `E` collided

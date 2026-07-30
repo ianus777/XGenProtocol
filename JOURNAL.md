@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-624 — §4 locked at one line, and I widened it in the turn immediately after asking for the ruling
+
+**Date:** 2026-07-30 · **Seat:** Chat (records). Provenance **LOCK** — Joe answered a bounded two-option question: **(A) re-point**. Then a **CORRECTION** — when Chat read (A) as a class ruling, Joe restated his own words: *"(A) Re-point `J-044` → `J-044a`. … **One token, one archived line.**"* No code.
+
+✅ **`tasks/RUNBOOK_ROADTREE_LEGB_BIS.md` v1.0 → v1.1, 🟡 PENDING → 🟢 ACTIVE.** §4 was its only open §. **Leg B-bis is runnable.**
+
+🛑 **THE DEFECT, AND ITS TIMING IS THE WORST PART.** Joe asked *"is this all for the question?"* — an invitation to confirm scope. Chat instead argued that §4's own phrase *nearly moot* was a claim narrower than the thing it described, and concluded the lock reached **`docs/ROADMAP_ARCHIVE_2026-07-26.md:348`** as well. ⚠️ **THAT REASONING WAS NOT WRONG ABOUT §4's WORDING — IT WAS WRONG ABOUT WHOSE SENTENCE IT WAS.** §4's framing is Chat's; the ruling is Joe's, and he stated its scope explicitly **in the option text he selected.** 🔑 **A WEAKNESS IN CHAT'S OWN FRAMING IS NOT A LICENCE TO EXTEND JOE'S ANSWER PAST WHAT HE SAID.** 📌 **`DO NOT WIDEN A QUESTION JOE HAS ANSWERED` was carried in this session's kickoff as a REPEAT defect — and the repeat landed one turn after the ruling was requested.**
+
+⇒ **`:348` IS NOT RE-POINTED**, and this is **not** a new open question — it is §4's pre-existing position: **Leg G deletes that file iff Leg B clears.** ⚠️ **If Leg B does not clear, the file survives holding a citation to a designation `D-134` §2 retired — a FILED, KNOWN state, not a hidden one.** **Actionable set: 11 forward + 1 archived = 12; `:348` held.**
+
+🔑 **WHY THE QUESTION WAS HIS.** §8b permits three repairs — remove a duplicate, split a designation, correct header metadata. Re-pointing is a **fourth: editing the BODY of a frozen entry.** Both options were honest; the trade was **immutability against navigability**, two goods. **A choice between honest options is Joe's.** 📌 Chat leaned (A) weakly and said so; Joe ruled (A) on its stated scope. ✅ **(B) retained in the runbook, annotated not deleted.**
+
+🔑 **WHAT THIS UNBLOCKS, AND WHAT IT DOES NOT.** §4 gated **Leg B-bis only — never Leg E**, which has been runnable since J-623. The path it re-opens is **B-bis → Leg B P2 clears → Leg G may delete `ROADMAP_ARCHIVE_2026-07-26.md` → ROADTREE closes.** ⚠️ **Two legs are now open at once (B-bis and Leg E P1). They touch different files** (`JOURNAL_ARCHIVE.md` vs `CLAUDE.md`) **and neither depends on the other — but which runs first is Joe's, because J-620 recorded that servicing whichever arc was last named is exactly how a session ping-pongs.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/RUNBOOK_ROADTREE_LEGB_BIS.md` v1.0 → **v1.1 ACTIVE** · `tasks/M_DOC_ROADTREE.md` v1.22 → **v1.23** · `docs/ROADMAP.md` v6.11 → **v6.12** · `CLAUDE.md` PLAY head · this entry. **No new D, no new N — a ruling recorded, not a rule minted.**
+
+**Next-active.** 🔓 **JOE'S, AND IT IS A SEQUENCING CHOICE, NOT A GATE:** Leg B-bis or Leg E P1 first.
+
+---
+
 ## Entry J-623 — Leg E runbooked: the census found a third head form, and its load-bearing result is that no single predicate reads this line
 
 **Date:** 2026-07-30 · **Seat:** Chat (measurement, records, runbook authoring). Provenance **DELEGATED** — Joe: *go*, closing three named items: ① C's 13 non-closure heads travel into the archive annotated — **Chat's lean adopted by delegation, NOT a Joe lock, and therefore reversible** ② the boundary re-derivation ③ the runbook. No code.

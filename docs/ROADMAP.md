@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.11  
+> Version: 6.12  
 > Date: May 2026  
 > **Last updated**: 2026-07-30  
 > Language: English  
@@ -308,9 +308,10 @@ XGen Protocol
 │   │   ├── ✅ **P1 unlinked DONE markers** — 94 → 5, all five resolve · J-599
 │   │   └── 🟡 **P2 unresolved refs** — measured, not cleared
 │   │       ↳ trigger: Leg B-bis runs
-│   ├── 🟡 **Leg B-bis journal repair** — dedup `J-317`–`J-321` (25,127 B) · split `J-044`/`J-045` · **12** citations re-pointed individually · header fix · J-620
-│   │   ↳ runbook `tasks/RUNBOOK_ROADTREE_LEGB_BIS.md` v1.0 PENDING — §4 open (may an ARCHIVED body be re-pointed; governs ONE line)
-│   │   ↳ ⚠️ the earlier **28** was a REFERENCE count, not a citation count — 87 bare hits partition to 4 headings · 71 discussion · 12 citations
+│   ├── 🟢 **Leg B-bis journal repair** — dedup `J-317`–`J-321` (25,127 B) · split `J-044`/`J-045` · **12** citations re-pointed individually · header fix · J-624
+│   │   ↳ ✅ **RUNBOOK ACTIVE** `tasks/RUNBOOK_ROADTREE_LEGB_BIS.md` v1.1 — §4 LOCKED, the leg is RUNNABLE
+│   │   ↳ 🔒 §4 = **(A) re-point** (Joe, 2026-07-30): `JOURNAL_ARCHIVE.md:17052` `J-044` → `J-044a`. 🛑 governs **ONE LINE, not a class** — `ROADMAP_ARCHIVE_2026-07-26.md:348` is **HELD**, since Leg G deletes that file iff Leg B clears
+│   │   ↳ ⚠️ the earlier **28** was a REFERENCE count, not a citation count — 87 bare hits partition to 4 definition sites · 71 discussion · 12 citations
 │   ├── ✅ **Leg C `docs/ROADMAP.md`** — 761,422 → 43,741 B; tree kept, prose deleted, five format rules · J-604 (J-602, J-603)
 │   ├── ✅ **Leg D `CLAUDE.md` B2** — 65 of 81 blocks archived, 640,645 → 316,680 B (50.6%); D-094 re-applied after a five-week lapse · J-615 (J-606, J-608–J-614)
 │   ├── 🟡 **Leg E the two-way closure log** — `CLAUDE.md`'s prose head; one closure log in THREE head notations · J-623

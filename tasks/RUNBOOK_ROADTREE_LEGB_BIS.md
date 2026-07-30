@@ -1,8 +1,8 @@
 # RUNBOOK — M-DOC-ROADTREE Leg B-bis: the journal repair
-> **Status**: PENDING  
-> Version: 1.0  
+> **Status**: ACTIVE  
+> Version: 1.1  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-29  
+> **Last updated**: 2026-07-30  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -14,7 +14,7 @@
 
 **Leg B-bis of `M-DOC-ROADTREE` — the journal repair.** Parent: `tasks/M_DOC_ROADTREE.md` v1.18. Governed by **`D-134`** (designations are issued unique; a duplicate is repaired by lettered split, bare number retired).
 
-⚠️ **THIS RUNBOOK IS `PENDING`. §4 carries ONE open question and it is Joe's** — it decides exactly **one line** of the work. Everything else is measured and settled. Status flips to `ACTIVE` when §4 carries a lock.
+✅ **THIS RUNBOOK IS `ACTIVE` AS OF 2026-07-30 (J-624). §4 CARRIES A LOCK** — Joe ruled **(A) re-point**, governing **one line**. Everything else was already measured and settled. **The leg is runnable.**
 
 🔒 **UNBLOCKED BY §8b's RULING (Joe, 2026-07-29, J-618):** *`ARCHIVED` means no new records; correction of an existing record is permitted whenever a defect is found.* Under the previous reading this leg could not exist.
 
@@ -89,27 +89,27 @@
 
 ---
 
-## §4 — 🔓 OPEN, JOE'S: MAY A CITATION INSIDE AN ARCHIVED FILE BE RE-POINTED?
+## §4 — 🔒 LOCKED (JOE, 2026-07-30, J-624): **(A) RE-POINT.** MAY A CITATION INSIDE AN ARCHIVED FILE BE RE-POINTED?
 
-**Two of the twelve sit in ARCHIVED files: `JOURNAL_ARCHIVE.md:17052` and `docs/ROADMAP_ARCHIVE_2026-07-26.md:348`.** 📌 **And the second is nearly moot — Leg G deletes that file if Leg B clears** ⇒ in practice this question governs **one line.**
+🔒 **THE RULING, IN JOE'S OWN SCOPE:** *"(A) Re-point `J-044` → `J-044a`. The citation resolves; a reader lands on the right entry. **One token, one archived line.**"*
 
-`JOURNAL_ARCHIVE.md:17052` reads: *"2. ~~Mr. Code implements the batch flag~~ ✅ Done — see J-044"*. After the split, `J-044` names nothing.
+🛑 **THE LOCK GOVERNS EXACTLY ONE LINE: `JOURNAL_ARCHIVE.md:17052`. IT IS NOT A CLASS RULING.** ⚠️ **Chat proposed reading it as a rule about the class of archived citations — covering `docs/ROADMAP_ARCHIVE_2026-07-26.md:348` as well — and Joe corrected it back to the stated scope.** 📌 **Recorded because widening a question Joe has answered is a named recurring defect, and this instance occurred in the turn immediately after asking him to rule.**
 
-⚠️ **§8b's ruling permits three kinds of repair — removing a duplicate, splitting a designation, correcting header metadata. This is a fourth: editing the BODY of a frozen entry.** The boundary Joe set was *no new records*, substance untouched. **Re-pointing a pointer arguably does not touch substance — but it does edit the body, and that was not among the three.**
+⇒ **`docs/ROADMAP_ARCHIVE_2026-07-26.md:348` IS NOT RE-POINTED.** This is §4's pre-existing position, not a new open question: **Leg G deletes that file iff Leg B clears.** ⚠️ **If Leg B does NOT clear, the file survives holding a citation to a designation `D-134` §2 retired** — a **filed, known** state, not a hidden one.
 
-### (A) RE-POINT IT — `J-044` → `J-044a`
-1. **Consequence:** the citation resolves. A reader following it lands on the right entry.
-2. **Cost:** one token changed in one archived line. Covered by the `Repaired:` line either way.
-3. **Tier:** treats a dead pointer as exactly the class of defect the ruling was made for.
+**ACTIONABLE CITATION SET: 11 forward + 1 archived (`JOURNAL_ARCHIVE.md:17052`) = 12. `:348` is held, not actioned.**
 
-### (B) LEAVE IT BARE — the split is recorded forward only
-1. **Consequence:** the archived body is untouched. ⚠️ **But the archive then contains a citation to a designation that no longer exists** — and `D-134` §2 retires the bare number precisely so that nothing resolves to it.
-2. **Cost:** zero edits; the forward `JOURNAL.md` entry carries the resolution.
-3. **Tier:** maximal fidelity to *verbatim and unaltered*, at the price of one knowingly-dead pointer.
+### The target
 
-🔑 **WHY THIS IS JOE'S AND §5 OF THE LEG A RUNBOOK WAS NOT.** Both options here are **honest** — neither asserts anything false. It is a trade between immutability and navigability, two goods. **A choice between honest options is Joe's; whether to assert something unknown is not a choice at all.**
+`JOURNAL_ARCHIVE.md:17052` reads: *"2. ~~Mr. Code implements the batch flag~~ ✅ Done — see J-044"*. After the split, `J-044` names nothing. **Re-point to `J-044a`** — one token, body otherwise untouched, covered by the `Repaired:` line.
 
-📌 **Chat's lean is (A)**, on the ruling's own logic: a pointer that resolves to nothing is a defect, and the ruling exists so defects can be fixed. **But the lean is weak and the leg is fine either way** — under (B) the leg loses one row.
+### Why the ruling was Joe's
+
+⚠️ **§8b permits three repairs — removing a duplicate, splitting a designation, correcting header metadata. This is a fourth: editing the BODY of a frozen entry.** Both options were **honest** — neither asserts anything false. It was a trade between **immutability** and **navigability**, two goods. 🔑 **A choice between honest options is Joe's; whether to assert something unknown is not a choice at all.** 📌 Chat leaned (A) weakly; Joe ruled (A) on its stated scope.
+
+### ❌ (B) NOT TAKEN — leave it bare, the split recorded forward only
+
+Retained for the record, **annotated not deleted**: the archived body stays untouched, at the price of one knowingly-dead pointer. Under (B) the leg would have lost one row.
 
 ---
 

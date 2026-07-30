@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.22  
+> Version: 1.23  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-30  
 > Language: English  
@@ -635,14 +635,13 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 
 ✅ **CLOSED:** Leg 0 · Leg A · **Leg C (J-604** — 761,422 → 43,741 B**)** · **Leg D (J-615** — 640,645 → 316,680 B, 65 of 81 blocks archived**)**.
 🟡 **Leg B — P1 cleared (J-599), P2 measured and NOT cleared.** Cleared by B-bis.
-🟡 **Leg B-bis — the journal repair. EXISTS as of §8b's ruling. RUNBOOKED at J-620: `tasks/RUNBOOK_ROADTREE_LEGB_BIS.md` v1.0 PENDING**, §4 open (may an ARCHIVED body be re-pointed — governs ONE line). **Two actions, one surface (`JOURNAL_ARCHIVE.md`):** ① delete one copy of each byte-identical `J-317`–`J-321` pair (**25,127 B**) ② split `J-044`/`J-045` into `a`/`b` and re-point **12** citations, each resolved individually. 📌 **Plus the header fix**, now legal. 🛑 **THE `28` FIGURE WAS A REFERENCE COUNT, NOT A CITATION COUNT, AND IS SUPERSEDED:** 87 bare hits partition to **4 definition sites · 71 discussion · 12 citations** (runbook §2, per-hit table).
+🟢 **Leg B-bis — the journal repair. ✅ RUNBOOK ACTIVE (J-624): `tasks/RUNBOOK_ROADTREE_LEGB_BIS.md` v1.1 — §4 LOCKED, THE LEG IS RUNNABLE.** 🔒 **§4 = (A) RE-POINT (Joe, 2026-07-30)** — `JOURNAL_ARCHIVE.md:17052` `J-044` → `J-044a`. 🛑 **THE LOCK GOVERNS ONE LINE; IT IS NOT A CLASS RULING** — Chat read it as covering `docs/ROADMAP_ARCHIVE_2026-07-26.md:348` too and Joe corrected it back to his stated scope (*one token, one archived line*). ⇒ **`:348` HELD, not actioned** — §4's pre-existing position, since **Leg G deletes that file iff Leg B clears**; if it does not, the file survives with a retired-designation pointer, **filed and known**. **Actionable set: 11 forward + 1 archived = 12.** **Two actions, one surface (`JOURNAL_ARCHIVE.md`):** ① delete one copy of each byte-identical `J-317`–`J-321` pair (**25,127 B**) ② split `J-044`/`J-045` into `a`/`b` and re-point **12** citations individually. 📌 Plus the §1c header fix. 🛑 **THE `28` FIGURE WAS A REFERENCE COUNT, SUPERSEDED:** 87 bare hits partition to **4 definition sites · 71 discussion · 12 citations**.
 🟡 **Leg E — the two-way closure log. 📘 RUNBOOKED (J-623): `tasks/RUNBOOK_ROADTREE_LEGE.md` v1.0 🟡 PENDING — THE AUTHORITY FROM HERE.** 🔒 Title locked (Joe, J-618). Trigger **FIRED (J-615)**. ✅ **P0 CENSUS COMPLETE:** head vocabulary **A 1+19 · B 51 (4 stubs) · C 24**; boundaries **re-derived from head positions** — A 0–18,426 · B 18,426–**110,488** · C –124,299, sum **124,299 ✔**, B/C seam **28 chars earlier** than part two. **95 heads · 91 records.** 🛑 **NO UNIFORM RECORD HEAD EXISTS** — each region needs its own predicate and a second one to check it. 🛑 **`82` retired (J-622); 11 B↔C collisions read pair by pair — 8 B ⊃ C · 2 C ⊃ B · 1 divergent ⇒ NO mechanical merge; Leg E deletes nothing without a per-pair hand verdict.** ⚠️ **Untested and named in runbook §4c:** only B↔C was checked — within-A, within-B, A↔B, A↔C never were. **Next: P1 extraction, runbook §3.**
 🟡 **Leg F — the bidirectional sweep** · 🟡 **Leg G — records + close.**
 
-🔒 **RULED:** §6 **BOTH** · §7 **S1, the tree** · **Leg C's scope** · §6a **E** · §6b **S1** · §6c **D-131** · §3a **W1** · **§4a-i's amendment** · **the `Leg E` collision** · **§8b — R2 with Joe's boundary** · **Leg E's title** · **§4b's rule promoted → `D-134`**.
+🔒 **RULED:** §6 **BOTH** · §7 **S1, the tree** · **Leg C's scope** · §6a **E** · §6b **S1** · §6c **D-131** · §3a **W1** · **§4a-i's amendment** · **the `Leg E` collision** · **§8b — R2 with Joe's boundary** · **Leg E's title** · **§4b's rule promoted → `D-134`** · **B-bis §4 — (A) re-point, ONE LINE, not a class (J-624)**.
 
-🔓 **STILL OPEN FOR JOE — ONE, AND IT GATES NOTHING:**
-1. **The back-fill milestone's name** — `M-RP-MEMBERS` still has no `ROADMAP.md` node and its Leg C pause is still unrecorded there. 📌 **Strictly this belongs to Leg F's sweep, not to this list.**
+🔓 **OPEN, JOE'S — NEITHER IS A GATE:** ① **sequencing: Leg B-bis or Leg E P1 first** (both runnable, different files, no dependency) ② **the back-fill milestone's name** — M-RP-MEMBERS still has no ROADMAP node; belongs to Leg F's sweep.
 
 ✅ **SPENT, recorded so they are not re-opened:** §9's 100 KB size bar · §1b's Leg D structure question · **§8a's sequencing** (an output of §8b) · §4a's superseded framing · Leg C's structure consequence · Leg D's format question · **§4b's rule promoted → `D-134`**.
 

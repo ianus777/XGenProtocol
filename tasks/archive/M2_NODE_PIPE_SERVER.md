@@ -20,7 +20,7 @@ M1 (J-068 through J-073, commits `e864715` → `95ef5e1`) shipped both binaries 
 - `xgen-node --reload-config`
 - `xgen-node --batch <file.xgb>`
 
-M2 makes those five flags real. The Client side has had a working pipe server since J-038 / J-044 (and gained the four single-line control commands in J-069's Phase 4). M2 ports the same pattern to the Node and wires the five Node-side handlers.
+M2 makes those five flags real. The Client side has had a working pipe server since J-038 / J-044a (and gained the four single-line control commands in J-069's Phase 4). M2 ports the same pattern to the Node and wires the five Node-side handlers.
 
 M2 is structural: it adds a new resident-only concern (the pipe server) to the Node, with a Node-specific command set for `__BATCH__`. It is **not** a protocol change — D-043's pipe-naming convention (`\\.\pipe\xgen-{node|client}-{label}`) and the four control tokens (`__PING__`, `__HEALTH__`, `__STOP__`, `__RELOAD_CONFIG__`) were locked in M1 and apply unchanged here.
 
@@ -34,7 +34,7 @@ M2 is structural: it adds a new resident-only concern (the pipe server) to the N
 | `DECISIONS.md` D-056 | Application Deployment Model — every resident must host a pipe server |
 | `DECISIONS.md` D-062 / D-063 | Library-first dispatch; pipe server lives in `xgen-node-lib` |
 | `JOURNAL.md` J-068 → J-073 | M1 closure chain; current state of the binaries |
-| `xgen-client/src/batch.rs::start_pipe_server` | The skeleton to port — battle-tested via J-038 / J-044 / J-069 / J-071 |
+| `xgen-client/src/batch.rs::start_pipe_server` | The skeleton to port — battle-tested via J-038 / J-044a / J-069 / J-071 |
 | `xgen-client/src/batch.rs::{cmd_ping,cmd_health,cmd_stop,cmd_reload_config,pipe_send_control}` | Client-side helpers — Node side wants exactly the same shape |
 | `xgen-node/src/main.rs::node_pipe_stub` | The five stub call-sites to flip to real delegators |
 | `xgen-node/src/desktop.rs` | Resident-desktop spawn point — pipe server needs to start here |

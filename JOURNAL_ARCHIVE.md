@@ -1,14 +1,25 @@
 # XGen Protocol — Development Journal (Archive)
 > **Status:** ARCHIVED  
-> **Last updated:** 2026-06-18  
+> **Last updated:** 2026-07-30  
 
 This document is the frozen archive of older XGen Protocol development-journal
 entries, relocated from `JOURNAL.md` under the D-094 windowing convention. It
 preserves authorship, timeline, and scope of original work for IP purposes.
 Entries are verbatim and unaltered; do not modify.
 
-Archive span: **J-375 … J-046** (358 entries). Live window (J-395 … J-376)
-continues in `JOURNAL.md`.
+Archive span: **J-375 … J-001** (353 entries). Live window (**J-624 … J-376**, 249
+entries) continues in `JOURNAL.md`. Measured 2026-07-30; the two windows do not
+overlap.
+
+Repaired: 2026-07-30 (Leg B-bis, J-625), under the §8b ruling that `ARCHIVED`
+forbids new records but permits correction of an existing one. Changes: one copy
+of each byte-identical duplicate pair `J-317`–`J-321` deleted (−25,614 B; the
+surviving bodies are byte-identical to commit `6863702`); the two genuine
+designation collisions split `J-044` → `J-044a`/`J-044b` and `J-045` →
+`J-045a`/`J-045b` per `D-134`; one citation re-pointed in this file
+(`see J-044` → `see J-044a`); and this header corrected — the span's low end read
+`J-046` when the archive reaches `J-001`, and the live window read `J-395 …
+J-376` when it is `J-624 … J-376`. **No entry body was otherwise altered.**
 
 ---
 ## Entry J-375 — M10.5 + M10 CLOSED: MP-C-06 GREEN (the last carve-out); M10 (Auth Module Reference Set) DONE; the full multiparty suite is 37/37; next-active = Round-2 whole-codebase audit (UI gate)
@@ -1225,48 +1236,6 @@ Per D-065 + D-069 + D-071 + D-074 + D-084.
 
 ---
 
-## Entry J-321 — MP-R1 C6 SHIPPED by Clair (9f71327): Tranche 3 logic-adversarial — 4 PASS (MP-A-02/04/17/20) + 2 BLOCKED (MP-A-03/14) + MP-A-16 reclassified C6→C7; MP-R1-D9 locked (rejection oracle is path-split); open-join breadcrumb; next = Clair C7
-
-**What happened.** Clair shipped C6 (commit 9f71327, pushed). Chat doc-only follow (this entry): locked **MP-R1-D9** (design v1.2→v1.3 §10) — the path-split rejection oracle, surfaced by Clair before authoring (D-065). It amends MP-R1-D4's wrong batch-observability premise and supersedes the J-320 MP-A-20 category instruction (both assumed an observability the batch rails don't have). This doc set not pushed — Joe pushes.
-
-**Date:** 2026-06-07
-
-**C6 results (Tranche 3 logic-adversarial; out-of-band, Option-A paired oracle = offending event absent on ALL nodes + protected state unchanged):** **MP-A-02** over-ceiling invite → rejected at ingest (node 3045); invite absent; bob never a member ✅ · **MP-A-04** non-member send → rejected (step-11); message absent; carol never a member ✅ · **MP-A-17** wrong-space_id → rejected (4000); event absent; real Space S stays `{alice:owner}`, no leak ✅ · **MP-A-20** privilege escalation (reframed role-gate path) → member bob's owner/admin-gated `invite` denied (`can_invite`); invite absent; carol never a member ✅ (bob is a genuine member first via open-join, so this is a real member-attempts-admin refusal; as-authored matrix note recorded). **2 BLOCKED** (recorded, as audited): MP-A-03 (no Space-`auth_tier` verb), MP-A-14 (member-ban verb gap). **MP-A-16 RECLASSIFIED C6→C7** (see below). Fast suite 72/0; build 0; clippy clean (default + `--features harness-control`). Clair set 7 matrix cells.
-
-**MP-R1-D9 (added J-321, proven at C6) — logic-adversarial rejection oracle is path-split.** Batch scenarios assert rejection via a **paired oracle** (offending `event_id` absent from every transcript AND protected state unchanged); **category-level assertion is NOT batch-observable** and lives on the C7 wire path only. **Why:** the client ops that get rejected — `invite`/`join`/`send`/`leave` — are `send_event` + goodbye with NO recv (`Connection::send_event` is write-only, connection.rs:120); the node's accept/reject (D-070 `EventAccepted`/`Error`) never returns to the aicontrol reply, so `run_actor` captures `{status:ok,event_id}` regardless. **Same fire-and-forget mechanism as MP-F1 facet-2** — now understood as a general property of the batch path, not a DM quirk (MP-F1 cross-referenced). Batch proves *effect-absence* (the sound R1-floor security property: the attack had no effect; absence alone too weak, state-unchanged half required); the C7 injector/`WireActor` path recvs the `Error` frame and proves *category* (`rejection_category_verdict`'s real home; how MP-A-05 Round-0 read `Error(4000,…)`). **Consequence: every R1 "rejection" property splits by path** — batch (C6) effect-absence, wire (C7) category; C7 is where adversarial coverage gets its teeth. Amends D4; supersedes the MP-A-20 category ask. Arc-local (D-069).
-
-**MP-A-16 reclassified C6→C7 (mis-premised, not a defect; grounded three ways).** XGen Spaces are **open-join by default** — an uninvited batch `join` legitimately succeeds + grants member role (runtime.rs:1244 "an open join … is untouched"; J-275 INV-EXP close; diagnostic confirmed bob_is_member=true). The `join` verb takes no invite-reference arg, so a batch join can't "reference a never-issued invite" — only a legitimate open-join. The genuine attack (a `membership.join` with `prev_events` referencing a fabricated invite predecessor → missing-predecessor/HeldPending → joiner never a member) is injector-only → C7, alongside MP-A-09/10. Clair reverted her diagnostic + deleted the batch dir/smoke; matrix cell carries the C7 hand-off. Not a defect (nothing to route), not a capability-BLOCK (injector exists) — a wrong-tranche classification.
-
-**Confirmed-property breadcrumb (not a finding, not action).** C6 empirically confirmed the open-join model: uninvited join → full member role on any Space, by design (J-275). With auth-tier Tier-1-only today (MP-A-03 BLOCKED; `ops::create_space` hardcodes `auth_tier=1`), there is currently **no join gate on the happy path**. Intended — flagged for the PG-13/auth-tier + M10 auth-module work to weigh when it lands, rather than rediscover. Recorded in design §10.
-
-Suite 72/0 (Clair, C6). No DECISIONS change (MP-R1-D# arc-local, D-069). Design v1.2→v1.3 (+§10/D9 + breadcrumb + MP-A-16 reclass). ROADMAP v3.10→v3.11. **Next-active: Clair — C7** (Tranche 4 wire/injector + clock). C7 opens with the one design-ish step: **wire the C1-stubbed `kind="injector"` dispatch** in `run_scenario` (xgen-mptest only, no production change), then MP-A-05 (re-run) / -09 (dup-id) / -10 (causal gap) / -12 (malformed frame) / -15 (clock-skew → wire-3046, M9.1) / -01 (expired-invite federation replay, `[[clock]]`) + **MP-A-16 reclassified** (injector join-with-fabricated-predecessor). C7 carries 3 finding-candidates (MP-A-16, MP-A-01, the MP-A-09/10 predecessor checks) and is where ALL category-level rejection assertions live — deserves careful per-scenario grounding, not a fast pass. C7 also: confirm each row genuinely recvs its `Error` frame; if any can't, that's the next finding. **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-321 → `tasks/MP_R1_DETERMINISTIC_IMPL.md` §3 (C7) → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §10 (D9) + §2 (injector dispatch) → `tasks/MP_findings.md` (MP-F1) → `docs/tests/MULTIPARTY_TEST_MATRIX.md` + `tests/c4_injector.rs`/`m9_2_f4_malformed_frame.rs` (injector templates).** This doc set not pushed — Joe pushes.
-
-Per D-065 + D-069 + D-071 + D-074 + D-084.
-
----
-
-## Entry J-320 — MP-R1 C5 SHIPPED by Clair (7fdb973): 2 PASS (MP-C-01/-10) + 4 BLOCKED; C6/C7 pre-flight audit (10–11/13 authorable, no enabling-arc stall); MP-R1-D8 locked — close criterion amended (BLOCKED is a valid outcome; all-22-PASS unreachable) + test-debt ledger; next = Clair C6
-
-**What happened.** Clair shipped C5 (commit 7fdb973, pushed) + ran the C6/C7 pre-flight verb-availability audit (no code). Chat doc-only follow (this entry): locked **MP-R1-D8** (design v1.1→v1.2 §9; IMPL v1.0→v1.1 §5) — the close-criterion amendment + the test-debt ledger. The capability gaps are the milestone working as intended (the tests exist to discover deferred surface, Joe's framing). This doc set not pushed — Joe pushes.
-
-**Date:** 2026-06-07
-
-**C5 results (Tranche 2 membership-lifecycle; out-of-band, `--features harness-control`):** **MP-C-01** local single-node fan-out ✅ (alice+carol both members of S on A; views agree; both posts present). **MP-C-10** leave & rejoin, true cross-node A↔B ✅ (bob join→leave→re-invite→rejoin, each act B→A; converges `{alice:owner,bob:member}` both nodes + event-set matches; the finding-candidate did NOT diverge — rides the MP-C-02-proven B→A path, explicit join/leave per the pending-invite lesson; genuine green, stable across two runs). **4 BLOCKED** — capability gaps, not defects, NOT routed to `MP_findings.md`: **MP-C-08** (no client verb for `state.room_update`, PG-12), **MP-C-09** (no member-`ban` verb; `node_eject` explicitly NOT a substitute — Node-authority, different path), **MP-C-13** (no `thread.*` verb, PG-08) — the verb-gap trio, primitives are xgen-core builders only, authoring deferred to the UI pass; **MP-C-06** (distinct: harness-capability gap + incomplete production feature — no key continuity across `--init` clients, aicontrol drops `node_override` aicontrol.rs:360, AND the `home_changed` client broadcast was deferred J-278 CP-5 / J-279). Clair set 6 matrix cells + added the `🚧 BLOCKED` legend line (no clash). Fast suite 72/0; build 0; clippy clean.
-
-**C6/C7 pre-flight audit (the "do we need an enabling arc?" question — answered NO).** ~10–11 of the remaining 13 authorable; the blocked set is bounded + shares the C5 root cause; C6/C7 proceed commit-by-commit, no stall. **C6:** authorable MP-A-02 (over-ceiling invite →3045) / -04 (non-member send) / -16 (forged/never-issued invite — outcome a finding-candidate) / -17 (wrong-space_id →4000); **MP-A-20 authorable via reframe** (see below); BLOCKED **MP-A-03** (no verb to set Space `auth_tier`≥2 — `ops::create_space` hardcodes `=1`, ops.rs:357; PG-13 gate is a Tier-1 no-op today) + **MP-A-14** (ban-evasion needs a banned-user precondition — the MP-C-09 ban gap). **C7:** 6/6 authorable (MP-A-05/09/10/12/15 injector + MP-A-01 clock-replay), modulo wiring the C1-stubbed `kind="injector"` dispatch (planned C7, xgen-mptest only). Stale-doc flag: the matrix MP-A-15 row still says "M9 finding F1 … silently accepted" — stale (M9.1 shipped Step 8.5 wire-3046, J-311); Chat updates the row text at C8.
-
-**MP-R1-D8 (added J-320) — close criterion amended + test-debt ledger.** MP-R1 closes when every R1 scenario carries a recorded outcome ∈ {PASS · FAIL→routed · BLOCKED}; **all-22-PASS is NOT the bar and is unreachable in R1.** BLOCKED is a valid terminal outcome — a coverage finding about the binary's authoring surface, not a defect and not a non-result. A green MP-R1 certifies the happy-path cooperative core + the adversarial-logic/wire core — NOT the admin/lifecycle/threads/re-home surface (untested by capability gap). **Expected final shape ≈ ~15 PASS-eligible + ≥1 routed (MP-F1; MP-A-16/MP-A-01 may add) + 6 BLOCKED.** **Test-debt ledger (the UI/authoring-verb pass inherits):** member-ban (MP-C-09, MP-A-14) · room-override PG-12 (MP-C-08) · thread PG-08 (MP-C-13) · auth-tier-unsettable (MP-A-03) · re-home notify + harness keypair-relocation/per-command `--node` (MP-C-06). When those ship the six become runnable — resumed as a small **MP-R1-resumed** sweep or folded into MP-R2 (structure decided post-C7). Debt owed + recorded, not closed.
-
-**MP-A-20 reframe (Joe-confirmed J-320):** author via the role-gate path — a non-privileged member attempts an owner/admin-gated *client* verb (`invite` / `ai delegate`) → assert `PermissionDenied`, category=permission (the real `can_invite` gate). NOT the matrix's node-admin verbs (not client-issuable; `UNKNOWN_COMMAND` would be the wrong category). Same escalation property, a different valid instance — distinct from the MP-C-09/`node_eject` wrong-path substitution (different mechanism). Recorded as an as-authored matrix note.
-
-**Pattern note (Joe's framing).** C4→C5 shows the client `.aicontrol` verb surface was built for the happy path and never grew the admin/lifecycle verbs or re-home plumbing (UI-pass deferrals). The matrix assumed a richer driving surface than the binary exposes today. Surfacing this *is* the discovery function working — an all-green pass over a happy-path-only surface would have been the real failure.
-
-Suite 72/0 (Clair, C5). No DECISIONS change (MP-R1-D# arc-local, D-069). Design v1.1→v1.2 (+§9/D8); IMPL v1.0→v1.1 (§5 close line). ROADMAP v3.09→v3.10. **Next-active: Clair — C6** (author MP-A-02/04/16/17 + MP-A-20 reframed = 5; record MP-A-03 + MP-A-14 BLOCKED; stop at C6) → C7 (6/6 + injector-dispatch wiring) → C8 (Chat doc-only close: matrix roll-up incl. the MP-A-15 row fix, AUDIT/DESIGN/IMPL→COMPLETED, MP-R1-resumed-vs-fold decision). **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-320 → `tasks/MP_R1_DETERMINISTIC_IMPL.md` §3 (C6) → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §9 (D8 + ledger) → `tasks/MP_findings.md` (MP-F1) → `docs/tests/MULTIPARTY_TEST_MATRIX.md`.** This doc set not pushed — Joe pushes.
-
-Per D-065 + D-069 + D-071 + D-074 + D-084.
-
----
-
 ## Entry J-320 — MP-R1 C5 SHIPPED by Clair (7fdb973): 2 PASS (MP-C-01/-10) + 4 BLOCKED; C6/C7 pre-flight audit (10–11/13 authorable, no enabling-arc stall); MP-R1-D8 locked — close criterion amended (BLOCKED is a valid outcome; all-22-PASS unreachable) + test-debt ledger; next = Clair C6
 
 **What happened.** Clair shipped C5 (commit 7fdb973, pushed) + ran the C6/C7 pre-flight verb-availability audit (no code). Chat doc-only follow (this entry): locked **MP-R1-D8** (design v1.1→v1.2 §9; IMPL v1.0→v1.1 §5) — the close-criterion amendment + the test-debt ledger. The capability gaps are the milestone working as intended (the tests exist to discover deferred surface, Joe's framing). This doc set not pushed — Joe pushes.
@@ -1309,26 +1278,6 @@ Per D-065 + D-069 + D-071 + D-074 + D-084.
 
 ---
 
-## Entry J-319 — MP-R1 C4 (Tranche 1 cross-node cooperative core) SHIPPED by Clair (d682345): MP-C-02 A↔B ✅ + MP-C-03 ✅ + MP-C-07 ❌→routed (MP-F1, first finding); MP-R1-D7 locked (oracle scope); next = C5
-
-**What happened.** Clair shipped C4 (commit d682345, pushed) — the first scenario tranche + the `run_scenario` machinery proven on the riskiest path. Chat doc-only follow (this entry): locked **MP-R1-D7** into the design (v1.0→v1.1, §7.5) and authored **MP-F1** into a new `tasks/MP_findings.md` v1.0. The cross-node convergence path the C1 single-node smoke had sidestepped now works end-to-end. Not pushed (this doc set) — Joe pushes.
-
-**Date:** 2026-06-07
-
-**C4 results (out-of-band, `--features harness-control`):** **MP-C-02** (invite & join, true A↔B) ✅ — the C1-sidestepped riskiest path converges, oracle passes with the D7 exclusion. **MP-C-03** (concurrent send, A↔B) ✅ — both messages retained + converge both nodes. **MP-C-07** (DM cross-node) ❌→routed (MP-F1). Clair's commit: oracle D7 exclusion + 3 scenario dirs + matrix Results + test reorg (`c5_mp_c_02` rm, superseded by the A↔B promotion). Build 0; clippy clean; fast suite 69→72 (+3 D7 unit tests). Matrix Results set by Clair in the C4 commit (D-074); `MP_findings.md` authored by Chat (canonical-record ownership split).
-
-**MP-R1-D7 (added J-319, proven at C4) — federated-convergence oracle scope.** Surfaced by Clair (D-065), grounded three ways before locking. The per-Space `event_id`-set convergence comparison **excludes federation-bootstrap infra by an explicit kind list** `INFRA_EVENT_KINDS = ["state.federation_add"]` (that kind only — the other federation/bootstrap kinds are protocol/transport messages, never Space-DAG events; no `state.federation_remove` exists). **Membership convergence is RETAINED** as the positive "federation formed + state converged" assertion (a genuinely-failed federation surfaces as membership divergence — which is exactly how MP-F1 was caught). The asymmetry is **registry-vs-DAG, directional, benign**: M9.2 `add-peer` on the initiating node A is registry-only (`FederationRegistry::upsert` + `record_peer_url`, admin_ops.rs:1906 — the M9.2-D2′ fenced boundary), no Space-DAG event; B materializes `state.federation_add` on receipt → Space DAG holds A:0/B:1 by mechanism, not a lost event (`federation list` on both nodes confirms each holds the active link). NOT the symmetric-pair shape Chat first guessed — Clair's honesty flag corrected it before lock. A scope correction (match the property the oracle verifies), not a weakening. Arc-local (D-069); inherited by C4–C7 + R2/R3.
-
-**MP-F1 (first routed finding) — DM cross-node does not converge + DM messages not transcript-observable.** **Facet 1:** DM `membership.join` applies on B, never propagates B→A (alice-view stays `{alice:owner}`; bob-view `{alice:owner,bob:member}`). Contrast: MP-C-02 propagates B→A under the identical director/federation/settle → DM-specific. Survives the corrected join flow (bob seeded as pending-invite per `from_dm_space_create`, state.rs:342) → real finding, not authoring. **Facet 2 (OPEN, needs a dig):** DM `message.text` (alice a3, bob b4) returns ok+event_id but appears in NEITHER node's `.events`; regular-Space messages do (MP-C-03 PASS). One grep ruled out an obvious `ops::send`/`apply_fanout` DM filter; unresolved between not-emitted vs ack-then-rejected — means DM message-convergence isn't transcript-observable even if Facet 1 is fixed. Routed to a DM-cross-node fix-arc (own Phase-0); both facets are binary work, out of MP-R1 scope (MP-R1-D6). Repro committed (`MP-C-07/` + the known-FAIL smoke, stays RED).
-
-**Carried forward (C5+):** the pending-invite→join bootstrap is **load-bearing** for any member who must materialize on a remote node's view — C5 batches (MP-C-06/08/09/10/13) use explicit joins, not sends, wherever a member must appear cross-node (Clair carrying this).
-
-Suite 69→72 (Clair, C4). No DECISIONS change (MP-R1-D# arc-local, D-069). Design v1.0→v1.1 (+D7); `tasks/MP_findings.md` v1.0 NEW (MP-F1). ROADMAP v3.08→v3.09 (C4 shipped). **Next-active: Clair — C5** (Tranche 2 membership-lifecycle: MP-C-01/06/08/09/10/13). **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-319 → `tasks/MP_R1_DETERMINISTIC_IMPL.md` §3 (C5) → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §7.5 (D7) → `tasks/MP_findings.md` (MP-F1) → `docs/tests/MULTIPARTY_TEST_MATRIX.md`.** This doc set not pushed — Joe pushes.
-
-Per D-065 + D-069 + D-071 + D-074 + D-084.
-
----
-
 ## Entry J-318 — MP-R1 runbook authored: 8-commit plan (runner+sweep+clock machinery C1–C3, then four scenario tranches C4–C7, doc-only close C8); grounded on the `c5_mp_c_02` hand-wired template; Clair pickup
 
 **What happened.** MP-R1 implementation runbook authored + Joe-approved (Chat Claude + Joe — doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/MP_R1_DETERMINISTIC_IMPL.md` v1.0 (ACTIVE). Executes the J-317 design (MP-R1-D1..D6). Clair may pick up at C1. Grounded against the live harness — the `c5_mp_c_02` smoke is the exact hand-wired template `run_scenario` generalizes (load → spawn → attach collector → `tokio::join!` the `run_actor`s on a shared `Registry` → quiesce → `members` → `convergence_verdict` → `Capture`); `m9_2_f2_add_peer` the G-6 bootstrap template; `c4_injector`/`m9_2_f4` the injector templates. Suite 1271/0/11 (no code). Not pushed — Joe pushes.
@@ -1344,54 +1293,6 @@ Per D-065 + D-069 + D-071 + D-074 + D-084.
 **Scope guard (§6).** NOT the multi-rung sweep climb (R2/R3), NOT `residents_per_process` multiplexing (G-5), NOT any binary change (findings route out, MP-R1-D6), NOT the other 13 R2/R3 matrix rows. R1 runs require a `--features harness-control` node build.
 
 Suite 1271/0/11. No DECISIONS change (MP-R1-D# arc-local, D-069). ROADMAP v3.07→v3.08 (MP-R1 runbook authored). **Next-active: Clair** — C1 → C2 → C3 → C4 → C5 → C6 → C7 → C8. **Entry point for Clair (Rule 0): CLAUDE PLAY → JOURNAL J-318 → `tasks/MP_R1_DETERMINISTIC_IMPL.md` §2+§3 → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §2–§7 → `tests/c5_mp_c_02.rs` (the template) → `docs/tests/MULTIPARTY_TEST_MATRIX.md` + the committed `MP-C-02/` batches.** Not pushed — Joe pushes.
-
-Per D-065 + D-069 + D-071 + D-074 + D-084.
-
----
-
-## Entry J-318 — MP-R1 runbook authored: 8-commit plan (runner+sweep+clock machinery C1–C3, then four scenario tranches C4–C7, doc-only close C8); grounded on the `c5_mp_c_02` hand-wired template; Clair pickup
-
-**What happened.** MP-R1 implementation runbook authored + Joe-approved (Chat Claude + Joe — doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/MP_R1_DETERMINISTIC_IMPL.md` v1.0 (ACTIVE). Executes the J-317 design (MP-R1-D1..D6). Clair may pick up at C1. Grounded against the live harness — the `c5_mp_c_02` smoke is the exact hand-wired template `run_scenario` generalizes (load → spawn → attach collector → `tokio::join!` the `run_actor`s on a shared `Registry` → quiesce → `members` → `convergence_verdict` → `Capture`); `m9_2_f2_add_peer` the G-6 bootstrap template; `c4_injector`/`m9_2_f4` the injector templates. Suite 1271/0/11 (no code). Not pushed — Joe pushes.
-
-**Date:** 2026-06-07
-
-**Commit plan (all in `xgen-mptest` + `docs/tests/multiparty_scenarios/`; no production crate):** **C1** `runner.rs::run_scenario(scenario, dial)` generalizing the template over N nodes/actors + the **G-6 `establish_federation` helper** (add-peer both directions before register → actors register + owner creates Space → re-add-peer naming the Space → `initiate` from `link.from`, interleaved with the concurrent actor drive via the shared `Registry`) + actor-kind dispatch (`kind="injector"` → injector path) + **un-stale `dial.rs`** (`ClockMode::Mock` valid; drop the "not operable"/"initiate does not exist yet" staleness); proof = MP-C-02 single-node re-expressed + a 2-node federation smoke. **C2** `sweep.rs` — `Sweep`/`SweepRung`/`SweepResult` + `run_sweep` classifying each rung **GREEN/LOGIC-FAULT/CEILING** by consulting `OracleVerdict` AND `ResourceSample` (the D-065 distinction); R1 = single-rung path + a classifier unit test (no spawn). **C3** manifest `[[clock]]` table + the clock-director task (blocks on `after` via `Registry::wait_for`, sends the F3 verb) + `oracle::rejection_category_verdict` (reads the captured `Reply` code/category) + unit tests. **C4 (T1)** cross-node cooperative core MP-C-02 (true A↔B) / -03 / -07. **C5 (T2)** membership-lifecycle MP-C-01/06/08/09/10/13. **C6 (T3)** logic-adversarial MP-A-02/03/04/14/16/17/20 (assert code/category). **C7 (T4)** wire/injector + clock MP-A-05 (re-run) /09/10/12/15 + MP-A-01 (via `[[clock]]`). **C8** doc-only close (matrix roll-up, `tasks/MP_findings.md` iff a finding surfaced, AUDIT/DESIGN/IMPL→COMPLETED, canonical records; next-active = MP-R2).
-
-**Scenario-authoring contract (§4).** Ground exact JSONL against the committed `MP-C-02/` files + matrix §2/§5; every scenario asserts on its own fresh unique Space (Space-scoped, never absolute node counts — shared `spaces_dir` G-4). Each scenario tranche commit ships its scenario dirs + the run + the matrix Result atomically (D-074).
-
-**DoD (§5).** Per commit: build 0; clippy clean (default + `--features harness-control` where touched); fast suite green (grows by unit tests only); new `#[ignore]` smokes run out-of-band, result recorded in the matrix in the same commit. No "commit pushed" line. **Suite trajectory:** baseline 1271/0/11 grows (+C2/C3 unit tests, +~20 ignored scenario smokes); reconciled at C8.
-
-**Scope guard (§6).** NOT the multi-rung sweep climb (R2/R3), NOT `residents_per_process` multiplexing (G-5), NOT any binary change (findings route out, MP-R1-D6), NOT the other 13 R2/R3 matrix rows. R1 runs require a `--features harness-control` node build.
-
-Suite 1271/0/11. No DECISIONS change (MP-R1-D# arc-local, D-069). ROADMAP v3.07→v3.08 (MP-R1 runbook authored). **Next-active: Clair** — C1 → C2 → C3 → C4 → C5 → C6 → C7 → C8. **Entry point for Clair (Rule 0): CLAUDE PLAY → JOURNAL J-318 → `tasks/MP_R1_DETERMINISTIC_IMPL.md` §2+§3 → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §2–§7 → `tests/c5_mp_c_02.rs` (the template) → `docs/tests/MULTIPARTY_TEST_MATRIX.md` + the committed `MP-C-02/` batches.** Not pushed — Joe pushes.
-
-Per D-065 + D-069 + D-071 + D-074 + D-084.
-
----
-
-## Entry J-317 — MP-R1 design Joe-LOCKED: the deterministic correctness floor; one generic `run_scenario` runner (D1) + the sweep contract locked for R2/R3 (D2) + manifest `[[clock]]` (D3) + Space-scoped oracle (D4); next-active = MP-R1 runbook
-
-**What happened.** MP-R1 design phase authored + Joe-LOCKED (Chat Claude + Joe — doc-only, NO code, NO DECISIONS change). Deliverable: `tasks/MP_R1_DETERMINISTIC_DESIGN.md` v1.0 (ACTIVE). Locks **MP-R1-D1..D6** (arc-local, D-069) from the audit §4 forks. Grounded against the live harness (`batch.rs::run_actor`, `dial.rs::RoundDial`, `manifest.rs`, `oracle.rs`). Suite 1271/0/11 (no code). Not pushed — Joe pushes.
-
-**Date:** 2026-06-07
-
-**MP-R1-D1 (F-A) — one generic `run_scenario(scenario, dial)` runner, two actor kinds.** Reuses the existing per-actor `run_actor` unchanged; the new code is the top orchestrator the Round-0 smokes hand-wired: spawn nodes per topology → establish `[[federation]]` links via the canonical **G-6 bootstrap** (D1a) → spawn a client per actor → attach `EventCollector` per node → drive all actors **concurrently** (required — cross-actor `{{exports}}`/`[[waits]]` only resolve if producers + consumers run simultaneously) → settle → oracle. **D1a (G-6, encoded once in the runner):** add-peer each direction (empty spaces) BEFORE any identity registers (so `push_identity_to_peers` replicates it) → register → create Space → re-add-peer naming the Space → `initiate`. Batch actor (→ `run_actor`) vs injector actor (→ raw-wire `injector.rs`) is a per-actor dispatch. R1 runs need a `--features harness-control` node build.
-
-**MP-R1-D2 (F-B) — the sweep contract, locked now so R2/R3 inherit.** `RoundDial` is a single point today; a thin `Sweep { axis, start, step, max, stop_on_fail }` yields a sequence of dials; result = `SweepResult { rungs, break_point }` (a curve, not a bool). **The D-065 distinction is the stop condition:** GREEN → climb; LOGIC-FAULT (non-convergence / lost admitted event / wrong rejection) → stop + route a finding; CEILING (oracle inconclusive + `resource.rs` shows OOM/RSS-wall/thread-thrash) → stop, tagged **hardware**, NOT a protocol FAIL. R1 = a degenerate single-rung sweep through the SAME type (builds the type + single-rung path; R2/R3 stress the multi-rung climb).
-
-**MP-R1-D3 (F-C) — manifest `[[clock]]` ordered step list** (`{node, op: advance|set, value, after: <export-key|barrier>}`). The clock is a scenario-director task (per-actor JSONL stays actor-driven); each step blocks on `after` via `Registry::wait_for`, then sends the F3 verb on the named node. Unblocks MP-A-01. Un-stales `dial.rs` G-2 (`ClockMode::Mock` valid on a harness-control build).
-
-**MP-R1-D4 (F-D) — Space-scoped oracle as the contract; no binary change.** The oracle is already Space-scoped (`convergence_verdict(…, space_id)`, `event_ids_for_space`, membership = owner + `(identity,role)` set). Every R1 scenario asserts on its own fresh unique Space — never absolute node counts (the shared default `spaces_dir` G-4 pollutes those). Logic rejections assert the reply error code/category (new small `rejection_category_verdict` helper; data already captured by `run_actor`). Shared `spaces_dir` recorded as a known constraint; per-instance override = out-of-scope later hardening.
-
-**MP-R1-D5 (F-E) — 22 R1 scenarios in four mechanism-grouped tranches** (each a runbook commit, fix→rerun): T1 cross-node cooperative core (MP-C-02 true A↔B / -03 / -07 — riskiest path first) · T2 membership-lifecycle cooperative (MP-C-01/06/08/09/10/13) · T3 logic-adversarial (MP-A-02/03/04/14/16/17/20, all assert code/category) · T4 wire/injector + clock (MP-A-05 re-run /09/10/12/15 + MP-A-01 via `[[clock]]`).
-
-**MP-R1-D6 (F-F) — defect policy = surface-and-route, not patch.** A real-defect FAIL becomes a routed finding in a NEW `tasks/MP_findings.md` (mirrors `M9_findings.md`); does NOT block close; the recorded per-scenario result is the deliverable. Binary changes route out to their own arcs.
-
-**Change surface (all in `xgen-mptest` + scenario dirs):** `run_scenario` + G-6 helper; `Sweep`/`SweepResult` + single-rung path; manifest `[[clock]]` + clock-director; `rejection_category_verdict` + un-stale `dial.rs`; the 22 scenario dirs. Untouched: every production crate (findings route out). Heavy entry points stay `#[ignore]`; the fast suite never spawns processes.
-
-**Honest boundary (D-065).** R1 proves correctness under NO load — floor, not scale (R2/R3), not coverage.
-
-Suite 1271/0/11. No DECISIONS change (MP-R1-D# arc-local, D-069). ROADMAP v3.06→v3.07 (MP-R1 design Joe-LOCKED). **Next-active: the MP-R1 runbook** (`tasks/MP_R1_DETERMINISTIC_IMPL.md`) — commit plan: the runner + types (D1/D2/D3/D4 machinery), then the four scenario tranches (D5) → Clair. **Entry point (Rule 0): CLAUDE PLAY → JOURNAL J-317 → `tasks/MP_R1_DETERMINISTIC_DESIGN.md` §2–§7 → `tasks/MP_R1_DETERMINISTIC_AUDIT.md` §3 (the grounding findings) → `docs/tests/MULTIPARTY_TEST_MATRIX.md` (R1 set).** Clair stands down until the runbook exists. Not pushed — Joe pushes.
 
 Per D-065 + D-069 + D-071 + D-074 + D-084.
 
@@ -16954,7 +16855,7 @@ docs/tests/FIXES_sec_01_ph2.md        modified (status → COMPLETED, checklist 
 
 ---
 
-## Entry J-044 — BATCH_FLAG_ph2.md: implementation review; error message fix; documentation updates
+## Entry J-044b — BATCH_FLAG_ph2.md: implementation review; error message fix; documentation updates
 
 **Date:** 2026-05-13  
 **Author:** Jozef Nižnanský  
@@ -17049,12 +16950,12 @@ The single-instance forwarding model (J-037) requires a pipe name both invocatio
 ### Next steps
 
 1. ~~Write `BATCH_FLAG_ph2.md`~~ ✅ Done — see `docs/tests/BATCH_FLAG_ph2.md`
-2. ~~Mr. Code implements the batch flag~~ ✅ Done — see J-044
+2. ~~Mr. Code implements the batch flag~~ ✅ Done — see J-044a
 3. Joe verifies against the instruction checklist
 
 ---
 
-## Entry J-044 — BATCH_FLAG_ph2.md: M1–M3 implemented (code complete, M4 walkthrough pending)
+## Entry J-044a — BATCH_FLAG_ph2.md: M1–M3 implemented (code complete, M4 walkthrough pending)
 
 **Date:** 2026-05-13  
 **Author:** Jozef Nižnanský  
@@ -17125,7 +17026,7 @@ JOURNAL.md                                  this entry
 
 ---
 
-## Entry J-045 — Design note: `--batch` as a primary AI tool for tuning and debugging
+## Entry J-045b — Design note: `--batch` as a primary AI tool for tuning and debugging
 
 **Date:** 2026-05-13  
 **Author:** Jozef Nižnanský  
@@ -17158,7 +17059,7 @@ This note is also recorded in `BATCH_FLAG_ph2.md` §Purpose and in the session m
 
 ---
 
-## Entry J-045 — XGEN_CORE_SPLIT_ph2.md: xgen-core crate split complete
+## Entry J-045a — XGEN_CORE_SPLIT_ph2.md: xgen-core crate split complete
 
 **Date:** 2026-05-13  
 **Author:** Jozef Nižnanský  

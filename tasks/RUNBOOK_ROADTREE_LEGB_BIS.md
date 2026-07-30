@@ -1,6 +1,6 @@
 # RUNBOOK — M-DOC-ROADTREE Leg B-bis: the journal repair
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-30  
 > Language: English  
@@ -14,7 +14,7 @@
 
 **Leg B-bis of `M-DOC-ROADTREE` — the journal repair.** Parent: `tasks/M_DOC_ROADTREE.md` v1.18. Governed by **`D-134`** (designations are issued unique; a duplicate is repaired by lettered split, bare number retired).
 
-✅ **THIS RUNBOOK IS `ACTIVE` AS OF 2026-07-30 (J-624). §4 CARRIES A LOCK** — Joe ruled **(A) re-point**, governing **one line**. Everything else was already measured and settled. **The leg is runnable.**
+✅ **THIS RUNBOOK IS `ACTIVE` AS OF 2026-07-30 (J-624). §4 CARRIES A LOCK** — Joe ruled **(A) re-point**, governing **one line**. 🛑 **THE REPAIR EXECUTED AND VERIFIED 2026-07-30 (J-625) — BUT THE LEG IS NOT CLOSED: §6 DEMANDS TWO THINGS NO PROCEDURE SECTION DESCRIBES** (Leg B P2 cleared · the six set-B bodies migrated). ⚠️ **§6's *Owes on close: nothing* IS FALSE.** Scope call open, Joe's — see §6.
 
 🔒 **UNBLOCKED BY §8b's RULING (Joe, 2026-07-29, J-618):** *`ARCHIVED` means no new records; correction of an existing record is permitted whenever a defect is found.* Under the previous reading this leg could not exist.
 
@@ -125,17 +125,20 @@ Retained for the record, **annotated not deleted**: the archived body stays unto
 
 ## §6 — Definition of Done
 
-- [ ] `J-317`–`J-321`: one copy each deleted; surviving bodies byte-identical to `5a0086b`
-- [ ] `J-044` → `J-044a` (L17057) / `J-044b` (L16957); `J-045` → `J-045a` (L17161) / `J-045b` (L17128)
-- [ ] **all twelve §2 citations re-pointed individually**, or ten plus §4's ruling recorded
-- [ ] `JOURNAL_ARCHIVE.md` heading census **353 / 353, equal**
-- [ ] archive header names the live window as measured, not as remembered
-- [ ] `Repaired:` line added per §8b's clause, naming what changed
-- [ ] **Leg B P2 re-measured and cleared** — this leg exists to clear it, and P2 is the actual test
-- [ ] `docs/ROADMAP_ARCHIVE_2026-07-26.md` retention or deletion is **Leg G's**, not this leg's
-- [ ] **the `28` figure corrected wherever it appears** — `ROADMAP.md`, `M_DOC_ROADTREE.md` §11 and §8b's table all still carry it
+- [x] `J-317`–`J-321`: one copy each deleted; surviving bodies byte-identical to `5a0086b` — ✅ **verified against `6863702`**
+- [x] `J-044` → `J-044a` / `J-044b`; `J-045` → `J-045a` / `J-045b` — ✅ 🛑 **assignment settled by ARTEFACT EVIDENCE (four independent confirmations), NOT by `D-134` §2's sort-direction premise, which is FALSE for this file** (see §1b note)
+- [x] **all twelve §2 citations re-pointed individually**, or ten plus §4's ruling recorded — ✅ **11 actioned + `:348` held under §4's lock**. ⚠️ **`CLAUDE.md:561` was STALE — the citation is at L571**; located by content per §3.3
+- [x] `JOURNAL_ARCHIVE.md` heading census **353 / 353, equal** — ✅ **358/351 → 353/353**
+- [x] archive header names the live window as measured, not as remembered — ✅ **J-624 … J-376 (249)**; ⚠️ **§1c named ONE defective sentence, there were TWO** — the span's low end read `J-046` when the archive reaches **`J-001`**
+- [x] `Repaired:` line added per §8b's clause, naming what changed — ✅
+- [ ] 🛑 **Leg B P2 re-measured and cleared** — **RE-MEASURED, NOT CLEARED (J-625).** All eleven still have no journal entry. ⚠️ **THIS LEG CANNOT CLEAR IT** — P2 is entries never written, not duplicates, and **no procedure section here describes the work**
+- [ ] 🛑 **the six surviving set-B bodies + four never-written numbers (§4a-i)** — **UNSPECIFIED IN THIS RUNBOOK'S BODY.** ⚠️ **Leg C removed `J-029`/`J-067` from `ROADMAP.md`; their only trace is `ROADMAP_ARCHIVE_2026-07-26.md`** ⇒ **retention is load-bearing**
+- [x] `docs/ROADMAP_ARCHIVE_2026-07-26.md` retention or deletion is **Leg G's**, not this leg's — ✅ **retained; its delete-condition is correctly unmet**
+- [x] **the `28` figure corrected wherever it appears** — ✅ **three live sites** (`D-134` §5, `D-134` §7, `M_DOC_ROADTREE` §10) corrected to **12** with the superseded value **annotated, not erased**. 📌 **§6's enumeration omitted `D-134`; *wherever it appears* was broader than its own list.**
 
-📌 **Owes on close:** nothing. This leg was spawned by §8a and discharges it.
+🛑 **OWES ON CLOSE — THE ORIGINAL *"nothing"* IS RETRACTED (J-625).** This leg owes **the set-B migration**: six retrospective bodies into a journal file + four numbers recorded as never allocated. 🔓 **JOE'S SCOPE CALL:** spawn it as its own leg with a `D-133` `Owes:` line (**Chat's recommendation** — it is authoring, not repair), or widen this runbook. **D-121:** ① no user-visible impact ② roughly doubles the leg ③ elegance tertiary.
+
+🔑 **THREE FIGURES IN THIS RUNBOOK WERE WRONG AND ARE CORRECTED IN PLACE, ANNOTATED NOT ERASED:** §1a's **`25,127 B` is a CHARACTER count** — true delta **−25,614** (25,609 body bytes + 5 terminators) · §1c's live-window figure was stale · **§3.4's claim that §1c is *"independent, any time"* is false** — the header asserts a count §1a changes, so §1c MUST run after §1a.
 
 ---
 

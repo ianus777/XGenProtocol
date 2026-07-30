@@ -2824,7 +2824,7 @@ All implementations use spec-authoritative wire names. The guide will be updated
 
 Earlier Ch2 wording described the deployment model as "one binary, two personalities" — desktop (with UI) versus service (`--service`, headless). That framing conflated two independent questions: (a) does the binary present a UI, and (b) is the invocation long-running or short-lived. The conflation became actively misleading when implementation work surfaced two facts:
 
-- The Client side already has `--batch` (BATCH_FLAG_ph2.md, J-044) — a short-lived, no-UI invocation that connects to a long-running instance via a named pipe (D-043), dispatches commands, and exits. This is neither "desktop personality" nor "service personality." It is a different category of invocation altogether.
+- The Client side already has `--batch` (BATCH_FLAG_ph2.md, J-044a) — a short-lived, no-UI invocation that connects to a long-running instance via a named pipe (D-043), dispatches commands, and exits. This is neither "desktop personality" nor "service personality." It is a different category of invocation altogether.
 - The current code carries `*-app.exe` build artifacts (`xgen-node-app.exe`, `xgen-client-app.exe`) as separate Tauri outputs alongside the CLI binaries. Two parallel `--batch` implementations exist on the Client side (one in `xgen-client/src/main.rs`, one in `xgen-client/src-tauri/src/batch.rs`). This is transitional scaffolding, not the target product shape — and it has no spec to point at because the previous Ch2 wording did not name what the target shape is.
 
 This decision reframes the model cleanly and locks the target architecture so implementation can converge.
@@ -2871,7 +2871,7 @@ These implementation tasks are tracked separately. D-056b locks the architectura
 | D-037b | Node deployment personality (now resident mode variants). Architectural horizon — protocol-native Node admin via privileged client Identity — survives unchanged. |
 | D-039b | Shutdown model. `×` minimises to tray; `CLOSING` only entered via explicit exit action or a future `--stop` control-mode flag. Consistent with D-056b. |
 | J-037 | Node `--batch` design discussion. Now has an explicit spec target to point at. |
-| J-044 | Client `--batch` implementation (BATCH_FLAG_ph2.md). The principal worked example of the control-mode pattern D-056b generalises.
+| J-044a | Client `--batch` implementation (BATCH_FLAG_ph2.md). The principal worked example of the control-mode pattern D-056b generalises.
 
 ### Spec status
 
@@ -4968,7 +4968,7 @@ and **always**, including when the run dies or is abandoned:
 
 ### §5 — 🛑 NEVER RESOLVE A COLLISION BY RENUMBERING ONE SIDE TO A FREE NUMBER
 
-⚠️ **Every existing citation of the old number would then silently point at the wrong record**, and citations are how this project's chronicle is navigated at all. **The split is the only permitted repair.** 📌 **Corollary: every surviving citation of a retired bare number must be re-pointed to `a` or `b` INDIVIDUALLY** — there is no mechanical way to tell which a bare citation meant. Measured for the two live cases: **28 citations.**
+⚠️ **Every existing citation of the old number would then silently point at the wrong record**, and citations are how this project's chronicle is navigated at all. **The split is the only permitted repair.** 📌 **Corollary: every surviving citation of a retired bare number must be re-pointed to `a` or `b` INDIVIDUALLY** — there is no mechanical way to tell which a bare citation meant. Measured for the two live cases: **12 citations** — 📌 **corrected 2026-07-30 (J-625); the earlier `28` was a REFERENCE count that never separated citations from discussion of the collision itself. 87 bare hits partition to 4 definition sites · 71 discussion · 12 citations** (per-hit table: `RUNBOOK_ROADTREE_LEGB_BIS.md` §2).
 
 ### §6 — WHAT THIS ENTRY DOES **NOT** CLAIM
 
@@ -4978,6 +4978,6 @@ and **always**, including when the run dies or is abandoned:
 
 ### §7 — STANDING WORK THIS RULE GOVERNS
 
-🟡 **`M-DOC-ROADTREE` Leg B-bis executes the only two known live collisions**, under §8b's ruling that `JOURNAL_ARCHIVE.md` may be corrected: `J-044` → `J-044a` (L17057) / `J-044b` (L16957) · `J-045` → `J-045a` (L17161) / `J-045b` (L17128), **28 citations re-pointed individually**, both bare numbers retired.
+✅ **`M-DOC-ROADTREE` Leg B-bis EXECUTED 2026-07-30 (J-625)** — the only two known live collisions, under §8b's ruling that `JOURNAL_ARCHIVE.md` may be corrected: `J-044` → `J-044a` (the M1–M3 implementation) / `J-044b` (the review) · `J-045` → `J-045a` (the xgen-core crate split) / `J-045b` (the `--batch` AI-tool design note), **12 citations re-pointed individually** (📌 **not 28 — that was a reference count, superseded J-620**), both bare numbers retired. ⚠️ **The `a`/`b` assignment was settled by ARTEFACT EVIDENCE, not by sort direction** — four independent confirmations, recorded at J-625 and in `RUNBOOK_ROADTREE_LEGB_BIS.md` §1b.
 
 📌 **The `CLAUDE.md` standing-convention block is reduced to a pointer at this entry** rather than deleted — the briefing keeps the signpost, the permanent record keeps the rule. **Rationale: `CLAUDE.md` is periodically drained (65 blocks archived at J-615); a normative rule must not live only in the file this project empties.**

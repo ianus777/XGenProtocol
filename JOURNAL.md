@@ -8,6 +8,39 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-625 — Leg B-bis's repair executed and verified, and three of the runbook's own figures were wrong
+
+**Date:** 2026-07-30 · **Seat:** Chat (records, verification, cleanup). Provenance **LOCK** — Joe chose **① B-bis first** over Chat's recommendation to run it at the head of a fresh session; then **DELEGATED** × 3 (*go*) through §2, §1a and the P2 re-measurement. No code.
+
+✅ **THE JOURNAL REPAIR IS DONE AND ASSERTED.** Census **358/351 → 353/353, EQUAL** — §5's decisive test, which proves no duplicate designation survives **anywhere**, not merely among the seven known. `J-317`–`J-321` each appear exactly once; all five survivors **byte-identical to `6863702`**; `J-044`→`J-044a`/`J-044b`, `J-045`→`J-045a`/`J-045b`; **11 citations re-pointed individually and asserted individually**; `ROADMAP_ARCHIVE:348` held under §4's lock; `Repaired:` line written into the archive header per §8b.
+
+🛑 **BUT I HALTED MID-§1b, AND THE HALT WAS THE MOST VALUABLE PART.** After writing the four renames I noticed `J-044a` is labelled **Session 19** while `J-044b` is **Session 18 (continued)** — which would make the *review* earlier than the *implementation*. **I reverted the writes and stopped.** §1b's assignment rested on two arguments and **both were unsound**: the sort-direction premise (`D-134` §2's *higher line = earlier in a newest-first file*) and a content argument the session labels contradicted.
+
+🔑 **`JOURNAL_ARCHIVE.md` IS NOT UNIFORMLY NEWEST-FIRST, AND `J-001` IS WHY.** The file runs newest-first from `J-375` down to ~L14898, **then drops into an original oldest-first block running `J-001` → `J-047`.** Newer entries were prepended above an older chronological journal. ⇒ **`D-134` §2 asserts a file property this file does not have.** 📌 **The rule still produced the right answer here — by luck of position, not by the property it names.**
+
+✅ **THE ASSIGNMENT WAS THEN SETTLED BY ARTEFACT EVIDENCE, FOUR TIMES OVER, AND §1b's CONCLUSION SURVIVED UNCHANGED:** ① the review body confirms five artefacts the implementation body says it built (`shlex = "1"`, `pipe_name()`/D-043, the `quit`→watch-channel shutdown, `BatchCli`, the same eight subcommands) ② `BATCH_FLAG_ph2.md:5` cites `J-044b` as *all milestones complete, M4 verified* while `J-044a`'s own title says *M4 walkthrough **pending*** ③ the two citing documents identify their targets by content — `XGEN_CORE_SPLIT_ph2.md` → `J-045a`, `BATCH_FLAG_ph2.md:21` reproducing the design note → `J-045b` ④ `D-134` §7 states the same mapping outright. 🔑 **CONCLUSION UNCHANGED, JUSTIFICATION REPLACED — that is the whole value of the halt, because twelve citations depended on the false premise.**
+
+🛑 **THREE OF THE RUNBOOK'S OWN FIGURES WERE WRONG, ALL CAUGHT BY MEASURING RATHER THAN TRUSTING:**
+- ⚠️ **`25,127 B` IS A CHARACTER COUNT, NOT BYTES.** `J-317`'s body is **5,100 chars / 5,187 bytes**. True delta **−25,614** (25,609 body + 5 line terminators). §5's *measured, not predicted* is the only reason this surfaced.
+- ⚠️ **§1c NAMED ONE DEFECTIVE HEADER SENTENCE; THERE WERE TWO.** The archive span's low end read `J-046` when the archive reaches **`J-001`**. Corrected to **J-375 … J-001 (353 entries)**, live window **J-624 … J-376 (249, gapless, zero overlap)**.
+- ⚠️ **§3.4 CALLS §1c *"independent of the others, any time"* — IT IS NOT.** The header asserts an entry count that §1a changes; running §1c after the deletions was necessary, not stylistic.
+
+⚠️ **AND MY OWN REVERT INTRODUCED A DEFECT I HAD TO CATCH:** `git checkout --` re-materialised the file as **CRLF** under `core.autocrlf=true` (+17,416 bytes, one per line). Blob-identical, so `git status` hid it. Normalised back to LF and re-verified against the session-open baseline **2,333,803**. 📌 **A byte count that moves while content does not is reporting on the tool.**
+
+🛑 **P2 RE-MEASURED AND **NOT** CLEARED — AND B-BIS CANNOT CLEAR IT.** All eleven (`J-029 J-067 J-098 J-109 J-113 J-123 J-124 J-125 J-131 J-132 J-135`) still have **no journal entry**. ⚠️ **Leg C removed `J-029` and `J-067` from `ROADMAP.md`; their only surviving trace is `ROADMAP_ARCHIVE_2026-07-26.md`** ⇒ **retaining that file is load-bearing, and Leg G's unmet delete-condition is protecting real content.** 🔑 **THE RUNBOOK'S §6 IS BROADER THAN ITS OWN BODY:** it demands P2 cleared and the six set-B bodies migrated, **and no procedure section describes that work.** P2 is a different defect — entries never written, not duplicates. ⇒ **§6's *"Owes on close: nothing"* is false.**
+
+🔓 **JOE'S — A SCOPE CALL, NOT A GATE:** close B-bis as the journal repair it specifies and spawn the set-B migration as its own leg with a `D-133` `Owes:` line **(Chat's recommendation)**, or widen B-bis to absorb unspecified authoring work. **D-121:** ① no user-visible impact either way ② the migration is **authoring** — six retrospective entries reconstructed from ROADMAP prose plus four never-allocated records — and would roughly double the leg ③ elegance tertiary.
+
+📌 **`D-134` §2's justification clause still asserts the false file property. Recommended as an ANNOTATION, not an amendment** — the lettered-split mechanism is sound; only its stated reason is. **Not done here; it is Joe's and it gates nothing.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `JOURNAL_ARCHIVE.md` (repair + `Repaired:` line) · `DECISIONS.md` (`D-134` §5/§7 — `28`→**12**, superseded value annotated not erased; two citations re-pointed) · `docs/tests/BATCH_FLAG_ph2.md` · `docs/tests/XGEN_CORE_SPLIT_ph2.md` · `tasks/archive/M2_NODE_PIPE_SERVER.md` · `CLAUDE.md` (citation at **L571, not §2's stale L561**) · `tasks/RUNBOOK_ROADTREE_LEGB_BIS.md` · `tasks/M_DOC_ROADTREE.md` · `docs/ROADMAP.md` · this entry. **No new D, no new N.**
+
+**Next-active.** 🔓 **Joe: the scope call above.** 🟡 **Then Leg E P1** — unaffected throughout.
+
+---
+
 ## Entry J-624 — §4 locked at one line, and I widened it in the turn immediately after asking for the ruling
 
 **Date:** 2026-07-30 · **Seat:** Chat (records). Provenance **LOCK** — Joe answered a bounded two-option question: **(A) re-point**. Then a **CORRECTION** — when Chat read (A) as a class ruling, Joe restated his own words: *"(A) Re-point `J-044` → `J-044a`. … **One token, one archived line.**"* No code.

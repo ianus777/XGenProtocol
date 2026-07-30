@@ -2,7 +2,7 @@
 > **Status**: COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated**: 2026-05-13 (J-044 — all milestones complete, M4 verified)  
+> **Last updated**: 2026-05-13 (J-044b — all milestones complete, M4 verified)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -18,7 +18,7 @@ When `xgen-client-app.exe --batch <file.xgb>` is invoked, a second process start
 
 **Primary use case:** spin up two nodes and two clients, deliver scripted command sequences to each, observe results in their log files — without manual interaction, without editing config files.
 
-**AI agent use case (J-045).** The `--batch` mechanism is designed specifically as a tool for AI agents to tune, debug, and stress-test both `xgen-client` and `xgen-node`. An AI can generate, mutate, and replay `.xgb` sequences; branch on deterministic exit codes (0/1/2/3); read the state file as ground truth after each command; and drive multiple named instances in parallel (`--instance alice`, `--instance bob`). The no-shell-invocation guarantee means an AI can safely generate parametric test inputs without sanitisation concerns. Node batch (`xgen-node-app.exe --batch`) will extend the same capability to the federation side (J-037).
+**AI agent use case (J-045b).** The `--batch` mechanism is designed specifically as a tool for AI agents to tune, debug, and stress-test both `xgen-client` and `xgen-node`. An AI can generate, mutate, and replay `.xgb` sequences; branch on deterministic exit codes (0/1/2/3); read the state file as ground truth after each command; and drive multiple named instances in parallel (`--instance alice`, `--instance bob`). The no-shell-invocation guarantee means an AI can safely generate parametric test inputs without sanitisation concerns. Node batch (`xgen-node-app.exe --batch`) will extend the same capability to the federation side (J-037).
 
 ---
 
@@ -335,7 +335,7 @@ Run all checks below. Do not mark this milestone complete until every item is ti
 
 **Date:** 2026-05-13  
 **Session:** Session 19  
-**Journal entry:** J-044  
+**Journal entry:** J-044a  
 
 ### Files created / modified
 
@@ -380,7 +380,7 @@ None. All constraints from the Architecture Constraints section are satisfied.
 
 **Date:** 2026-05-13  
 **Session:** Session 19 (continued)  
-**Journal entry:** J-044  
+**Journal entry:** J-044b  
 
 All 14 M4 checks passed. Verified programmatically against the debug binary (`C:/cargo-targets/XGenProtocol/debug/xgen-client-app.exe`).
 

@@ -2,7 +2,7 @@
 > **Status:** COMPLETED  
 > Version: 1.0  
 > Date: May 2026  
-> **Last updated:** 2026-05-13 (J-045)  
+> **Last updated:** 2026-05-13 (J-045a)  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  

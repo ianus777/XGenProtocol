@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.23  
+> Version: 1.24  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-30  
 > Language: English  
@@ -607,8 +607,8 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 - [ ] All **11** P2 refs **measured**: entry located, or absence recorded — **Leg B**
 - [ ] The **`ARCHIVED`-versus-repair question (§8b) ruled** by Joe, and the ruling recorded where a future reader of `JOURNAL_ARCHIVE.md` will find it — **precedes Leg B-bis**
 - [ ] The **six surviving set-B bodies present in a journal file**, each carrying its provenance line, **and the four never-written numbers recorded as such** (§4a-i) — **Leg B-bis**
-- [ ] `J-317`–`J-321` **re-verified byte-identical, then reduced to one copy each**, count re-measured after — **Leg B-bis**
-- [ ] `J-044`/`J-045` split to `a`/`b`, **bare numbers retired**, and **all 28 surviving citations individually re-pointed** — **Leg B-bis**
+- [x] `J-317`–`J-321` **re-verified byte-identical, then reduced to one copy each**, count re-measured after — **Leg B-bis ✅ J-625** (census **358/351 → 353/353, EQUAL**; −**25,614 B** measured — 📌 **the runbook's `25,127 B` was a CHARACTER count**; survivors byte-identical to `6863702`)
+- [x] `J-044`/`J-045` split to `a`/`b`, **bare numbers retired**, and **all 12 surviving citations individually re-pointed** (📌 **not 28** — a reference count, superseded J-620; 11 actioned, `ROADMAP_ARCHIVE:348` held under §4's lock) — **Leg B-bis ✅ J-625**
 - [ ] Every ✅ node in the new tree carries `· J-nnn` — **Leg C**
 - [ ] Every 🟡 / ⏸️ node carries a trigger **or an explicit `trigger: none`** — **Leg C**
 - [ ] Every existing ⏸️ **POSTPONED** entry (**22** of them) **audited for a resume trigger** — **Leg C**
@@ -635,13 +635,13 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 
 ✅ **CLOSED:** Leg 0 · Leg A · **Leg C (J-604** — 761,422 → 43,741 B**)** · **Leg D (J-615** — 640,645 → 316,680 B, 65 of 81 blocks archived**)**.
 🟡 **Leg B — P1 cleared (J-599), P2 measured and NOT cleared.** Cleared by B-bis.
-🟢 **Leg B-bis — the journal repair. ✅ RUNBOOK ACTIVE (J-624): `tasks/RUNBOOK_ROADTREE_LEGB_BIS.md` v1.1 — §4 LOCKED, THE LEG IS RUNNABLE.** 🔒 **§4 = (A) RE-POINT (Joe, 2026-07-30)** — `JOURNAL_ARCHIVE.md:17052` `J-044` → `J-044a`. 🛑 **THE LOCK GOVERNS ONE LINE; IT IS NOT A CLASS RULING** — Chat read it as covering `docs/ROADMAP_ARCHIVE_2026-07-26.md:348` too and Joe corrected it back to his stated scope (*one token, one archived line*). ⇒ **`:348` HELD, not actioned** — §4's pre-existing position, since **Leg G deletes that file iff Leg B clears**; if it does not, the file survives with a retired-designation pointer, **filed and known**. **Actionable set: 11 forward + 1 archived = 12.** **Two actions, one surface (`JOURNAL_ARCHIVE.md`):** ① delete one copy of each byte-identical `J-317`–`J-321` pair (**25,127 B**) ② split `J-044`/`J-045` into `a`/`b` and re-point **12** citations individually. 📌 Plus the §1c header fix. 🛑 **THE `28` FIGURE WAS A REFERENCE COUNT, SUPERSEDED:** 87 bare hits partition to **4 definition sites · 71 discussion · 12 citations**.
+🟢 **Leg B-bis — the journal repair. ✅ EXECUTED AND VERIFIED 2026-07-30 (J-625); 🛑 NOT CLOSED.** Runbook v1.2 ACTIVE. ✅ **Census 358/351 → 353/353 EQUAL** · `J-317`–`J-321` one copy each deleted (**−25,614 B measured** — 📌 the runbook's `25,127 B` was a CHARACTER count) · survivors byte-identical to `6863702` · `J-044`/`J-045` split · **11 citations re-pointed individually**, `:348` held · `Repaired:` line written · header corrected (span low end read `J-046`; the archive reaches **`J-001`**). 🛑 **The `a`/`b` assignment was settled by ARTEFACT EVIDENCE after a mid-§1b HALT** — `D-134` §2's *higher line = earlier in a newest-first file* is **FALSE for this file**: it is newest-first only to ~L14898, then an original oldest-first block `J-001`→`J-047`. **Conclusion unchanged, justification replaced.** 🛑 **NOT CLOSED — §6 demands two things no procedure section describes:** Leg B P2 cleared · the six set-B bodies migrated (§4a-i). **§6's *Owes on close: nothing* RETRACTED.** ⚠️ **P2 re-measured, NOT cleared** — all 11 still have no journal entry, and **Leg C removed `J-029`/`J-067` from `ROADMAP.md`, leaving `ROADMAP_ARCHIVE_2026-07-26.md` as their only trace** ⇒ its retention is **load-bearing**.
 🟡 **Leg E — the two-way closure log. 📘 RUNBOOKED (J-623): `tasks/RUNBOOK_ROADTREE_LEGE.md` v1.0 🟡 PENDING — THE AUTHORITY FROM HERE.** 🔒 Title locked (Joe, J-618). Trigger **FIRED (J-615)**. ✅ **P0 CENSUS COMPLETE:** head vocabulary **A 1+19 · B 51 (4 stubs) · C 24**; boundaries **re-derived from head positions** — A 0–18,426 · B 18,426–**110,488** · C –124,299, sum **124,299 ✔**, B/C seam **28 chars earlier** than part two. **95 heads · 91 records.** 🛑 **NO UNIFORM RECORD HEAD EXISTS** — each region needs its own predicate and a second one to check it. 🛑 **`82` retired (J-622); 11 B↔C collisions read pair by pair — 8 B ⊃ C · 2 C ⊃ B · 1 divergent ⇒ NO mechanical merge; Leg E deletes nothing without a per-pair hand verdict.** ⚠️ **Untested and named in runbook §4c:** only B↔C was checked — within-A, within-B, A↔B, A↔C never were. **Next: P1 extraction, runbook §3.**
 🟡 **Leg F — the bidirectional sweep** · 🟡 **Leg G — records + close.**
 
 🔒 **RULED:** §6 **BOTH** · §7 **S1, the tree** · **Leg C's scope** · §6a **E** · §6b **S1** · §6c **D-131** · §3a **W1** · **§4a-i's amendment** · **the `Leg E` collision** · **§8b — R2 with Joe's boundary** · **Leg E's title** · **§4b's rule promoted → `D-134`** · **B-bis §4 — (A) re-point, ONE LINE, not a class (J-624)**.
 
-🔓 **OPEN, JOE'S — NEITHER IS A GATE:** ① **sequencing: Leg B-bis or Leg E P1 first** (both runnable, different files, no dependency) ② **the back-fill milestone's name** — M-RP-MEMBERS still has no ROADMAP node; belongs to Leg F's sweep.
+🔓 **OPEN, JOE'S — NONE IS A GATE:** ① **B-bis's scope call** — spawn the set-B migration as its own leg with a `D-133` `Owes:` line (**Chat's rec**), or widen B-bis ② **sequencing: what runs next** (Leg E P1 is runnable) ③ **the back-fill milestone's name** — belongs to Leg F's sweep ④ 📌 **`D-134` §2's justification clause** — recommended as an **annotation**, not an amendment.
 
 ✅ **SPENT, recorded so they are not re-opened:** §9's 100 KB size bar · §1b's Leg D structure question · **§8a's sequencing** (an output of §8b) · §4a's superseded framing · Leg C's structure consequence · Leg D's format question · **§4b's rule promoted → `D-134`**.
 

@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-623 — Leg E runbooked: the census found a third head form, and its load-bearing result is that no single predicate reads this line
+
+**Date:** 2026-07-30 · **Seat:** Chat (measurement, records, runbook authoring). Provenance **DELEGATED** — Joe: *go*, closing three named items: ① C's 13 non-closure heads travel into the archive annotated — **Chat's lean adopted by delegation, NOT a Joe lock, and therefore reversible** ② the boundary re-derivation ③ the runbook. No code.
+
+✅ **P0 NOTATION CENSUS COMPLETE. `tasks/RUNBOOK_ROADTREE_LEGE.md` v1.0 🟡 PENDING written — 9,750 B, LF, no BOM.**
+
+🔑 **A THIRD HEAD FORM, AND IT RESOLVED AN OFF-BY-ONE HONESTLY.** A showed **19** bold-milestone heads against **20** closure marks. The missing head is the line's **first record**, which uses neither form: `**Next-active (UI/RP track):** M-RP2.6 ✅ CLOSED (J-410)`. ⇒ **19 + 1 = 20 ✔**. 📌 **Stated because of how it closed:** the gap was shut by **finding the missing head**, not by filling a hole with arithmetic — the exact failure J-622 recorded one entry earlier.
+
+**HEAD VOCABULARY — ENUMERATED, NOT ASSUMED:** **A** 1 × `**Next-active (UI/RP track):**` + 19 × `**M-<id>` · **B** 51 × `J-nnn (` **at a `) / ` delimiter** · **C** 24 × `**M-<id>`. **95 heads · 91 records** (B's 4 stubs removed) **· 11 known collisions.**
+
+🛑 **THE LOAD-BEARING RESULT IS NEGATIVE: THERE IS NO UNIFORM RECORD HEAD IN THIS LINE.** `**M-` matches **48 times inside B** as prose milestone-list mentions — five in one stretch at 41,259 · 41,320 · 41,350 · 41,368 · 41,382. `J-nnn (` matches **52** times in B but only **50** are delimiters. `**Next-active` matches **8** times and exactly **1** is a head — refining J-618's *2 of 11 structural* under an actual head test. `CLOSED (J-nnn)` cannot match B at all. ⇒ **EACH REGION NEEDS ITS OWN PREDICATE, AND EACH PREDICATE NEEDS A SECOND INDEPENDENT ONE TO CHECK IT.** Four successive shapes for this line were each produced by trusting one.
+
+✅ **BOUNDARIES RE-DERIVED FROM HEAD POSITIONS, NOT INHERITED.** **A** 0–18,426 (18,426) · **B** 18,426–110,488 (**92,062**) · **C** 110,488–124,299 (**13,811**). **Sum 124,299 ✔.** 📌 **The B/C seam is 28 chars earlier than part two's 110,516** — C's first head `**M-RP2.23` opens at **110,488**, which is what J-622 predicted from a single observation and this pass confirmed independently. 🔑 **AND THIS SUM IS A CONSEQUENCE, NOT AN INPUT** — the boundaries came from independently located heads, so the summation *could* have failed. J-622's could not.
+
+📌 **THE A/B SEAM CARRIES A ONE-OFF MARKER** — `**Entry (Rule 0): this PLAY → JOURNAL ` immediately precedes B's first head (`J-503 (` at 18,426), unique in the line. Filed as A's tail, not a head.
+
+⚠️ **THE UNTESTED REMAINDER IS NAMED IN THE RUNBOOK, NOT ASSUMED CLOSED (§4c):** only **B↔C** key collisions have been tested. Within-A, within-B, A↔B and A↔C have **never** been checked. **P2 runs the key test across all region pairs before any verdict is written** — the J-317 lesson (25,127 B of byte-identical duplication, undetected for weeks) is why this is not optional.
+
+**RUNBOOK SHAPE:** §1 grounding · §2 scope · §3 P1 extraction (**assert-and-STOP** on head counts and on the 124,299 length) · §4 P2 collisions (the eleven table + §4b's prohibition + §4c's remainder) · §5 P3 the D-094 move · §6 DoD · §7 open — **none gating** · §8 traps. 📌 **§6 deliberately omits *commit pushed*; `Status: COMPLETED` is the real signal.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/RUNBOOK_ROADTREE_LEGE.md` **v1.0 NEW** · `tasks/M_DOC_ROADTREE.md` v1.21 → **v1.22** · `docs/ROADMAP.md` v6.10 → **v6.11** · `CLAUDE.md` PLAY head · this entry. **No new D, no new N.**
+
+**Next-active.** 🟡 **Leg E P1 — extraction, runnable from §3.** 🔓 **Joe, neither gating:** §4 of the B-bis runbook (one line) · the back-fill milestone's name.
+
+---
+
 ## Entry J-622 — the eleven collisions read pair by pair: containment runs both ways, and the shape I reported one turn ago lasted exactly one turn
 
 **Date:** 2026-07-30 · **Seat:** Chat (measurement, records). Provenance **LOCK** — Joe answered a bounded two-option question with *go C-vs-B*, selecting the eleven-pair diff **before** the records were written rather than after. Then **DELEGATED** — *go*, closing two named items: J-469's outstanding read and these four writes. No code.

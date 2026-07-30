@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.21  
+> Version: 1.22  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-30  
 > Language: English  
@@ -395,6 +395,24 @@
 
 **Leg E — the two-way closure log.** 🟡 **PENDING.** 🔒 **TITLE LOCKED (Joe, 2026-07-29, J-618** — a direct answer to a bounded question, **not** a delegation; chosen from three candidates that were themselves derived from the grounding measurement below, after Chat's earlier proposal *"the next-active chain"* **failed the test Joe set for it**). ↳ trigger: Leg D closes — **FIRED 2026-07-29 (J-615)**. **Surface: `CLAUDE.md`'s prose head — from the `## 🟢 UI component-library / substrate` heading down to the first `> ### ` PLAY block.** ⇒ **PARSING, NOT MOVING.**
 
+✅ **§8-E P0 NOTATION CENSUS COMPLETE — RUN 2026-07-30 (J-623). `tasks/RUNBOOK_ROADTREE_LEGE.md` v1.0 🟡 PENDING WRITTEN (9,750 B, LF, no BOM). THE RUNBOOK IS THE AUTHORITY FROM HERE; THIS SECTION IS ITS PROVENANCE.**
+
+🔑 **A THIRD HEAD FORM, AND IT CLOSED AN OFF-BY-ONE HONESTLY.** A showed **19** bold-milestone heads against **20** closure marks. The missing head is the line's **first record**, in neither known form: `**Next-active (UI/RP track):** M-RP2.6 ✅ CLOSED (J-410)` ⇒ **19 + 1 = 20 ✔**. 📌 **Recorded for HOW it closed:** by **finding the missing head**, not by filling a hole with arithmetic — the precise failure part three had just logged.
+
+| region | span | size | head form | heads |
+|---|---|---|---|---|
+| **A** | 0 – 18,426 | 18,426 | `**Next-active (UI/RP track):**` *(once)* + `**M-<id>` | 1 + 19 |
+| **B** | 18,426 – 110,488 | **92,062** | `J-nnn (` **at a `) / ` delimiter** | 51 *(4 stubs)* |
+| **C** | 110,488 – 124,299 | **13,811** | `**M-<id>` | 24 *(11 closure-bearing)* |
+
+**Sum 124,299 ✔ · 95 heads · 91 records · 11 known collisions.** 📌 **The B/C seam is 28 chars earlier than part two's 110,516** — C's first head opens at **110,488**, predicted by part three from one observation, confirmed here independently. 🔑 **AND THIS SUM IS A CONSEQUENCE, NOT AN INPUT** — boundaries came from independently located heads, so it *could* have failed. Part three's could not.
+
+🛑 **THE LOAD-BEARING RESULT IS NEGATIVE: THERE IS NO UNIFORM RECORD HEAD IN THIS LINE.** `**M-` matches **48× inside B** as prose milestone-list mentions (five in one stretch, 41,259–41,394) · `J-nnn (` matches **52×** in B but only **50** are delimiters · `**Next-active` matches **8×** and exactly **1** is a head · `CLOSED (J-nnn)` cannot match B at all. ⇒ **EACH REGION NEEDS ITS OWN PREDICATE, AND EACH PREDICATE NEEDS A SECOND INDEPENDENT ONE TO CHECK IT.** ⚠️ **Four successive shapes for this line were each produced by trusting one predicate.**
+
+📌 **A ONE-OFF SEAM MARKER** — `**Entry (Rule 0): this PLAY → JOURNAL ` immediately precedes B's first head (`J-503 (` at 18,426); unique in the line, filed as A's tail.
+
+🔓→✅ **C's 13 NON-CLOSURE HEADS travel into the archive annotated as forward-looking entries** — **Chat's lean, ADOPTED BY DELEGATION at J-623, NOT a Joe lock, reversible.** Rationale: for several, this stretch of `CLAUDE.md` is the only place the postponement rationale exists.
+
 🔑 **§8-E GROUNDING PASS — PART THREE RUN 2026-07-30 (J-622). THE ELEVEN COLLISIONS READ PAIR BY PAIR, AND PART TWO'S RECORD COUNT RETIRED.**
 
 🛑 **THE ELEVEN SHARED KEYS ARE NOT ELEVEN DUPLICATES — CONTAINMENT RUNS IN BOTH DIRECTIONS.** Each of the eleven J-numbers that appears in both B and C was read on both sides in full:
@@ -618,7 +636,7 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 ✅ **CLOSED:** Leg 0 · Leg A · **Leg C (J-604** — 761,422 → 43,741 B**)** · **Leg D (J-615** — 640,645 → 316,680 B, 65 of 81 blocks archived**)**.
 🟡 **Leg B — P1 cleared (J-599), P2 measured and NOT cleared.** Cleared by B-bis.
 🟡 **Leg B-bis — the journal repair. EXISTS as of §8b's ruling. RUNBOOKED at J-620: `tasks/RUNBOOK_ROADTREE_LEGB_BIS.md` v1.0 PENDING**, §4 open (may an ARCHIVED body be re-pointed — governs ONE line). **Two actions, one surface (`JOURNAL_ARCHIVE.md`):** ① delete one copy of each byte-identical `J-317`–`J-321` pair (**25,127 B**) ② split `J-044`/`J-045` into `a`/`b` and re-point **12** citations, each resolved individually. 📌 **Plus the header fix**, now legal. 🛑 **THE `28` FIGURE WAS A REFERENCE COUNT, NOT A CITATION COUNT, AND IS SUPERSEDED:** 87 bare hits partition to **4 definition sites · 71 discussion · 12 citations** (runbook §2, per-hit table).
-🟡 **Leg E — the two-way closure log.** 🔒 Title locked (Joe, J-618) — **and it survived part two disproving the reading it was chosen from.** Trigger **FIRED (J-615)**. ✅ **NOTATIONS ESTABLISHED (part two):** two inverted forms, B delimited on `) / J-nnn`. 🛑 **COUNTS RETIRED (part three, J-622): `82` IS NOT A PLANNING NUMBER** — C holds **24 heads, not 11**, B holds **4 stub segments that are not records**, and the char partition closed **by construction**. ✅ **DISTINCTNESS MEASURED:** eleven B↔C key collisions, read pair by pair — **8 B ⊃ C · 2 C ⊃ B · 1 divergent** ⇒ 🛑 **no mechanical merge rule; Leg E deletes nothing without a per-pair hand verdict.** ⚠️ **Still unmeasured:** the true record count under a notation-agnostic census · whether the remaining ~60 records hold further cross-region twins. **Runbookable — P0 census first.**
+🟡 **Leg E — the two-way closure log. 📘 RUNBOOKED (J-623): `tasks/RUNBOOK_ROADTREE_LEGE.md` v1.0 🟡 PENDING — THE AUTHORITY FROM HERE.** 🔒 Title locked (Joe, J-618). Trigger **FIRED (J-615)**. ✅ **P0 CENSUS COMPLETE:** head vocabulary **A 1+19 · B 51 (4 stubs) · C 24**; boundaries **re-derived from head positions** — A 0–18,426 · B 18,426–**110,488** · C –124,299, sum **124,299 ✔**, B/C seam **28 chars earlier** than part two. **95 heads · 91 records.** 🛑 **NO UNIFORM RECORD HEAD EXISTS** — each region needs its own predicate and a second one to check it. 🛑 **`82` retired (J-622); 11 B↔C collisions read pair by pair — 8 B ⊃ C · 2 C ⊃ B · 1 divergent ⇒ NO mechanical merge; Leg E deletes nothing without a per-pair hand verdict.** ⚠️ **Untested and named in runbook §4c:** only B↔C was checked — within-A, within-B, A↔B, A↔C never were. **Next: P1 extraction, runbook §3.**
 🟡 **Leg F — the bidirectional sweep** · 🟡 **Leg G — records + close.**
 
 🔒 **RULED:** §6 **BOTH** · §7 **S1, the tree** · **Leg C's scope** · §6a **E** · §6b **S1** · §6c **D-131** · §3a **W1** · **§4a-i's amendment** · **the `Leg E` collision** · **§8b — R2 with Joe's boundary** · **Leg E's title** · **§4b's rule promoted → `D-134`**.

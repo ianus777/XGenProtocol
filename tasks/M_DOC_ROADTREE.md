@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.18  
+> Version: 1.19  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-29  
 > Language: English  
@@ -469,6 +469,8 @@
 
 ➕ **CITATION LOAD FOR THE `a`/`b` SPLIT — MEASURED, DISCHARGING §8a's OWED COUNT.** Repo-wide `.md`, `.claude` excluded:
 
+🛑 **SUPERSEDED 2026-07-29 (J-620) — THE TABLE BELOW COUNTS *REFERENCES*, NOT *CITATIONS*, AND IT WAS READ AS A CITATION COUNT FOR THREE DAYS.** It never separated a **citation** (a pointer at the entry, which must be re-pointed) from **discussion of the collision itself** (prose about the defect, which must not be touched). Re-run over 507 `.md` files with a bounded predicate and **read per hit: 87 bare hits = 4 definition sites · 71 discussion · 12 CITATIONS.** ⇒ **the operative figure is 12**, tabulated per hit with its resolved target in `RUNBOOK_ROADTREE_LEGB_BIS.md` §2. 📌 **The table is kept, not repaired — it was an honest reference count and it is what caught the second measurement's own error** (its per-file breakdown named `CLAUDE.md` and `ROADMAP_ARCHIVE`, which a keyword classifier had wrongly emptied).
+
 | Designation | Total refs | Excluding this task file and `ROADMAP_ARCHIVE` | Files needing a re-point |
 |---|---|---|---|
 | `J-044` | 26 | **16** | `BATCH_FLAG_ph2.md` 3 · `M2_NODE_PIPE_SERVER.md` 2 · `ROADMAP.md` 1 · `CLAUDE.md` 1 · `DECISIONS.md` 2 · `JOURNAL.md` 4 · `JOURNAL_ARCHIVE.md` 3 |
@@ -557,7 +559,7 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 
 ✅ **CLOSED:** Leg 0 · Leg A · **Leg C (J-604** — 761,422 → 43,741 B**)** · **Leg D (J-615** — 640,645 → 316,680 B, 65 of 81 blocks archived**)**.
 🟡 **Leg B — P1 cleared (J-599), P2 measured and NOT cleared.** Cleared by B-bis.
-🟡 **Leg B-bis — the journal repair. EXISTS as of §8b's ruling.** **Two actions, one surface (`JOURNAL_ARCHIVE.md`):** ① delete one copy of each byte-identical `J-317`–`J-321` pair (**25,127 B**, re-verified on disk 2026-07-29) ② split `J-044`/`J-045` into `a`/`b` and re-point **28** citations, each resolved individually. 📌 **Plus the header fix**, now legal. **Not yet runbooked.**
+🟡 **Leg B-bis — the journal repair. EXISTS as of §8b's ruling. RUNBOOKED at J-620: `tasks/RUNBOOK_ROADTREE_LEGB_BIS.md` v1.0 PENDING**, §4 open (may an ARCHIVED body be re-pointed — governs ONE line). **Two actions, one surface (`JOURNAL_ARCHIVE.md`):** ① delete one copy of each byte-identical `J-317`–`J-321` pair (**25,127 B**) ② split `J-044`/`J-045` into `a`/`b` and re-point **12** citations, each resolved individually. 📌 **Plus the header fix**, now legal. 🛑 **THE `28` FIGURE WAS A REFERENCE COUNT, NOT A CITATION COUNT, AND IS SUPERSEDED:** 87 bare hits partition to **4 definition sites · 71 discussion · 12 citations** (runbook §2, per-hit table).
 🟡 **Leg E — the two-way closure log.** 🔒 Title locked (Joe, J-618). Trigger **FIRED (J-615)**. **Grounding part one done** (the seam at char 18,426); **part two — internal statement boundaries — outstanding.**
 🟡 **Leg F — the bidirectional sweep** · 🟡 **Leg G — records + close.**
 
@@ -566,6 +568,8 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 🔓 **STILL OPEN FOR JOE — ONE, AND IT GATES NOTHING:**
 1. **The back-fill milestone's name** — `M-RP-MEMBERS` still has no `ROADMAP.md` node and its Leg C pause is still unrecorded there. 📌 **Strictly this belongs to Leg F's sweep, not to this list.**
 
-✅ **SPENT, recorded so they are not re-opened:** §9's 100 KB size bar · §1b's Leg D structure question · §8a's owed `J-044`/`J-045` citation count (**28, discharged at §8b 2026-07-26**) · **§8a's sequencing** (an output of §8b) · §4a's superseded framing · Leg C's structure consequence · Leg D's format question.
+✅ **SPENT, recorded so they are not re-opened:** §9's 100 KB size bar · §1b's Leg D structure question · **§8a's sequencing** (an output of §8b) · §4a's superseded framing · Leg C's structure consequence · Leg D's format question · **§4b's rule promoted → `D-134`**.
+
+🛑 **NOT SPENT AFTER ALL — §8a's OWED CITATION COUNT WAS WRONG, AND §8b's `28` IS SUPERSEDED (J-620).** §8b measured **26 + 22 = 48 bare references** on 2026-07-26 and reported **28** as *surviving re-points* — but it never partitioned **citations** from **discussion of the collision itself.** Re-run 2026-07-29 over 507 `.md` files and **read per hit**: **87 bare hits = 4 definition sites · 71 discussion · 12 citations.** 🔑 **The true figure is 12**, tabulated per hit with its resolved target in `RUNBOOK_ROADTREE_LEGB_BIS.md` §2. ⚠️ **And the first pass of THAT measurement was also wrong** — a keyword classifier dropped two real citations while keeping seven of this session's own sentences; it was caught only because §8b's older per-file table named files the filter had emptied. 📌 **A keyword classifier on a corpus that discusses itself fails in both directions at once.**
 
 **Chat owes, carried:** the registry composition model (needs a live client ⇒ INTERACTIVE) · the Ch0–Ch2 thesis read (272,516 B across three chapters) · **Leg E grounding part two**.

@@ -8,6 +8,36 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-620 — Leg B-bis runbooked, and the citation count everyone had been planning against was a reference count
+
+**Date:** 2026-07-29 · **Seat:** Chat (measurement, records). Provenance **DELEGATED** — Joe: *go*, closing three things at once: **(1) record the sequencing he had already ruled, (2) re-derive the citation set, (3) author the B-bis runbook.** ⚠️ **It did NOT answer §4 of that runbook**, which is his and which the runbook holds open. No code.
+
+🔒 **SEQUENCING RECORDED, NOT ASKED AGAIN.** Joe had ruled it plainly — *"we need to complete ROADTREE"* — and `docs/ROADMAP.md` still showed **two milestones 🟢 PLAY at once**, a record contradicting a decision. `M-RP-LIVEFEED-REFRESH` → ⏸️ **POSTPONED**, trigger *M-DOC-ROADTREE closes (Leg G), or Joe stands Clair up for Leg A*. 🔑 **Two simultaneous PLAY milestones is what let Chat ping-pong between arcs earlier in this session, servicing whichever one Joe last named.**
+
+⚠️ **AND THE LEG A NODE WAS THREE THINGS STALE, ALL OF THEM CHAT'S.** It still read *v1.0 PENDING · two files · trigger: §5 locked by Joe* — every one of which was superseded at J-618, in a commit Chat wrote. Now *v1.2 ACTIVE · three files · waiting only on Clair.* 📌 **A node updated in the same commit that supersedes it is the whole point of D-074, and D-074 was honoured for the milestone and missed for the child.**
+
+🛑 **THE `28` WAS A REFERENCE COUNT AND IT HAD BEEN PLANNED AGAINST FOR THREE DAYS.** §8b measured **26 + 22 = 48 bare references** on 2026-07-26 and reported **28** as *surviving re-points*. It never separated a **citation** — a pointer at the entry, which must be re-pointed — from **discussion of the collision itself**, which must not be touched. Re-run over all 507 `.md` files with a bounded predicate and **read per hit: 87 bare hits = 4 definition sites · 71 discussion · 12 CITATIONS.** 🔑 **A set is not a number, again — third instance this arc — and this time the wrong number had already been written into four documents and one roadmap node.**
+
+🛑 **AND THE FIRST PASS OF THE NEW MEASUREMENT WAS ALSO WRONG, IN BOTH DIRECTIONS AT ONCE.** A keyword classifier (*collision · split · suffix · bare · designation*) was used to separate discussion from citation. It **dropped `CLAUDE.md:561`** (*"xgen-core crate split landed at J-045"*) **and `ROADMAP_ARCHIVE_2026-07-26.md:348`** — both real citations — **while keeping seven of this session's own sentences** as citations. 🔑 **A KEYWORD CLASSIFIER APPLIED TO A CORPUS THAT DISCUSSES ITSELF FAILS IN BOTH DIRECTIONS SIMULTANEOUSLY.** ⚠️ **It was caught only because §8b's older per-file table named files the filter had emptied** — the superseded measurement is what disproved its own replacement, which is the argument for annotating rather than deleting a wrong table (D-131's spirit, applied to a measurement).
+
+✅ **ALL TWELVE RESOLVED TO A TARGET, INCLUDING THE TWO CHAT HAD LEFT OPEN.** `docs/tests/BATCH_FLAG_ph2.md:338` heads *Implementation Notes, Session 19* ⇒ **`J-044a`**; `:383` heads *Verification Results, Session 19 (continued), all 14 M4 checks passed* ⇒ **`J-044b`**, consistent with `:5`'s *"all milestones complete, M4 verified"*. 🔑 **ONE FILE SPLITS WITHIN ITSELF, `a` AND `b`, WHICH IS THE PROOF THAT NO FIND-AND-REPLACE IS POSSIBLE ANYWHERE IN THIS LEG.**
+
+📌 **AND §4's SCOPE COLLAPSED FROM 13 TO 1.** Chat had told Joe *"13 citations sit in ARCHIVED files"* — that was **bare hits**, not citations. It is **2**, and one of them lives in `docs/ROADMAP_ARCHIVE_2026-07-26.md`, which **Leg G deletes** if Leg B clears ⇒ **the open question governs ONE line: `JOURNAL_ARCHIVE.md:17052`** (*"✅ Done — see J-044"*).
+
+🔓 **§4 IS JOE'S AND THE TEST FOR THAT IS STATED IN THE RUNBOOK.** §8b's ruling permits three repairs — removing a duplicate, splitting a designation, fixing header metadata. **Re-pointing a citation inside a frozen entry is a fourth: it edits the BODY.** ⚠️ **Both options are HONEST** — re-point and the citation resolves but the body was edited; leave it and the body is pristine but the archive holds a pointer to a designation `D-134` has retired. 🔑 **A choice between honest options is Joe's; whether to assert something unknown is not a choice at all.** Same rule that made Leg A's §5 Chat's. **Chat leans (A), weakly.**
+
+🔑 **THE RUNBOOK ALSO CARRIES AN ORDERING CONSTRAINT THAT IS THIS SESSION'S OWN LESSON.** The five deletions sit at L1208–L1400, **above** every target in §1b and §2 ⇒ **deleting first invalidates every line number in the rest of the runbook.** ⇒ **§1b and §2 FIRST, deletions LAST**, and each target located by **content**, never by its stored line number. ⚠️ **This is `L29 → L25` from J-619 again, foreseen instead of discovered.**
+
+✅ **AND THE VERIFICATION SECTION REFUSES TWO CHECKS THAT CANNOT FAIL.** The heading census must go **358/351 → 353/353 with the two numbers EQUAL** — equality is the assertion that no duplicate survives anywhere, which spot-checking the seven cannot prove. And the bare-designation sweep **must NOT expect zero**: 71 discussion hits legitimately remain and this runbook adds more ⇒ **assert the twelve rows individually.** 📌 **A sweep that expects zero here is a check that must fail.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/RUNBOOK_ROADTREE_LEGB_BIS.md` **NEW** v1.0 PENDING, 11,791 B · `tasks/M_DOC_ROADTREE.md` v1.18 → **v1.19** (§8b's table annotated as superseded, not repaired · §11's B-bis row and SPENT list corrected) · `docs/ROADMAP.md` v6.7 → **v6.8** (LIVEFEED ⏸️ with trigger · Leg A node de-staled · B-bis node runbooked and re-figured) · `CLAUDE.md` PLAY head · this entry. **No new D, no new N.**
+
+**Next-active.** 🔓 **Joe: §4 of the B-bis runbook** (one line's worth) · the back-fill milestone's name (non-gating). 🟡 **Chat, ungated: Leg E grounding part two.** 📌 **B-bis runs the moment §4 is ruled; everything else in it is measured.**
+
+---
+
 ## Entry J-619 — D-134 minted: the designation-collision rule leaves the file this project periodically empties
 
 **Date:** 2026-07-29 · **Seat:** Chat (records, verification). Provenance **DELEGATED** — Joe: *go*, after answering Q3a and Q3b directly. ⚠️ **The RULE is Joe's and so is the amendment; only the writing and the evidence are Chat's.** No code.

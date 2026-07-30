@@ -1,6 +1,6 @@
 # RUNBOOK — M-DOC-ROADTREE Leg E, the two-way closure log
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.4  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-30  
 > Language: English  
@@ -49,12 +49,15 @@
 
 ### §1b Counts
 
-- **97 heads** total — 📌 **superseding `95` (J-627).**
+- **94 heads** total — 🛑 **SUPERSEDING `97` (J-628) AND `95` (J-627). ANNOTATED, NOT ERASED.**
+  - 🛑 **THREE OF `97` WERE NOT HEADS — THE FIRST FALSE-POSITIVE DEFECT IN THIS ARC (J-629, `D-135`).** `**M-` matches bold **emphasis** on a milestone ID mid-sentence, not only a record head: **@115,900 `**M-RP5.5**` and @115,973 `**M-RP5.6**` sit inside ONE clause** of the record opening at 115,464 (*“…are pulled AHEAD of the live-wiring arc — **M-RP5.5** (…) then **M-RP5.6** (…) are **next-active**”*), and **@119,871 `**M-RP5.6 CLOSED**` follows an em-dash inside J-485's own sentence.** 🔑 **Five prior sharpenings all pushed toward WIDENING because every earlier defect was a MISS; widening cannot find an over-match.**
 - **B holds 4 stub segments that are NOT records** — under 100 chars: `J-447 (star-rating` **18** · `J-446 (password-field` **21** · `J-461 (PROTO-STATUS.2 — Track A, see head note` **46** · `J-448` **93**. Two are pointers; two are stubs whose real record is in C.
   - 📌 **CONVENTION NAMED 2026-07-30 (J-628) — NOT A DISCREPANCY, AND NOT REPAIRED.** These four figures measure the **payload only**. P1 measures **head-to-head**, which includes the trailing `) / ` delimiter (**4 chars**), and therefore reads **22 · 25 · 50 · 97**. Both readings are correct; **neither stated its convention.** ⇒ **STATE THE CONVENTION ALONGSIDE ANY SPAN FIGURE IN THIS LEG.**
-- ⇒ **93 records** — 📌 **superseding `91` (J-627).**
-- **C's 26 heads split 14 closure-bearing / 12 not** — 📌 **superseding *24 heads, 11 / 13* (J-627).** The 12 are forward-looking entries (M-RP5.4, M-RP6.1, M-RP5.5 …). ✅ **The delegated adoption at J-623 — *they travel into the archive annotated* — STANDS; only the count moved.**
-- **11 known B↔C collisions** (§4).
+- ⇒ **90 records** — 🛑 **superseding `93` (J-628) and `91` (J-627), annotated not erased.**
+- **C's 23 heads split 14 closure-bearing / 9 not** — 🛑 **superseding *26 heads, 14 / 12* (J-628) and *24 heads, 11 / 13* (J-627).** 📌 **All three removed heads were non-closure, so the closure-bearing 14 is UNCHANGED and `12 − 3 = 9` closes independently.** ✅ **The delegated adoption at J-623 — *they travel into the archive annotated* — STANDS; only the count moved.**
+- 🛑 **16 B↔C collisions** (§4) — **superseding `11`.**
+- ✅ **ZERO collisions within-A, within-B, within-C, A↔B and A↔C**, measured 2026-07-30 (J-629). 📌 **Structurally explained, not merely absent: A spans J-410–J-435 while B spans J-445–J-503, so A cannot collide by J-range at all.**
+- ✅ **A and B each have an INDEPENDENT CROSS-CHECK and each carried ZERO false heads** — A: 20 `CLOSED (J-nnn)` marks against 1 + 19; B: J-keys **strictly monotonic descending J-503 → J-445**, which proves head-hood *and* zero within-B duplicates in one property. 🛑 **C had none, and C carried all three.**
 
 ### §1c 🛑 The negative result, which is the load-bearing one
 
@@ -83,13 +86,18 @@
 
 1. Assert exactly one line over 20,000 chars; assert its length is **124,299**. If either fails, **STOP** — the file has changed under the runbook and §1's offsets are void.
 2. Extract heads per region using §1a's per-region predicate.
-3. Assert head counts **1 + 19 / 51 / 25 + 1**. Any deviation **STOPS** the pass.
-4. Cut records at head positions. Assert **(a)** the first head sits at **0** (no leading gap), **(b)** **zero duplicate head positions** (no overlap), **(c)** the head list is **strictly ascending**.
+3. Assert head counts **1 + 19 / 51 / 22 + 1 = 94**, **AND** assert the artefact properties in step 4. Any deviation **STOPS** the pass.
+   - 🛑 **SHARPENED 2026-07-30 (J-629), AND THIS IS `D-135` §2.** This step read *“Assert head counts **1 + 19 / 51 / 25 + 1**”* and **every one of those assertions passed at J-628 while three of the heads were not heads.** ⚠️ **AN ASSERTION COMPARING A PREDICATE'S OUTPUT TO A CENSUS FIGURE PRODUCED BY THAT SAME PREDICATE CANNOT FAIL FOR THE REASON IT APPEARS TO TEST** — it detects only that the file changed under the runbook. 📌 **The same disease as §3.4's span-sum, sitting ONE LINE ABOVE IT, struck at J-628 while this survived — because §3.3 does not look like arithmetic.** ⇒ **A COUNT ASSERTION IS NEVER THE ONLY GATE; STEP 4's ARTEFACT PROPERTIES ARE THE ONES THAT CAN FAIL.**
+4. Cut records at head positions. Assert **(a)** the first head sits at **0** (no leading gap), **(b)** **zero duplicate head positions** (no overlap), **(c)** the head list is **strictly ascending**, **(d)** 🔑 **EVERY `**M-` HEAD IS PRECEDED BY A SENTENCE TERMINATOR** — the false-positive test, added J-629 per `D-135` §1②. **Read every failure individually; do not auto-reject.**
    - 🛑 **SHARPENED 2026-07-30 (J-628). SUPERSEDED TEXT ANNOTATED, NOT ERASED.** This step read: *“assert the concatenated record spans sum to **124,299** with no gap and no overlap.”* ⚠️ **THAT ASSERTION CANNOT FAIL.** Consecutive differences over a sorted list always sum to the span they cover — **the sum closes by construction.** It is the *shape* of verification, not verification. **(a), (b) and (c) are the three checks that can actually fail.** 📌 **Found by running the very runbook whose assert-and-STOP had just caught the fifth notation defect — the arc's own rule, turned on itself.**
 5. Classify B's 51 segments into **47 records + 4 stubs** by the under-100-char test, then **read all four** to confirm each is a pointer or a stub. ⚠️ The threshold is a finding aid, not the verdict.
 6. 🛑 **Assert nothing about record content from a marker.** A resolving citation proves a record exists, **not** that its substance is in it (Phase-0 §7).
 
-### §3r — P1 RESULT: ✅ CLEARED 2026-07-30 (J-628)
+### §3r — P1 RESULT: 🛑 CLEARANCE RETRACTED 2026-07-30 (J-629)
+
+🛑 **THE “✅ CLEARED” BELOW IS RETRACTED. IT IS KEPT VERBATIM, NOT ERASED, BECAUSE HOW IT PASSED IS THE FINDING.** Every §3 gate genuinely passed — **and three of the 97 heads were not heads.** ⚠️ **§3.3 compared the predicate's output to a census figure produced by that same predicate**, so agreement proved only that the file had not changed. ⇒ **CORRECTED: A 20 · B 51 · C 23 = 94 heads · 90 records** (`D-135`). 📌 **P1 must be re-run under step 4(d); the run below is superseded but its A- and B-side results all held.**
+
+### §3r-orig — P1 RESULT AS WRITTEN AT J-628 (SUPERSEDED, KEPT)
 
 **Re-run from §3.1 against the J-627-corrected assertions. Nothing stopped.**
 
@@ -114,7 +122,25 @@
 
 ## §4 — P2, collision resolution
 
-### §4a The eleven measured at J-622 — read on both sides in full
+### §4a The collisions — read on both sides in full
+
+🛑 **THE TABLE BELOW IS ELEVEN OF SIXTEEN. CORRECTED 2026-07-30 (J-629); THE ELEVEN ARE KEPT, THE FIVE ARE ADDED.**
+
+⚠️ **WHY IT WAS ELEVEN.** The J-622 measurement was taken inside grounding **part two's** two C sub-windows — `C1 110,516–111,445` (4 heads) and `C2 122,026–123,912` (7 heads) = **exactly 11**. 🛑 **THE 10,581 CHARS BETWEEN THEM WERE NEVER EXAMINED**, and all five missing collisions sit in that gap: **J-478 @116,587 · J-479 @116,848 · J-480 @117,180 · J-483 @119,303 · J-485 @119,778.** 📌 **Grounding part three positively asserted *“J-474, J-478–J-487 … are NOT in the collision set”* — that claim is FALSE.** 🔑 **J-483 and J-485 are `DONE`-form heads, the notation J-627 discovered; J-627 fixed the head COUNT and never re-ran the COLLISION measurement.**
+
+**THE FIVE ADDED — all five read on both sides in full (J-629), all genuine identity collisions, none a citation artefact:**
+
+| J-ref | milestone | B | C | verdict |
+|---|---|---|---|---|
+| J-478 | M-RP5.5 A | 401 | 261 | **B ⊃ C** — C is a compression |
+| J-479 | M-RP5.5 B | 828 | 332 | **B ⊃ C** — B alone carries the *records-honesty* note (Phase-0 §4 listed `grouped` as a field, §5 locks it stream-computed, **code authoritative**) |
+| J-480 | M-RP5.5 C | 941 | 597 | **B ⊃ C** — B alone carries `--t3`/`--fs-1` and the `system-long` wrap measurement (h=62 vs 26) |
+| J-483 | M-RP-CDP1 | 750 | 475 | **B ⊃ C** — B alone names the **D-104 → D-105 diagnosis correction**; C cites only D-105 |
+| J-485 | M-RP5.6 B | 906 | **1,813** | ⚠️ **C RICHER** — and C's span is 1,813 **only after** the false head at 119,871 is removed; it read **93** while that head stood |
+
+🔑 **J-485 IS THE PAIR THE FALSE HEAD WAS HIDING.** With 119,871 counted as a head, C's J-485 measured 93 chars and looked like a stub ⇒ an automatic *“keep B”*. **Read whole it is 1,813 chars and RICHER than B — the verdict inverts.** 🛑 **A parse error does not merely miscount; it silently reverses a merge verdict.**
+
+**The eleven measured at J-622:**
 
 | J-ref | milestone | B | C | verdict |
 |---|---|---|---|---|
@@ -142,6 +168,12 @@
 
 ### §4c The untested remainder
 
+✅ **RUN 2026-07-30 (J-629). THE KEY TEST IS COMPLETE ACROSS ALL REGION PAIRS.** Result: **16 collisions, ALL B↔C.** ✅ **ZERO within-A, within-B, within-C, A↔B, A↔C.** 📌 **Structurally explained rather than merely absent** — A spans J-410–J-435, B spans J-445–J-503, so A cannot collide by J-range; and B's keys descend strictly monotonically, which forbids within-B duplicates outright. 🔑 **§4c EARNED ITS KEEP TWICE IN ONE PASS** — it found the five missing collisions **and** the three false heads, both invisible to §3's gates.
+
+⚠️ **ONE UNSOUND METHOD, RECORDED NOT HIDDEN.** Keys are taken from the first `(J-nnn)` in a head window. For C's **forward-looking, non-closure** heads that is a **CITATION, NOT AN IDENTITY** — 4 such heads carry a key on that basis. **It produced no false collision here (all 16 were read on both sides) but MUST NOT BE REUSED BLIND.**
+
+⚠️ **Original scope note, kept:** only key collisions between B and C had been tested.
+
 ⚠️ **Only key collisions between B and C have been tested.** The remaining ~60 records have **never** been checked for twins — not within A, not within B, not A↔B, not A↔C. **P2 runs the same key test across all region pairs before any verdict is written.** The J-317 lesson (25,127 bytes of byte-identical duplication, undetected for weeks) is the reason this is not optional.
 
 ---
@@ -150,14 +182,18 @@
 
 Batch into `CLAUDE_HISTORY.md` under **one** `## ` heading, D-094 form (§F1c), matching Leg D's convention. Broken citations are **annotated at the site, never silently repaired** (D-131).
 
-**C's 13 non-closure heads travel with the rest, annotated as forward-looking entries.** 📌 *Delegated adoption of Chat's lean at J-623, not a Joe lock — reversible.* Rationale: for several of them this stretch of `CLAUDE.md` is the only place the postponement rationale exists.
+**C's 12 non-closure heads travel with the rest, annotated as forward-looking entries.** 📌 *Delegated adoption of Chat's lean at J-623, not a Joe lock — reversible.* Rationale: for several of them this stretch of `CLAUDE.md` is the only place the postponement rationale exists.
+
+- 📌 **CORRECTED 2026-07-30 (J-629). SUPERSEDED FIGURE ANNOTATED, NOT ERASED:** this read **`13`**. J-627 re-split C on a second predicate — `CLOSED (J-nnn)` alone gave 11, but C also carries `DONE (J-nnn)` × 3 ⇒ **14 closure-bearing / 12 not.** **The DECISION is untouched; only the count moved.**
 
 ---
 
 ## §6 — Definition of Done
 
 - [ ] Exactly one line over 20,000 chars asserted at pass open and at pass close.
-- [ ] Head counts asserted **1 + 19 / 51 / 24**; spans sum to **124,299** with no gap or overlap.
+- [ ] Head counts asserted **1 + 19 / 51 / 25 + 1 = 97 heads**, and **93 records** after the four B stubs are removed.
+- [ ] Record spans: **first head at 0** (no leading gap) · **zero duplicate head positions** (no overlap) · **strictly ascending**.
+  - 🛑 **BOTH LINES ABOVE CORRECTED 2026-07-30 (J-629). SUPERSEDED TEXT ANNOTATED, NOT ERASED.** They read *“Head counts asserted **1 + 19 / 51 / 24**; spans sum to **124,299** with no gap or overlap.”* ⚠️ **`24` IS THE C COUNT P1 REFUTED AT J-627**, and ⚠️ **the sum-assertion is the by-construction one struck from §3.4 at J-628 — it survived here unchanged.** 🔑 **J-628 FIXED THE SECTIONS IT WAS LOOKING AT RATHER THAN THE DOCUMENT** — this arc's named defect class (*a claim narrower than the thing it describes, reused as if complete*), committed inside the entry that names it. ⇒ **A CORRECTION IS NOT APPLIED UNTIL THE WHOLE FILE HAS BEEN SEARCHED FOR THE CLAIM BEING CORRECTED.**
 - [ ] All four B stubs read individually and classified.
 - [ ] Key-collision test run across **all** region pairs, not just B↔C.
 - [ ] Every collision carries a written per-pair verdict; no deletion without one.

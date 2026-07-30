@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.16  
+> Version: 6.18  
 > Date: May 2026  
 > **Last updated**: 2026-07-30  
 > Language: English  
@@ -322,15 +322,21 @@ XGen Protocol
 │   ├── ✅ **Leg C `docs/ROADMAP.md`** — 761,422 → 43,741 B; tree kept, prose deleted, five format rules · J-604 (J-602, J-603)
 │   ├── ✅ **Leg D `CLAUDE.md` B2** — 65 of 81 blocks archived, 640,645 → 316,680 B (50.6%); D-094 re-applied after a five-week lapse · J-615 (J-606, J-608–J-614)
 │   ├── 🟡 **Leg E the two-way closure log** — `CLAUDE.md`'s prose head; one closure log in THREE head notations · J-623
-│   │   ↳ 📘 **RUNBOOKED** `tasks/RUNBOOK_ROADTREE_LEGE.md` **v1.2 ACTIVE** — the authority from here. Trigger FIRED J-615; title locked Joe J-618
+│   │   ↳ 📘 **RUNBOOKED** `tasks/RUNBOOK_ROADTREE_LEGE.md` **v1.4 ACTIVE** — the authority from here. Trigger FIRED J-615; title locked Joe J-618
+│   │   ↳ 🛑 **J-629 — THE CORRECTIONS THEMSELVES WERE NARROWER THAN THE CLAIMS THEY CORRECTED.** J-627 fixed the runbook and §11 but not §8-E's census; J-628 fixed §1a/§1b/§3.4 but not §5/§6 — `J-627` and `J-628` appeared **exactly once** in the whole task doc. Superseded figures **annotated, never repaired**; **dated `CLAUDE.md` PLAY blocks and `JOURNAL.md` entries are exempt and must NOT be back-edited** ⇒ **a correction is not applied until the whole RECORD SET has been searched — not the section, not the file**
 │   │   ↳ ✅ P0 census + P1 assertion pass — heads **A 1+19 · B 51 (4 stubs) · C 25 + 1 emoji-form** = **97 heads, 93 records** (📌 superseding *95 / 91*, J-627); boundaries RE-DERIVED FROM HEAD POSITIONS: A 0–18,426 · B 18,426–**110,488** · C –124,299, sum **124,299**
 │   │   ↳ 🛑 **P1 STOPPED ON ITS OWN ASSERTION (J-627)** — §1a had combined C's head count from the OLD boundary 110,516 with the re-derived span 110,488; and a **FOURTH head form** `**<emoji> M-<id>` at 113,632 was invisible to `**M-`
 │   │   ↳ ✅ **P1 CLEARED ON RE-RUN (J-628)** — every §3 gate passed, nothing stopped: 1 line · 124,299 · **97 heads** · **93 records** · B **47 + 4 stubs** · C **14 closure-bearing / 12 not** (11 `CLOSED` + 3 `DONE`: J-473 · J-483 · J-485) · A cross-checked by 20 `CLOSED (J-nnn)` marks
+│   │   ↳ 🛑 **THAT CLEARANCE IS RETRACTED (J-629) — THREE OF THE 97 WERE NOT HEADS.** `**M-` matched bold **emphasis**: @115,900 and @115,973 inside ONE clause of the record at 115,464, and @119,871 after an **em-dash inside J-485's own sentence** ⇒ **A 20 · B 51 · C 23 = 94 heads · 90 records**, superseding *97 / 93* and *95 / 91*, annotated never erased
+│   │   ↳ 🔑 **EVERY §3 GATE PASSED WHILE THAT WAS TRUE** — §3.3 compares the predicate's count to a census figure **produced by the same predicate**, so it detects drift and never error; same disease as §3.4's span-sum, **one line above it** ⇒ 🔒 **`D-135` MINTED (delegated, reversible): test a predicate in BOTH directions; an assertion built from the predicate it checks cannot fail**
+│   │   ↳ ✅ **THE SECOND PREDICATE IS THE WHOLE DIFFERENCE** — A had one (20 `CLOSED` marks vs 1+19) → 0 false heads · B had one (J-keys **strictly monotonic J-503→J-445**, which also forbids within-B twins) → 0 false heads · **C had none → all three**
+│   │   ↳ 🛑 **§4c COMPLETE — THE ELEVEN COLLISIONS ARE SIXTEEN.** J-478 · J-479 · J-480 · J-483 · J-485 added; the eleven were measured inside part two's two C sub-windows (110,516–111,445 and 122,026–123,912 = **exactly 11**) and **the 10,581 chars between them were never examined** — all five sit in that gap. **Zero collisions within-A, within-B, within-C, A↔B, A↔C**
+│   │   ↳ 🛑 **THE PARSE ERROR HID A REVERSED VERDICT, NOT JUST A MISCOUNT** — C's J-485 read **93 chars** (a stub ⇒ *keep B*) while the false head stood; whole it is **1,813** and **richer than B's 906**, so the verdict **inverts**
 │   │   ↳ 🔑 **the last narrow predicate widened and its hits read individually** — `**Next-active` × 8 = 1 head (@0) + 7 mid-record; B's `52 / 50` reconciles to **51** (50 delimiters + the seam head @18,426; @85,891 is a backward pointer) ⇒ §1c is now MEASURED, not inherited
 │   │   ↳ 🛑 **two runbook defects found by RUNNING it, both ANNOTATED not silently repaired** — ① §3.4's sum-assertion **cannot fail** (consecutive differences always sum to the span) = *the shape of verification*, sharpened to first-0 · zero-duplicates · strictly-ascending ② §1b's stub lengths measure PAYLOAD, P1 measures HEAD-TO-HEAD incl. the 4-char `) / ` delimiter — a missing convention, not a discrepancy
 │   │   ↳ 🛑 **NO UNIFORM RECORD HEAD EXISTS** — each region needs its own predicate AND a second independent one to check it; **five successive passes each came from trusting one**, and §3's assert-and-STOP is what finally caught the fifth
-│   │   ↳ 🛑 `82` retired (J-622); 11 B↔C collisions read pair by pair — **8 B ⊃ C · 2 C ⊃ B · 1 divergent** ⇒ NO mechanical merge; **deletes nothing without a per-pair hand verdict**
-│   │   ↳ ⚠️ identify the line BY CONTENT, not position — it moved L29 → L25 at J-619. ⚠️ untested (runbook §4c): within-A, within-B, A↔B, A↔C twins — **P1 parsed; it did not de-duplicate**. **Next: §4, P2 — the eleven collisions, per-pair hand verdicts. NOT STARTED**
+│   │   ↳ 🛑 `82` retired (J-622); **16** B↔C collisions (📌 **superseding `11`, J-629**) read pair by pair — the original eleven **8 B ⊃ C · 2 C ⊃ B · 1 divergent**, the five added **4 B ⊃ C · 1 C richer** ⇒ NO mechanical merge; **deletes nothing without a per-pair hand verdict**
+│   │   ↳ ⚠️ identify the line BY CONTENT, not position — it moved L29 → L25 at J-619. ⚠️ **key extraction is UNSOUND for C's 4 forward-looking heads** (first `(J-nnn)` there is a citation, not an identity) — no false collision resulted, all 16 read on both sides, **but not to be reused blind**. ⚠️ **one hand verdict flagged as a judgement: @116,587 opens after a semicolon, admitted on head form**. 🛑 **P2 CANNOT RUN. Next: a P0-bis re-deriving the head set under `D-135`, then P1 re-run, then P2**
 │   ├── 🟡 **Leg F bidirectional sweep** — is every known work item ON the roadmap, not just is every entry true · J-617
 │   └── 🟡 **Leg G records + close** — delete `ROADMAP_ARCHIVE_2026-07-26.md` iff Leg B cleared · J-617
 │       ↳ 🛑 **ORDER-CONSTRAINED: MUST NOT RUN BEFORE LEG B-TER** — that archive is the **sole surviving source** for the six set-B bodies; had Leg G run first they would be gone permanently

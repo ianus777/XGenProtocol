@@ -8,6 +8,40 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-629 — the corrections were narrower than their claims, and then three of the heads were not heads
+
+**Date:** 2026-07-30 · **Seat:** Chat (measurement, records). Provenance **DELEGATED** — Joe: *what now?* then *go as you recommend*, closing **three**: ① records written and commit prepared ② **B tested before the journal, not after** ③ the rule minted as a `D-`. 📌 **③ taken as delegated AUTHORSHIP, not a Joe lock — `D-135` is reversible and awaits his confirmation (J-623 precedent).** No code.
+
+🛑 **J-628's HEADLINE IS RETRACTED. P1 WAS NOT CLEARED.** **C is 23 heads, not 26; the line holds 94 heads and 90 records, not 97 and 93.** Three `**M-` matches were **bold emphasis on a milestone ID, not record heads**: @115,900 `**M-RP5.5**` and @115,973 `**M-RP5.6**` sit inside **one clause** of the record opening at 115,464 (*“…pulled AHEAD of the live-wiring arc — **M-RP5.5** (…) then **M-RP5.6** (…) are **next-active**”*), and @119,871 `**M-RP5.6 CLOSED**` follows an **em-dash inside J-485's own sentence.**
+
+🔑 **AND EVERY §3 GATE PASSED WHILE THIS WAS TRUE, WHICH IS THE ACTUAL FINDING.** §3.3 asserts that the predicate's head count equals a **census figure produced by that same predicate.** Both sides move together ⇒ **the assertion detects only that the file changed under the runbook; it cannot detect the predicate being wrong.** 🛑 **This is the identical disease I struck out of §3.4 eight hours earlier — sitting ONE LINE ABOVE IT — and I missed it because §3.3 does not look like arithmetic and I was hunting for MISSING heads.**
+
+🔑 **SIXTH INSTANCE, AND THE FIRST FALSE POSITIVE.** The five prior defects were all narrow predicates **missing** real heads, so all five sharpenings pushed toward **widening**. ⚠️ **Widening is structurally incapable of finding an over-match.** ⇒ **`D-135` MINTED: a predicate is tested in BOTH directions, and an assertion built from the predicate it checks cannot fail.** 📌 **Written to `DECISIONS.md` and not to a journal entry for one reason — the five preceding statements of this rule all lived in `JOURNAL.md` and EACH WAS BROKEN BY THE NEXT PASS.**
+
+✅ **THE SECOND PREDICATE IS THE WHOLE DIFFERENCE, AND IT IS MEASURABLE.** **A** had an independent cross-check (20 `CLOSED (J-nnn)` marks against 1 + 19 heads) and carried **zero** false heads. **B** had one — its J-keys descend **strictly monotonically J-503 → J-445**, a single property that proves head-hood *and* forbids within-B duplicates — and carried **zero**. **C had none, and C carried all three.** 📌 **B's anchor is a STRUCTURAL delimiter (`) / `); A's and C's is TYPOGRAPHIC emphasis. Typographic anchors admit over-matches.**
+
+🛑 **§4a's ELEVEN COLLISIONS WERE SIXTEEN.** The all-pairs key test adds **J-478 · J-479 · J-480 · J-483 · J-485**. 🔑 **THE CAUSE IS VISIBLE IN PART TWO'S OWN TABLE:** it split C into `C1 110,516–111,445` (4 heads) and `C2 122,026–123,912` (7 heads) — **exactly 11** — and **the 10,581 chars between them were never examined.** All five sit in that gap. ⚠️ **Grounding part three positively asserted *“J-474, J-478–J-487 … are NOT in the collision set”*; that claim is false.** 📌 **J-483 and J-485 are `DONE`-form heads — J-627 found that notation, fixed the head COUNT, and never re-ran the COLLISION measurement.**
+
+🛑 **AND THE PARSE ERROR WAS HIDING A REVERSED VERDICT, NOT JUST A MISCOUNT.** With 119,871 counted as a head, C's J-485 measured **93 chars** and read as a stub ⇒ an automatic *keep B*. **With the false head removed it is 1,813 chars and RICHER than B's 906.** ⇒ **the verdict inverts.** 📌 **This is why §4 forbids a mechanical rule: a bad boundary does not announce itself as a bad boundary, it announces itself as a confident merge decision.**
+
+✅ **ZERO collisions within-A, within-B, within-C, A↔B, A↔C** — and **structurally explained rather than merely absent**: A spans J-410–J-435 while B spans J-445–J-503, so A cannot collide by J-range at all. ⚠️ **One unsound method recorded rather than hidden:** keys come from the first `(J-nnn)` in a head window, which for C's **forward-looking** heads is a **citation, not an identity** (4 such heads). **No false collision resulted — all 16 were read on both sides — but it must not be reused blind.**
+
+🔑 **THE CORRECTION SWEEP THAT STARTED THIS, AND IT FOUND MY OWN FAULT FIRST.** §6's Definition of Done still demanded head counts **`1 + 19 / 51 / 24`** — the count P1 had refuted — **and still carried the by-construction span-sum I had struck from §3.4 the same afternoon**; §5 still read `13` non-closure heads. ⚠️ **Then the sweep widened and found the same shape one level up: `J-627` and `J-628` appeared EXACTLY ONCE in the entire governing task doc, at §11.** J-627 corrected the runbook and §11 but not §8-E's census. ⇒ **`D-135` §5: A CORRECTION IS NOT APPLIED UNTIL THE WHOLE RECORD SET HAS BEEN SEARCHED — not the section, not the file.** 🛑 **Dated `CLAUDE.md` PLAY blocks and `JOURNAL.md` entries are EXEMPT and were not back-edited** — they are contemporaneous accounts, and rewriting them destroys the only evidence of how a figure moved.
+
+⚠️ **A PROBE RETURNED 1 FOR A 94-HEAD INPUT AND I NEARLY USED IT.** An index-sort (`0..n | Sort-Object { $P[$_] }`) collapsed and took the parallel position/region arrays with it: `TOTAL=1`, `first=108897` instead of 0. **Discarded and rewritten with region derived as a pure function of position, so there are no parallel arrays to desynchronise.** 📌 **Second broken probe in two sessions, and the tell was internal inconsistency both times — not implausibility.**
+
+✅ **THE CORRECTED FIGURES CLOSE INDEPENDENTLY, NOT BY SUBTRACTION.** Recomputed from the corrected head set: **C non-closure 9** (against `12 − 3`) · **heads with no key 5** (against `8 − 3`) · **first head 0, strictly ascending, last 123,902** · **B 47 records + 4 stubs unchanged.** 📌 **All three removed heads were non-closure, so C's closure-bearing 14 never moved.**
+
+⚠️ **ONE HAND VERDICT RECORDED AS A JUDGEMENT, NOT A RULE.** @116,587 (`**M-RP5.5 A ✅ (J-478):**`) opens after a **semicolon**, not a sentence end. **Admitted as a head** on the strength of its head form and its self-contained closure content. **It is the one genuinely ambiguous boundary in C and it is flagged as such.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `DECISIONS.md` — **`D-135` MINTED (delegated, reversible)** · `tasks/RUNBOOK_ROADTREE_LEGE.md` v1.2 → **v1.4** (§1b corrected · §3.3 sharpened · §3.4 gains the false-positive test 4(d) · §3r clearance retracted with the original kept as §3r-orig · §4a eleven→sixteen · §4c result) · `tasks/M_DOC_ROADTREE.md` v1.26 → **v1.29** · `docs/ROADMAP.md` v6.15 → **v6.18** · `CLAUDE.md` PLAY head · this entry. **Superseded figures ANNOTATED, NEVER ERASED.** **One new D, no new N.**
+
+**Next-active.** 🛑 **P2 CANNOT RUN.** Verdicts written against a head set under revision would be verdicts about the wrong records — J-485 is the proof. 🟡 **Leg E needs a P0-bis: re-derive the head set under `D-135`'s both-directions test, then P1 re-run, then P2.** 🔓 **Joe: sequencing, and `D-135`'s confirmation or amendment.**
+
+---
+
 ## Entry J-628 — Leg E P1 cleared on re-run, and the runbook that caught the fifth defect carried two of its own
 
 **Date:** 2026-07-30 · **Seat:** Chat (measurement, records). Provenance **LOCKED** — Joe: *go for 1)*, then *go by your recomm*. 📌 **The second closed THREE options: no P2 tonight · §3.4 sharpened WITH its old text annotated · §1b's convention annotated, not repaired.** No code.

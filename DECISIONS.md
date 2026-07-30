@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-29  
+> **Last updated:** 2026-07-30  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -4981,3 +4981,59 @@ and **always**, including when the run dies or is abandoned:
 ✅ **`M-DOC-ROADTREE` Leg B-bis EXECUTED 2026-07-30 (J-625)** — the only two known live collisions, under §8b's ruling that `JOURNAL_ARCHIVE.md` may be corrected: `J-044` → `J-044a` (the M1–M3 implementation) / `J-044b` (the review) · `J-045` → `J-045a` (the xgen-core crate split) / `J-045b` (the `--batch` AI-tool design note), **12 citations re-pointed individually** (📌 **not 28 — that was a reference count, superseded J-620**), both bare numbers retired. ⚠️ **The `a`/`b` assignment was settled by ARTEFACT EVIDENCE, not by sort direction** — four independent confirmations, recorded at J-625 and in `RUNBOOK_ROADTREE_LEGB_BIS.md` §1b.
 
 📌 **The `CLAUDE.md` standing-convention block is reduced to a pointer at this entry** rather than deleted — the briefing keeps the signpost, the permanent record keeps the rule. **Rationale: `CLAUDE.md` is periodically drained (65 blocks archived at J-615); a normative rule must not live only in the file this project empties.**
+
+---
+
+## D-135 — A predicate is tested in BOTH directions, and an assertion built from the predicate it checks cannot fail
+
+**Date:** 2026-07-30 · **Layer:** project-wide measurement discipline (any count, census, or parse of a repo document) · **Ref:** J-620 · J-621 · J-622 · J-627 · J-628 · J-629; `tasks/RUNBOOK_ROADTREE_LEGE.md` §1c, §3.3, §3.4, §4c; `tasks/M_DOC_ROADTREE.md` §8-E.
+
+⚠️ **PROVENANCE — DELEGATED, NOT LOCKED.** Chat recommended minting this and offered to write it for Joe to rule on; Joe answered *“go as you recommend”* (2026-07-30), which **delegates the authorship**. 📌 **This entry is therefore REVERSIBLE and awaits Joe's confirmation or amendment** — the J-623 precedent for a delegated adoption. 🔑 **It is written to `DECISIONS.md` rather than left in a journal entry for one reason: the five preceding statements of this rule all lived in `JOURNAL.md`, and EACH WAS BROKEN BY THE NEXT PASS.**
+
+### §1 — THE RULE
+
+🔒 **A PREDICATE USED TO COUNT OR LOCATE ANYTHING IS TESTED IN BOTH DIRECTIONS BEFORE ITS OUTPUT IS USED:**
+- **① FALSE NEGATIVES — what did it MISS?** Run a deliberately WIDER predicate and **read every extra hit individually.**
+- **② FALSE POSITIVES — what did it WRONGLY ADMIT?** Test each hit against a property the real thing must have and **read every failure individually.**
+
+🛑 **NEITHER DIRECTION SUBSTITUTES FOR THE OTHER, AND WIDENING CANNOT FIND AN OVER-MATCH.** Five successive sharpenings in this arc all pushed toward widening because every defect found up to that point had been a miss. **The sixth defect was an over-match, and the accumulated rule was structurally blind to it.**
+
+### §2 — 🛑 THE SELF-REFERENTIAL ASSERTION, WHICH IS THE HARDER HALF
+
+🔒 **AN ASSERTION THAT COMPARES A PREDICATE'S OUTPUT TO A NUMBER DERIVED FROM THAT SAME PREDICATE CANNOT FAIL FOR THE REASON IT APPEARS TO TEST.** It detects only **drift** — the artefact changing under the procedure. It cannot detect the predicate being **wrong**, because both sides move together.
+
+⚠️ **THIS IS THE SAME DISEASE AS A SUMMATION THAT CLOSES BY CONSTRUCTION**, and the two appeared **one line apart** in the same runbook. §3.4 asked for a span-sum that consecutive differences always satisfy; §3.3 asked whether the head count equalled a census figure **produced by the same predicate**. 📌 **§3.4 was struck at J-628 and §3.3 was not — because the reader was looking for missing heads, and §3.3 does not look like arithmetic.**
+
+🔑 **THE REPLACEMENT IS AN ASSERTION AGAINST A PROPERTY OF THE ARTEFACT, NOT AGAINST A PRIOR MEASUREMENT.** *First element at 0 · no duplicates · strictly ascending · every head follows a sentence terminator · the key sequence is monotonic* — **each of these can fail while the predicate is unchanged.**
+
+### §3 — ✅ EVIDENCE: THE SECOND PREDICATE IS THE WHOLE DIFFERENCE
+
+**Measured over the 124,299-char closure log in `CLAUDE.md`, 2026-07-30 (J-628, J-629):**
+
+| region | independent cross-check it had | false heads it carried |
+|---|---|---|
+| **A** (20 heads) | **yes** — 20 `CLOSED (J-nnn)` marks against 1 + 19 heads | **0** |
+| **B** (51 heads) | **yes** — J-keys descend **strictly monotonically** J-503 → J-445, no repeats | **0** |
+| **C** (23 heads) | **none** | **3** |
+
+🔑 **THE ONLY REGION WITHOUT A SECOND PREDICATE IS THE ONLY REGION THAT WAS WRONG, AND IT WAS WRONG THREE TIMES.** `**M-` matched bold *emphasis* on milestone IDs mid-sentence — `**M-RP5.5**` and `**M-RP5.6**` inside one clause at 115,900 / 115,973, and `**M-RP5.6 CLOSED**` after an em-dash at 119,871. 📌 **B's anchor is a STRUCTURAL delimiter (`) / `); C's and A's is TYPOGRAPHIC emphasis. Typographic anchors admit over-matches; structural ones do not.**
+
+### §4 — THE COST OF NOT DOING THIS, MEASURED
+
+⚠️ **The same line has now had SIX published shapes.** `≈ 82 records` → `95 / 91` → `97 / 93` → **`94 / 90`**. 🛑 **Three consecutive sessions planned against a number that later moved**, and at J-628 a pass was declared **CLEARED** on assertions that all passed while three of its heads were not heads.
+
+⚠️ **AND THE COLLISION SET INHERITED IT.** `§4a`'s *“eleven collisions measured at J-622”* was measured inside part two's two C sub-windows (`110,516–111,445` and `122,026–123,912`) and **never examined the 10,581 chars between them.** The all-pairs test found **sixteen**; the five extra — J-478 · J-479 · J-480 · J-483 · J-485 — **all sit in that gap**, and grounding part three positively asserted they were *not* in the collision set.
+
+### §5 — COROLLARY: A CORRECTION IS NOT APPLIED UNTIL THE WHOLE RECORD SET IS SEARCHED
+
+🔒 **When a measurement is corrected, EVERY LIVE RESTATEMENT OF IT IS FOUND AND ANNOTATED — not the section the reader happened to be in, not even the file.** ⚠️ **J-627 corrected the runbook and `§11` but not `§8-E`'s census; J-628 corrected `§1a`/`§1b`/`§3.4` but not `§5`/`§6`.** 📌 **Before the J-629 sweep, `J-627` and `J-628` appeared EXACTLY ONCE in the entire governing task doc.**
+
+🛑 **DATED RECORDS ARE EXEMPT AND MUST NOT BE BACK-EDITED.** Prior `CLAUDE.md` PLAY blocks and prior `JOURNAL.md` entries are contemporaneous accounts of what was known then; rewriting them destroys the only evidence of how a figure moved. **The corollary binds LIVE claims only — checklists, grounding tables, task-doc state, runbook assertions.** Superseded figures are **annotated, never deleted** (D-131 family).
+
+### §6 — 🛑 WHAT THIS ENTRY DOES **NOT** CLAIM
+
+⚠️ **It does not claim the head set is now final.** C's 23 heads rest on **three hand verdicts** (the two mid-clause emphases and the em-dash continuation) plus **one genuinely ambiguous boundary at 116,587**, which opens after a **semicolon** rather than a sentence end and was admitted on the strength of its head form. **A hand verdict is a judgement, and it is recorded as one.**
+
+⚠️ **It does not claim the key-extraction method is sound.** For C's **forward-looking, non-closure** heads the first `(J-nnn)` in the head window is a **citation, not an identity**. Four such heads carry a key on that basis. **It produced no false collision here — all sixteen were read on both sides — but the method must not be reused blind.**
+
+⚠️ **It does not claim a probe is trustworthy because it ran.** Two probes in this arc returned **internally inconsistent** output — one measured the same slice three times under array flattening (J-627), one returned a head count of **1** for a 94-head input (J-629). 📌 **Both tells were internal inconsistency, not implausibility. A probe that reports one number for many different inputs is reporting on itself.**

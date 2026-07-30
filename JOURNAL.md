@@ -1,10 +1,53 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-29  
+> **Last updated:** 2026-07-30  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-622 — the eleven collisions read pair by pair: containment runs both ways, and the shape I reported one turn ago lasted exactly one turn
+
+**Date:** 2026-07-30 · **Seat:** Chat (measurement, records). Provenance **LOCK** — Joe answered a bounded two-option question with *go C-vs-B*, selecting the eleven-pair diff **before** the records were written rather than after. Then **DELEGATED** — *go*, closing two named items: J-469's outstanding read and these four writes. No code.
+
+🛑 **THE ELEVEN ARE NOT ELEVEN DUPLICATES. CONTAINMENT RUNS IN BOTH DIRECTIONS, SO NO MECHANICAL RULE SURVIVES.**
+
+| J-ref | milestone | B | C | verdict |
+|---|---|---|---|---|
+| J-446 | M-RP2.23 | **21** | 256 | **C only** — B is `J-446 (password-field`, a bare mention |
+| J-448 | M-RP2.25 | **93** | 297 | **C richer** — B is a stub |
+| J-454 | M-RP4.3 | 391 | 397 | **DIVERGENT BOTH WAYS** |
+| J-455 | M-RP4.1 | 356 | 216 | B ⊃ C |
+| J-456 | M-RP4.5 | 533 | 458 | B ⊃ C |
+| J-457 | M-RP2.30 | 745 | 389 | B ⊃ C |
+| J-458 | M-RP2.30a | 431 | 240 | B ⊃ C |
+| J-459 | M-RP2.31 | 767 | 383 | B ⊃ C |
+| J-460 | M-RP2.31a | 303 | 202 | B ⊃ C |
+| J-462 | M-RP5.0 | 1,037 | 372 | B ⊃ C |
+| J-469 | M-RP5.3 | 1,460 | 697 | B ⊃ C |
+
+**8 B ⊃ C · 2 C ⊃ B · 1 divergent.** ⚠️ **J-469 was reported PROVISIONAL in chat on 620 of B's 1,460 chars and was closed by reading the remaining 840 before this entry was written, not after** — B carries the `data-portal`→`position:fixed` mechanism, the W-8 flag-gating, the ArrowDown-clamp and status-ellipsis honest notes, the J-428 harness revert and registry v0.53, none of which reach C.
+
+🔑 **WHY NO RULE WORKS.** *Keep the longer copy* deletes J-446's runbook path and J-448's Shape-A detail. *Keep B* deletes J-454's `temperature-indicator` dd-block and the `ui/docs/`-at-open session rule, which exist **nowhere else in the repo**. *Keep C* deletes J-457's amber hex, J-459's deferred filter/search rationale, J-460's `box-sizing` evidence. ⇒ **LEG E DELETES NOTHING WITHOUT A PER-PAIR HAND VERDICT.** 📌 This is Phase-0 §7's first caveat landing exactly where it was written: a resolving citation proves a record exists, **not** that its substance is in it.
+
+🛑 **AND THE SHAPE I REPORTED ONE TURN EARLIER IS RETRACTED. IT IS THE FOURTH, AND IT FAILED THE RULE J-621 HAD JUST MINTED.**
+
+- **C has 24 bold milestone heads, not 11.** I counted C by `CLOSED (J-nnn)` — **one notation** — and reported the match count as a record count. J-474, J-478–J-487 and `M-RP-CDP1` live in C and are **not** in the collision set; four heads (M-RP5.4, M-RP6.1, two M-RP5.5/5.6) carry no closure at all and are forward-looking entries, not records.
+- **B's 51 segments are not 51 records.** Four are under 100 chars — `J-447 (star-rating` **18** · `J-446 (password-field` **21** · `J-461 (PROTO-STATUS.2 — Track A, see head note` **46** · J-448 **93**. Two are pointers, two are stubs whose real record sits in C.
+- ⇒ **`82` IS RETIRED AS A PLANNING NUMBER.** Same class as the `28` that was planned against for three days (J-620). The honest state: A 20 *(never re-tested under a second notation)* · B 47 records + 4 stubs · C 24 heads.
+- ⚠️ **AND THE `18,426 + 92,090 + 13,783 = 124,299` PARTITION WAS TRUE BY CONSTRUCTION.** I closed part two's 10,968-char hole with arithmetic, so the summation **could not fail**. It is a correct sum over boundaries that are still part two's, and C's first record is proof they are wrong: `**M-RP2.23` opens at **110,488**, twenty-eight chars **before** the boundary that supposedly starts C.
+
+🔑 **FORWARD RULE, SHARPENED — J-621's WAS NECESSARY AND NOT SUFFICIENT.** *Enumerate the notations before counting* was written down and then broken **within one turn**, because enumerating notations in the region a predicate has already delimited still inherits that predicate's boundaries. ⇒ **ENUMERATE THE NOTATIONS, THEN RE-DERIVE THE BOUNDARIES FROM THE ENUMERATION — NEVER COUNT INSIDE BOUNDARIES A DIFFERENT PREDICATE DREW.** 📌 A summation that closes by construction is not verification; it is the shape of verification.
+
+🟡 **WHAT LEG E BECOMES.** A **P0 notation census** now precedes everything: enumerate every record-head *form* in the line — bold-milestone-first, J-ref-first, stub, pointer — classify **all** heads, and assert the count by summation over **char offsets derived from that census**, not from marker counts. Then P1 extraction, P2 collision resolution (**eleven known; the remaining ~60 records have never been tested for cross-region twins**), P3 the D-094 batch move. **D-121:** ① user-visible impact **none** either way, no runtime reads `CLAUDE.md` · ② resource cost — P0 is one probe session, **P2 is the real cost**, eleven hand-diffs consumed a session and scale linearly if the untested ~60 hold more twins · ③ elegance tertiary.
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/M_DOC_ROADTREE.md` v1.20 → **v1.21** · `docs/ROADMAP.md` v6.9 → **v6.10** · `CLAUDE.md` PLAY head · this entry. 📌 **`JOURNAL.md`'s `Last updated` was still 2026-07-29 although J-621 was written on the 30th — bumped here.** **No new D, no new N — a measurement correction, not a rule.**
+
+**Next-active.** 🟡 **Chat, ungated: runbook Leg E, P0 first.** 🔓 **Joe, neither gating:** §4 of the B-bis runbook (one line) · the back-fill milestone's name (Leg F's sweep).
 
 ---
 

@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.20  
+> Version: 1.21  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-30  
 > Language: English  
@@ -395,7 +395,39 @@
 
 **Leg E — the two-way closure log.** 🟡 **PENDING.** 🔒 **TITLE LOCKED (Joe, 2026-07-29, J-618** — a direct answer to a bounded question, **not** a delegation; chosen from three candidates that were themselves derived from the grounding measurement below, after Chat's earlier proposal *"the next-active chain"* **failed the test Joe set for it**). ↳ trigger: Leg D closes — **FIRED 2026-07-29 (J-615)**. **Surface: `CLAUDE.md`'s prose head — from the `## 🟢 UI component-library / substrate` heading down to the first `> ### ` PLAY block.** ⇒ **PARSING, NOT MOVING.**
 
-🔑 **§8-E GROUNDING PASS — PART TWO RUN 2026-07-30 (J-621). IT CORRECTED PART ONE, AND PART ONE HAD ALREADY REACHED THE ROADMAP AND A LOCKED NAME.**
+🔑 **§8-E GROUNDING PASS — PART THREE RUN 2026-07-30 (J-622). THE ELEVEN COLLISIONS READ PAIR BY PAIR, AND PART TWO'S RECORD COUNT RETIRED.**
+
+🛑 **THE ELEVEN SHARED KEYS ARE NOT ELEVEN DUPLICATES — CONTAINMENT RUNS IN BOTH DIRECTIONS.** Each of the eleven J-numbers that appears in both B and C was read on both sides in full:
+
+| J-ref | milestone | B chars | C chars | verdict |
+|---|---|---|---|---|
+| J-446 | M-RP2.23 | **21** | 256 | **C only** — B is `J-446 (password-field`, a bare mention |
+| J-448 | M-RP2.25 | **93** | 297 | **C richer** — B is a stub |
+| J-454 | M-RP4.3 | 391 | 397 | **DIVERGENT BOTH WAYS** |
+| J-455 | M-RP4.1 | 356 | 216 | B ⊃ C |
+| J-456 | M-RP4.5 | 533 | 458 | B ⊃ C |
+| J-457 | M-RP2.30 | 745 | 389 | B ⊃ C |
+| J-458 | M-RP2.30a | 431 | 240 | B ⊃ C |
+| J-459 | M-RP2.31 | 767 | 383 | B ⊃ C |
+| J-460 | M-RP2.31a | 303 | 202 | B ⊃ C |
+| J-462 | M-RP5.0 | 1,037 | 372 | B ⊃ C |
+| J-469 | M-RP5.3 | 1,460 | 697 | B ⊃ C |
+
+**8 B ⊃ C · 2 C ⊃ B · 1 divergent.**
+
+🔑 **NO MECHANICAL MERGE RULE SURVIVES THIS TABLE.** *Keep the longer copy* deletes J-446's runbook path and J-448's Shape-A detail. *Keep B* deletes J-454's `temperature-indicator` dd-block and the `ui/docs/`-at-open session rule, **which exist nowhere else in the repo.** *Keep C* deletes J-457's amber hex, J-459's deferred filter/search rationale, J-460's `box-sizing` evidence. ⇒ 🛑 **LEG E DELETES NOTHING WITHOUT A PER-PAIR HAND VERDICT.** 📌 Phase-0 §7's first caveat landing where it was written: **a resolving citation proves a record exists, not that its substance is in it.**
+
+🛑 **AND PART TWO'S REGION-C COUNT IS RETRACTED. THIS IS THE FOURTH SHAPE FOR THE LINE AND IT BROKE J-621's OWN RULE INSIDE ONE TURN.**
+- **C holds 24 bold milestone heads, not 11.** The 11 was a count of `CLOSED (J-nnn)` matches — **one notation** — reported as a record count. J-474, J-478–J-487 and `M-RP-CDP1` sit in C and are **not** in the collision set; four heads (M-RP5.4, M-RP6.1, M-RP5.5, M-RP5.6) carry no closure at all and are **forward-looking entries, not records.**
+- **B's 51 segments are not 51 records.** Four fall under 100 chars — `J-447 (star-rating` **18** · `J-446 (password-field` **21** · `J-461 (PROTO-STATUS.2 — Track A, see head note` **46** · J-448 **93**. Two are pointers; two are stubs whose real record is in C.
+- ⇒ ⚠️ **`82` IS RETIRED AS A PLANNING NUMBER** — same class as the `28` planned against for three days (J-620). Honest state: **A 20** *(never re-tested under a second notation)* · **B 47 records + 4 stubs** · **C 24 heads.**
+- ⚠️ **THE `18,426 + 92,090 + 13,783 = 124,299` PARTITION WAS TRUE BY CONSTRUCTION.** Part two's 10,968-char hole was closed with arithmetic, so the summation **could not fail**. The boundaries are still part two's, and C's first record disproves them: `**M-RP2.23` opens at **110,488**, twenty-eight chars **before** the boundary that supposedly starts C.
+
+🔑 **FORWARD RULE, SHARPENED — J-621's WAS NECESSARY AND NOT SUFFICIENT.** *Enumerate the notations before counting* was written down and broken **within one turn**, because enumerating notations **inside a region a different predicate delimited** still inherits that predicate's boundaries. ⇒ **ENUMERATE THE NOTATIONS, THEN RE-DERIVE THE BOUNDARIES FROM THE ENUMERATION — NEVER COUNT INSIDE BOUNDARIES A DIFFERENT PREDICATE DREW.** 📌 **A summation that closes by construction is not verification; it is the shape of verification.**
+
+🟡 **CONSEQUENCE FOR THE RUNBOOK — A P0 PRECEDES EVERYTHING.** **P0 notation census:** enumerate every record-head *form* in the line (bold-milestone-first · J-ref-first · stub · pointer), classify **all** heads, assert the count by summation over **char offsets derived from that census**. **P1** extraction. **P2** collision resolution — **eleven known; the remaining ~60 records have never been tested for cross-region twins.** **P3** the D-094 batch move. **D-121:** ① user-visible impact **none** on any branch — no runtime reads `CLAUDE.md` · ② resource cost — P0 one probe session, **P2 is the real cost**, eleven hand-diffs consumed a session and scale linearly · ③ elegance tertiary.
+
+🔑 **§8-E GROUNDING PASS — PART TWO RUN 2026-07-30 (J-621). 🛑 ITS RECORD COUNT IS SUPERSEDED BY PART THREE ABOVE (J-622) — KEPT, NOT REPAIRED.** Its **notations** finding (two inverted forms; B delimited on `) / J-nnn`) stands, and part three is built on it; its **counts** — ≈ 82 records, C1 4 + C2 7, *every region delimited* — do not. **IT CORRECTED PART ONE, AND PART ONE HAD ALREADY REACHED THE ROADMAP AND A LOCKED NAME.**
 
 🛑 **THE LINE IS ONE CLOSURE LOG END TO END, IN TWO INVERTED NOTATIONS. PART ONE'S "TWO LOGS WITH A NARRATIVE HOLE" WAS AN ARTEFACT OF THE PREDICATE.**
 
@@ -586,7 +618,7 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item naming an action names i
 ✅ **CLOSED:** Leg 0 · Leg A · **Leg C (J-604** — 761,422 → 43,741 B**)** · **Leg D (J-615** — 640,645 → 316,680 B, 65 of 81 blocks archived**)**.
 🟡 **Leg B — P1 cleared (J-599), P2 measured and NOT cleared.** Cleared by B-bis.
 🟡 **Leg B-bis — the journal repair. EXISTS as of §8b's ruling. RUNBOOKED at J-620: `tasks/RUNBOOK_ROADTREE_LEGB_BIS.md` v1.0 PENDING**, §4 open (may an ARCHIVED body be re-pointed — governs ONE line). **Two actions, one surface (`JOURNAL_ARCHIVE.md`):** ① delete one copy of each byte-identical `J-317`–`J-321` pair (**25,127 B**) ② split `J-044`/`J-045` into `a`/`b` and re-point **12** citations, each resolved individually. 📌 **Plus the header fix**, now legal. 🛑 **THE `28` FIGURE WAS A REFERENCE COUNT, NOT A CITATION COUNT, AND IS SUPERSEDED:** 87 bare hits partition to **4 definition sites · 71 discussion · 12 citations** (runbook §2, per-hit table).
-🟡 **Leg E — the two-way closure log.** 🔒 Title locked (Joe, J-618) — **and it survived part two disproving the reading it was chosen from.** Trigger **FIRED (J-615)**. ✅ **GROUNDING COMPLETE (parts one and two):** ≈ **82 records** in **two inverted notations**, every region delimited — A 20 · **B 51 on `) / J-nnn`, a complete partition** · C1 4 · C2 7. 📌 **`Leg E-bis` was recommended and withdrawn before minting** — B turned out to have a delimiter. ⚠️ **Still unmeasured: record distinctness, and what the 10 B-segments over 3,000 chars contain.** **Runbookable.**
+🟡 **Leg E — the two-way closure log.** 🔒 Title locked (Joe, J-618) — **and it survived part two disproving the reading it was chosen from.** Trigger **FIRED (J-615)**. ✅ **NOTATIONS ESTABLISHED (part two):** two inverted forms, B delimited on `) / J-nnn`. 🛑 **COUNTS RETIRED (part three, J-622): `82` IS NOT A PLANNING NUMBER** — C holds **24 heads, not 11**, B holds **4 stub segments that are not records**, and the char partition closed **by construction**. ✅ **DISTINCTNESS MEASURED:** eleven B↔C key collisions, read pair by pair — **8 B ⊃ C · 2 C ⊃ B · 1 divergent** ⇒ 🛑 **no mechanical merge rule; Leg E deletes nothing without a per-pair hand verdict.** ⚠️ **Still unmeasured:** the true record count under a notation-agnostic census · whether the remaining ~60 records hold further cross-region twins. **Runbookable — P0 census first.**
 🟡 **Leg F — the bidirectional sweep** · 🟡 **Leg G — records + close.**
 
 🔒 **RULED:** §6 **BOTH** · §7 **S1, the tree** · **Leg C's scope** · §6a **E** · §6b **S1** · §6c **D-131** · §3a **W1** · **§4a-i's amendment** · **the `Leg E` collision** · **§8b — R2 with Joe's boundary** · **Leg E's title** · **§4b's rule promoted → `D-134`**.

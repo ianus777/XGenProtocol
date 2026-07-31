@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.26  
+> Version: 6.27  
 > Date: May 2026  
 > **Last updated**: 2026-07-31  
 > Language: English  
@@ -281,14 +281,15 @@ XGen Protocol
 │   ├── ⬛ **UI Phase 2 visual merge** — element-modelling approach abandoned · J-284 → clean-table UI milestone
 │   ├── ⬛ **Mockup stock-take + reconcile-to-as-built** — superseded by the component-library-first build · J-284
 │   ├── 🟢 **UI component-library / substrate** — RP track, D-095 `ui/{client,node,common,core,assets}` · J-403
+│   │   ↳ ⚠️ **R-2 CANNOT DERIVE THIS NODE HONESTLY, AND THE REASON IS `M-DOC-BACKFILL` (J-638).** All five children read ✅, so R-2 says ✅ — **but that would assert the RP track is COMPLETE, and it is not: `M-RP6.x`/`M-RP7.x` shipped the whole client UI and have NO NODES HERE.** 🔑 **A derived status is only as true as the child set it derives from.** Held at 🟢 and annotated rather than silently flipped; **it resolves when `M-DOC-BACKFILL` lands the missing children**
 │   │   ├── ✅ **M-RP2 di atomics** — 2.3–2.21, 2.30–2.31a; 27 `core` components · J-403 (J-405, J-407, J-410, J-412, J-413, J-414, J-415, J-416, J-417, J-418, J-419, J-420, J-425, J-426, J-427, J-430, J-431, J-432, J-457, J-458, J-459, J-460)
 │   │   ├── ✅ **M-RP2 di composites** — 2.22, 2.24–2.29; owned-popup pattern founded · J-434 (J-447, J-448, J-449, J-450, J-451, J-452)
 │   │   ├── ✅ **M-RP3 sampler** — `xgen-sampler` test-bed, tabbed by class×arity, static header · J-422 (J-423, J-433, J-466)
 │   │   ├── ✅ **M-RP4 processors + widget tier** — 4 processor kinds, D-099/D-102, first two widgets · J-435 (J-441, J-443, J-444, J-445, J-453, J-454, J-455, J-456)
 │   │   └── ✅ **M-RP5 dd track** — `entity-avatar` → `entity-panel` → `entity-context-menu` · J-462 (J-463, J-464, J-465, J-467, J-468, J-469)
-│   ├── ⏸️ **M-RP-LIVEFEED-REFRESH** — the live event router behind the members and rooms panels · J-598
-│   │   ↳ ⏸️ POSTPONED J-620 — Joe ruled the sequencing: **finish M-DOC-ROADTREE first**. Leg A's runbook is ACTIVE and ready; Clair is stood down
-│   │   ↳ trigger: M-DOC-ROADTREE closes (Leg G), **or** Joe stands Clair up for Leg A
+│   ├── 🟡 **M-RP-LIVEFEED-REFRESH** — the live event router behind the members and rooms panels · J-598
+│   │   ↳ ✅ **UN-POSTPONED J-638 — THE TRIGGER FIRED.** `M-DOC-ROADTREE` closed at Leg G; **a trigger that has fired is a defect, so the node it guards moves in the same commit**. Leg A's runbook is ACTIVE and ready; **standing Clair up is Joe's**
+│   │   ↳ trigger: fired — none outstanding
 │   │   ├── ✅ **Leg 0 Phase-0** — routing shape + delta-vs-fill boundary locked; second-reader pass over §6 vs `wire.rs` done, three findings · J-616 (J-598, J-601)
 │   │   ├── 🟡 **Leg A router + members consumer** — runbook `tasks/RUNBOOK_LIVEFEED_LEG_A.md` v1.2 **ACTIVE**; **three** files, frontend only · J-618
 │   │   │   ↳ ready to open — §5 closed by Chat (it was never Joe's); waiting only on Clair being stood up
@@ -296,19 +297,21 @@ XGen Protocol
 │   │   │   ↳ trigger: §6a cleared — 9 of 14 `state.*` wire strings still have no row
 │   │   ├── 🟡 **Leg C reconnect rule** ↳ trigger: §5 of the milestone ruled (Joe)
 │   │   ├── 🟡 **Leg D live verify** — two identities, one observer; `membership.kick` added at v1.11
+│   │   │   ↳ trigger: Legs A–C land
 │   │   └── 🟡 **Leg E records + close**
+│   │       ↳ trigger: Leg D lands
 │   ├── 🟡 **Clean-table UI milestone** — the live UI build
 │   │   ↳ trigger: Round-2 audit GO + M10 closed *(transcribed from the UI container)*
 │   └── 🟡 **Multi-device arc** — R2-F09 ↳ trigger: the UI prototype exercises device add/remove
 │
-├── 🟢 **M-DOC-ROADTREE** — the canonical records become state boards · J-598
+├── ✅ **M-DOC-ROADTREE** — the canonical records become state boards · **CLOSED J-638** (J-598) → `M-RP-LIVEFEED-REFRESH` · `M-DOC-BACKFILL`
 │   ├── ✅ **Leg 0 Phase-0** — scope ruled BOTH, node format ruled · J-598 (J-600)
 │   ├── ✅ **Leg A pause + archive** — M-RP-MEMBERS Leg C paused; `ROADMAP_ARCHIVE_2026-07-26.md` taken · J-598
-│   ├── 🟡 **Leg B precondition**
+│   ├── ✅ **Leg B precondition**
 │   │   ├── ✅ **P1 unlinked DONE markers** — 94 → 5, all five resolve · J-599
-│   │   └── 🟡 **P2 unresolved refs** — RE-MEASURED J-625, **NOT cleared**: all 11 still have no journal entry
-│   │       ↳ ⚠️ Leg C removed `J-029`/`J-067` from this file — **their only trace is `ROADMAP_ARCHIVE_2026-07-26.md`** ⇒ its retention is LOAD-BEARING and Leg G's delete-condition is correctly unmet
-│   │       ↳ trigger: **Leg B-ter** runs (six bodies migrated · four recorded as never allocated · `J-029` disposed)
+│   │   └── ✅ **P2 unresolved refs** — **CLEARED J-638** · J-603 (J-635, J-636)
+│   │       ↳ 🛑 **THE `NOT cleared: all 11 still have no journal entry` READING WAS SUPERSEDED AND NOTHING RE-SWEPT IT** — annotated, not erased. Disposition: **six bodies migrated byte-identical (J-603, SHA256-proven at J-634)** · **four recorded as cited-but-never-written** `J-067 J-098 J-109 J-113` (J-603) · **`J-029` HAS an entry** — the predicate was blind (J-635) · **`J-171` cited-but-never-written with a pointer** (J-636)
+│   │       ↳ ⚠️ **its stale `⇒ its retention is LOAD-BEARING` note is FALSE and is struck** — `J-029`/`J-067` resolve without the archive, proven at J-638 in both directions
 │   ├── ✅ **Leg B-bis journal repair** — executed, verified, CLOSED · J-626 (J-625)
 │   │   ↳ ✅ census **358/351 → 353/353 EQUAL** · `J-317`–`J-321` one copy each deleted (**−25,614 B measured** — the runbook's `25,127 B` was a CHARACTER count) · survivors byte-identical to `6863702`
 │   │   ↳ ✅ `J-044`→`J-044a`/`J-044b` · `J-045`→`J-045a`/`J-045b` — 🛑 settled by ARTEFACT EVIDENCE, **not** by `D-134` §2's sort-direction premise, which is FALSE for this file (newest-first only to ~L14898, then an original oldest-first block `J-001`→`J-047`)
@@ -368,12 +371,19 @@ XGen Protocol
 │   │   ↳ ✅ **② `J-171` — cited × 9, never written, substance NOT lost.** All nine name it as the session that locked **FAC-D1 · FAC-D1a · FAC-D2** on 2026-05-30; no body anywhere, and its neighbours J-173 / J-174→J-178 exist ⇒ **recorded as cited-but-never-written with a POINTER to `tasks/archive/M6_FEDERATION_ADMIN_CONTROL_DESIGN.md`. NOT reconstructed** — the J-603 treatment
 │   │   ↳ ✅ **③ the twelve were never an open task** — already in `JOURNAL.md` verbatim since J-603; `Past — settled` = 103 entries, **91 larger journal entries + 12 recovered = 103**
 │   │   ↳ ⚠️ **does NOT claim the archive is safe** — only `Past — settled` was covered; **the other ~470 KB was never audited. That is LEG G's own DoD item**
-│   └── 🟡 **Leg G records + close** — delete `ROADMAP_ARCHIVE_2026-07-26.md` iff Leg B cleared · J-617
+│   └── ✅ **Leg G records + close** — the ~470 KB audited, the archive deleted, the milestone closed · **J-638** (J-617)
+│       ↳ ✅ **THE AUDIT RAN — LEG G's OWN DoD ITEM, NOT SKIPPED.** `Present — playing now` (**351,908 B, never examined**) holds **12 lines with no `J-` ref: 3 scaffolding, 9 verified against a real canonical record** (dock-engine phase-0 · `D-116` · `N-120` · the Leg A-ter runbook · four `CLAUDE.md` blocks · `CLAUDE_HISTORY.md`), and **186 / 186 cited J-refs RESOLVE** — where `Past` had eleven that resolved nowhere
+│       ↳ ✅ **WHOLE-FILE CONTAINMENT, TWO INDEPENDENT PREDICATES:** only **7** archive lines are absent from tag `roadtree-pre-legc` — **all 7 are its own replacement header and preamble; ZERO body content was unique.** Second property: **389 distinct J-refs, all 389 present in the tag**
+│       ↳ 🔑 **THE TAG HOLDS STRICTLY MORE** — `1c3f3d1:docs/ROADMAP.md` is **761,422 B against the archive's 749,428**, and carries all 100 M-RP designations including the **46 the live tree collapsed**
+│       ↳ 🔑 **THE FILE'S OWN PREAMBLE HAD SAID SO** — *“Git holds this permanently at `0466cb2` regardless… a permanent in-tree copy would recreate exactly the duplication the roadtree migration exists to remove”* — and its stated delete condition, **P1's 94 unlinked markers, cleared at J-599**
+│       ↳ ⚠️ **the byte sum came out +1,023 over the file — exactly one per line: the archive is LF and the probe assumed CRLF.** A uniform offset across independent measurements is **definitional, not an error**; corrected **Past 283,465 · Present 351,908 · Rest 114,055 = 749,428 ✔**
+│       ↳ 📌 **three 🟡 leaves carried no trigger** — LIVEFEED Legs A/D/E, **all created at J-616, after Leg C closed**, so Leg C's discharge stands; structural triggers written here, none fabricated
 │       ↳ 🛑 **ORDER-CONSTRAINED: MUST NOT RUN BEFORE LEG B-TER** — that archive is the **sole surviving source** for the six set-B bodies; had Leg G run first they would be gone permanently
 │       ↳ 🛑 **THAT JUSTIFICATION IS FALSE (J-634) AND THE CONSTRAINT IS STILL LEFT STANDING.** ✅ The six have been in `JOURNAL.md` **byte-identical since J-603**, SHA256-proven — **Leg G would destroy nothing of the six.** ⚠️ **NOT LIFTED:** lifting permits an irreversible archive deletion and J-603's **twelve-entry second pass is UNVERIFIED** ⇒ 🔓 **Joe's: re-point the constraint from the six to the twelve.** 📌 **A safety constraint whose reason is wrong is not thereby unnecessary**
 │       ↳ 🛑 **RE-POINTED, NOT LIFTED (J-635): LEG G MUST NOT RUN BEFORE LEG H.** The six-bodies justification is false and stays annotated; **the constraint survives on a live reason — the twelve are unverified**
 │       ↳ ✅ **LEG H RAN AND CLEARED (J-636) — the twelve reason is discharged too.** 🛑 **STILL BLOCKED, on a third and narrower ground: only `Past — settled` was audited; the remaining ~470 KB of that archive never was, and Leg G deletes the whole file** ⇒ **the audit is Leg G's own DoD item.** 🔑 **Three justifications offered, two wrong — the constraint itself right every time**
 │       ↳ ⚠️ F and G were `Leg E`/`Leg F` in the task doc and had NO node here until J-617; `E` collided
+│       ↳ ✅ **THE ORDERING CONSTRAINT IS DISCHARGED J-638 — MEASURED, NOT WAIVED.** Leg H covered `Past — settled`; **Leg G audited the remaining 465,963 B** and proved whole-file containment in the tag. 🔑 **FOUR JUSTIFICATIONS WERE OFFERED FOR THIS ONE CONSTRAINT ACROSS THE ARC AND THREE WERE WRONG — THE CONSTRAINT ITSELF WAS RIGHT EVERY TIME.** The rows above are kept, not repaired
 │
 ├── 🟡 **M-DOC-BACKFILL** — the milestones that were never on the board · J-637
 │   ↳ trigger: none — filed, not scheduled

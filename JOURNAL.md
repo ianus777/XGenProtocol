@@ -8,6 +8,80 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-638 — Leg G: the 465,963 bytes nobody had read, and M-DOC-ROADTREE closes
+
+**Date:** 2026-07-31 · **Seat:** Joe (the delete lock) · Chat (audit, measurement, records). No code.
+
+🏁 **THE MILESTONE IS CLOSED.** `tasks/M_DOC_ROADTREE.md` → **`Status: COMPLETED`, v1.38, §9's DoD 15 of 15 ticked — each against evidence, none rubber-stamped.**
+
+---
+
+### 🛑 THE AUDIT RAN FIRST, AND IT WAS THE POINT
+
+Leg G's own DoD item — *the remaining ~470 KB has never been examined* — **was not skipped because the milestone was overdue.** Grounded first: the unexamined bulk **has a name.** `## Present — playing now` is **351,908 B, 47% of the archive**; Leg H had covered `Past — settled` only.
+
+✅ **`Present`, audited in both directions per `D-135`:** **12 lines carry no `J-` ref** — 3 are scaffolding (the heading, its prose, a bare `>`), and **9 were verified against a real canonical record, not accepted on the claim**: `docs/xgen-dock-engine-phase0.md` (70,912 B) · `D-116` in `DECISIONS.md` · `N-120` in `ui/docs/xgen-ui-notes.md` · `tasks/RUNBOOK_M_RP_MEMBERS_LEG_A_TER.md` (27,533 B) · four `CLAUDE.md` blocks · the M-RP6.3/6.4/6.5 sequencing line in `CLAUDE_HISTORY.md`. And the other direction: **186 / 186 cited J-refs RESOLVE.**
+
+🔑 **`PAST` HAD ELEVEN REFS THAT RESOLVED NOWHERE AND SIX BODIES THAT EXISTED ONLY IN THE ARCHIVE. `PRESENT` HAS ZERO OF EITHER.** *The section everyone feared was in better shape than the section that had already been audited — and the only way to know that was to look.*
+
+### ✅ WHOLE-FILE CONTAINMENT — TWO INDEPENDENT PREDICATES, BECAUSE ONE IS NOT PROOF
+
+Against tag `roadtree-pre-legc`: **only 7 archive lines are absent, and every one is the archive's own replacement header and preamble** — the `(ARCHIVED PRE-ROADTREE SNAPSHOT)` title, `Status: ARCHIVED`, version, date, and its three notes. **ZERO body content was unique to the file.** Second, independent property: **389 distinct J-refs in the archive, all 389 present in the tag.**
+
+🔑 **THE TAG HOLDS STRICTLY MORE:** `1c3f3d1:docs/ROADMAP.md` is **761,422 B against the archive's 749,428**, and carries all 100 M-RP designations — including the **46 the live tree collapsed into roll-ups.**
+
+🔑 **AND ONE OF THOSE 7 LINES WAS THE FILE TELLING US THIS FROM THE DAY IT WAS TAKEN:** *“Git holds this permanently at `0466cb2` regardless. A permanent in-tree copy would recreate exactly the duplication the roadtree migration exists to remove, and would cost 750 KB in every clone.”* Its own stated delete condition — **P1's 94 unlinked markers — was cleared at J-599.** 📌 ***It was disposable by its own written terms all along; what was missing was the measurement, not the permission.***
+
+⇒ 🔒 **`docs/ROADMAP_ARCHIVE_2026-07-26.md` DELETED** — 749,428 B, SHA256 `4B306B6F…`, recoverable from **two independent points** (`0466cb2` and the tag).
+
+---
+
+### 🛑 TWO STALE LIVE CLAIMS, EITHER OF WHICH WOULD HAVE SURVIVED THE CLOSE
+
+**① `Leg B`'s P2 node still read *“RE-MEASURED J-625, NOT cleared: all 11 still have no journal entry”*** — while **J-603** had migrated six bodies byte-identical and recorded four as cited-but-never-written, **J-635** had found `J-029` has an entry (the predicate was blind), and **J-636** had disposed of `J-171`. 🔑 **Under R-2 a ✅ container may not hold a 🟡 child — so the milestone could not have closed — and that child was 🟡 only because nothing re-swept it after three separate dispositions.**
+
+**② Its sibling note — *“their only trace is `ROADMAP_ARCHIVE_2026-07-26.md` ⇒ its retention is LOAD-BEARING”*** — was **the last live sentence in the project asserting the archive could not be deleted**, and it was false.
+
+🔑 **`D-135` §5 earning itself a third time: a correction is not applied until the WHOLE RECORD SET has been searched — not the section, not the file.** Both corrected; **the superseded readings are annotated, not erased** (`D-131`).
+
+### 🛑 THE TRIGGER THAT FIRED — THE MILESTONE'S OWN ORIGINATING DEFECT, CAUGHT BY ITS OWN FORMAT
+
+`M-RP-LIVEFEED-REFRESH` carried `↳ trigger: M-DOC-ROADTREE closes (Leg G)`. **Closing this milestone FIRES it**, and the tree's own maintenance rule says *a trigger that has fired is a defect: the node it guards is stale by definition.*
+
+⇒ **UN-POSTPONED ⏸️ → 🟡 in this same commit**, and the closed node carries **`→ M-RP-LIVEFEED-REFRESH · M-DOC-BACKFILL`** per §3's arrow rule.
+
+🔑 ***This is precisely the M-RP6.2 failure the whole milestone was founded on — a gate closing with nothing on the gate's side saying “things are waiting on me” — and §3's put-the-arrow-on-the-closed-node rule caught it by construction rather than by anyone remembering.*** **The UI track is unblocked. Standing Clair up is Joe's.**
+
+### ⚠️ ONE NODE COULD NOT BE DERIVED HONESTLY, AND WAS ANNOTATED RATHER THAN FLIPPED
+
+`UI component-library / substrate` has **five children, all ✅** ⇒ **R-2 says ✅.** But that would assert **the RP track is COMPLETE**, and it is not: `M-RP6.x`/`M-RP7.x` shipped the entire client UI and **have no nodes at all** — Leg F's finding, one day old. Neither ✅ nor 🟢 is true. **Held at 🟢 with the reason written on the node; it resolves when `M-DOC-BACKFILL` lands the missing children.** 🔑 ***A derived status is only as true as the child set it derives from.***
+
+### ⚠️ THE BYTE SUM CAME OUT +1,023 OVER THE FILE — EXACTLY ONE PER LINE
+
+The probe added 2 bytes per terminator; **the archive is LF.** *A uniform offset across independent measurements is **definitional, not an error*** — stated with its convention rather than hunted as a bug. Corrected partition: **`Past` 283,465 · `Present` 351,908 · rest 114,055 = 749,428 ✔.** 📌 **Leg H's `276,596 B` for `Past — settled` counts ENTRIES; this counts the SECTION — two conventions, not a contradiction.**
+
+---
+
+### ✅ §9 — 15 OF 15, WITH THE TWO THAT ARE NOT CLEAN TICKS SAID PLAINLY
+
+**Re-measured, not inherited:** **225 ✅ nodes, zero without a canonical-record link** (one predicate hit was a false positive — an `↳` annotation row, which inherits its parent's link). **Trigger coverage: 13 flagged → 8 predicate false positives** (inline `↳ trigger:` on the same line, or `↳` rows) **· 1 correct derived container** (Arc I, R-2a) **· 3 genuine gaps — LIVEFEED Legs A/D/E, all created at J-616, AFTER Leg C closed**, so Leg C's discharge stands; structural triggers written, **none fabricated** (§3: a forced trigger is worse than none). **ROADMAP 69,428 B — still under the original 100 KB bar after four legs of annotation.**
+
+📌 **Two items are ticked with a caveat rather than silently:** the **22 POSTPONED entries** item is **spent by Leg C's deletion, not by an audit** — they lived in prose that no longer exists, *the item was written against a document that is gone*; and the **six set-B bodies** item carries its one recorded shortfall, the provenance form omitting `(J-129 §8)`.
+
+---
+
+**THE ARC, IN ONE LINE.** `docs/ROADMAP.md` **761,422 → 69,428 B** · `CLAUDE.md` **640,645 → 282,466 B, longest line 124,299 → under 20,000** · `JOURNAL_ARCHIVE.md` deduplicated and its two designation collisions split · **one 749,428 B archive retired** · **ten legs: 0 · A · B · B-bis · B-ter · C · D · E · F · G · H.**
+
+🔑 **AND THE ARC'S OWN LESSON, EARNED NINE TIMES: a predicate built from one notation reports the absence of the others as the absence of the thing.** That is `D-135`, and it was minted **inside** this milestone by the defect it describes.
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/M_DOC_ROADTREE.md` v1.37 → **v1.38 COMPLETED** · `docs/ROADMAP.md` v6.26 → **v6.27** · `CLAUDE.md` PLAY head · this entry · **archive deleted**. **No new D, no new N.**
+
+**Next-active.** 🟡 **`M-RP-LIVEFEED-REFRESH`** — `tasks/RUNBOOK_LIVEFEED_LEG_A.md` v1.2 **ACTIVE**, three frontend files, ready to open. 🟡 **`M-DOC-BACKFILL`** filed, `trigger: none`, gating nothing. 🔓 **Joe:** `D-135` §5a · the `M-DOC-BACKFILL` title and ID · the resync sibling's name · the outbox sibling's name · **the GitHub board move to DONE `92abd4cb`.**
+
+---
+
 ## Entry J-637 — Leg F, the bidirectional sweep: the nine were the wrong test case, and 88 items are off the board
 
 **Date:** 2026-07-31 · **Seat:** Joe (three locks: scope F-b′, then the narrowing to (A), then the spawn ID) · Chat (measurement, records). No code.

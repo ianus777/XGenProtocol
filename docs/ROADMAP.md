@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.23  
+> Version: 6.24  
 > Date: May 2026  
 > **Last updated**: 2026-07-31  
 > Language: English  
@@ -314,10 +314,13 @@ XGen Protocol
 │   │   ↳ ✅ `J-044`→`J-044a`/`J-044b` · `J-045`→`J-045a`/`J-045b` — 🛑 settled by ARTEFACT EVIDENCE, **not** by `D-134` §2's sort-direction premise, which is FALSE for this file (newest-first only to ~L14898, then an original oldest-first block `J-001`→`J-047`)
 │   │   ↳ ✅ 11 citations re-pointed individually (`ROADMAP_ARCHIVE:348` held under §4's lock) · `Repaired:` line written · header corrected — span low end read `J-046`, archive reaches `J-001`
 │   │   ↳ 📌 its two unmet DoD items were **re-homed to Leg B-ter**, not dropped; `D-133` forbids a leg runbook carrying an `Owes:` line
-│   ├── 🟡 **Leg B-ter the eleven that resolve nowhere** — spawned + titled by Joe · J-626
+│   ├── ✅ **Leg B-ter the eleven that resolve nowhere** — **CLOSED AS DISCHARGED J-635** · spawned + titled by Joe J-626
+│   │   ↳ 🛑 **THE `24 MISSING` CENSUS IS WRONG AT THE ROOT (J-635)** — it enumerated `## Entry J-nnn` and could not see the **16** old-form `## J-nnn — date — title` headings in `JOURNAL_ARCHIVE.md` (against 353 Entry-form). ✅ **All thirteen of set A `J-021`–`J-033` EXIST and were never missing**; ✅ **`J-029`'s open disposition dissolves — it has an entry**; ⚠️ **`J-171` is the ONE number confirmed absent.** **Eighth instance of this arc's defect class, and it was the premise of a whole leg**
+│   │   ↳ ⚠️ **J-634 cited J-603 by LINE NUMBER and every citation went stale by +26 the instant J-634 was prepended to that same file** ⇒ **a line citation into a file you are about to prepend to is self-invalidating; corrected to content identification (J-635)**
+│   │   ↳ 🔒 **disposition (Joe, J-635): closed as discharged, successor spawned.** Reduce-to-`J-029` had dissolved; re-scoping onto the twelve was refused — **they are not *the eleven*, and one title over two unlike things is the fault the title rule prevents**
 │   │   ↳ scope: **six bodies to migrate** `J-135 J-132 J-131 J-125 J-124 J-123` · **four cited-only with no record anywhere** `J-113 J-109 J-098` (45 refs, no record of its own) `J-067` · **`J-029` disposition open**
 │   │   ↳ 🛑 **sole source is `ROADMAP_ARCHIVE_2026-07-26.md`** — Leg C DELETED all six bodies from this file (refs 7→2 · 5→2 · 10→1 · 27→1 · 24→1 · 15→1); §4a required they NOT be deleted until the journal carried them
-│   │   ↳ 🛑 **SCOPE ALREADY DISCHARGED AT J-603 (2026-07-28) — TWO DAYS BEFORE THIS LEG WAS SPAWNED AT J-626 (measured J-634).** `JOURNAL.md` L842 = `## Entry J-603 — six ROADMAP-only records recovered into the journal, and four numbers recorded as never written`, written under **Leg C**. ✅ **Class ①: the six sit at L856–L878 and are SHA256-IDENTICAL to their archive originals** (6,670 · 4,678 · 6,664 · 4,905 · 1,064 · 1,518). ✅ **Class ②: the four are recorded at L882 as never-written rather than reconstructed.** ⚠️ **J-603 also carries a SECOND recovery pass — twelve `Past` entries with no journal record — which this scope statement never mentions and whose status is UNVERIFIED**
+│   │   ↳ 🛑 **SCOPE ALREADY DISCHARGED AT J-603 (2026-07-28) — TWO DAYS BEFORE THIS LEG WAS SPAWNED AT J-626 (measured J-634).** `JOURNAL.md` carries `## Entry J-603 — six ROADMAP-only records recovered into the journal, and four numbers recorded as never written`, written under **Leg C**. ✅ **Class ①: the six sit under it as `### J-nnn — recovered body` and are SHA256-IDENTICAL to their archive originals** (6,670 · 4,678 · 6,664 · 4,905 · 1,064 · 1,518). ✅ **Class ②: the four are recorded under `### Cited but never written` as never-written rather than reconstructed.** ⚠️ **J-603 also carries a SECOND recovery pass — twelve `Past` entries with no journal record — which this scope statement never mentions and whose status is UNVERIFIED.** 📌 **Identified BY CONTENT: the line numbers this row carried (L842 · L856–878 · L882) went stale by +26 at J-634 and were corrected J-635**
 │   │   ↳ 🔑 **found only because `D-135` §1① is locked** — the first predicate `^##\s*(Entry\s*)?J-nnn` could not see `### J-nnn` and returned a confident false negative; the widened re-run found all six in one turn. **Seventh instance of this arc's defect class**
 │   │   ↳ 🔓 **DISPOSITION IS JOE'S, NOT TAKEN:** close B-ter as discharged · reduce to `J-029` · or re-scope onto the twelve
 │   │   ↳ trigger: none — runnable once runbooked. **It is AUTHORING, not repair**
@@ -351,9 +354,13 @@ XGen Protocol
 │   │   ↳ 🛑 `82` retired (J-622); **16** B↔C collisions (📌 **superseding `11`, J-629**) read pair by pair — the original eleven **8 B ⊃ C · 2 C ⊃ B · 1 divergent**, the five added **4 B ⊃ C · 1 C richer** ⇒ NO mechanical merge; **deletes nothing without a per-pair hand verdict**. 📌 **THAT SPLIT IS ITSELF SUPERSEDED BY `11 · 3 · 2` (J-630) — kept, not erased: the eleven were re-read and J-456 moved from `B ⊃ C` to DIVERGENT, J-448 was refined**
 │   │   ↳ ⚠️ identify the line BY CONTENT, not position — it moved L29 → L25 at J-619. ⚠️ **key extraction is UNSOUND for C's 4 forward-looking heads** (first `(J-nnn)` there is a citation, not an identity) — no false collision resulted, all 16 read on both sides, **but not to be reused blind**. ⚠️ **one hand verdict flagged as a judgement: @116,587 opens after a semicolon, admitted on head form**. 🟡 **Next: P3 — the move into `CLAUDE_HISTORY.md`, under §5 and the §4r verdicts**
 │   ├── 🟡 **Leg F bidirectional sweep** — is every known work item ON the roadmap, not just is every entry true · J-617
+│   ├── 🟡 **Leg H 🔓 TITLE OPEN, JOE'S** — B-ter's successor, spawned J-635. 🛑 **MUST RUN BEFORE LEG G**
+│   │   ↳ ① **re-run the J-001–J-598 census under `D-135` §1①** — every figure from the old one is suspect ② **resolve `J-171`** — no `#`-heading in either journal; a non-heading form was never tested ③ **verify J-603's second recovery pass, the twelve `Past` entries with no journal record**
+│   │   ↳ 🔑 **③ is what Leg G is ACTUALLY waiting on — not the six**
 │   └── 🟡 **Leg G records + close** — delete `ROADMAP_ARCHIVE_2026-07-26.md` iff Leg B cleared · J-617
 │       ↳ 🛑 **ORDER-CONSTRAINED: MUST NOT RUN BEFORE LEG B-TER** — that archive is the **sole surviving source** for the six set-B bodies; had Leg G run first they would be gone permanently
 │       ↳ 🛑 **THAT JUSTIFICATION IS FALSE (J-634) AND THE CONSTRAINT IS STILL LEFT STANDING.** ✅ The six have been in `JOURNAL.md` **byte-identical since J-603**, SHA256-proven — **Leg G would destroy nothing of the six.** ⚠️ **NOT LIFTED:** lifting permits an irreversible archive deletion and J-603's **twelve-entry second pass is UNVERIFIED** ⇒ 🔓 **Joe's: re-point the constraint from the six to the twelve.** 📌 **A safety constraint whose reason is wrong is not thereby unnecessary**
+│       ↳ 🛑 **RE-POINTED, NOT LIFTED (J-635): LEG G MUST NOT RUN BEFORE LEG H.** The six-bodies justification is false and stays annotated; **the constraint survives on a live reason — the twelve are unverified**
 │       ↳ ⚠️ F and G were `Leg E`/`Leg F` in the task doc and had NO node here until J-617; `E` collided
 │
 ├── ⏸️ **Parallel workstreams**

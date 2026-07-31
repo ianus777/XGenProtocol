@@ -8,6 +8,36 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-635 — the census that founded Leg B's P2 was blind to 16 headings, and B-ter closes
+
+**Date:** 2026-07-31 · **Seat:** Joe (disposition) · Chat (measurement, records). Provenance: Joe *expand 1) b-ter pls*, then *go as you recommend* — closing **Option ④** (close as discharged, spawn a successor) over ①②③, **and** the line-citation correction. 📌 **`Leg H`'s TITLE was NOT delegated and is left open — leg titles have been Joe's since J-618.** No code.
+
+🛑 **THE `24 NUMBERS ARE MISSING` CENSUS — THE PREMISE OF LEG B's ENTIRE SECOND PASS — IS WRONG AT THE ROOT.** It enumerated **`## Entry J-nnn`** across both journals. `JOURNAL_ARCHIVE.md` carries **16 headings in an older form, `## J-nnn — date — title`** (against **353** in the `Entry` form), and **the predicate cannot see them.**
+
+✅ **ALL THIRTEEN OF SET A EXIST.** `J-021`–`J-033`, every one, e.g. `## J-022 — 2026-04-29 — D-030/D-031: GetModuleFileNameW, data_dir, init --pass`. **They were never missing.** 📌 **Set A was hedged as *“smells like a numbering artifact — not claimed either way”*: the hedge was right and its stated reason was wrong.** ✅ **`J-029`'s *“disposition genuinely open”* DISSOLVES** — it has an entry, `## J-029 — 2026-04-30 — Fix 17 applied…`. **It was only ever open because the predicate was blind.** ⚠️ **`J-171` is the ONE number confirmed to have no `#`-prefixed heading in either journal — and a NON-heading record form was never tested.**
+
+🔑 **EIGHTH INSTANCE OF THIS ARC'S DEFECT CLASS, AND THE LARGEST BLAST RADIUS YET: IT FOUNDED A LEG.** `D-135` §1① has now caught two in two sessions — the `### J-nnn` blindness yesterday, this one today.
+
+🛑 **AND A DEFECT IN THE COMMIT I PUSHED AN HOUR AGO.** J-634 cited J-603 and its sub-sections as **L842 · L856–878 · L882 · L895** — **and every one went stale by +26 the instant J-634 was prepended to that same file.** Measured now: J-603 at **L868**, the bodies at **L882**, the four-numbers section at **L908**, the second pass at **L921**. 🔑 **A LINE CITATION INTO A FILE YOU ARE ABOUT TO PREPEND TO IS SELF-INVALIDATING: CORRECT WHEN MEASURED, FALSE WHEN WRITTEN.** ⚠️ **The project already carries *identify by content, never by line number* for the closure log — I broke it in the entry that congratulates itself on catching predicate defects.** ✅ **Corrected in the LIVE documents (`M_DOC_ROADTREE`, `ROADMAP`) to content identification; the DATED J-634 blocks in `CLAUDE.md` and `JOURNAL.md` are NOT back-edited (`D-135` §5) and are corrected by this entry instead.**
+
+🔒 **DISPOSITION (Joe): LEG B-TER IS CLOSED AS DISCHARGED.** Its two re-homed DoD items are both met — *all 11 P2 refs measured* (6 located, 4 absences recorded, `J-029` located) and *six bodies in a journal file with the four recorded as such*. ⚠️ **ONE TEXTUAL SHORTFALL RECORDED, NOT WAIVED: §4b quotes the required provenance line as *“migrated from ROADMAP; originally a stripped header-chain entry (J-129 §8)”* and J-603's per-heading form OMITS `(J-129 §8)`** — the block cites J-129 once, elsewhere. **Substantively discharged; one token short of the specified text.**
+
+📌 **REDUCE-TO-`J-029` WAS NOT AVAILABLE — that option dissolved the moment J-029 turned out to have an entry.** 📌 **RE-SCOPING B-TER ONTO THE TWELVE WAS REFUSED: the twelve are not *the eleven that resolve nowhere*, and putting two unlike things under one title is exactly the fault the milestone-title rule exists to prevent.**
+
+🟡 **`LEG H` SPAWNED as B-ter's successor — 🔓 TITLE OPEN, JOE'S.** Scope, three measurable items, none of them the eleven: ① **re-run the J-001–J-598 census under `D-135` §1①** ② **resolve `J-171`** ③ **verify J-603's second recovery pass, the twelve `Past` entries with no journal record.** 🔑 **③ IS WHAT LEG G IS ACTUALLY WAITING ON — NOT THE SIX.**
+
+✅ **LEG G's ORDERING CONSTRAINT IS RE-POINTED, NOT LIFTED: IT MUST NOT RUN BEFORE LEG H.** Its original six-bodies justification stays annotated as false; **the constraint survives on a live reason.** 📌 **Re-pointed as a consequence of the spawn, not as an independent ruling.**
+
+⚠️ **THE PREFIX-ANCHOR TRAP FIRED A THIRD TIME THIS SESSION.** An `edit_file` `oldText` that is a **prefix** of its line replaces the prefix and leaves the tail attached — here the *“LEG G IS NOW ORDER-CONSTRAINED…”* clause ended up dangling inside Leg H's bullet ③. **Caught on read-back and repaired**, as at J-630 and J-633. 📌 **Reading the returned diff remains the only control in this arc that has never once failed.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/M_DOC_ROADTREE.md` v1.34 → **v1.35** (census annotated · set A corrected · `J-029` dissolved · delete-condition annotated · B-ter CLOSED · `Leg H` spawned · OPEN list refreshed) · `docs/ROADMAP.md` v6.23 → **v6.24** · `CLAUDE.md` PLAY head · this entry. **No new D, no new N.**
+
+**Next-active.** 🔓 **Joe: ① `Leg H`'s TITLE — a leg ID must never stand bare ② sequencing ③ `D-135` §5a — confirm, amend or discard.** 🟡 **Then: Leg H · Leg F sweep · Leg G, still blocked behind H.**
+
+---
+
 ## Entry J-634 — Leg B-ter's scope was discharged at J-603, three days before the leg was spawned
 
 **Date:** 2026-07-31 · **Seat:** Chat (grounding, measurement, records). Provenance: Joe *go ahead* → next work, *go* → author the Phase-0 brief, *write it pls* → these records. 🛑 **NO BRIEF WAS WRITTEN. The grounding that was supposed to precede it dissolved the leg.** No code.

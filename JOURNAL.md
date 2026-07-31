@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-636 — Leg H, what the census could not see: the 24 was always 5, and Leg H closes
+
+**Date:** 2026-07-31 · **Seat:** Joe (title) · Chat (measurement, records). Provenance: Joe titled it **“what the census could not see”** from Chat's second-choice recommendation, having rejected *“the five that were never twenty-four”* on Chat's own caution — 📌 **two numbers baked into a title, in an arc where both had already moved.** No code.
+
+✅ **ALL THREE ITEMS RESOLVED BY MEASUREMENT. NOTHING WAS AUTHORED — no record reconstructed, no number retired.**
+
+✅ **① THE CENSUS IS 5, NOT 24.** Three heading forms declare a designation — `###` **6** · `##` **16** · `## Entry` **613** ⇒ **632 distinct designations.** Missing between J-001 and J-598: **`J-067` · `J-098` · `J-109` · `J-113` · `J-171`.** ✅ **BOTH DIRECTIONS TESTED, PER `D-135`:** the false-positive side found **19** headings that name a J-number without declaring one — *“Path B locked at J-098 session close”* and siblings — **all nineteen read individually, none an entry head.** ⇒ **Set A (`J-021`–`J-033`) was never a gap, and `J-029`'s “genuinely open disposition” dissolves with it.** 🔑 **Four of the five were already recorded as never-written at J-603. The standing figure of 24 overstated the real gap by a factor of five, and every leg built on it inherited that.**
+
+✅ **② `J-171` — CITED × 9, NEVER WRITTEN, AND ITS SUBSTANCE IS NOT LOST.** 23 raw references; the nine genuine ones sit in three archived M6 documents and all name it as the session that locked design decisions on **2026-05-30**: *“split into 2a/2b at design open (J-171)”*, *“Decisions locked J-171”*, and **FAC-D1 · FAC-D1a · FAC-D2** each marked **LOCKED (J-171)**. **No body anywhere** — the only body-shaped hit is a section heading, `## Decisions locked (J-171)`. 📌 **Its neighbours exist (J-173 runbook, J-174→J-178 commits), so it sits inside a live numbering run, not an unallocated gap.** 🔒 **DISPOSITION: cited-but-never-written, with a POINTER to `tasks/archive/M6_FEDERATION_ADMIN_CONTROL_DESIGN.md` where the three decisions and their date survive in full. NOT RECONSTRUCTED** — the same treatment J-603 gave the four, for the same reason: inferring a body from its citations is the invent-a-link failure.
+
+✅ **③ THE TWELVE WERE NEVER AN OPEN TASK.** J-603's second recovery pass already holds them in `JOURNAL.md`, **verbatim** — *“Not reflowed, not summarised, not renumbered. Several carry no `J-` number at all; that absence is itself the record.”* **The arithmetic closes independently:** `Past — settled` = **103 entries / 276,596 B**; **91** already had a journal entry larger than the ROADMAP copy; **12** recovered ⇒ **103**. 📌 **I had recorded this as UNVERIFIED at J-634 — that was my uncertainty, not an open obligation.**
+
+🛑 **LEG G's CONSTRAINT SURVIVES A THIRD TIME, ON A THIRD REASON.** Its original ground (the archive is sole source for the six) was **false**; its second (the twelve are unverified) is **now discharged**. ⚠️ **It still stands, on a narrower and live ground: Leg H audited `Past — settled` ONLY, and the remaining ~470 KB of `docs/ROADMAP_ARCHIVE_2026-07-26.md` has never been examined — while Leg G deletes the whole file.** ⇒ **That audit is LEG G's OWN DoD item and must not be skipped because the milestone is overdue.** 🔑 **THREE JUSTIFICATIONS HAVE NOW BEEN OFFERED FOR ONE CONSTRAINT AND TWO WERE WRONG — THE CONSTRAINT ITSELF HAS BEEN RIGHT EVERY TIME.**
+
+🔑 **THE LEG'S WHOLE CONTENT IS THAT THE THING IT WAS SCOPED TO FIX MOSTLY WAS NOT THERE** — the third time in this milestone, after B-bis spawned B-ter and B-ter turned out discharged, that a leg thinned on contact with its own grounding.
+
+⚠️ **ONE DEFECT IN MY OWN EDIT, CAUGHT ON READ-BACK:** the `ROADMAP.md` Leg H node was inserted above Leg F while the original stub still stood below it — **two Leg H nodes in one tree.** Merged into the original position. 📌 **Fourth session running where reading the returned diff caught what no probe would.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/M_DOC_ROADTREE.md` v1.35 → **v1.36** (Leg H titled, results, CLOSED · Leg G's second ground annotated as discharged · OPEN list refreshed) · `docs/ROADMAP.md` v6.24 → **v6.25** · `CLAUDE.md` PLAY head · this entry. **No new D, no new N.**
+
+**Next-active.** 🟡 **Leg F — the bidirectional sweep. The only real work left in this milestone, and the only leg never yet looked at.** Then 🟡 **Leg G — the ~470 KB archive audit, the delete, and the milestone close.** 🔓 **Joe: `D-135` §5a still open (confirm / amend / discard).**
+
+---
+
 ## Entry J-635 — the census that founded Leg B's P2 was blind to 16 headings, and B-ter closes
 
 **Date:** 2026-07-31 · **Seat:** Joe (disposition) · Chat (measurement, records). Provenance: Joe *expand 1) b-ter pls*, then *go as you recommend* — closing **Option ④** (close as discharged, spawn a successor) over ①②③, **and** the line-citation correction. 📌 **`Leg H`'s TITLE was NOT delegated and is left open — leg titles have been Joe's since J-618.** No code.

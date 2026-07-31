@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.24  
+> Version: 6.25  
 > Date: May 2026  
 > **Last updated**: 2026-07-31  
 > Language: English  
@@ -354,13 +354,18 @@ XGen Protocol
 │   │   ↳ 🛑 `82` retired (J-622); **16** B↔C collisions (📌 **superseding `11`, J-629**) read pair by pair — the original eleven **8 B ⊃ C · 2 C ⊃ B · 1 divergent**, the five added **4 B ⊃ C · 1 C richer** ⇒ NO mechanical merge; **deletes nothing without a per-pair hand verdict**. 📌 **THAT SPLIT IS ITSELF SUPERSEDED BY `11 · 3 · 2` (J-630) — kept, not erased: the eleven were re-read and J-456 moved from `B ⊃ C` to DIVERGENT, J-448 was refined**
 │   │   ↳ ⚠️ identify the line BY CONTENT, not position — it moved L29 → L25 at J-619. ⚠️ **key extraction is UNSOUND for C's 4 forward-looking heads** (first `(J-nnn)` there is a citation, not an identity) — no false collision resulted, all 16 read on both sides, **but not to be reused blind**. ⚠️ **one hand verdict flagged as a judgement: @116,587 opens after a semicolon, admitted on head form**. 🟡 **Next: P3 — the move into `CLAUDE_HISTORY.md`, under §5 and the §4r verdicts**
 │   ├── 🟡 **Leg F bidirectional sweep** — is every known work item ON the roadmap, not just is every entry true · J-617
-│   ├── 🟡 **Leg H 🔓 TITLE OPEN, JOE'S** — B-ter's successor, spawned J-635. 🛑 **MUST RUN BEFORE LEG G**
+│   ├── ✅ **Leg H what the census could not see** — **TITLED + CLOSED J-636** · spawned J-635 as B-ter's successor · ran before Leg G as required
 │   │   ↳ ① **re-run the J-001–J-598 census under `D-135` §1①** — every figure from the old one is suspect ② **resolve `J-171`** — no `#`-heading in either journal; a non-heading form was never tested ③ **verify J-603's second recovery pass, the twelve `Past` entries with no journal record**
-│   │   ↳ 🔑 **③ is what Leg G is ACTUALLY waiting on — not the six**
+│   │   ↳ ✅ **ALL THREE RESOLVED BY MEASUREMENT (J-636); NOTHING AUTHORED**
+│   │   ↳ ✅ **① THE CENSUS IS 5, NOT 24.** Three declaring heading forms — `###` 6 · `##` 16 · `## Entry` 613 ⇒ 632 designations. Missing J-001–J-598: **`J-067` · `J-098` · `J-109` · `J-113` · `J-171`**. **False-positive direction tested too** (`D-135` §1②): 19 headings name a number without declaring one, all read, none an entry head ⇒ **set A `J-021`–`J-033` was never a gap, and `J-029` dissolves with it**
+│   │   ↳ ✅ **② `J-171` — cited × 9, never written, substance NOT lost.** All nine name it as the session that locked **FAC-D1 · FAC-D1a · FAC-D2** on 2026-05-30; no body anywhere, and its neighbours J-173 / J-174→J-178 exist ⇒ **recorded as cited-but-never-written with a POINTER to `tasks/archive/M6_FEDERATION_ADMIN_CONTROL_DESIGN.md`. NOT reconstructed** — the J-603 treatment
+│   │   ↳ ✅ **③ the twelve were never an open task** — already in `JOURNAL.md` verbatim since J-603; `Past — settled` = 103 entries, **91 larger journal entries + 12 recovered = 103**
+│   │   ↳ ⚠️ **does NOT claim the archive is safe** — only `Past — settled` was covered; **the other ~470 KB was never audited. That is LEG G's own DoD item**
 │   └── 🟡 **Leg G records + close** — delete `ROADMAP_ARCHIVE_2026-07-26.md` iff Leg B cleared · J-617
 │       ↳ 🛑 **ORDER-CONSTRAINED: MUST NOT RUN BEFORE LEG B-TER** — that archive is the **sole surviving source** for the six set-B bodies; had Leg G run first they would be gone permanently
 │       ↳ 🛑 **THAT JUSTIFICATION IS FALSE (J-634) AND THE CONSTRAINT IS STILL LEFT STANDING.** ✅ The six have been in `JOURNAL.md` **byte-identical since J-603**, SHA256-proven — **Leg G would destroy nothing of the six.** ⚠️ **NOT LIFTED:** lifting permits an irreversible archive deletion and J-603's **twelve-entry second pass is UNVERIFIED** ⇒ 🔓 **Joe's: re-point the constraint from the six to the twelve.** 📌 **A safety constraint whose reason is wrong is not thereby unnecessary**
 │       ↳ 🛑 **RE-POINTED, NOT LIFTED (J-635): LEG G MUST NOT RUN BEFORE LEG H.** The six-bodies justification is false and stays annotated; **the constraint survives on a live reason — the twelve are unverified**
+│       ↳ ✅ **LEG H RAN AND CLEARED (J-636) — the twelve reason is discharged too.** 🛑 **STILL BLOCKED, on a third and narrower ground: only `Past — settled` was audited; the remaining ~470 KB of that archive never was, and Leg G deletes the whole file** ⇒ **the audit is Leg G's own DoD item.** 🔑 **Three justifications offered, two wrong — the constraint itself right every time**
 │       ↳ ⚠️ F and G were `Leg E`/`Leg F` in the task doc and had NO node here until J-617; `E` collided
 │
 ├── ⏸️ **Parallel workstreams**

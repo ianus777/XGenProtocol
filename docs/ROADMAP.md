@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.22  
+> Version: 6.23  
 > Date: May 2026  
 > **Last updated**: 2026-07-31  
 > Language: English  
@@ -317,6 +317,9 @@ XGen Protocol
 │   ├── 🟡 **Leg B-ter the eleven that resolve nowhere** — spawned + titled by Joe · J-626
 │   │   ↳ scope: **six bodies to migrate** `J-135 J-132 J-131 J-125 J-124 J-123` · **four cited-only with no record anywhere** `J-113 J-109 J-098` (45 refs, no record of its own) `J-067` · **`J-029` disposition open**
 │   │   ↳ 🛑 **sole source is `ROADMAP_ARCHIVE_2026-07-26.md`** — Leg C DELETED all six bodies from this file (refs 7→2 · 5→2 · 10→1 · 27→1 · 24→1 · 15→1); §4a required they NOT be deleted until the journal carried them
+│   │   ↳ 🛑 **SCOPE ALREADY DISCHARGED AT J-603 (2026-07-28) — TWO DAYS BEFORE THIS LEG WAS SPAWNED AT J-626 (measured J-634).** `JOURNAL.md` L842 = `## Entry J-603 — six ROADMAP-only records recovered into the journal, and four numbers recorded as never written`, written under **Leg C**. ✅ **Class ①: the six sit at L856–L878 and are SHA256-IDENTICAL to their archive originals** (6,670 · 4,678 · 6,664 · 4,905 · 1,064 · 1,518). ✅ **Class ②: the four are recorded at L882 as never-written rather than reconstructed.** ⚠️ **J-603 also carries a SECOND recovery pass — twelve `Past` entries with no journal record — which this scope statement never mentions and whose status is UNVERIFIED**
+│   │   ↳ 🔑 **found only because `D-135` §1① is locked** — the first predicate `^##\s*(Entry\s*)?J-nnn` could not see `### J-nnn` and returned a confident false negative; the widened re-run found all six in one turn. **Seventh instance of this arc's defect class**
+│   │   ↳ 🔓 **DISPOSITION IS JOE'S, NOT TAKEN:** close B-ter as discharged · reduce to `J-029` · or re-scope onto the twelve
 │   │   ↳ trigger: none — runnable once runbooked. **It is AUTHORING, not repair**
 │   │   ↳ clears: **Leg B P2**
 │   ├── ✅ **Leg C `docs/ROADMAP.md`** — 761,422 → 43,741 B; tree kept, prose deleted, five format rules · J-604 (J-602, J-603)
@@ -350,6 +353,7 @@ XGen Protocol
 │   ├── 🟡 **Leg F bidirectional sweep** — is every known work item ON the roadmap, not just is every entry true · J-617
 │   └── 🟡 **Leg G records + close** — delete `ROADMAP_ARCHIVE_2026-07-26.md` iff Leg B cleared · J-617
 │       ↳ 🛑 **ORDER-CONSTRAINED: MUST NOT RUN BEFORE LEG B-TER** — that archive is the **sole surviving source** for the six set-B bodies; had Leg G run first they would be gone permanently
+│       ↳ 🛑 **THAT JUSTIFICATION IS FALSE (J-634) AND THE CONSTRAINT IS STILL LEFT STANDING.** ✅ The six have been in `JOURNAL.md` **byte-identical since J-603**, SHA256-proven — **Leg G would destroy nothing of the six.** ⚠️ **NOT LIFTED:** lifting permits an irreversible archive deletion and J-603's **twelve-entry second pass is UNVERIFIED** ⇒ 🔓 **Joe's: re-point the constraint from the six to the twelve.** 📌 **A safety constraint whose reason is wrong is not thereby unnecessary**
 │       ↳ ⚠️ F and G were `Leg E`/`Leg F` in the task doc and had NO node here until J-617; `E` collided
 │
 ├── ⏸️ **Parallel workstreams**

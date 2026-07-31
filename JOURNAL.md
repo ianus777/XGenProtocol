@@ -8,6 +8,32 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-634 — Leg B-ter's scope was discharged at J-603, three days before the leg was spawned
+
+**Date:** 2026-07-31 · **Seat:** Chat (grounding, measurement, records). Provenance: Joe *go ahead* → next work, *go* → author the Phase-0 brief, *write it pls* → these records. 🛑 **NO BRIEF WAS WRITTEN. The grounding that was supposed to precede it dissolved the leg.** No code.
+
+🛑 **THE FINDING: `JOURNAL.md` L842 IS `## Entry J-603 — six ROADMAP-only records recovered into the journal, and four numbers recorded as never written`, DATED 2026-07-28, WRITTEN UNDER LEG C.** Leg B-ter was spawned at **J-626 on 2026-07-30**. ⚠️ **Its entire stated scope had already been executed two days earlier, by the leg that created the gap.**
+
+✅ **CLASS ① PROVEN DISCHARGED, NOT ASSUMED.** The six bodies sit at `JOURNAL.md` L856–L878 as `### J-nnn — recovered body (migrated from ROADMAP…)`, and each was **SHA256-compared against its archive original**: `J-123` 6,670 · `J-124` 4,678 · `J-125` 6,664 · `J-131` 4,905 · `J-132` 1,064 · `J-135` 1,518 — **all six byte-identical.** J-603 claims *“NOT RECONSTRUCTED, NOT SUMMARISED, NOT REFLOWED — the exact bytes”*, **and that claim is now measured rather than believed.**
+
+✅ **CLASS ② ALREADY RECORDED** at L882 `### Cited but never written — four numbers with no body in any document`, **as never-written rather than reconstructed**, on the reasoning that inferring content *“would be exactly the invent-a-link failure”*. 🔑 **AN HOUR EARLIER I HAD INDEPENDENTLY RECOMMENDED THAT EXACT DISPOSITION — annotate, never reconstruct — AND OFFERED TO PUT IT TO JOE AS AN OPEN QUESTION.** ⚠️ **The record had settled it on 2026-07-28. A Phase-0 brief would have asked Joe to re-decide something already decided, and my agreeing with the answer is not the same as knowing it existed.**
+
+🛑 **AND THE LEG G ORDERING CONSTRAINT RESTS ON A FALSE PREMISE.** §11 says the archive is the **SOLE SOURCE** for the six and that Leg G *“would have”* destroyed them permanently. ✅ **They have been in `JOURNAL.md`, byte-identical, since J-603. Leg G would destroy nothing of the six.** 🛑 **THE CONSTRAINT IS NEVERTHELESS LEFT STANDING AND WAS NOT LIFTED.** Lifting it permits an **irreversible archive deletion**, and J-603 carries a **second recovery pass — `## Second recovery pass — twelve Past entries whose record exists in no journal at all` (L895)** — whose status is **UNVERIFIED** and which §11's scope statement never mentions. 🔑 **A SAFETY CONSTRAINT WHOSE STATED REASON IS WRONG IS NOT THEREBY UNNECESSARY — IT MAY BE RIGHT FOR A REASON NOBODY HAS WRITTEN DOWN YET.** ⇒ **Recommended, not taken: re-point it from the six to the twelve.**
+
+🔑 **SEVENTH INSTANCE OF THIS ARC'S DEFECT CLASS, AND `D-135` CAUGHT IT INSIDE ONE TURN.** My first predicate was `^##\s*(Entry\s*)?J-nnn`, built from the **two heading forms I had already seen**, and it **cannot match `### J-nnn`**. It returned a clean negative and I reported ***“none of the ten has a journal entry”*** with confidence. ✅ **`D-135` §1① is LOCKED, so the widened re-run was not optional — and it found all six immediately.** 📌 **The rule Joe locked yesterday morning paid for itself before lunch.**
+
+⚠️ **A SECOND PROBE DEFECT, CAUGHT THE SAME WAY.** A repo-wide sweep reported J-098 at **221 reference-lines**; the tell was `CLAUDE.md` appearing **nine times** in one per-file listing. **`.claude\worktrees\` holds EIGHT stale copies of `CLAUDE.md`, `JOURNAL.md` and `DECISIONS.md`.** ⇒ **909 `.md` files with worktrees, 509 without.** 📌 **`M_DOC` records a 507-file sweep — so §8b's earlier repo-wide measurement DID exclude them and is sound.** ⚠️ **§11 says J-098 has *45 references* and I measure 221 raw ref-lines: NOT a discrepancy — §8b partitions bare hits into definition / discussion / citation, and the two figures are different metrics. Same shape as J-628's `+4`.**
+
+⚠️ **WHAT IS ACTUALLY LEFT:** `J-029` (class ③, record exists once at `JOURNAL_ARCHIVE.md` L16161) and **the twelve-entry second pass, unverified.** 🔑 **The twelve, not the six, are what Leg G must clear before it deletes anything.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/M_DOC_ROADTREE.md` v1.33 → **v1.34** (B-ter scope annotated as discharged · Leg G's premise annotated as false, constraint left standing · the stale OPEN list refreshed) · `docs/ROADMAP.md` v6.22 → **v6.23** · `CLAUDE.md` PLAY head · this entry. 🛑 **NO DISPOSITION TAKEN: B-ter's status and Leg G's constraint are Joe's and remain open.** **No new D, no new N.**
+
+**Next-active.** 🔓 **Joe: ① B-ter — close as discharged, reduce to `J-029`, or re-scope onto the twelve ② Leg G's constraint — re-point from the six to the twelve ③ `D-135` §5a — confirm, amend or discard.** 🟡 **Then: verify J-603's twelve-entry pass · Leg F sweep · Leg G close.**
+
+---
+
 ## Entry J-633 — Leg E CLOSED: the line is out, moved byte-identical, and §5 could not be run as written
 
 **Date:** 2026-07-31 · **Seat:** Joe (the F1c ruling) · Chat (execution, measurement, records). Provenance: Joe *go ahead* → P3's go, then *go as you recommend* → **Option ①**. 📌 **`D-135` §5a REMAINS OPEN — a three-way ruling was asked and neither answer addressed it.** No code.

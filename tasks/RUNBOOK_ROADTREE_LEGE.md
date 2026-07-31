@@ -1,8 +1,8 @@
 # RUNBOOK — M-DOC-ROADTREE Leg E, the two-way closure log
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-30  
+> **Last updated**: 2026-07-31  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -165,6 +165,39 @@
 - *Keep C* → deletes **J-457's amber hex**, **J-459's deferred filter/search rationale**, **J-460's `box-sizing` evidence**.
 
 ⇒ 🛑 **PER-PAIR HAND VERDICT, NO EXCEPTIONS. WHEN A PAIR IS DIVERGENT, BOTH SURVIVE AND BOTH ARE ANNOTATED. NOTHING IS DELETED TO MAKE A COUNT COME OUT.**
+
+### §4r — P2 RESULT: ✅ COMPLETE 2026-07-31 (J-630). ALL 16 PAIRS READ ON BOTH SIDES.
+
+🛑 **THE ELEVEN INHERITED VERDICTS WERE RE-READ, NOT INHERITED — AND TWO WERE WRONG.** J-622 produced them in the same pass whose collision set was incomplete and whose C head count was wrong twice; `D-135` forbids carrying its conclusions forward untested.
+
+| J-ref | milestone | B | C | verdict |
+|---|---|---|---|---|
+| J-446 | M-RP2.23 | 25 | 256 | **C ONLY** — B is a bare pointer ✔ |
+| J-448 | M-RP2.25 | 97 | 297 | ⚠️ **C RICHER, B CONTRIBUTES `CDP-verified`** — refined |
+| J-454 | M-RP4.3 | 395 | 397 | 🛑 **DIVERGENT** ✔ |
+| J-455 | M-RP4.1 | 360 | 216 | B ⊃ C ✔ |
+| **J-456** | **M-RP4.5** | **537** | **458** | 🛑 **DIVERGENT — WAS RECORDED `B ⊃ C`. CORRECTED.** |
+| J-457 | M-RP2.30 | 749 | 389 | B ⊃ C ✔ |
+| J-458 | M-RP2.30a | 435 | 240 | B ⊃ C ✔ |
+| J-459 | M-RP2.31 | 771 | 383 | B ⊃ C ✔ |
+| J-460 | M-RP2.31a | 307 | 202 | B ⊃ C ✔ |
+| J-462 | M-RP5.0 | 1,041 | 372 | B ⊃ C ✔ |
+| J-469 | M-RP5.3 | 1,464 | 697 | B ⊃ C ✔ |
+| J-478 | M-RP5.5 A | 401 | 261 | B ⊃ C |
+| J-479 | M-RP5.5 B | 828 | 332 | B ⊃ C |
+| J-480 | M-RP5.5 C | 941 | 597 | B ⊃ C |
+| J-483 | M-RP-CDP1 | 750 | 475 | B ⊃ C |
+| J-485 | M-RP5.6 B | 906 | **1,813** | **C RICHER** |
+
+⇒ **11 B ⊃ C · 3 C-side · 2 DIVERGENT** — 📌 **superseding *8 · 2 · 1 over eleven* (J-622), annotated not erased.**
+
+🛑 **J-456 IS THE FINDING.** C alone names **`transform.ts`** (the file — B never names it), **`toEditable`**, **“nothing on `input`”**, **`string↔T`**, **“di atomic”** and **“3 of 4 processor kinds now built”**. B alone carries the rationale *(two reps of different type cannot ride one `bind:value`)*, **`formatToParts`**, and **`empty=revert`**. ⚠️ **A *keep B* resolution would have deleted the only place `transform.ts` and `toEditable` are named in this record.** 🔑 **SECOND INHERITED VERDICT IN TWO PASSES THAT WOULD HAVE DESTROYED UNIQUE CONTENT — J-485 was the first, and there its span had been mis-measured at 93 chars.**
+
+✅ **ALL FOUR OF §4b's NAMED RISKS CONFIRMED BY RE-READING, NOT INHERITED:** J-457's amber hex **`#ba7517`** is **B-only** (C compresses to *“the `--warn` amber L2 token”*) · J-459's **deferred filter/search rationale** *(panel/widget concern)* is **B-only** · J-460's **`box-sizing:border-box` evidence** is **B-only** · J-454's **`temperature-indicator` dd-block** and the **`ui/docs/`-at-open session rule** are **C-only**. 📌 **This line first read “all THREE” and named only three while §4b lists four — caught on read-back before commit (J-630, 2026-07-31). The narrow-claim fault, inside the paragraph asserting nothing was inherited.**
+
+🔑 **CONSEQUENCE FOR P3: NOTHING IS A STRAIGHT DELETE.** 11 pairs resolve to *keep B, drop C's compression*; 3 to *keep C*; **2 must carry BOTH SIDES, ANNOTATED**; and **J-448 needs either a one-token graft of `CDP-verified` or B's stub preserved as an annotation.** 🛑 **No pair may be resolved by length.**
+
+✅ **B-side span figures reconcile to §4a's table by exactly +4 on every one of the eleven** (25/21 · 97/93 · 395/391 · 360/356 · 537/533 · 749/745 · 435/431 · 771/767 · 307/303 · 1,041/1,037 · 1,464/1,460) — **the head-to-head vs payload convention named at J-628. C figures are identical throughout.** 📌 **A uniform offset across all eleven is definitional, not an error.**
 
 ### §4c The untested remainder
 

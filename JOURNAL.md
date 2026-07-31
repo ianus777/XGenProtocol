@@ -1,10 +1,40 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-30  
+> **Last updated:** 2026-07-31  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-630 — P0-bis, P1 and P2 all cleared, and two inherited verdicts would have deleted unique content
+
+**Date:** 2026-07-31 · **Seat:** Chat (measurement, records). Provenance **DELEGATED** — Joe: *let us go ahead*, *p1*, *p2*, *go*. No code.
+
+⚠️ **CLOCK: THIS SESSION CROSSED MIDNIGHT AND I NEARLY MIS-DATED THE RECORD.** The runbook edit stamped **2026-07-31 06:18** while I was writing `2026-07-30` into it; caught from the `get_file_info` mtime, then confirmed against git — **`HEAD f508bb6` is dated 2026-07-30 22:03**, so J-629 and `D-135` are correctly dated and were left untouched. 📌 **The kickoff's warning — re-read the clock, git is authoritative — fired on a session running PAST midnight rather than on a session opening. The rule was right; my model of when it applies was too narrow.**
+
+✅ **P0-BIS — THE ONE DIRECTION `D-135` STILL OWED.** Widening a known head form finds variants of that form; **it cannot find a head in a form nobody has thought of**, and a missed head simply looks like one long record. So the test came from outside the head vocabulary entirely: **closure marks per span.** Result — **49 marks line-wide (`✅ CLOSED` × 39, `✅ DONE` × 10) and 49 spans holding EXACTLY ONE each. ZERO spans with two.** 🔑 **A perfect bijection that nothing forced:** the mark predicate shares no machinery with the head predicates, and a missed head would merge two records and show as a 2-mark span. ⚠️ **Stated limit: it can only catch a missed head that BRINGS a closure mark. Two merged design-only records would both show 0 marks — 45 spans sit in that blind zone**, so the longest of them were read: their only interior `**M-` hits are **bold emphasis in B** (`**M-RP5.7 CLOSED**` @+2,897 in J-488; a `Next-active` pointer @+1,226), correctly excluded because **B's anchor is the structural `) / ` delimiter.** 📌 **That is direct evidence for `D-135` §3: the pattern that produced C's three false heads is PERVASIVE in B too — B was protected by its anchor, not by luck.**
+
+✅ **P1 RE-RUN UNDER CORRECTED §3 — CLEARS.** `1 line · 124,299` at open **and** close (§6 DoD) · `A 1+19 · B 51 · C 22+1 = 94` · first head 0 · duplicates 0 · strictly ascending · **4 stubs re-read, 47 B records** ⇒ **90 records.** 🔑 **STEP 4(d) FIRED EXACTLY ONCE — ON @116,587, THE HAND VERDICT ALREADY RECORDED AT J-629, AND ON NOTHING ELSE.** 📌 **First time in this arc a gate has fired on something already understood rather than on something missed. The new test invented no false alarms and found no new ambiguity.**
+
+🛑 **P2 — ALL 16 PAIRS READ ON BOTH SIDES. THE ELEVEN WERE RE-READ, NOT INHERITED, AND TWO WERE WRONG.** J-622 produced those verdicts in the same pass whose collision set was incomplete and whose C head count was wrong twice; **`D-135` forbids carrying its conclusions forward untested, and J-485 had already proved that *B is longer ⇒ keep B* fails here.** ⇒ **11 B ⊃ C · 3 C-side · 2 DIVERGENT**, superseding *8 · 2 · 1 over eleven*.
+
+🛑 **J-456 `M-RP4.5` IS THE FINDING — RECORDED `B ⊃ C`, ACTUALLY DIVERGENT.** **C alone names `transform.ts`** (the file; B never names it), **`toEditable`**, *“nothing on `input`”*, **`string↔T`**, *“di atomic”* and *“3 of 4 processor kinds now built”*. **B alone carries** the rationale *(two reps of different type cannot ride one `bind:value`)*, **`formatToParts`** and **`empty=revert`**. ⚠️ **A *keep B* resolution would have deleted the only place `transform.ts` and `toEditable` are named in this record.** 🔑 **SECOND INHERITED VERDICT IN TWO PASSES THAT WOULD HAVE DESTROYED UNIQUE CONTENT.** ⚠️ **J-448 refined too: C is richer, but B alone carries `CDP-verified`** — so even a *C richer* pair is not a clean containment.
+
+✅ **ALL FOUR OF §4b's NAMED RISKS CONFIRMED BY READING, NOT BY TRUST:** J-457's amber hex **`#ba7517`** is B-only (C compresses to *the `--warn` amber L2 token*) · J-459's **deferred filter/search rationale** *(panel/widget concern)* is B-only · J-460's **`box-sizing:border-box` evidence** is B-only · J-454's **`temperature-indicator` dd-block** and the **`ui/docs/`-at-open session rule** are C-only.
+
+✅ **AN INDEPENDENT CONFIRMATION OF THE J-628 CONVENTION FINDING:** every one of the eleven B-side spans exceeds §4a's figure by **exactly 4** (25/21 · 97/93 · 395/391 · 360/356 · 537/533 · 749/745 · 435/431 · 771/767 · 307/303 · 1,041/1,037 · 1,464/1,460) — head-to-head vs payload, the 4-char `) / ` delimiter — while **C figures are identical throughout.** 📌 **A uniform offset across eleven independent measurements is definitional, not an error pattern.**
+
+⚠️ **AND I CAUGHT TWO OF MY OWN DEFECTS ON READ-BACK BEFORE COMMIT.** ① §4r asserted *“all THREE of §4b's named risks”* while §4b lists **four** — **the narrow-claim fault, inside the very paragraph claiming nothing was inherited.** ② The §11 edit left `v1.4` and left **`P2 CANNOT RUN`** standing immediately before `P2 COMPLETE`; the stale state claim is now **annotated as lifted, not erased.** 📌 **Both were found by re-reading the diff rather than by any probe.**
+
+🔑 **CONSEQUENCE FOR P3: NOTHING IS A STRAIGHT DELETE, AND NO PAIR MAY BE RESOLVED BY LENGTH.** 11 pairs → keep B, drop C's compression · 3 → keep C · **2 must carry BOTH SIDES ANNOTATED** · **J-448 needs a one-token graft of `CDP-verified` or B's stub preserved as an annotation.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/RUNBOOK_ROADTREE_LEGE.md` v1.4 → **v1.5** (new **§4r** P2 verdict table) · `tasks/M_DOC_ROADTREE.md` v1.29 → **v1.30** · `docs/ROADMAP.md` v6.18 → **v6.19** · `CLAUDE.md` PLAY head · this entry. **All `Last updated` corrected to 2026-07-31.** **No new D, no new N.**
+
+**Next-active.** 🟡 **Leg E P3 — the move into `CLAUDE_HISTORY.md`**, under §5 and the §4r verdicts. 🔓 **Joe: `D-135`'s confirmation or amendment** (still delegated and reversible), **and P3's go.**
 
 ---
 

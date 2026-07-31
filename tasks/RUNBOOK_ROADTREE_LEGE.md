@@ -1,6 +1,6 @@
 # RUNBOOK — M-DOC-ROADTREE Leg E, the two-way closure log
-> **Status**: ACTIVE  
-> Version: 1.6  
+> **Status**: COMPLETED  
+> Version: 1.7  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-31  
 > Language: English  
@@ -217,6 +217,10 @@
 
 Batch into `CLAUDE_HISTORY.md` under **one** `## ` heading, D-094 form (§F1c), matching Leg D's convention. Broken citations are **annotated at the site, never silently repaired** (D-131).
 
+- 🛑 **§5 CONTRADICTED F1c AND COULD NOT BE EXECUTED AS WRITTEN — FOUND AT P3 OPEN (J-633).** `CLAUDE_HISTORY.md` L17 states the Leg D convention as ***“F1c — blocks are byte-identical, this heading is the only thing written”***, and L13's sanctioned exception is ***“a D-094 archive batch may be inserted at the top of this file, and nothing else may be edited”***. ⚠️ **“Annotated at the site” IS editing the block**, and so is annotating C's non-closure heads, and so is applying §4r's verdicts. **Three rewrites mandated by three lines, all forbidden by the convention those same lines cite.** 🔑 **The arc's defect class again: a short instruction whose governing constraints live in another document.**
+- 🔒 **RESOLVED BY JOE 2026-07-31 — OPTION ①, BYTE-IDENTICAL MOVE.** Nothing merged, nothing dropped, nothing annotated in place. **The §4r verdicts are recorded and applied to NOTHING.** ✅ **Leg E's actual goal is the DRAIN of `CLAUDE.md`, which ① delivers in full; deduplication of the archive is separable and was NOT spawned as a leg.** ⚠️ **Honest consequence, stated at the time of the ruling: P2's sixteen verdicts are documentation, not transformation. The archive retains 16 near-duplicate pairs.**
+- 🛑 **AND §11's SURFACE IS BROADER THAN ANYTHING LEG E MEASURED.** It reads *“from the `## 🟢 UI component-library / substrate` heading down to the first `> ### ` PLAY block”* — which would sweep in four sibling prose lines **and the two live `♻️ Recovery anchor` pointers.** ✅ **Every measurement in this leg — A/B/C, 90 records, 16 collisions — was inside the 124,299-char line ALONE.** ⇒ **P3 MOVED THAT LINE AND NOTHING ELSE.** 📌 **Moving unparsed prose would be precisely the fault this leg exists to correct.**
+
 **C's 12 non-closure heads travel with the rest, annotated as forward-looking entries.** 📌 *Delegated adoption of Chat's lean at J-623, not a Joe lock — reversible.* Rationale: for several of them this stretch of `CLAUDE.md` is the only place the postponement rationale exists.
 
 - 🛑 **`12` SUPERSEDED BY `9` (J-630), ANNOTATED NOT ERASED — AND THIS LINE WAS MISSED BY THE J-629 SWEEP.** All three false heads removed at J-629 were **non-closure**, so the split moved **14 / 12 → 14 / 9**: the closure-bearing 14 never changed. ✅ **THE DECISION IS UNTOUCHED — the non-closure heads still travel, still annotated; only how many there are moved.**
@@ -226,17 +230,38 @@ Batch into `CLAUDE_HISTORY.md` under **one** `## ` heading, D-094 form (§F1c), 
 
 ---
 
+### §5r — P3 RESULT: ✅ EXECUTED AND VERIFIED 2026-07-31 (J-633)
+
+**Pre-state `5ad3165`, clean and pushed — the recovery point.** Payload identified **BY CONTENT** (the only line over 20,000 chars), asserted at **124,299 chars / 126,609 UTF-8 bytes / SHA256 `0af97c2a…`** before the move.
+
+| | before | after | delta |
+|---|---|---|---|
+| `CLAUDE.md` | 382,712 B | **256,427 B** | **−126,285** |
+| `CLAUDE_HISTORY.md` | 1,197,988 B | **1,325,400 B** | +127,015 batch, +397 header |
+| lines over 20,000 in `CLAUDE.md` | 1 | **0** | — |
+
+✅ **BYTE-IDENTITY PROVEN, NOT ASSERTED: the payload occurs exactly once in the archive and its SHA256 MATCHES the pre-move hash.** ✅ **Line endings preserved per file** — `CLAUDE.md` CRLF 719 / 0 bare LF; `CLAUDE_HISTORY.md` **pure LF, crlf=0**. ✅ **Newest-archived-first held:** Leg E batch at L17, Leg D pushed to L21.
+
+✅ **BOTH DELTAS RECONCILE FROM INDEPENDENTLY MEASURED COMPONENTS — AND THIS CHECK COULD HAVE FAILED.** history `126,609 + 402 heading + 4 newlines = 127,015` · `CLAUDE.md` `324 pointer − 126,609 payload = −126,285`. 📌 **Not a by-construction closure: the component sizes were measured separately after the fact.**
+
+✅ **`CLAUDE.md` keeps a D-094 forward pointer** (324 B) naming the destination, the F1c basis, and §4r as the home of the verdicts.
+
+⚠️ **`CLAUDE_HISTORY.md`'s charter sentence was annotated, not rewritten** — it still named the AFI/F17 block as the newest-first head, **stale since Leg D (J-615), not merely since Leg E.** 📌 **L13 says *nothing else may be edited*, yet Leg D itself updated this file's header (`Last updated: 2026-07-29`). The prohibition protects BLOCKS; header and charter follow the project-wide header rule. Tension recorded rather than resolved silently.**
+
+---
+
 ## §6 — Definition of Done
 
-- [ ] Exactly one line over 20,000 chars asserted at pass open and at pass close.
-- [ ] Head counts asserted **1 + 19 / 51 / 22 + 1 = 94 heads**, and **90 records** after the four B stubs are removed.
+- [x] Exactly one line over 20,000 chars asserted at pass open and at pass close.
+  - 🛑 **THIS ITEM WAS WRITTEN FOR THE PARSING PASSES AND IS FALSE AT P3's CLOSE BY DESIGN (annotated J-633).** P1 and P2 open **and** close at **1**; **P3 closes at 0, because P3 is the move that removes it.** 🔑 **A DoD written for one phase, applied to a checklist covering four — the same narrow-claim fault, in the item that polices the others.** ⇒ **Read as: 1 at every parsing boundary, 0 after the move, and the transition asserted exactly once.**
+- [x] Head counts asserted **1 + 19 / 51 / 22 + 1 = 94 heads**, and **90 records** after the four B stubs are removed.
   - 🛑 **CORRECTED 2026-07-31 (J-632). SUPERSEDED TEXT KEPT: this DoD line read `1 + 19 / 51 / 25 + 1 = 97 heads` and `93 records`.** ⚠️ **IT WAS THE J-629 SWEEP'S OWN REPLACEMENT FIGURE, LEFT STANDING AFTER J-630 REFUTED IT** — so the checklist Leg E is measured by carried a head count disproved twice. 🔑 **§6 HAS NOW BEEN WRONG AT THREE CONSECUTIVE PASSES (J-629 found `24`, J-632 found `97`), WHICH IS NOT COINCIDENCE: §6 SITS PAST THE WORKING SECTIONS AND IS NEVER THE SECTION IN HAND.** ⇒ **A FIGURE CHANGE IS SWEPT ACROSS THE FILE MECHANICALLY, NEVER FROM MEMORY OF WHICH SECTIONS CARRY IT.**
-- [ ] Record spans: **first head at 0** (no leading gap) · **zero duplicate head positions** (no overlap) · **strictly ascending**.
+- [x] Record spans: **first head at 0** (no leading gap) · **zero duplicate head positions** (no overlap) · **strictly ascending**.
   - 🛑 **BOTH LINES ABOVE CORRECTED 2026-07-30 (J-629). SUPERSEDED TEXT ANNOTATED, NOT ERASED.** They read *“Head counts asserted **1 + 19 / 51 / 24**; spans sum to **124,299** with no gap or overlap.”* ⚠️ **`24` IS THE C COUNT P1 REFUTED AT J-627**, and ⚠️ **the sum-assertion is the by-construction one struck from §3.4 at J-628 — it survived here unchanged.** 🔑 **J-628 FIXED THE SECTIONS IT WAS LOOKING AT RATHER THAN THE DOCUMENT** — this arc's named defect class (*a claim narrower than the thing it describes, reused as if complete*), committed inside the entry that names it. ⇒ **A CORRECTION IS NOT APPLIED UNTIL THE WHOLE FILE HAS BEEN SEARCHED FOR THE CLAIM BEING CORRECTED.**
-- [ ] All four B stubs read individually and classified.
-- [ ] Key-collision test run across **all** region pairs, not just B↔C.
-- [ ] Every collision carries a written per-pair verdict; no deletion without one.
-- [ ] `CLAUDE_HISTORY.md` gains one `## ` block; byte counts before/after recorded on disk.
+- [x] All four B stubs read individually and classified.
+- [x] Key-collision test run across **all** region pairs, not just B↔C.
+- [x] Every collision carries a written per-pair verdict; no deletion without one. 📌 **Vacuously safe under Option ①: nothing was deleted at all.**
+- [x] `CLAUDE_HISTORY.md` gains one `## ` block; byte counts before/after recorded on disk.
 - [ ] D-074: `JOURNAL.md` + `CLAUDE.md` PLAY + `docs/ROADMAP.md` + `tasks/M_DOC_ROADTREE.md` + this runbook in **one** commit, **and the ROADMAP child nodes too**.
 
 📌 **"Commit pushed" is deliberately NOT a checklist item.** `Status: COMPLETED` in this header is the real signal.

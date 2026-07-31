@@ -8,6 +8,36 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-633 — Leg E CLOSED: the line is out, moved byte-identical, and §5 could not be run as written
+
+**Date:** 2026-07-31 · **Seat:** Joe (the F1c ruling) · Chat (execution, measurement, records). Provenance: Joe *go ahead* → P3's go, then *go as you recommend* → **Option ①**. 📌 **`D-135` §5a REMAINS OPEN — a three-way ruling was asked and neither answer addressed it.** No code.
+
+✅ **P3 EXECUTED AND VERIFIED. THE 124,299-CHAR LINE IS OUT OF `CLAUDE.md`.** `CLAUDE.md` **382,712 → 256,427 B** (−126,285) · **lines over 20,000: 1 → 0** · `CLAUDE_HISTORY.md` **1,197,988 → 1,325,400 B**, one new `## ` batch at L17 with **Leg D pushed to L21** — newest-archived-first held. **Pre-state `5ad3165`, clean and pushed, was the recovery point.**
+
+✅ **BYTE-IDENTITY PROVEN RATHER THAN ASSERTED.** The payload was hashed **before** the move — 124,299 chars / 126,609 UTF-8 bytes / SHA256 `0af97c2a…` — and after it **occurs exactly once in the archive with a matching hash.** 📌 **F1c demands byte-identical; a hash is the only thing that can actually say so.**
+
+✅ **AND BOTH BYTE DELTAS RECONCILE FROM INDEPENDENTLY MEASURED COMPONENTS — A CHECK THAT COULD HAVE FAILED.** history `126,609 payload + 402 heading + 4 newlines = 127,015` · `CLAUDE.md` `324 pointer − 126,609 payload = −126,285`. 🔑 **Component sizes were measured separately AFTER the fact, so this is not the by-construction closure `D-135` §2 forbids.** ✅ **Line endings preserved per file:** `CLAUDE.md` CRLF 719 / 0 bare LF; `CLAUDE_HISTORY.md` **pure LF, crlf=0** — the two files differ and the move respected both.
+
+🛑 **§5 CONTRADICTED F1c AND COULD NOT BE EXECUTED AS WRITTEN — FOUND AT P3 OPEN, BEFORE ANYTHING WAS TOUCHED.** `CLAUDE_HISTORY.md` L17 states the convention as ***“blocks are byte-identical, this heading is the only thing written”***; L13's sanctioned exception is ***“a batch may be inserted at the top and nothing else may be edited”***. ⚠️ **§5's three lines mandate three rewrites** — annotate broken citations at the site, annotate C's non-closure heads, and apply §4r's merges. **All three are forbidden by the very convention §5 cites.** 🔑 **The arc's defect class one more time: a short instruction whose governing constraints live in another document.**
+
+🔒 **JOE RULED OPTION ① — BYTE-IDENTICAL MOVE.** Nothing merged, nothing dropped, nothing annotated in place; **the §4r verdicts are recorded and applied to NOTHING.** ✅ **It needed no rule bent and it delivered Leg E's actual goal in full — the DRAIN of `CLAUDE.md`.** ⚠️ **The honest consequence was stated BEFORE the ruling, not after: P2's sixteen hand verdicts are documentation, not transformation, and the archive retains 16 near-duplicate pairs.** 📌 **Deduplication is separable; it was NOT spawned as a leg, and §4r is what would make it safe if it ever is.**
+
+🛑 **AND §11's SURFACE WAS BROADER THAN ANYTHING THIS LEG MEASURED.** It reads *“from the `## 🟢 UI component-library / substrate` heading down to the first `> ### ` PLAY block”* — which would have swept in four sibling prose lines **and the two live `♻️ Recovery anchor` pointers**. ✅ **Every measurement in this leg — A/B/C, 90 records, 16 collisions — was inside the 124,299-char line ALONE.** ⇒ **P3 moved that line and nothing else.** 🔑 **Moving unparsed prose because a scope sentence was loose is precisely the fault this leg exists to correct.**
+
+⚠️ **§6's FIRST DoD ITEM IS FALSE AT P3's CLOSE BY DESIGN.** It demands *“exactly one line over 20,000 chars at pass open and at pass close”*; **P3 closes at ZERO, because P3 is the move that removes it.** 🔑 **A DoD written for the parsing passes, applied to a checklist covering four — the narrow-claim fault, in the item that polices the others.** **Annotated, not rewritten.**
+
+⚠️ **`CLAUDE_HISTORY.md`'s charter sentence was annotated too** — it still named the AFI/F17 block as the newest-first head, **stale since Leg D (J-615), not merely since Leg E.** 📌 **L13 says *nothing else may be edited*, yet Leg D itself updated this file's header. The prohibition protects BLOCKS; header and charter follow the project-wide header rule. Recorded as a tension rather than resolved silently.**
+
+⚠️ **ONE DEFECT IN MY OWN EDITS, CAUGHT ON READ-BACK:** the new **§5r** result section landed **underneath the `## §6` heading** because my anchor included that heading. Moved above it. 📌 **Third session running in which reading the returned diff caught something no probe would have.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `CLAUDE_HISTORY.md` — **one `## ` Leg E batch + header v1.2 → v1.3** · `tasks/RUNBOOK_ROADTREE_LEGE.md` v1.6 → **v1.7, ACTIVE → ✅ COMPLETED** (new **§5r**; §6 fully ticked bar the D-074 commit) · `tasks/M_DOC_ROADTREE.md` v1.32 → **v1.33** · `docs/ROADMAP.md` v6.21 → **v6.22** · `CLAUDE.md` PLAY head · this entry. **No new D, no new N.**
+
+**Next-active.** 🟡 **M-DOC-ROADTREE continues: Leg B-ter (still needs a runbook; it is AUTHORING, not repair) · Leg F sweep · Leg G close.** 🛑 **LEG G MUST NOT RUN BEFORE LEG B-TER — unchanged.** 🔓 **Joe: `D-135` §5a — confirm, amend or discard; and sequencing.**
+
+---
+
 ## Entry J-632 — the corrections themselves went stale, and §6 was wrong for the third consecutive pass
 
 **Date:** 2026-07-31 · **Seat:** Chat (records, verification). Provenance **DELEGATED** — Joe: *what is the next?* then *go on 1), as you recommend*, closing **two**: ① **repair before P3** ② the `D-135` §5 clause **drafted**. 📌 **② taken as delegated DRAFTING only — `D-135` was LOCKED at J-631, so §5a is written as REVERSIBLE and awaiting Joe's ruling.** No code.

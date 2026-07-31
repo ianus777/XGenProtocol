@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.21  
+> Version: 6.22  
 > Date: May 2026  
 > **Last updated**: 2026-07-31  
 > Language: English  
@@ -321,8 +321,11 @@ XGen Protocol
 │   │   ↳ clears: **Leg B P2**
 │   ├── ✅ **Leg C `docs/ROADMAP.md`** — 761,422 → 43,741 B; tree kept, prose deleted, five format rules · J-604 (J-602, J-603)
 │   ├── ✅ **Leg D `CLAUDE.md` B2** — 65 of 81 blocks archived, 640,645 → 316,680 B (50.6%); D-094 re-applied after a five-week lapse · J-615 (J-606, J-608–J-614)
-│   ├── 🟡 **Leg E the two-way closure log** — `CLAUDE.md`'s prose head; one closure log in THREE head notations · J-623
-│   │   ↳ 📘 **RUNBOOKED** `tasks/RUNBOOK_ROADTREE_LEGE.md` **v1.5 ACTIVE** — the authority from here. Trigger FIRED J-615; title locked Joe J-618
+│   ├── ✅ **Leg E the two-way closure log** — `CLAUDE.md`'s prose head; one closure log in THREE head notations · **CLOSED J-633**
+│   │   ↳ ✅ **P3 EXECUTED AND VERIFIED (J-633) — THE LINE IS OUT.** `CLAUDE.md` **382,712 → 256,427 B** (−126,285) · **lines over 20,000: 1 → 0** · `CLAUDE_HISTORY.md` **1,197,988 → 1,325,400 B**, one new `## ` batch at L17 (Leg D pushed to L21, newest-first held) · **payload occurs exactly once and its SHA256 `0af97c2a…` MATCHES the pre-move hash — byte-identity PROVEN** · line endings preserved per file · **both deltas reconcile from independently measured components** · `CLAUDE.md` keeps a 324 B D-094 forward pointer
+│   │   ↳ 🛑 **§5 CONTRADICTED F1c AND COULD NOT BE RUN AS WRITTEN** — F1c is *blocks are byte-identical, this heading is the only thing written*, L13 permits *a batch at the top and nothing else edited*, yet §5 mandated annotation at the site **and** §4r's merges. 🔒 **Joe ruled OPTION ①, byte-identical move** ⇒ nothing merged, dropped or annotated in place. ⚠️ **Stated consequence: P2's sixteen verdicts are documentation, not transformation; the archive keeps 16 near-duplicate pairs and dedup was NOT spawned as a leg**
+│   │   ↳ 🛑 **§11's SURFACE WORDING WAS BROADER THAN ANYTHING LEG E MEASURED** — it would have swept in four sibling prose lines **and the two live `♻️ Recovery anchor` pointers**; every measurement was inside the 124,299-char line alone ⇒ **P3 moved that line and nothing else**
+│   │   ↳ 📘 **RUNBOOKED** `tasks/RUNBOOK_ROADTREE_LEGE.md` **v1.7 ✅ COMPLETED** — the authority throughout. Trigger FIRED J-615; title locked Joe J-618
 │   │   ↳ ✅ **P0-BIS · P1 · P2 ALL CLEARED (J-630, 2026-07-31)** — P0-bis closed the direction `D-135` still owed with a predicate sharing no machinery with the head tests: **49 closure marks line-wide, 49 spans holding exactly one each, ZERO with two**; longest zero-mark spans read clean. P1 re-ran green at open **and** close, and **4(d) fired exactly once — on @116,587, the hand verdict already recorded**
 │   │   ↳ 🛑 **P2: ALL 16 PAIRS RE-READ ON BOTH SIDES — TWO INHERITED VERDICTS WERE WRONG** ⇒ **11 B ⊃ C · 3 C-side · 2 DIVERGENT**, superseding *8 · 2 · 1*. **J-456 `M-RP4.5` was recorded `B ⊃ C` and is DIVERGENT** — C alone names `transform.ts` and `toEditable`, so *keep B* would have deleted the only place they appear. **J-448 refined: C richer, but B alone carries `CDP-verified`**
 │   │   ↳ ✅ all **four** of §4b's named risks confirmed by reading — J-457's hex `#ba7517`, J-459's deferred filter/search rationale, J-460's `box-sizing` evidence all **B-only**; J-454's `temperature-indicator` dd-block and the `ui/docs/`-at-open rule **C-only**. 🔑 **P3 CONSEQUENCE: nothing is a straight delete, and no pair may be resolved by length**

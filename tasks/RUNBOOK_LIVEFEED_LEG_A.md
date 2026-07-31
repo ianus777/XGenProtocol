@@ -1,8 +1,8 @@
 # RUNBOOK — M-RP-LIVEFEED-REFRESH Leg A: the router and the members consumer
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-29  
+> **Last updated**: 2026-07-31  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -100,7 +100,9 @@ One function in `app_client.svelte`, called from the existing listener. Shape, n
 
 ---
 
-## §5 — 🔓 OPEN, JOE'S: WHAT DOES A LIVE-JOINED MEMBER LOOK LIKE BEFORE THE BOOK KNOWS THEM?
+## §5 (RUNBOOK) — ✅ CLOSED BY CHAT: WHAT DOES A LIVE-JOINED MEMBER LOOK LIKE BEFORE THE BOOK KNOWS THEM?
+
+🛑 **THIS HEADING READ `🔓 OPEN, JOE'S` UNTIL 2026-07-31 (J-639), WHILE §0 AND §5-iii BOTH RECORDED IT CLOSED.** Corrected, not erased. 🔑 **A RUNBOOK IS EXECUTED TOP-DOWN BY SOMEONE WHO WAS NOT IN THE CONVERSATION** — an implementer reaching a `🔓 OPEN, JOE'S` heading either stalls or routes a settled question back to him, which is **the exact under-stepping J-618 ruled against, re-created by the heading of the section that records the ruling.** ⚠️ **AND THIS MILESTONE HAS TWO `§5`s: this one (the live-joined member's face, Chat's, CLOSED) and the PARENT's `§5` (the reconnect rule, 🔓 JOE'S, GENUINELY OPEN, gating Leg C only).** §0 already draws that line; the heading is now explicit so the two cannot be collapsed by a reader who starts here.
 
 ⚠️ **v1.0 OF THIS SECTION ASKED A NARROWER QUESTION THAN THE SITUATION CONTAINS, AND ITS RECOMMENDATION IS WITHDRAWN.** It asked only about the NAME. Walking the render path end to end found a **second** consequence that is worse than the first, and a **scope collision** with §2. Same species as §6-i — caught by opening the thing, not by re-reading the text.
 

@@ -8,6 +8,52 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-639 — the runbook heading that lied, and the §6a census: 14 is right, 16 is a different namespace
+
+**Date:** 2026-07-31 · **Seat:** Joe (delegation: *go by your recommendations*) · Chat (records, measurement). No code.
+
+**Two small pieces of work before Clair is stood up for Leg A, both records, neither touching `ui/**`.**
+
+---
+
+### ✅ THE RUNBOOK'S GROUNDING STILL HOLDS — CHECKED, NOT ASSUMED
+
+`RUNBOOK_LIVEFEED_LEG_A.md` §1 was measured at `a715ccb`. **HEAD is 23 commits later.** 🔑 **`git diff a715ccb..HEAD -- ui/` is EMPTY — zero changes to any of the three scoped files.** ⇒ the runbook is safe to open on its own measurements. *Runbook-as-ground-truth is a named failure mode here; this is the check that answers it rather than trusting the version number.*
+
+### 🛑 ① THE §5 HEADING CONTRADICTED ITS OWN SUBSECTION, IN AN `ACTIVE` RUNBOOK
+
+`## §5 — 🔓 OPEN, JOE'S: …` sat directly above `### §5-iii — 🔒 CLOSED: D`, and §0 line 17 already said *“THIS RUNBOOK IS ACTIVE AND §5 IS CLOSED (Chat, 2026-07-29).”* 🔑 **A RUNBOOK IS EXECUTED TOP-DOWN BY SOMEONE WHO WAS NOT IN THE CONVERSATION.** Clair reaching a `🔓 OPEN, JOE'S` heading either stalls or routes a settled question back to Joe — ***the exact under-stepping J-618 ruled against, re-created by the heading of the section that records the ruling.*** Corrected, annotated, not erased. Runbook **v1.2 → v1.3**.
+
+⚠️ **AND THE MILESTONE HAS TWO `§5`s, ONLY ONE OF THEM JOE'S:** the **runbook's** §5 (the live-joined member's face — Chat's, CLOSED) and the **parent's** §5 (the reconnect rule — 🔓 **genuinely Joe's**, gating Leg C only). `docs/ROADMAP.md` carried both on adjacent nodes as *“§5 closed by Chat”* and *“trigger: §5 of the milestone ruled (Joe)”* — **both correct, and reading as a contradiction.** Each reference now says **which §5**. 📌 **`D-134`'s collision logic applied to SECTION numbers rather than designations: the fix is disambiguation at the citation site, not renumbering.**
+
+📌 **My proposal was wider than the defect and is recorded as such** — I offered to disambiguate throughout; **§0 already did it** (L17 and L21). Only the heading lied. *A fix scoped from the symptom rather than from the file is how a one-line correction becomes a pass.*
+
+### ✅ ② THE §6a CENSUS — AND MY OWN PROBES FAILED IN BOTH DIRECTIONS FIRST
+
+§6a gates Leg B's runbook: *9 of 14 `state.*` wire strings have no row.* **Re-measured under `D-135`.**
+
+🛑 **A repo-wide `"state\.[a-z_]+"` sweep over `.rs` returns SIXTEEN, not fourteen.** Read individually, the two extras are **not events at all**:
+- **`state.mls_commit`** — `xgen-core/src/resolution/state_key.rs:144`, the `StateKey` built for `EventType::MlsCommit`. **A resolution key, not a type.**
+- **`state.status`** — `xgen-core/src/status/mod.rs:57`, `STATUS_CATEGORY`, whose own doc comment says *“State-key category for status objects, reusing the `resolution::StateKey` namespace convention.”*
+
+🔑 **THERE ARE TWO UNRELATED `state.*` NAMESPACES SHARING ONE PREFIX: the wire `Event` renames (14, all in `xgen-common/src/wire.rs`) and the StateKey resolution categories.** The router branches on `payload.type`; **a StateKey category can never appear there.** ⇒ **anyone enumerating `state.*` repo-wide over-scopes Leg B by two, and the trap is now measured instead of waiting to be tripped.** ✅ **`wire.rs` alone yields exactly 14 — J-616's figure is CONFIRMED, independently and by a different route.**
+
+⚠️ **TWO DEFECTS IN MY OWN PROBES, CAUGHT ONLY BY CROSSING THEM.** ① The same predicate over the task doc returned 16 “named” strings — **`state.json` and `state.svelte` are FILENAMES.** ② A column I labelled *declaration site* was **the first hit in file-iteration order**, which put `state.room_update`'s “declaration” in `xgen-client/src/app.rs` — ***an import is not a definition** (J-601), reproduced in my own output one turn after quoting the rule.*
+
+✅ **THE 5 WITH ROWS, ENUMERATED:** `space_create` · `dm_space_create` · `room_create` · `room_update` · `space_update`. **14 − 5 = 9, and the nine close exactly:** `ai_operator_delegate` · `ai_operator_revoke` · `dm_promote` · `federation_add` · `mls_group_init` · `node_priority` · `space_migrate` · `space_pacing` · `space_temperature_visibility`.
+
+🛑 **DISPOSITION DELIBERATELY NOT TAKEN — *“give the nine an ignored row”* MAY BE THE WRONG FRAME.** §6's own membership precedent sets the test: *“v1: ignored, deliberately. **None of the three changes who is in the room**.”* Applied here the question is **does it change what the panel shows** — and **`state.dm_promote`** and **`state.space_migrate`** both plausibly mutate the Spaces tree, **which is Leg B's entire surface.** ⇒ **if so they are MISSING CONSUMERS, not ignorables, and §6a is not paperwork.** 🔑 **Each of the nine must be walked against `wire.rs` before a row is written; a classification improvised from the event NAME is exactly the claim-narrower-than-the-thing defect this arc has now logged nine times.** 📌 **Census complete and closing; classification is the next pass, and ⚠️ any of the nine that proves user-visible stops being Chat's under §2's zero-user-visible-surface delegation.**
+
+---
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`, verified by `git diff --stat`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/RUNBOOK_LIVEFEED_LEG_A.md` v1.2 → **v1.3** (§5 heading corrected + the two-§5 collision named) · `docs/ROADMAP.md` v6.27 → **v6.28** (both §5 references disambiguated; Leg A's runbook version corrected v1.2 → v1.3) · this entry. **No new D, no new N.**
+
+**Next-active.** 🟡 **`M-RP-LIVEFEED-REFRESH` Leg A — runbook v1.3 ACTIVE, grounding re-verified, three frontend files. 🔓 STANDING CLAIR UP IS JOE'S.** Then 🟡 **§6a's classification pass** (the nine walked against `wire.rs`), which gates Leg B's runbook. 🔓 **Joe, unchanged:** the parent's §5 reconnect rule · `D-135` §5a · the `M-DOC-BACKFILL` title and ID · the resync sibling's name · the outbox sibling's name.
+
+---
+
 ## Entry J-638 — Leg G: the 465,963 bytes nobody had read, and M-DOC-ROADTREE closes
 
 **Date:** 2026-07-31 · **Seat:** Joe (the delete lock) · Chat (audit, measurement, records). No code.

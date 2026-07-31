@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.20  
+> Version: 6.21  
 > Date: May 2026  
 > **Last updated**: 2026-07-31  
 > Language: English  
@@ -333,6 +333,9 @@ XGen Protocol
 │   │   ↳ 🛑 **THAT CLEARANCE IS RETRACTED (J-629) — THREE OF THE 97 WERE NOT HEADS.** `**M-` matched bold **emphasis**: @115,900 and @115,973 inside ONE clause of the record at 115,464, and @119,871 after an **em-dash inside J-485's own sentence** ⇒ **A 20 · B 51 · C 23 = 94 heads · 90 records**, superseding *97 / 93* and *95 / 91*, annotated never erased
 │   │   ↳ 🔑 **EVERY §3 GATE PASSED WHILE THAT WAS TRUE** — §3.3 compares the predicate's count to a census figure **produced by the same predicate**, so it detects drift and never error; same disease as §3.4's span-sum, **one line above it** ⇒ 🔒 **`D-135` MINTED (delegated, reversible): test a predicate in BOTH directions; an assertion built from the predicate it checks cannot fail**
 │   │   ↳ ✅ **`D-135` LOCKED BY JOE 2026-07-31 (J-631) — no longer reversible.** 📌 It stood **delegated for one day** and **found two wrong inherited verdicts while still provisional**; the *delegated* wording above is its 2026-07-30 state, kept not erased
+│   │   ↳ 🛑 **P3 WAS BLOCKED BY THE PREVIOUS SWEEP'S OWN CORRECTIONS (J-632).** Seven live claims still read `97 / 93` — including **§6's Definition of Done, the checklist Leg E is measured by**. Every one had been written by the J-629 sweep as *CORRECTED*, then refuted four hours later by J-630's `94 / 90`, and nothing re-swept the annotations ⇒ **`D-135` §5a DRAFTED (delegated, reversible): sweep for the SUPERSEDED figure AND the REPLACEMENT — an annotation asserting a corrected value decays exactly like the claim it corrects**
+│   │   ↳ 🛑 **A LINE CAN BE ANNOTATED AND STILL BE FALSE** — §5 L218 carried a correction about the `13 → 12` move while the live figure needed `12 → 9`. 🔑 **§6 has now been wrong at THREE consecutive passes (J-629 found `24`, J-632 found `97`): it sits past the working sections and is never the section in hand** ⇒ **sweep a figure change mechanically, never from memory**
+│   │   ↳ ✅ **REPAIRED, ALL ANNOTATED, NONE ERASED** — §1a row C (**22 genuine + 1 emoji = 23**; span 13,811 unaffected) · §5 (**12 → 9**; closure-bearing **14 never moved**, the J-623 decision untouched) · §6 DoD (**94 · 90**) · `M_DOC` §8-E × 3. **P3 is UNBLOCKED**
 │   │   ↳ ✅ **THE SECOND PREDICATE IS THE WHOLE DIFFERENCE** — A had one (20 `CLOSED` marks vs 1+19) → 0 false heads · B had one (J-keys **strictly monotonic J-503→J-445**, which also forbids within-B twins) → 0 false heads · **C had none → all three**
 │   │   ↳ 🛑 **§4c COMPLETE — THE ELEVEN COLLISIONS ARE SIXTEEN.** J-478 · J-479 · J-480 · J-483 · J-485 added; the eleven were measured inside part two's two C sub-windows (110,516–111,445 and 122,026–123,912 = **exactly 11**) and **the 10,581 chars between them were never examined** — all five sit in that gap. **Zero collisions within-A, within-B, within-C, A↔B, A↔C**
 │   │   ↳ 🛑 **THE PARSE ERROR HID A REVERSED VERDICT, NOT JUST A MISCOUNT** — C's J-485 read **93 chars** (a stub ⇒ *keep B*) while the false head stood; whole it is **1,813** and **richer than B's 906**, so the verdict **inverts**

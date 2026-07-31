@@ -5032,6 +5032,18 @@ and **always**, including when the run dies or is abandoned:
 
 🛑 **DATED RECORDS ARE EXEMPT AND MUST NOT BE BACK-EDITED.** Prior `CLAUDE.md` PLAY blocks and prior `JOURNAL.md` entries are contemporaneous accounts of what was known then; rewriting them destroys the only evidence of how a figure moved. **The corollary binds LIVE claims only — checklists, grounding tables, task-doc state, runbook assertions.** Superseded figures are **annotated, never deleted** (D-131 family).
 
+### §5a — AMENDMENT DRAFTED 2026-07-31 (J-632): SWEEP FOR THE REPLACEMENT, NOT ONLY THE SUPERSEDED FIGURE
+
+⚠️ **STATUS: DELEGATED AND REVERSIBLE, AWAITING JOE'S RULING.** `D-135` was locked at J-631, so this clause is **drafted, not adopted**; Joe answered *“go on 1), as you recommend”* to the repair, and Chat is not amending a locked decision on its own authority. 📌 **Same J-623/J-629 pattern Joe confirmed the previous day.**
+
+🔒 **PROPOSED CLAUSE — §5's SWEEP RUNS ON BOTH THE OLD FIGURE AND THE NEW ONE.** When a measurement is corrected, the sweep must find every live restatement of the **superseded** value **and every live restatement of the replacement**, because the replacement will itself be superseded if the measurement moves again. 🔑 **AN ANNOTATION ASSERTING A CORRECTED VALUE IS A LIVE CLAIM AND DECAYS EXACTLY LIKE THE CLAIM IT CORRECTS.**
+
+✅ **EVIDENCE — SEVEN LIVE CLAIMS, ALL OF THEM WRITTEN BY THE PREVIOUS SWEEP.** The J-629 sweep hunted `13`, `24` and `95 / 91`, annotated them correctly, and wrote **`97 / 93`** as the corrected value. **Four hours later J-630 moved it to `94 / 90` and nothing re-swept the annotations.** Found at J-632, all seven still standing: `RUNBOOK §6` DoD (**the checklist Leg E is measured by**) · `RUNBOOK §5` L218 and its own correction note · `RUNBOOK §1a` row C · `M_DOC` §8-E × 3.
+
+🛑 **A LINE CAN BE ANNOTATED AND STILL BE FALSE.** A line-scoped detector reported `ann=True` on `§5` L218 — the block **does** carry a correction, **the wrong one**. ⇒ **Presence of an annotation is not evidence that the CURRENT figure is annotated.**
+
+🔑 **AND THE CARRIER MATTERS: §6 HAS NOW BEEN WRONG AT THREE CONSECUTIVE PASSES** (J-629 found `24`, J-632 found `97`). **It sits past the working sections and is never the section in hand.** ⇒ **A figure change is swept across the record set MECHANICALLY, never from memory of which sections carry it.**
+
 ### §6 — 🛑 WHAT THIS ENTRY DOES **NOT** CLAIM
 
 ⚠️ **It does not claim the head set is now final.** C's 23 heads rest on **three hand verdicts** (the two mid-clause emphases and the em-dash continuation) plus **one genuinely ambiguous boundary at 116,587**, which opens after a **semicolon** rather than a sentence end and was admitted on the strength of its head form. **A hand verdict is a judgement, and it is recorded as one.**

@@ -1,6 +1,6 @@
 # M-DOC-ROADTREE — the roadmap becomes a state board
 > **Status**: ACTIVE  
-> Version: 1.31  
+> Version: 1.32  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-31  
 > Language: English  
@@ -397,7 +397,7 @@
 
 ✅ **§8-E P0 NOTATION CENSUS COMPLETE — RUN 2026-07-30 (J-623). `tasks/RUNBOOK_ROADTREE_LEGE.md` v1.0 🟡 PENDING WRITTEN (9,750 B, LF, no BOM). THE RUNBOOK IS THE AUTHORITY FROM HERE; THIS SECTION IS ITS PROVENANCE.**
 
-🛑 **THIS CENSUS IS SUPERSEDED BY J-627 AND CLEARED BY J-628 — KEPT, NOT REPAIRED (annotation added 2026-07-30, J-629).** Its figures below read **`C 24`**, **`95 heads`**, **`91 records`**. ⚠️ **All three are superseded:** a **FOURTH head form** (`**<emoji> M-<id>` at 113,632) was invisible to `**M-`, and C's `24` had been measured from the **old** boundary 110,516 while the table's own span row already carried the re-derived **110,488**. ✅ **CORRECTED: A 1+19 · B 51 (4 stubs) · C 25 + 1 = 97 heads · 93 records**, and **C splits 14 closure-bearing / 12 not** (`CLOSED` × 11 + `DONE` × 3). ✅ **P1 re-ran against the corrected assertions and CLEARED (J-628).**
+🛑 **THIS CENSUS IS SUPERSEDED BY J-627 AND CLEARED BY J-628 — KEPT, NOT REPAIRED (annotation added 2026-07-30, J-629).** Its figures below read **`C 24`**, **`95 heads`**, **`91 records`**. ⚠️ **All three are superseded:** a **FOURTH head form** (`**<emoji> M-<id>` at 113,632) was invisible to `**M-`, and C's `24` had been measured from the **old** boundary 110,516 while the table's own span row already carried the re-derived **110,488**. ✅ **CORRECTED: A 1+19 · B 51 (4 stubs) · C 25 + 1 = 97 heads · 93 records**, and **C splits 14 closure-bearing / 12 not** (`CLOSED` × 11 + `DONE` × 3). ✅ **P1 re-ran against the corrected assertions and CLEARED (J-628).** 🛑 **THIS CORRECTION IS ITSELF SUPERSEDED (J-630), KEPT NOT REPAIRED: `97 / 93` → `94 / 90`, C `25 + 1` → `22 + 1 = 23`, split `14 / 12` → `14 / 9`, and P1's clearance was RETRACTED before being re-earned.** 🔑 **A CORRECTION DECAYS EXACTLY LIKE THE CLAIM IT CORRECTS.**
 
 🔑 **WHY THIS ANNOTATION EXISTS AT ALL, AND IT IS THE SIXTH INSTANCE OF THIS ARC'S DEFECT CLASS.** J-627 corrected the runbook and §11 **and did not touch this section**; J-628 then corrected the runbook's §1a/§1b/§3.4 **and did not touch its §5/§6**. 📌 **Before this line was written, `J-627` and `J-628` appeared EXACTLY ONCE in this entire document — at §11.** ⚠️ **Every earlier instance was a claim narrower than the thing it described; these two are CORRECTIONS narrower than the claims they corrected — the same defect, applied to the repair rather than to the measurement.** ⇒ **A CORRECTION IS NOT APPLIED UNTIL THE WHOLE RECORD SET HAS BEEN SEARCHED FOR THE CLAIM BEING CORRECTED — NOT THE SECTION, NOT THE FILE.** 📌 **Dated records are exempt and must NOT be back-edited:** prior `CLAUDE.md` PLAY blocks and prior `JOURNAL.md` entries are contemporaneous accounts of what was known then. **The rule binds LIVE claims — checklists, grounding tables, task-doc state.**
 
@@ -409,7 +409,7 @@
 | **B** | 18,426 – 110,488 | **92,062** | `J-nnn (` **at a `) / ` delimiter** | 51 *(4 stubs)* |
 | **C** | 110,488 – 124,299 | **13,811** | `**M-<id>` | 24 *(11 closure-bearing)* |
 
-🛑 **ROW `C` SUPERSEDED (J-627), KEPT NOT REPAIRED:** the head form column is incomplete — a **fourth form** `**<emoji> M-<id>` sits at 113,632 — and the count is **25 + 1 = 26**, splitting **14 closure-bearing / 12 not**.
+🛑 **ROW `C` SUPERSEDED (J-627), KEPT NOT REPAIRED:** the head form column is incomplete — a **fourth form** `**<emoji> M-<id>` sits at 113,632 — and the count is **25 + 1 = 26**, splitting **14 closure-bearing / 12 not**. 🛑 **AND THAT REPLACEMENT IS ITSELF SUPERSEDED (J-630): three of the 25 are bold EMPHASIS, not heads ⇒ `22 + 1 = 23`, splitting `14 / 9`.**
 
 **Sum 124,299 ✔ · 95 heads · 91 records · 11 known collisions.** 🛑 **`95 / 91` SUPERSEDED BY `97 / 93` (J-627) — SEE THE ANNOTATION AT THE HEAD OF THIS SECTION; KEPT, NOT REPAIRED.** 📌 **The B/C seam is 28 chars earlier than part two's 110,516** — C's first head opens at **110,488**, predicted by part three from one observation, confirmed here independently. 🔑 **AND THIS SUM IS A CONSEQUENCE, NOT AN INPUT** — boundaries came from independently located heads, so it *could* have failed. Part three's could not.
 
@@ -444,6 +444,8 @@
 🛑 **AND PART TWO'S REGION-C COUNT IS RETRACTED. THIS IS THE FOURTH SHAPE FOR THE LINE AND IT BROKE J-621's OWN RULE INSIDE ONE TURN.**
 
 🛑 **PART THREE'S OWN REGION-C COUNT IS IN TURN RETRACTED BY J-627 — KEPT, NOT REPAIRED (annotation added J-629).** The **`C 24 heads`** below is **superseded by `25 + 1 = 26`**: `**M-` could not see the fourth head form `**<emoji> M-<id>` at 113,632, and the 24 was measured from the **old** boundary 110,516. ⇒ **honest state is now `A 20 · B 47 records + 4 stubs · C 26 heads` = 97 heads, 93 records**, cleared by P1 at J-628. 📌 **THIS IS THE FIFTH SHAPE FOR THE LINE, AND THE FIRST ONE TO SURVIVE A RE-RUN.**
+
+🛑 **THE FIFTH SHAPE DID NOT SURVIVE EITHER — SUPERSEDED BY THE SIXTH (J-630), KEPT NOT REPAIRED.** `C 26 heads` → **23**, `97 / 93` → **94 / 90**: three `**M-` matches in C are **bold emphasis mid-sentence, not record heads.** ⚠️ **The claim *the first one to survive a re-run* was written BEFORE the re-run that broke it** — 🔑 **a prediction recorded in the past tense.** ✅ **The SIXTH shape has since cleared P0-bis, P1 and P2 (J-630) with three independent cross-checks; it is stated as current, not as final.**
 - **C holds 24 bold milestone heads, not 11.** The 11 was a count of `CLOSED (J-nnn)` matches — **one notation** — reported as a record count. J-474, J-478–J-487 and `M-RP-CDP1` sit in C and are **not** in the collision set; four heads (M-RP5.4, M-RP6.1, M-RP5.5, M-RP5.6) carry no closure at all and are **forward-looking entries, not records.**
 - **B's 51 segments are not 51 records.** Four fall under 100 chars — `J-447 (star-rating` **18** · `J-446 (password-field` **21** · `J-461 (PROTO-STATUS.2 — Track A, see head note` **46** · J-448 **93**. Two are pointers; two are stubs whose real record is in C.
 - ⇒ ⚠️ **`82` IS RETIRED AS A PLANNING NUMBER** — same class as the `28` planned against for three days (J-620). Honest state: **A 20** *(never re-tested under a second notation)* · **B 47 records + 4 stubs** · **C 24 heads.**

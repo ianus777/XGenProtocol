@@ -1,6 +1,6 @@
 # RUNBOOK — M-DOC-ROADTREE Leg E, the two-way closure log
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Jul 2026  
 > **Last updated**: 2026-07-31  
 > Language: English  
@@ -31,6 +31,8 @@
 | **B** | 18,426 – 110,488 | **92,062** | `J-nnn (` **at a `) / ` delimiter** | 51 *(4 stubs)* |
 | **C** | 110,488 – 124,299 | **13,811** | `**M-<id>` bold, milestone-first | **25** |
 | **C** | " | " | 🔑 **`**<emoji> M-<id>` — THE FOURTH HEAD FORM** | **1** |
+
+🛑 **ROW `C`'s HEAD COUNT IS SUPERSEDED (J-629/J-630), KEPT NOT REPAIRED:** `**M-` returns **25 raw matches** in C but **three are bold EMPHASIS, not heads** (@115,900 · @115,973 · @119,871) ⇒ **22 genuine + 1 emoji-form = 23 heads.** 📌 **The SPAN 13,811 is unaffected** — the boundaries did not move, only the head count inside them.
 
 **18,426 + 92,062 + 13,811 = 124,299 ✔**
 
@@ -217,14 +219,18 @@ Batch into `CLAUDE_HISTORY.md` under **one** `## ` heading, D-094 form (§F1c), 
 
 **C's 12 non-closure heads travel with the rest, annotated as forward-looking entries.** 📌 *Delegated adoption of Chat's lean at J-623, not a Joe lock — reversible.* Rationale: for several of them this stretch of `CLAUDE.md` is the only place the postponement rationale exists.
 
+- 🛑 **`12` SUPERSEDED BY `9` (J-630), ANNOTATED NOT ERASED — AND THIS LINE WAS MISSED BY THE J-629 SWEEP.** All three false heads removed at J-629 were **non-closure**, so the split moved **14 / 12 → 14 / 9**: the closure-bearing 14 never changed. ✅ **THE DECISION IS UNTOUCHED — the non-closure heads still travel, still annotated; only how many there are moved.**
+
 - 📌 **CORRECTED 2026-07-30 (J-629). SUPERSEDED FIGURE ANNOTATED, NOT ERASED:** this read **`13`**. J-627 re-split C on a second predicate — `CLOSED (J-nnn)` alone gave 11, but C also carries `DONE (J-nnn)` × 3 ⇒ **14 closure-bearing / 12 not.** **The DECISION is untouched; only the count moved.**
+  - 🛑 **AND THIS ANNOTATION IS ITSELF SUPERSEDED (J-632): `14 / 12` → `14 / 9`.** 🔑 **A CORRECTION DECAYS EXACTLY LIKE THE CLAIM IT CORRECTS.** The J-629 sweep hunted the OLD figures (`13`, `24`, `95/91`) and never considered that its OWN replacement figure would move four hours later. ⇒ **SWEEP FOR THE SUPERSEDED FIGURE *AND* THE REPLACEMENT** (`D-135` §5, amendment drafted J-632).
 
 ---
 
 ## §6 — Definition of Done
 
 - [ ] Exactly one line over 20,000 chars asserted at pass open and at pass close.
-- [ ] Head counts asserted **1 + 19 / 51 / 25 + 1 = 97 heads**, and **93 records** after the four B stubs are removed.
+- [ ] Head counts asserted **1 + 19 / 51 / 22 + 1 = 94 heads**, and **90 records** after the four B stubs are removed.
+  - 🛑 **CORRECTED 2026-07-31 (J-632). SUPERSEDED TEXT KEPT: this DoD line read `1 + 19 / 51 / 25 + 1 = 97 heads` and `93 records`.** ⚠️ **IT WAS THE J-629 SWEEP'S OWN REPLACEMENT FIGURE, LEFT STANDING AFTER J-630 REFUTED IT** — so the checklist Leg E is measured by carried a head count disproved twice. 🔑 **§6 HAS NOW BEEN WRONG AT THREE CONSECUTIVE PASSES (J-629 found `24`, J-632 found `97`), WHICH IS NOT COINCIDENCE: §6 SITS PAST THE WORKING SECTIONS AND IS NEVER THE SECTION IN HAND.** ⇒ **A FIGURE CHANGE IS SWEPT ACROSS THE FILE MECHANICALLY, NEVER FROM MEMORY OF WHICH SECTIONS CARRY IT.**
 - [ ] Record spans: **first head at 0** (no leading gap) · **zero duplicate head positions** (no overlap) · **strictly ascending**.
   - 🛑 **BOTH LINES ABOVE CORRECTED 2026-07-30 (J-629). SUPERSEDED TEXT ANNOTATED, NOT ERASED.** They read *“Head counts asserted **1 + 19 / 51 / 24**; spans sum to **124,299** with no gap or overlap.”* ⚠️ **`24` IS THE C COUNT P1 REFUTED AT J-627**, and ⚠️ **the sum-assertion is the by-construction one struck from §3.4 at J-628 — it survived here unchanged.** 🔑 **J-628 FIXED THE SECTIONS IT WAS LOOKING AT RATHER THAN THE DOCUMENT** — this arc's named defect class (*a claim narrower than the thing it describes, reused as if complete*), committed inside the entry that names it. ⇒ **A CORRECTION IS NOT APPLIED UNTIL THE WHOLE FILE HAS BEEN SEARCHED FOR THE CLAIM BEING CORRECTED.**
 - [ ] All four B stubs read individually and classified.

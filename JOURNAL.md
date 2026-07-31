@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-632 — the corrections themselves went stale, and §6 was wrong for the third consecutive pass
+
+**Date:** 2026-07-31 · **Seat:** Chat (records, verification). Provenance **DELEGATED** — Joe: *what is the next?* then *go on 1), as you recommend*, closing **two**: ① **repair before P3** ② the `D-135` §5 clause **drafted**. 📌 **② taken as delegated DRAFTING only — `D-135` was LOCKED at J-631, so §5a is written as REVERSIBLE and awaiting Joe's ruling.** No code.
+
+🛑 **P3 WAS BLOCKED BY MY OWN WORK, AND I FOUND IT ONLY BECAUSE I RE-READ §5 AND §6 INSTEAD OF DESCRIBING THEM FROM MEMORY.** Asked what came next, the honest answer required reading the two sections P3 depends on. **Seven live claims still carried refuted figures** — including **§6's Definition of Done, the checklist Leg E is measured by**, still demanding `1 + 19 / 51 / 25 + 1 = 97 heads` and `93 records`.
+
+🔑 **AND THE STALE CLAIMS WERE NOT THE ORIGINAL ONES — THEY WERE MY OWN CORRECTIONS.** Every one of the seven was written **by the J-629 sweep** as an annotation reading *“✅ CORRECTED: … 97 heads · 93 records”*. **True when written. Superseded four hours later by J-630's `94 / 90`.** The sweep hunted the OLD figures — `13`, `24`, `95 / 91` — and **never considered that its own replacement figure would move.** ⇒ **`D-135` §5a drafted: THE SWEEP RUNS ON BOTH THE SUPERSEDED VALUE AND THE REPLACEMENT. An annotation asserting a corrected value is a live claim and decays exactly like the claim it corrects.**
+
+🛑 **A LINE CAN BE ANNOTATED AND STILL BE FALSE.** My line-scoped detector reported `ann=True` on §5 L218 (*“C's **12** non-closure heads”*) because the block **does** carry a correction — **the wrong one**, about the `13 → 12` move rather than the `12 → 9` one. ⚠️ **Presence of an annotation is not evidence that the CURRENT figure is annotated.**
+
+🔑 **§6 HAS NOW BEEN WRONG AT THREE CONSECUTIVE PASSES — J-629 found `24`, J-632 found `97` — AND THAT IS NOT COINCIDENCE.** 📌 **§6 sits past the working sections and is never the section in hand.** ⇒ **A figure change is swept across the record set MECHANICALLY, never from memory of which sections carry it.**
+
+**REPAIRED, ALL ANNOTATED AND NONE ERASED:** `§1a` row C (**25 raw matches, 22 genuine + 1 emoji = 23**; span 13,811 unaffected) · `§5` L218 (**12 → 9** — all three false heads were non-closure, so the closure-bearing **14 never moved**, and **the J-623 DECISION is untouched: only the count changed**) · `§5`'s own correction note (**`14 / 12` → `14 / 9`**) · `§6` DoD (**94 heads · 90 records**) · `M_DOC` §8-E × 3, including the *“fifth shape … the FIRST ONE TO SURVIVE A RE-RUN”* claim — 🔑 **written BEFORE the re-run that broke it: a prediction recorded in the past tense.**
+
+⚠️ **AND TWO DEFECTS IN THIS SESSION'S OWN EDITS, BOTH CAUGHT ON READ-BACK BEFORE COMMIT:** ① I typed **`2026-07-32`**, a date that does not exist ② the §1a annotation was inserted **between two table rows**, splitting the markdown table in half. 📌 **Both found by reading the returned diff — the same mechanism that caught the two at J-630. Reading the diff is now the only control that has never failed this arc.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/RUNBOOK_ROADTREE_LEGE.md` v1.5 → **v1.6** · `tasks/M_DOC_ROADTREE.md` v1.31 → **v1.32** · `DECISIONS.md` — **`D-135` §5a DRAFTED, delegated and reversible** · `docs/ROADMAP.md` v6.20 → **v6.21** · `CLAUDE.md` PLAY head · this entry. **No new D, no new N.**
+
+**Next-active.** 🟢 **Leg E P3 — the move into `CLAUDE_HISTORY.md`, now UNBLOCKED: §5 and §6 are clean.** 🔓 **Joe: `D-135` §5a — confirm, amend or discard.**
+
+---
+
 ## Entry J-631 — `D-135` locked
 
 **Date:** 2026-07-31 · **Seat:** Joe (ruling) · Chat (records). No code, no measurement.

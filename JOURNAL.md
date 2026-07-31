@@ -8,6 +8,120 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-640 — the §6a pass widened, the Spaces tree is a local ledger, and two recovery-anchor claims were false
+
+**Date:** 2026-07-31 · **Seat:** Joe (delegation: *go as you recommend*; then three direct asks) · Chat (grounding, measurement, records). No code.
+
+**State verified at open, independently:** HEAD `044b2e6` = `origin/main`, tree clean; all **eight** kickoff sizes and line counts reproduced EXACTLY; ports 9222 · 9322 · 9422 · 5173 free; `git diff a715ccb..HEAD -- ui/` and `git diff 044b2e6..HEAD -- ui/` both EMPTY.
+
+---
+
+### ✅ §6a CLASSIFICATION — WIDENED ON JOE'S CALL, AND THE WIDENING WAS THE POINT
+
+The test was made concrete before any row was written: the Spaces panel renders exactly **five fields plus three per room** (`spaces-state.svelte.ts:20-32`, a verbatim mirror of `xgen-common/src/state.rs:185`). Every verdict is *does this event's applier touch one of those eight*, read out of `xgen-core/src/space/state.rs`.
+
+🛑 **THE FRAME WAS WRONG BEFORE THE ROWS WERE.** `state.*` is not the predicate the question needs. `wire.rs::as_str()` carries **59 event strings across 11 namespaces**; §6 accounts for 26. **Thirty-three events in nine namespaces were never inside §6a's frame at all**, including the three `dm.*` siblings of the very event flagged as a Spaces-tree suspect. ⇒ widened to *every wire event that can mutate `KnownSpace`* — **17 rows**.
+
+🔑 **TWO MISSING CONSUMERS, both with a named content field:**
+- **`state.dm_promote`** → `apply_dm_promote` (`:659`) sets **`self.name`** ← `content["new_name"]`. ⇒ a promoted DM renders as *"DM with &lt;xgid&gt;"* forever.
+- **`state.space_migrate`** → `apply_space_migrate` (`:1159`) sets **`self.home_node`** ← `content["destination_node_id"]`. ⇒ `node_endpoint` shows the old node after cutover.
+
+✅ **SEVEN GENUINELY IGNORABLE, reverse-tested not assumed:** `federation_add` → `federation_nodes` · `node_priority` → `node_priority_order` · `space_pacing` · `space_temperature_visibility` · `ai_operator_delegate`/`revoke` · `mls_group_init` → `room.mls_epoch`. **None writes a `KnownSpace`/`KnownRoom` field.** ✅ **And the widening came back clean:** `dm.promote_propose · confirm · reject` have **ZERO arms** in the Space state machine — the negotiation that culminates in `state.dm_promote`. Proven, not assumed.
+
+🛑 **AND `D-135` ② HIT TWO OF THE FIVE ROWS §6 ALREADY HAD.** `state.space_update` is `=> Ok(())` — the dispatch comment says *"remains the SR-F2 no-op (no content schema yet)"*. `state.room_update` reads **only** `permission_overrides`; its comment says *"Room name/topic content stays deferred"*. §6 rows both as *"update the existing entry in place"*. **There is nothing to update in place** — a third verdict, neither consumed nor cleanly ignorable. 📌 Independently corroborated from `docs/`: `state.space_update` has **1** reference in the whole doc tree; the other thirteen run **7 to 81**.
+
+---
+
+### 🛑 THE SPACES TREE IS NOT A VIEW OF SHARED STATE — IT IS THE CLIENT'S OWN LEDGER
+
+`get_spaces` → `ops::spaces` (`:246`), whose own doc says **"a zero-network local read"** of `xgen-client_state.json`. Every production writer is the user's own action: `create_space` `:647` · `create_room` `:732` · DM create `:953`. Measured on the two fields a router would have to invent:
+
+- **`role`** — two production writers, **both hardcoded `"owner"`**. No path ever writes admin/moderator/member.
+- **`joined`** — `joined: false` has **ZERO production writers**. Both live sites (`:735`, `:961`) write `true`; the only `false` is `ops.rs:3144`, inside `#[cfg(test)]` (opens `:2989`).
+
+⇒ three consequences for Leg B, none visible in the frontend-only surface §7 assigns it: **(1)** the router writes memory while the fill reads disk ⇒ a live-routed Space or room **vanishes on restart**; **(2)** `N-107` one level out — two writers of one logical object; **(3)** a routed room must choose `role` and `joined`, and **both are unfed constants** — defaulting `joined: true` is Leg A's R1 trap on the other panel. **Chat recommended B3** (Leg B stays frontend-only; persistence and the feeders spawn separately), on §7's own attribution argument: every leg here moves `svelte-check`, and the moment one moves `cargo` a regression stops being attributable. 🔓 **Open, Joe's.**
+
+---
+
+### 🔑 "WHAT `state.*` ARE DEFINED?" — THREE ANSWERS THAT DISAGREE
+
+**As wire strings — 14 of 14.** **In the spec — 14 of 14**, one prose line each, `docs/xgen_appendix_i_en.md:92-119`. **As Rust content types — 4 of 14, and ALL FOUR ARE TEST-ONLY.** `wire.rs` holds exactly five `*Content` structs (`:581 · :592 · :610 · :702 · :712`); every construction site outside the declarations is `xgen-core/src/wire/types.rs` `:1671 · :1684 · :1715 · :1728 · :1843 · :1854`, and `#[cfg(test)]` opens at `:931`. The `types.rs:14-17` hits are a `pub use` **re-export** — an import, not a definition (`J-601`).
+
+⇒ **zero production construction, zero production parse.** `Event.content` is `pub content: Value` (`wire.rs:487`); every applier reads by string key off raw JSON. 🔑 **So §6-i's `target_identity` note was narrower than the thing it describes** — it reads as a quirk of `kick`/`ban`/`node_eject`, and in fact **there is no typed event content anywhere in production.** The defensive read is the general rule.
+
+⚠️ **AND THE CATALOGUE CONTRADICTS THE CODE ON A ROW §6 RELIES ON:** Appendix I `:95` promises `state.room_update` carries *name, topic*; the applier carries neither. In a protocol project the spec is the deliverable, so this is the spec ahead of the code.
+
+---
+
+### 🛑 THE MEMBERS PANEL — ONE `state.*` REACHES IT, THROUGH A FIELD IT CANNOT CHANGE
+
+Joe narrowed the question to the members panel. Its fill is `members_projection` (`ops.rs:2645`) → `derive_resolved`, reading **three** things off `SpaceState`: `members`, `owner_id`, `is_dm`.
+
+✅ **`self.members` has exactly FIVE write sites, all `membership.*` appliers** (`:1023` insert · `:1043 · :1070 · :1090 · :1115` remove), all above `#[cfg(test)]` at `:1956`. **No `state.*` applier writes `members`.** ⇒ §6a's *"Leg A's surface is closed"* is now confirmed by a **second, independent route** — a write-site census on the field, not a namespace partition.
+
+🛑 **BUT `owner_id` AND `is_dm` ARE NEVER WRITTEN BY ANY APPLIER** — construction only (`is_dm: false` `:320`; `is_dm: true` `:451`, `:567`). `apply_dm_promote` clears `dm_constraints_active` (`:664`) and **leaves `is_dm` true**. The two are documented asymmetrically: `:238` says *"True for DM Spaces until `state.dm_promote` is applied"*; **`:194` carries no doc comment at all**, while its neighbour `:195` spells out deliberate immutability in full.
+
+⚠️ **SHIPPED DEFECT, USER-VISIBLE:** `members-panel.svelte:119-123` highlights the DM counterpart iff `isDm`, via `roster.find(m => m.identity_id !== selfId)`. After promotion the highlight persists, and at three or more members it marks **an arbitrary person** as the one you are talking to. **Not a live-routing gap** — the fill re-derives it identically, so a restart does not clear it. 🔓 **Joe's, and Chat declined to guess:** whether `is_dm` is provenance (*born a DM* ⇒ fix the panel, carry `dm_constraints_active` on `MembersResult`) or state (*is a DM* ⇒ fix the applier, moves the **cargo** floor). 📌 **Its own milestone, not a rider on Leg A.**
+
+---
+
+### ✅ THE DOC-LOSS AUDIT JOE ASKED FOR — NOTHING WAS LOST
+
+| Test | Result |
+|---|---|
+| files deleted, `roadtree-pre-legc..HEAD` | **exactly one** — `docs/ROADMAP_ARCHIVE_2026-07-26.md` |
+| its blob | **alive** — `fae62bd78d`, **749,428 B**, at `78d44f9` |
+| members-related lines in the 761,422 B pre-consolidation ROADMAP | 19 |
+| the JOURNAL entries those 19 blocks cite | **14 of 14 present in live `JOURNAL.md`** |
+
+⇒ the ROADMAP chronicle blocks were narrations **of** journal entries, all of which survive. `docs/ROADMAP.md` went 19 hits → 1 because it became a state board.
+
+### 🛑 TWO FALSE CLAIMS IN THE RECOVERY-ANCHOR BLOCK, BOTH CORRECTED THIS ENTRY
+
+1. **The pointer.** The head said the deleted archive is *recoverable at `0466cb2`*. **It is ABSENT there.** Correct anchor `78d44f9` (= `616b548^`) — and that commit is where the file was **created** (1,023 lines added, inside the milestone), so it was never inherited material.
+2. **The annotation warning.** The head said the tag annotation *"SAYS 758,913 / 645,586 — BOTH WRONG"*. **The annotation says no such thing** — it states 761,422 B, blob `cef373f`, deletes 648,095, leaving ~113,327, and **all four re-measured correct**. The warning told future readers to distrust the one artifact that is accurate.
+
+🔑 **BOTH SIT IN THE SAME PARAGRAPH, AND THAT IS THE FINDING: the recovery-anchor block is the least-exercised prose in the record** — nobody reads it until something has already gone wrong — **so its errors never surface under normal use.**
+
+### 📌 REVISION AROUND THE TAG — THE PRECISE NUMBERS (Joe asked; recorded in `CLAUDE.md` too)
+
+M-DOC-ROADTREE opened at `78d44f9`; **four commits landed BEFORE the tag** (`78d44f9 · ec0d305 · c44eb1d · 1c3f3d1`) ⇒ **the tag is not before all doc work.** But all four were **ADDITIVE**: **1,747 / 132 / 162 / 273 insertions against 2 / 3 / 14 / 13 deletions.** **Leg C (`99786fe`) is where it inverts: 100 insertions, 619 deletions.** ⇒ 🔒 **the tag is the moment before anything was REMOVED.** ✅ **And it costs zero code:** `ui/` · `xgen-common/` · `xgen-core/` · `xgen-client/` · `xgen-node/` · `Cargo.toml` are **ALL BYTE-IDENTICAL** between the tag and HEAD; all 41 commits since changed **documents only**.
+
+---
+
+### ✅ NEW RECORD — `tasks/AUDIT_MEMBERS_PANEL.md` (Joe: *"give me what we have in the human language"*)
+
+The J-number listing gave Joe nothing, which is the correct verdict on it. **v1.1, ACTIVE, pure LF** — the members panel read out of ~15 documents and the shipped code and stated **without project shorthand**: purpose and the permanent no-multi-select prohibition · what is shipped · the two data sources and why membership is unavailable offline · the locked decisions grouped by subject · the five panel states in Joe's wording · why the unbounded fill makes the waiting state unsayable and can deadlock the `FillLock` · the DM model · two built-but-unreachable ops verbs · why the roster is frozen · open items split into Joe decisions and owed measurements.
+
+### 🔑 AND THE AUDIT FAILED ITS FIRST QUESTION — WHICH IS THE REAL FINDING OF THE SESSION
+
+Joe asked where the panel's switchable display states — **lines / avatars / gallery** — are recorded. **They exist, fully:** `tasks/M_RP_REGION_GEAR.md` v1.0 PENDING, design-walked 2026-07-17, §4 *"First behaviour tenant — Rooms **show rooms as: lines | avatars | gallery**"*, with the three-layer split (gear → `settingsComponent` → render variants, the last named *"the largest piece"*). **Members is named exactly once**, in §4's closing line, as a filed generalisation candidate.
+
+**Nothing was lost. It was unfindable.** Two search predicates missed it, and so did the audit — because it lives in a milestone about a **gear**, and no members document cross-references it. 📌 Grounded: `entity-item` carries `row · card · nav · inline`; `entity-panel.svelte:155` **hardcodes `variant="row"`** for every consumer; **`gallery` has zero occurrences in `ui/`**. Design only. §4.6 added to the audit.
+
+🔑 **THE SHAPE, NAMED:** *the consolidation removed one file, recoverably. What it cannot fix is that a design spread over three naming generations is invisible to a search phrased in the current one.* Same species reached `tasks/M6_CLIENT_MEMBERS_DESIGN.md` — `PENDING`, still posing as open a fork the shipped code answered.
+
+---
+
+### ⚠️ FOUR OF MY OWN PROBES FAILED, ALL CAUGHT BY CROSSING THEM
+
+1. `git show … > file` under PS 5.1 writes **UTF-16LE + CRLF** ⇒ reported the tag's ROADMAP as **1,495,768 B**. Artifact, not a file. Killed by `git cat-file -s` = 761,422.
+2. **`git rev-parse` ECHOES ITS ARGUMENT** when the path does not exist ⇒ a truthy value that read exactly like *present*. Betrayed only by not looking like a 40-hex blob. Re-tested with `git cat-file -e` and its exit code.
+3. A date arithmetic call returned **739,828 days** — measuring from year 0001 because the git call came back empty. Not reported.
+4. The first inventory predicate (`members-panel|M-RP-MEMBERS`) returned 20 files; widened, 35 — and **still missed both** `M6_CLIENT_MEMBERS_DESIGN.md` and `M_RP_REGION_GEAR.md`.
+
+📌 **Candidate `N`, NOT minted (Joe locks):** *a record that is only read during recovery is a record whose errors are invisible in normal operation — it must be exercised, not maintained.*
+
+---
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**. ⚠️ The first code leg must re-measure rather than inherit them.
+
+**RECORDS.** `CLAUDE.md` recovery-anchor block corrected (both false claims annotated, not erased — `D-131`; the tag revision figures added) · **NEW** `tasks/AUDIT_MEMBERS_PANEL.md` v1.1 ACTIVE · this entry. **No new D, no new N.**
+
+**Next-active.** 🟡 **`M-RP-LIVEFEED-REFRESH` Leg A** — runbook v1.3 ACTIVE, grounding re-verified. 🔓 **Standing Clair up is Joe's.** Then §6a's 17 rows into `M_RP_LIVEFEED_REFRESH.md` §6/§6a, which gates Leg B's runbook. 🔓 **Joe, unchanged:** the parent's §5 reconnect rule · `D-135` §5a · `M-DOC-BACKFILL`'s title and ID · the resync and outbox sibling names · Leg B's B1/B2/B3 scope · the `is_dm` provenance-or-state ruling.
+
+---
+
 ## Entry J-639 — the runbook heading that lied, and the §6a census: 14 is right, 16 is a different namespace
 
 **Date:** 2026-07-31 · **Seat:** Joe (delegation: *go by your recommendations*) · Chat (records, measurement). No code.

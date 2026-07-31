@@ -8,6 +8,95 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-637 — Leg F, the bidirectional sweep: the nine were the wrong test case, and 88 items are off the board
+
+**Date:** 2026-07-31 · **Seat:** Joe (three locks: scope F-b′, then the narrowing to (A), then the spawn ID) · Chat (measurement, records). No code.
+
+🔑 **THE LEG THAT WAS PREDICTED TO GROW GREW, AND THEN THE SCOPE WAS CUT BACK ON JOE'S QUESTION.** Every prior leg of this milestone thinned on contact with its own grounding — B-ter dissolved, Leg H's *24 missing* was 5, the twelve were already done. **Leg F is the first to go the other way**, because it asks the inverse question nothing had ever tested: not *is every roadmap entry true* but **is every known work item ON the roadmap at all.**
+
+🛑 **THE LEG'S OWN DEFINITION DISAGREED WITH ITSELF, AND §9 CERTIFIED THE NARROWER HALF.** §8's first sentence names an unbounded sweep; its *Surface* line names **nine threads from the 2026-07-26 session** and calls them *"the natural test case for whether the sweep works"*; §9's DoD then requires only the nine. ⇒ **a DoD narrower than the leg it closes** — this arc's recurring defect class, sitting in the definition of the leg that exists to catch it.
+
+---
+
+### ✅ THE NINE, DISPOSED FROM THE RECORD — §9's DoD ITEM DISCHARGED
+
+| Thread | Disposition |
+|---|---|
+| `M-RP-LIVEFEED-REFRESH` | ✅ **PRESENT** — node + six legs, gained at J-616 |
+| `NegotiatedCapabilities` | ✅ **EXPLICITLY DECLINED** — *"PROPOSAL WITHDRAWN, NOT WEAKENED"* (J-601) |
+| the address-book eviction question | ✅ **ANSWERED, not a work item** — J-601 measured **zero production callers**; a finding feeding H1 |
+| **H1** · **H2** | **Declined by kind** — J-598: *"H1 and H2 are Joe's and belong to neither current milestone."* Decisions, not work |
+| `D-130` | **Declined by kind** — belongs in `DECISIONS.md`; number and wording Joe's |
+| the Ch0–Ch2 thesis read | **Carried** — already on §11's *Chat owes, carried* |
+| 🛑 the resync sibling | **ABSENT** — `M_RP_LIVEFEED_REFRESH.md` proposes `M-RP-RESYNC — message catch-up after a connection gap`; **name 🔓 Joe's since J-598** |
+| 🛑 the outbox | **ABSENT AND UNNAMED** — a design lock inside that same task doc (purge on `accepted`, keep on everything else); no ID at all |
+
+**1 present · 2 declined on measurement · 3 declined by kind · 1 carried · 2 genuinely absent = 9 ✔**
+
+🔑 **AND THE SWEEP'S REAL FINDING IS THAT THE NINE WERE THE WRONG TEST CASE. SIX OF THEM WERE NEVER ROADMAP-SHAPED** — two are Joe's decisions, one is a `DECISIONS.md` entry, one is an owed read, two were already disposed by later entries. **A test case chosen from one session's open chat threads tests the sweep against the one category of thing least likely to be a roadmap node.**
+
+---
+
+### 🛑 THE DESIGNATION CENSUS — THE DIRECTION THAT ACTUALLY PAID
+
+**Method, per `D-135`.** Wide predicate first: **258** tokens, read individually — most were lowercase prose (`m-dash`, `m-gap`) matching case-insensitively. Bounded, case-sensitive re-run: **147**. The residue read for false positives: `M-RP6` and `M-RP-7` are regex splits with no standalone hit; **`M-TO-TOP` is `BOTTOM-TO-TOP`**. ⇒ **144 real designations.**
+
+| | |
+|---|---|
+| Live designations (`CLAUDE.md` + `tasks/*.md`) | **144** |
+| Appear in `docs/ROADMAP.md` in any form | **15** |
+| 🛑 **Carry a state-board node of their own** | **2** — `M-DOC-ROADTREE` and `M-RP-LIVEFEED-REFRESH` |
+
+**The other 13 are not nodes:** 4 are roll-up names · 1 (`M-RP-MEMBERS`) is a mention inside another node's text · **8 exist only inside two `>` blockquotes parked at the end of `## Cross-cutting`** — a section the document itself defines as *"continuous rather than milestone-shaped"*. **`M-RP-SHELF-FRAME` (DONE J-530) and the entire closed `M-RP-SETTINGS` arc (J-534 → J-540) live there, off the board.**
+
+**The 129 absent, partitioned — and the partition closes independently:**
+
+| Bucket | Count | Verdict |
+|---|---|---|
+| Collapsed into the five M-RP2–5 roll-ups | **50** | ✅ **Not a defect** — the tree's own preamble sanctions it: *"Past entries are collapsed to milestone-level depth."* **This is the measurement that sized the leg: representation, not absence** |
+| 🛑 M-RP6.x + M-RP7.x + M-RP8 | **32** | **No roll-up, no node, nothing** — the entire shipped client UI: the frame, the grid, the dock engine, the plugin registry, the UI-state store |
+| Named `M-RP-*` milestones | **39** | `SKIN` · `PLATE` · `ROVING` · `FOCUS` · `RESTART` · `ROOM-HEADER` · `ADDRESS-BOOK` · `PANEL-INERT` · `SELF-SURFACE` · `WINSTATE` · `RESYNC` · … |
+| Non-RP | **6** | `M-SEC-TLS` · `M-SEC-AUTHSESS` · `M-BLOB-PLANE` · `M-AUTH-TIMEOUT-CONFIG` · `M-CONFIGURABLE-VALUES` · `M-TRANSPORT-TIMEOUT-CONFIG` |
+| In the roll-up era but outside it | **2** | see ① below |
+
+**50 + 32 + 39 + 6 + 2 = 129 ✔** — derived by classifying the list, **not** as a remainder, so it could have failed.
+
+---
+
+### 🛑 FOUR FINDINGS THE SWEEP PRODUCED ON ITS OWN
+
+**① `M-RP2.23` FALLS IN THE GAP BETWEEN THE TWO ROLL-UP RANGES.** Atomics reads `2.3–2.21, 2.30–2.31a`; composites reads `2.22, 2.24–2.29`. **2.23 is in neither**, and the record names it (`J-446`, `password-field`). `M-RP4.9` is likewise outside its roll-up's stated contents. 🔑 **A roll-up with a hole reads exactly like a roll-up without one** — which is the argument against extending the roll-up treatment to the live arc.
+
+**② 🛑 `M-RP6.1m` IS RECORDED ⏸️ POSTPONED, AND IT SHIPPED.** J-513 filed it *"⏸️ POSTPONED, NOT NEXT: four buttons, ZERO live feeders."* `M-RP-SETTINGS` **Leg B (J-537)** then shipped the plugin action row and says in the record, verbatim: ***"this IS M-RP6.1m."*** 🔑 **A milestone sitting POSTPONED in the live head while its work shipped a fortnight later under another milestone's name — and nothing adjacent to either record said so. That is the M-RP6.2 originating defect, second instance**, and it was invisible to every check this milestone has run, because all of them asked *is the entry true*, never *is the work on the board*. 📌 **The correction lands in the new records; the dated J-513 and J-537 blocks are contemporaneous accounts and are NOT back-edited (`D-135` §5).**
+
+**③ `M-RP6.1e-B1` HAS 11 MENTIONS AND NO CANONICAL RECORD OF ITS OWN.** Its six siblings (`-A · -B · -C · -C1 · -C2 · -C3`) each head their own JOURNAL entry. ⇒ **it rolls into `-B` or it gets no node; it does not get an invented link** — §4c's precedent, where §3's link rule was amended precisely because applying it literally would have forced *invent a link or declare loss*.
+
+**④ THE M-RP6/7 SURFACE IS 41 NODES, AND THE FIGURE MOVED TWICE UNDER ONE SESSION'S PREDICATES.** **32** (from `CLAUDE.md` + `tasks/`) → **35** (union including `CLAUDE_HISTORY.md` and `JOURNAL.md`; **`M-RP6.0d` was invisible to the first source set**) → **41** (`M-RP6.1e`'s lettered children, a form `M-RP[67]\.[0-9]+[a-z]?` cannot match). **State: 35 ✅ CLOSED · 6 open** — `6.1m` · `6.4` R7 Members · `6.5` R4 room heat · `6.7` pong timeout · `6.8` view-latch · `7.7` node inherits frame+grid. **Every open one already carries its trigger in the record; none had to be invented.** 🛑 **`32` AND `35` ARE DEAD AS PLANNING NUMBERS — ANNOTATED, NOT ERASED.**
+
+---
+
+### ⚠️ TWO DEFECTS OF CHAT'S OWN, BOTH CAUGHT BEFORE ANYTHING WAS BUILT ON THEM
+
+**① *"The 32 can be sourced from the PLAY head, which already holds every close and J-ref"* — FALSE.** `CLAUDE.md` holds **17** distinct M-RP6/7 designations; `CLAUDE_HISTORY.md` **33**; **`JOURNAL.md` 35**. Legs D and E drained that head by design, and the claim was written **in the same session that read both closes.** 🔑 **The arc's own defect class — a claim narrower than the thing it describes — in a sentence about sourcing.** The chronicle is the source, which is what §3's *canonical record* rule already said.
+
+**② 🛑 THE 41-NODE PROPOSAL FOLDED THE BACK-FILL INTO LEG F, AGAINST A DIVISION ALREADY WRITTEN IN THE DOCUMENT OPENED THIS SESSION.** §11's open item ② reads, verbatim: *"**the back-fill milestone's name** — belongs to Leg F's **sweep**."* ⇒ **Leg F is the sweep; the back-fill is its own milestone.** 🔑 **Caught by Joe's question — *"those are still documentations' consolidation legs, arent they?"*** — not by any re-reading. **Same shape as J-634: agreeing with an answer is not the same as knowing it exists.** 📌 **And *consolidation* was the wrong verb: C, D and E all REMOVED (761→43 KB · 640→316 KB · the 124,299-char line moved out). Leg F ADDS. It is a completeness sweep, and it found a project-state defect (②), not a documentation one.**
+
+---
+
+🔒 **SCOPE RULED IN THREE STEPS (Joe).** ① **F-b′** — M-RP6.x/7.x first, the remainder to a bounded successor. ② **(A)** — after the question above, **Leg F is the sweep ONLY**; the authoring routes out. ③ **the spawn ID blessed.** 📌 **The middle lock reversed a Chat proposal that had already been approved at 32 nodes — recorded as a narrowing on the record, not as a change of mind about cost.**
+
+🟡 **`M-DOC-BACKFILL` — the milestones that were never on the board. SPAWNED. ⚠️ ID PROVISIONAL under Rule 8 (`M-RP-DIALOG-CHROME` precedent); title and ID both remain Joe's.** Scope: **~88 designations** (41 M-RP6/7 · 39 named `M-RP-*` · 6 non-RP · the 2 absent threads) · `M-RP6.1m`'s corrected state · `M-RP2.23`'s roll-up gap · `M-RP6.1e-B1`'s missing record · the two closed milestones parked in `## Cross-cutting`. ↳ **trigger: none — filed, not scheduled.** 🔑 **IT DOES NOT GATE LEG G, WHICH IS THE WHOLE POINT OF THE NARROWING** — the UI track is queued behind this milestone, and the sweep's value was the discovery, not the transcription.
+
+📌 **LEG D SHIPPED NO PLAY BLOCK, DELIBERATELY — THAT REASON IS SPENT AND LEG F SHIPS ONE.** The omission was P2, delegated 2026-07-28: adding a block to the head Leg D existed to drain would grow the defect it was closing. **`CLAUDE.md` is now 256 KB with zero lines over 20,000** ⇒ the condition no longer holds. **Recorded so the difference is never read as drift.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**RECORDS.** `tasks/M_DOC_ROADTREE.md` v1.36 → **v1.37** (§8 Leg F results + CLOSED · §9 DoD ticked · §11 refreshed) · `docs/ROADMAP.md` v6.25 → **v6.26** (Leg F ✅ · `M-DOC-BACKFILL` spawned) · `CLAUDE.md` PLAY head · this entry. **No new D, no new N.**
+
+**Next-active.** 🟡 **Leg G — records + close.** 🛑 **Its own DoD item first: the remaining ~470 KB of `docs/ROADMAP_ARCHIVE_2026-07-26.md` has never been audited, and Leg G deletes the whole file.** 🔓 **Joe: `D-135` §5a (confirm / amend / discard) · the `M-DOC-BACKFILL` title · the resync sibling's name · the outbox sibling's name.**
+
+---
+
 ## Entry J-636 — Leg H, what the census could not see: the 24 was always 5, and Leg H closes
 
 **Date:** 2026-07-31 · **Seat:** Joe (title) · Chat (measurement, records). Provenance: Joe titled it **“what the census could not see”** from Chat's second-choice recommendation, having rejected *“the five that were never twenty-four”* on Chat's own caution — 📌 **two numbers baked into a title, in an arc where both had already moved.** No code.

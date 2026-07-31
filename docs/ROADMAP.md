@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.25  
+> Version: 6.26  
 > Date: May 2026  
 > **Last updated**: 2026-07-31  
 > Language: English  
@@ -353,7 +353,14 @@ XGen Protocol
 │   │   ↳ 🛑 **NO UNIFORM RECORD HEAD EXISTS** — each region needs its own predicate AND a second independent one to check it; **five successive passes each came from trusting one**, and §3's assert-and-STOP is what finally caught the fifth
 │   │   ↳ 🛑 `82` retired (J-622); **16** B↔C collisions (📌 **superseding `11`, J-629**) read pair by pair — the original eleven **8 B ⊃ C · 2 C ⊃ B · 1 divergent**, the five added **4 B ⊃ C · 1 C richer** ⇒ NO mechanical merge; **deletes nothing without a per-pair hand verdict**. 📌 **THAT SPLIT IS ITSELF SUPERSEDED BY `11 · 3 · 2` (J-630) — kept, not erased: the eleven were re-read and J-456 moved from `B ⊃ C` to DIVERGENT, J-448 was refined**
 │   │   ↳ ⚠️ identify the line BY CONTENT, not position — it moved L29 → L25 at J-619. ⚠️ **key extraction is UNSOUND for C's 4 forward-looking heads** (first `(J-nnn)` there is a citation, not an identity) — no false collision resulted, all 16 read on both sides, **but not to be reused blind**. ⚠️ **one hand verdict flagged as a judgement: @116,587 opens after a semicolon, admitted on head form**. 🟡 **Next: P3 — the move into `CLAUDE_HISTORY.md`, under §5 and the §4r verdicts**
-│   ├── 🟡 **Leg F bidirectional sweep** — is every known work item ON the roadmap, not just is every entry true · J-617
+│   ├── ✅ **Leg F bidirectional sweep** — is every known work item ON the roadmap, not just is every entry true · **CLOSED J-637** (J-617) → `M-DOC-BACKFILL`
+│   │   ↳ 🛑 **THE SWEEP RAN; THE AUTHORING WAS NARROWED OUT OF IT (Joe).** The value was the discovery, not the transcription — **the back-fill is its own milestone and does NOT gate Leg G**
+│   │   ↳ 🛑 **§8's definition disagreed with itself: an unbounded sweep in sentence one, nine threads as *test case* in the Surface line, and §9 certified only the nine** — a DoD narrower than the leg it closes
+│   │   ↳ ✅ **the nine disposed** — 1 present (`M-RP-LIVEFEED-REFRESH`) · 2 declined on measurement (`NegotiatedCapabilities` withdrawn J-601 · address-book eviction answered J-601) · 3 declined by kind (H1 · H2 · `D-130`) · 1 carried (Ch0–Ch2 read) · **2 absent** (the resync sibling · the outbox)
+│   │   ↳ 🔑 **six of the nine were never roadmap-shaped** — a test case drawn from one session's chat threads tests the sweep against the category least likely to be a node
+│   │   ↳ 🛑 **144 live designations · 15 appear in this file in any form · TWO carry a node of their own** — `M-DOC-ROADTREE` and `M-RP-LIVEFEED-REFRESH`
+│   │   ↳ ✅ **the 50 M-RP2–5 absences are NOT a defect** — collapsed by this tree's own preamble (*Past entries are collapsed to milestone-level depth*). **That measurement is what sized the leg: representation, not absence**
+│   │   ↳ ⚠️ **`32` and `35` are dead as planning numbers** — `M-RP6.0d` was invisible to the first source set, `M-RP6.1e`'s lettered children to the predicate; the M-RP6/7 surface is **41**. Annotated, not erased
 │   ├── ✅ **Leg H what the census could not see** — **TITLED + CLOSED J-636** · spawned J-635 as B-ter's successor · ran before Leg G as required
 │   │   ↳ ① **re-run the J-001–J-598 census under `D-135` §1①** — every figure from the old one is suspect ② **resolve `J-171`** — no `#`-heading in either journal; a non-heading form was never tested ③ **verify J-603's second recovery pass, the twelve `Past` entries with no journal record**
 │   │   ↳ ✅ **ALL THREE RESOLVED BY MEASUREMENT (J-636); NOTHING AUTHORED**
@@ -367,6 +374,16 @@ XGen Protocol
 │       ↳ 🛑 **RE-POINTED, NOT LIFTED (J-635): LEG G MUST NOT RUN BEFORE LEG H.** The six-bodies justification is false and stays annotated; **the constraint survives on a live reason — the twelve are unverified**
 │       ↳ ✅ **LEG H RAN AND CLEARED (J-636) — the twelve reason is discharged too.** 🛑 **STILL BLOCKED, on a third and narrower ground: only `Past — settled` was audited; the remaining ~470 KB of that archive never was, and Leg G deletes the whole file** ⇒ **the audit is Leg G's own DoD item.** 🔑 **Three justifications offered, two wrong — the constraint itself right every time**
 │       ↳ ⚠️ F and G were `Leg E`/`Leg F` in the task doc and had NO node here until J-617; `E` collided
+│
+├── 🟡 **M-DOC-BACKFILL** — the milestones that were never on the board · J-637
+│   ↳ trigger: none — filed, not scheduled
+│   ↳ ⚠️ **ID PROVISIONAL (Rule 8)** — title and ID both Joe's; spawned by Leg F's sweep, not by a naming pass
+│   ↳ 🛑 **scope ~88 designations** — **41** M-RP6.x/7.x (**no roll-up, no node: the entire shipped client UI**) · **39** named `M-RP-*` · **6** non-RP · **2** absent threads
+│   ↳ 🛑 **`M-RP6.1m` is recorded ⏸️ POSTPONED AND IT SHIPPED** under `M-RP-SETTINGS` Leg B (J-537, *"this IS M-RP6.1m"*) — **the M-RP6.2 originating defect, second instance**
+│   ↳ ⚠️ **`M-RP2.23` falls between the two M-RP2 roll-up ranges** (atomics `2.3–2.21, 2.30–2.31a` · composites `2.22, 2.24–2.29`); `M-RP4.9` likewise sits outside its roll-up's stated contents
+│   ↳ ⚠️ **`M-RP6.1e-B1` has no canonical record** — rolls into `-B` or gets no node. **No invented link** (§4c's precedent)
+│   ↳ ⚠️ **`M-RP-SHELF-FRAME` and the closed `M-RP-SETTINGS` arc live in `## Cross-cutting`**, a section this file defines as *continuous rather than milestone-shaped* — wrong section, no node
+│   ↳ 🔑 **GATES NOTHING** — `M-DOC-ROADTREE` may close without it
 │
 ├── ⏸️ **Parallel workstreams**
 │   └── ⏸️ **Slovak translation pass** — first touchpoint `xgen_appendix_a_sk.md`

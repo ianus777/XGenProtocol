@@ -8,6 +8,20 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-631 — `D-135` locked
+
+**Date:** 2026-07-31 · **Seat:** Joe (ruling) · Chat (records). No code, no measurement.
+
+🔒 **JOE: *“confirmed”*. `D-135` MOVES FROM DELEGATED-AND-REVERSIBLE TO LOCKED.** Amendment now requires a further ruling. 📌 **The delegation history is kept, not erased** — it was minted by delegation on 2026-07-30 (*“go as you recommend”*, which delegated the **authorship** and not the ruling, J-623 precedent), stood provisional for one day, and **was applied in that provisional state through P0-bis, P1 and P2**, where it found **two wrong inherited verdicts** (J-456 and J-448) and **three false heads**. 🔑 **A rule that earned its lock by being used before it had one.**
+
+⚠️ **SCOPE OF THE ANSWER, STATED SO IT IS NOT WIDENED.** Two items were open: `D-135`'s confirmation, **and P3's go.** *“confirmed”* answers the first only. 🛑 **P3 IS NOT GO'D AND WAS NOT STARTED.**
+
+**RECORDS.** `DECISIONS.md` — `D-135` provenance **DELEGATED → LOCKED**, prior wording retained · `tasks/M_DOC_ROADTREE.md` v1.30 → **v1.31** (§11 annotated · open ④ closed · `RULED` gains `D-135`) · `docs/ROADMAP.md` v6.19 → **v6.20** · `CLAUDE.md` PLAY head · this entry. **No new D, no new N.**
+
+**Next-active.** 🟡 **Leg E P3 — the move into `CLAUDE_HISTORY.md`, under §5 and the §4r verdicts. AWAITING JOE'S GO.**
+
+---
+
 ## Entry J-630 — P0-bis, P1 and P2 all cleared, and two inherited verdicts would have deleted unique content
 
 **Date:** 2026-07-31 · **Seat:** Chat (measurement, records). Provenance **DELEGATED** — Joe: *let us go ahead*, *p1*, *p2*, *go*. No code.

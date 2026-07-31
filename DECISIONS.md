@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-30  
+> **Last updated:** 2026-07-31  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -4988,7 +4988,9 @@ and **always**, including when the run dies or is abandoned:
 
 **Date:** 2026-07-30 · **Layer:** project-wide measurement discipline (any count, census, or parse of a repo document) · **Ref:** J-620 · J-621 · J-622 · J-627 · J-628 · J-629; `tasks/RUNBOOK_ROADTREE_LEGE.md` §1c, §3.3, §3.4, §4c; `tasks/M_DOC_ROADTREE.md` §8-E.
 
-⚠️ **PROVENANCE — DELEGATED, NOT LOCKED.** Chat recommended minting this and offered to write it for Joe to rule on; Joe answered *“go as you recommend”* (2026-07-30), which **delegates the authorship**. 📌 **This entry is therefore REVERSIBLE and awaits Joe's confirmation or amendment** — the J-623 precedent for a delegated adoption. 🔑 **It is written to `DECISIONS.md` rather than left in a journal entry for one reason: the five preceding statements of this rule all lived in `JOURNAL.md`, and EACH WAS BROKEN BY THE NEXT PASS.**
+🔒 **PROVENANCE — LOCKED BY JOE 2026-07-31 (J-631): *“confirmed”*.** This entry is **no longer reversible**; amendment now requires a further Joe ruling.
+
+📌 **HOW IT GOT HERE, KEPT NOT ERASED.** It was **minted by delegation** the previous day: Chat recommended minting it and offered to write it for Joe to rule on; Joe answered *“go as you recommend”* (2026-07-30), which delegated the **authorship** but not the ruling — the J-623 precedent. It therefore stood as **DELEGATED and REVERSIBLE for one day**, was applied in that state through P0-bis, P1 and P2 (J-630), and **found two wrong inherited verdicts while still provisional.** 🔑 **It is written to `DECISIONS.md` rather than left in a journal entry for one reason: the five preceding statements of this rule all lived in `JOURNAL.md`, and EACH WAS BROKEN BY THE NEXT PASS.**
 
 ### §1 — THE RULE
 

@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.19  
+> Version: 6.20  
 > Date: May 2026  
 > **Last updated**: 2026-07-31  
 > Language: English  
@@ -332,6 +332,7 @@ XGen Protocol
 │   │   ↳ ✅ **P1 CLEARED ON RE-RUN (J-628)** — every §3 gate passed, nothing stopped: 1 line · 124,299 · **97 heads** · **93 records** · B **47 + 4 stubs** · C **14 closure-bearing / 12 not** (11 `CLOSED` + 3 `DONE`: J-473 · J-483 · J-485) · A cross-checked by 20 `CLOSED (J-nnn)` marks
 │   │   ↳ 🛑 **THAT CLEARANCE IS RETRACTED (J-629) — THREE OF THE 97 WERE NOT HEADS.** `**M-` matched bold **emphasis**: @115,900 and @115,973 inside ONE clause of the record at 115,464, and @119,871 after an **em-dash inside J-485's own sentence** ⇒ **A 20 · B 51 · C 23 = 94 heads · 90 records**, superseding *97 / 93* and *95 / 91*, annotated never erased
 │   │   ↳ 🔑 **EVERY §3 GATE PASSED WHILE THAT WAS TRUE** — §3.3 compares the predicate's count to a census figure **produced by the same predicate**, so it detects drift and never error; same disease as §3.4's span-sum, **one line above it** ⇒ 🔒 **`D-135` MINTED (delegated, reversible): test a predicate in BOTH directions; an assertion built from the predicate it checks cannot fail**
+│   │   ↳ ✅ **`D-135` LOCKED BY JOE 2026-07-31 (J-631) — no longer reversible.** 📌 It stood **delegated for one day** and **found two wrong inherited verdicts while still provisional**; the *delegated* wording above is its 2026-07-30 state, kept not erased
 │   │   ↳ ✅ **THE SECOND PREDICATE IS THE WHOLE DIFFERENCE** — A had one (20 `CLOSED` marks vs 1+19) → 0 false heads · B had one (J-keys **strictly monotonic J-503→J-445**, which also forbids within-B twins) → 0 false heads · **C had none → all three**
 │   │   ↳ 🛑 **§4c COMPLETE — THE ELEVEN COLLISIONS ARE SIXTEEN.** J-478 · J-479 · J-480 · J-483 · J-485 added; the eleven were measured inside part two's two C sub-windows (110,516–111,445 and 122,026–123,912 = **exactly 11**) and **the 10,581 chars between them were never examined** — all five sit in that gap. **Zero collisions within-A, within-B, within-C, A↔B, A↔C**
 │   │   ↳ 🛑 **THE PARSE ERROR HID A REVERSED VERDICT, NOT JUST A MISCOUNT** — C's J-485 read **93 chars** (a stub ⇒ *keep B*) while the false head stood; whole it is **1,813** and **richer than B's 906**, so the verdict **inverts**

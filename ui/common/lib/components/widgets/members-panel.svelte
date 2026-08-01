@@ -93,8 +93,12 @@
     return {
       kind: 'identity',
       id: m.identity_id,
-      name: rec?.display_name ?? tail(m.identity_id),
-      flags: { isAi: rec?.is_ai ?? false },
+      name: rec?.display_name ?? tail(m.identity_id), // §5-iii: NAME unchanged — tail() as today
+      // §5-iii (D): a live-added member (the `unresolved` marker, Leg A) asserts NO `isAi`. `isAi?` is
+      // optional and an absent book record must render UNKNOWN, never DEFINITELY-NOT-AN-AI — defaulting
+      // `false` from a missing record is the N-097 trap inverted (an AI joiner would render as human). Fill
+      // members are never marked, so their branch is byte-for-byte unchanged.
+      flags: m.unresolved ? {} : { isAi: rec?.is_ai ?? false },
     };
   }
 

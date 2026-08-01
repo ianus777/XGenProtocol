@@ -20,12 +20,20 @@
  *  snake_case as Rust serialises it, no rename/mapping layer (the drift-surface rule; spaces-state
  *  precedent). A MIRROR of the Rust serialisation, not an import of a Rust type (W-3). NO name field —
  *  the name is resolved from `book` (below). `role`/`joined_at` arrive free and are deliberately
- *  discarded by the widget (L10). */
+ *  discarded by the widget (L10). The ONE non-mirror field is `unresolved` — a frontend-only marker, see
+ *  its own doc; it is stamped locally and never present on a row that came off the wire. */
 export interface MemberEntry {
   identity_id: string;
   role: string;
   joined_at: string;
   invited_by: string | null;
+  /** FRONTEND-ONLY, NOT part of the Rust serialisation (M-RP-LIVEFEED-REFRESH Leg A / runbook §5). Stamped
+   *  `true` by `addMember` on a member that reached the roster via a LIVE membership delta — i.e. the
+   *  address book was never consulted for them through a fill. Absent (`undefined`) on every fill-sourced
+   *  member. `toDescriptor` branches on it to OMIT the `isAi` claim: an absent book record must render
+   *  UNKNOWN, never DEFINITELY-NOT-AN-AI (the N-097 trap, inverted). Cleared naturally by the next fill,
+   *  which replaces the roster wholesale with un-marked Rust rows. */
+  unresolved?: boolean;
 }
 
 /** The `fill_space_records` command's `roster` half (ops.rs `MembersResult`). `is_dm` drives the L16
@@ -135,6 +143,37 @@ export const addressBook = {
     _isDm = false;
     _roster = null;
     _phase = 'idle';
+  },
+
+  // ── Live membership deltas (M-RP-LIVEFEED-REFRESH Leg A) ──────────────────────────────────────────
+  // Fed by the shell's `xgen-event` router (app_client.svelte), NOT by the fill. Three rules the router
+  // cannot enforce from outside the store live HERE (runbook §3); the fourth (R2 — resolving WHICH
+  // identity the event is about, which is NOT uniformly `sender`) is the router's:
+  //   R1 — a delta onto an UNKNOWN roster (`_roster === null`) is DROPPED, never promoted. Adding to
+  //        `null` would yield a one-member roster the panel cannot tell from a real one — *"I do not know
+  //        who is here"* must not become a confident lie.
+  //   R3 — idempotent: add-existing and remove-absent are both no-ops. The drain makes no exactly-once
+  //        promise and the client has no replay suppression of its own.
+  //   R4 — the scope guard is `_spaceId` (written FIRST by `setInflight`, the late-response reference) vs
+  //        the event's `space_id`, exactly as `setResult`/`setFailed` discard on mismatch. A delta for a
+  //        Space the user is not scoped to must not touch the on-screen roster. Guarding here (not in the
+  //        router) keeps ONE scope authority for the store (the D-067 drift a second one would open).
+  /** Add a live-joined member. Stamps the `unresolved` marker (§5): this member reached the roster via a
+   *  delta, so the book was never consulted for them. No-op if the roster is unknown (R1), if the scope has
+   *  moved on (R4), or if the member is already present (R3). Reassigns a fresh array (Svelte 5 $state). */
+  addMember(spaceId: string, entry: MemberEntry): void {
+    if (spaceId !== _spaceId) return; // R4 — scope guard
+    if (_roster === null) return; // R1 — no delta onto an unknown roster
+    if (_roster.some((m) => m.identity_id === entry.identity_id)) return; // R3 — idempotent add
+    _roster = [..._roster, { ...entry, unresolved: true }];
+  },
+  /** Remove a member the live channel says has left or been removed. No-op if the roster is unknown (R1),
+   *  if the scope has moved on (R4), or if the member is absent (R3 — not an error). */
+  removeMember(spaceId: string, identityId: string): void {
+    if (spaceId !== _spaceId) return; // R4 — scope guard
+    if (_roster === null) return; // R1 — no delta onto an unknown roster
+    if (!_roster.some((m) => m.identity_id === identityId)) return; // R3 — idempotent remove (no-op if absent)
+    _roster = _roster.filter((m) => m.identity_id !== identityId);
   },
 };
 

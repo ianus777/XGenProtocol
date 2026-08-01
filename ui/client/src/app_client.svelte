@@ -188,6 +188,62 @@
     }
   }
 
+  // M-RP-LIVEFEED-REFRESH Leg A — the live membership router. Called from the `xgen-event` listener beside
+  // `ingest.push` (:552, untouched): every inbound Event flows through here, and only `membership.*` deltas
+  // that change WHO IS IN THE ROOM NOW reach the address-book roster. The three non-obvious store rules
+  // (R1/R3/R4) live in the setters (runbook §3); this function owns R2 — resolving WHICH identity each
+  // event is about, which is NOT uniformly `sender`. The webview branches on `payload.type` holding the
+  // WIRE STRING (`Event` is `#[serde(rename = "type")]`, wire.rs:476), never a Rust variant name. The
+  // scope guard and the null-roster/idempotency rules are the store's; the router just resolves + dispatches.
+  function routeMembershipEvent(payload) {
+    const type = payload?.type;
+    if (typeof type !== 'string' || !type.startsWith('membership.')) return;
+    switch (type) {
+      // join / leave: the subject signs their own event, so it IS `sender` (parent §6).
+      case 'membership.join': {
+        const subject = payload.sender;
+        if (typeof subject !== 'string' || subject === '') return;
+        // buildEntry (runbook §4): REAL wire fields only. The `unresolved` marker is stamped by addMember,
+        // not here. `role: ''` is honest-empty — no wire field carries authority, and 'member' would be an
+        // invented claim (D-065). `joined_at` is the real wire timestamp; `invited_by` is not carried.
+        addressBook.addMember(payload.space_id, {
+          identity_id: subject,
+          role: '',
+          joined_at: payload.timestamp,
+          invited_by: null,
+        });
+        return;
+      }
+      case 'membership.leave': {
+        const subject = payload.sender;
+        if (typeof subject !== 'string' || subject === '') return;
+        addressBook.removeMember(payload.space_id, subject);
+        return;
+      }
+      // kick / ban / node_eject: `sender` is the MODERATOR (kick/ban) or the NODE (node_eject); the removed
+      // person is `content.target_identity` (parent §6-i). That field is a CONVENTION, not a type (only
+      // MembershipMuteContent declares it, wire.rs:712-713), so read it defensively and DROP on absence —
+      // R2 forbids a `sender` fallback, which would remove the moderator instead of the target.
+      case 'membership.kick':
+      case 'membership.ban':
+      case 'membership.node_eject': {
+        const subject = payload?.content?.target_identity;
+        if (typeof subject !== 'string' || subject === '') return;
+        addressBook.removeMember(payload.space_id, subject);
+        return;
+      }
+      // v1: ignored, deliberately — none of the three changes who is in the room NOW (parent §6). Listed
+      // as explicit cases so the omission reads as a choice, not an oversight.
+      case 'membership.invite': // an invite is not a join
+      case 'membership.mute': // a mute does not remove anyone
+      case 'membership.node_unban': // an unban permits a future rejoin; it is not itself a join
+        return;
+      // an unrecognised `membership.*` string (a membership event this leg predates) — return.
+      default:
+        return;
+    }
+  }
+
   // M-RP6.3 Leg D2 — inject the send transport into the echo store (W-3: `$common` imports no shell dep, and
   // there are ZERO @tauri-apps imports under ui/common — so the composer reaches `send_message` ONLY through
   // this seam).
@@ -550,6 +606,7 @@
       // protocol Event here; the store carries them verbatim for R5 to project at Leg C.
       unlistenEvent = await listen('xgen-event', (event) => {
         ingest.push(event.payload);
+        routeMembershipEvent(event.payload); // Leg A — live members router; ingest.push above stays R5's untouched store
       });
 
       // Fetch the current state immediately — handles the case where the startup

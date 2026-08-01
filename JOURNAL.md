@@ -8,6 +8,86 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-654 — two canonical records disagreed about whether Leg C was unblocked, and the gate turned out not to reach both states
+
+**Date:** 2026-08-01 · **Seat:** Joe (two rulings — the split, and a delegation he framed more narrowly than Chat had) · Chat (grounding, the runbook, the values, records). **No code by anyone. No floor moved.**
+
+**Opened at** `3fe3423`, tree clean, local == origin — **verified first**, as now standard. 📌 *The kickoff's state block was accurate this time; it was still not taken on trust, because last session it said "tree clean, latest commit J-650" and was false.*
+
+---
+
+### 🛑 THE BLOCKER, AND IT WAS NOT A WORDING SLIP
+
+Phase-0 §11 and Leg B's own runbook §9 both say: ***"§4's dimming must not SHIP before a refresh trigger exists, or the panel promises a resolution it cannot deliver."*** **G-B is open.** `docs/ROADMAP.md`'s Leg C node said the opposite — `↳ trigger: Leg B has landed — fired`, beside 🟢 **NEXT-ACTIVE from J-653**.
+
+⚠️ **AND THE ROADMAP NODE WAS A DEFECT ON THE PROJECT'S OWN CONVENTION BEFORE IT WAS A CONTRADICTION** — *a trigger that has fired is a defect*, and it had sat there since v6.34 carrying a 🟡 state beside a 🟢 annotation. **Two canonical records disagreed about whether a leg was unblocked, and neither had been read against the other.**
+
+🔑 **THE FINDING THAT DISSOLVED IT: THE GATE IS ASYMMETRIC, SO NEITHER RECORD HAD TO BE OVERRULED.** ④'s dimming says ***not yet*** — a **transient** claim, and §4c-i binds a transient claim to eventually conclude. **③'s mark says *gone* — a TERMINAL claim under §1 G3 (an erased identity cannot sign an event, ever), and it promises nothing.** ***A rule that makes no promise cannot break one.*** ⇒ **Leg C splits: C-1 + C-2 ship now (③ only), C-3 is gated on Leg E.** 🔒 **Joe ruled S3.**
+
+### 🔑 AND THE D-121 LENS RETURNED ITS LEGAL ANSWER, WHICH IS WHAT MADE THE QUESTION CHEAP
+
+**Neither ③ nor ④ is reachable with one client** — ③ needs a fresh install / wiped book *and* a genuinely erased identity (§5b); ④ needs an inbound `membership.join` from a second identity (J-653, measured: one setter, one caller). ⇒ **lens ① returns "no user-facing impact" for shipping Leg C, for holding it, and for splitting it.** **The decision was therefore purely about ORDER and about what is true the day Leg F runs**, and saying so first is what stopped it being argued as if a user were waiting.
+
+### 🔒 JOE'S SECOND RULING — AND HE DREW IT NARROWER THAN CHAT HAD
+
+Joe explained *"manual tuning"*: it does not mean he tunes now, it means **he opens the app sometime and edits `skin.css` in Notepad++, on no schedule.** What he needed from this leg was ***"classes as handlers"*** and ***"some proper default definitions in place, that i want to delegate to you … they don't need you to bother."***
+
+⚠️ **CHAT RESTATED THAT AS *"Chat now owns the Leg C default values"* AND OFFERED TO ANNOTATE THE FIVE DOCUMENTS THAT SAY `skin.css` IS JOE'S.** Joe corrected it in one line: *"normally i have skin.css, this rule still stays, especially when we build complex components. but those are small elements that are not worthy obvious workflow."* ⇒ **a NARROW CARVE-OUT for two selectors on an existing component, not a seat change.** The five documents were not touched. 🔑 ***A delegation accepted more broadly than it was given is how a seat quietly moves*** — and the mechanism here was that Chat wrote the *general* form of a *specific* permission, which reads like tidying and is a widening.
+
+### ✅ WHAT WAS AUTHORED
+
+**`tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_C.md` v1.0 — AUTHORED, NOT LOCKED. 26,679 B, LF.** 🛑 **Clair is NOT stood up; the trigger is TWO acts and Joe has performed neither.**
+
+**Two commits, split by floor** (Phase-0 §8; the same split that bought attribution for B-i/B-ii):
+
+| commit | file | floor |
+|---|---|---|
+| **C-1** | `ui/sampler/src/app_sampler.svelte` | sampler catalogue (+ `svelte-check`, expected zero) |
+| **C-2** | `ui/assets/skin.css` | **NEITHER** — CSS is not type-checked and not a component |
+
+**The value, and every part of it is forced by an existing lock rather than chosen:**
+
+```css
+.entity-item[data-unresolved="erased"] .ei-name {
+  color: var(--t2);
+  text-decoration: line-through;
+  text-decoration-color: var(--t4);
+  text-decoration-thickness: 1px;
+}
+```
+
+- 🔒 **MARKED, NEVER DIMMED — A LOCK, NOT A TASTE.** §5a-i keeps the L16 highlight on the erased DM counterpart, `[data-selected]` paints it as `box-shadow: inset 2px 0 0` (`skin.css:2526`), and **an `opacity` on the root composites that bar away with everything else.** *The design axis is §3 restated in CSS: **④ RECEDES (our fault, unfinished) · ③ ASSERTS (their state, terminal)** — different in KIND, because §3 says rendering them alike is the panel reporting our network fault as someone else's irregularity.*
+- 📌 **No `background`** — the rule sits **after** `[data-selected]` at **equal specificity (0,2,0)**, so any background would silently outrank the selection. The file's own comment at `:2519-2520` already depends on that ordering.
+- 🔑 **Strikethrough is what is left after FOUR locks:** a glyph ⇒ `core` owns the name (`D-108`), a component change · a word ⇒ re-opens `D-126`, deferred at J-588, and E2 was locked on *"NO NEW WORD REQUIRED"* · `data-revoked` ⇒ M13's, and `D-127` separates revoked from erasure · `opacity` ⇒ §5a-i. **`--t4` IS reused — the colour, from the revoked slash at `:2411`; the SELECTOR is not.**
+
+### 🛑 THE SURFACE INVERSION, STATED SO IT IS NOT READ AS CONTRADICTING J-653
+
+J-653 earned *the client is the evidence, the sampler is not* — **for verifying a WIRED PATH, and that still holds; Leg F still owns it.** **This leg changes no path.** It changes an appearance, and **the sampler is the only surface on which either state can be made to render at all.** 🔑 **And the argument is not Chat's convenience — it is JOE'S STATED WORKFLOW:** on the future evening he opens Notepad++, **the states he would be tuning are not on his screen**, and HMR hot-applies `skin.css` in the sampler (D-097). ***A sampler row proves the component accepts the value and the skin paints it; only a client row proves the store delivers it — and this leg makes no claim about the store.***
+
+**C-1 is ONE `entity-panel#unresolved` cell, not two isolated `entity-item` cells** — dimming and muting are **relative**, and a row in isolation cannot show whether a treatment reads as *different from its neighbours* or merely as *small*. The cell carries a **resolved control row** above both marked rows, at `variant="row"`, which is what `members-panel` renders. 🔒 **It pre-selects the erased row on purpose: §5a-i's KEEP is unobservable unless something renders the two together**, and V12 makes the lock checkable instead of trusted.
+
+🛑 **AND THE FIXTURE USES XGID TAILS, NOT NAMES.** With no book record `toDescriptor` already falls back to `tail()` ⇒ **a real ③ row has no display name to strike** — which is exactly why §5b belayed Joe's J-649 row sketch. ***A human-named fixture would have tuned a case the product cannot produce: §5b's own defect, reproduced inside the surface built to prevent it.***
+
+### 📌 SURFACED RATHER THAN DECIDED
+
+**The case for shipping the BASE rule now was written down and NOT taken.** A bare `.entity-item[data-unresolved]` muting `.ei-name` is defensible **today**: a machine identifier currently renders at the same weight and colour as a human display name, a false equivalence **whether or not a refresh ever arrives.** 🛑 **Not taken, because it also lands on ④, and ④ is what the gate holds.** Re-openable at C-3 (`D-065`).
+
+⚠️ **Consequence to own: the strikethrough makes `M_RP_MEMBERS.md` §6a's `tail-8` gap MORE visible, not less** — `.ei-name` is LEFT-anchored, so the clip keeps the constant `ed25519:` head, and the strike lands on it. **Still Joe's, filed at J-618, not fixed here.**
+
+⚠️ **`skin.css` already contains the word `unresolved` — at `:3039` and `:3043`, as `.send-status[data-tone="unresolved"]`.** **Different element, different attribute, no cascade or specificity contact.** Recorded in the runbook's grounding **so it is not mistaken for prior art and not "extended" by someone pattern-matching on the word.**
+
+### 🔑 A SENTENCE THAT HAS NOW GONE STALE FOUR TIMES IN A ROW
+
+Phase-0 §11's closing line has been superseded at v1.5, v1.7, v1.9 and now v1.11 — *"has no runbook"* → *"AUTHORED, NOT LOCKED"* → *"LOCKED and Clair NOT stood up"* → *"Leg C is next-active — the skin, and it is JOE'S FILE"*. **Each was true when written and each was killed by the next act.** 🔑 ***It keeps going stale because it tries to carry a STATE, and a state belongs in a NODE.*** Recorded in the document itself rather than repaired silently for a fifth time.
+
+### FLOORS — DELIBERATELY NOT RE-MEASURED
+
+**Zero `.rs`, zero `ui/**`, documents only** ⇒ cargo **1589 / 0 / 62 × 56** · `svelte-check` **0 / 34 / 15** · sampler catalogue **427**. 🛑 **Stated rather than silently skipped.** 📌 *The `328` in older PLAY blocks remains from the M-RP6.1 arc and is not a baseline — J-653's lesson, restated because this leg predicts a catalogue move.*
+
+**No new `D`. No new `N`.** → J-654 · Phase-0 v1.11 · ROADMAP v6.42 · Leg C runbook v1.0.
+
+---
+
 ## Entry J-653 — Leg B closes, and the gate I wrote had a stale baseline
 
 **Date:** 2026-08-01 · **Seat:** Joe (amendment ruling on a locked runbook; two catches) · Clair (implementation, two commits) · Chat (re-drive of every gate, records). **Code by Clair; no code by Chat.**

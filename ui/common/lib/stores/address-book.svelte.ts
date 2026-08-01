@@ -93,6 +93,12 @@ let _isDm = $state(false);
 let _roster = $state<MemberEntry[] | null>(null);
 let _book = $state<AddressBook>({});
 let _phase = $state<MembersPhase>('idle');
+/** §5/§5a — the ids that returned `identity.not_found` in the fill that produced the current
+ *  roster (state ③, ERASED under `D-127`). Kept BESIDE `_roster`, never stamped onto it:
+ *  `MemberEntry` is a mirror of the Rust row with exactly ONE non-mirror field (`unresolved`),
+ *  and not-found-ness is a fact about the FILL, not about the member. B-1: `_roster` stays
+ *  COMPLETE — the panel decides what to draw. */
+let _notFound = $state<string[]>([]);
 
 export const addressBook = {
   /** The scope this state describes (the Space the roster is FOR). The widget compares this against
@@ -118,21 +124,27 @@ export const addressBook = {
   get phase(): MembersPhase {
     return _phase;
   },
+  /** The ③ ids for the CURRENT roster. Empty is the normal case. */
+  get notFoundIds(): string[] {
+    return _notFound;
+  },
 
   /** Behaviour 1 — a new scope. Writes `_spaceId` FIRST (the late-guard reference), clears the roster to
    *  `null` (unknown), phase → `inflight`. */
   setInflight(spaceId: string): void {
     _spaceId = spaceId;
     _roster = null;
+    _notFound = [];
     _phase = 'inflight';
   },
   /** Behaviour 2 — resolve. ⚠️ Late-guard (§3.5): a resolve whose `spaceId` no longer matches the current
    *  scope is DISCARDED — without it, switching rooms twice quickly renders Space A's roster under Space
    *  B's heading. */
-  setResult(spaceId: string, roster: MembersResult, book: AddressBook): void {
-    if (spaceId !== _spaceId) return; // late-response guard
-    _isDm = roster.is_dm;
-    _roster = roster.members;
+  setResult(spaceId: string, outcome: FillMembersOutcome, book: AddressBook): void {
+    if (spaceId !== _spaceId) return; // late-response guard (§3.5) — UNCHANGED, DO NOT DROP
+    _isDm = outcome.roster.is_dm;
+    _roster = outcome.roster.members;
+    _notFound = outcome.fill.not_found_ids;
     _book = book ?? {};
     _phase = 'ready';
   },
@@ -140,6 +152,7 @@ export const addressBook = {
    *  Same late-guard as `setResult`. */
   setFailed(spaceId: string): void {
     if (spaceId !== _spaceId) return; // late-response guard
+    _notFound = [];
     _phase = 'failed';
   },
   /** Behaviour 4 — no scope. Reset to idle; no invoke fired by the shell in this case. */
@@ -147,6 +160,7 @@ export const addressBook = {
     _spaceId = null;
     _isDm = false;
     _roster = null;
+    _notFound = [];
     _phase = 'idle';
   },
 

@@ -37,6 +37,9 @@
     secondary?: string; // topic / handle / last-message — caller string
     status?: { emoji?: string; text?: string; updatedAt?: string; expiresAt?: string };
     meta?: string; // unread / timestamp — caller string
+    /** Per-row client-knowledge hook (M-RP-IDENTITY-RESOLUTION §4/§5a). Passed straight to
+     *  `entity-item`; the panel never interprets it. */
+    unresolved?: 'unasked' | 'erased';
   };
 
   let {
@@ -156,6 +159,7 @@
     secondary={item.secondary}
     status={item.status}
     meta={item.meta}
+    unresolved={item.unresolved}
     selected={item.descriptor.id === selected}
     id={rowId(item.descriptor.id)}
   />

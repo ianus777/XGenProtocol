@@ -102,20 +102,6 @@
     };
   }
 
-  // State ② members: the roster MINUS self (self is the fixture, not double-counted — L4), each resolved.
-  const memberDescriptors = $derived(
-    panelState === 'known' && addressBook.roster
-      ? addressBook.roster.filter((m) => m.identity_id !== selfId).map(toDescriptor)
-      : [],
-  );
-
-  // The rendered rows: self FIRST (present in all five states, L2), then the other members (state ② only).
-  const rows = $derived(
-    (selfDescriptor ? [{ descriptor: selfDescriptor }] : []).concat(
-      memberDescriptors.map((d) => ({ descriptor: d })),
-    ),
-  );
-
   // ── The DM counterpart highlight (L16) ────────────────────────────────────────────────────────
   // The counterpart's id iff this is a DM, else `undefined` (NO highlight in a group room). The counterpart
   // is the non-self member; `selected` flows one-way to the inert row's highlight (M-RP-PANEL-INERT). Self is
@@ -126,6 +112,35 @@
       : undefined,
   );
 
+  // §5/§5a — the ③ set for the current roster. `notFoundIds` is a small array; a Set keeps the
+  // per-row test O(1) and reads as the membership question it is.
+  const notFound = $derived(new Set(addressBook.notFoundIds));
+
+  // State ② members: the roster MINUS self (L4), MINUS state ③ — except the DM counterpart,
+  // which is NEVER hidden (§5a E2, J-648). ⚠️ `counterpart` is `undefined` outside a DM
+  // (G-B9), so `=== counterpart` IS the DM exception; do NOT add a separate `isDm` test.
+  // B-1: `_roster` stays complete — this filters at RENDER, never in the store.
+  const memberRows = $derived(
+    panelState === 'known' && addressBook.roster
+      ? addressBook.roster
+          .filter((m) => m.identity_id !== selfId)
+          .filter((m) => !notFound.has(m.identity_id) || m.identity_id === counterpart)
+          .map((m) => ({
+            descriptor: toDescriptor(m),
+            unresolved: notFound.has(m.identity_id)
+              ? ('erased' as const)
+              : m.unresolved
+                ? ('unasked' as const)
+                : undefined,
+          }))
+      : [],
+  );
+
+  // The rendered rows: self FIRST (present in all five states, L2), then the other members (state ② only).
+  const rows = $derived(
+    (selfDescriptor ? [{ descriptor: selfDescriptor }] : []).concat(memberRows),
+  );
+
   // Aggregate getter G (W-4). ⚠️ `memberCount` derives from the ROSTER, never from rendered rows (L4) — the
   // self fixture is not a roster entry. Names/ids ride each row's own getter (no republish, N-060).
   const debug = () => ({
@@ -133,6 +148,9 @@
     scope: scope ?? null,
     memberCount: addressBook.roster?.length ?? null,
     rowCount: rows.length,
+    erasedHidden: (addressBook.roster ?? []).filter(
+      (m) => m.identity_id !== selfId && notFound.has(m.identity_id) && m.identity_id !== counterpart,
+    ).length,
     isDm: addressBook.isDm,
     counterpart: counterpart ?? null,
     hasMessage: message !== null,

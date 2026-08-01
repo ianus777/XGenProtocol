@@ -175,12 +175,13 @@
     }
     addressBook.setInflight(sid);
     try {
-      // fill_space_records returns FillMembersOutcome { fill, roster } (Leg A-quater); the roster renders and
-      // the fill persists the address-book cache on disk, which get_address_book then reads back for the
-      // name resolution. tauriInvoke lazy-imports invoke (the browser-dev/no-Tauri path rejects → setFailed).
+      // fill_space_records returns FillMembersOutcome { fill, roster } (Leg A-quater); the roster renders, the
+      // fill persists the address-book cache on disk (which get_address_book then reads back for the name
+      // resolution) AND carries the not_found ids (③) the render rules read (M-RP-IDENTITY-RESOLUTION §4/§5).
+      // tauriInvoke lazy-imports invoke (the browser-dev/no-Tauri path rejects → setFailed).
       const outcome = await tauriInvoke('fill_space_records', { spaceId: sid });
       const book = await tauriInvoke('get_address_book');
-      addressBook.setResult(sid, outcome.roster, book);
+      addressBook.setResult(sid, outcome, book);
     } catch (_) {
       // ③ inflight → ④ failed (or ⑤ when the connection is down — the widget picks ⑤ by the connection led,
       // not the phase, L5). A stale rejection is discarded by the store's late-guard.

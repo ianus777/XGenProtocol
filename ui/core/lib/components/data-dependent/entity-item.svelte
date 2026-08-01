@@ -37,6 +37,7 @@
     onActivate,
     width,
     id,
+    unresolved,
   }: {
     descriptor: EntityDescriptor;
     variant?: 'row' | 'card' | 'nav' | 'inline';
@@ -47,6 +48,13 @@
     onActivate?: () => void;
     width?: string;
     id?: string;
+    /** §4/§5a — what the CLIENT knows about this identity, NOT a property of the entity:
+     *  `'unasked'` = never looked up (state ④, dimmed) · `'erased'` = `identity.not_found`
+     *  (state ③, `D-127`). Absent = resolved. ⚠️ `'pending'` is DELIBERATELY NOT a member
+     *  here — it names state ② (asked, reply not back), which is unbuilt and will want the
+     *  word if §7 ships. Deliberately NOT on `EntityDescriptor` and NOT on `flags`
+     *  (Phase-0 §8 B-2, option P1). */
+    unresolved?: 'unasked' | 'erased';
   } = $props();
 
   // B — single-knob derive-map: entity-item.variant → entity-avatar.variant. LITERAL to the lock.
@@ -91,6 +99,7 @@
     hasSecondary: showSecondary,
     hasStatus: showStatus,
     selected: !!selected,
+    unresolved: unresolved ?? null,
   });
 
   function activate() {
@@ -114,6 +123,7 @@
   data-variant={variant}
   data-kind={kind}
   data-selected={selected || undefined}
+  data-unresolved={unresolved}
   style={width ? `width: ${width}` : undefined}
   onclick={activate}
   onkeydown={onKeydown}

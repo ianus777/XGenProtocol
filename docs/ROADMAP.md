@@ -1,8 +1,8 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.30  
+> Version: 6.31  
 > Date: May 2026  
-> **Last updated**: 2026-07-31  
+> **Last updated**: 2026-08-01  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -293,8 +293,9 @@ XGen Protocol
 │   │   ├── ✅ **Leg 0 Phase-0** — routing shape + delta-vs-fill boundary locked; second-reader pass over §6 vs `wire.rs` done, three findings · J-616 (J-598, J-601)
 │   │   │   ↳ ✅ **§6a CLASSIFICATION PASS LANDED J-641 — 17 VERDICTS, task doc v1.12** — frame widened past `state.*` on Joe's call to every wire event that can mutate `KnownSpace`
 │   │   │   ↳ 🛑 **§6-ii — THE PANEL DOES NOT READ THE OBJECT THE APPLIERS WRITE.** `SpaceState` ≠ `KnownSpace`; **two J-640 verdicts corrected** and class ④ **NO CONSUMER PATH** minted
-│   │   ├── 🟡 **Leg A router + members consumer** — runbook `tasks/RUNBOOK_LIVEFEED_LEG_A.md` v1.4 **ACTIVE**; **three** files, frontend only · J-618 (J-639)
-│   │   │   ↳ ready to open — **§5 of the RUNBOOK** closed by Chat (it was never Joe's); runbook v1.3, waiting only on Clair being stood up
+│   │   ├── ✅ **Leg A router + members consumer** — runbook `tasks/RUNBOOK_LIVEFEED_LEG_A.md` v1.5 **COMPLETED**; **three** files, frontend only · J-618 (J-639)
+│   │   │   ↳ ✅ **BUILT AND VERIFIED J-643** — Clair implemented from runbook **v1.5**, Chat re-drove every gate. **3 files, 103+/3−**; svelte-check **0/34/15 = floor exactly**; cargo not run; `ingest.push` byte-identical **verified from the diff**; R1–R4 each read back
+│   │   │   ↳ 🛑 **§5-iii ①'s USER-VISIBLE CLAIM IS FALSE — `entity-avatar.svelte:125` is `data-ai={flags.isAi || undefined}`, so `false` and ABSENT render IDENTICALLY.** An AI joining live still appears human. The store's data is honest; the RENDERER collapses it one layer below the fix. 🔓 Joe's, deferred by him
 │   │   ├── 🟡 **Leg B spaces/rooms consumer**
 │   │   │   ↳ ✅ **§6a's TRIGGER FIRED AND IS DISCHARGED (J-641)** — all **17** rows carry a verdict. ⚠️ The `9 of 14` wording is superseded, kept not erased (`D-131`)
 │   │   │   ↳ trigger: Joe rules Leg B's scope — **B1 / B2 / B3**. §6-ii turned it from a preference into a measured question; the runbook may be AUTHORED, not LOCKED

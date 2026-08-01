@@ -1,8 +1,8 @@
 # M-RP-MEMBERS — the R7 members widget over the address book
 > **Status**: ACTIVE  
-> Version: 1.15  
+> Version: 1.16  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-26  
+> **Last updated**: 2026-08-01  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -477,6 +477,23 @@ Three distinct truths, and conflating them is the trap:
 
 📌 **D-126's other openings are NOT settled by this lock:** canonical-vs-cosmetic, the wordlist and its language remain open and Joe's. This milestone consumes the cheapest family and reserves the rest.
 
+### 🛑 §6a — THE LOCK AND THE SHIPPED BUILD DISAGREE: `tail-8` WAS LOCKED, THE CODE RENDERS THE CONSTANT HEAD (filed by `M-RP-LIVEFEED-REFRESH` Leg A, 2026-08-01, J-643 — FILED, NOT FIXED)
+
+**Measured on the render path, not inferred:**
+
+```
+toDescriptor (members-panel.svelte):  name: rec?.display_name ?? tail(m.identity_id)
+tail = (xgid) => xgid.split('/').pop() || xgid
+```
+
+🛑 **`tail()` IS NOT A TAIL-8. IT RETURNS THE WHOLE FINAL PATH SEGMENT, AND THE CLIP THEN TAKES THE WRONG END.** An identity id is `xgen://pubkey/ed25519:<base64>` (`auth.rs:133` · `mod.rs:267`) ⇒ `tail()` yields **`ed25519:<~44 chars>`**. `entity-item.svelte:123` renders it into `.ei-name`, styled `overflow:hidden; text-overflow:ellipsis; white-space:nowrap` (`skin.css:2452-2458`) — **left-anchored, no `direction: rtl`.**
+
+⇒ **The user sees `ed25519:AbCd…`, and the `ed25519:` prefix is IDENTICAL on every identity in the system.** ⚠️ **The clip discards precisely the distinguishing bytes, so TWO unresolved members are indistinguishable FROM EACH OTHER** — not merely from resolved ones. **The locked `tail-8` would have kept the distinguishing end; the build keeps the constant head.**
+
+🔑 **THIS IS A LOCK-VERSUS-BUILD GAP, NOT A DESIGN QUESTION.** Joe locked `tail-8` at J-588 (⚠️ delegated, *"lock all by your recomms"*, and §6 already flags this as the one of the three where delegation matters most). **Nothing re-opened it; the code simply does something else.** 📌 **Filed here rather than fixed because it is `M-RP-MEMBERS`'s, it blocks no leg of `M-RP-LIVEFEED-REFRESH`, and silently repairing a shipped divergence from a Joe lock is not Chat's call.**
+
+⚠️ **AND §6's OWN NON-NEGOTIABLE IS THE THING AT RISK:** *"2 and 3 must be **distinguishable** or the panel tells the user a temporary state is permanent."* **Under the shipped `tail()`, cases 2 and 3 are not distinguishable from each other OR from any other unresolved row.** 🔓 **The fix and its form are Joe's.**
+
 ---
 
 ## §7 — DECISION 4: ROW SHAPE 🔒 JOE'S (appearance)
@@ -554,6 +571,8 @@ R7 is the first region with **real** candidates: `role` → `secondary`? `last_s
 
 🔒 **CARRIED OUT OF THIS MILESTONE (Joe, 2026-07-26): its own milestone —** *"we can do it as new milestone if needed"*. Phase-0 written to `tasks/M_RP_LIVEFEED_REFRESH.md` v1.1 ACTIVE — **M-RP-LIVEFEED-REFRESH — the live event router behind the members and rooms panels** (name locked by Joe, §3 there). **M-RP-MEMBERS §5 is satisfied by that milestone's Leg A, and this milestone's Leg C unblocks behind it.**
 
+✅ **THAT TRIGGER HAS FIRED (2026-08-01, J-643): `M-RP-LIVEFEED-REFRESH` LEG A IS BUILT AND VERIFIED** — the router lives on the existing `xgen-event` listener, `addMember`/`removeMember` are on the store, three files, `svelte-check` at the **0/34/15** floor. ⇒ **§5's steady state EXISTS in code for the first time, and §8a's blocker is discharged.** ⚠️ **LEG C IS UNBLOCKED BUT NOT DISCHARGED** — its REQUIRED LEG is *live membership **EXERCISED**, two clients and a real join*, and **Leg A shipped with NO CDP and NO live run by design** (that is `M-RP-LIVEFEED-REFRESH` Leg D). 🔑 **The thing Leg C must prove is still unproven; what changed is that it is now provable.**
+
 📌 **CONSEQUENT SEQUENCING, ALSO JOE'S (proposal, not a decision):** under **A** or **D** the leg list needs a **build leg between B and C** — it moves `svelte-check` while Leg C moves nothing, and folding a build into a verify leg is the same attribution-mixing §8 splits A from B to prevent. **Superseded in practice by the ruling above** — the build leg now lives in `M_RP_LIVEFEED_REFRESH.md` §7 Leg A rather than in this document's §8.
 
 ---
@@ -581,6 +600,7 @@ R7 is the first region with **real** candidates: `role` → `secondary`? `last_s
 - **The whole-book view has no home** if §4 locks B.
 - **Contact alias (③) and presence (④) remain unbuilt**, and Ch2 specifies **no contact-acquisition flow at all** (grepped `docs/`; zero) — so the top of the G6 name chain cannot be built even if wanted.
 - **Per-tier retention N is not derivable** (J-587): `tier` is reachable only through `trust_assertion`, which the wire never carries. Every record evicts on the T1 default. M13's problem, recorded here because a members widget is where a tier would first be visible.
+- 🛑 **§6's THIRD UNRESOLVED-ROW CASE — *book never consulted* — NOW EXISTS, AND IT IS A RENDERER QUESTION, NOT A STORE ONE** (`M-RP-LIVEFEED-REFRESH` Leg A `Owes:`, discharged into this file at J-643). §6 enumerates three truths, all of which assume a member arrived **through a fill**. Leg A created a fourth situation: a member added by a **live `membership.join`**, for whom the address book was **never consulted at all**. ✅ **The store side is done** — `MemberEntry.unresolved` marks it and `toDescriptor` omits the `isAi` claim rather than defaulting it `false`. 🛑 **The RENDER side is not, and cannot be from inside that milestone:** `entity-avatar.svelte:125` is `data-ai={flags.isAi || undefined}`, so **`false` and absent produce identical DOM** — an AI joining live still renders as a human. ⚠️ **§6's distinguishability rule now has THREE cases to separate, not two, and the renderer currently separates none of them.** 🔓 **Joe's, and it is the same question as §6a's** — both are *what does an unresolved row look like*, which is why they are filed together.
 - 📌 **NOT RE-VERIFIED BY THE SECOND READER, FLAGGED RATHER THAN ASSUMED (Clair):** §9's *"contact alias ③ = 0 code hits"* and *"no contact-acquisition flow (grepped `docs/`; zero)"* were **outside the five named targets and were not re-run**. They stand on Chat's J-578 measurement alone. Re-measure before either is used to justify a decision.
 
 ### ⚠️ SELF IS IN THE ADDRESS BOOK, AND THE LOCKED DESIGN SAYS IT IS NOT — FOUND BY JOE, 2026-07-25

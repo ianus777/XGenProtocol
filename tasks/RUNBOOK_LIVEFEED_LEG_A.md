@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-LIVEFEED-REFRESH Leg A: the router and the members consumer
-> **Status**: ACTIVE  
-> Version: 1.4  
+> **Status**: COMPLETED  
+> Version: 1.5  
 > Date: Jul 2026  
 > **Last updated**: 2026-08-01  
 > Language: English  
@@ -12,11 +12,13 @@
 
 ## §0 — What this is, and its state
 
-**Leg A of `M-RP-LIVEFEED-REFRESH` — the live event router behind the members and rooms panels.** Parent: `tasks/M_RP_LIVEFEED_REFRESH.md` v1.11.
+**Leg A of `M-RP-LIVEFEED-REFRESH` — the live event router behind the members and rooms panels.** Parent: `tasks/M_RP_LIVEFEED_REFRESH.md` ~~v1.11~~ **v1.12**.
+
+✅ **EXECUTED AND VERIFIED 2026-08-01 (Clair implemented; Chat re-drove every gate independently — J-643). STATUS → COMPLETED.** Three files, **103+/3−**; `svelte-check` **0 err / 34 warn / 15 files** = the floor exactly; cargo not run; `ingest.push` byte-identical, confirmed **from the diff** (space prefix, no `−`, no re-add). ⚠️ **§5-iii ①'s user-visible claim did NOT survive the re-drive — see the annotation in §5-iii.**
 
 ⚠️ **THIS RUNBOOK IS `ACTIVE` AND §5 IS CLOSED (Chat, 2026-07-29).** 🔑 **v1.0 and v1.1 both routed §5 to Joe and BOTH WERE WRONG ON THE SEAT.** Joe asked why it was his; it was not. **Joe owns choices between honest options — `M_RP_MEMBERS.md` §6's word form is one. He does not own whether the client asserts something it does not know.** §5② had one honest answer and three dishonest ones, already determined by §6's own governing rule (*staleness AND absence both render UNKNOWN, never as fine*), by D-065, and by the `revoked`-unfed precedent (N-097). ⚠️ **Presenting four options when one was live is UNDER-STEPPING — the named recurring seat error — and the mechanism was that the finding broke §2 of this same runbook two hours after Chat wrote it.** Routing it to Joe was a way of not owning a scope change of Chat's own. **Recorded rather than absorbed.**
 
-🔒 **PRECONDITION DISCHARGED.** §7 of the parent required a second-reader pass over §6's event table against `wire.rs` before any runbook opens. Done 2026-07-29; three findings landed in the parent at v1.11. **The `membership.*` surface is a closed partition — 8 of 8 — which is what makes Leg A openable while Leg B is not** (§6a: the `state.*` half is 5 of 14).
+🔒 **PRECONDITION DISCHARGED.** §7 of the parent required a second-reader pass over §6's event table against `wire.rs` before any runbook opens. Done 2026-07-29; three findings landed in the parent at v1.11. **The `membership.*` surface is a closed partition — 8 of 8 — which is what makes Leg A openable while Leg B is not** (~~§6a: the `state.*` half is 5 of 14~~ ⚠️ **SUPERSEDED AT v1.5: the `state.*` half was classified at J-641 — parent §6a-i registers all 17 rows. Leg B is now gated on Joe's B1/B2/B3 scope ruling instead, per §8.**).
 
 📌 **Not blocked by §5 of the parent.** §10 of the parent: *"§5 (the reconnect rule, gates Leg C only)."* Verified by reading §10, not inherited.
 
@@ -160,10 +162,30 @@ A live-added member is **not in `_book`** ⇒ `rec` is `undefined` ⇒ both fall
 
 ---
 
+### 🛑 §5-iv — ①'s USER-VISIBLE CLAIM IS FALSE. THE RENDERER COLLAPSES THE THIRD STATE ONE LAYER BELOW THE ONE D FIXES. (Chat, measured 2026-08-01 at execution)
+
+**`ui/core/lib/components/data-dependent/entity-avatar.svelte:125`:**
+
+```
+data-ai={flags.isAi || undefined}
+```
+
+🛑 **`false || undefined` and `undefined || undefined` BOTH EVALUATE TO `undefined` ⇒ THE ATTRIBUTE IS OMITTED EITHER WAY.** The rendered DOM is **identical** whether `isAi` is `false` or absent. ⚠️ **An AI identity joining live still renders as a human, exactly as before this leg.**
+
+⇒ **§5-ii option D ① — *"the joiner … reads as unresolved rather than as a stranger with an odd name and a confident not-an-AI"* — IS NOT DELIVERED, AND CANNOT BE BY ANY CHANGE INSIDE §2's THREE FILES.** `entity-avatar.svelte` is not one of them and widening to it would be a fourth file.
+
+🔑 **§5-iii CONTRADICTED ITSELF AND NOBODY READ THE TWO LINES AGAINST EACH OTHER.** *"D IS A SUBTRACTION. NOTHING NEW APPEARS ON SCREEN"* sits two paragraphs below D ①'s claim that the row **reads** differently. **Both cannot be true of a renderer that already erases the distinction.** ⚠️ **The `?? false` collapse was removed at the DESCRIPTOR layer without measuring that the SAME collapse exists at the DOM layer** — the recurring species again, a fix narrower than the thing it describes, and caught only by opening `entity-avatar.svelte` at re-drive time.
+
+✅ **WHAT THE LEG DOES DELIVER, AND IT IS NOT REVERTED:** the client **no longer asserts `isAi: false` about a person it has never looked up**. The marker distinguishes *book never consulted* from *book consulted, no name*. **The store's data is honest; only the renderer collapses it**, so a future `entity-avatar` that renders the third state gets correct input **with no store change**. 📌 **The implementation matched the lock exactly — the defect is in the lock, not in the code.**
+
+🔓 **WHETHER THE RENDERER SHOULD DISTINGUISH IT IS JOE'S, DEFERRED BY HIM UNTIL AFTER THIS LEG.** It is `M_RP_MEMBERS.md` §6's still-open word form — 📌 **and note that D was chosen partly BECAUSE it was a subtraction that would not trigger that question. It triggers it anyway.**
+
+---
+
 ## §6 — Verification (Chat drives; Clair does not close her own leg)
 
 - `npm run check` in `ui/` — svelte-check re-measured on the final tree, quoted verbatim, **compared against 0 / 34 / 15**.
-- `git diff --stat` shows **exactly two files**.
+- ~~`git diff --stat` shows **exactly two files**.~~ ⚠️ **SUPERSEDED AT v1.5 — THE COUNT WAS STALE AND CONTRADICTED THIS RUNBOOK'S OWN §2 AND §7 (`D-131`: annotate, never silently repair).** §5-iii widened §2 to **three** files on 2026-07-29; §2 and §7 both moved and **§6 did not**. 🔑 **Same species as J-629: the correction was narrower than the claims it corrected.** ⚠️ **A verification gate contradicting its own Definition of Done stops the implementer at the last step** — caught INDEPENDENTLY by Chat and by Clair on first read. ✅ **CORRECT GATE: `git diff --stat` shows EXACTLY THREE FILES** — measured at execution: **3 files, 103+/3−**.
 - `git diff` on `app_client.svelte:551-552` shows `ingest.push` **unchanged**.
 - ⚠️ **NO CDP RUN AT LEG A.** Live behaviour is Leg D, against a real node with a second identity. **A store driven by hand through `__XGEN_MEMBERS__` is a probe that cannot fail** — it proves the setters work, which the reviewer can see in the diff, and proves nothing about routing.
 
@@ -171,18 +193,20 @@ A live-added member is **not in `_book`** ⇒ `rec` is `undefined` ⇒ both fall
 
 ## §7 — Definition of Done
 
-- [ ] `addMember` / `removeMember` exist on the store, both guarded on `spaceId` (R4)
-- [ ] R1 asserted in code: a delta against `_roster === null` returns without writing
-- [ ] R2 asserted in code: `kick` / `ban` / `node_eject` read `content.target_identity`, with **no `sender` fallback**
-- [ ] R3 asserted in code: add-existing and remove-absent are both no-ops
-- [ ] the three ignored `membership.*` strings return explicitly, each with the parent's §6 reason in a comment
-- [ ] **§5's answer built: a live-added member carries the unresolved marker, and `toDescriptor` OMITS `isAi` for it — never `false`**
-- [ ] `ingest.push` byte-identical; no store gained a privileged setter (parent §2)
-- [ ] `svelte-check` re-measured and quoted; **cargo NOT re-run — a cargo change means scope was exceeded**
-- [ ] exactly three files in the diff
-- [ ] `M_RP_MEMBERS.md` §6 carries the **tail-8 lock-versus-build gap** (§5-i ①), filed not fixed
+✅ **ALL TEN VERIFIED BY CHAT ON THE RE-DRIVE, 2026-08-01 (J-643). Clair implemented and did NOT close her own leg.**
 
-📌 **`Owes:` on close — `M_RP_MEMBERS.md` §6's third unresolved-row case**, added there whichever way §5 lands.
+- [x] `addMember` / `removeMember` exist on the store, both guarded on `spaceId` (R4) — `:165` / `:173`, **guard form identical to the existing `setResult` / `setFailed` at `:128` / `:137`**
+- [x] R1 asserted in code: a delta against `_roster === null` returns without writing — both setters
+- [x] R2 asserted in code: `kick` / `ban` / `node_eject` read `content.target_identity`, with **no `sender` fallback** — plus a `typeof` + non-empty check, drop on absence
+- [x] R3 asserted in code: add-existing and remove-absent are both no-ops — `.some()` precheck on both sides
+- [x] the three ignored `membership.*` strings return explicitly, each with the parent's §6 reason in a comment
+- [x] **§5's answer built: a live-added member carries the unresolved marker, and `toDescriptor` OMITS `isAi` for it — never `false`** ⚠️ **built exactly as locked; see §5-iv — the RENDERER collapses it anyway, so ①'s user-visible claim is false**
+- [x] `ingest.push` byte-identical; no store gained a privileged setter (parent §2) — verified **from the diff** (space prefix, no `−`, no re-add), not from the file
+- [x] `svelte-check` re-measured and quoted — **"svelte-check found 0 errors and 34 warnings in 15 files"** = the floor exactly; **cargo NOT re-run**
+- [x] exactly three files in the diff — **3 files, 103+/3−; only 3 lines removed in the whole leg**
+- [x] `M_RP_MEMBERS.md` §6 carries the **tail-8 lock-versus-build gap** (§5-i ①), filed not fixed — landed by Chat at J-643
+
+📌 **`Owes:` on close — `M_RP_MEMBERS.md` §6's third unresolved-row case**, added there whichever way §5 lands. ✅ **DISCHARGED at J-643** — and ⚠️ **§5-iv widened what is owed**: the case is no longer only a store-side distinction but a **renderer** question, which is Joe's and deferred by him until after this leg.
 
 ---
 

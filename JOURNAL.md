@@ -8,6 +8,81 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-643 — Leg A ships, and the fix it was built around is erased one layer below it
+
+**Date:** 2026-08-01 · **Seat:** Clair (implementation from the locked runbook) · Chat (re-drive, grounding, records) · Joe (*go*). **First code leg of this milestone.**
+
+**Opened at** `285c9d9`, local == `origin/main`. §1's grounding re-checked: `git diff a715ccb..HEAD -- ui/` **EMPTY**.
+
+---
+
+### ✅ THE RE-DRIVE — EVERY GATE RUN BY CHAT, NOT READ OFF CLAIR'S REPORT
+
+| Gate | Result |
+|---|---|
+| `git diff --stat` | **3 files, 103+/3−** |
+| lines removed, whole leg | **3** — two `toDescriptor` lines + one comment |
+| `ingest.push` @ `:552` | **UNCHANGED CONTEXT** — appears in the diff with a **space** prefix, no `−`, no re-add ⇒ R5 holds |
+| **R1** | `_roster === null → return`, both setters |
+| **R2** | `sender` for join/leave · `content.target_identity` for kick/ban/node_eject · **no fallback** · `typeof` + non-empty |
+| **R3** | `.some()` precheck both sides; add-existing and remove-absent are no-ops |
+| **R4** | guard **inside** the setters `:165`/`:173`, form identical to the shipped `:128`/`:137` |
+| `svelte-check` | **"svelte-check found 0 errors and 34 warnings in 15 files"** = the floor **exactly** |
+| cargo | not run — correct; a delta would mean scope was exceeded |
+| line endings | index **LF ×3** (the committed form), zero mixed, no regime rewrite |
+
+📌 **One claim in her code comments was tested rather than accepted:** `setResult` does `_roster = roster.members` — a wholesale replace from Rust rows — so the `unresolved` marker really is cleared by the next fill. Verified.
+
+🔑 **R2 IS THE ARM THAT WOULD HAVE SHIPPED LOOKING CORRECT** and it is right: a uniform `sender` read passes `join` and `leave` — the first two things anyone exercises — and silently removes the moderator on the other three.
+
+---
+
+### 🛑 THE FINDING: §5-iii's FIX IS ERASED BY THE RENDERER ONE LAYER DOWN
+
+**`ui/core/lib/components/data-dependent/entity-avatar.svelte:125`:**
+
+```
+data-ai={flags.isAi || undefined}
+```
+
+🛑 **`false || undefined` and `undefined || undefined` BOTH yield `undefined` ⇒ the attribute is omitted either way. THE DOM IS IDENTICAL.** ⚠️ **An AI identity joining live still renders as a human, exactly as before this leg.**
+
+⇒ **§5-ii option D ① — *"reads as unresolved rather than … a confident not-an-AI"* — IS NOT DELIVERED**, and cannot be from inside §2's three files.
+
+🔑 **§5-iii CONTRADICTED ITSELF AND THE TWO LINES WERE NEVER READ AGAINST EACH OTHER.** *"D IS A SUBTRACTION. NOTHING NEW APPEARS ON SCREEN"* sits two paragraphs below D ①'s claim that the row **reads** differently. **Both cannot be true of a renderer that already erases the distinction.** ⚠️ **The `?? false` collapse was removed at the DESCRIPTOR layer without measuring that the SAME collapse exists at the DOM layer** — the recurring species, a fix narrower than the thing it describes, caught only by opening `entity-avatar.svelte` at re-drive time.
+
+✅ **WHAT THE LEG DOES DELIVER, AND IT IS NOT REVERTED:** the client **no longer asserts `isAi: false` about a person it has never looked up**; the marker distinguishes *book never consulted* from *book consulted, no name*; **the store's data is honest and only the renderer collapses it**, so a future `entity-avatar` gets correct input with **no store change**. 📌 **Clair implemented the lock exactly — the defect is in the lock, not the code.**
+
+---
+
+### ⚠️ THREE FLAGS FROM CLAIR — ALL CORRECT, TWO WERE CHAT'S
+
+1. **The kickoff cited runbook v1.5; the file was v1.4.** 🛑 **Chat's error** — a v1.5 fix was *recommended* to Joe and the kickoff was then written as though he had ruled on it. **He had not.** She proceeded on content, correctly, and said so.
+2. **§6 said *"exactly two files"* while §2 and §7 said three** — found independently by both of us. §5-iii widened §2 on 2026-07-29; §2 and §7 moved, §6 did not. ⚠️ **A verification gate contradicting its own DoD stops the implementer at the last step.**
+3. **"the three UI files are LF"** — 🛑 **Chat's error.** `app_client.svelte`'s **worktree** is CRLF via `autocrlf`; its **index** is LF like the others, so the commit is unaffected. 🔑 **Her reading of `git ls-files --eol` over the `grep -c $'\r$'` count was the right call** — the grep was the unreliable signal and she named it as such.
+
+🔑 **TWO OF THE THREE WERE DEFECTS IN CHAT'S OWN DOCUMENTS, CAUGHT BY THE IMPLEMENTER READING THEM PROPERLY.** That is the seat working as designed, and it is the third arc running in which the sharpest findings came from outside the text rather than from re-reading it.
+
+---
+
+### ⚠️ AND CHAT'S J-642 CITATION SWEEP WAS ITSELF TOO NARROW — CAUGHT THIS SESSION
+
+J-642 recorded *"the fix had a second file, found by sweeping for citations rather than editing the obvious one"*. 🛑 **That sweep missed `docs/ROADMAP.md:297`, which carried `runbook v1.3` in a DIFFERENT TEXTUAL FORM than the pattern searched.** 🔑 **A sweep performed specifically to catch stale citations was narrower than the thing it described — the same defect, one entry later, committed while writing the entry that named it.** ✅ Corrected here with a **wider** predicate (`runbook.{0,60}v1\.[0-4]`), which found it plus the already-known `:296`. 📌 **Recorded rather than quietly fixed** — the value is the pattern, not the line.
+
+---
+
+**RECORDS.** `tasks/RUNBOOK_LIVEFEED_LEG_A.md` **v1.4 → v1.5, ACTIVE → COMPLETED** (§0 execution record + two stale citations · **§6's two-file gate struck and annotated** · **§5-iv NEW** — the renderer finding · §7 all ten DoD boxes ticked with evidence) · `tasks/M_RP_MEMBERS.md` **v1.15 → v1.16** (**§6a NEW** — the `tail-8` lock-versus-build gap, filed not fixed · §9 gains the third unresolved-row case · §8a records that its blocker is discharged and **Leg C is unblocked but NOT discharged**) · `tasks/M_RP_LIVEFEED_REFRESH.md` **v1.12 → v1.13** (§7 Leg A done · §9 ×2 · §10 handoff + **`Owes:` line**) · `docs/ROADMAP.md` **v6.30 → v6.31** (Leg A 🟡 → ✅) · `CLAUDE.md` PLAY · this entry. **No new D, no new N.**
+
+**MEASURED.** `docs/ROADMAP.md` **70,238 → 70,710 B**, 541 → 542 lines, **CRLF 542 === lines 542, bare-LF 0, no BOM**. Anchor guards on every PowerShell replace; one guard fired and correctly refused to write.
+
+**FLOORS.** svelte-check **0 / 34 / 15 — RE-MEASURED, at the floor exactly.** cargo **1588/0/62 × 56 — deliberately NOT re-run**; zero `.rs` in the diff.
+
+🛑 **WHAT LEG A DID *NOT* DO, STATED SO IT IS NOT LATER READ AS DONE: NOTHING WAS RUN LIVE.** No CDP, no second identity, no real `membership.join` observed. **§5's push path remains traced statically only** — that is Leg D's job and `M_RP_MEMBERS.md` Leg C's REQUIRED LEG. 🔑 **The router is verified as CODE, not as BEHAVIOUR.**
+
+**Next-active.** 🟡 **Leg B — runbook may be AUTHORED, not LOCKED.** 🔓 **Joe:** Leg B's B1/B2/B3 scope · the parent's §5 reconnect rule · **whether an unresolved row renders distinguishably** (raised by §5-iv, deferred by Joe until after this leg; it is `M_RP_MEMBERS` §6's word form and now sits beside §6a's `tail-8` gap) · `D-135` §5a · `M-DOC-BACKFILL`'s title and ID · the resync and outbox sibling names · the `is_dm` provenance-or-state ruling.
+
+---
+
 ## Entry J-642 — the fired gate inside Leg A's own runbook, removed before Clair opens it
 
 **Date:** 2026-08-01 · **Seat:** Joe (*go (a)*) · Chat (records). No code.

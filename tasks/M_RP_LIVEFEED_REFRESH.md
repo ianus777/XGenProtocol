@@ -1,8 +1,8 @@
 # M-RP-LIVEFEED-REFRESH — the live event router behind the members and rooms panels
 > **Status**: ACTIVE  
-> Version: 1.12  
+> Version: 1.13  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-31  
+> **Last updated**: 2026-08-01  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -476,6 +476,8 @@ pub struct NegotiatedCapabilities {
 
 **Leg A — the router + the members consumer.** The `membership.*` branch on the existing `xgen-event` listener plus `addMember`/`removeMember` on the address-book store. **Surface: `ui/client/src/app_client.svelte`, `ui/common/lib/stores/address-book.svelte.ts`.** Frontend only; moves the **`svelte-check`** floor (baseline 0 err / 34 warn / 15 files). **Satisfies `M_RP_MEMBERS.md` §5 and unblocks its Leg C.**
 
+✅ **LEG A DONE — IMPLEMENTED BY CLAIR, RE-DRIVEN BY CHAT, 2026-08-01 (J-643).** ⚠️ **THREE files, not two** — `members-panel.svelte` joined at §5-iii (runbook §2), and the runbook's own §6 still said *two* until v1.5 caught it. **Measured: 3 files, 103+/3−; only 3 lines removed in the whole leg; `svelte-check` `0 errors / 34 warnings / 15 files` = the floor EXACTLY; cargo not run.** 🔒 **R5 held — `ingest.push` verified byte-identical FROM THE DIFF** (space prefix, no `−`, no re-add), not from the file. **R1/R2/R3/R4 each asserted in code and each read back** — R2 in particular reads `content.target_identity` for `kick`/`ban`/`node_eject` **with no `sender` fallback**, which is the arm that would have shipped looking correct. 🛑 **§5-iii ①'s user-visible claim did NOT survive the re-drive — see runbook §5-iv:** `entity-avatar.svelte:125` is `data-ai={flags.isAi || undefined}`, so **`false` and absent render identically** and an AI joining live still appears human. **The store's data is honest now; the RENDERER collapses it, one layer below the fix.** 📌 **Clair implemented the lock exactly — the defect is in the lock.**
+
 **Leg B — the spaces/rooms consumer.** The `state.*` branch plus delta setters on `spaces-state`. **Surface: `ui/client/src/app_client.svelte`, `ui/common/lib/stores/spaces-state.svelte.ts`.** Moves **`svelte-check`**. 📌 **A and B are split deliberately: the second consumer is what proves the seam rather than asserting it.** One commit spanning both makes a regression ambiguous.
 
 **Leg C — the reconnect rule.** 🔓 **Gated on §5.** **Surface: `ui/client/src/app_client.svelte`** (an `$effect` on `selfState.connection`).
@@ -518,6 +520,8 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item below that says "observe
 - 📌 **SPEC GAP — `state.space_update` HAS NO CONTENT SCHEMA (§6a-i ③).** Dispatched to `=> Ok(())`; no applier function has ever existed. **Not this milestone's to fix** — a frontend router cannot invent a schema. Owed by whoever writes it.
 - 📌 **SPEC GAP — `docs/xgen_appendix_i_en.md:95` PROMISES `state.room_update` CARRIES *name* AND *topic*; THE APPLIER CARRIES NEITHER (§6a-i ③).** ⚠️ **The spec is ahead of the code, and in a protocol project the spec is the deliverable** ⇒ this is a real divergence, not a code TODO. **Named, not fixed, and not this milestone's.**
 - 🛑 **`KnownSpace` HAS NO EVENT-DRIVEN WRITER AT ALL (§6-ii).** Its three writers are the user's own local actions. ⚠️ **`role` is hardcoded `"owner"` at both create sites and `joined: false` has zero production writers** — so a routed room would have to **invent** both. **Filed here because it outlives this milestone under every one of B1/B2/B3.**
+- 🛑 **THE RENDERER COLLAPSES THE THIRD STATE, SO LEG A's §5-iii FIX IS INVISIBLE TO THE USER (runbook §5-iv, measured 2026-08-01).** `entity-avatar.svelte:125` — `data-ai={flags.isAi || undefined}` ⇒ **`false` and absent produce identical DOM.** An AI joining live still renders as a human. ✅ **The store no longer ASSERTS `isAi: false` about a person it never looked up** — that stands and is not reverted — **but option D ①'s *"reads as unresolved"* is not delivered and cannot be from inside §2's three files.** 🔓 **Whether the renderer should distinguish it is Joe's**, deferred by him until after Leg A; it is `M_RP_MEMBERS.md` §6's word form, now filed there as its third unresolved-row case alongside §6a.
+- 📌 **`M_RP_MEMBERS.md` §6a — THE `tail-8` LOCK-VERSUS-BUILD GAP, filed there at J-643, not fixed.** Joe locked *tail-8*; the shipped `tail()` returns the whole final path segment and the CSS clips the **left**, so every unresolved row reads `ed25519:AbCd…` — **the constant head kept, the distinguishing bytes discarded.** Not this milestone's.
 
 ---
 
@@ -526,9 +530,12 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item below that says "observe
 **Blocked on Joe:**
 - §5 — the reconnect rule. **Gates Leg C only.**
 - 🔓 **THE B1/B2/B3 SCOPE RULING — NEW AT v1.12, AND IT NOW HAS A MEASURED BASIS IT DID NOT HAVE BEFORE.** §6-ii establishes that **`get_spaces` reads disk and the router writes memory**, so **B1 makes the panel correct until restart and cannot make it true**. **Gates Leg B's runbook LOCK, not its authoring.**
+- 🔓 **WHETHER AN UNRESOLVED ROW RENDERS DISTINGUISHABLY — raised by §5-iv, DEFERRED BY JOE until after Leg A (2026-08-01).** ⚠️ **Gates nothing here**; it is `M_RP_MEMBERS.md` §6's word form and is filed there.
 
-**Not blocked:** **Leg A** — fully unblocked; §6a's `membership.*` partition is closed by two independent routes (the namespace census, and `J-640`'s write-site census on `self.members`). **Leg B's runbook may be authored.** §3 is locked.
+**Not blocked:** ✅ **Leg A is DONE** (J-643). **Leg B's runbook may be authored.** §3 is locked.
+
+**Owes:** `M-RP-MEMBERS Leg C live-membership verify` — unblocked by Leg A, **not discharged by it**: Leg A shipped with no CDP and no live run by design, and Leg C's REQUIRED LEG is two clients and a real join. · `M-RP-LIVEFEED-REFRESH Leg D live verify` — where that run actually happens.
 
 **Chat owes:** the §0b registry composition model (carried from the M-RP-MEMBERS arc, needs a live client).
 
-📌 **NOT THIS MILESTONE'S, RAISED HERE BECAUSE §6a-i SURFACED THEM:** the two §9 spec gaps (`state.space_update`'s absent schema · Appendix I `:95` vs `apply_room_update`), and the `is_dm` provenance-or-state ruling on the members panel (its own milestone, `J-640`).
+📌 **NOT THIS MILESTONE'S, RAISED HERE BECAUSE §6a-i AND LEG A SURFACED THEM:** the two §9 spec gaps (`state.space_update`'s absent schema · Appendix I `:95` vs `apply_room_update`), the `is_dm` provenance-or-state ruling on the members panel (its own milestone, `J-640`), and `M_RP_MEMBERS.md` §6a's `tail-8` lock-versus-build gap (filed there at J-643).

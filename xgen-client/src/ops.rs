@@ -3318,6 +3318,8 @@ mod tests {
 mod pass_4_commit_1_tests {
     //! XGID Retrofit Pass 4 Commit 1 — Surface #1 (M5 Ops Layer) per-surface
     //! tests T1 + T2 (runbook §3.4). T3 lives at xgen-common flavours.rs.
+    //! Plus the Vec-level sibling of T2, added for
+    //! `M-RP-IDENTITY-RESOLUTION` Leg B (Phase-0 §9, owed at J-647).
     use super::*;
 
     fn ix(s: &str) -> IdentityXgid {
@@ -3459,6 +3461,44 @@ mod pass_4_commit_1_tests {
         let back: CreateSpaceResult = serde_json::from_str(&json).unwrap();
         assert_eq!(back.space_id.as_str(), "xgen://hash/sha256:abc");
         assert_eq!(back.name, "General");
+    }
+
+    /// T2-vec — the Vec-level sibling of the wire-invariance witness.
+    /// `FillReport.not_found_ids` is `Vec<IdentityXgid>`, and each element is a
+    /// `#[serde(transparent)]` flavour wrapper, so the field must serialise as a
+    /// plain JSON array of STRINGS, never an array of objects. The TS mirror
+    /// declares `not_found_ids: string[]` (`address-book.svelte.ts:59`) and that
+    /// claim had NO witness before this test: T2 covers SCALAR identifier slots
+    /// only, so citing it for a `Vec` would be a claim narrower than its subject
+    /// (filed J-647, Phase-0 §9). This test can genuinely fail — adding a serde
+    /// attribute to the field or to `IdentityXgid` breaks it.
+    #[test]
+    fn fill_report_not_found_ids_vec_serde_transparent_wire_invariance() {
+        let r = FillReport {
+            candidates: 2,
+            fetched: 0,
+            not_found: 2,
+            not_found_ids: vec![
+                ix("xgen://pubkey/ed25519:AAA"),
+                ix("xgen://pubkey/ed25519:BBB"),
+            ],
+            touched: 0,
+        };
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(
+            json.contains(
+                r#""not_found_ids":["xgen://pubkey/ed25519:AAA","xgen://pubkey/ed25519:BBB"]"#
+            ),
+            "not_found_ids is not a plain array of strings: {json}"
+        );
+        // An EMPTY vec must still serialise as `[]`, never omitted — the mirror
+        // declares the field required and the panel reads it unconditionally.
+        let empty = FillReport::default();
+        let json_empty = serde_json::to_string(&empty).unwrap();
+        assert!(
+            json_empty.contains(r#""not_found_ids":[]"#),
+            "empty not_found_ids must serialise as []: {json_empty}"
+        );
     }
 
     // ── members_projection (A1) ───────────────────────────────────────────────

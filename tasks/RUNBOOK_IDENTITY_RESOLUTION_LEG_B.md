@@ -1,6 +1,6 @@
 # M-RP-IDENTITY-RESOLUTION Leg B — the render rules
 > **Status**: PENDING  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-01  
 > Language: English  
@@ -12,7 +12,9 @@
 
 🛑 **AUTHORED, NOT LOCKED. NOBODY IS IMPLEMENTING THIS FILE.** It becomes Clair's instruction only when Joe says *"lock"* AND stands her up — **two acts** (the J-646 rule: *"locked" reads like "started" to anyone skimming*). Until both, this is a proposal.
 
-📌 **Parent Phase-0:** `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.7**. 🛑 **RUNBOOK-AS-GROUND-TRUTH IS A FAILURE MODE.**
+✅ **v1.1 — CLAIR'S ADVERSARIAL READ APPLIED (J-651).** She was sent in for the read BEFORE the lock, and it was not clean: **three of her four findings were Chat's**, and re-driving them surfaced a fifth Chat defect she did not catch (G-B8 pointed at the wrong Change number). **§3's G-B4 anchors · G-B8's severity framing and its Change pointer · §5 Change 2(b)'s elided late-guard · Change 3's mis-description** are all corrected below. Superseded text is annotated, never deleted (`D-131`).
+
+📌 **Parent Phase-0:** `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.8**. 🛑 **RUNBOOK-AS-GROUND-TRUTH IS A FAILURE MODE.**
 
 **SESSION-OPEN READING ORDER (Clair):** ① `CLAUDE.md` PLAY head → ② latest `JOURNAL.md` entry → ③ Phase-0 §3 (the four states) · §4 · §5 · §5a · §5b · §8 B-1…B-4 → ④ **this file**. It is item 4, not item 1.
 
@@ -52,11 +54,11 @@ Every line number below was read from the file, not recalled.
 - **G-B1 — `FillReport` has exactly five fields and derives `Default`.** `ops.rs:2772-2794`: `candidates` · `fetched` · `not_found` · `not_found_ids: Vec<IdentityXgid>` · `touched`.
 - **G-B2 — the T2 gate lives in `mod pass_4_commit_1_tests`** (`ops.rs:3318`), which carries `use super::*` (`:3321`) and the `ix()` / `sx()` / `ex()` helpers (`:3323-3331`). **T2 itself is `:3438-3462`.** ⇒ the new witness needs **no new module and no new helper**.
 - **G-B3 — `setResult` has exactly ONE caller.** `app_client.svelte:183`. Grepped across all `*.ts` / `*.svelte` excluding `target`, `.claude`, `node_modules`. ⇒ **the signature change is cheap and total.**
-- **G-B4 — the store's shape.** `_isDm` / `_roster` / `_book` / `_phase` at `:92-95`; `setResult(spaceId, roster, book)` at `:132-137`; `setInflight` `:122-127`; `setFailed` `:139-143`; `reset` `:146-150`. **`MemberEntry.unresolved?: boolean` at `:36`** is documented as *"the ONE non-mirror field"*.
+- **G-B4 — the store's shape.** `_isDm` / `_roster` / `_book` / `_phase` at `:92-95`; **`setResult(spaceId, roster, book)` at `:132-138`** — 🛑 **and its FIRST body line, `:133`, is `if (spaceId !== _spaceId) return;`, the §3.5 late-response guard**; `setInflight` `:124-128`; `setFailed` `:141-144`; `reset` `:146-151`. **`MemberEntry.unresolved?: boolean` at `:36`** is documented as *"the ONE non-mirror field"*. ⚠️ *v1.0 gave these as `:132-137` / `:122-127` / `:139-143` / `:146-150` — each off by one at the closing brace, and `setInflight`'s start included the doc-comment. Corrected at v1.1 from Clair's read; superseded, kept not erased (`D-131`).*
 - **G-B5 — the TS mirror already carries the ids.** `FillReport.not_found_ids: string[]` at `address-book.svelte.ts:59`; `FillMembersOutcome { fill, roster }` at `:65-67`, whose own comment (`:64`) says the shell reads **`.roster`, not `.1`** — *"not a positional tuple"*.
 - **G-B6 — `entity-item`'s prop block is `:30-50`; its root is `:112-120`.** The shipped idiom is `data-selected={selected || undefined}` (`:116`). Aggregate getter `debug()` at `:87-94`.
 - **G-B7 — `entity-panel` carries the per-row view-model `EntityItemInput` at `:35-40`** (`descriptor` · `secondary` · `status` · `meta`) and renders it through the `rowBody` snippet at `:152-161`. ⇒ **the hook is a PER-ROW field on `EntityItemInput`, never a panel-level prop.** 📌 *P1 said "a prop through `entity-panel` → `entity-item`"; the panel's own mechanism for per-row data is this type, and using it is what P1 means here.*
-- **🛑 G-B8 — A DECLARATION-ORDER HAZARD, AND IT IS THE ONE THING IN THIS LEG THAT WILL BITE SILENTLY.** In `members-panel.svelte`, **`memberDescriptors` is `:106` and `counterpart` is `:123`** — the filter needs `counterpart` and it is declared **seventeen lines later**. `$derived` is lazy, so this may well run; **it is a temporal-dead-zone hazard on first read and must not be left to chance.** ⇒ **Change 5 MOVES `counterpart` above the member list. This is a named step, not a discovery.**
+- **📌 G-B8 — A DECLARATION-ORDER POINT. HYGIENE, NOT A HAZARD.** In `members-panel.svelte`, **`memberDescriptors` is `:106` and `counterpart` is `:123`** — the new filter needs `counterpart` and it is declared **seventeen lines later**. ✅ **THE TDZ CANNOT FIRE HERE, AND THAT WAS MEASURED, NOT ASSUMED:** `$derived` evaluates **lazily, on first read**, and the first read is the template's `items={rows}` at `:146` — **after** the whole instance body has run. There is **no `$effect` in the file**, and `debug()` is a closure the CDP harness calls out-of-band, so **nothing reads the derived during init** and `counterpart` is always assigned first. ⇒ **Move it anyway** — declare-before-use costs nothing and a reader should not have to prove laziness to follow the code — **as Change 6(a)**. 🛑 ***v1.0 CALLED THIS "THE ONE THING IN THIS LEG THAT WILL BITE SILENTLY". THAT WAS WRONG TWICE OVER*** — it is the **lowest**-risk item in the leg, and the framing **spent the reader's caution in the wrong place while the real silent bite (Change 2(b)'s elided late-guard) went unflagged**. ⚠️ *v1.0 also hedged and overclaimed in one breath — "`$derived` is lazy, so this may well run" beside "will bite silently" — **and the headline is what travels.*** ⚠️ *v1.0 additionally pointed at **"Change 5"**, which is `entity-panel`; the move is **Change 6(a)**. Caught on the re-drive, not by the read. All superseded, kept not erased (`D-131`).*
 - **G-B9 — `counterpart` is `undefined` outside a DM** (`:123-127` gate on `addressBook.isDm`). ⇒ **`id === counterpart` IS the DM exception**; no separate `is_dm` test is needed in the filter, and none should be added.
 - **G-B10 — §5a-i needs no code.** `counterpart` derives from `roster`, and B-1 keeps `_roster` complete, so the erased counterpart is still found at `:125` and still passed as `selected` at `:146`. 🔒 **Joe locked KEEP (2026-08-01). KEEP = zero lines.** ⚠️ *Phase-0 §5a-i priced this as "one condition either way"; that was Chat's and it was wrong — the options are not symmetric. Corrected here, kept not erased (`D-131`).*
 
@@ -157,11 +159,11 @@ fn fill_report_not_found_ids_vec_serde_transparent_wire_invariance() {
 let _notFound = $state<string[]>([]);
 ```
 
-**(b) `setResult` (`:132-137`) takes the outcome whole, NOT a fourth positional argument:**
+**(b) `setResult` (`:132-138`) takes the outcome whole, NOT a fourth positional argument:**
 
 ```ts
 setResult(spaceId: string, outcome: FillMembersOutcome, book: AddressBook): void {
-  // late-guard UNCHANGED
+  if (spaceId !== _spaceId) return; // late-response guard (§3.5) — UNCHANGED, DO NOT DROP
   _isDm = outcome.roster.is_dm;
   _roster = outcome.roster.members;
   _notFound = outcome.fill.not_found_ids;
@@ -169,6 +171,8 @@ setResult(spaceId: string, outcome: FillMembersOutcome, book: AddressBook): void
   _phase = 'ready';
 }
 ```
+
+🛑 **AND THE GUARD AT `:133` IS SHOWN IN FULL ON PURPOSE.** ⚠️ *v1.0 rendered it as a bare comment, `// late-guard UNCHANGED`, inside a **whole-body** replacement — so a literal paste would have **silently dropped the §3.5 late-response guard**, the line whose own doc-comment says that without it *"switching rooms twice quickly renders Space A's roster under Space B's heading"*. **Clair's read caught it, and it was the one place in this leg where a correct-looking paste removes protective behaviour.*** 🔑 **STANDING RULE, EARNED HERE: A WHOLE-BODY REPLACEMENT NEVER ELIDES A LINE BEHIND A COMMENT.** *An instruction that shows less than it replaces is a deletion wearing an edit's clothes — and "UNCHANGED" is exactly the word that stops the reader looking.*
 
 📌 **WHY THE WHOLE OUTCOME AND NOT A 4TH ARG:** `FillMembersOutcome`'s own comment (`:64`) already refuses positional access — *"the shell reads `.roster`, not `.1`"*. A fourth argument reintroduces exactly what that type exists to prevent, and **every future `fill` field then costs another signature change.**
 
@@ -193,7 +197,7 @@ get notFoundIds(): string[] {
 addressBook.setResult(sid, outcome, book);
 ```
 
-**One line.** ⚠️ **The surrounding comment at `:178-180` still describes the roster half only — update it to say the fill half now carries the ③ ids.** *A comment left describing the previous contract is this milestone's own recurring defect (N-109 family).*
+**One line.** ⚠️ **The surrounding comment at `:178-180` names `FillMembersOutcome { fill, roster }` and says the fill *"persists the address-book cache on disk"* — true, and now INCOMPLETE: add that the fill half also carries the ③ ids the render rules read.** *A comment left describing the previous contract is this milestone's own recurring defect (N-109 family).* ⚠️ *v1.0 said the comment "still describes the roster half only" — **it does not; it already names both halves.** The instruction was right and its premise was wrong. Corrected at v1.1 from Clair's read; superseded, kept not erased (`D-131`).*
 
 #### Change 4 — `entity-item.svelte`, the leaf
 

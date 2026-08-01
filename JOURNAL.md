@@ -8,6 +8,89 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-651 — the adversarial read ran before the lock, and three of its four findings were mine
+
+**Date:** 2026-08-01 · **Seat:** Joe (*"do the best for you"* — read as a call on the process question, **not** as the lock) · Clair (adversarial read, no code) · Chat (re-drive, corrections, records). **No code. No floors moved.**
+
+**Opened at** `46eab41` (J-650), tree clean, local == origin.
+
+---
+
+### 🔑 THE SEQUENCE IS THE POINT
+
+Clair was sent in for the read **before** the lock, with **no authority to write to `ui/**` or `xgen-client/**`**. That is **J-642's own ruling generalised** — *fix it before Clair opens it* — and it is the first time this project has run an adversarial read as a **gate on the lock** rather than as a step inside an already-locked leg.
+
+✅ **It was not clean. Four findings; three were Chat's. Re-driving them surfaced a fifth that her read did not catch.**
+
+---
+
+### 🛑 FINDING A — THE ONE THAT MATTERED
+
+Change 2(b) rendered the §3.5 late-response guard as a bare comment, `// late-guard UNCHANGED`, **inside a WHOLE-BODY replacement.** The real line is `:133`, `if (spaceId !== _spaceId) return;` — the guard whose own doc-comment says that without it *"switching rooms twice quickly renders Space A's roster under Space B's heading"*.
+
+**A literal paste would have deleted it, and the resulting diff would have looked like an intentional rewrite.**
+
+🔑 **STANDING RULE, EARNED HERE: A WHOLE-BODY REPLACEMENT NEVER ELIDES A LINE BEHIND A COMMENT.** ***An instruction that shows less than it replaces is a deletion wearing an edit's clothes — and "UNCHANGED" is precisely the word that stops the reader looking.***
+
+---
+
+### 🛑 FINDING ③ — AN OVERCLAIM THAT DISPLACED ATTENTION
+
+G-B8 called the `counterpart` declaration-order point ***"THE ONE THING IN THIS LEG THAT WILL BITE SILENTLY."* It is the LOWEST-risk item in the leg.**
+
+**Re-measured rather than conceded:** `$derived` evaluates **lazily on first read**; the first read is the template's `items={rows}` at `:146`; **there is no `$effect` in the file**; `debug()` is a closure the CDP harness calls out-of-band. ⇒ **nothing reads the derived during the instance body, so `counterpart` is always assigned first and the TDZ cannot fire.** The move stays — declare-before-use costs nothing — but the framing is gone.
+
+⚠️ **And I hedged and overclaimed in one breath:** *"`$derived` is lazy, so this may well run"* sat beside *"will bite silently"*. ***The headline is what travels.***
+
+🔑 **So the leg's loudest warning pointed at its safest line while its one real silent bite — A — carried no warning at all.** ***An overclaim that misdirects is worse than one that merely inflates, because it spends the reader's caution in the wrong place.***
+
+---
+
+### 🔑 THE FIFTH DEFECT — FOUND BY THE RE-DRIVE, NOT BY THE READ
+
+G-B8 instructed ***"Change 5 MOVES `counterpart`"***. **Change 5 is `entity-panel`. The move is Change 6(a).** In a **locked** runbook that sends the implementer to the wrong file.
+
+🔑 ***A report is not a measurement.*** Every one of Clair's findings was re-driven against source before being accepted, and the fifth surfaced only because the re-drive re-read the section rather than the finding.
+
+---
+
+### ✅ THE TWO SMALL ONES, BOTH HERS, BOTH CORRECT
+
+- **Four store anchors off by one at the closing brace.** Verified: `setResult` `:132-138` · `setInflight` `:124-128` · `setFailed` `:141-144` · `reset` `:146-151`.
+- **Change 3's premise was false.** It claimed `app_client:178-180` *"still describes the roster half only"* — the comment already names `FillMembersOutcome { fill, roster }` and the disk persistence. **The instruction was right; its stated reason was not.**
+
+---
+
+### 🛑 A DEFECT OF MINE THAT IS ALREADY COMMITTED — ANNOTATED, NOT REPAIRED
+
+**J-650's JOURNAL entry and its `CLAUDE.md` PLAY block both say *"5 FILES, 6 CHANGES"*. It is SIX files** — `ops.rs` **plus** five frontend files. The runbook's own §2 table has six rows and its V7/DoD say *"all six"*; **I counted the frontend and forgot the Rust.**
+
+⚠️ **A dated record is not back-edited (J-629), so the correction lives here and in the J-651 PLAY block, and the false figure stays visible where it was written (`D-131`).**
+
+🔑 ***The milestone's signature species — a claim narrower than the thing it describes — committed by the seat that has been naming it all day.***
+
+📌 **And my kickoff to Clair asserted *"tree should be CLEAN, latest commit is J-650"* — false when written.** The J-650 commit had aborted on a PS 5.1 quoting fault (embedded double quotes in a single-quoted `-m`, which PowerShell strips and splits) and I had taken *"push done"* without verifying. **She caught it by doing exactly what the kickoff told her to do**, which is the only reason the *verify it yourself* line was in there.
+
+---
+
+### 🔑 SCOREBOARD, RECORDED ON PURPOSE
+
+At **J-647** her read was clean and that was recorded as a **result**. At **J-643** two of three findings were Chat's. **Here three of four were, plus a fifth on re-drive.** *The seat is not judged only by the arcs where it catches something, and it is not judged only by the arcs where it does.*
+
+---
+
+**RECORDS.** `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_B.md` **v1.0 → v1.1** (G-B4 anchors · G-B8 re-framed + Change pointer · Change 2(b) guard shown in full + the standing rule · Change 3's premise · parent pointer → v1.8) · `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.7 → v1.8** · `docs/ROADMAP.md` **v6.38 → v6.39** · `CLAUDE.md` PLAY · this entry. **Five files, one commit (`D-074`).**
+
+⚠️ **The sweep ran twice, and pass 2 was needed again:** bumping the Phase-0 to v1.8 staled the runbook's own parent pointer at v1.7, which pass 1 had just written. **`D-135` §5a paying off for the second consecutive entry.**
+
+**FLOORS.** cargo **1588 / 0 / 62 × 56** · svelte-check **0 / 34 / 15** — **NEITHER RE-RUN.** Documents only; zero `.rs`, zero `ui/**`.
+
+🛑 **WHAT THIS DID NOT DO.** **No production code.** The runbook is **STILL AUTHORED, NOT LOCKED**, and **Clair is STILL NOT STOOD UP**. ✅ **A read is neither of the two acts** — and that distinction is the whole reason J-646 wrote them as two. 📌 *Joe's "do the best for you" was read as a call on the process question I had asked, not as the lock; inferring a lock from a delegation is exactly the shape this project catches later.*
+
+**Next-active.** 🟡 **Leg B**, waiting on the lock. 🔓 **Joe:** the lock · §7 Tier-1 fetch · §6's refresh trigger · the `skin.css` values · §5's DAG-divergence read.
+
+---
+
 ## Entry J-650 — Leg B's runbook is authored, and the citation I leaned on all session said the opposite of what I claimed
 
 **Date:** 2026-08-01 · **Seat:** Joe (locks: **§5a-i**, **Leg C separate**, **§4's hook form**) · Chat (grounding, runbook authoring, records). **No code. No floors moved.**

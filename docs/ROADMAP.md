@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.33  
+> Version: 6.34  
 > Date: May 2026  
 > **Last updated**: 2026-08-01  
 > Language: English  
@@ -306,7 +306,7 @@ XGen Protocol
 │   │   └── 🟡 **Leg E records + close**
 │   │       ↳ trigger: Leg D lands
 │   ├── 🟡 **M-RP-IDENTITY-RESOLUTION** — what a member row shows before the client knows who it is · J-644
-│   │   ↳ 🔑 **SPAWNED BY `M-RP-LIVEFEED-REFRESH` Leg A (J-643)** — the live router created a state the panel had never been in: a roster row whose identity was **NEVER LOOKED UP**. Phase-0 `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.2 ACTIVE**
+│   │   ↳ 🔑 **SPAWNED BY `M-RP-LIVEFEED-REFRESH` Leg A (J-643)** — the live router created a state the panel had never been in: a roster row whose identity was **NEVER LOOKED UP**. Phase-0 `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.3 ACTIVE**
 │   │   ↳ 🛑 **FILED WITHOUT RECORDS AND FOUND UNFINDABLE (J-644)** — the `M-RP-REGION-GEAR` shape `tasks/AUDIT_RECORD_FINDABILITY.md` was written to name, recurring in the session that discussed it. **D-074 fires on STATE CHANGE; a document merely FILED never triggers it**
 │   │   ↳ 🔒 **ID + TITLE LOCKED J-644 (Rule 8, Joe)** — every narrower candidate reads render-only and **hides that Legs A and D are Rust**. ⚠️ *v6.32 read "… are Rust and move the cargo floor"; corrected J-645, kept not erased (`D-131`) — **Leg A is Rust but does NOT move the floor** (no unit test is possible; see Leg A). **Leg D still does.** The ID rationale holds on the Rust half, which was always the load-bearing part*
 │   │   ↳ 🔒 **§2 THE TWO-TIER FRAME (Joe's own)** — Tier 1 = the Identity record, **mandatory**, federation-wide, carries `is_ai` (§3.6.10); Tier 2 = the visit card, **not designed here**. `display_name` stays Tier 1 and duplicates nothing (Ch2's four representation layers)
@@ -316,9 +316,9 @@ XGen Protocol
 │   │   ↳ `Owes:` — **the first milestone that RENDERS A MEMBER COUNT** · re-opens §5's C1 mismatch, at which point C2 and C3 return as live options
 │   │   ├── ✅ **Leg 0 Phase-0** — the four states, the tier frame, the two capability gaps · J-644
 │   │   ├── 🟡 **Leg A the `not_found` id list** — `FillReport` gains `not_found_ids: Vec<IdentityXgid>` through `fill_space_records`; **Rust + the TS mirror** ⇒ closes **G-A**
-│   │   │   ↳ ✅ **RUNBOOK AUTHORED J-645** — `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` v1.0 ACTIVE, **two files**. 🔒 Joe locked the type (**X1** · `IdentityXgid`, matching `MemberEntry` in the same returned struct), the boundary (**②** · Rust + TS mirror, no `setResult` wiring — that is Leg B) and the test posture (**T-a**)
+│   │   │   ↳ ✅ **RUNBOOK AUTHORED J-645, 🔒 LOCKED BY JOE J-646** — `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` **v1.1 ACTIVE, LOCKED**, **two files**. 🔒 Joe locked the type (**X1** · `IdentityXgid`, matching `MemberEntry` in the same returned struct), the boundary (**②** · Rust + TS mirror, no `setResult` wiring — that is Leg B) and the test posture (**T-a**)
 │   │   │   ↳ 🛑 **CARGO DOES NOT MOVE, AND THAT IS CORRECT.** ⚠️ *v6.32 said "moves the cargo floor"; superseded, kept not erased (`D-131`).* The push sits inside `fill_from_events` behind `ensure_connected`; the existing `not_found` test covers **`absorb_fetch`**, which is pure and never touches `FillReport` ⇒ **no unit test is possible without a live node.** **Leg A is COMPILE-VERIFIED ONLY; Leg F is the first behaviour verification**
-│   │   │   ↳ trigger: **Joe locks the runbook and stands Clair up** — both his (the J-618 seat rule)
+│   │   │   ↳ trigger: **Joe stands Clair up** — ⚠️ *v6.33 read "Joe locks the runbook and stands Clair up"; the lock half is DISCHARGED at J-646, the hand-off half is NOT* (`D-131`)
 │   │   ├── 🟡 **Leg B the render rules** — `data-unresolved` on `.entity-item`; ③ filtered from the rendered list; **moves `svelte-check`** ↳ trigger: Leg A lands
 │   │   ├── 🟡 **Leg C the skin** — the dimmed treatment in `ui/assets/skin.css` ⚠️ **JOE'S FILE** ↳ trigger: Leg B lands
 │   │   ├── 🟡 **Leg D Tier-1 fetch on join** — a **new Tauri command** (18 measured, none does single-identity lookup) + a merge-one setter; **moves the cargo floor** ↳ trigger: **Joe rules §7** — Chat recommends it ships

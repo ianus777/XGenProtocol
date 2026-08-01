@@ -1,6 +1,6 @@
 # M-RP-IDENTITY-RESOLUTION Leg A — the `not_found` id list
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-01  
 > Language: English  
@@ -10,9 +10,15 @@
 
 ---
 
-⚠️ **AUTHORED, NOT LOCKED.** Chat wrote this; **Joe locks it, and standing Clair up is his** (the J-618 seat rule). Until then it is a proposal, not an instruction.
+🔒 **LOCKED BY JOE 2026-08-01 (J-646) — *"lock"*.** This file is now **Clair's instruction, not a proposal**. ⚠️ **AMENDING IT NOW REQUIRES A FURTHER JOE RULING**, and an amendment while she is mid-leg must reach her before she reads the section it changes — the J-642 shape (a fired gate sitting in an ACTIVE runbook) is what that rule exists to prevent.
 
-📌 **Parent Phase-0:** `tasks/M_RP_IDENTITY_RESOLUTION.md` v1.2 — read §1 (grounding), §3 (the four states) and §6 (G-A) before this file. 🛑 **RUNBOOK-AS-GROUND-TRUTH IS A FAILURE MODE.**
+🛑 **STANDING CLAIR UP IS SEPARATE AND HAS NOT HAPPENED.** Joe locked the runbook; **he has not yet handed her the turn.** Until he does, this file is locked and idle — **nobody is implementing it.**
+
+📌 *v1.0 carried this line as **AUTHORED, NOT LOCKED**; superseded, kept not erased (`D-131`).*
+
+📌 **Parent Phase-0:** `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.3** — read §1 (grounding), §3 (the four states) and §6 (G-A) before this file. 🛑 **RUNBOOK-AS-GROUND-TRUTH IS A FAILURE MODE.**
+
+🔑 **SESSION-OPEN READING ORDER FOR CLAIR (MANDATORY):** `CLAUDE.md` PLAY head → `JOURNAL.md` J-646 → the Phase-0 §1/§3/§6 → **then this file in full.** ⚠️ **This runbook is item 4, not item 1.**
 
 ---
 

@@ -1,6 +1,6 @@
 # M-RP-IDENTITY-RESOLUTION — what a member row shows before the client knows who it is
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-01  
 > Language: English  
@@ -158,7 +158,7 @@ if !id_registry.contains(sender) {
 
 🛑 **HOW THE ERROR HAPPENED, RECORDED BECAUSE IT IS THE RECURRING SPECIES:** G-A was reasoned from the state taxonomy and **never re-read against the code J-643 had just shipped one day earlier**. A claim about what the client can distinguish was written without opening the file that does the distinguishing.
 
-⇒ **Leg A carries `not_found_ids` — runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` v1.0.** **Rust.** 📌 **AND IT DOES *NOT* MOVE THE CARGO FLOOR** — see §8's correction.
+⇒ **Leg A carries `not_found_ids` — runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` v1.1, 🔒 LOCKED (J-646).** **Rust.** 📌 **AND IT DOES *NOT* MOVE THE CARGO FLOOR** — see §8's correction.
 
 ### G-B — "THE NEXT REFRESH" DOES NOT CURRENTLY ARRIVE
 
@@ -191,7 +191,7 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 
 **Leg 0 — Phase-0.** This document. No code.
 
-**Leg A — the `not_found` id list.** `FillReport` gains `not_found_ids: Vec<IdentityXgid>`; surfaced through `fill_space_records`. **Runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` v1.0 — AUTHORED, NOT LOCKED.** ⇒ closes **G-A**.
+**Leg A — the `not_found` id list.** `FillReport` gains `not_found_ids: Vec<IdentityXgid>`; surfaced through `fill_space_records`. **Runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` v1.1 — 🔒 LOCKED BY JOE (J-646).** ⚠️ *v1.2 read "v1.0 — AUTHORED, NOT LOCKED"; superseded, kept not erased (`D-131`).* 🛑 **Standing Clair up is a SEPARATE act and has not happened** — the runbook is locked and idle. ⇒ closes **G-A**.
 
 ⚠️ **v1.0/v1.1 SAID *"Rust; moves the cargo floor."* IT DOES NOT MOVE IT — corrected at v1.2, kept not erased (`D-131`).** The push sits inside `fill_from_events`, downstream of `ensure_connected` and `identity_get_on`; **the existing `not_found` test covers `absorb_fetch`, which is pure and never touches `FillReport`.** ⇒ **the change has no unit test and cannot get one without a live node.** 🔒 **Joe locked T-a (2026-08-01): ship it untested rather than refactor the function carrying the `session.conn` re-entrancy invariant.** ⇒ **cargo stays 1588 / 0 / 62 × 56, and Leg A is COMPILE-VERIFIED ONLY — Leg F is the first leg that can verify it behaviourally.**
 

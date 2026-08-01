@@ -8,6 +8,51 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-646 — the Leg A runbook is locked; the lock's own citation sweep found four stale pointers
+
+**Date:** 2026-08-01 · **Seat:** Joe (*"lock"*) · Chat (records, sweep). **No code. No floors moved. A STATE CHANGE, so `D-074` applies.**
+
+**Opened at** `e65ee49`, local == `origin/main`, tree clean.
+
+---
+
+### 🔒 THE LOCK
+
+🔒 **`tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` v1.0 → v1.1 — AUTHORED, NOT LOCKED → LOCKED BY JOE.** The file is now **Clair's instruction, not a proposal**; amending it requires a further Joe ruling.
+
+🛑 **AND HALF THE TRIGGER IS STILL OUTSTANDING, STATED SO IT IS NOT READ AS DONE.** The ROADMAP trigger read *"Joe locks the runbook **and stands Clair up**"* — **two acts, and he performed one.** ⇒ **the runbook is locked and IDLE. Nobody is implementing it.** Recorded in the runbook itself, the ROADMAP node and the Phase-0 §8, because *"locked"* reads like *"started"* to anyone skimming.
+
+📌 **Two additions made at the lock, both aimed at the J-642 shape** (a stale gate sitting inside an ACTIVE runbook Clair was about to open): an **amendment rule** — a change made mid-leg must reach her *before* she reads the section it changes — and an explicit **session-open reading order** naming this runbook as **item 4, not item 1**.
+
+---
+
+### ✅ THE SWEEP, AND WHY IT RAN TWICE
+
+A version bump stales every citation of the bumped file, so a wide predicate was run on the runbook's name — **not** on a version string.
+
+**Pass 1 — six hits, four of them live:**
+- ✅ `docs/ROADMAP.md:319` — cited runbook **v1.0**, corrected.
+- ✅ `tasks/M_RP_IDENTITY_RESOLUTION.md:161` and **`:194`** — **both cited v1.0, and `:194` still read *"AUTHORED, NOT LOCKED"***. Corrected; the Phase-0 went **v1.2 → v1.3**.
+- 🛑 `CLAUDE.md:121` and `JOURNAL.md:59, :94` — **dated records, DELIBERATELY NOT TOUCHED** (the J-629 rule).
+
+🔑 **PASS 2 WAS REQUIRED BECAUSE PASS 1's OWN FIX CREATED NEW STALENESS.** Bumping the Phase-0 to v1.3 invalidated **its** citations — **`ROADMAP:309` and the runbook's own §0 parent pointer both still said v1.2.** Both corrected.
+
+⚠️ **THIS IS `D-135` §5a's CLAUSE PAYING OFF LITERALLY: sweep for the REPLACEMENT, not only the superseded figure.** A single-pass sweep would have left two fresh stale pointers created **by the sweep itself**. 📌 **A version bump is not a leaf operation — it propagates, and the propagation needs its own pass.**
+
+📌 **The wide predicate was NOISY** — it matched every *"Phase-0 … v1.x"* across the archive. **That is the correct trade:** noise is read and discarded; a miss is not detected at all.
+
+---
+
+**RECORDS.** `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` **v1.0 → v1.1 LOCKED** · `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.2 → v1.3** (§6 + §8 pointers) · `docs/ROADMAP.md` **v6.33 → v6.34** (Leg A node + trigger split + Phase-0 citation) · `CLAUDE.md` PLAY block · this entry. **Five files, one commit (`D-074`).**
+
+**FLOORS.** cargo **1588/0/62 × 56** · svelte-check **0 / 34 / 15** — **NEITHER RE-RUN.** Documents only.
+
+🛑 **WHAT THIS DID NOT DO.** **No production code. Clair has not been stood up.** `FillReport` still carries a bare count; **G-A and G-B are both still open.**
+
+**Next-active.** 🟡 **Leg A — waiting on ONE act: Joe stands Clair up.** 🔓 **Joe, otherwise unchanged:** §7 Tier-1 fetch on join · §6's refresh trigger (**one decision with the parent's §5, not two**) · the `skin.css` values · §5's DAG-divergence read · and from the parent: Leg B's B1/B2/B3 scope · `D-135` §5a · `M-DOC-BACKFILL`'s title and ID · the resync and outbox names · the `is_dm` provenance-or-state ruling.
+
+---
+
 ## Entry J-645 — Joe's memory overturned a Chat finding, and underneath it was a real regression
 
 **Date:** 2026-08-01 · **Seat:** Chat (grounding, records, runbook authoring) · Joe (locks: the type, the boundary, the test posture, `D-136`, the milestone name). **No production code. No floors moved.**

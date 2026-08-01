@@ -1,6 +1,6 @@
 # M-RP-LIVEFEED-REFRESH — the live event router behind the members and rooms panels
 > **Status**: ACTIVE  
-> Version: 1.13  
+> Version: 1.14  
 > Date: Jul 2026  
 > **Last updated**: 2026-08-01  
 > Language: English  
@@ -521,7 +521,7 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item below that says "observe
 - 📌 **SPEC GAP — `docs/xgen_appendix_i_en.md:95` PROMISES `state.room_update` CARRIES *name* AND *topic*; THE APPLIER CARRIES NEITHER (§6a-i ③).** ⚠️ **The spec is ahead of the code, and in a protocol project the spec is the deliverable** ⇒ this is a real divergence, not a code TODO. **Named, not fixed, and not this milestone's.**
 - 🛑 **`KnownSpace` HAS NO EVENT-DRIVEN WRITER AT ALL (§6-ii).** Its three writers are the user's own local actions. ⚠️ **`role` is hardcoded `"owner"` at both create sites and `joined: false` has zero production writers** — so a routed room would have to **invent** both. **Filed here because it outlives this milestone under every one of B1/B2/B3.**
 - 🛑 **THE RENDERER COLLAPSES THE THIRD STATE, SO LEG A's §5-iii FIX IS INVISIBLE TO THE USER (runbook §5-iv, measured 2026-08-01).** `entity-avatar.svelte:125` — `data-ai={flags.isAi || undefined}` ⇒ **`false` and absent produce identical DOM.** An AI joining live still renders as a human. ✅ **The store no longer ASSERTS `isAi: false` about a person it never looked up** — that stands and is not reverted — **but option D ①'s *"reads as unresolved"* is not delivered and cannot be from inside §2's three files.** 🔓 **Whether the renderer should distinguish it is Joe's**, deferred by him until after Leg A; it is `M_RP_MEMBERS.md` §6's word form, now filed there as its third unresolved-row case alongside §6a.
-- 📌 **`M_RP_MEMBERS.md` §6a — THE `tail-8` LOCK-VERSUS-BUILD GAP, filed there at J-643, not fixed.** Joe locked *tail-8*; the shipped `tail()` returns the whole final path segment and the CSS clips the **left**, so every unresolved row reads `ed25519:AbCd…` — **the constant head kept, the distinguishing bytes discarded.** Not this milestone's.
+- 📌 **`M_RP_MEMBERS.md` §6a — THE `tail-8` LOCK-VERSUS-BUILD GAP, filed there at J-643, not fixed.** Joe locked *tail-8*; the shipped `tail()` returns the whole final path segment and `.ei-name` is **LEFT-ANCHORED**, **so the clip takes the WRONG END** — every unresolved row reads `ed25519:AbCd…`, **the constant head kept and the distinguishing bytes discarded.** ⚠️ *This entry previously read "the CSS clips the **left**", the inverse of the truth; corrected 2026-08-01 (J-649), kept not erased (`D-131`). §6a itself was always correct — the error was in the paraphrase.* Not this milestone's.
 
 ---
 

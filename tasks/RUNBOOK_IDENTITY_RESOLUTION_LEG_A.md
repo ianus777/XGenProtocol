@@ -35,7 +35,9 @@
 
 🛑 **AND THE HONEST LIMIT HELD: THIS LEG IS COMPILE-VERIFIED ONLY.** The push has no unit test and cannot get one without a live node. **Leg F is the first behaviour verification.** **1588 unchanged is the CORRECT result.**
 
-📌 **Parent Phase-0:** `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.4** — read §1 (grounding), §3 (the four states) and §6 (G-A, now CLOSED) before this file. 🛑 **RUNBOOK-AS-GROUND-TRUTH IS A FAILURE MODE.**
+📌 **Parent Phase-0:** `tasks/M_RP_IDENTITY_RESOLUTION.md` — read §1 (grounding), §3 (the four states) and §6 (G-A, now CLOSED) before this file. 🛑 **RUNBOOK-AS-GROUND-TRUTH IS A FAILURE MODE.**
+
+🔒 **THIS LEG WAS EXECUTED AGAINST PHASE-0 v1.4, AND THAT POINTER IS NOW FROZEN.** ⚠️ **A COMPLETED runbook is a record of what was built and what it was built against — it must NOT chase the parent's version forever.** The Phase-0 continues to move (v1.5 added §5a, the DM exception); **that is Leg B's ground, not this file's.** 📌 *v1.0–v1.2 tracked the parent live (v1.2 → v1.3 → v1.4) while this runbook was ACTIVE; correct then, wrong now. Superseded, kept not erased (`D-131`).*
 
 🔑 **SESSION-OPEN READING ORDER FOR CLAIR (MANDATORY):** `CLAUDE.md` PLAY head → `JOURNAL.md` J-646 → the Phase-0 §1/§3/§6 → **then this file in full.** ⚠️ **This runbook is item 4, not item 1.**
 

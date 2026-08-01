@@ -1,8 +1,8 @@
 # M13 — Client Identity Lookup Widening
 > **Status**: PENDING  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-25  
+> **Last updated**: 2026-08-01  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -74,6 +74,25 @@
 📌 **This is the THIRD correction to one J-582 claim** that frank's badge input "is real". It was measured node-side only; the client cannot reach it (§1 objective 3); and the value is in a shape a canonical reader would reject. *One over-claim, three passes to unwind — recorded because the pattern matters more than the field.*
 
 ---
+## §3c — 🛑 ERASURE IS INVISIBLE TO ANYONE HOLDING A CACHED RECORD (filed 2026-08-01, J-649, from `M-RP-IDENTITY-RESOLUTION`)
+
+🛑 **A CLIENT THAT ALREADY HOLDS AN IDENTITY'S RECORD WILL NEVER LEARN THAT IDENTITY WAS ERASED. NOT EVENTUALLY — NEVER.** Two measured facts compose:
+
+1. **A held identity is never re-fetched.** `partition_observed` (`xgen-client/src/ops.rs:2764`) splits the observed set into *unheld → fetch* and *held → touch*; the doc at `:2752` states it outright — *"a re-fetch is a no-op today"*.
+2. **A held record is never removed in production.** `AddressBook::remove` (`address_book.rs:253`) and `evict_older_than` (`:285`) exist and are correct, and **every caller is a test.** §6's E1/E2/E3 erasure semantics are **built and wired to nothing.**
+
+⇒ **`identity.not_found` can only ever be observed for an identity whose record the client has NEVER cached.** 🔑 **For anyone you have actually interacted with, the first fill cached them, and their erasure is permanently invisible.**
+
+📌 **REACHABLE IN EXACTLY ONE SITUATION TODAY: a client with no cached record** — fresh install, new device, or a wiped book. **That is the multi-device case, and it is real** — but it means the erased-member state is an artefact of *not knowing someone*, never of *learning that someone went away*.
+
+⚠️ **WHY THIS IS M13's AND NOT `M-RP-IDENTITY-RESOLUTION`'s.** That milestone answers *what a row shows* once the client knows the state. **This is about the client never reaching the state at all**, which is a fetch-policy question, and `ops.rs:422-425` already names M13 as the milestone that **makes a re-fetch informative** (§5 V2 / revocation-on-encounter). 🔑 **A freshness window is meaningless while a re-fetch returns nothing new; it becomes meaningful the moment M13 lands `revoked` and `update_version`** — so the two must be designed together or not at all.
+
+🔓 **NOT DESIGNED HERE, AND NOT COSTED.** Three shapes exist and none is chosen: a **freshness window** (re-fetch after N, deliberately deferred at `ops.rs:2755-2757` until M13 makes it informative) · **revocation-on-encounter** (act on what a peer's events reveal) · **wiring §6's E3 eviction to a production caller**, which forces a re-fetch by aging the record out. ⚠️ **The third is the smallest and the bluntest — it evicts the fresh along with the stale.**
+
+🛑 **AND `D-127` CONSTRAINS THE ANSWER: `not_found` MEANS ERASED, `revoked` MEANS REVOKED, AND THEY ARE NOT THE SAME STATE.** Whatever mechanism lands must keep them distinguishable — **the shipped `.entity-avatar[data-revoked]` treatment (`skin.css:2400-2417`) belongs to `revoked` and must not be reused for erasure.**
+
+---
+
 ## §4 — Open, and JOE'S
 
 ⚠️ **`trust_assertion` on the wire: floor vs card.** Joe's visit-card model (§5) supplies a better split than "whole assertion vs derived expiry": the **minimal derived facts (tier + validity window) are protocol FLOOR** — tier gating *is* channel establishment when a Space gates on tier — while the **full assertion with issuer and claims is DISCLOSURE**, belonging to the card. **Proposed, not locked.**

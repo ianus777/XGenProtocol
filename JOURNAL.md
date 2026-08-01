@@ -8,6 +8,144 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-649 — the row shape is belayed, because the state it draws cannot currently be reached
+
+**Date:** 2026-08-01 · **Seat:** Joe (*"if this case is defined somewhere else, belay this one"* · *"go by your recomms"*) · Chat (grounding, records). **No code. No floors moved.**
+
+---
+
+### 🛑 THE QUESTION THAT STOPPED THE WORK
+
+Joe drew the E2 row — **struck display name · id beneath · its own CSS class** — and then asked whether the case was already defined elsewhere. **Checking that turned up two answers, and the second one is the finding of the session.**
+
+---
+
+### ✅ ANSWER 1 — THE VOCABULARY EXISTS, AND IT IS NOT OURS TO TAKE
+
+`.entity-avatar[data-revoked]` (`skin.css:2400-2417`) already ships **greyscale + 0.55 opacity + a diagonal slash** — exactly the visual language Joe drew, built and tunable.
+
+🛑 **But it belongs to a different state.** `revoked` **ships UNFED** (N-097 — never light a badge from a constant false) and **M13 owns it**; under **`D-127`** a revoked identity returns its record **with `revoked` set**, while **`not_found` is reserved for ERASURE.** ⇒ **squatting `data-revoked` for erasure would make the two indistinguishable the day M13 lands.**
+
+---
+
+### 🛑 ANSWER 2 — THE STATE IS UNREACHABLE FOR ANYONE YOU HAVE INTERACTED WITH
+
+Two measured facts compose:
+
+1. **A held identity is NEVER re-fetched.** `partition_observed` (`ops.rs:2764`) routes held ids to *touch*, not *fetch*; the doc at `:2752` says so outright.
+2. **A held record is NEVER removed in production.** `remove` (`address_book.rs:253`) and `evict_older_than` (`:285`) are built and correct — **and every caller is a test.** §6's E1/E2/E3 erasure semantics are **wired to nothing.**
+
+⇒ **once the book holds someone it holds them forever and never asks again** ⇒ **`identity.not_found` can only fire for an identity whose record was NEVER cached.**
+
+🔑 **FOR A DM YOU HAVE ACTUALLY USED, THE FIRST FILL CACHED THE COUNTERPART — SO THEIR ERASURE IS PERMANENTLY INVISIBLE AND E2's ROW NEVER APPEARS.**
+
+📌 **Reachable in exactly one situation: a client with no cached record** — fresh install, new device, wiped book. **Real, and it is the multi-device case** — but it means ③ is an artefact of *never having known someone*, not of *learning that someone went away*.
+
+---
+
+### ✅ WHAT WAS BELAYED, AND WHAT IT DID NOT COST
+
+✅ **§5a's E2 lock STANDS and needs no rework** — it is the right rule *when* the state occurs. **Only the row's visual design is dropped.**
+
+**Dropped:** the two-line row · the id line · the L1/L2/L3 variant question.
+**Therefore NOT spent:** ✅ **`M_RP_MEMBERS` §7 / L10's *secondary · meta · status ship UNFED* lock stays CLOSED** · ✅ **§6a's `tail-8` gap stays FILED** instead of becoming a precondition of the design.
+
+🔑 **A question that cost one turn saved four open items.**
+
+---
+
+### ⚠️ CHAT'S SKETCH WAS WRONG TWICE, AND A LOCK WAS NEARLY TAKEN FROM IT
+
+1. 🛑 **It drew the `card` layout in a panel that renders `variant="row"`.** `showSecondary = variant === 'card'` (`entity-item:69`); `.ei-meta` is `flex:none; margin-left:auto` (`skin.css:2469-2471`) ⇒ **under `row` the second field is pinned to the RIGHT EDGE of the same line, never placed below the name.**
+2. 🛑 **It struck through a display name that CANNOT EXIST.** With no book record, `toDescriptor` already falls back to `tail(m.identity_id)` ⇒ **an erased row has no display name to strike — it shows the xgid tail AS its name.**
+
+🔑 **THE SKETCH WAS HAND-WRITTEN HTML, NOT THE COMPONENT.** It was the right tool for answering *"should the row show at all"* — which it did, and which prose had failed to do — **but it is not evidence about what the shipped component can render.** ⚠️ **A SKETCH MUST BE CHECKED AGAINST THE COMPONENT BEFORE ANYTHING IS LOCKED FROM IT.**
+
+---
+
+### ⚠️ AND A WORDING DEFECT IN TWO OF CHAT'S DOCUMENTS — AN INVERTED PARAPHRASE
+
+🛑 **`M_RP_IDENTITY_RESOLUTION.md` and `M_RP_LIVEFEED_REFRESH.md` both said the `tail-8` clip *"clips the **left**"*. That is the INVERSE of the truth.** `.ei-name` is `overflow:hidden; text-overflow:ellipsis; white-space:nowrap` — **LEFT-ANCHORED, clipping the RIGHT**, which is why the constant `ed25519:` head survives and the distinguishing bytes are discarded.
+
+✅ **The canonical source was always correct** — `M_RP_MEMBERS.md` §6a says *"the clip then takes the WRONG END"* and *"left-anchored"*. 🔑 **The error was introduced by paraphrasing it, twice, into its opposite** — and it survived because *"clips the left"* and *"left-anchored"* read similarly while meaning opposite things. **Both corrected and annotated (`D-131`); §6a untouched.**
+
+---
+
+**RECORDS.** `tasks/M13_CLIENT_IDENTITY_LOOKUP_WIDENING.md` **v1.2 → v1.3** (**§3c NEW** — erasure invisible to a cached holder, with the three undesigned shapes and the `D-127` constraint) · `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.5 → v1.6** (**§5b NEW** — the belay · §5a's tail note and §9 both corrected) · `tasks/M_RP_LIVEFEED_REFRESH.md` **v1.13 → v1.14** (the same inverted paraphrase) · `docs/ROADMAP.md` **v6.36 → v6.37** · `CLAUDE.md` PLAY block · this entry. **Six files, one commit (`D-074`).**
+
+**FLOORS.** cargo **1588 / 0 / 62 × 56** · svelte-check **0 / 34 / 15** — **NEITHER RE-RUN.** Documents only.
+
+🛑 **WHAT THIS DID NOT DO.** **No code. Leg B still has no runbook.** **G-B is still open** and still gates the milestone's close. **M13 §3c is FILED, not designed** — none of its three shapes is chosen or costed.
+
+**Next-active.** 🟡 **Leg B's runbook, authored against Phase-0 v1.6.** ✅ **The belay SHRINKS it**: no row-shape work, no UNFED re-opening, no `tail-8` dependency — Leg B is the `unresolved` prop (P1), the ③ filter with §5a's DM exception, and wiring `outcome.fill` into the store. 🔓 **Joe:** §5a-i (the DM highlight — Chat recommends KEEP) · §7 Tier-1 fetch · §6's refresh trigger (**one decision with the parent's §5, not two**) · the `skin.css` values · §5's DAG-divergence read.
+
+---
+
+## Entry J-648 — the DM exception: hiding is a subtraction until the hidden member is the whole counterparty
+
+**Date:** 2026-08-01 · **Seat:** Joe (locks: **E2**, **P1**) · Chat (grounding, sketch, records). **No code. No floors moved.**
+
+**Opened at** `e65ee49`→`e3123b1` line, tree clean at start.
+
+---
+
+### 🔒 §5a — E2 LOCKED: ③ IS NEVER HIDDEN WHEN IT IS THE DM COUNTERPART
+
+🔑 **THE RULE KEYS ON `is_dm`, NOT ON MEMBER COUNT.** Measured: `is_dm` is **provenance** — written `true` once at Space creation (`xgen-core/src/space/state.rs:451`, `:567`), **never recomputed from current membership**. ⇒ a group room shrunk to two people is **not** a DM and §5 hides there as locked. **That is what makes E2 a rule rather than a heuristic about size.**
+
+**Why §5's own reasoning did not reach it.** §5 was locked on *"there is no usage of such members"* — **an argument about group rooms.** In a DM the counterpart is not a member of the conversation; **they are the other half of it.** The stream still renders their messages (G9), so hiding makes the panel claim you are alone in a room whose other half is on screen one panel over; and under §1 G3 an erased counterpart **can never reply**, which is the single most useful fact about the room.
+
+🔑 **THE RULE THAT GENERALISES:** *hiding is legitimate when it is a **subtraction**. When the hidden member is the entire counterparty, hiding is not a subtraction — it is a false claim that nobody was there.*
+
+---
+
+### ⚠️ CHAT MIS-PRICED THE OPTIONS, AND CORRECTED IT BEFORE THE RULING
+
+🛑 **Chat first told Joe that E2 *"needs a word, which re-opens D-126's wordlist"*. That was wrong.** A **mark** suffices — visible the moment the option was drawn rather than described.
+
+✅ **E3 is the option that cannot avoid the wordlist**, and the reason is structural: the `NOTE` table (`members-panel.svelte:62-68`) is **Joe's copy**, and every entry names an effect on **us** — *"I am waiting" · "I cannot reach" · "I cannot see"*. **For an erased identity nothing is wrong on our side, so no honest "I…" sentence exists.** E3 also needs a sixth panel state, or a `message` that stops being a pure function of `panelState`.
+
+⇒ **E2 is both the more honest AND the cheaper of the two non-trivial options.** 📌 **Corrected explicitly so the ruling was not made on a false cost**, and recorded rather than quietly fixed (`D-131`).
+
+🔑 **THE SKETCH IS WHAT CAUGHT IT.** The mis-pricing survived two rounds of prose and died the moment a row was drawn. ⚠️ **And the first sketch was itself defective — it showed E1 and E2 and OMITTED E3 entirely, having described all three in text one message earlier. Joe caught it:** *"e3 is nowhere"*. **A second sketch showed all three, with E3's note drawn as `"?"` — the empty quote being the finding, not a gap.**
+
+---
+
+### 🔒 P1 LOCKED — THE HOOK TRAVELS AS A PROP
+
+`entity-item`'s root (`:112-119`) carries `data-variant` / `data-kind` / `data-selected` and **no unresolved prop** ⇒ the hook is **a new public prop threaded through TWO `core` components** (`members-panel` → `entity-panel` → `entity-item`), also consumed by `self-panel` and the sampler.
+
+**Rejected, with reasons recorded:** riding **`EntityDescriptor`** is cheaper but describes *the entity* while this is a fact about **our knowledge of it** — the category error §2's tier frame exists to prevent, and the same shape as the `display_name` claim retracted at J-644. **`flags`** was rejected because it feeds `entity-avatar` and the treatment belongs to the **row** — that route is exactly how `isAi` ended up collapsed at J-643.
+
+---
+
+### ✅ THREE LEG-B CONSTRAINTS GROUNDED BEFORE ANY RUNBOOK
+
+- **B-1 — `_roster` stays complete; ③ is filtered AT RENDER.** Removing it from the store would silently redefine `roster` from *the membership* to *the renderable membership*, and §4c consequence 3 anchors the count to `roster` **precisely so an offline panel cannot undercount.** C1's accepted mismatch would vanish instead of being accepted.
+- **B-3 — Leg B must wire `outcome.fill` into the store first.** `app_client.svelte:183` discards the fill half, so Leg A's ids **reach the webview and stop.** Correct for Leg A's locked boundary; Leg B's first job.
+- **B-4 — C1's mismatch becomes observable in the DEBUG surface** (`memberCount` vs `rowCount`, `:131-135`). ✅ **Chat's read: the trigger does NOT fire** — it says *the first milestone that RENDERS a member count*, and a CDP aggregate is not a rendered UI count. 📌 **Confirmed independently: `members-panel` passes NO `title` and NO `badge` (`:146`), both optional with no default ⇒ nothing renders a count on screen today.** **Recorded rather than assumed, because this is the nearest thing to a count that has ever existed.**
+
+---
+
+### ⚠️ TWO DEFECTS CHAT INTRODUCED WHILE WRITING v1.5, AND CAUGHT
+
+1. **A DUPLICATED `🔒 LOCKED:` LINE in §11** — the new line was inserted without replacing the old one, so the handoff carried the lock list twice.
+2. **§11's closing line went false.** It still read *"NOTHING HERE IS BUILDABLE UNTIL G-A IS CLOSED — Leg 0 is complete; Leg A needs a runbook"* — **G-A closed at J-647 and Leg A shipped.** Replaced with what is *actually* still un-buildable: **§4's dimming must not SHIP before G-B's refresh trigger exists.**
+
+🔑 **Both are the same species this milestone keeps catching — a section stale against its own document — and this time Chat produced them WHILE DOCUMENTING that species two sections above.** Annotated, not erased.
+
+---
+
+**RECORDS.** `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.4 → v1.5** (**§5a NEW** — the DM exception with all three options and the mis-pricing correction · **§5a-i NEW OPEN** · §8 Leg B gains B-1–B-4 · §10 + §11 updated) · `docs/ROADMAP.md` **v6.35 → v6.36** · `CLAUDE.md` PLAY block · this entry. **Four files, one commit (`D-074`).**
+
+**FLOORS.** cargo **1588 / 0 / 62 × 56** · svelte-check **0 / 34 / 15** — **NEITHER RE-RUN.** Documents only.
+
+🛑 **WHAT THIS DID NOT DO.** **No code.** Leg B still has **no runbook**. **G-B is still open** and still gates the milestone's close.
+
+**Next-active.** 🟡 **Leg B — runbook may now be AUTHORED against v1.5.** 🔓 **Joe:** **§5a-i** (the DM highlight on an erased row — Chat recommends KEEP) · §7 Tier-1 fetch · §6's refresh trigger (**one decision with the parent's §5, not two**) · the `skin.css` values **including E2's mark** · §5's DAG-divergence read.
+
+---
+
 ## Entry J-647 — Leg A ships, and for once the check for an eraser one layer down came back empty
 
 **Date:** 2026-08-01 · **Seat:** Clair (implementation from the locked runbook) · Chat (re-drive, grounding, records) · Joe (*go*). **First code leg of this milestone.**

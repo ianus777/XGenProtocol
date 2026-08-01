@@ -1,6 +1,6 @@
 # M-RP-IDENTITY-RESOLUTION Leg C — the skin
-> **Status**: PENDING  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-01  
 > Language: English  
@@ -10,9 +10,13 @@
 
 ---
 
-🛑 **AUTHORED, NOT LOCKED. NOBODY IS IMPLEMENTING THIS FILE.** It becomes Clair's instruction only when Joe says **lock** AND stands her up — **two acts**, and *"locked" reads like "started" to anyone skimming* (J-646, J-652).
+✅ **C-1 AND C-2 ARE IMPLEMENTED, MEASURED AND RECORDED (J-655). THIS RUNBOOK'S OWN SCOPE IS DISCHARGED; C-3 IS FILED IN §9 AND GATED ON LEG E.**
 
-📌 **Parent Phase-0:** `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.11**. 🛑 **RUNBOOK-AS-GROUND-TRUTH IS A FAILURE MODE.** 📌 *Written against v1.10 and re-pointed to v1.11 in the same authoring pass, because §8's Leg C entry — this runbook's own parent section — is what v1.11 rewrote. `D-135` §5a's pass 2, hit on the first try: **two documents that cite each other cannot be bumped in one pass.***
+🛑 **AND IT WAS NEVER LOCKED — WHICH IS AN UNUSUAL STATE, SO IT IS STATED PLAINLY RATHER THAN LEFT TO BE INFERRED.** Joe ruled ***"chat"*** instead of *lock + stand Clair up*: **Chat implemented directly and Clair was stood up for an ADVERSARIAL READ OF THE DIFF.** §8's seat table is superseded accordingly. 🔑 **Why the fork was put to him at all: that route makes Chat author, implementer AND verifier of one artifact — and this arc's count is EIGHT instances of one defect species, every one caught from OUTSIDE the text and NONE by re-reading.** ⇒ the read was the only outside check that existed, **and it was NOT clean: NINE findings, THREE substantive, F1 / F2 / F3 / F6 all defects in Chat's own work — F3 in Chat's own implementation.** Re-driving them surfaced a **sixth** F1 site she had missed (`ROADMAP:352`). *The J-651 shape running in both directions.* Every correction below is annotated, never deleted (`D-131`).
+
+⚠️ *v1.0 opened: **"AUTHORED, NOT LOCKED. NOBODY IS IMPLEMENTING THIS FILE. It becomes Clair's instruction only when Joe says lock AND stands her up — two acts, and 'locked' reads like 'started' to anyone skimming"** (J-646, J-652). **True when written and killed by Joe's ruling.** 🔑 **It is STRUCK IN THE HEADLINE rather than corrected in a paragraph beneath it — because a false headline with a true footnote under it is exactly the shape J-651 named: THE HEADLINE IS WHAT TRAVELS.** Superseded, kept not erased (`D-131`).*
+
+📌 **Parent Phase-0:** `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.12**. 🛑 **RUNBOOK-AS-GROUND-TRUTH IS A FAILURE MODE.** 📌 *Written against v1.10 and re-pointed to v1.11 in the same authoring pass, because §8's Leg C entry — this runbook's own parent section — is what v1.11 rewrote. `D-135` §5a's pass 2, hit on the first try: **two documents that cite each other cannot be bumped in one pass.***
 
 **SESSION-OPEN READING ORDER (Clair):** ① `CLAUDE.md` PLAY head → ② latest `JOURNAL.md` entry → ③ Phase-0 §3 (the four states) · §4 · §5 · §5a · §5a-i · §5b · §8 Leg C · §11 → ④ **this file**. It is item 4, not item 1.
 
@@ -68,12 +72,12 @@ Joe, 2026-08-01: *"normally i have skin.css, this rule still stays, especially w
 Every line number below was read from the file, not recalled.
 
 - **G-C1 — the hook is shipped and unfed.** `entity-item.svelte:57` `unresolved?: 'unasked' | 'erased'` · `:102` `unresolved: unresolved ?? null` in `debug()` · **`:126` `data-unresolved={unresolved}` on the root.** `entity-panel.svelte:42` carries it on `EntityItemInput`, `:162` passes it per row. **`members-panel.svelte:130-133`** supplies `'erased'` from `notFound` and `'unasked'` from `m.unresolved`, ③ before ④.
-- **G-C2 — 🛑 `skin.css` CONTAINS ZERO `[data-unresolved]` RULES.** Grepped whole-file. **The only occurrences of the word are `.send-status[data-tone="unresolved"]` at `:3039` and `:3043`** — a **different element and a different attribute**, no cascade contact, no specificity contact. 📌 *Recorded so it is not mistaken for prior art and not "extended" by someone pattern-matching on the word.*
+- **G-C2 — 🛑 `skin.css` CONTAINS ZERO `[data-unresolved]` RULES.** Grepped whole-file. **The only occurrences of the word are `.send-status[data-tone="unresolved"]`, at `:3060` and `:3064`** — a **different element and a different attribute**, no cascade contact, no specificity contact. 📌 *Recorded so it is not mistaken for prior art and not "extended" by someone pattern-matching on the word.* ⚠️ *v1.0 cited `:3039`/`:3043`, **which was CORRECT when measured at `3fe3423` and was moved by C-2 itself** — the 21 lines this leg inserts above it shift it by exactly +21. **A grounding line number invalidated by the very commit it grounds.** Clair flagged the mismatch (F8); the cause is recorded here rather than the number being quietly swapped (`D-131`).*
 - **G-C3 — the insertion anchor.** `.entity-item:hover` is `:2521-2523`; **`.entity-item[data-selected]` is `:2524-2527`**; `:2528` is blank; `:2529` opens the `status (.status)` comment block. ⇒ **the new rule goes at `:2528`, after `[data-selected]` and before the blank-line boundary of the next block.**
-- **G-C4 — 🔑 SPECIFICITY IS EQUAL, SO SOURCE ORDER DECIDES.** `.entity-item[data-selected]`, `.entity-item[data-unresolved]` and `.entity-item[data-unresolved="erased"]` are **all (0,2,0)**. The file's own comment at `:2519-2520` already relies on this — *"selected rule follows hover so it wins at equal specificity."* ⇒ **the erased rule must not set `background`**, or it would silently outrank `[data-selected]` by sitting later. **It sets none.**
+- **G-C4 — 🔑 SPECIFICITY, CORRECTED AT v1.1 (Clair, F2).** `.entity-item[data-selected]` is **(0,2,0) and paints the ROOT**; the shipped mark `.entity-item[data-unresolved="erased"] .ei-name` is **(0,3,0) and paints a DESCENDANT** ⇒ **the two never compete; they are different elements.** Only **three** rules in the file reach `.ei-name` — `:2452` (0,2,0), the inline-variant rule (0,3,0), and the mark (0,3,0, last) — so the mark wins by source order among equals, and **nothing later reaches it.** 🛑 *v1.0 stated all three selectors were **(0,2,0)** and warned that a `background` on the mark would "silently outrank the selection". **Both halves are false of the rule that shipped**: the value is (0,3,0), and a background on `.ei-name` would paint the TEXT BOX, never the row. **The paragraph was reasoned about a ROOT-level rule and never updated when the mark correctly moved to `.ei-name`** — and it was carried verbatim into `skin.css`, i.e. into Joe's file, where a false comment is worse than none. Corrected in both places; superseded, kept not erased (`D-131`).*
 - **G-C5 — 🔒 AND `opacity` IS FORBIDDEN ON ③ BY A LOCK, NOT BY TASTE.** `[data-selected]` paints `box-shadow: inset 2px 0 0 var(--accent, var(--pr))` (`:2526`). **§5a-i locked that the erased DM counterpart KEEPS the L16 highlight (Joe, J-650)**; an `opacity` on the root composites the whole subtree **including that inset bar** and would wash out the thing the lock preserves. ⇒ **③ is MARKED, never DIMMED.** *This is also the taxonomy §3 demands drawn in CSS: ④ recedes (our fault, unfinished), ③ asserts (their state, terminal).*
 - **G-C6 — the text tokens, one line.** `skin.css:22` — `--t4: #585c64` · `--t3: #8a8880` · `--t2: #c8c4bc` · `--t: #ece9e1`. `.ei-name` today is `var(--t)` inherited from `.entity-item:2440`, `font-weight: 600`, `--fs-1` (`:2452-2459`).
-- **G-C7 — the sampler's `entity-item` cells are literal-fed and each yields TWO registry entries.** `app_sampler.svelte:937-939` states it: *"the composite (`entity-item#id`) + its self-registering avatar child (`entity-avatar#id__avatar`)"*. `EntityItem` imported at `:56`, `EntityPanel` panels at `:967-971`; `epSpaces` (3 rows) at `:266-270`. ⇒ **an `entity-panel` cell with N rows costs `1 + 2N` registry entries.**
+- **G-C7 — the sampler's `entity-item` cells are literal-fed and each yields TWO registry entries.** `app_sampler.svelte:937-939` states it: *"the composite (`entity-item#id`) + its self-registering avatar child (`entity-avatar#id__avatar`)"*. `EntityItem` imported at `:56`, `EntityPanel` panels at `:967-971`; `epSpaces` (3 rows) at `:266-270`. ⇒ **an `entity-panel` cell with N rows costs `2 + 2N` registry entries.** 🔑 **THE PANEL ITSELF COSTS TWO, NOT ONE:** `entity-panel.svelte:168` wraps a `<Section>`, and `section.svelte:69` **self-registers** ⇒ `entity-panel#<id>` **and** `section#<id>__section`. Confirmed against the shipped `#spaces` and `#rooms` families. 🛑 *v1.0 read `1 + 2N`, predicting 434 against a measured **435**. It took the sampler's comment about **`entity-item` CELLS** and extrapolated it onto **`entity-panel`** — **a claim narrower than the thing it describes, in the section headed "read from the file, not recalled".** Clair confirmed it independently from `section.svelte:69` (F1). Superseded, kept not erased (`D-131`).*
 - **G-C8 — 🔑 HMR HOT-APPLIES `skin.css` IN THE SAMPLER (D-097).** This is what makes the sampler the tuning surface: edit the file in Notepad++, the running sampler repaints without a reload. ⚠️ **N-123 is the standing hazard on the same surface** — an inline style left behind by a probe survives every subsequent HMR edit and **looks like a bug in Joe's own CSS.** Any probe in this leg that touches inline styles ends with `location.reload()`.
 - **G-C9 — 🛑 AN ERASED ROW HAS NO DISPLAY NAME TO STRIKE, AND THE FIXTURE MUST SAY SO.** With no book record `toDescriptor` already falls back to `tail(m.identity_id)`, and `tail()` returns the **whole final segment** (`ed25519:<~44 chars>`), which `.ei-name` clips **LEFT-anchored** (`:2452-2458`) ⇒ the row reads `ed25519:AbCd…`. **§5b killed Chat's earlier sketch for striking a name that cannot exist.** ⇒ **the sampler fixture's `name` MUST be an xgid tail, not a person's name.** ***Tuning against "Alice Ng" struck through would be tuning a case the product cannot produce — the exact defect §5b caught, reproduced in the surface built to prevent it.***
 
@@ -117,16 +121,21 @@ Every line number below was read from the file, not recalled.
   // client holds NO identity record. ⚠️ The names are xgid TAILS on purpose: with no book record
   // `toDescriptor` already falls back to `tail(identity_id)`, so a real ③/④ row has NO display
   // name (Phase-0 §5b). A fixture with a human name would be tuning a case the product cannot
-  // produce. The middle row is RESOLVED and is the control — a mark is only readable against one.
+  // produce. The first row is RESOLVED and is the control — a mark is only readable against one.
+  // ⚠️ TAIL LENGTH IS LOAD-BEARING — 44 chars, not a token (see below).
   const epUnresolved = [
     { descriptor: { kind: 'identity', name: 'Bob Lee', id: 'xgen://identity/bob-9c04', flags: {} } },
-    { descriptor: { kind: 'identity', name: 'ed25519:7QmR4xK2vN8pLdA3', id: 'xgen://identity/unasked-1', flags: {} }, unresolved: 'unasked' },
-    { descriptor: { kind: 'identity', name: 'ed25519:Zk9WbT5cH1sYnE6f', id: 'xgen://identity/erased-1', flags: {} }, unresolved: 'erased' },
+    { descriptor: { kind: 'identity', name: 'ed25519:9xK2vN8pLdA3QmR47bTfHs1YnE6cZkW5jU0gMpQaXrBc', id: 'xgen://identity/unasked-1', flags: {} }, unresolved: 'unasked' },
+    { descriptor: { kind: 'identity', name: 'ed25519:Zk9WbT5cH1sYnE6f7QmR4xK2vN8pLdA3jU0gMpQaXrBd', id: 'xgen://identity/erased-1', flags: {} }, unresolved: 'erased' },
   ];
-  let epSelUnresolved = $state('xgen://identity/erased-1'); // §5a-i — the erased row is the DM counterpart, SELECTED
+  // §5a-i — the erased row is pre-SELECTED. INERT + ONE-WAY, mirroring members-panel.svelte:164.
 ```
 
-🔒 **`epSelUnresolved` PRE-SELECTS THE ERASED ROW ON PURPOSE.** §5a-i locked that the erased DM counterpart **keeps** the L16 highlight. **That lock is unobservable unless something renders the two together** — and G-C5's whole argument for *mark, not dim* is that an opacity would wash the highlight out. ⇒ **the fixture is what makes the lock checkable instead of trusted.**
+⚠️ *v1.0 read "The **middle** row is RESOLVED" while placing the resolved row **first**. The shipped comment says "first"; the runbook was stale (Clair, F7). Superseded, kept not erased (`D-131`).*
+
+🔒 **THE TAILS ARE 44 CHARS, AND THAT IS LOAD-BEARING (Clair, F5 — then MEASURED rather than left a likelihood).** `tail()` returns `ed25519:` plus a **44-char key**, and `.ei-name` is LEFT-anchored ⇒ the real render keeps the constant head and ellipsises the distinguishing bytes (`M_RP_MEMBERS.md` §6a). ✅ **Measured live: 52-char name → `scrollWidth 391` vs `clientWidth 250` ⇒ CLIPPED.** 🛑 *v1.0's fixture used 16-char tails, which **do not clip at 300px** — Joe would have tuned the strike against a more legible string than the product can produce. Superseded, kept not erased (`D-131`).*
+
+🔒 **THE FIXTURE PRE-SELECTS THE ERASED ROW ON PURPOSE.** §5a-i locked that the erased DM counterpart **keeps** the L16 highlight. **That lock is unobservable unless something renders the two together** — and G-C5's whole argument for *mark, not dim* is that an opacity would wash the highlight out. ⇒ **the fixture is what makes the lock checkable instead of trusted.**
 
 #### Change 2 — the cell (a new `s-row` in the DD·composite panel, immediately AFTER the `entity-panel · inert` row at `:979-986`)
 
@@ -134,7 +143,7 @@ Every line number below was read from the file, not recalled.
     <div class="s-row">
       <div class="s-rowname">entity-panel · unresolved (M-RP-IDENTITY-RESOLUTION)</div>
       <div class="s-cells">
-        <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-panel#unresolved</span><EntityPanel items={epUnresolved} title="Members" bind:selected={epSelUnresolved} id="unresolved" /></div>
+        <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-panel#unresolved</span><EntityPanel items={epUnresolved} interactive={false} selected="xgen://identity/erased-1" id="unresolved" /></div>
       </div>
     </div>
 ```
@@ -143,9 +152,11 @@ Every line number below was read from the file, not recalled.
 
 📌 **FILED, NOT BUILT: standalone `entity-item#unresolved-*` edge cells.** They would show each row at an unconstrained width without panel chrome. **Marginal against the panel cell, and each costs 2 more registry entries.** Add them if Joe finds the panel width limiting when he tunes.
 
-⚠️ **NO `title` BADGE AND NO `badge` PROP ON THIS PANEL.** `members-panel` passes neither (`:146`), and adding one here would put a rendered count in the sampler — **the nearest thing to C1's trigger that has ever existed.** ✅ It still would not fire it (C1 re-opens on *the first milestone that renders a member count* **in the product**, not in a catalogue), **but the distinction is too fine to leave to a future reader.** Do not add one.
+🔒 **`interactive={false}` + ONE-WAY `selected=`, MIRRORING `members-panel.svelte:164` EXACTLY (Clair, F3 — a real defect in the first implementation).** 🛑 *v1.0's snippet passed **`bind:selected`** and **no `interactive`**, so the panel defaulted to interactive: **a click on any row would write the binding, the pre-selected erased row would lose `data-selected`, and the §5a-i demonstration this cell exists for would silently die** — on the surface Joe tunes. **This is the drift `M-RP-PANEL-INERT` exists to prevent**, and the faithful pattern was already one cell away at `entity-panel#inert`. 🔑 **The deeper error: v1.0 claimed the cell renders "exactly what `members-panel` renders" and then applied fidelity to `title` and NOT to `interactive` — fidelity HALF-APPLIED, this arc's species one more time.** Superseded, kept not erased (`D-131`).*
 
-**Expected catalogue delta, DERIVED HERE AND THEREFORE NOT TRUSTED:** `1` panel + `3 × 2` rows (composite + avatar child, G-C7) = **+7 ⇒ 427 → 434.** 🛑 **THIS NUMBER IS A PREDICTION. MEASURE IT (V2). A mismatch is a FINDING, not an arithmetic slip to be corrected quietly.**
+⚠️ **NO `title` AND NO `badge` ON THIS PANEL — AND v1.0's REASON WAS WRONG (Clair, F6).** `members-panel` passes neither (`:146`), and **fidelity to `members-panel` is the whole reason.** 🛑 *v1.0 said a `title` "would put a rendered count in the sampler". **False** — `title` renders a section heading (`section.svelte:81`); the count-like prop is `badge`, and the proof sits one cell away, where `entity-panel#inert` passes `title="Members (inert)"` with no count effect. **The action was right and the recorded reason was wrong**, which is worse than no reason because the next reader inherits it. ⚠️ v1.0 also **contradicted itself one paragraph apart** — its own snippet passed `title="Members"` while this prose forbade it, and the implementer had to pick. Superseded, kept not erased (`D-131`).*
+
+**Catalogue delta — ✅ MEASURED, 427 → 435 (`+8`).** `2` (panel + its self-registering `section`, G-C7) + `3 × 2` rows = **+8**. 🛑 *v1.0 derived `1 + 2N = +7 ⇒ 434` and said outright that a mismatch is a FINDING, not an arithmetic slip. **It was one, and it was G-C7's** — see the annotation there. The eighth entry is `section#unresolved__section`. Superseded, kept not erased (`D-131`).*
 
 ---
 
@@ -160,9 +171,15 @@ Every line number below was read from the file, not recalled.
  * TERMINAL fact. Only ever rendered as the DM counterpart (§5a E2); §5 hides ③ everywhere else.
  *
  * MARKED, NEVER DIMMED, and that is a lock not a taste: §5a-i keeps the L16 selection highlight
- * on this row, and an `opacity` here would composite the `[data-selected]` inset bar away with
- * everything else. No `background` either — this rule sits AFTER `[data-selected]` at EQUAL
- * specificity (0,2,0), so any background it set would silently outrank the selection.
+ * on this row, and an `opacity` on the ROOT would composite the `[data-selected]` inset bar away
+ * with everything else. So the mark is scoped to `.ei-name`: it strikes the NAME, and leaves the
+ * row's own surface to the selection.
+ *
+ * ⚠️ THIS RULE IS (0,3,0) AND TARGETS A DESCENDANT — it does not compete with `[data-selected]`
+ * (0,2,0, on the ROOT) at all; the two paint different elements. Nothing later in this file
+ * reaches `.ei-name` (only :2452 and the inline-variant rule above), so it wins by source order
+ * among equals. It sets no `background` because a background here would paint the TEXT BOX, not
+ * the row — which is not what a mark means.
  *
  * ⚠️ What is struck is an xgid TAIL, not a display name — an erased row has no name to strike
  * (§5b). ⚠️ `[data-unresolved="unasked"]` (state ④, DIMMED) is DELIBERATELY ABSENT: it must not
@@ -194,11 +211,11 @@ Every line number below was read from the file, not recalled.
 | # | gate | expected |
 |---|---|---|
 | V1 | `git diff --stat` C-1 | **1 file** (`app_sampler.svelte`); no `skin.css`, no `core`, no `.rs` |
-| V2 | sampler catalogue | **MEASURED as a TRANSITION in one session** — pre-C-1 count, apply, HMR-reload, post count. Prediction **427 → 434**; ⚠️ **a mismatch is a finding.** 🛑 *The `328` in older PLAY blocks is from the M-RP6.1 arc and is NOT a baseline (J-653).* |
+| V2 | sampler catalogue | ✅ **MEASURED as a TRANSITION in one session** — pre-C-1 count, apply, HMR-reload, post count. **427 → 435.** 🛑 *v1.0 predicted 434 and bound the leg to treat a mismatch as a FINDING; it was one — G-C7's `1 + 2N` should have been `2 + 2N` (`D-131`).* 🛑 *The `328` in older PLAY blocks is from the M-RP6.1 arc and is NOT a baseline (J-653).* |
 | V3 | `svelte-check` | from the floor **0 / 34 / 15**; any delta explained, not absorbed |
 | V4 | `git diff --stat` C-2 | **1 file** (`skin.css`), **+~20 / −0**; no `.svelte`, no `.ts`, no `.rs` |
 | V5 | `svelte-check` after C-2 | **0 / 34 / 15 UNCHANGED** ⇒ *proves* C-2 shipped no component change |
-| V6 | sampler catalogue after C-2 | **434 UNCHANGED** ⇒ *proves* CSS moved no registry |
+| V6 | sampler catalogue after C-2 | **435 UNCHANGED** ⇒ *proves* CSS moved no registry. 🛑 *v1.0 wrote **434 UNCHANGED** — a PASS GATE that a CORRECT measurement would have FAILED. **The J-653 stale-baseline lesson reproduced one leg later, inside the runbook that cites it.** Caught by Clair (F1), not by any re-read (`D-131`).* |
 | V7 | `cargo test --workspace` | **NOT RUN — zero `.rs` in either commit, by scope (`git show --stat`).** 🔒 **Floor stays 1589 / 0 / 62 × 56 and is DELIBERATELY NOT RE-MEASURED**, stated rather than silently skipped |
 | V8 | `git ls-files --eol` | **`i/lf` on both files** |
 
@@ -206,7 +223,7 @@ Every line number below was read from the file, not recalled.
 
 | # | gate | expected |
 |---|---|---|
-| V9 | `__XGEN_DEBUG__.get('unresolved__item-1').state.unresolved` (and `-2`) | **`'unasked'` and `'erased'`** — 🔑 **the FIRST time in this milestone either value has been read off a live component.** ⚠️ Row ids are the panel's own composition — **enumerate `ids` and read the real ones; do not assume the pattern.** |
+| V9 | `__XGEN_DEBUG__.get('entity-item#unresolved-unasked-1').state.unresolved` (and `-erased-1`) | **`'unasked'` and `'erased'`** — 🔑 **the FIRST time in this milestone either value has been read off a live component.** ⚠️ Row ids are the panel's own composition, `<panelId>-<last path segment>` — **enumerate `ids` and read the real ones; do not assume the pattern.** 🛑 *v1.0's example read `unresolved__item-1`, which matches nothing; the real ids are `entity-item#unresolved-unasked-1` / `-erased-1`. A stale example, not a broken gate — the step already said enumerate (Clair, F9; `D-131`).* |
 | V10 | `[data-unresolved]` attribute census across all `.entity-item` | **exactly TWO present** (`"unasked"`, `"erased"`), **absent on every other row in the sampler and on all 5 client rows.** *The negative half is what Leg B proved; V10 is the positive half arriving.* |
 | V11 | computed style on the erased row's `.ei-name` | `text-decoration-line: line-through`, colour resolving to `#c8c4bc`. 🛑 **Read the COMPUTED style, not the rule text** — a rule present in the stylesheet and losing the cascade reads identically in a diff. |
 | V12 | 🔒 **§5a-i — the erased row's `box-shadow`** | **`inset 2px 0 0 …` PRESENT and non-`none`**, with `data-selected` on the same element. 🔑 **This is the gate the whole *mark-not-dim* argument stands on** (G-C5); if it fails, the design is wrong, not the fixture. |
@@ -222,37 +239,41 @@ Every line number below was read from the file, not recalled.
 
 ## §7 — DoD
 
-- [ ] **C-1 committed alone**; sampler catalogue **measured as a transition, not derived** (V1, V2)
-- [ ] `svelte-check` re-measured after C-1, **delta explained** (V3)
-- [ ] **C-2 committed alone**; `svelte-check` and catalogue both **asserted UNCHANGED** (V4, V5, V6)
-- [ ] 🔒 **`cargo` NOT re-measured, and the close SAYS SO** with the by-scope proof (V7)
-- [ ] `git ls-files --eol` **`i/lf` on both files** (V8)
-- [ ] **Both hook values read live off the painted DOM** — the first positive read in this milestone (V9, V10)
-- [ ] **The mark verified in COMPUTED style, not in the stylesheet text** (V11)
-- [ ] 🔒 **§5a-i's highlight proven to SURVIVE the mark** (V12) — the gate the design rests on
-- [ ] 🛑 **The unasked row proven UNTREATED** (V13) — C-3's withholding is verified, not assumed
-- [ ] 🛑 **The close states plainly that the CLIENT looks unchanged, and that this is correct** (§1)
-- [ ] 🛑 **The close states plainly that ③ was still not exercised against a real `not_found`** — Leg F's, untouched
-- [ ] `docs/ROADMAP.md`'s Leg C node **corrected**: the `↳ trigger: Leg B has landed — fired` line is a defect by the standing convention (*a trigger that has fired is a defect*) and the node splits C-1/C-2/C-3 with C-3's trigger named as **Leg E**
-- [ ] `.md` header updated on every touched document: **Version bumped · `Last updated` = the date CONTENT changed · TWO trailing spaces on every `> ` line**
-- [ ] Records: JOURNAL + `CLAUDE.md` PLAY + `docs/ROADMAP.md` + Phase-0 + this file **in one commit** (`D-074`)
-- [ ] Citation sweep run **on the NAME, not the version string — and run TWICE** (`D-135` §5a). 🛑 **Pass 2 has been required FOUR consecutive entries. Treat it as certain, not likely.**
+- [x] **C-1 committed alone**; sampler catalogue **measured as a transition, not derived** (V1, V2) — ✅ **427 → 435**, both halves in one session
+- [x] `svelte-check` re-measured after C-1, **delta explained** (V3) — ✅ **0 / 34 / 15, zero delta**
+- [x] **C-2 committed alone**; `svelte-check` and catalogue both **asserted UNCHANGED** (V4, V5, V6) — ✅ **0 / 34 / 15 and 435**
+- [x] 🔒 **`cargo` NOT re-measured, and the close SAYS SO** with the by-scope proof (V7)
+- [x] `git ls-files --eol` **`i/lf` on both files** (V8)
+- [x] **Both hook values read live off the painted DOM** — the first positive read in this milestone (V9, V10)
+- [x] **The mark verified in COMPUTED style, not in the stylesheet text** (V11) — ✅ `line-through`, `rgb(200,196,188)`, rule `rgb(88,92,100)`, `1px`
+- [x] 🔒 **§5a-i's highlight proven to SURVIVE the mark** (V12) — ✅ `box-shadow: rgb(154,106,48) 2px 0 0 inset`, `opacity: 1`, `data-selected` true
+- [x] 🛑 **The unasked row proven UNTREATED** (V13) — ✅ `line-through: none`, `opacity: 1`, name colour **identical to the control**
+- [x] 🛑 **A layout read was REFUSED as a broken probe rather than recorded** — the first clip measurement returned `scrollWidth: 0 / clientWidth: 0` because the DD·composite tab is CSS-hidden when inactive. ***A zero-width rendered text node is a broken probe, not a measurement.*** Re-measured with the tab active: **391 vs 250, CLIPPED**; the tab switch was then undone with `location.reload()` (N-123).
+- [x] 🛑 **The close states plainly that the CLIENT looks unchanged, and that this is correct** (§1) — ✅ J-655
+- [x] 🛑 **The close states plainly that ③ was still not exercised against a real `not_found`** — ✅ J-655; Leg F's, untouched
+- [x] `docs/ROADMAP.md`'s Leg C node **corrected** — ✅ the fired trigger is gone, the node splits C-1/C-2/C-3, C-3's trigger is **Leg E**
+- [x] `.md` header updated on every touched document: **Version bumped · `Last updated` = the date CONTENT changed · TWO trailing spaces on every `> ` line** — ✅ 8/8 asserted on each
+- [x] Records: JOURNAL + `CLAUDE.md` PLAY + `docs/ROADMAP.md` + Phase-0 + this file **in one commit** (`D-074`)
+- [x] Citation sweep run **on the NAME, not the version string — and run TWICE** (`D-135` §5a) — ✅ **and pass 2 earned its keep AGAIN: it caught F2's false `(0,2,0)` claim REPLICATED IN `docs/ROADMAP.md`**, which pass 1 had fixed only in the runbook and `skin.css`. 🛑 **Pass 2 has now been required FIVE consecutive entries. It is certain, not likely.**
 
 ---
 
 ## §8 — Seats (D-123)
 
-- **JOE** — **owns `ui/assets/skin.css` as a standing rule (§0 Ruling 2)**; delegated **this leg's two selectors** to Chat and re-tunes them whenever he likes, with no milestone; locks this runbook; stands Clair up; **pushes all commits**.
-- **CHAT** — authored this file and its default values; re-drives **every** gate in §6; owns the records. **Never pushes.**
-- **CLAIR** — implements **from this file**, C-1 then C-2, **once Joe stands her up**. **She does not close her own leg.**
-  - 🔑 **Rule 6 stands: flag a deviation, never absorb it.** ⚠️ **This leg carries a specific temptation to absorb — the ④ rule and the base rule will both feel obviously missing.** They are withheld by a ruling (§0 Ruling 1). **If that looks wrong, say so; do not add them.**
-  - 🔑 **A CLEAN ADVERSARIAL READ IS A RESULT, NOT AN ABSENCE** — say so explicitly (J-647, J-651).
+- **JOE** — **owns `ui/assets/skin.css` as a standing rule (§0 Ruling 2)**; delegated **this leg's two selectors** to Chat and re-tunes them whenever he likes, with no milestone; **ruled *"chat"* on the implementation route**; **pushes all commits**.
+- **CHAT** — authored this file and its default values, **AND implemented C-1 + C-2**; re-drove **every** gate in §6; owns the records. **Never pushes.** 🛑 **THE COST OF THAT ROUTE, NAMED: author, implementer and verifier were ONE SEAT** — which is precisely why the outside read below was not optional.
+- **CLAIR — ADVERSARIAL READ OF THE DIFF, NOT IMPLEMENTATION.** ✅ **Run 2026-08-01 and it was NOT clean: nine findings.** **F1** the `2 + 2N` correction unpropagated across **six** sites incl. **V6, a pass gate a correct run would fail** · **F2** the false `(0,2,0)` specificity justification carried into `skin.css` · **F3** the cell shipped interactive with `bind:selected` where `members-panel` is inert and one-way · F4 the missing N-109 removal obligation · F5 fixture tails too short to clip · F6 the wrong recorded reason for dropping `title` · F7/F8/F9 record staleness. **F1 / F2 / F3 / F6 were defects in Chat's own work; F3 was in Chat's own implementation.**
+  - 🔑 **AND RE-DRIVING HER FINDINGS SURFACED A SIXTH F1 SITE SHE MISSED (`ROADMAP:352`)** — the J-651 pattern running in both directions. ***Neither seat is the check on its own; the pair is.***
+  - 🔑 **Rule 6, inverted for a read seat: there was no instruction to absorb, so the job was to say what is wrong with what already exists.** She did, without softening it into questions.
+  - 🔑 **A CLEAN ADVERSARIAL READ IS A RESULT, NOT AN ABSENCE** — and this one was not clean, which is when it is worth most (J-647, J-651).
 
 ---
 
 ## §9 — Filed, NOT fixed (none of these is Leg C's to close)
 
-- **C-3 — the base rule + `[data-unresolved="unasked"]`.** 🔒 **Gated on Leg E** (a refresh trigger that actually fires). ⚠️ **Placement note for whoever writes it: the base rule must sit ABOVE the erased rule** — equal specificity (0,2,0), source order decides (G-C4).
+- **C-3 — the base rule + `[data-unresolved="unasked"]`.** 🔒 **Gated on Leg E** (a refresh trigger that actually fires)
+  - ⚠️ **Placement: the base rule must sit ABOVE the erased rule.** Both reach `.ei-name`; a bare `.entity-item[data-unresolved] .ei-name` is (0,3,0) like the mark, so **source order decides** (G-C4).
+  - 🛑 **AND C-3 OWES A SWEEP, WRITTEN INTO ITS DoD HERE AND NOW (Clair, F4 — an `N-109` pre-empt): `skin.css`'s C-2 comment block asserts `[data-unresolved="unasked"]` is *"DELIBERATELY ABSENT"*.** The moment C-3 ships the unasked rule **that sentence becomes false, in Joe's file, written by someone being careful — which is exactly why the next reader would trust it.** 🔑 **J-511's rule: when a leg ships a disclosure, its REMOVAL enters the DoD of the leg that lifts the limit, in the same edit that adds it.** 🛑 *v1.0 filed C-3 with the placement note ALONE and no removal obligation — the N-109 defect, filed inside a runbook that cites N-109 (`D-131`).*
 - **`M_RP_MEMBERS.md` §6a — the `tail-8` lock-versus-build gap.** `.ei-name` is LEFT-anchored and clips the RIGHT, so every unresolved row keeps the constant `ed25519:` head and loses the distinguishing bytes ⇒ **two unresolved rows are indistinguishable from each other.** ⚠️ **This leg's strikethrough makes the gap MORE visible, not less** — a struck constant prefix. **Not fixed here; it is Joe's, filed at J-618.**
 - **`entity-avatar.svelte:125` collapses `isAi`'s third state** — `data-ai={flags.isAi || undefined}`. Joe's, same family as §4.
 - **M13 §3c — erasure is invisible to anyone holding a cached record.** The real defect J-649 uncovered; **must be designed with M13's `revoked` + `update_version`, or not at all.**

@@ -8,6 +8,50 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-655 — Leg C-1 and C-2 ship, and the outside read found three defects in the seat that had just verified itself
+
+**Date:** 2026-08-01 · **Seat:** Joe (the *"chat"* ruling) · Chat (values, implementation, all measurement, records) · Clair (adversarial read of the diff — **no code**). **Code by Chat.**
+
+**Opened at** `5f7858c` (J-654), tree clean, local == origin — **verified first**.
+
+---
+
+### 🔒 THE ROUTE CHANGED, AND THE COST WAS NAMED BEFORE IT WAS PAID
+
+The runbook route had Clair implement C-1 + C-2. Joe ruled ***"chat"***: **Chat implemented directly, and Clair was stood up for an adversarial read of the diff instead.** 🔑 **The reason the fork was put to him at all: it makes Chat author, implementer AND verifier of one artifact** — and this arc's own count is **eight instances of one defect species, every one caught from OUTSIDE the text, none by re-reading.** ⇒ the read was not ceremony; it was the only outside check that existed.
+
+**It was not clean. Nine findings. F1 / F2 / F3 / F6 were Chat's own; F3 was in Chat's own implementation.** 🔑 **And re-driving them surfaced a SIXTH F1 site she had missed (`ROADMAP:352`) — the J-651 pattern running in both directions.** ***Neither seat is the check on its own; the pair is.***
+
+### 🛑 THE THREE SUBSTANTIVE FINDINGS
+
+**F1 — the `2 + 2N` correction was unpropagated across SIX sites, and one of them was a PASS GATE.** Chat's own measurement had already found the arithmetic wrong (predicted 434, measured **435**) and traced the eighth entry to `section#unresolved__section`: `entity-panel.svelte:168` wraps a `<Section>` and `section.svelte:69` self-registers, so a panel costs **`2 + 2N`**, not `1 + 2N`. 🛑 **What Chat did NOT do was propagate it — and runbook V6 still read *"434 UNCHANGED ⇒ proves CSS moved no registry"*, a gate that a CORRECT measurement FAILS.** ***The J-653 stale-baseline lesson, reproduced one leg later, inside the runbook that cites it.*** 📌 *G-C7's original error is the arc's signature species: it took the sampler's comment about **`entity-item` CELLS** and extrapolated it onto **`entity-panel`** — in the section headed "read from the file, not recalled".*
+
+**F2 — a FALSE justification, carried verbatim into Joe's file.** The `skin.css` comment claimed the rule *"sits AFTER `[data-selected]` at EQUAL specificity (0,2,0), so any background it set would silently outrank the selection."* **Both halves are false of the rule that shipped.** `.entity-item[data-unresolved="erased"] .ei-name` is **(0,3,0)** and paints a **DESCENDANT**; `[data-selected]` paints the **ROOT** ⇒ **they never compete**, and a background here would paint the text box, not the row. 🔑 **The paragraph was reasoned about a ROOT-level rule and never updated when the mark correctly moved to `.ei-name`.** ***The code was right and the comment was false about the code it annotates*** — in a file whose whole purpose is to be hand-edited later, where a careful-sounding false note is worse than none.
+
+**F3 — a real implementation defect that would have silently killed the leg's own demonstration.** `members-panel.svelte:164` is `selected={counterpart} interactive={false}` — inert, one-way. **Chat's cell passed `bind:selected` and no `interactive`**, so the panel defaulted to interactive: **one click writes the binding, the pre-selected erased row loses `data-selected`, and §5a-i's *the highlight survives the mark* demonstration dies — on the surface Joe tunes.** This is the drift `M-RP-PANEL-INERT` exists to prevent, and the faithful pattern sat **one cell away** at `entity-panel#inert`. 🔑 **The deeper error: the runbook claimed the cell renders "exactly what `members-panel` renders", then applied fidelity to `title` and NOT to `interactive`. Fidelity HALF-APPLIED — the species again, inside the sentence that asserted completeness.**
+
+### 📌 THE OTHER SIX, AND ONE THAT WAS SUBTLER THAN FILED
+
+**F4** C-3 was filed with no obligation to remove the *"DELIBERATELY ABSENT"* disclosure it will falsify — **the N-109 defect, filed inside a runbook that cites N-109.** Now written into C-3's DoD before C-3 exists. · **F5** the fixture tails were 16 chars where `tail()` returns ~44; Clair said *"likely does not clip"* — **it was then MEASURED rather than left a likelihood: at 44 chars, `scrollWidth 391` vs `clientWidth 250` ⇒ CLIPPED**, so the fixture now reproduces the real LEFT-anchored clip. · **F6** the recorded reason for dropping `title` was wrong (`title` renders a heading, `badge` is the count-like prop) — **the action was right and the reason was wrong, which is worse than no reason, because the next reader inherits it**; the runbook had also contradicted itself one paragraph apart, its snippet passing `title` while its prose forbade it. · **F7 / F9** stale runbook examples. · **⚠️ F8 was subtler than filed and neither seat was wrong:** the `send-status` line numbers were `:3039`/`:3043` when grounded at `3fe3423`, and **C-2's own 21 inserted lines moved them to `:3060`/`:3064`.** ***A grounding line number invalidated by the very commit it grounds.***
+
+### 🛑 A MEASUREMENT WAS REFUSED RATHER THAN RECORDED
+
+The first clip read returned **`scrollWidth: 0, clientWidth: 0, clipped: false`**. 🔑 **A zero-width rendered text node is impossible ⇒ that is a BROKEN PROBE, not a measurement** — the DD·composite tab is CSS-hidden when inactive, so every layout read is zero and `clipped: false` is a **false negative that reads exactly like a real result.** It did not enter the record. Re-measured with the tab active (**391 vs 250, CLIPPED**), and the tab switch was undone with `location.reload()` (N-123). 📌 *Registry counts and computed styles were unaffected — neither needs layout — so 435 and V11–V13 stood.*
+
+### ✅ MEASURED — every figure re-driven, none inferred
+
+**Catalogue 427 → 435**, measured as a **TRANSITION in one session**, both halves; `count === unique === domCount`, quiescent; **435 UNCHANGED after C-2** ⇒ *proves* CSS moved no registry, and **435 unchanged after the F3/F5 fixes**. `svelte-check` **0 / 34 / 15** at every stage. **`cargo` NOT run — zero `.rs` by scope; floor stays 1589 / 0 / 62 × 56, stated rather than silently skipped.** `git ls-files --eol` `i/lf` both.
+
+**Live:** erased row — `line-through`, `rgb(200,196,188)` = `--t2`, rule `rgb(88,92,100)` = `--t4`, `1px`. 🔒 **V12, the gate the whole *mark-not-dim* design rests on: `box-shadow: rgb(154,106,48) 2px 0 0 inset` PRESENT, `opacity: 1`, `data-selected` true.** **V13: the unasked row is `line-through: none`, `opacity: 1`, name colour IDENTICAL to the control** ⇒ **C-3's withholding proven off the DOM, not off the diff.** Every subject asserted **readable** before anything was asserted about it.
+
+### 🛑 WHAT THIS DID NOT DO
+
+**THE CLIENT LOOKS EXACTLY AS IT DID, AND THAT IS THE CORRECT OUTCOME.** Neither ③ nor ④ is reachable with one client; the visible change lands in the **sampler**. **③ was still NOT exercised against a real `identity.not_found`, ④ was not exercised at all, and no path was verified** — this leg changed an appearance, not a path. 🔒 **Leg F remains the first behaviour verification of this milestone.**
+
+**FLOORS:** cargo **1589 / 0 / 62 × 56** (not re-run, by scope) · svelte-check **0 / 34 / 15** · sampler catalogue **427 → 435**. **No new D. No new N.** → J-655 · Phase-0 v1.12 · ROADMAP v6.43 · runbook v1.0 → v1.1.
+
+---
+
 ## Entry J-654 — two canonical records disagreed about whether Leg C was unblocked, and the gate turned out not to reach both states
 
 **Date:** 2026-08-01 · **Seat:** Joe (two rulings — the split, and a delegation he framed more narrowly than Chat had) · Chat (grounding, the runbook, the values, records). **No code by anyone. No floor moved.**

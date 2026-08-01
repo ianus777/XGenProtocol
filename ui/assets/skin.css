@@ -2526,6 +2526,33 @@ html, body {
   box-shadow: inset 2px 0 0 var(--accent, var(--pr));
 }
 
+/* unresolved — what the CLIENT knows about this identity, never a property of the entity
+ * (M-RP-IDENTITY-RESOLUTION §4/§5a). The hook is VALUED: `erased` = state ③, the node answered
+ * `identity.not_found` ⇒ the identity is GONE and can never sign an event again (§1 G3) — a
+ * TERMINAL fact. Only ever rendered as the DM counterpart (§5a E2); §5 hides ③ everywhere else.
+ *
+ * MARKED, NEVER DIMMED, and that is a lock not a taste: §5a-i keeps the L16 selection highlight
+ * on this row, and an `opacity` on the ROOT would composite the `[data-selected]` inset bar away
+ * with everything else. So the mark is scoped to `.ei-name`: it strikes the NAME, and leaves the
+ * row's own surface to the selection.
+ *
+ * ⚠️ THIS RULE IS (0,3,0) AND TARGETS A DESCENDANT — it does not compete with `[data-selected]`
+ * (0,2,0, on the ROOT) at all; the two paint different elements. Nothing later in this file
+ * reaches `.ei-name` (only :2452 and the inline-variant rule above), so it wins by source order
+ * among equals. It sets no `background` because a background here would paint the TEXT BOX, not
+ * the row — which is not what a mark means.
+ *
+ * ⚠️ What is struck is an xgid TAIL, not a display name — an erased row has no name to strike
+ * (§5b). ⚠️ `[data-unresolved="unasked"]` (state ④, DIMMED) is DELIBERATELY ABSENT: it must not
+ * ship before a refresh trigger exists, or the panel promises a resolution it cannot deliver
+ * (Phase-0 §11, G-B). It lands with Leg C-3, and its BASE rule must be placed ABOVE this one. */
+.entity-item[data-unresolved="erased"] .ei-name {
+  color: var(--t2);
+  text-decoration: line-through;
+  text-decoration-color: var(--t4);
+  text-decoration-thickness: 1px;
+}
+
 /* ───────────────────────────────────────────────────
  * status (.status) — the dd-atomic self-status (M-RP5.1a): an emoji + optional short line (Track
  *   A `state.status`, self-EXPRESSION, never presence). `badge` = emoji glyph (rides an avatar

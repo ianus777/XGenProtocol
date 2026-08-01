@@ -287,6 +287,26 @@
   ];
   let epSelRooms = $state();
 
+  // unresolved (M-RP-IDENTITY-RESOLUTION §4/§5a) — the two states a member row can be in when the
+  // client holds NO identity record. ⚠️ The names are xgid TAILS on purpose: with no book record
+  // `toDescriptor` already falls back to `tail(identity_id)`, so a real ③/④ row has NO display
+  // name (Phase-0 §5b). A fixture with a human name would be tuning a case the product cannot
+  // produce. The first row is RESOLVED and is the control — a mark is only readable against one.
+  // ⚠️ TAIL LENGTH IS LOAD-BEARING: `tail()` returns the whole final segment (`ed25519:` + a
+  // 44-char key) and `.ei-name` is LEFT-anchored, so the real render KEEPS the constant head and
+  // ellipsises the distinguishing bytes (`M_RP_MEMBERS.md` §6a). A short fixture tail would not
+  // clip, and would show Joe a more legible string than the product can produce.
+  const epUnresolved = [
+    { descriptor: { kind: 'identity', name: 'Bob Lee', id: 'xgen://identity/bob-9c04', flags: {} } },
+    { descriptor: { kind: 'identity', name: 'ed25519:9xK2vN8pLdA3QmR47bTfHs1YnE6cZkW5jU0gMpQaXrBc', id: 'xgen://identity/unasked-1', flags: {} }, unresolved: 'unasked' },
+    { descriptor: { kind: 'identity', name: 'ed25519:Zk9WbT5cH1sYnE6f7QmR4xK2vN8pLdA3jU0gMpQaXrBd', id: 'xgen://identity/erased-1', flags: {} }, unresolved: 'erased' },
+  ];
+  // §5a-i — the erased row is the DM counterpart and is pre-SELECTED, because the lock (the L16
+  // highlight SURVIVES the mark) is unobservable unless something renders the two together.
+  // 🛑 INERT + ONE-WAY, MIRRORING `members-panel.svelte:164` EXACTLY (`interactive={false}`,
+  // `selected=` not `bind:selected=`). Interactive with a binding, a click would write the
+  // selection away and SILENTLY DESTROY the very demonstration this cell exists for.
+
   // message (M-RP5.5 A, message dd sub-family opener) — MessageDescriptor fixtures. `author` REUSES
   // the entity dd-socket (EntityDescriptor); the shell would map protocol → descriptor here. The
   // `details` widget socket resolves widgetId → component via a sampler-supplied registry; an
@@ -982,6 +1002,13 @@
       <div class="s-rowname">entity-panel · inert (M-RP-PANEL-INERT)</div>
       <div class="s-cells">
         <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-panel#inert</span><EntityPanel items={epSpaces} title="Members (inert)" interactive={false} selected="xgen://space/dev-2b11" id="inert" /></div>
+      </div>
+    </div>
+
+    <div class="s-row">
+      <div class="s-rowname">entity-panel · unresolved (M-RP-IDENTITY-RESOLUTION)</div>
+      <div class="s-cells">
+        <div class="s-cell" style="width: 300px; align-self: flex-start"><span class="s-id">entity-panel#unresolved</span><EntityPanel items={epUnresolved} interactive={false} selected="xgen://identity/erased-1" id="unresolved" /></div>
       </div>
     </div>
 

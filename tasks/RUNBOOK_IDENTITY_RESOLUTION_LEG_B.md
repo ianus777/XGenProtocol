@@ -1,6 +1,6 @@
 # M-RP-IDENTITY-RESOLUTION Leg B — the render rules
-> **Status**: PENDING  
-> Version: 1.1  
+> **Status**: ACTIVE  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-01  
 > Language: English  
@@ -10,11 +10,15 @@
 
 ---
 
-🛑 **AUTHORED, NOT LOCKED. NOBODY IS IMPLEMENTING THIS FILE.** It becomes Clair's instruction only when Joe says *"lock"* AND stands her up — **two acts** (the J-646 rule: *"locked" reads like "started" to anyone skimming*). Until both, this is a proposal.
+🔒 **LOCKED BY JOE 2026-08-01 (J-652) — *"locked"*.** This file is now **Clair's instruction, not a proposal**. Amending it requires a further Joe ruling, and an amendment made mid-leg must reach her **BEFORE** she reads the section it changes.
+
+🛑 **AND HALF THE TRIGGER IS STILL OUTSTANDING, STATED HERE SO IT IS NOT READ AS DONE: THE TRIGGER IS *"Joe locks the runbook AND stands Clair up"* — TWO ACTS, AND HE HAS PERFORMED ONE.** ⇒ **THE RUNBOOK IS LOCKED AND IDLE. NOBODY IS IMPLEMENTING IT.** ⚠️ ***"Locked" reads like "started" to anyone skimming*** (J-646), which is why it is written here, in the Phase-0, in the ROADMAP node and in the PLAY block alike.
+
+⚠️ *v1.0–v1.1 opened with "AUTHORED, NOT LOCKED. NOBODY IS IMPLEMENTING THIS FILE. It becomes Clair's instruction only when Joe says lock AND stands her up." **The first half is now discharged; the second is not.** Superseded and struck in the same edit that locked the file — a countdown is discharged by the act it was waiting for, never left for the close (`D-131`).*
 
 ✅ **v1.1 — CLAIR'S ADVERSARIAL READ APPLIED (J-651).** She was sent in for the read BEFORE the lock, and it was not clean: **three of her four findings were Chat's**, and re-driving them surfaced a fifth Chat defect she did not catch (G-B8 pointed at the wrong Change number). **§3's G-B4 anchors · G-B8's severity framing and its Change pointer · §5 Change 2(b)'s elided late-guard · Change 3's mis-description** are all corrected below. Superseded text is annotated, never deleted (`D-131`).
 
-📌 **Parent Phase-0:** `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.8**. 🛑 **RUNBOOK-AS-GROUND-TRUTH IS A FAILURE MODE.**
+📌 **Parent Phase-0:** `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.9**. 🛑 **RUNBOOK-AS-GROUND-TRUTH IS A FAILURE MODE.**
 
 **SESSION-OPEN READING ORDER (Clair):** ① `CLAUDE.md` PLAY head → ② latest `JOURNAL.md` entry → ③ Phase-0 §3 (the four states) · §4 · §5 · §5a · §5b · §8 B-1…B-4 → ④ **this file**. It is item 4, not item 1.
 
@@ -64,7 +68,7 @@ Every line number below was read from the file, not recalled.
 
 ---
 
-## §4 — 🔒 THE HOOK CARRIES A VALUE, NOT A PRESENCE (Chat, mechanical — Joe's to overrule at lock)
+## §4 — 🔒 THE HOOK CARRIES A VALUE, NOT A PRESENCE (Chat, mechanical — put to Joe at the lock and NOT overruled, J-652)
 
 🛑 **§4 locked `data-unresolved` for ④ (dimmed). §5a's E2 locked a MARK for the erased DM counterpart. THOSE ARE TWO TREATMENTS ON THE SAME ELEMENT, AND A PRESENCE-ONLY ATTRIBUTE CANNOT CARRY TWO STATES.** §5b already refused `data-revoked` as the vehicle (it belongs to M13, and `D-127` separates revoked from erased). ⇒ **a second distinguishable hook is REQUIRED BY LOCKS ALREADY TAKEN.** Only its form was open.
 
@@ -354,9 +358,9 @@ erasedHidden: (addressBook.roster ?? []).filter(
 
 ## §8 — Seats (D-123)
 
-- **JOE** — locks this runbook; stands Clair up; owns `ui/assets/skin.css` and therefore Leg C; **pushes all commits**. **§4's valued hook is his to overrule at the lock**, and it is cheaper to overrule now than after.
+- **JOE** — locked this runbook (J-652); **stands Clair up — NOT YET DONE**; owns `ui/assets/skin.css` and therefore Leg C; **pushes all commits**. ✅ *§4's valued hook was put to him at the lock and NOT overruled — that countdown is discharged.*
 - **CHAT** — authored this file; re-drives **every** gate in §6; owns the records. **Never pushes.**
-- **CLAIR** — implements **from this file once it is locked**, in the two-commit order. **She does not close her own leg.**
+- **CLAIR** — implements **from this file**, in the two-commit order, **once Joe stands her up**. 🛑 **He has locked the file and has NOT stood her up — so as of J-652 she is NOT implementing it.** **She does not close her own leg.**
   - 🔑 **Rule 6 stands: flag a deviation, never absorb it.** At J-516 an implementer who had silently followed a bad runbook instruction would have shipped a `core` → shell dependency. **If any instruction here is wrong, saying so is the job.**
   - 🔑 **A CLEAN ADVERSARIAL READ IS A RESULT, NOT AN ABSENCE** — say so explicitly, as at J-647.
 

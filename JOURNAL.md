@@ -8,6 +8,63 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-652 — the runbook is locked, and locked is not started
+
+**Date:** 2026-08-01 · **Seat:** Joe (*"locked"* — **one act of two**) · Chat (lock record, countdown discharge, sweep). **No code. No floors moved.**
+
+**Opened at** `359d1c2` (J-651), tree clean, local == origin — **verified before anything else**, because the previous *"push done"* had not landed and that check costs one command.
+
+---
+
+### 🔒 THE LOCK
+
+`tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_B.md` **v1.1 → v1.2**, **PENDING → ACTIVE + LOCKED**. The file is now **Clair's instruction, not a proposal.** Amending it requires a further Joe ruling, and a mid-leg amendment must reach her **before** she reads the section it changes.
+
+🛑 **AND HALF THE TRIGGER IS STILL OUTSTANDING. The trigger is *"Joe locks the runbook AND stands Clair up"* — TWO ACTS, and he has performed ONE.** ⇒ **THE RUNBOOK IS LOCKED AND IDLE. NOBODY IS IMPLEMENTING IT.** ⚠️ ***"Locked" reads like "started" to anyone skimming*** (J-646), so it is written into the runbook, the Phase-0, the ROADMAP node and the PLAY block alike — **four places, on purpose.**
+
+---
+
+### ✅ THE LOCK DISCHARGED ITS OWN COUNTDOWNS, IN THE SAME EDIT
+
+Four statements inside the runbook went false the instant Joe said the word. All four were struck and annotated (`D-131`) **in the edit that locked the file** — not at the leg's close:
+
+1. The opening *"AUTHORED, NOT LOCKED. NOBODY IS IMPLEMENTING THIS FILE."*
+2. `Status: PENDING`.
+3. §4's heading, *"Chat, mechanical — Joe's to overrule at lock"*. ✅ **He did not overrule it, so the valued hook `'unasked' | 'erased'` stands exactly as authored.**
+4. §8's seat lines — *"locks this runbook"* and *"implements from this file once it is locked"*, plus JOE's *"§4's valued hook is his to overrule at the lock"*.
+
+🔑 ***A COUNTDOWN IS DISCHARGED BY THE ACT IT WAS WAITING FOR, NEVER LEFT FOR THE CLOSE.*** That is the exact defect J-642 recorded — a fired gate sitting inside an ACTIVE runbook — and this time it was caught by **looking for it before the file changed state**, rather than by someone tripping over it afterwards.
+
+📌 **Item 4 was found in the diff, not in the plan.** The plan named three; reading the applied diff surfaced the fourth. *The diff is a measurement of what the edit did; the plan is only a claim about what it would do.*
+
+---
+
+### ✅ WHAT THE LOCK DID NOT CHANGE: NOT ONE INSTRUCTION
+
+v1.2 differs from v1.1 **only in lock-state statements**. The six changes, the two-commit split, the gates, the seats and the honest limits are **identical to the version Clair read adversarially at J-651**.
+
+🔑 ***A lock that quietly edits the instructions is not a lock*** — it is an amendment with a lock's name on it, and the implementer would have no way to tell which text she had actually reviewed.
+
+---
+
+### 📌 THE SWEEP NEEDED PASS 2 FOR THE THIRD CONSECUTIVE ENTRY
+
+Bumping the Phase-0 to **v1.9** staled the runbook's own parent pointer at **v1.8** — which pass 1 had just written. Same shape at J-650 (v1.6→v1.7) and J-651 (v1.7→v1.8).
+
+🔑 **`D-135` §5a is not an occasional hazard; it is a STANDING COST of every version bump in a two-document pair that cite each other.** Three for three. *Two documents that name each other's versions cannot be bumped in one pass, ever — and knowing that in advance is cheaper than rediscovering it each time.*
+
+---
+
+**RECORDS.** `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_B.md` **v1.1 → v1.2, PENDING → ACTIVE** · `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.8 → v1.9** · `docs/ROADMAP.md` **v6.39 → v6.40** · `CLAUDE.md` PLAY · this entry. **Five files, one commit (`D-074`).**
+
+**FLOORS.** cargo **1588 / 0 / 62 × 56** · svelte-check **0 / 34 / 15** — **NEITHER RE-RUN.** Documents only; zero `.rs`, zero `ui/**`.
+
+🛑 **WHAT THIS DID NOT DO.** **No production code.** **Clair has NOT been stood up.** **G-B is still open and still gates the milestone's close.** ⚠️ **And Leg B, when it runs, is still COMPILE- and TYPE-verified only — Leg F remains the first behaviour verification of this milestone.**
+
+**Next-active.** 🟡 **Leg B — waiting on ONE act: Joe stands Clair up.** 🔓 **Joe, otherwise unchanged:** §7 Tier-1 fetch · §6's refresh trigger (**one decision with the parent's §5, not two**) · the `skin.css` values · §5's DAG-divergence read.
+
+---
+
 ## Entry J-651 — the adversarial read ran before the lock, and three of its four findings were mine
 
 **Date:** 2026-08-01 · **Seat:** Joe (*"do the best for you"* — read as a call on the process question, **not** as the lock) · Clair (adversarial read, no code) · Chat (re-drive, corrections, records). **No code. No floors moved.**

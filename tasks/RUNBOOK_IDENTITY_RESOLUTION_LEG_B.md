@@ -1,6 +1,6 @@
 # M-RP-IDENTITY-RESOLUTION Leg B — the render rules
-> **Status**: ACTIVE  
-> Version: 1.2  
+> **Status**: COMPLETED  
+> Version: 1.4  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-01  
 > Language: English  
@@ -16,9 +16,11 @@
 
 ⚠️ *v1.0–v1.1 opened with "AUTHORED, NOT LOCKED. NOBODY IS IMPLEMENTING THIS FILE. It becomes Clair's instruction only when Joe says lock AND stands her up." **The first half is now discharged; the second is not.** Superseded and struck in the same edit that locked the file — a countdown is discharged by the act it was waiting for, never left for the close (`D-131`).*
 
+🔒 **AMENDED BY JOE 2026-08-01 (J-653) — v1.2 → v1.3, A RULING ON A LOCKED RUNBOOK (option 1).** Two corrections, both to **§6 verification and §5 anchors — NO INSTRUCTION CHANGED, and the leg was already implemented when the amendment landed, so nothing Clair built is affected.** ① **§5 Change 2(d) carried the pre-v1.1 store anchors** — Clair flagged it under Rule 6; G-B4 was corrected at v1.1 and **the same file's body was never swept for the same numbers.** ② **§6's V8/V9 were not satisfiable in this leg** and are reduced to their negative halves, with both positive cases moved to Leg F. See §6.
+
 ✅ **v1.1 — CLAIR'S ADVERSARIAL READ APPLIED (J-651).** She was sent in for the read BEFORE the lock, and it was not clean: **three of her four findings were Chat's**, and re-driving them surfaced a fifth Chat defect she did not catch (G-B8 pointed at the wrong Change number). **§3's G-B4 anchors · G-B8's severity framing and its Change pointer · §5 Change 2(b)'s elided late-guard · Change 3's mis-description** are all corrected below. Superseded text is annotated, never deleted (`D-131`).
 
-📌 **Parent Phase-0:** `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.9**. 🛑 **RUNBOOK-AS-GROUND-TRUTH IS A FAILURE MODE.**
+📌 **Parent Phase-0:** `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.10**. 🛑 **RUNBOOK-AS-GROUND-TRUTH IS A FAILURE MODE.**
 
 **SESSION-OPEN READING ORDER (Clair):** ① `CLAUDE.md` PLAY head → ② latest `JOURNAL.md` entry → ③ Phase-0 §3 (the four states) · §4 · §5 · §5a · §5b · §8 B-1…B-4 → ④ **this file**. It is item 4, not item 1.
 
@@ -191,7 +193,7 @@ get notFoundIds(): string[] {
 },
 ```
 
-**(d) 🛑 CLEARED ON EVERY PATH THAT INVALIDATES THE ROSTER — three sites, all mandatory:** `setInflight` (`:122-127`), `setFailed` (`:139-143`), `reset` (`:146-150`) each add `_notFound = [];`. ⚠️ **A stale id list outliving its roster would hide a member of the NEXT Space** — the exact shape the late-response guard exists to prevent, one field over.
+**(d) 🛑 CLEARED ON EVERY PATH THAT INVALIDATES THE ROSTER — three sites, all mandatory:** `setInflight` (`:124-128`), `setFailed` (`:141-144`), `reset` (`:146-151`) each add `_notFound = [];`. ⚠️ **A stale id list outliving its roster would hide a member of the NEXT Space** — the exact shape the late-response guard exists to prevent, one field over.
 
 📌 **`removeMember` does NOT clear it.** A leaver's id lingering in `_notFound` is inert (the filter only ever consults ids that are in the roster). **Recorded as considered, not overlooked.**
 
@@ -329,30 +331,46 @@ erasedHidden: (addressBook.roster ?? []).filter(
 
 | # | gate | expected |
 |---|---|---|
-| V8 | `__XGEN_DEBUG__.get('<row id>').state.unresolved` | `null` for a resolved row; **`'unasked'` for a live-joined one** |
-| V9 | `[data-unresolved]` on `.entity-item` | attribute **present with a value** on that row, **absent** on resolved rows |
-| V10 | members-panel `state.erasedHidden` vs `memberCount` − `rowCount` | consistent |
+| V8 | `__XGEN_DEBUG__.get('<row id>').state.unresolved` | **`null` on every rendered row** — the field EXISTS and defaults correctly. 🛑 *The `'unasked'` case is NOT verifiable here — amended at v1.3, see below.* |
+| V9 | `[data-unresolved]` on `.entity-item` | **ABSENT on every rendered row** — the attribute is not spuriously emitted. 🛑 *The present-with-a-value case is NOT verifiable here.* |
+| V10 | members-panel `state.erasedHidden` vs `memberCount` − `rowCount` | **evaluates without throwing and is consistent in the EMPTY case** (`erasedHidden: 0`, `memberCount: null`, `rowCount: 1` — the self fixture). 🛑 *The populated case is NOT verifiable here — amended at v1.4.* |
 
-🛑 **AND THE HONEST LIMIT, STATED SO IT IS NEVER LATER READ AS DONE.** **③ CANNOT BE REACHED IN A NORMAL RUN.** J-649 measured it: a held identity is never re-fetched (`ops.rs:2764`, doc `:2752`) and a held record is never removed in production (`address_book.rs:253` / `:285` — **every caller is a test**) ⇒ **`identity.not_found` fires only for an identity that was NEVER cached.** ⇒ **V8–V10 verify the ④ path and the plumbing; the ③ filter and E2's exception are VERIFIED BY TYPE AND BY READING, NOT BY RUNNING.**
+🛑 **AND THE HONEST LIMIT — AMENDED AT v1.3, BECAUSE THE ORIGINAL DREW THE LINE IN THE WRONG PLACE.**
 
-⚠️ **A STORE DRIVEN BY HAND IS A PROBE THAT CANNOT FAIL.** Injecting an id into `_notFound` over CDP would exercise Svelte's reactivity and **nothing else** — it would not test that the id ever arrives. **Do not record such a run as behaviour verification.** 🔒 **Leg F remains the first behaviour verification of this milestone, and it needs two clients, a real join and a real `not_found` — which per J-649 means a client with no cached record.**
+🔒 **AMENDMENT (Joe, J-653, option 1): V8, V9 AND V10 ARE REDUCED TO WHAT ONE CLIENT CAN ACTUALLY SHOW; THE POSITIVE CASES MOVE TO LEG F.**
+
+⚠️ **V10 WAS ADDED TO THIS AMENDMENT ONE STEP LATE, AND THAT IS ITSELF THE SPECIES.** v1.3 amended V8 and V9 and **left V10 sitting on the identical structural dependency one row down in the same table** — `erasedHidden` is only meaningful against a populated roster, which needs the same Space that ③ and ④ need. ***An amendment written while naming a defect reproduced it one row down.*** Corrected at v1.4, kept not erased (`D-131`).
+
+🛑 **NEITHER ③ NOR ④ IS REACHABLE WITH ONE CLIENT.** ③ was already known unreachable (J-649: a held identity is never re-fetched, `ops.rs:2764` / doc `:2752`; a held record is never removed in production, `address_book.rs:253` / `:285` — **every caller is a test**). 🔑 **④ IS IN THE SAME POSITION, MEASURED NOT ASSUMED: `unresolved: true` is set in exactly ONE place** (`address-book.svelte.ts:187`, inside `addMember`) **and `addMember` has exactly ONE caller** (`app_client.svelte:210`, the live membership router) ⇒ **state ④ requires an inbound `membership.join` from another identity — the same two-client setup ③ requires.**
+
+⚠️ *v1.0–v1.2 read: "V8–V10 verify the ④ path and the plumbing; the ③ filter and E2's exception are VERIFIED BY TYPE AND BY READING, NOT BY RUNNING." **④'s positive case belongs on the same side of that line as ③'s.** Superseded, kept not erased (`D-131`).*
+
+✅ **WHAT THE LIVE GATES DO PROVE, AND IT IS NOT NOTHING:** the prop threads end-to-end through two `core` components, the attribute is **not spuriously emitted**, and the debug field **exists and defaults to `null`** — which is exactly why `?? null` is specified in Change 4(c): it distinguishes **absent-value** from **absent-feature**, and without it V8's negative half would be indistinguishable from a component that never received the prop.
+
+🛑 **WHAT THEY DO NOT PROVE: THAT EITHER MARKED STATE EVER RENDERS, OR THAT `erasedHidden` COUNTS ANYTHING.** ⇒ **OWED BY LEG F**, which already owns the two-client run: a real join producing `data-unresolved="unasked"`, a real `not_found` producing the ③ filter and E2's exception, and a populated roster giving `erasedHidden` something to count.
+
+🛑 **AND THE SURFACE MATTERS — THE CLIENT IS THE EVIDENCE, THE SAMPLER IS NOT.** The sampler mounts `entity-item` as **isolated catalogue instances fed by sampler literals**; it has **no `members-panel` at all** (measured: zero `members-panel` ids in the 9422 registry). ⇒ **only the client exercises the wired path this leg changed** (`members-panel` → `entity-panel` → `entity-item`, fed by the store). **A sampler row proves the COMPONENT accepts the prop; only a client row proves the PATH delivers it.** ⚠️ *The sampler is still required for **V6** — the catalogue count is a sampler measurement and nothing else can produce it.*
+
+🛑 **STANDING MEASUREMENT RULE, EARNED HERE (→ `docs/CDP_DEBUG_HARNESS.md`): WHEN CHAT LAUNCHES AN APP TO MEASURE, IT SAYS SO AND ASKS FOR HANDS OFF THE WINDOW UNTIL IT SAYS DONE.** The registry breathes with **quiescence (N-105) · store contents (N-108) · selection (N-112) · saved-state count (N-115)** — so a click, a menu, or a room switch **during** a run silently changes the number being measured, and **the reading looks perfectly ordinary afterwards.** ⚠️ **N-123 is the mirror of this and it already bit Joe once:** an instrument left a mutation behind and *he* reported it as a bug in his own CSS. ***An instrument that can be disturbed without saying so is an instrument that lies quietly in both directions.***
+
+⚠️ **A STORE DRIVEN BY HAND IS A PROBE THAT CANNOT FAIL.** Injecting an id into `_notFound` — or an `unresolved` row into `_roster` — over CDP would exercise Svelte's reactivity and **nothing else**; it would not test that the value ever arrives. **Do not record such a run as behaviour verification.** 🔒 **Leg F remains the first behaviour verification of this milestone.**
 
 ---
 
 ## §7 — DoD
 
-- [ ] **B-i committed alone**; cargo **1588 → 1589**, `Compiling xgen-client` present (V1, V2)
-- [ ] Phase-0 §9's `Vec<IdentityXgid>` witness obligation **struck as DISCHARGED**, in the same commit-pair
-- [ ] **B-ii committed alone**; cargo **1589 unchanged** (V4)
-- [ ] `svelte-check` re-measured, **delta explained** (V5)
-- [ ] Sampler catalogue **asserted unchanged**, not assumed (V6)
-- [ ] `git ls-files --eol` **`i/lf` on all six** (V7)
-- [ ] `data-unresolved` **read live off the painted DOM**, not inferred from the diff (V8, V9)
-- [ ] 🛑 **The close states plainly that ③ was NOT exercised, and why** (J-649)
-- [ ] 🛑 **The close states plainly that this leg LANDS SILENTLY** — no dimming, no mark, until Leg C
-- [ ] `.md` header updated on every touched document: **Version bumped · `Last updated` = the date CONTENT changed · TWO trailing spaces on every `> ` line**
-- [ ] Records: JOURNAL + `CLAUDE.md` PLAY + `docs/ROADMAP.md` + Phase-0 + this file **in one commit** (`D-074`)
-- [ ] Citation sweep run **on the NAME, not the version string — and run TWICE**, because the first pass's own fixes create fresh staleness (`D-135` §5a, J-646)
+- [x] **B-i committed alone**; cargo **1588 → 1589**, `Compiling xgen-client` present (V1, V2) — ✅ `06c5afe`, 1 file, +40, tests only
+- [x] Phase-0 §9's `Vec<IdentityXgid>` witness obligation **struck as DISCHARGED**, in the same commit-pair — ✅ J-653
+- [x] **B-ii committed alone**; cargo **1589 unchanged** (V4) — ✅ `7e06456`, 5 files, +69/−22, zero `.rs`
+- [x] `svelte-check` re-measured, **delta explained** (V5) — ✅ **0 / 34 / 15, the floor exactly; zero delta**
+- [x] Sampler catalogue **asserted unchanged**, not assumed (V6) — ✅ **427 → 427, measured as a TRANSITION in one session** (pre-Leg-B `ui/` checked out, HMR reloaded, measured, restored, re-measured). 🔑 *The 328 carried in the record is from the M-RP6.1 arc and was never a valid baseline for this leg — a stale baseline is worse than none, because it turns a real check into a false one.*
+- [x] `git ls-files --eol` **`i/lf` on all six** (V7) — ✅
+- [x] `data-unresolved` **read live off the painted DOM**, not inferred from the diff (V8, V9) — ✅ **26 `entity-item` getters** (21 sampler + 5 client): field present on **all**, `null` on **all**; **zero `[data-unresolved]`** across all 26. 🛑 *Negative halves only — see §6's amendment.*
+- [x] 🛑 **The close states plainly that ③ was NOT exercised, and why** (J-649) — ✅ **and that ④ was not either, and `erasedHidden` counted nothing**
+- [x] 🛑 **The close states plainly that this leg LANDS SILENTLY** — no dimming, no mark, until Leg C — ✅
+- [x] `.md` header updated on every touched document: **Version bumped · `Last updated` = the date CONTENT changed · TWO trailing spaces on every `> ` line**
+- [x] Records: JOURNAL + `CLAUDE.md` PLAY + `docs/ROADMAP.md` + Phase-0 + this file **in one commit** (`D-074`) — ✅ J-653
+- [x] Citation sweep run **on the NAME, not the version string — and run TWICE**, because the first pass's own fixes create fresh staleness (`D-135` §5a, J-646)
 
 ---
 

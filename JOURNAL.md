@@ -8,6 +8,95 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-653 — Leg B closes, and the gate I wrote had a stale baseline
+
+**Date:** 2026-08-01 · **Seat:** Joe (amendment ruling on a locked runbook; two catches) · Clair (implementation, two commits) · Chat (re-drive of every gate, records). **Code by Clair; no code by Chat.**
+
+**Opened at** `7e06456`, tree clean, local == origin — **verified first**, as now standard.
+
+---
+
+### ✅ WHAT SHIPPED
+
+**B-i `06c5afe`** — the `Vec<IdentityXgid>` wire witness. 1 file, +40, tests only. **cargo 1588 → 1589 / 0 / 62 across 56 result lines**, `Compiling xgen-client` present, log terminates on a `test result:` line + `EXIT=0`.
+
+**B-ii `7e06456`** — the render rules. 5 files, +69/−22, **zero `.rs`**, **`svelte-check` 0 / 34 / 15 = the floor exactly**, `git ls-files --eol` **`i/lf` on all six**.
+
+**Clair implemented from the locked runbook; Chat re-drove every gate — not one figure read off her report.** The by-floor split held and bought exactly what it was for: **the cargo move is attributable to one commit that contains nothing else.**
+
+---
+
+### 🔑 V6 — A STALE BASELINE IS WORSE THAN NO BASELINE
+
+The gate I wrote said *"sampler catalogue unchanged — **assert it, do not assume it**"*. **I had never established a baseline.** The 328 carried in the PLAY record is from the **M-RP6.1 arc**, many `core` components ago. The live count is **427**.
+
+✅ **So it was measured as a TRANSITION in one session:** pre-Leg-B `ui/` checked out → HMR reloaded → **427** → restored → re-measured **427**.
+
+🔑 ***A stale baseline is worse than no baseline: it converts a real check into a false one, and it passes.*** Had I compared 427 against the recorded 328 I would have reported a **99-element regression that never happened**. Had I skipped the check I would have reported nothing. **The stale number is the only one of the three options that produces a confident wrong answer.**
+
+---
+
+### 🛑 V8 / V9 / V10 AMENDED MID-LEG — JOE'S RULING ON A LOCKED RUNBOOK
+
+Grounded, not argued: **`unresolved: true` is set in exactly ONE place** (`address-book.svelte.ts:187`, in `addMember`) **with exactly ONE caller** (`app_client.svelte:210`, the live membership router) ⇒ **state ④ requires an inbound `membership.join` from another identity — the same two-client setup ③ requires.** My §6 had put ④ on the *runnable* side of that line.
+
+⇒ **V8/V9/V10 reduced to what one client can show; all three positive cases moved to Leg F**, which already owns the two-client run.
+
+⚠️ **AND V10 WAS ADDED ONE STEP LATE.** v1.3 amended V8 and V9 and **left V10 sitting on the identical structural dependency one row down in the same table.** ***An amendment written while naming a defect reproduced it one row down.***
+
+✅ **What was proven live: 26 `entity-item` getters (21 sampler + 5 client) — field present on ALL, `null` on ALL; ZERO `[data-unresolved]` across all 26.** 🔑 **`fieldPresentOnAll: true` is the entire reason Change 4(c) specifies `?? null`** — an `undefined` field vanishes from `JSON.stringify`, so without it the negative gate would read **identically to a component that never received the prop**. *A gate that proves a default works is only trustworthy if it could also have failed.*
+
+---
+
+### 🛑 JOE'S FIRST CATCH — WHY DID I RUN THE SAMPLER?
+
+**Because V6 is a sampler measurement and nothing else can produce it. That was the only good reason, and I then over-used the result.**
+
+The sampler mounts `entity-item` as **isolated catalogue instances fed by sampler literals**, and has **no `members-panel` at all** (measured: zero such ids at 9422). ⇒ **only the client exercises the wired path this leg changed** — `members-panel` → `entity-panel` → `entity-item`, fed by the store.
+
+🔑 ***A sampler row proves the COMPONENT accepts the prop; only a client row proves the PATH delivers it.***
+
+⚠️ **I presented 21 sampler rows as *stronger* than the client's — inverting the epistemic order** — and I was wrong twice, having also predicted the client would yield one row when it yielded five. **Joe's question is the correction: the client is the evidence.**
+
+---
+
+### 🔒 JOE'S SECOND CATCH — A NEW STANDING MEASUREMENT RULE (`docs/CDP_DEBUG_HARNESS.md` v1.8)
+
+**When Chat launches an app in order to MEASURE, it says so before launching and says when it is done, and the window is not touched in between.**
+
+The registry breathes with **quiescence (N-105) · store contents (N-108) · selection (N-112) · saved-state count (N-115)** — a click, an open menu or a room switch **during** a run changes the number being measured, **and the reading looks perfectly ordinary afterwards.**
+
+⚠️ **N-123 is this rule's mirror and it already bit Joe once:** an instrument left an inline override behind and *he* reported it as a bug in his own CSS. ***An instrument that can be disturbed without saying so lies quietly in both directions — it can mislead the measurer, and it can mislead the person whose desktop it is running on.***
+
+📌 **And the launch itself: two Tauri windows appeared on Joe's screen unannounced. That is the tool taking custody without asking (`D-132`).**
+
+---
+
+### ⚠️ TWO PROBE DEFECTS OF MY OWN, BOTH CAUGHT IN FLIGHT
+
+1. **My retry loop tested `$out` from a script that writes with `Write-Host`** — which **bypasses the pipeline**. `$out` was empty, every attempt printed *not ready*, and the answer was on screen the whole time. **N-110 again: I captured a stream that never carried the subject.**
+2. **I guessed `r.all()` and got `count: 0` beside `domCount: 427`.** ***A registry reporting zero next to 427 painted elements is a broken probe, not an empty registry.*** The real API is `ids` / `get` / `snapshot`.
+
+---
+
+### ✅ PHASE-0 §9's WITNESS OBLIGATION IS DISCHARGED
+
+`fill_report_not_found_ids_vec_serde_transparent_wire_invariance` ships in `mod pass_4_commit_1_tests` beside T2 — exhaustive named literal (**no `..Default`**, so a new field breaks the build) plus an empty-vec `[]` case. **Struck as closed in §9.**
+
+---
+
+**RECORDS.** `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_B.md` **v1.2 → v1.4, ACTIVE → COMPLETED** · `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.9 → v1.10** · `docs/ROADMAP.md` **v6.40 → v6.41** · `docs/CDP_DEBUG_HARNESS.md` **v1.7 → v1.8** · `CLAUDE.md` PLAY · this entry. **Six files, one commit (`D-074`).**
+
+⚠️ **Sweep pass 2 needed for the FOURTH consecutive entry** — bumping the Phase-0 to v1.10 staled the runbook's parent pointer at v1.9. **`D-135` §5a: four for four.**
+
+**FLOORS.** cargo **1589 / 0 / 62 × 56** — **moved by B-i, as designed** · svelte-check **0 / 34 / 15** — unmoved.
+
+🛑 **WHAT THIS LEG DID NOT DO.** **It LANDS SILENTLY** — ④'s dimming and E2's mark are `skin.css`, which is Joe's and is Leg C. **It is COMPILE- and TYPE-VERIFIED ONLY: ③ was not exercised, ④ was not exercised, and `erasedHidden` counted nothing.** 🔒 **Leg F remains the first behaviour verification of this milestone.** **G-B is still open and still gates the milestone's close.**
+
+**Next-active.** 🟡 **Leg C — the dimmed treatment and E2's mark in `ui/assets/skin.css`. JOE'S FILE; the hook is shipped and waiting.** 🔓 **Joe:** §7 Tier-1 fetch · §6's refresh trigger · the `skin.css` values · §5's DAG-divergence read.
+
+---
+
 ## Entry J-652 — the runbook is locked, and locked is not started
 
 **Date:** 2026-08-01 · **Seat:** Joe (*"locked"* — **one act of two**) · Chat (lock record, countdown discharge, sweep). **No code. No floors moved.**

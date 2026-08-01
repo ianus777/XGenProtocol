@@ -1,6 +1,6 @@
 # M-RP-IDENTITY-RESOLUTION — what a member row shows before the client knows who it is
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-01  
 > Language: English  
@@ -84,7 +84,9 @@ if !id_registry.contains(sender) {
 | ① | Record held | yes | ✅ | ✅ |
 | ② | Asked, reply not back | asked, waiting | ✅ presumably | ✅ |
 | ③ | Asked, `identity.not_found` | **asked, answered "nothing here"** | ❌ | 🛑 **NO — step 11 rejects every event (G3)** |
-| ④ | **Never asked, or asked and never heard back** | **no answer of any kind** | ✅ **probably — this says nothing about the node** | ✅ **yes, fully** |
+| ④ | **Never asked** | **no answer of any kind** | ✅ **probably — this says nothing about the node** | ✅ **yes, fully** |
+
+⚠️ **v1.0/v1.1 DEFINED ④ AS *"never asked, OR asked and never heard back"*. THE SECOND HALF CANNOT OCCUR — superseded at v1.2, kept not erased (`D-131`).** `ops.rs:2913` is `identity_get_on(...).await?`: **the `?` aborts the ENTIRE fill on a transport error**, and the shell runs `setFailed`. ⇒ **inside a fill that returns `Ok`, every id is either fetched or `not_found`.** There is no per-id silent timeout. 🔑 **④ has exactly one source: a live `membership.join` that never triggers a fill at all.**
 
 🔑 **③ AND ④ LOOK IDENTICAL AND ARE OPPOSITES.** ③ is a fact about the **identity** — the node has nothing, so they are inert. ④ is a fact about **our connection** — the member is a live participant we merely failed to name. ⚠️ **Rendering them the same is the panel reporting our network fault as someone else's irregularity.**
 
@@ -144,11 +146,19 @@ if !id_registry.contains(sender) {
 
 **Neither is a design question. Both are measured absences, and each blocks half of §4/§5.**
 
-### G-A — THE CLIENT CANNOT TELL ③ FROM ④
+### G-A — ③ IS UNIDENTIFIABLE (CORRECTED AT v1.2 — THE GAP IS ONE-SIDED, NOT TWO)
 
-Both end as *no record in `_book`*. `FillReport` carries `not_found` as a **count** (`ops.rs:2779`), never a list of ids. ⇒ **the client knows three lookups failed and never which three.**
+⚠️ **v1.0/v1.1 STATED: *"THE CLIENT CANNOT TELL ③ FROM ④ — both end as no record in `_book`."* THAT IS FALSE AS OF J-643, and it was already false when this document was written.** Superseded, kept not erased (`D-131`).
 
-⇒ **Hiding ③ while dimming ④ requires the ids.** A `Vec<IdentityXgid>` alongside the count, surfaced through `fill_space_records`. **Rust; moves the cargo floor.**
+✅ **④ IS ALREADY IDENTIFIABLE.** `addressBook.addMember` stamps `unresolved: true` on every live-joined member (`address-book.svelte.ts:168`), and `members-panel.svelte:101` **already branches on it** — that marker shipped in `M-RP-LIVEFEED-REFRESH` Leg A, the very leg that created state ④.
+
+❌ **③ IS NOT.** It arrives through `setResult`, carries no marker, and is invisible: `FillReport` reports `not_found` as a **count** (`ops.rs:2779`), never a list. ⇒ **the client knows three lookups failed and never which three.**
+
+🔑 **SO THE GAP IS ONE-SIDED, AND CLOSING IT IS SMALLER THAN v1.0 CLAIMED.** ⇒ **hiding ③ requires the ids; dimming ④ requires nothing new.**
+
+🛑 **HOW THE ERROR HAPPENED, RECORDED BECAUSE IT IS THE RECURRING SPECIES:** G-A was reasoned from the state taxonomy and **never re-read against the code J-643 had just shipped one day earlier**. A claim about what the client can distinguish was written without opening the file that does the distinguishing.
+
+⇒ **Leg A carries `not_found_ids` — runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` v1.0.** **Rust.** 📌 **AND IT DOES *NOT* MOVE THE CARGO FLOOR** — see §8's correction.
 
 ### G-B — "THE NEXT REFRESH" DOES NOT CURRENTLY ARRIVE
 
@@ -181,7 +191,11 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 
 **Leg 0 — Phase-0.** This document. No code.
 
-**Leg A — the `not_found` id list.** `FillReport` carries the ids; surfaced through `fill_space_records`. **Rust; moves the cargo floor.** ⇒ closes **G-A**.
+**Leg A — the `not_found` id list.** `FillReport` gains `not_found_ids: Vec<IdentityXgid>`; surfaced through `fill_space_records`. **Runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` v1.0 — AUTHORED, NOT LOCKED.** ⇒ closes **G-A**.
+
+⚠️ **v1.0/v1.1 SAID *"Rust; moves the cargo floor."* IT DOES NOT MOVE IT — corrected at v1.2, kept not erased (`D-131`).** The push sits inside `fill_from_events`, downstream of `ensure_connected` and `identity_get_on`; **the existing `not_found` test covers `absorb_fetch`, which is pure and never touches `FillReport`.** ⇒ **the change has no unit test and cannot get one without a live node.** 🔒 **Joe locked T-a (2026-08-01): ship it untested rather than refactor the function carrying the `session.conn` re-entrancy invariant.** ⇒ **cargo stays 1588 / 0 / 62 × 56, and Leg A is COMPILE-VERIFIED ONLY — Leg F is the first leg that can verify it behaviourally.**
+
+🔒 **The TS mirror ships in Leg A too (Joe, boundary option ②)** — `address-book.svelte.ts`'s `FillReport` calls itself a mirror of `ops.rs`, and a mirror left stale for a whole leg is this milestone's own recurring defect. A type-only field with zero readers moves neither floor.
 
 **Leg B — the render rules.** `data-unresolved` on `.entity-item`; ③ filtered from the rendered list; the store distinguishes the two. **Frontend; moves `svelte-check`.** ⚠️ **Gated on Leg A** — without the ids there is nothing to branch on.
 
@@ -199,9 +213,10 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 
 ## §9 — Filed, NOT fixed
 
+- 🛑 **`SeenRecord` / `FetchedIdentity` / `FillReport` CARRY `String` IDENTIFIER SLOTS THAT SHOULD BE TYPED XGIDs — A POST-RETROFIT REGRESSION, FOUND 2026-08-01 (J-645).** The XGID Retrofit arc closed 2026-05-29 having retyped all of `xgen-client`; these three were written in `String` on 2026-07-25, while `MemberEntry` — written 3 days after the arc closed — is correctly `IdentityXgid`. **`SeenRecord.home_node: String` contradicts a Pass 4 borderline lock by name.** 🔑 **The `.as_str().to_string()` downgrade at `ops.rs:2734`/`:2742` is not a deliberate seam — it exists only to feed the `String`-keyed book, and disappears when this is fixed.** ⇒ **`D-136` minted; filed as `M-RP-XGID-SLOT-RETYPE` 🟡 PENDING.** ⚠️ **Leg A works around it with a documented re-wrap and does NOT fix it (`D-071`).** 📌 **Found because Joe recalled the retrofit and asked for the check to be re-run deeper — Chat's first pass sampled one function and concluded the opposite.**
 - **`M_RP_MEMBERS.md` §6a — the `tail-8` lock-versus-build gap.** Joe locked *tail-8*; `tail()` returns the whole final path segment and the CSS clips the **left**, so every unresolved row reads `ed25519:…` — the constant head kept, the distinguishing bytes discarded. ⚠️ **This milestone makes ④ rows more visible, so the gap becomes more visible with it.** Not fixed here.
 - **`entity-avatar.svelte:125` collapses `isAi`'s third state** — `data-ai={flags.isAi || undefined}`, so `false` and absent render identically (J-643 §5-iv). **Leg A of `M-RP-LIVEFEED-REFRESH` made the store honest; the renderer still collapses it.** 🔓 Joe's, and it is the same family as §4.
-- **③ cannot be told from *erased* vs *never replicated here*** — `not_found` does not distinguish them. **`revoked` on the wire is M13.** Until then, "hidden" is the same treatment for both.
+- **③ MEANS ERASED — CORRECTED AT v1.2.** ⚠️ *v1.0/v1.1 said ③ "cannot be told from erased vs never replicated here"; superseded, kept not erased (`D-131`).* 🔒 **`D-127`** (cited at `tasks/M13_CLIENT_IDENTITY_LOOKUP_WIDENING.md:54`) locks that **a revoked Identity returns its record WITH `revoked` set, never `identity.not_found` — `not_found` is reserved for erasure.** ⇒ **independent corroboration, from a lock predating this milestone, of §1 G3's conclusion.** 📌 *What ③ still cannot distinguish is erased-here vs never-replicated-here; that remains open and is M13-adjacent.*
 - **`role` / `joined_at` / `invited_by` arrive free and are discarded** (G5, `M_RP_MEMBERS.md` §7, delegated lock). 📌 **A ④ row could honestly show `role`** — protocol-derived, no lookup needed. **Not proposed here**; recorded because this is the first milestone where it would have a use.
 - **The visit card (Tier 2) is undesigned**, and its scope rule may be answered by §2's frame. **Its own pass.**
 

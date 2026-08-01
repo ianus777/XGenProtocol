@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-31  
+> **Last updated:** 2026-08-01  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -5051,3 +5051,53 @@ and **always**, including when the run dies or is abandoned:
 ⚠️ **It does not claim the key-extraction method is sound.** For C's **forward-looking, non-closure** heads the first `(J-nnn)` in the head window is a **citation, not an identity**. Four such heads carry a key on that basis. **It produced no false collision here — all sixteen were read on both sides — but the method must not be reused blind.**
 
 ⚠️ **It does not claim a probe is trustworthy because it ran.** Two probes in this arc returned **internally inconsistent** output — one measured the same slice three times under array flattening (J-627), one returned a head count of **1** for a 94-head input (J-629). 📌 **Both tells were internal inconsistency, not implausibility. A probe that reports one number for many different inputs is reporting on itself.**
+
+---
+
+## D-136 — A completed sweep is not a standing rule; a convention that is not enforced regresses silently in the code written after it
+
+**Date:** 2026-08-01 · **Layer:** project-wide convention durability (any retrofit, migration, rename, or type-discipline pass) · **Ref:** J-645; XGID Retrofit Passes 1–5 (J-122–J-148); `M-RP-ADDRESS-BOOK` Leg D (J-586); `M-RP-XGID-SLOT-RETYPE`
+
+🔒 **MINTED BY DELEGATION AND LOCKED BY JOE 2026-08-01.** Chat recommended minting it and named the alternative — hold it as a J-645 observation until a second instance proved durability under `D-077` — and Joe answered *"2) + 3) as you recommend"*, then *"all locked"*. **Recorded as delegated per the `D-135` precedent, so the provenance is not lost.**
+
+### §1 — THE RULE
+
+🔒 **A PASS THAT SWEEPS A CONVENTION ACROSS AN ENUMERATED SET OF SURFACES HAS CHANGED THOSE SURFACES. IT HAS NOT CREATED A RULE.** Unless the convention is separately enforced — by a type that makes the wrong form unrepresentable, by a test, by a lint, or by a written standing rule that new work is read against — **code written after the pass closes will regress to the pre-pass form, and it will compile.**
+
+🔑 **THE MECHANISM IS THAT THE SWEEP'S OWN COMPLETENESS IS WHAT HIDES THE REGRESSION.** A pass closes by demonstrating that every enumerated surface was converted. That demonstration is true, and it is about **the surfaces that existed on the day it ran**. It says nothing about the next file, and the closing record reads as though the subject were the codebase rather than a snapshot of it.
+
+⇒ **the completion claim is narrower than the thing it appears to describe** — the recurring species of this project, here at the level of a milestone's own close.
+
+### §2 — ✅ THE MEASURED INSTANCE THAT MINTED IT
+
+**The XGID Retrofit's five-pass arc closed 2026-05-29 (`7ed4e30`).** Pass 4 retyped the whole of `xgen-client` under a locked classification: **identifier slots retype to a typed XGID flavour; descriptive slots stay `String`** (design doc §4.1.a — 31 mechanical identifier retypes, 12 descriptive stays, 3 borderline locks).
+
+| struct | first appeared | identifier slot |
+|---|---|---|
+| `MemberEntry` | **2026-06-01** — 3 days after the arc closed | ✅ `IdentityXgid` |
+| `FetchedIdentity` · `SeenRecord` · `FillReport` | **2026-07-25** — two months after | ❌ `String` |
+
+🔑 **`MemberEntry` and `FetchedIdentity` are in the SAME FILE (`xgen-client/src/ops.rs`), chose oppositely, and the one that broke the rule is the later one.** All three July structs arrived on **one commit** (`a0c8b4c`, `M-RP-ADDRESS-BOOK` Leg D, J-586).
+
+**Three independent corroborations:**
+- 🛑 **`SeenRecord.home_node: String` (`address_book.rs:89`) contradicts a Pass 4 borderline lock BY NAME** — §4.1.a reads *"2 NodeXgid for `home_node` ×3"*. The slot was ruled typed, then re-introduced as `String`.
+- 🛑 **`address_book.rs` contains ZERO occurrences of `IdentityXgid`**; `ops.rs` contains 39. The type was not weighed and rejected in that file — **it was never in the room.**
+- 🛑 **The downgrade at `ops.rs:2734` / `:2742`** (`e.sender.as_str().to_string()`, `m.identity_id.as_str().to_string()`) **reads as a deliberate seam and is not one.** It exists only to feed a `BTreeMap<String, SeenRecord>` that should not have been `String`-keyed. **Remove the regression and the seam disappears rather than moving.**
+
+⚠️ **`String` COMPILES.** There is no failing build, no failing test, and no reviewer prompt. **The regression is invisible by construction**, which is why it survived two months and was found only when a third party — Joe — recalled the retrofit from memory and asked for the check to be re-run deeper.
+
+### §3 — WHAT THE RULE REQUIRES IN PRACTICE
+
+🔒 **A pass that closes MUST state, in its own closing record, how the convention will be enforced after it — or state explicitly that it will not be, so the gap is known rather than assumed.** Acceptable enforcement, strongest first: **① make the wrong form unrepresentable** (the typed newtype at the API boundary, so `String` does not compile) · **② a test that fails on the wrong form** · **③ a lint or grep gate** · **④ a written standing rule in `CLAUDE.md` that new work is read against.**
+
+📌 **④ IS THE WEAKEST AND IT IS OFTEN THE ONLY AVAILABLE ONE. That is fine — what is not fine is silence.** The failure here was not choosing a weak enforcement; it was choosing none and not noticing that none had been chosen.
+
+### §4 — 🛑 WHAT THIS ENTRY DOES **NOT** CLAIM
+
+⚠️ **It does not claim the XGID regression's full extent is known.** Only the structs on the address-book fill path were measured. **No sweep has been run for other post-2026-05-29 structs that regressed the same way**, and if the mechanism is real there is no reason to expect this commit was the only one. **That sweep is `M-RP-XGID-SLOT-RETYPE`'s Phase-0 job (`D-071`), and the milestone is filed 🟡 PENDING, not started.**
+
+⚠️ **It does not claim the retrofit passes were done badly.** They converted what they enumerated, and they enumerated honestly. **The defect is in what a close means, not in the work.**
+
+⚠️ **It does not retroactively fault `M-RP-ADDRESS-BOOK` Leg D.** With no enforcement in place, `String` was the locally reasonable choice and nothing signalled otherwise. 🔑 **A convention nobody can see is not a convention anyone can follow — that is the whole point of this entry.**
+
+📌 **RELATION TO THE EXISTING FAMILY.** Sibling to **a trigger that has fired is a defect**: both concern a completed action being mistaken for a durable property. Distinct from `D-071` (audits precede dependent milestones), which governs **order**; this governs **what a completed pass leaves behind**.

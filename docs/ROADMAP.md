@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.32  
+> Version: 6.33  
 > Date: May 2026  
 > **Last updated**: 2026-08-01  
 > Language: English  
@@ -306,22 +306,34 @@ XGen Protocol
 │   │   └── 🟡 **Leg E records + close**
 │   │       ↳ trigger: Leg D lands
 │   ├── 🟡 **M-RP-IDENTITY-RESOLUTION** — what a member row shows before the client knows who it is · J-644
-│   │   ↳ 🔑 **SPAWNED BY `M-RP-LIVEFEED-REFRESH` Leg A (J-643)** — the live router created a state the panel had never been in: a roster row whose identity was **NEVER LOOKED UP**. Phase-0 `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.1 ACTIVE**
+│   │   ↳ 🔑 **SPAWNED BY `M-RP-LIVEFEED-REFRESH` Leg A (J-643)** — the live router created a state the panel had never been in: a roster row whose identity was **NEVER LOOKED UP**. Phase-0 `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.2 ACTIVE**
 │   │   ↳ 🛑 **FILED WITHOUT RECORDS AND FOUND UNFINDABLE (J-644)** — the `M-RP-REGION-GEAR` shape `tasks/AUDIT_RECORD_FINDABILITY.md` was written to name, recurring in the session that discussed it. **D-074 fires on STATE CHANGE; a document merely FILED never triggers it**
-│   │   ↳ 🔒 **ID + TITLE LOCKED J-644 (Rule 8, Joe)** — every narrower candidate reads render-only and **hides that Legs A and D are Rust and move the cargo floor**
+│   │   ↳ 🔒 **ID + TITLE LOCKED J-644 (Rule 8, Joe)** — every narrower candidate reads render-only and **hides that Legs A and D are Rust**. ⚠️ *v6.32 read "… are Rust and move the cargo floor"; corrected J-645, kept not erased (`D-131`) — **Leg A is Rust but does NOT move the floor** (no unit test is possible; see Leg A). **Leg D still does.** The ID rationale holds on the Rust half, which was always the load-bearing part*
 │   │   ↳ 🔒 **§2 THE TWO-TIER FRAME (Joe's own)** — Tier 1 = the Identity record, **mandatory**, federation-wide, carries `is_ai` (§3.6.10); Tier 2 = the visit card, **not designed here**. `display_name` stays Tier 1 and duplicates nothing (Ch2's four representation layers)
 │   │   ↳ 🔒 **§4 ④ RENDERS DIMMED, ITS OWN SELECTOR** · 🔒 **§5 ③ IS HIDDEN** · 🔒 **§5 COUNT = C1, count the roster and accept the mismatch** — all three Joe, 2026-08-01. ⚠️ **`ui/assets/skin.css` values are HIS; the milestone adds only the hook**
 │   │   ↳ 🔑 **§1 G3 — A SENDER THE NODE DOES NOT KNOW CANNOT ACT AT ALL** (`exchange.rs:208-210`). ⇒ `identity.not_found` on a current member means their events are **REJECTED**; and since `membership.join` is signed by the joiner, such a member's record **WAS there and is GONE**. ⚠️ **Retracts an opposite Chat claim one turn earlier, killed by Joe's *"how does Carol say hello"* question (`D-131`)**
-│   │   ↳ 🛑 **NOT BUILDABLE TODAY — TWO MEASURED CAPABILITY GAPS, NEITHER A DESIGN QUESTION.** **G-A:** `FillReport` carries `not_found` as a **COUNT** (`ops.rs:2779`), never ids ⇒ the client cannot tell ③ from ④. **G-B:** the fill's only trigger is a change of `roomLatch.effectiveSpaceId` ⇒ **"the next refresh" never arrives in a long single-Space session**
+│   │   ↳ 🛑 **NOT BUILDABLE TODAY — TWO MEASURED CAPABILITY GAPS, NEITHER A DESIGN QUESTION.** **G-A (CORRECTED J-645, one-sided not two):** ④ is **already** identifiable — `addressBook.addMember` stamps `unresolved: true` (`address-book.svelte.ts:168`) and `members-panel.svelte:101` branches on it, shipped at J-643. **③ is NOT** — `FillReport` carries `not_found` as a **COUNT** (`ops.rs:2779`), never ids. ⚠️ *v6.32 said "the client cannot tell ③ from ④"; superseded, kept not erased (`D-131`).* **G-B:** the fill's only trigger is a change of `roomLatch.effectiveSpaceId` ⇒ **"the next refresh" never arrives in a long single-Space session**
 │   │   ↳ `Owes:` — **the first milestone that RENDERS A MEMBER COUNT** · re-opens §5's C1 mismatch, at which point C2 and C3 return as live options
 │   │   ├── ✅ **Leg 0 Phase-0** — the four states, the tier frame, the two capability gaps · J-644
-│   │   ├── 🟡 **Leg A the `not_found` id list** — `FillReport` carries a `Vec<IdentityXgid>` through `fill_space_records`; **Rust, moves the cargo floor** ⇒ closes **G-A**
-│   │   │   ↳ trigger: none outstanding — **this is next-active, and it has NO RUNBOOK**
+│   │   ├── 🟡 **Leg A the `not_found` id list** — `FillReport` gains `not_found_ids: Vec<IdentityXgid>` through `fill_space_records`; **Rust + the TS mirror** ⇒ closes **G-A**
+│   │   │   ↳ ✅ **RUNBOOK AUTHORED J-645** — `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` v1.0 ACTIVE, **two files**. 🔒 Joe locked the type (**X1** · `IdentityXgid`, matching `MemberEntry` in the same returned struct), the boundary (**②** · Rust + TS mirror, no `setResult` wiring — that is Leg B) and the test posture (**T-a**)
+│   │   │   ↳ 🛑 **CARGO DOES NOT MOVE, AND THAT IS CORRECT.** ⚠️ *v6.32 said "moves the cargo floor"; superseded, kept not erased (`D-131`).* The push sits inside `fill_from_events` behind `ensure_connected`; the existing `not_found` test covers **`absorb_fetch`**, which is pure and never touches `FillReport` ⇒ **no unit test is possible without a live node.** **Leg A is COMPILE-VERIFIED ONLY; Leg F is the first behaviour verification**
+│   │   │   ↳ trigger: **Joe locks the runbook and stands Clair up** — both his (the J-618 seat rule)
 │   │   ├── 🟡 **Leg B the render rules** — `data-unresolved` on `.entity-item`; ③ filtered from the rendered list; **moves `svelte-check`** ↳ trigger: Leg A lands
 │   │   ├── 🟡 **Leg C the skin** — the dimmed treatment in `ui/assets/skin.css` ⚠️ **JOE'S FILE** ↳ trigger: Leg B lands
 │   │   ├── 🟡 **Leg D Tier-1 fetch on join** — a **new Tauri command** (18 measured, none does single-identity lookup) + a merge-one setter; **moves the cargo floor** ↳ trigger: **Joe rules §7** — Chat recommends it ships
+│   │   │   ↳ 🛑 **AND `M-RP-XGID-SLOT-RETYPE` LANDS FIRST, OR LEG D ABSORBS IT.** Leg D's new command carries an `identity_id` slot ⇒ with the retype outstanding it either **adds another `String` slot to the pile** or performs the retype inside a leg scoped to something else. **This is the "closest proper opportunity" named concretely (Joe, 2026-08-01) rather than left as an intention**
 │   │   ├── 🟡 **Leg E the refresh trigger** ↳ trigger: **Joe rules §6** — ⚠️ **overlaps the parent's §5 reconnect rule; probably ONE decision, not two.** 🛑 **The milestone must not close before this, or §4 ships a promise it cannot keep**
 │   │   └── 🟡 **Leg F live verify + records** — two clients, a real join, a real `not_found` ⚠️ **a store driven by hand is a probe that cannot fail** ↳ trigger: Legs A–E land
+│   ├── 🟡 **M-RP-XGID-SLOT-RETYPE** — the identifier slots that regressed to `String` after the retrofit arc closed · J-645
+│   │   ↳ 🛑 **A REGRESSION, NOT A DESIGN — AND `D-136` IS ITS RULE: a completed sweep is not a standing rule.** The XGID Retrofit's five-pass arc closed **2026-05-29** (`7ed4e30`) having retyped all of `xgen-client` under *identifier slots retype, descriptive slots stay `String`*
+│   │   ↳ ✅ **THE EVIDENCE IS DATED.** `MemberEntry` — **2026-06-01**, 3 days after the close — is correctly `IdentityXgid`. `FetchedIdentity` · `SeenRecord` · `FillReport` — all **2026-07-25**, one commit (`a0c8b4c`, `M-RP-ADDRESS-BOOK` Leg D) — are `String`. 🔑 **`MemberEntry` and `FetchedIdentity` are in the SAME FILE and chose oppositely**
+│   │   ↳ 🛑 **`SeenRecord.home_node: String` CONTRADICTS A PASS 4 BORDERLINE LOCK BY NAME** (§4.1.a: *"2 NodeXgid for `home_node` ×3"*) · **`address_book.rs` contains ZERO `IdentityXgid`** while `ops.rs` contains 39 — the type was never in the room · **`String` compiles, so nothing caught it for two months**
+│   │   ↳ 🔑 **THE `ops.rs:2734`/`:2742` DOWNGRADE IS DOWNSTREAM, NOT A SEAM** — it exists only to feed a `BTreeMap<String, SeenRecord>` that should not be `String`-keyed. **Fix the regression and the downgrade disappears rather than moving**
+│   │   ↳ ⚠️ **SCOPE IS UNMEASURED AND THE PHASE-0 MUST SWEEP FOR IT (`D-071`).** Only the address-book fill path was measured; **no sweep has run for other post-2026-05-29 structs that regressed the same way**, and the mechanism gives no reason to expect this was the only commit
+│   │   ↳ 📌 **M13 TOUCHES THE SAME STRUCT.** `ops.rs:423-425` states that when `M13 Client Identity Lookup Widening` lands its new fields become *field-mapping on top of* `FetchedIdentity` — **both milestones will edit it; the ordering is real and is named here rather than discovered at the collision**
+│   │   ↳ 📌 **Found because Joe recalled the retrofit from memory and asked for a deeper re-check** — Chat's first pass sampled one function and concluded the opposite
+│   │   ↳ trigger: **before `M-RP-IDENTITY-RESOLUTION` Leg D**, or Leg D absorbs it · **not started; Phase-0 not written**
 │   ├── 🟡 **Clean-table UI milestone** — the live UI build
 │   │   ↳ trigger: Round-2 audit GO + M10 closed *(transcribed from the UI container)*
 │   └── 🟡 **Multi-device arc** — R2-F09 ↳ trigger: the UI prototype exercises device add/remove

@@ -8,6 +8,101 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-645 — Joe's memory overturned a Chat finding, and underneath it was a real regression
+
+**Date:** 2026-08-01 · **Seat:** Chat (grounding, records, runbook authoring) · Joe (locks: the type, the boundary, the test posture, `D-136`, the milestone name). **No production code. No floors moved.**
+
+**Opened at** `e9cde04`, local == `origin/main`, tree clean.
+
+---
+
+### 🛑 THE FINDING THAT WAS WRONG, AND WHY IT MATTERS THAT IT WAS
+
+Grounding Leg A, Chat reported that the Phase-0 §8 named the wrong type — that `Vec<IdentityXgid>` was a memory artefact and **the whole fill path was `String`**. It was offered as a defect in Chat's own document, with a recommendation to use `Vec<String>`.
+
+🛑 **JOE DID NOT ACCEPT IT:** *"i dont want to change something but maybe it needs deeper check. i recall that we change strings to xgenids in one moment."*
+
+⚠️ **HE WAS RIGHT AND THE FINDING WAS BACKWARDS.** `IdentityXgid` exists (`xgen-common/src/xgid/flavours.rs:218`), one of seven flavours from the XGID Retrofit arc. **Chat had sampled ONE function, seen `Vec<String>`, and generalised to the whole path** — the exact defect species this milestone had already recorded three times. **Fifth instance in this arc, and the second caught by Joe rather than by re-reading.**
+
+🔑 **AND THE SIGNAL WAS ALREADY IN THE TEXT CHAT HAD QUOTED.** `observed_identities` reads `e.sender.as_str().to_string()` and `m.identity_id.as_str().to_string()` — **`.as_str()` on both means the sources are TYPED and the function deliberately downgrades them.** It was in the measurement output and went unread.
+
+---
+
+### ✅ THE DEEPER CHECK FOUND A REGRESSION — `D-136` MINTED
+
+**The XGID Retrofit's five-pass arc closed 2026-05-29** (`7ed4e30`); Pass 4 retyped all of `xgen-client` under a locked classification — *identifier slots retype, descriptive slots stay `String`* (§4.1.a: 31 retypes, 12 stays, 3 borderline locks).
+
+| struct | first appeared | identifier slot |
+|---|---|---|
+| `MemberEntry` | **2026-06-01** — 3 days after the close | ✅ `IdentityXgid` |
+| `FetchedIdentity` · `SeenRecord` · `FillReport` | **2026-07-25**, one commit `a0c8b4c` | ❌ `String` |
+
+🔑 **`MemberEntry` AND `FetchedIdentity` ARE IN THE SAME FILE, CHOSE OPPOSITELY, AND THE ONE THAT BROKE THE RULE IS THE LATER ONE.**
+
+**Three independent corroborations, each measured:**
+1. 🛑 **`SeenRecord.home_node: String` (`address_book.rs:89`) contradicts a Pass 4 borderline lock BY NAME** — §4.1.a reads *"2 NodeXgid for `home_node` ×3"*.
+2. 🛑 **`address_book.rs` contains ZERO occurrences of `IdentityXgid`**; `ops.rs` contains 39. **The type was never in the room.**
+3. 🛑 **The `:2734`/`:2742` downgrade is not a seam** — it exists only to feed a `BTreeMap<String, SeenRecord>` that should not be `String`-keyed. **Remove the regression and it disappears rather than moving.**
+
+⚠️ **`String` COMPILES** — no failing build, no failing test, no reviewer prompt. **The regression is invisible by construction**, which is why it survived two months.
+
+🔒 **`D-136` LOCKED (delegated, Joe *"as you recommend"* + *"all locked"*): a completed sweep is not a standing rule.** A pass that converts an enumerated set of surfaces has changed **a snapshot**, not created a rule; without separate enforcement, code written afterwards regresses and compiles. **Chat named the alternative** — hold it as an observation until a second instance proved durability under `D-077` — and Joe took the mint.
+
+🔒 **FILED AS `M-RP-XGID-SLOT-RETYPE` 🟡 PENDING** — *the identifier slots that regressed to `String` after the retrofit arc closed*. Joe proposed `ADDRESS-BOOK-RETYPE`; Chat argued it was **narrower than its own subject** (the slots span `address_book.rs` **and** `ops.rs`, and the true extent is unmeasured), and Joe took the wider name. 📌 **The name was settled BEFORE anything cited it — the J-644 lesson, applied one entry later.**
+
+⚠️ **NOT STARTED, AND ITS SCOPE IS NOT KNOWN.** Only the address-book fill path was measured. **No sweep has run for other post-2026-05-29 structs**, and that sweep is the new milestone's Phase-0 job (`D-071`).
+
+---
+
+### 🔒 LEG A LOCKED AND ITS RUNBOOK AUTHORED
+
+`tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` **v1.0 ACTIVE — AUTHORED, NOT LOCKED.** Two files, `ops.rs` + `address-book.svelte.ts`.
+
+- 🔒 **Type = X1, `Vec<IdentityXgid>`**, wrapped at the push site. ① *User-visible:* **zero under every option** — `Xgid` and every flavour are `#[serde(transparent)]`, so the wire bytes and the TypeScript are identical either way. ② *Resource:* one line, no test churn, **and it is the only option that survives the retype**.
+- 🔒 **Boundary = ②**, Rust + the TS mirror. **`app_client.svelte:183` discards `outcome.fill` today and that stays** — wiring it into `setResult` is Leg B's job.
+- 🔒 **Test posture = T-a: ship it untested.** 🛑 **The push CANNOT be unit-tested** — the existing `not_found` test covers `absorb_fetch`, which is **pure and never touches `FillReport`**; the increment sits inside `fill_from_events` behind `ensure_connected`. Refactoring that function was rejected: it carries the `session.conn` re-entrancy invariant J-586 was burned by.
+- 🛑 **⇒ CARGO WILL NOT MOVE, AND 1588 UNCHANGED IS CORRECT, NOT A FAILED RUN.** Written into the runbook DoD so it is never later read as verified. 📌 **The runbook explicitly FORBIDS adding a test that asserts the field compiles or starts empty** — *a probe that cannot fail is not evidence*, and such a test would make an unverified leg look verified.
+
+📌 **Joe's instruction — *"keep the bug and correct it at the closest proper opportunity"* — is honoured concretely, not as an intention:** a required code comment at the wrap site naming `D-136` and the milestone, **plus a trigger on `M-RP-IDENTITY-RESOLUTION` Leg D**, whose new Tauri command carries an `identity_id` slot and would otherwise add a tenth `String` slot to the pile.
+
+⚠️ **A MECHANICS ERROR CORRECTED BEFORE IT REACHED THE RECORDS.** Chat twice called that relationship an `Owes:`. **Wrong under `D-133`** — `Owes:` means a parent still owes work it *spawned*, and the retype was *discovered during* this milestone, not spawned by it. **Written as a trigger plus a cross-pointer instead.**
+
+---
+
+### ⚠️ THREE MORE CORRECTIONS TO THE PHASE-0 (v1.1 → v1.2), ALL CHAT'S
+
+1. 🛑 **G-A WAS WRONG AND THE GAP IS ONE-SIDED.** It claimed *"the client cannot tell ③ from ④ — both end as no record in `_book`"*. **④ is ALREADY identifiable**: `addMember` stamps `unresolved: true` (`address-book.svelte.ts:168`) and `members-panel.svelte:101` branches on it — **shipped at J-643, the day before this document was written**. Only ③ is invisible. ⇒ **closing G-A is SMALLER than claimed.**
+2. **④'s definition was too wide.** *"never asked, or asked and never heard back"* — the second half **cannot occur**: `:2913`'s `?` aborts the entire fill on a transport error and the shell runs `setFailed`. Inside a fill that returns `Ok`, every id is fetched or `not_found`.
+3. **③'s *"cannot be told from erased vs never replicated"* is superseded by a lock that predates it.** 🔒 **`D-127`** — *a revoked Identity returns its record WITH `revoked` set; `not_found` is reserved for erasure*. ✅ **Independent corroboration of §1 G3** — the conclusion Joe's *"how does Carol say hello"* question forced — from a decision Chat had not cited.
+
+**All annotated in place under `D-131`, none deleted.**
+
+---
+
+### ✅ THE CITATION SWEEP, RUN WIDE (`D-135` §5/§5a)
+
+The Phase-0 version bump staled every citation of it, so a **wide** predicate was run across all `.md` — `M_RP_IDENTITY_RESOLUTION` **or** `M-RP-IDENTITY-RESOLUTION`, not a version string.
+
+- ✅ **One live pointer corrected:** `docs/ROADMAP.md:309` cited **v1.1**.
+- ✅ **A second stale live claim caught by the same sweep:** `ROADMAP:311`'s ID-lock rationale still read *"Legs A and D are Rust **and move the cargo floor**"*. **Leg A no longer moves it.** Annotated, not rewritten.
+- 🛑 **`JOURNAL.md` ×3 and `CLAUDE.md` ×1 cite v1.0/v1.1 and were DELIBERATELY NOT TOUCHED** — dated entries and dated PLAY blocks are contemporaneous records, exempt from back-editing (the J-629 rule). **The line is between a LIVE POINTER and a RECORD OF WHAT WAS TRUE THEN.**
+
+🔑 **This is the third consecutive arc in which the sweep itself found something the targeted edit would have missed.**
+
+---
+
+**RECORDS.** `DECISIONS.md` **D-136 NEW** · `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` **NEW v1.0 ACTIVE** · `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.1 → v1.2** (§3 · §6 G-A · §8 · §9 ×2) · `docs/ROADMAP.md` **v6.32 → v6.33** (new `M-RP-XGID-SLOT-RETYPE` node · Leg A rewritten · Leg D trigger · two annotated corrections) · `CLAUDE.md` PLAY block · this entry. **Six files, one commit (`D-074`).**
+
+**MEASURED.** `DECISIONS.md` 580,808 → 586,637 B (5,053 → 5,103 lines, LF) · Phase-0 23,339 → 27,371 B (234 → 249 lines, LF) · runbook **12,551 B / 191 lines NEW, LF** · `docs/ROADMAP.md` 74,777 → 78,873 B (560 → 572 lines, **CRLF 572 === lines 572, bare-LF 0, no BOM**).
+
+**FLOORS.** cargo **1588/0/62 × 56** · svelte-check **0 / 34 / 15** — **NEITHER RE-RUN.** Documents only; zero `.rs`, zero `.svelte`, zero `.ts` in this commit.
+
+🛑 **WHAT THIS ENTRY DID NOT DO.** **No production code.** The runbook is **authored, not locked** — locking it and standing Clair up are Joe's (the J-618 rule). **G-A and G-B are still open**; `FillReport` still carries a bare count and the fill still has no trigger that fires within a Space. **`M-RP-XGID-SLOT-RETYPE` has no Phase-0 and its true scope is unmeasured.**
+
+**Next-active.** 🟡 **`M-RP-IDENTITY-RESOLUTION` Leg A — waiting on Joe's runbook lock.** 🔓 **Joe:** the runbook lock + standing Clair up · §7 Tier-1 fetch on join · §6's refresh trigger (**one decision with the parent's §5 reconnect rule, not two**) · the `skin.css` values · §5's DAG-divergence read · and from the parent: Leg B's B1/B2/B3 scope · `D-135` §5a · `M-DOC-BACKFILL`'s title and ID · the resync and outbox names · the `is_dm` provenance-or-state ruling.
+
+---
+
 ## Entry J-644 — the Phase-0 that had no home, filed in the session that named the defect
 
 **Date:** 2026-08-01 · **Seat:** Chat (grounding, records, verification) · Joe (*go id*). **No code. No floors moved.**

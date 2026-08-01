@@ -1,10 +1,73 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-07-31  
+> **Last updated:** 2026-08-01  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-644 — the Phase-0 that had no home, filed in the session that named the defect
+
+**Date:** 2026-08-01 · **Seat:** Chat (grounding, records, verification) · Joe (*go id*). **No code. No floors moved.**
+
+**Opened at** `afd9aa9`, local == `origin/main`. `git status` showed **one untracked file** and nothing else.
+
+---
+
+### 🛑 THE JOB: A COMPLETE DESIGN DOCUMENT THAT NOTHING POINTED AT
+
+`tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.0 ACTIVE, 22,218 B / 232 lines**, existed on disk with **no J-entry, no ROADMAP node, no `CLAUDE.md` PLAY block.** It was written, locked in two sections by Joe, and **unfindable by every route the project uses to find things.**
+
+🔑 **THIS IS THE `M-RP-REGION-GEAR` SHAPE EXACTLY — the defect `tasks/AUDIT_RECORD_FINDABILITY.md` v1.0 was written to name: work done after a session's records are written has no home.** ⚠️ **It recurred in the session that discussed it.**
+
+📌 **D-074 IS WHERE THE GAP SITS, AND THE GAP IS IN ITS SCOPE, NOT ITS TEXT.** D-074 is applied on **state change** — JOURNAL + PLAY + ROADMAP + task doc travel together when something *moves*. **A document merely FILED is not a state change**, so the atom never triggers. ⇒ **the convention is narrower than the thing it protects** — the recurring species, in the convention itself this time.
+
+---
+
+### 🔒 ID AND TITLE LOCKED — AND THE ORDER WAS THE POINT
+
+🔒 **Joe locked `M-RP-IDENTITY-RESOLUTION` — *what a member row shows before the client knows who it is*.** Chat's recommendation, on the ground that every narrower candidate (`M-RP-UNRESOLVED-ROW` · `M-RP-TIER1` · `M-RP-MEMBER-IDENTITY`) reads render-only and **hides that Legs A and D are Rust and move the cargo floor** — the exact thing Rule 8 exists to prevent.
+
+📌 **The filename already matched ⇒ no `git mv`, no header rewrite.**
+
+🔑 **THE ID WAS ASKED BEFORE THE RECORDS WERE WRITTEN, DELIBERATELY.** Filing under a provisional ID would have written it into **four files at once**, then required a citation sweep to change it — **and the last two citation sweeps each missed an entry** (J-642 missed `ROADMAP:297`; J-643 found J-642's miss). ⇒ **one question ahead of the work, instead of a sweep with a known miss rate behind it.**
+
+---
+
+### ⚠️ TWO DEFECTS FOUND INSIDE THE PHASE-0 ON THE FILING READ — BOTH CHAT'S
+
+1. **§11 contradicted §5 and §10.** §11 listed *§5's count question (C1 / C2 / C3 — Chat recommends C3…)* under **🔓 JOE'S, OPEN**, while **§5 recorded C1 LOCKED** and **§10 ticked it**. The handoff section was stale against the body of its own document.
+2. **§10's first checkbox was `[ ]` while its own text read ✅ done.** §4 is locked; the box was unticked.
+
+🔑 **NEITHER IS FINDABLE BY RE-READING A SECTION — ONLY BY READING TWO SECTIONS AGAINST EACH OTHER.** ⚠️ **Third instance of the same species in three arcs:** J-642's sweep narrower than its own subject · J-643's §5-iii asserting *"nothing new appears on screen"* two paragraphs below a claim that the row **reads** differently · and now §11 open on a question §5 had already closed.
+
+**Both corrected at v1.1 and ANNOTATED, NOT DELETED (`D-131`)** — the struck text is quoted in place with the lock that superseded it.
+
+---
+
+### ✅ GROUNDING RE-VERIFIED, NOT INHERITED FROM THE KICKOFF
+
+| Check | Result |
+|---|---|
+| HEAD | `afd9aa9` — **read, not taken from prose** |
+| tree | one untracked file, nothing else |
+| 8 stated sizes | **all match, byte and line** |
+| ROADMAP shape | `M-RP-LIVEFEED-REFRESH` node `:290`, children to `:306`; **no `M-RP-IDENTITY-RESOLUTION` node anywhere** — confirmed new |
+| line endings | `CLAUDE.md` + `docs/ROADMAP.md` **CRLF**; `JOURNAL.md` + the task doc **LF** — measured per file, not assumed |
+
+---
+
+**RECORDS.** `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.0 → v1.1** (ID lock replaces the provisional note · §10 checkbox · §11 corrected with the D-131 annotation) · `docs/ROADMAP.md` **v6.31 → v6.32** (new sibling node with legs and `Owes:`) · `CLAUDE.md` PLAY block · this entry. **Four files, one commit (D-074).**
+
+**MEASURED.** Task doc **22,218 → 23,339 B**, 232 → 234 lines, **LF preserved, bare-LF 234 === lines, no BOM**. `docs/ROADMAP.md` and `CLAUDE.md` written via PowerShell with anchor guards and re-asserted **CRLF === lines, bare-LF 0**.
+
+**FLOORS.** cargo **1588/0/62 × 56** and svelte-check **0 / 34 / 15** — **NEITHER RE-RUN, AND CORRECTLY SO: zero `.rs`, zero `.svelte`, zero `.ts` in this commit.** 🛑 **Stated so it is not later read as a re-measurement.**
+
+🛑 **WHAT THIS ENTRY DID NOT DO.** No code. No runbook. **G-A and G-B are still open and the milestone is still unbuildable** — `FillReport` still carries `not_found` as a count only, and the fill still has no trigger that fires within a Space. **Leg A needs a runbook and it does not have one.**
+
+**Next-active.** 🟡 **`M-RP-IDENTITY-RESOLUTION` Leg A — the `not_found` id list (Rust, moves the cargo floor).** 🔓 **Joe:** §7 Tier-1 fetch on join (Chat recommends it ships) · §6's refresh trigger — **probably one decision with the parent's §5 reconnect rule, not two** · the `skin.css` values · §5's DAG-divergence read. ⚠️ **Also still open from the parent:** Leg B's B1/B2/B3 scope · `D-135` §5a · `M-DOC-BACKFILL`'s title and ID · the resync and outbox names · the `is_dm` provenance-or-state ruling · whether an unresolved row renders distinguishably (`M_RP_MEMBERS` §6/§6a).
 
 ---
 

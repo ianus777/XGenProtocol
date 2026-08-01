@@ -8,6 +8,88 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-650 — Leg B's runbook is authored, and the citation I leaned on all session said the opposite of what I claimed
+
+**Date:** 2026-08-01 · **Seat:** Joe (locks: **§5a-i**, **Leg C separate**, **§4's hook form**) · Chat (grounding, runbook authoring, records). **No code. No floors moved.**
+
+**Opened at** `9cce4a9`, tree clean — verified, not inherited from the kickoff prose. All 13 stated sizes re-measured and matching.
+
+---
+
+### 🔒 THREE LOCKS
+
+**① §5a-i — the erased DM counterpart KEEPS the L16 highlight.** **② Leg C ships SEPARATE from Leg B.** **③ §4's hook carries a VALUE, not a presence.**
+
+🔑 **§5a-i COSTS NOTHING, AND THE PHASE-0 HAD PRICED IT WRONG.** v1.5/v1.6 read *"② Resource: one condition either way"*. Grounding `members-panel.svelte:123-127` showed `counterpart` derives from the **roster**, and B-1 keeps `_roster` complete ⇒ the erased counterpart is still found and still passed as `selected` at `:146`. **KEEP is the default and costs ZERO LINES; DROP costs one condition plus a second site where ③-ness is tested.**
+
+🔑 ***The recommendation was right and its cost was wrong — and a cost stated symmetrically hides which way the cheap answer points.*** Corrected in Phase-0 §5a-i and annotated (`D-131`).
+
+---
+
+### 🛑 §4's HOOK COULD NOT BE A BOOLEAN — TWO EXISTING LOCKS REQUIRED THAT
+
+§4 locked `data-unresolved` for ④ (dimmed). §5a's E2 then locked a **mark** for the erased DM counterpart. §5b refused `data-revoked` as the vehicle — it is M13's, and `D-127` separates revoked from erased. **Two treatments on ONE element ⇒ a presence-only attribute cannot carry both.** ⇒ **`unresolved?: 'unasked' | 'erased'`.**
+
+✅ **§4's locked selector `.entity-item[data-unresolved]` STILL MATCHES BOTH** — nothing Joe locked breaks; `[data-unresolved="erased"]` merely narrows. 🔑 **And the shared base selector is the truth, not a compromise: ③ and ④ have one fact in common — we hold no record for this person.**
+
+**Rejected — two booleans:** the type would permit a row that is both never-asked and answered-not-found. ***A type that can express an impossible state will eventually be handed one.***
+
+🛑 **AND THE WORD IS `'unasked'`, NOT `'pending'` — CHAT'S FIRST DRAFT SPENT ②'s WORD ON ④.** `pending` means *asked, reply not back*, which is **②** (§3) — unbuilt, and it will want that word the day §7's Tier-1 fetch ships. **Caught before the file was ever committed**, and it mattered because **the value strings become literals in `skin.css`, which is Joe's**, so a rename after Leg C would reach into his file. *The same discipline that kept "irregular" free for M13, applied to a word Chat had already taken.*
+
+---
+
+### 🛑 §8 AND §9 OF THE PHASE-0 CONTRADICTED EACH OTHER
+
+§8 splits legs **by floor** — *"one commit spanning them makes a regression unattributable"* — and says Leg B moves `svelte-check`. §9 **owes Leg B the `Vec<IdentityXgid>` wire witness**, which is a **cargo** test.
+
+🔒 **RESOLVED BY SPLITTING THE LEG, NOT BY BREAKING EITHER RULE: B-i the Rust witness ALONE (cargo 1588 → 1589) · B-ii the frontend ALONE (`svelte-check` only).** Attribution preserved, obligation discharged inside Leg B as promised. 📌 *Found by reading §8 against §9 rather than either alone — the species this milestone keeps catching.*
+
+---
+
+### 🔑 THE REAL FINDING — I CITED `J-642` FIVE TIMES WITHOUT OPENING IT
+
+All session I wrote *"amending a locked runbook is expensive (J-642)"*, inherited from the session kickoff's prose and repeated as if measured. **Joe asked what J-642 actually said.**
+
+🛑 **IT SAYS NOTHING OF THE KIND.** J-642 is **a gate that had already FIRED, sitting inside an ACTIVE runbook** — `RUNBOOK_LIVEFEED_LEG_A.md` §8 still asserted a gate discharged one commit earlier at J-641 — and **Joe ruled *fix it before Clair opens it*** over folding it into the leg's close. Its second half: **a version bump stales citations nobody is looking at** (`ROADMAP:296`), found by sweeping for citations rather than editing the obvious file, with `JOURNAL` ×5 and `CLAUDE.md` ×2 deliberately untouched (the J-629 dated-record exemption).
+
+⚠️ **AND IT SHOWS THE OPPOSITE OF WHAT I CLAIMED: the fix was CHEAP** — two files, same-length digit swaps, byte count unchanged. ***I inverted the entry's own evidence and then built an argument on it.***
+
+✅ **Contained: `J-642` appears NOWHERE in the runbook — grepped, not assumed.** The false citation lived only in chat.
+
+🔑 **AND APPLYING THE REAL J-642 IS WHAT FOUND TWO MORE FIRED GATES.** Sweeping the documents **before** locking anything:
+- **Phase-0 §11** still closed with *"Leg B is next-active and **has no runbook**"*.
+- **`docs/ROADMAP.md:339`** still read *"NEXT-ACTIVE, and it has **NO RUNBOOK**"*.
+
+**Both went false the moment the file was written.** Annotated, not deleted (`D-131`).
+
+🔑 ***A citation I never checked was the thing that stopped me checking — and the entry I was misquoting is the one that says to sweep.***
+
+---
+
+### ✅ THE RUNBOOK — 5 FILES, 6 CHANGES, TWO COMMITS
+
+Every line number in it was read from the file, not recalled. Three things it fixes in advance rather than leaving to be discovered:
+
+- 🔑 **③ IS TESTED BEFORE ④, AND THE ORDER IS LOAD-BEARING.** A member can be stamped `unresolved` by a live join **and** appear in a later fill's `not_found_ids`. **③ is an ANSWER; ④ is the absence of one** — an answer always wins.
+- 🔑 **`m.identity_id === counterpart` IS the DM exception.** `counterpart` is already `undefined` outside a DM ⇒ **no second `is_dm` test is added, because a redundant test is a second place the rule can drift.**
+- 🛑 **A DECLARATION-ORDER HAZARD IS NAMED AS A STEP.** `counterpart` (`:123`) is declared **17 lines below** `memberDescriptors` (`:106`), which must filter on it. `$derived` is lazy so it may well run, but it is a TDZ hazard on first read ⇒ **moving it is Change 6(a), not a discovery.**
+
+🛑 **AND IT STATES ITS OWN LIMITS UP FRONT.** **LEG B LANDS SILENTLY** — ④'s dimming and E2's mark are both `skin.css` values, so the only visible change is that erased non-DM members disappear. **③ CANNOT BE REACHED IN A NORMAL RUN** (J-649) ⇒ the live gates verify the ④ path and the plumbing only. ⚠️ **Injecting an id into `_notFound` over CDP is named in the runbook as a probe that cannot fail and must not be recorded as behaviour verification. Leg F remains the first.**
+
+---
+
+**RECORDS.** `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_B.md` **NEW, v1.0 PENDING** · `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.6 → v1.7** (§4 hook value · §5a-i LOCKED + mis-pricing annotated · §8 Leg B two-commit split + Leg C separate · §9 witness scheduled · §10 ticked · §11 re-listed + fired gate annotated) · `docs/ROADMAP.md` **v6.37 → v6.38** · `CLAUDE.md` PLAY · this entry. **Five files, one commit (`D-074`).**
+
+**MEASURED.** Runbook **25,246 B / 368 lines**, LF, no BOM · Phase-0 **44,212 B**, LF · `docs/ROADMAP.md` **86,477 B, 591 lines, CRLF 591 === lines, bare-LF 0** · `CLAUDE.md` **334,057 B, 751 lines, CRLF 751 === lines, bare-LF 0**. ⚠️ **`Filesystem:edit_file` rewrote BOTH CRLF files to LF; CRLF was restored by PowerShell and asserted after each write** — the standing trap, hit twice and caught twice.
+
+**FLOORS.** cargo **1588 / 0 / 62 × 56** · svelte-check **0 / 34 / 15** — **NEITHER RE-RUN.** Documents only; zero `.rs`, zero `ui/**`.
+
+🛑 **WHAT THIS DID NOT DO.** **No production code.** The runbook is **AUTHORED, NOT LOCKED**, and **Clair has NOT been stood up** — two acts, and neither performed (J-646). **G-B is still open and still gates the milestone's close.**
+
+**Next-active.** 🟡 **Leg B**, waiting on those two acts. 🔓 **Joe:** §7 Tier-1 fetch (Chat recommends it ships) · §6's refresh trigger (**one decision with the parent's §5, not two**) · the `skin.css` values · §5's DAG-divergence read.
+
+---
+
 ## Entry J-649 — the row shape is belayed, because the state it draws cannot currently be reached
 
 **Date:** 2026-08-01 · **Seat:** Joe (*"if this case is defined somewhere else, belay this one"* · *"go by your recomms"*) · Chat (grounding, records). **No code. No floors moved.**

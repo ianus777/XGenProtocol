@@ -1,8 +1,8 @@
 # M-RP-LIVEFEED-REFRESH — the live event router behind the members and rooms panels
 > **Status**: ACTIVE  
-> Version: 1.11  
+> Version: 1.12  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-29  
+> **Last updated**: 2026-07-31  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -350,7 +350,8 @@ pub struct NegotiatedCapabilities {
 | `membership.invite` · `membership.mute` · `membership.node_unban` | — | — | **v1: ignored, deliberately.** None of the three changes who is in the room *now*. Recorded so the omission reads as a choice |
 | `state.space_create` · `state.dm_space_create` | spaces-state | — (`space_id`) | add the Space to the tree |
 | `state.room_create` | spaces-state | — (`space_id`; ⚠️ `room_id` is the EMPTY STRING — the event **is** the Room, `xgen-common/src/wire.rs:466-467`) | add the room under its Space |
-| `state.room_update` · `state.space_update` | spaces-state | — | update the existing entry in place |
+| ~~`state.room_update` · `state.space_update`~~ | ~~spaces-state~~ | — | ⚠️ **SUPERSEDED AT v1.12 — THE ROW WAS FALSE.** It read *"update the existing entry in place"* through v1.11. **There is nothing to update in place.** Grounding and verdicts: **§6a ③** |
+| `state.dm_promote` · `state.space_migrate` | **NONE — see §6a ④** | — | ⚠️ **NOT ROUTABLE, AND NOT AN OVERSIGHT.** Both appliers are real and both write a field whose *name* matches a panel field. **No code path joins the two objects** (§6-ii). Listed so a reader of §6 alone does not read their absence as a gap |
 
 🛑 **§6-i — THE SUBJECT FIELD IS NOT UNIFORM ACROSS THE REMOVE ROWS, AND UNTIL v1.11 THIS TABLE COLLAPSED ALL FOUR INTO ONE (Leg 0 second-reader pass, Chat, 2026-07-29).** v1.10 read `MembershipLeave · Kick · Ban · NodeEject` as a single row — *"remove the member from the roster"* — and named **no field at all**. Grounded: `protocol_audit.rs:110-113` puts `identity_id` = `sender` for `leave`; `:121-135` puts `kicked_id` / `banned_id` = **`content.target_identity`** with `sender` recorded separately as `kicker_id` / `banner_id`; `admin_ops.rs:4207` builds `node_eject` as `{ "target_identity": … }` and `emit_node_membership_event` signs it with **`rt.node_keypair`** ⇒ its `sender` is the node. **A router reading `sender` uniformly removes the moderator, or the node, instead of the person who was removed** — and it would pass on `join` and `leave`, which are the first two things Leg D exercises. ⇒ **the defect would have shipped looking correct.** 🔑 **This is the recurring species — a claim narrower than the thing it describes — and it fell the moment `wire.rs` and the node emitters were OPENED, not on any re-read of this document.**
 
@@ -362,9 +363,31 @@ pub struct NegotiatedCapabilities {
 
 📌 **`spacesState` needs delta setters it does not have** — it is 53 lines with a single whole-list replace. That is a real, small addition, named here so Leg B's scope is not a surprise.
 
+🛑 **§6-ii — THE PANEL DOES NOT READ THE OBJECT THE APPLIERS WRITE (Chat, measured 2026-07-31, at `86065ad`).** **This section exists because two rows of the table above were false in the same way, and the same mistake is available to anyone extending it.**
+
+🔑 **`SpaceState` AND `KnownSpace` ARE DIFFERENT OBJECTS IN DIFFERENT CRATES. THEY SHARE A FIELD NAME AND NOTHING ELSE.**
+
+| | `SpaceState` — what every applier writes | `KnownSpace` — what the panel renders |
+|---|---|---|
+| declared | `xgen-core/src/space/state.rs` | `xgen-common/src/state.rs:185-199` |
+| written by | **every arm of the dispatch** | `xgen-client/src/ops.rs:647` · `:731` · `:953` — **the user's own three local actions, and nothing else** |
+| reaches the panel | **never** | `ops::spaces` (`:246-250`) returns `state.spaces` **verbatim off disk**, its own doc calling it *"a zero-network local read"* → `get_spaces` → `spacesState.setSpaces` |
+
+**Measured in both directions:** a census of every `state.spaces` mutation across all four crates (`.claude` and `target` excluded) returns **exactly three write sites**, all in `xgen-client/src/ops.rs`, all user actions. ⚠️ **The `runtime.rs` `node.spaces[…]` hits are the NODE's `SpaceState` map — different crate, different object, and every one of them is inside a test.**
+
+⇒ **THE TWO USER-VISIBLE CONSEQUENCES ARE REAL; THE ROUTING EXPLANATION OF THEM IS NOT.**
+- A promoted DM renders as *"DM with &lt;xgid&gt;"* indefinitely — **because `KnownSpace.name` is written once at DM-create (`ops.rs:953`) and by nothing afterwards**, not because an applier went unrouted.
+- `node_endpoint` does not follow a migration — **because it is written from `home_node_url`, the client's own local config (`ops.rs:650` · `:956`)**, which was never the Space's home node in the first place.
+
+🔑 **THE RECURRING SPECIES, CAUGHT INSIDE A SINGLE JOURNAL ENTRY.** `J-640` recorded *"the Spaces tree is not a view of shared state — it is the client's own ledger"* **one section below** a verdict asserting that two appliers reach the panel. **Both claims sat in the same entry and neither was read against the other.** It is the same shape as that entry's own `is_dm` finding — *not a live-routing gap; the fill re-derives it identically.* ⚠️ **Neither would have fallen to any re-read of this document. Both fell to opening `ops.rs`.**
+
+🛑 **CONSEQUENCE FOR LEG B, NAMED HERE RATHER THAN DISCOVERED INSIDE IT:** the router writes a **frontend store**; `get_spaces` reads **disk**. ⇒ **any `state.*` routing is session-scoped by construction** — correct until restart, never true — **and that applies to every row, including the three genuine adds**, not only to the two struck above. 🔓 **This is the substance of the B1/B2/B3 scope question, and it is Joe's.**
+
 ---
 
-### 🛑 §6a — THE `membership.*` HALF OF THE TABLE IS A PARTITION. THE `state.*` HALF IS NOT. (Leg 0 second-reader pass, Chat, 2026-07-29)
+### 🛑 §6a — THE `membership.*` HALF OF THE TABLE IS A PARTITION. THE `state.*` HALF IS NOT. (Leg 0 second-reader pass, Chat, 2026-07-29 · ⚠️ **FRAME WIDENED AND VERDICTS LANDED 2026-07-31 — SEE §6a-i**)
+
+⚠️ **THE HEADING ABOVE IS KEPT AS WRITTEN AND IS NOW NARROWER THAN THE SECTION (`D-131` — annotate, never silently repair).** `state.*` was **not** the right predicate and the pass that ran on 2026-07-31 says so: `wire.rs::as_str()` carries **59 event strings across 11 namespaces** and §6 accounts for 26, so **33 events in nine namespaces were never inside this section's frame at all** — including the three `dm.*` siblings of the one event flagged here as a Spaces-tree suspect. 🔑 **The frame is now *every wire event that can mutate `KnownSpace`* — 17 rows, registered at §6a-i.** 📌 *The census below stands as measured; only its boundary moved.*
 
 **Both halves were checked in the same direction and then in the reverse direction — not *do the names in §6 exist*, but *does §6 name everything the wire carries*. The two halves came back different.**
 
@@ -376,13 +399,80 @@ pub struct NegotiatedCapabilities {
 
 📌 **`state.dm_promote` and `state.space_migrate` are the two that plausibly change the Space tree**, which is Leg B's whole subject. The rest are policy, AI-operator and crypto events. **None of this is measured yet — what is measured is that the table does not account for them.**
 
-⇒ **§6a GATES LEG B's RUNBOOK, NOT LEG A's.** Leg B may not open until every `state.*` string has a row: consumed, or ignored with the reason written. 🔑 **A census is not a partition — second instance of that species in eight days, and the first one also survived every re-read of the document that carried it.**
+⇒ ~~**§6a GATES LEG B's RUNBOOK, NOT LEG A's.** Leg B may not open until every `state.*` string has a row: consumed, or ignored with the reason written.~~ ⚠️ **SUPERSEDED AT v1.12 — THE GATE WAS TWO-WAY AND THE PASS RETURNED FIVE VERDICTS (`D-131`).** The replacement gate is at the end of §6a-i. 🔑 **A census is not a partition — second instance of that species in eight days, and the first one also survived every re-read of the document that carried it.**
+
+---
+
+### ✅ §6a-i — THE VERDICT REGISTER: 17 ROWS, MEASURED (Chat, 2026-07-31, at `86065ad`)
+
+🔑 **THE TEST WAS MADE CONCRETE BEFORE ANY ROW WAS WRITTEN.** The Spaces panel renders **exactly eight fields** — `KnownSpace {space_id · name · node_endpoint · role · rooms}` plus `KnownRoom {room_id · name · joined}` (`ui/common/lib/stores/spaces-state.svelte.ts:20-32`, a **verbatim mirror** of `xgen-common/src/state.rs:185-199`). Every verdict below is the answer to one question: **does this event's applier write one of those eight?** Read out of `xgen-core/src/space/state.rs`. ⚠️ **`#[cfg(test)]` opens at `:1956` — every line cited below is production.**
+
+🔑 **THE FRAME: `wire.rs::as_str()` carries 59 event strings across 11 namespaces. The ones that can touch a `KnownSpace` are `state.*` (14) and `dm.*` (3) — 17.** Both counts re-measured independently of `J-640`, and both reproduced exactly.
+
+#### ① CONSUMED — 3 rows
+
+| Wire string | Applier | Effect |
+|---|---|---|
+| `state.space_create` · `state.dm_space_create` | ⚠️ **no dispatch arm** — genesis guards at `:266` / `:346` / `:497`; the event **constructs** the `SpaceState` rather than mutating one | add the Space to the tree |
+| `state.room_create` | `:601` → `apply_room_create` | add the room under its Space |
+
+⚠️ **"Consumed" here means *the frontend store can express the change*, NOT that the panel's data source tracks it — see §6-ii. Even these three are session-scoped under B1.**
+
+#### ② IGNORED — 7 rows, REVERSE-TESTED, NOT ASSUMED
+
+**Each was checked by naming the field it actually writes. None is one of the eight.**
+
+| Wire string | Dispatch | Applier writes | Panel field? |
+|---|---|---|---|
+| `state.federation_add` | `:602` | `self.federation_nodes` (`:713`) | no |
+| `state.node_priority` | `:611` | `self.node_priority_order` (`:723`) | no |
+| `state.space_pacing` | `:615` | `self.human_pacing_ms` · `self.ai_pacing_ms` (`:744` / `:745`) | no |
+| `state.space_temperature_visibility` | `:617` | `self.member_temperature_visibility` (`:761`) | no |
+| `state.ai_operator_delegate` | `:621` | `self.ai_operator_delegations` (`:1204`) | no |
+| `state.ai_operator_revoke` | `:623` | `self.ai_operator_delegations` (`:1226`) | no |
+| `state.mls_group_init` | `:645` | `room.mls_epoch` (`:837`) | no |
+
+⚠️ **`state.mls_group_init`'s Rust variant is `MlsGroupInit` — it carries NO `State` prefix.** A table written in variant names never sees it; a branch on `type.startsWith('state.')` does. **The wire string and the variant name are different namespaces**, and this row is the proof.
+
+#### ③ IGNORED (UNBUILT) + 📌 SPEC GAP — 2 rows *(the third verdict, Joe-locked 2026-07-31)*
+
+🛑 **KEPT AS TWO ENTRIES, NOT ONE ROW.** §6 collapsed them and was false about both; collapsing them again — even correctly — would repeat §6-i's own defect on the same table. **They are unbuilt for different reasons.**
+
+| Wire string | Dispatch | State of the code | 📌 Spec gap |
+|---|---|---|---|
+| `state.space_update` | `:630` — **literally `=> Ok(())`** | ⚠️ **no applier function exists.** Dispatch comment `:629`: *"remains the SR-F2 no-op (no content schema yet)"* | ⚠️ **SPEC-AHEAD-OF-CODE TOO, AND ITS ONLY REFERENCE IS THE PROMISE.** `docs/xgen_appendix_i_en.md:96` says *"Updates Space metadata"* against a dispatch of `=> Ok(())`. **No content schema has ever been written.** 📌 Corroborated by reference count across `docs/`: `state.space_update` = **1** (that line, and nothing else); the other thirteen `state.*` run **7 to 81** — measured 2026-07-31 |
+| `state.room_update` | `:628` → `apply_room_update` (`:883`) | ⚠️ **a REAL applier that writes a REAL field** — `room.permission_overrides` (`:904`), read from `content["permission_overrides"]` (`:884`), early-`Ok` when the key is absent (`:886`). **The field it writes is simply not one of the eight.** Dispatch comment `:627`: *"Room name/topic content stays deferred"* | ⚠️ **`docs/xgen_appendix_i_en.md:95` promises this event carries *name* and *topic*. The applier carries neither.** In a protocol project the spec is the deliverable ⇒ **the SPEC IS AHEAD OF THE CODE**, and this is the row §6 leaned on |
+
+#### ④ NO CONSUMER PATH — 2 rows *(new class; the finding of this pass)*
+
+**The applier is real, writes a real field, and the panel still never sees it — because the panel does not read that object at all (§6-ii).**
+
+| Wire string | Dispatch | Applier writes | Why it does not arrive |
+|---|---|---|---|
+| `state.dm_promote` | `:613` → `apply_dm_promote` (`:659`) | `self.name = Some(…)` (`:663`) ← `content["new_name"]`; also clears `dm_constraints_active` (`:664`) | writes **`SpaceState.name`**. The panel renders **`KnownSpace.name`**, written once at DM-create (`ops.rs:953`) and by nothing afterwards |
+| `state.space_migrate` | `:641` → `apply_space_migrate` (`:1159`) | `self.home_node` (`:1174`) ← `content["destination_node_id"]`; idempotent (`:1167`), authority-gated (`:1171`) | writes **`SpaceState.home_node`**. The panel renders **`KnownSpace.node_endpoint`**, written from **`home_node_url` — the client's own local config** (`ops.rs:650` · `:956`) |
+
+🛑 **THIS CLASS IS WHY ③ AND ④ ARE NOT THE SAME VERDICT.** ③ is *the code was never written*. ④ is *the code exists and is wired to a different object*. **Different owners, different fixes** — ③ is owed to whoever writes the content schema; ④ is owed to whoever decides whether the local ledger consumes events (the B1/B2/B3 question, §6-ii).
+
+#### ⑤ NO ARM — 3 rows
+
+| Wire string | Result |
+|---|---|
+| `dm.promote_propose` · `dm.promote_confirm` · `dm.promote_reject` | ✅ **ZERO arms in the Space state machine**, confirmed by direct search. They are the **negotiation** that culminates in `state.dm_promote`; none of them mutates `SpaceState` at all |
+
+✅ **THE WIDENING CAME BACK CLEAN.** These three entered the frame only because the frame widened past `state.*` — and having entered it, they change nothing. **A negative result, recorded because it was measured rather than assumed.**
+
+#### THE ARITHMETIC CLOSES
+
+**3 + 7 + 2 + 2 + 3 = 17 = 14 `state.*` + 3 `dm.*`.** Every wire string that can reach a `KnownSpace` now carries a verdict and a line number.
+
+🔒 **THE REPLACEMENT GATE: §6a-i DISCHARGES §6a's GATE ON LEG B's RUNBOOK.** Every row is consumed, ignored with its write site named, unbuilt with its spec gap named, pathless with its object named, or armless. ⚠️ **What the register does NOT discharge is §6-ii's consequence** — the router writes memory and `get_spaces` reads disk. 🔓 **Leg B's runbook may be AUTHORED; it may not be LOCKED until the B1/B2/B3 scope is ruled, because the three options produce three different runbooks.**
 
 ---
 
 ## §7 — Legs
 
-**Leg 0 — Phase-0.** This document. ✅ **SECOND-READER PASS DONE 2026-07-29 (Chat), against `xgen-common/src/wire.rs` + the node emitters, in BOTH directions.** Three findings, all landed in §6 at v1.11: the `payload.type` namespace, §6-i's non-uniform subject field (**would have shipped a correct-looking router**), §6a's `state.*` partition gap. **§7's precondition is discharged for Leg A and NOT for Leg B.** No code.
+**Leg 0 — Phase-0.** This document. ✅ **SECOND-READER PASS DONE 2026-07-29 (Chat), against `xgen-common/src/wire.rs` + the node emitters, in BOTH directions.** Three findings, all landed in §6 at v1.11: the `payload.type` namespace, §6-i's non-uniform subject field (**would have shipped a correct-looking router**), §6a's `state.*` partition gap. ✅ **CLASSIFICATION PASS DONE 2026-07-31 (Chat), frame widened on Joe's call to *every wire event that can mutate `KnownSpace`* — 17 rows, landed at v1.12 in §6a-i.** Two further findings: §6-ii (**the panel does not read the object the appliers write** — which corrected two verdicts and one of `J-640`'s own headline claims), and verdict class ④ **NO CONSUMER PATH**. **§7's precondition is discharged for Leg A. For Leg B it is discharged for AUTHORING and not for LOCKING** — see §6a-i's replacement gate. No code.
 
 **Leg A — the router + the members consumer.** The `membership.*` branch on the existing `xgen-event` listener plus `addMember`/`removeMember` on the address-book store. **Surface: `ui/client/src/app_client.svelte`, `ui/common/lib/stores/address-book.svelte.ts`.** Frontend only; moves the **`svelte-check`** floor (baseline 0 err / 34 warn / 15 files). **Satisfies `M_RP_MEMBERS.md` §5 and unblocks its Leg C.**
 
@@ -425,11 +515,20 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item below that says "observe
 - `MembershipInvite · Mute · NodeUnban` unhandled by choice (§6).
 - No flap guard on §5's R1 reconnect re-fill.
 - A third consumer would justify revisiting §2's one-router shape; two does not.
+- 📌 **SPEC GAP — `state.space_update` HAS NO CONTENT SCHEMA (§6a-i ③).** Dispatched to `=> Ok(())`; no applier function has ever existed. **Not this milestone's to fix** — a frontend router cannot invent a schema. Owed by whoever writes it.
+- 📌 **SPEC GAP — `docs/xgen_appendix_i_en.md:95` PROMISES `state.room_update` CARRIES *name* AND *topic*; THE APPLIER CARRIES NEITHER (§6a-i ③).** ⚠️ **The spec is ahead of the code, and in a protocol project the spec is the deliverable** ⇒ this is a real divergence, not a code TODO. **Named, not fixed, and not this milestone's.**
+- 🛑 **`KnownSpace` HAS NO EVENT-DRIVEN WRITER AT ALL (§6-ii).** Its three writers are the user's own local actions. ⚠️ **`role` is hardcoded `"owner"` at both create sites and `joined: false` has zero production writers** — so a routed room would have to **invent** both. **Filed here because it outlives this milestone under every one of B1/B2/B3.**
 
 ---
 
 ## §10 — Handoff
 
-**Blocked on Joe:** §5 (the reconnect rule, gates Leg C only).
-**Not blocked:** Legs A and B, once a runbook is written and locked. §3 is locked.
+**Blocked on Joe:**
+- §5 — the reconnect rule. **Gates Leg C only.**
+- 🔓 **THE B1/B2/B3 SCOPE RULING — NEW AT v1.12, AND IT NOW HAS A MEASURED BASIS IT DID NOT HAVE BEFORE.** §6-ii establishes that **`get_spaces` reads disk and the router writes memory**, so **B1 makes the panel correct until restart and cannot make it true**. **Gates Leg B's runbook LOCK, not its authoring.**
+
+**Not blocked:** **Leg A** — fully unblocked; §6a's `membership.*` partition is closed by two independent routes (the namespace census, and `J-640`'s write-site census on `self.members`). **Leg B's runbook may be authored.** §3 is locked.
+
 **Chat owes:** the §0b registry composition model (carried from the M-RP-MEMBERS arc, needs a live client).
+
+📌 **NOT THIS MILESTONE'S, RAISED HERE BECAUSE §6a-i SURFACED THEM:** the two §9 spec gaps (`state.space_update`'s absent schema · Appendix I `:95` vs `apply_room_update`), and the `is_dm` provenance-or-state ruling on the members panel (its own milestone, `J-640`).

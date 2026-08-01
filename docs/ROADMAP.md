@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.28  
+> Version: 6.29  
 > Date: May 2026  
 > **Last updated**: 2026-07-31  
 > Language: English  
@@ -291,10 +291,13 @@ XGen Protocol
 │   │   ↳ ✅ **UN-POSTPONED J-638 — THE TRIGGER FIRED.** `M-DOC-ROADTREE` closed at Leg G; **a trigger that has fired is a defect, so the node it guards moves in the same commit**. Leg A's runbook is ACTIVE and ready; **standing Clair up is Joe's**
 │   │   ↳ trigger: fired — none outstanding
 │   │   ├── ✅ **Leg 0 Phase-0** — routing shape + delta-vs-fill boundary locked; second-reader pass over §6 vs `wire.rs` done, three findings · J-616 (J-598, J-601)
+│   │   │   ↳ ✅ **§6a CLASSIFICATION PASS LANDED J-641 — 17 VERDICTS, task doc v1.12** — frame widened past `state.*` on Joe's call to every wire event that can mutate `KnownSpace`
+│   │   │   ↳ 🛑 **§6-ii — THE PANEL DOES NOT READ THE OBJECT THE APPLIERS WRITE.** `SpaceState` ≠ `KnownSpace`; **two J-640 verdicts corrected** and class ④ **NO CONSUMER PATH** minted
 │   │   ├── 🟡 **Leg A router + members consumer** — runbook `tasks/RUNBOOK_LIVEFEED_LEG_A.md` v1.3 **ACTIVE**; **three** files, frontend only · J-618 (J-639)
 │   │   │   ↳ ready to open — **§5 of the RUNBOOK** closed by Chat (it was never Joe's); runbook v1.3, waiting only on Clair being stood up
 │   │   ├── 🟡 **Leg B spaces/rooms consumer**
-│   │   │   ↳ trigger: §6a cleared — 9 of 14 `state.*` wire strings still have no row
+│   │   │   ↳ ✅ **§6a's TRIGGER FIRED AND IS DISCHARGED (J-641)** — all **17** rows carry a verdict. ⚠️ The `9 of 14` wording is superseded, kept not erased (`D-131`)
+│   │   │   ↳ trigger: Joe rules Leg B's scope — **B1 / B2 / B3**. §6-ii turned it from a preference into a measured question; the runbook may be AUTHORED, not LOCKED
 │   │   ├── 🟡 **Leg C reconnect rule** ↳ trigger: **§5 of the MILESTONE** ruled (Joe) — ⚠️ **a DIFFERENT §5 from the runbook's, which is closed; the two must not be collapsed**
 │   │   ├── 🟡 **Leg D live verify** — two identities, one observer; `membership.kick` added at v1.11
 │   │   │   ↳ trigger: Legs A–C land

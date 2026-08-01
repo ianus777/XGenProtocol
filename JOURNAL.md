@@ -8,6 +8,85 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-641 — the 17 verdicts land, and re-grounding them found J-640 refuting itself one section apart
+
+**Date:** 2026-07-31 · **Seat:** Joe (locked verdict (C) + the four-item sequence; then *go*) · Chat (grounding, measurement, records). No code.
+
+**State verified at open, independently:** HEAD `86065ad` = `origin/main`, tree clean; **all ten** kickoff sizes and line counts reproduced EXACTLY; `git diff a715ccb..HEAD -- ui/` **EMPTY** (runbook §1's grounding still holds); tags `roadtree-pre-legc` and `roadtree-post-ui-resume` both present.
+
+⚠️ **TWO RECORD GAPS NOTED AT OPEN, NEITHER FIXED HERE.** `J-639` and `J-640` have **zero occurrences in `CLAUDE.md`** — the last commit was records-only, so the PLAY head was never touched (the D-074-when-merely-FILED gap). And `tasks/AUDIT_RECORD_FINDABILITY.md` v1.0 appears in **no journal entry at all**, only in a commit message — **that document's own structural finding, instantiated on itself within one commit of being written.** Both belong to `M-DOC-BACKFILL`.
+
+---
+
+### 🛑 THE JOB WAS TO TRANSCRIBE 17 VERDICTS. RE-GROUNDING THEM STOPPED THE TRANSCRIPTION.
+
+§6a's classification pass existed only in `J-640`. Writing it into `M_RP_LIVEFEED_REFRESH.md` was Chat's first job and gated Leg B. **Every claim was re-measured before it entered a canonical document rather than carried across**, and two of them did not survive.
+
+🛑 **`SpaceState` AND `KnownSpace` ARE DIFFERENT OBJECTS IN DIFFERENT CRATES. THEY SHARE A FIELD NAME AND NOTHING ELSE.**
+
+| | `SpaceState` — what every applier writes | `KnownSpace` — what the panel renders |
+|---|---|---|
+| declared | `xgen-core/src/space/state.rs` | `xgen-common/src/state.rs:185-199` |
+| written by | every arm of the dispatch | `xgen-client/src/ops.rs:647` · `:731` · `:953` — **the user's own three local actions, and nothing else** |
+| reaches the panel | **never** | `ops::spaces` (`:246-250`) returns `state.spaces` **verbatim off disk** |
+
+**Measured in both directions:** a census of every `state.spaces` mutation across all four crates (`.claude` + `target` excluded) returns **exactly three write sites**, all user actions. ⚠️ The `runtime.rs` `node.spaces[…]` hits are the **Node's** `SpaceState` map — different crate, different object, **every one inside a test**.
+
+⇒ **`J-640`'s "two missing consumers" verdict is wrong as stated. The user-visible consequences it named are both REAL; its explanation of them is not.**
+- A promoted DM renders as *"DM with &lt;xgid&gt;"* indefinitely — because `KnownSpace.name` is written once at DM-create (`ops.rs:953`) and by nothing afterwards, **not** because an applier went unrouted.
+- `node_endpoint` does not follow a migration — because it is written from **`home_node_url`, the client's own local config** (`ops.rs:650` · `:956`), which was never the Space's home node.
+
+🔑 **AND THIS IS THE RECURRING SPECIES, CAUGHT EATING ITS OWN ENTRY.** `J-640`'s headline finding — *"the Spaces tree is not a view of shared state — it is the client's own ledger"* — **already refutes the two-consumers verdict written one section above it.** Both sat in the same entry; **neither was read against the other.** Same shape as that entry's own `is_dm` finding (*not a live-routing gap — the fill re-derives it identically*). ⚠️ **Neither would have fallen to any re-read. Both fell to opening `ops.rs`.**
+
+---
+
+### ✅ §6a-i — THE REGISTER, FIVE CLASSES, 17 ROWS
+
+**The test was made concrete first:** the panel renders **exactly eight fields** — `KnownSpace {space_id · name · node_endpoint · role · rooms}` + `KnownRoom {room_id · name · joined}` (`spaces-state.svelte.ts:20-32`, a **verbatim mirror** of `state.rs:185-199`). ⚠️ `#[cfg(test)]` opens at `state.rs:1956` — every cited line is production.
+
+| Class | Rows | Basis |
+|---|---|---|
+| ① **CONSUMED** | 3 — `space_create` · `dm_space_create` · `room_create` | genuine tree adds; ⚠️ the first two have **no dispatch arm** — genesis guards at `:266`/`:346`/`:497`, the event **constructs** the state |
+| ② **IGNORED** | 7 | reverse-tested with exact write sites: `:713` · `:723` · `:744/:745` · `:761` · `:1204` · `:1226` · `:837`. **None is one of the eight** |
+| ③ **IGNORED (unbuilt)** + 📌 spec gap | 2 | `space_update` = literally `=> Ok(())` (`:630`), **no applier exists** · `room_update` HAS a real applier (`:883`) writing `room.permission_overrides` (`:904`) — a real field, just not one of the eight |
+| ④ **NO CONSUMER PATH** *(new)* | 2 — `dm_promote` (`:663`) · `space_migrate` (`:1174`) | applier real, panel link absent |
+| ⑤ **NO ARM** | 3 — `dm.promote_propose/confirm/reject` | **zero arms**, confirmed by direct search |
+
+**3 + 7 + 2 + 2 + 3 = 17 = 14 `state.*` + 3 `dm.*`.** ✅ `wire.rs::as_str()` re-measured: **59 event strings across 11 namespaces** — `J-640`'s totals reproduced exactly, by a predicate bounded to the `as_str` match block rather than a whole-file grep (the first attempt overshot into a second match block and doubled six namespaces; caught by the counts disagreeing with themselves).
+
+🔒 **③ KEPT AS TWO ENTRIES, NOT ONE ROW.** §6 collapsed them and was false about both. **They are unbuilt for different reasons**, and collapsing them again — even correctly — would repeat §6-i's own defect on the same table.
+
+🛑 **④ IS WHY (C) COULD NOT ABSORB THEM.** ③ is *the code was never written*; ④ is *the code exists and is wired to a different object*. Different owners, different fixes. Joe locked ④ as its own class rather than folding it into ③.
+
+⚠️ **BOTH ③ ROWS ARE SPEC-AHEAD-OF-CODE, NOT ONLY `room_update`.** Appendix I `:95` promises `room_update` carries *name, topic* — the applier carries neither. Appendix I `:96` promises `space_update` *"Updates Space metadata"* against a dispatch of `=> Ok(())`. 📌 Corroborated by reference count across `docs/`: `state.space_update` = **1** (that line and nothing else); the other thirteen `state.*` run **7 to 81**.
+
+---
+
+### 🛑 WHAT IT DOES TO LEG B — NAMED BEFORE THE RULING, NOT AFTER
+
+The router writes a **frontend store**; `get_spaces` reads **disk**. ⇒ **any `state.*` routing is session-scoped by construction — correct until restart, never true — and that applies to every row, including the three genuine adds.** ⚠️ **B1 is still honest but smaller than it reads; B2 is no longer "adds Rust" but "teaches a local ledger to consume events it was designed never to see."** 🔓 **Joe's, and deliberately put to him with the measurement in hand rather than after a runbook was built on the old reading.**
+
+📌 **AND THE TWO UNFED CONSTANTS RE-MEASURED (they outlive this milestone under every option):** `role` production writers `:651` / `:957` — **both hardcoded `"owner"`**; `joined` production writers `:735` / `:961` — **both `true`**; the only `false` is `:3144`, inside `#[cfg(test)]` (opens `:2989`). A routed room would have to **invent both**.
+
+---
+
+### ⚠️ TWO OF MY OWN PROBES FAILED, BOTH CAUGHT BY A GUARD RATHER THAN BY RE-READING
+
+1. The `as_str` census over a fixed 132-line window **overshot into a second match block** — `membership` came back **16** and `state` **23**, exactly double. Betrayed by disagreeing with an independent unique-string census in the same session, then bounded properly to `169..243`.
+2. A ROADMAP header replace **found no anchor and wrote nothing** — the `> Version:` line carries its two mandatory trailing spaces and my pattern omitted them. 🔑 **The `if Contains … else 'ANCHOR NOT FOUND — no write'` guard is what turned a silent no-op into a visible failure.** *A replace that matches nothing succeeds.*
+
+---
+
+**RECORDS.** `tasks/M_RP_LIVEFEED_REFRESH.md` **v1.11 → v1.12** (§6 two false rows struck + annotated under `D-131`, two rows added · **§6-ii NEW** · **§6a-i NEW** — the register · §6a heading annotated as narrower than its section · §6a's two-way gate superseded · §7 Leg 0 · §9 three filed items · §10 handoff) · `docs/ROADMAP.md` **v6.28 → v6.29** (Leg 0 gains two rows; **Leg B's `§6a cleared` trigger FIRED and is discharged**, re-pointed at the B-scope ruling — *a trigger that has fired is a defect*) · `CLAUDE.md` PLAY · this entry. **No new D, no new N.**
+
+**MEASURED.** `M_RP_LIVEFEED_REFRESH.md` **54,468 → 67,706 B**, 435 → 534 lines, **CR = 0** (pure LF, as it must be) · `docs/ROADMAP.md` **69,571 → 70,238 B**, 538 → 541 lines, **CRLF pairs 541 === line count 541, bare-LF 0, no BOM** — asserted after every write, per the CRLF trap · header trailing-spaces re-checked at 2 on all eight `>` lines.
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (zero `.rs`, zero `ui/**` — documents only): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**. ⚠️ The first code leg re-measures rather than inherits.
+
+**Next-active.** 🟡 **`M-RP-LIVEFEED-REFRESH` Leg A** — runbook v1.3 ACTIVE, §1 re-verified EMPTY this session. 🔓 **Standing Clair up is Joe's.** 🔓 **Joe, unchanged:** Leg B's B1/B2/B3 scope (**now measured, §6-ii**) · the parent's §5 reconnect rule · `D-135` §5a · `M-DOC-BACKFILL`'s title and ID · the resync and outbox sibling names · the `is_dm` provenance-or-state ruling.
+
+---
+
 ## Entry J-640 — the §6a pass widened, the Spaces tree is a local ledger, and two recovery-anchor claims were false
 
 **Date:** 2026-07-31 · **Seat:** Joe (delegation: *go as you recommend*; then three direct asks) · Chat (grounding, measurement, records). No code.

@@ -8,6 +8,30 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-642 — the fired gate inside Leg A's own runbook, removed before Clair opens it
+
+**Date:** 2026-08-01 · **Seat:** Joe (*go (a)*) · Chat (records). No code.
+
+**Opened at** `5978eeb`, local == `origin/main`, tree clean — J-641's four-file commit confirmed pushed.
+
+**THE QUESTION THAT FOUND IT.** Joe asked whether Clair could take Leg A now or whether the B1/B2/B3 ruling had to come first. ✅ **Answer: Leg A is not gated by it, and that was measured rather than asserted** — §4 step 2 of her runbook reads *"if `payload.type` does not start with `membership.`, return"*, so the `state.*` branch Leg B adds sits **below** a guard Leg A already writes; `spaces-state.svelte.ts` is not one of §2's three files; §2's router shape and single-writer rule are locked **independently of which stores the router feeds**, and hold under all three B options. ⚠️ **The one real coupling, named:** under B2 Leg B's branch would call a Tauri command rather than a store setter — that changes **the branch body**, not the guard, the switch, or anything Leg A writes.
+
+🛑 **BUT CHECKING IT SURFACED A FIRED TRIGGER INSIDE THE ACTIVE RUNBOOK.** `RUNBOOK_LIVEFEED_LEG_A.md` §8 still read *"Leg B — gated on the parent's §6a: 9 of 14 `state.*` strings have no row."* **That gate was discharged at J-641, one commit earlier.** 🔑 **A runbook asserting a gate that has fired is exactly the shape of `runbook-as-ground-truth`, and it was sitting in the document Clair was about to be handed.** Joe ruled **(A) fix before she opens**, over folding it into Leg A's close.
+
+🔑 **AND THE FIX HAD A SECOND FILE, FOUND BY SWEEPING FOR CITATIONS RATHER THAN EDITING THE OBVIOUS ONE.** A version bump makes every citation of the old version stale, so all `.md` referencing the runbook's version were enumerated first: **`docs/ROADMAP.md:296` cited `v1.3 ACTIVE`** and had to move in the same commit. ⚠️ **`JOURNAL.md` × 5 and `CLAUDE.md` × 2 also cite `v1.0`–`v1.3` and were deliberately NOT touched** — dated journal entries and dated PLAY blocks are historical records, exempt from back-editing (the J-629 rule). **The distinction is between a live pointer and a record of what was true then.**
+
+📌 **THE SUPERSEDED LINE IS STRUCK AND ANNOTATED, NOT DELETED** (`D-131`), and re-pointed: Leg B is now gated on **Joe's B1/B2/B3 ruling**, with §6-ii's finding as the reason — the runbook may be **AUTHORED, not LOCKED**. The annotation also records the negative result explicitly: **none of it reaches Leg A.**
+
+**RECORDS.** `tasks/RUNBOOK_LIVEFEED_LEG_A.md` **v1.3 → v1.4** (§8 Leg B line struck + annotated) · `docs/ROADMAP.md` **v6.29 → v6.30** (Leg A node's runbook citation `v1.3 → v1.4`) · `CLAUDE.md` PLAY · this entry. **No new D, no new N. No milestone changed state.**
+
+**MEASURED.** `RUNBOOK_LIVEFEED_LEG_A.md` **19,908 → 20,595 B**, 194 lines unchanged, **CR = 0** · `docs/ROADMAP.md` **70,238 B UNCHANGED** — 📌 *both edits were same-length digit swaps (`6.29`→`6.30`, `v1.3`→`v1.4`), so an unchanged byte count is the expected result and not a failed write; confirmed by reading line 296 back* — 541 lines, **CRLF 541 === lines 541, bare-LF 0, no BOM**. Anchor guards used on every PowerShell replace.
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (documents only, zero `.rs`, zero `ui/**`): cargo **1588/0/62 × 56** · svelte-check **0 err / 34 warn / 15 files**.
+
+**Next-active.** 🟡 **`M-RP-LIVEFEED-REFRESH` Leg A** — runbook **v1.4 ACTIVE and clean**; §1's grounding re-verified EMPTY at J-641. 🔓 **Standing Clair up is Joe's, and it is the only thing between her and the leg.** 🔓 **Joe, unchanged:** Leg B's B1/B2/B3 scope · the parent's §5 reconnect rule · `D-135` §5a · `M-DOC-BACKFILL`'s title and ID · the resync and outbox sibling names · the `is_dm` provenance-or-state ruling.
+
+---
+
 ## Entry J-641 — the 17 verdicts land, and re-grounding them found J-640 refuting itself one section apart
 
 **Date:** 2026-07-31 · **Seat:** Joe (locked verdict (C) + the four-item sequence; then *go*) · Chat (grounding, measurement, records). No code.

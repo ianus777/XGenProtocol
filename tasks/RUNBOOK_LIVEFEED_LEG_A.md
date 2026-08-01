@@ -1,8 +1,8 @@
 # RUNBOOK — M-RP-LIVEFEED-REFRESH Leg A: the router and the members consumer
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-31  
+> **Last updated**: 2026-08-01  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -188,7 +188,7 @@ A live-added member is **not in `_book`** ⇒ `rec` is `undefined` ⇒ both fall
 
 ## §8 — Out of scope, named so it is a choice
 
-- **Leg B** — the `state.*` consumer. 🛑 **Gated on the parent's §6a**: 9 of 14 `state.*` strings have no row.
+- **Leg B** — the `state.*` consumer. ~~🛑 **Gated on the parent's §6a**: 9 of 14 `state.*` strings have no row.~~ ⚠️ **SUPERSEDED AT v1.4 — THAT GATE HAS FIRED AND IS DISCHARGED (`D-131`: annotate, never silently repair).** The classification pass landed at **J-641**: parent §6a-i registers all **17** rows (14 `state.*` + 3 `dm.*`) across five verdict classes. 🔓 **Leg B is now gated on JOE'S B1/B2/B3 SCOPE RULING instead** — parent §6-ii found that **`get_spaces` reads disk while the router writes memory**, so the three options produce three different runbooks. **Leg B's runbook may be AUTHORED, not LOCKED.** 📌 **NONE OF THIS REACHES LEG A** — §4 step 2 returns early on anything that is not `membership.*`, and `spaces-state.svelte.ts` is not one of §2's three files.
 - **Leg C** — the reconnect rule. Gated on the parent's §5, which is Joe's and open.
 - **The membership author-exclusion cargo test** — parent §7's closing note: it moves the cargo floor while every leg here moves `svelte-check`. Still 🔓 and Joe's.
 - **H1 / H2** — the address book at rest and the visit-card verb (parent §5h). Rust and protocol; neither belongs to this milestone.

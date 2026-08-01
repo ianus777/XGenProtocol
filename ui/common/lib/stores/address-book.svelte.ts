@@ -52,6 +52,11 @@ export interface FillReport {
   candidates: number;
   fetched: number;
   not_found: number;
+  /** The ids that returned `identity.not_found` in this fill — the list behind
+   *  the `not_found` count. `Vec<IdentityXgid>` Rust-side; a bare string over
+   *  the wire (serde-transparent). NOTHING READS THIS UNTIL Leg B — Leg B branches
+   *  a per-row render (hide erased ③, dim unresolved ④) that a count cannot drive. */
+  not_found_ids: string[];
   touched: number;
 }
 

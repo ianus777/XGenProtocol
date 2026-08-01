@@ -2777,6 +2777,17 @@ pub struct FillReport {
     pub fetched: usize,
     /// `identity.not_found` returned — skipped, book left unpoisoned.
     pub not_found: usize,
+    /// The identities that returned `identity.not_found` in THIS fill — the
+    /// list behind the `not_found` count. The panel needs the ids, not the
+    /// tally: hiding an erased member while dimming an unresolved one is a
+    /// per-row decision (`M-RP-IDENTITY-RESOLUTION` §4/§5), and a count
+    /// cannot drive it.
+    ///
+    /// Under `D-127` a `not_found` reply means **erased**, not revoked — a
+    /// revoked identity returns its record with `revoked` set. Combined with
+    /// validation step 11 (`exchange.rs:208-210`), an id in this list names a
+    /// member whose events the node now REJECTS.
+    pub not_found_ids: Vec<IdentityXgid>,
     /// Already-held identities re-observed in this drain — their `last_seen`
     /// advanced, no re-fetch (the observation contract, J-584).
     pub touched: usize,
@@ -2894,6 +2905,7 @@ async fn fill_from_events(
         candidates: to_fetch.len(),
         fetched: 0,
         not_found: 0,
+        not_found_ids: Vec::new(),
         touched: to_touch.len(),
     };
     if to_fetch.is_empty() {
@@ -2915,6 +2927,12 @@ async fn fill_from_events(
             report.fetched += 1;
         } else {
             report.not_found += 1;
+            // D-136 / M-RP-XGID-SLOT-RETYPE: `to_fetch` is Vec<String> only because
+            // observed_identities downgrades typed ids (:2734/:2742) to feed the
+            // String-keyed AddressBook — a post-retrofit regression, filed not fixed.
+            // This re-wrap goes away when that milestone lands; the field type is
+            // already correct and needs no rework.
+            report.not_found_ids.push(IdentityXgid::from_xgid(Xgid::new(id.clone())));
         }
     }
     let _ = conn.goodbye("client_disconnect").await;

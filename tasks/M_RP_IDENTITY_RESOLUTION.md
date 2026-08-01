@@ -1,6 +1,6 @@
 # M-RP-IDENTITY-RESOLUTION — what a member row shows before the client knows who it is
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-01  
 > Language: English  
@@ -158,7 +158,7 @@ if !id_registry.contains(sender) {
 
 🛑 **HOW THE ERROR HAPPENED, RECORDED BECAUSE IT IS THE RECURRING SPECIES:** G-A was reasoned from the state taxonomy and **never re-read against the code J-643 had just shipped one day earlier**. A claim about what the client can distinguish was written without opening the file that does the distinguishing.
 
-⇒ **Leg A carries `not_found_ids` — runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` v1.1, 🔒 LOCKED (J-646).** **Rust.** 📌 **AND IT DOES *NOT* MOVE THE CARGO FLOOR** — see §8's correction.
+⇒ **Leg A carries `not_found_ids` — runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` v1.2, ✅ COMPLETED (J-647).** ✅ **G-A IS CLOSED: `FillReport.not_found_ids: Vec<IdentityXgid>` ships, and the client can now name which members returned `not_found`.** 📌 **AND IT DID NOT MOVE THE CARGO FLOOR** — 1588 / 0 / 62 × 56 re-measured unchanged, which is the expected result; see §8.
 
 ### G-B — "THE NEXT REFRESH" DOES NOT CURRENTLY ARRIVE
 
@@ -191,13 +191,13 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 
 **Leg 0 — Phase-0.** This document. No code.
 
-**Leg A — the `not_found` id list.** `FillReport` gains `not_found_ids: Vec<IdentityXgid>`; surfaced through `fill_space_records`. **Runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` v1.1 — 🔒 LOCKED BY JOE (J-646).** ⚠️ *v1.2 read "v1.0 — AUTHORED, NOT LOCKED"; superseded, kept not erased (`D-131`).* 🛑 **Standing Clair up is a SEPARATE act and has not happened** — the runbook is locked and idle. ⇒ closes **G-A**.
+**Leg A — the `not_found` id list.** ✅ **CLOSED J-647.** `FillReport` gained `not_found_ids: Vec<IdentityXgid>`, surfaced through `fill_space_records`; TS mirror `not_found_ids: string[]`. **Runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` v1.2 COMPLETED.** **2 files, +23 / −0.** ⇒ **closes G-A.** 🛑 **COMPILE-VERIFIED ONLY — Leg F is the first behaviour verification.**
 
 ⚠️ **v1.0/v1.1 SAID *"Rust; moves the cargo floor."* IT DOES NOT MOVE IT — corrected at v1.2, kept not erased (`D-131`).** The push sits inside `fill_from_events`, downstream of `ensure_connected` and `identity_get_on`; **the existing `not_found` test covers `absorb_fetch`, which is pure and never touches `FillReport`.** ⇒ **the change has no unit test and cannot get one without a live node.** 🔒 **Joe locked T-a (2026-08-01): ship it untested rather than refactor the function carrying the `session.conn` re-entrancy invariant.** ⇒ **cargo stays 1588 / 0 / 62 × 56, and Leg A is COMPILE-VERIFIED ONLY — Leg F is the first leg that can verify it behaviourally.**
 
 🔒 **The TS mirror ships in Leg A too (Joe, boundary option ②)** — `address-book.svelte.ts`'s `FillReport` calls itself a mirror of `ops.rs`, and a mirror left stale for a whole leg is this milestone's own recurring defect. A type-only field with zero readers moves neither floor.
 
-**Leg B — the render rules.** `data-unresolved` on `.entity-item`; ③ filtered from the rendered list; the store distinguishes the two. **Frontend; moves `svelte-check`.** ⚠️ **Gated on Leg A** — without the ids there is nothing to branch on.
+**Leg B — the render rules.** `data-unresolved` on `.entity-item`; ③ filtered from the rendered list; the store distinguishes the two. **Frontend; moves `svelte-check`.** ✅ **UNBLOCKED — Leg A landed the ids (J-647).** 📌 **Leg B also OWES the `Vec<IdentityXgid>` wire witness** (§9) — it is the first leg with a real consumer to assert the shape against. ⚠️ **And Leg B must wire `outcome.fill` into the store: `app_client.svelte:183` still DISCARDS it** — the ids reach the webview and stop there today.
 
 **Leg C — the skin.** The dimmed treatment in `ui/assets/skin.css`. ⚠️ **JOE'S FILE.** Chat supplies the hook and measures; **the values are his**.
 
@@ -213,6 +213,7 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 
 ## §9 — Filed, NOT fixed
 
+- 📌 **THE `Vec<IdentityXgid>` WIRE SHAPE HAS NO WITNESS — ONLY A SCALAR ONE (filed J-647).** `ops_result_struct_serde_transparent_wire_invariance` (`ops.rs:3438`, the Pass 4 T2 gate) covers **scalar** `IdentityXgid` slots only. The TS `string[]` mirror is correct — `Vec<T>` serialises as an array of `T`, and `T` is transparent — **but that is inference from serde semantics, not a measured property of this field**, and citing T2 as its witness would be a claim narrower than its subject. ⚠️ **A Vec-level witness would be a LEGITIMATE test** (it could genuinely fail if a serde attribute were added), **excluded from Leg A by scope alone** — it would move cargo to 1589 against the locked T-a. ⇒ **owed by Leg B**, which has a real consumer to assert against.
 - 🛑 **`SeenRecord` / `FetchedIdentity` / `FillReport` CARRY `String` IDENTIFIER SLOTS THAT SHOULD BE TYPED XGIDs — A POST-RETROFIT REGRESSION, FOUND 2026-08-01 (J-645).** The XGID Retrofit arc closed 2026-05-29 having retyped all of `xgen-client`; these three were written in `String` on 2026-07-25, while `MemberEntry` — written 3 days after the arc closed — is correctly `IdentityXgid`. **`SeenRecord.home_node: String` contradicts a Pass 4 borderline lock by name.** 🔑 **The `.as_str().to_string()` downgrade at `ops.rs:2734`/`:2742` is not a deliberate seam — it exists only to feed the `String`-keyed book, and disappears when this is fixed.** ⇒ **`D-136` minted; filed as `M-RP-XGID-SLOT-RETYPE` 🟡 PENDING.** ⚠️ **Leg A works around it with a documented re-wrap and does NOT fix it (`D-071`).** 📌 **Found because Joe recalled the retrofit and asked for the check to be re-run deeper — Chat's first pass sampled one function and concluded the opposite.**
 - **`M_RP_MEMBERS.md` §6a — the `tail-8` lock-versus-build gap.** Joe locked *tail-8*; `tail()` returns the whole final path segment and the CSS clips the **left**, so every unresolved row reads `ed25519:…` — the constant head kept, the distinguishing bytes discarded. ⚠️ **This milestone makes ④ rows more visible, so the gap becomes more visible with it.** Not fixed here.
 - **`entity-avatar.svelte:125` collapses `isAi`'s third state** — `data-ai={flags.isAi || undefined}`, so `false` and absent render identically (J-643 §5-iv). **Leg A of `M-RP-LIVEFEED-REFRESH` made the store honest; the renderer still collapses it.** 🔓 Joe's, and it is the same family as §4.
@@ -227,7 +228,7 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 - [x] §4 ④ treatment locked by Joe — ✅ **done 2026-08-01, (B)**
 - [x] §5 ③ hiding locked, **and the count question C1/C2/C3 ruled** — ✅ **C1 locked 2026-08-01, with a trigger: the first milestone rendering a member count re-opens it**
 - [ ] §7 Tier-1 fetch ruled by Joe
-- [ ] **G-A closed** — the client can name which members returned `not_found`
+- [x] **G-A closed** — ✅ **J-647.** `FillReport.not_found_ids: Vec<IdentityXgid>` ships; the client can name which members returned `not_found`
 - [ ] **G-B closed** — a refresh trigger that actually fires, named and built
 - [ ] cargo floor re-measured on every Rust leg, delta explained
 - [ ] `svelte-check` floor re-measured on every frontend leg, delta explained

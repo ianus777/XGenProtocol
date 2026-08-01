@@ -8,6 +8,88 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-647 — Leg A ships, and for once the check for an eraser one layer down came back empty
+
+**Date:** 2026-08-01 · **Seat:** Clair (implementation from the locked runbook) · Chat (re-drive, grounding, records) · Joe (*go*). **First code leg of this milestone.**
+
+**Opened at** `e3123b1`, local == `origin/main`, tree clean.
+
+---
+
+### ✅ THE RE-DRIVE — EVERY GATE RUN BY CHAT, NOT READ OFF CLAIR'S REPORT
+
+| Gate | Result |
+|---|---|
+| `git diff --stat` | **2 files, +23 / −0** |
+| `cargo test --workspace` | **1588 / 0 / 62 across 56 result lines**, 0 errors, 0 warnings |
+| `Compiling xgen-client` in the output | **PRESENT** ⇒ live, not a cached pass |
+| `svelte-check` | **0 errors / 34 warnings / 15 files** — the floor exactly |
+| `git ls-files --eol` | **`i/lf` on BOTH**; `ops.rs` `w/crlf` is pre-existing autocrlf |
+| `FillReport` construction sites | **still exactly ONE** (`:2904`) |
+| counter retained | ✅ `report.not_found += 1` `:2929`, push `:2935` — additive |
+
+🔑 **`Compiling xgen-client` IS THE GATE THAT MAKES THE UNCHANGED NUMBER MEAN ANYTHING.** With cargo expected to hold at 1588, *"the tests passed"* is indistinguishable from *"the tests did not run against the change"*. **The compile line is what separates them**, and it was checked for that reason rather than as decoration.
+
+---
+
+### ✅ THE J-643 CHECK WAS RUN AND CAME BACK EMPTY
+
+At J-643 the leg passed every gate and was still defective, because `entity-avatar.svelte:125` erased the fix one layer below the diff. **That check is now standing procedure, and here it found nothing:**
+
+- `FillMembersOutcome` (`ops.rs:2951`) — plain `Serialize`, **no `skip`, no `rename_all`**; `fill` carried whole.
+- `desktop.rs:673` — `fill_space_records` returns the outcome **whole**; no reconstruction, no narrowing.
+- **No equality assertion and no JSON-shape test on `FillReport` anywhere** ⇒ nothing silently depends on its field set.
+
+📌 **A negative result from a check that has previously fired is worth more than one from a check invented today.**
+
+---
+
+### ✅ CLAIR'S ADVERSARIAL READ FOUND NOTHING, AND SAID SO
+
+She checked §4's type against G-A7's sibling, §7's floor against Phase-0 §8, and §2's two-file scope against §8's leg split, then **stated explicitly that there was nothing to stop on.**
+
+🔑 **THAT IS A RESULT, NOT AN ABSENCE, AND IT IS RECORDED AS ONE.** At J-643 the same seat raised three flags and **two were defects in Chat's own documents**. A seat judged only by the arcs where it catches something teaches the wrong lesson about the arcs where it does not.
+
+---
+
+### 🛑 WHAT LEG A DID *NOT* DO
+
+🛑 **IT IS COMPILE-VERIFIED ONLY. NOTHING RAN LIVE.** The push sits inside `fill_from_events` behind `ensure_connected`; the existing `not_found` test covers **`absorb_fetch`, which is pure and never touches `FillReport`**. ⇒ no unit test is possible without a live node (**T-a**, Joe's lock). **Leg F is the first behaviour verification.**
+
+⚠️ **And the field is not yet readable by anything:** `app_client.svelte:183` still discards `outcome.fill`. **The ids reach the webview and stop there** — that is correct for this boundary and is **Leg B's** first job.
+
+---
+
+### 📌 FILED AT THE CLOSE — AND IT IS A CLAIM OF CHAT'S OWN
+
+§4 justified `IdentityXgid` partly on *"serde-transparent ⇒ TypeScript sees `string`"*. **The standing witness for that property is `ops_result_struct_serde_transparent_wire_invariance` (`ops.rs:3438`, the Pass 4 T2 gate) — and it covers SCALAR `IdentityXgid` slots only. There is none for a `Vec<IdentityXgid>`.**
+
+✅ The `string[]` mirror is still correct — `Vec<T>` serialises as an array of `T`, and `T` is transparent. ⚠️ **But that is inference from serde semantics, not a measured property of this field, and citing T2 as its witness would be a claim narrower than its subject** — the species this milestone has caught five times, **found here inside a justification Chat wrote itself.**
+
+📌 **A Vec-level witness is a LEGITIMATE test** — it could genuinely fail if a serde attribute were added later, so §7's probe-that-cannot-fail ban does not reach it. **It is excluded by SCOPE alone:** it would move cargo to 1589 against T-a. ⇒ **owed by Leg B**, which has a real consumer to assert against.
+
+---
+
+### ⚠️ A DOC DEFECT CHAT MADE AND CAUGHT AT THE CLOSE
+
+🛑 **§10 was inserted BEFORE §9** — the anchor chosen (*"Commit pushed is deliberately NOT a DoD line"*) sits immediately above the Seats section, so the new section landed in the wrong place and the file read §8 → §10 → §9. **The edit reported success; a replace that lands in the wrong place still succeeds.**
+
+✅ **Caught by listing the `## §` headings after the write rather than re-reading the diff** — the diff showed the text arriving, which is exactly what it would show either way. Reordered and re-verified the same way.
+
+---
+
+**RECORDS.** `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_A.md` **v1.1 → v1.2, ACTIVE → COMPLETED** (§0 execution record · all twelve §8 DoD boxes ticked with evidence · **§10 NEW** — the wire-witness gap) · `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.3 → v1.4** (§6 G-A **CLOSED** · §8 Leg A ✅ and Leg B unblocked · §9 gains the witness item · §10 G-A ticked) · `docs/ROADMAP.md` **v6.34 → v6.35** · `CLAUDE.md` PLAY block · this entry. **Five doc files + Clair's two code files.**
+
+📌 **SEAT DISCIPLINE ON THE COMMITS:** Clair's **code** commit first, Chat's **doc-bridge** second, **Joe pushes both**.
+
+**FLOORS.** cargo **1588 / 0 / 62 × 56** · svelte-check **0 / 34 / 15** — **BOTH RE-MEASURED, both at the floor.** 🛑 **The cargo non-delta is the EXPECTED result and was written into the DoD before the leg ran**, so it could not be mistaken afterwards for a leg that did nothing.
+
+**No new D, no new N.**
+
+**Next-active.** 🟡 **Leg B — the render rules. UNBLOCKED by Leg A, and it has NO RUNBOOK.** ⚠️ **It must also wire `outcome.fill` into the store, and it owes the Vec wire witness.** 🔓 **Joe, unchanged:** §7 Tier-1 fetch on join · §6's refresh trigger (**one decision with the parent's §5, not two**) · the `skin.css` values · §5's DAG-divergence read · and from the parent: Leg B's B1/B2/B3 scope · `D-135` §5a · `M-DOC-BACKFILL`'s title and ID · the resync and outbox names · the `is_dm` provenance-or-state ruling.
+
+---
+
 ## Entry J-646 — the Leg A runbook is locked; the lock's own citation sweep found four stale pointers
 
 **Date:** 2026-08-01 · **Seat:** Joe (*"lock"*) · Chat (records, sweep). **No code. No floors moved. A STATE CHANGE, so `D-074` applies.**

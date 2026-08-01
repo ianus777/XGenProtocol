@@ -1,6 +1,6 @@
 # M-RP-IDENTITY-RESOLUTION Leg A — the `not_found` id list
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-01  
 > Language: English  
@@ -10,13 +10,32 @@
 
 ---
 
-🔒 **LOCKED BY JOE 2026-08-01 (J-646) — *"lock"*.** This file is now **Clair's instruction, not a proposal**. ⚠️ **AMENDING IT NOW REQUIRES A FURTHER JOE RULING**, and an amendment while she is mid-leg must reach her before she reads the section it changes — the J-642 shape (a fired gate sitting in an ACTIVE runbook) is what that rule exists to prevent.
+🔒 **LOCKED BY JOE 2026-08-01 (J-646) — *"lock"*.** ✅ **EXECUTED AND CLOSED 2026-08-01 (J-647) — see §0.** ⚠️ *v1.1 carried the "amend only by further Joe ruling" clause and the "locked and idle, Clair not stood up" note; both are DISCHARGED — she was stood up and the leg ran. Superseded, kept not erased (`D-131`).*
 
-🛑 **STANDING CLAIR UP IS SEPARATE AND HAS NOT HAPPENED.** Joe locked the runbook; **he has not yet handed her the turn.** Until he does, this file is locked and idle — **nobody is implementing it.**
+---
 
-📌 *v1.0 carried this line as **AUTHORED, NOT LOCKED**; superseded, kept not erased (`D-131`).*
+## §0 — ✅ EXECUTION RECORD (J-647, 2026-08-01)
 
-📌 **Parent Phase-0:** `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.3** — read §1 (grounding), §3 (the four states) and §6 (G-A) before this file. 🛑 **RUNBOOK-AS-GROUND-TRUTH IS A FAILURE MODE.**
+**Implemented by Clair from this file at v1.1. Every gate RE-DRIVEN by Chat — no figure read off her report.**
+
+🔑 **HER ADVERSARIAL READ FOUND NOTHING TO STOP ON, AND SHE SAID SO EXPLICITLY** — the runbook was consistent with itself and with the Phase-0 (§4's type against G-A7's sibling, §7's floor against Phase-0 §8, §2's two-file scope against §8's leg split). ✅ **After J-643, where two of her three flags were defects in Chat's own documents, a clean read is a result worth recording rather than an absence.**
+
+| gate | re-driven result |
+|---|---|
+| `git diff --stat` | **2 files, +23 / −0** |
+| `cargo test --workspace` | **1588 / 0 / 62 across 56 result lines**, 0 errors, 0 warnings · **`Compiling xgen-client` present ⇒ live, not cached** |
+| `svelte-check` | **0 errors / 34 warnings / 15 files** — the floor exactly |
+| `git ls-files --eol` | **`i/lf` on BOTH.** `ops.rs` `w/crlf` is pre-existing autocrlf; the committed form is unchanged |
+| construction sites | **still exactly ONE** (now `:2904`) |
+| counter retained | ✅ `report.not_found += 1` at `:2929`, push at `:2935` — **additive** |
+
+📌 **LINE NUMBERS IN §6 AND §8 BELOW ARE PRE-CHANGE** (`:2893` / `:2917`); after the edit the literal is `:2904` and the push `:2935`. **Kept as written — they were correct instructions at authoring time and back-editing them would destroy the audit trail.**
+
+✅ **ADJACENT FILES OPENED — THE J-643 DISCIPLINE, BECAUSE A DIFF CANNOT SHOW AN ERASER ONE LAYER DOWN:** `FillMembersOutcome` (`ops.rs:2951`) carries plain `Serialize` with **no `skip`, no `rename_all`** · `desktop.rs:673` returns the outcome **whole**, no reconstruction or narrowing · **no equality assertion and no JSON-shape test on `FillReport` exists anywhere**. 🔑 **NO ERASER FOUND — unlike J-643, the change is not undone below.**
+
+🛑 **AND THE HONEST LIMIT HELD: THIS LEG IS COMPILE-VERIFIED ONLY.** The push has no unit test and cannot get one without a live node. **Leg F is the first behaviour verification.** **1588 unchanged is the CORRECT result.**
+
+📌 **Parent Phase-0:** `tasks/M_RP_IDENTITY_RESOLUTION.md` **v1.4** — read §1 (grounding), §3 (the four states) and §6 (G-A, now CLOSED) before this file. 🛑 **RUNBOOK-AS-GROUND-TRUTH IS A FAILURE MODE.**
 
 🔑 **SESSION-OPEN READING ORDER FOR CLAIR (MANDATORY):** `CLAUDE.md` PLAY head → `JOURNAL.md` J-646 → the Phase-0 §1/§3/§6 → **then this file in full.** ⚠️ **This runbook is item 4, not item 1.**
 
@@ -173,18 +192,18 @@ with a comment noting it is `Vec<IdentityXgid>` Rust-side and a bare string over
 
 ## §8 — DoD
 
-- [ ] `not_found_ids: Vec<IdentityXgid>` added to `FillReport` with its doc comment
-- [ ] the `:2893` literal names the new field
-- [ ] the push added at `:2917`, **`report.not_found += 1` retained**
-- [ ] **the `D-136` / `M-RP-XGID-SLOT-RETYPE` comment is present at the wrap site** (§5 — a DoD item)
-- [ ] **no import line changed** — `ops.rs:26` already carries both `IdentityXgid` and `Xgid`
-- [ ] `not_found_ids: string[]` added to the TS `FillReport` with its comment
-- [ ] `cargo test` re-run: **1588 / 0 / 62 × 56, unchanged, delta explained as expected**
-- [ ] `svelte-check` re-run: **0 / 34 / 15, unchanged**
-- [ ] `git diff --stat` = **exactly 2 files**
-- [ ] `git ls-files --eol` on both files — index form unchanged
-- [ ] **§7's limit restated in the close**: compile-verified only; Leg F is the first behaviour verification
-- [ ] Records: JOURNAL + `CLAUDE.md` PLAY + ROADMAP + this runbook in one commit (`D-074`)
+- [x] `not_found_ids: Vec<IdentityXgid>` added to `FillReport` with its doc comment — ✅ `:2780-2790`
+- [x] the `:2893` literal names the new field — ✅ now `:2908`, named-fields, no `..Default`
+- [x] the push added at `:2917`, **`report.not_found += 1` retained** — ✅ counter `:2929`, push `:2935`
+- [x] **the `D-136` / `M-RP-XGID-SLOT-RETYPE` comment is present at the wrap site** (§5 — a DoD item) — ✅ `:2930-2934`
+- [x] **no import line changed** — ✅ `ops.rs:26` untouched
+- [x] `not_found_ids: string[]` added to the TS `FillReport` with its comment — ✅ `:55-59`
+- [x] `cargo test` re-run: **1588 / 0 / 62 × 56, unchanged** — ✅ **and the non-delta is the expected result, not a failed run**
+- [x] `svelte-check` re-run: **0 / 34 / 15, unchanged** — ✅
+- [x] `git diff --stat` = **exactly 2 files** — ✅ +23 / −0
+- [x] `git ls-files --eol` on both files — ✅ **`i/lf` both, index form unchanged**
+- [x] **§7's limit restated in the close**: compile-verified only; Leg F is the first behaviour verification — ✅ §0, J-647, ROADMAP and the PLAY block
+- [x] Records: JOURNAL + `CLAUDE.md` PLAY + ROADMAP + this runbook in one commit (`D-074`) — ✅ J-647
 
 ⚠️ **"Commit pushed" is deliberately NOT a DoD line.** `Status: COMPLETED` in this header is the real signal.
 
@@ -195,3 +214,17 @@ with a comment noting it is `Vec<IdentityXgid>` Rust-side and a bare string over
 **Clair** implements from this file **once Joe locks it**. **Chat re-drives every gate in §7 — no figure is read off the implementation report** (the J-643 rule, which caught a renderer defect that the report could not have shown). **Clair does not close her own leg.**
 
 🔑 **AND THE REVERSE HELD AT J-643: two of the three defects she flagged were in Chat's documents.** If anything in this runbook contradicts itself or contradicts the Phase-0, **say so and stop** — a verification gate that disagrees with its own DoD stops the implementer at the last step, and that has already happened once on this milestone's parent.
+
+✅ **AT THIS LEG SHE FOUND NOTHING TO STOP ON AND SAID SO EXPLICITLY.** 📌 **A clean adversarial read is a RESULT, not an absence** — recorded so the seat is not judged only by the arcs where it catches something.
+
+---
+
+## §10 — 📌 FILED AT THE CLOSE, NOT FIXED
+
+🛑 **THE `Vec<IdentityXgid>` WIRE SHAPE HAS NO WITNESS — ONLY A SCALAR ONE.** §4 justifies the type partly on *"serde-transparent ⇒ TypeScript sees `string`"*. The standing witness for that property is **`ops_result_struct_serde_transparent_wire_invariance` (`ops.rs:3438`, the Pass 4 T2 gate) — and it covers SCALAR `IdentityXgid` slots only** (`CreateSpaceResult`). **There is no witness for a `Vec<IdentityXgid>`.**
+
+✅ **The `string[]` mirror is still correct** — `Vec<T>` serialises as a JSON array of `T`, and `T` is transparent. ⚠️ **But that is INFERENCE FROM SERDE SEMANTICS, not a measured property of this field**, and citing T2 as its witness would be a claim narrower than the thing it describes — the species this milestone has now caught five times.
+
+📌 **A Vec-level wire witness would be a LEGITIMATE test** — it could genuinely fail if a serde attribute were added later, so it is **not** a probe-that-cannot-fail and §7's ban does not reach it. **It is excluded only by scope:** it would move cargo to 1589 and contradict Joe's locked **T-a** and the two-file boundary.
+
+⇒ **FILED FOR LEG B**, which reads the field and can assert the shape **against a real consumer** rather than in a vacuum.

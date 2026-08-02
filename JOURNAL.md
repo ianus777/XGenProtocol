@@ -8,6 +8,44 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-656 — the second read, and the corrections had reproduced the very defect they corrected
+
+**Date:** 2026-08-01 · **Seat:** Joe (asked for the second read) · Clair (adversarial read of the corrections — **no code**) · Chat (re-drive, fixes, records). **Code by Chat: one string-length change.**
+
+**Opened at** `5b20ff8`, tree clean, local == origin — **verified first.**
+
+---
+
+### 🔑 WHY A SECOND READ EXISTED AT ALL
+
+Joe asked whether the adversarial read could run again. **The answer was yes for a specific reason, not for symmetry: the J-655 corrections were written by the SAME SEAT that made the errors, and nobody outside had read them.** Clair read the *original* diff; what was then committed was **different text** — three code fixes she never saw, ~15 `D-131` annotations, J-655 and a PLAY block. 🛑 **And the sharpest risk was named up front: F2 was a false note in Joe's `skin.css`, and the fix REPLACED it with a different assertion. If that one were also wrong we would have swapped one false note for another.**
+
+### ✅ THE DANGEROUS ONE HELD
+
+**F2's replacement is TRUE, and three documents agree on it.** Verified independently by Clair against the committed CSS: the mark is `(0,3,0)`, it paints a descendant, and **only three rules in the file reach `.ei-name` — `:2452`, the inline-variant rule, and the mark, last** ⇒ *"nothing later reaches `.ei-name`"* is true. **F1's `2+2N` propagation: clean, census run in both directions.** **F3's fix: clean** — the cell mirrors `members-panel.svelte:164` exactly and `epSelUnresolved` is fully removed, no dangling reference. **The annotations quote their superseded text faithfully.** **No live "AUTHORED, NOT LOCKED" survives anywhere.**
+
+### 🛑 AND IT WAS STILL NOT CLEAN — THREE FINDINGS, ALL CHAT'S, ALL ONE SPECIES
+
+🔑 **EVERY ONE WAS A NUMBER COMPUTED AGAINST THE PRE-FIX DRAFT AND NEVER RE-DERIVED FROM THE COMMITTED FILES.**
+
+**N1 — THE CORRECTION REPRODUCED THE DEFECT IT WAS CORRECTING.** F8 named *"a grounding line number invalidated by the very commit it grounds"* and gave the fix as `:3060`/`:3064`, a `+21` shift. **Both wrong.** C-2 shipped **+27**, not +21 — **the F2 rewrite grew the comment by six lines AFTER the shift had been computed** — so the committed lines are **`:3066`/`:3070`**, and a reader following G-C2 lands six lines high. **Wrong in three records.** ***The bullet that names the defect committed it, one meta-level up, and no re-read caught it.***
+
+**N2 — THE SHIP SIZE IN THE PLAY HEAD WAS WRONG.** It read **`2 files, +42/−0`**; the committed code is **+54** (27 + 27). `+42` is the pre-correction size — the F2/F5 fixes grew each file from 21 to 27 and the figure was never re-measured. **Isolated to the PLAY head, which is the most-read record in the project.**
+
+**N3 — A HEDGE WAS HARDENED INTO FALSE PRECISION.** G-C9 honestly wrote `ed25519:<~44 chars>`; F5 turned that into an exact, *"load-bearing"* **44**. **It is 43.** Grounded rather than argued: an identity xgid is `xgen://pubkey/ed25519:<key>`, the key is an **Ed25519 pubkey — 32 RAW bytes** (`handshake.rs:405` encodes `vk.as_bytes()`), and `crypto/encoding.rs` is **`URL_SAFE_NO_PAD`** (spec 3.1.9) ⇒ **32 B → 43 chars** (checked: 32→43, 33→44). 🔑 ***A correction that replaces a hedge with an exact number owes that number a source; this one had none.*** ⚠️ Clair rated it minor because both lengths clip — **correct, and it was fixed anyway, because the record called it load-bearing and exact.**
+
+### ✅ FIXED AND RE-MEASURED, NOT PATCHED ON PAPER
+
+The fixture now carries **real 43-char tails**. 🛑 **Re-measured rather than adjusted arithmetically:** `textLen` **51** · `scrollWidth` **383** vs `clientWidth` **250** ⇒ **CLIPPED** · catalogue **435 UNCHANGED** (`count === unique === domCount`, quiescent) · `svelte-check` **0 / 34 / 15** · every V11–V13 gate re-driven: erased struck at `--t2` with `box-shadow: rgb(154,106,48) 2px 0 0 inset` and `opacity: 1`, unasked untreated and identical to the control. **`cargo` NOT run — zero `.rs` by scope.**
+
+### 🔑 THE STANDING LESSON
+
+***A CORRECTION IS A NEW CLAIM AND OWES THE SAME GROUNDING AS THE CLAIM IT REPLACES.*** Three sessions running, the second look has paid: J-651 (three of four findings were Chat's), J-655 (three of Chat's, plus a sixth site on re-drive), and now J-656 (three more, in the corrections themselves). 🛑 **The species survived into the very close that catalogues it — and was caught, again, only from outside the text.**
+
+**FLOORS:** cargo **1589 / 0 / 62 × 56** (not re-run, by scope) · svelte-check **0 / 34 / 15** · sampler catalogue **435**. **No new D. No new N.** → J-656 · runbook v1.1 → v1.2 · ROADMAP v6.43 → v6.44.
+
+---
+
 ## Entry J-655 — Leg C-1 and C-2 ship, and the outside read found three defects in the seat that had just verified itself
 
 **Date:** 2026-08-01 · **Seat:** Joe (the *"chat"* ruling) · Chat (values, implementation, all measurement, records) · Clair (adversarial read of the diff — **no code**). **Code by Chat.**
@@ -32,11 +70,11 @@ The runbook route had Clair implement C-1 + C-2. Joe ruled ***"chat"***: **Chat 
 
 ### 📌 THE OTHER SIX, AND ONE THAT WAS SUBTLER THAN FILED
 
-**F4** C-3 was filed with no obligation to remove the *"DELIBERATELY ABSENT"* disclosure it will falsify — **the N-109 defect, filed inside a runbook that cites N-109.** Now written into C-3's DoD before C-3 exists. · **F5** the fixture tails were 16 chars where `tail()` returns ~44; Clair said *"likely does not clip"* — **it was then MEASURED rather than left a likelihood: at 44 chars, `scrollWidth 391` vs `clientWidth 250` ⇒ CLIPPED**, so the fixture now reproduces the real LEFT-anchored clip. · **F6** the recorded reason for dropping `title` was wrong (`title` renders a heading, `badge` is the count-like prop) — **the action was right and the reason was wrong, which is worse than no reason, because the next reader inherits it**; the runbook had also contradicted itself one paragraph apart, its snippet passing `title` while its prose forbade it. · **F7 / F9** stale runbook examples. · **⚠️ F8 was subtler than filed and neither seat was wrong:** the `send-status` line numbers were `:3039`/`:3043` when grounded at `3fe3423`, and **C-2's own 21 inserted lines moved them to `:3060`/`:3064`.** ***A grounding line number invalidated by the very commit it grounds.***
+**F4** C-3 was filed with no obligation to remove the *"DELIBERATELY ABSENT"* disclosure it will falsify — **the N-109 defect, filed inside a runbook that cites N-109.** Now written into C-3's DoD before C-3 exists. · **F5** the fixture tails were 16 chars where `tail()` returns ~44; Clair said *"likely does not clip"* — **it was then MEASURED rather than left a likelihood: at 44 chars, `scrollWidth 391` vs `clientWidth 250` ⇒ CLIPPED**, so the fixture now reproduces the real LEFT-anchored clip. 🛑 ***CORRECTED AT J-656: THE REAL TAIL IS 43 CHARS, NOT 44*** — a 32-byte Ed25519 key through base64url-no-pad encodes to 43, and this sentence hardened an honest `~44` hedge into false precision. Fixture and figures re-derived: **`textLen 51`, `scrollWidth 383` vs `clientWidth 250`.** Superseded, kept not erased (`D-131`). · **F6** the recorded reason for dropping `title` was wrong (`title` renders a heading, `badge` is the count-like prop) — **the action was right and the reason was wrong, which is worse than no reason, because the next reader inherits it**; the runbook had also contradicted itself one paragraph apart, its snippet passing `title` while its prose forbade it. · **F7 / F9** stale runbook examples. · **⚠️ F8 was subtler than filed and neither seat was wrong:** the `send-status` line numbers were `:3039`/`:3043` when grounded at `3fe3423`, and **C-2's own inserted lines moved them.** ***A grounding line number invalidated by the very commit it grounds.*** 🛑 ***CORRECTED AT J-656: this entry said the shift was `+21`, to `:3060`/`:3064`. BOTH WRONG.*** C-2 shipped **+27** — the F2 rewrite grew the comment by six lines **after** the shift had been computed — so the committed lines are **`:3066`/`:3070`**. ***The defect this bullet names, reproduced by the bullet itself.*** Superseded, kept not erased (`D-131`).
 
 ### 🛑 A MEASUREMENT WAS REFUSED RATHER THAN RECORDED
 
-The first clip read returned **`scrollWidth: 0, clientWidth: 0, clipped: false`**. 🔑 **A zero-width rendered text node is impossible ⇒ that is a BROKEN PROBE, not a measurement** — the DD·composite tab is CSS-hidden when inactive, so every layout read is zero and `clipped: false` is a **false negative that reads exactly like a real result.** It did not enter the record. Re-measured with the tab active (**391 vs 250, CLIPPED**), and the tab switch was undone with `location.reload()` (N-123). 📌 *Registry counts and computed styles were unaffected — neither needs layout — so 435 and V11–V13 stood.*
+The first clip read returned **`scrollWidth: 0, clientWidth: 0, clipped: false`**. 🔑 **A zero-width rendered text node is impossible ⇒ that is a BROKEN PROBE, not a measurement** — the DD·composite tab is CSS-hidden when inactive, so every layout read is zero and `clipped: false` is a **false negative that reads exactly like a real result.** It did not enter the record. Re-measured with the tab active (**CLIPPED**), and the tab switch was undone with `location.reload()` (N-123). 📌 *Registry counts and computed styles were unaffected — neither needs layout — so 435 and V11–V13 stood.* ⚠️ *This paragraph originally cited **391 vs 250**; re-derived at the corrected 43-char tail to **383 vs 250** (J-656, `D-131`).*
 
 ### ✅ MEASURED — every figure re-driven, none inferred
 

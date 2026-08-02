@@ -1,6 +1,6 @@
 # M-RP-XGID-SLOT-RETYPE — the identifier slots that regressed to `String` after the retrofit arc closed
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -64,6 +64,8 @@
 
 ## §2 — 🔑 THE FINDING: PASS 4's CLASSIFICATION IS BINARY AND THE CODEBASE HAS THREE CATEGORIES
 
+🛑 **⚠️ THIS SECTION'S HEADLINE IS FALSE AND IS CORRECTED AT §2b (v1.1). KEPT NOT ERASED (`D-131`).** The **third category already exists**, fully worked and locked, at **Pass 3 §4.3** and **Pass 4 §4.2 / §4.3** — documents this Phase-0 did not open. **The observation below is sound; the conclusion drawn from it is not.** 🔑 ***Written after reading Pass 4 §4.1.a and never opening Pass 3 §4.3 — a claim narrower than the thing it describes, in a document authored the same day it names that species.***
+
 Pass 4 §4.1.a locked: **identifier slots retype to a typed XGID flavour; descriptive slots stay `String`.**
 
 🛑 **THE LARGEST POST-ARC BLOCK IS NEITHER.** `xgen-node/src/admin_ops.rs` holds **63 of the 130**, and they are **CLI argument structs and admin-pipe result structs** — `#[derive(clap::Args, serde::Deserialize)]` on the way in, `serde::Serialize` on the way out. ⇒ they are **boundary parse and boundary projection slots**: the point at which an untyped external string becomes, or stops being, internal state.
@@ -81,7 +83,34 @@ fn ident_xgid(s: &str) -> IdentityXgid {
 
 ⇒ 🔑 ***`admin_ops.rs` is not a file that broke the rule. It is a file the rule does not reach.***
 
+🛑 **⚠️ CORRECTED AT v1.1: THE RULE DOES REACH IT, BY NAME. See §2b.** *The sentence above is kept because the observation that produced it — that these are boundary slots with a working projection — turned out to be exactly right; only the inference that no rule covered them was wrong (`D-131`).*
+
 ⚠️ **AND THAT IS THE BETTER EXPLANATION FOR A TWO-MONTH SILENT REGRESSION THAN CARELESSNESS.** `D-136` §2's own second corroboration was *"`address_book.rs` contains ZERO `IdentityXgid` — the type was never in the room."* **A binary rule offered no bucket for a boundary slot, so a whole subsystem was written outside it without anyone choosing to.**
+
+### §2b — 🛑 THE CORRECTION, AND IT IS A BETTER FINDING THAN THE ONE IT REPLACES: THE CATEGORY EXISTS AND ITS PROMOTION WAS PARKED WITH A TRIGGER NOBODY OWNED
+
+**Read at v1.1 from `tasks/archive/`, which §2 had not opened:**
+
+| where | what it locks |
+|---|---|
+| **Pass 3 §4.3** *Format-boundary preservation (wire OR persistence)* | *"function signatures that consume format-derived identifiers keep `String` / `&str` / `Option<String>` / `HashMap<String, _>` slots **as-is at the format boundary**. Conversion to typed XGIDs happens at the format/in-memory boundary (**one projection per direction**)."* Its affected-slot list names **"(general) any `TransportMessage::*` variant field carrying identifier-shaped strings"** |
+| **Pass 4 §4.2** | The same rule **extended to client-side serialisation surfaces** — Tauri IPC, pipe JSON, stdout |
+| **Pass 4 §4.3** *Option α* | **clap `Args` structs keep all 16 identifier-shaped `String` slots as `String` at the parse boundary; the dispatcher arm projects** via `Xgid::new(s) → XxxXgid::from_xgid(…)`. **`app.rs`'s `*Args` structs, by name** |
+
+⇒ 🔒 **`admin_ops.rs`'s CLI args and result structs, and every `TransportMessage` variant field, are INSIDE an existing lock.** §2's *"a file the rule does not reach"* is wrong; **the rule reaches, and the file complies.**
+
+🛑 **AND HERE IS THE ACTUAL DEFECT, WHICH IS SHARPER THAN A MISSING CATEGORY: THE RULE WAS NEVER PROMOTED TO A `D`, DELIBERATELY, AND THE TRIGGER THAT WOULD PROMOTE IT WAS LEFT WITHOUT AN OWNER.**
+
+- Pass 3 §4.3 reasoning 3: *"**Flagged-not-promoted as candidate D-NNN-δ** at this design close (two instances…; **three-instance threshold opens at Pass 4** if a client-side serialisation-format slot instantiates)."*
+- Pass 4 §4.2.3 / IMPL §12.4: **"`D-NNN-format-boundary` promotion-watch STAYS OPEN"** — three structurally-distinct instances across two Pass-arcs, held open because `D-077` multi-Pass-arc durability was not yet met. **Promotion trigger, written down: *"fourth structurally-distinct instance at Pass 5 OR cross-milestone closes the gap."***
+
+🛑 **THE TRIGGER FIRED AND NOBODY RETURNED. `M6` — the node admin write-path (`admin_ops.rs`, closed J-197) — is a *cross-milestone, structurally-distinct* fourth instance: an admin named-pipe boundary.** ⚠️ *A trigger that has fired is a defect by this project's own standing convention, and this one has been fired and unnoticed since J-197.*
+
+🔑 **SO THE MECHANISM IS `D-136`'s OWN THESIS AT A LEVEL `D-136` DID NOT REACH: not merely *a completed sweep is not a standing rule*, but ***a promotion-watch with a named trigger is worth nothing if nobody owns the trigger.*** The convention was invisible not because it was unwritten, but because it was written **in two archived design docs and deliberately kept out of `DECISIONS.md`.***
+
+⚠️ **AND `D-136` §2 HAS THE SAME GAP.** It quotes Pass 4 §4.1.a's binary classification as *the* locked rule and **never cites Pass 3 §4.3**. 🔑 ***A claim narrower than the thing it describes — inside the entry that names that species.*** 📌 *Not a fault in `D-136`'s conclusion: `SeenRecord` fails the three-way rule exactly as it failed the two-way one (see below). The gap is in the rule as quoted, not in the verdict.*
+
+✅ **`SeenRecord` STILL FAILS, AND NOW FOR A SHARPER REASON.** §4.3 puts the projection **at** the format/in-memory boundary, one per direction. **A `BTreeMap<String, SeenRecord>` sits on the IN-MEMORY side of that boundary** ⇒ it is internal state holding the external form, which is precisely what §4.3 forbids. **The defect that minted `D-136` is untouched by this correction.**
 
 ### §2a — 🔒 RULED 2026-08-02 (Joe, *"go by your recommendations"*): A BOUNDARY SLOT MAY STAY `String`, AND IT BECOMES A NAMED THIRD CATEGORY
 
@@ -89,6 +118,9 @@ fn ident_xgid(s: &str) -> IdentityXgid {
 - **② Resource cost:** *accepting* — near zero in code (the projection exists), plus the cost of **writing the category down**, which is the entire point. *Rejecting* — `FromStr` on eight flavour newtypes, every CLI arg struct retyped, and a deserialisation story for each.
 
 🔒 **THE THIRD CATEGORY, AS IT ENTERS THE RECORD: a BOUNDARY slot holds the external form of an identifier at a parse or serialisation edge, and stays `String` IF AND ONLY IF a named projection converts it at the boundary and no internal state holds the `String` form.** 🛑 **The second half is what stops this becoming an excuse** — `SeenRecord` would fail it, because a `BTreeMap<String, SeenRecord>` *is* internal state holding the external form.
+
+🔒 **RESTATED AT v1.1, AND THE RULING GETS CHEAPER AND STRONGER: THIS IS NOT A NEW CATEGORY — IT IS THE PROMOTION OF `D-NNN-format-boundary`, WHOSE OWN TRIGGER HAS ALREADY FIRED (§2b).** ✅ **Joe's wording and Pass 3 §4.3's are the same rule reached independently** — *one projection per direction, at the format/in-memory boundary* — which is corroboration, not coincidence. ⚠️ *The formulation above was Chat's reconstruction of a lock it had not read; the canonical wording is Pass 3 §4.3's and that is what should be promoted. Kept not erased (`D-131`).*
+
 ---
 
 ## §3 — 🛑 THE CLASSIFICATION OF THE 88 IS A HYPOTHESIS, NOT A MEASUREMENT
@@ -99,11 +131,68 @@ The four-way bucketing (**30 `clap`-boundary · 47 serde-wire · 41 internal · 
 
 - **~25 `admin_ops.rs` `*Result` structs** (`FederationAcceptResult`, `SpaceUnbanResult`, `IdentityRevokeResult`, …) are **serde outputs to the admin pipe** — the same species, on the way out rather than in.
 - **`xgen-client/src/app.rs`'s `BanArgs` · `LeaveArgs` · `RedactArgs` · `RoomsArgs` · `MembersArgs` · `RoomUpdateArgs` · `ThreadCreateArgs` · `ThreadStatusArgs`** are **client CLI argument structs** that the derive-scan did not catch as `clap`.
-- **5 sites resolved to no struct at all** (`wire/types.rs` among them, plus `connection.rs`, `fanout.rs`, `envelope.rs` ×2) — almost certainly **enum variant fields**, which the heuristic cannot see.
+- **5 sites resolved to no struct at all** (`wire/types.rs` among them, plus `connection.rs`, `fanout.rs`, `envelope.rs` ×2) — almost certainly **enum variant fields**, which the heuristic cannot see. 🛑 **⚠️ CORRECTED AT v1.1: IT IS 12 SLOTS, NOT 5** — `wire/types.rs` ×8 · `envelope.rs` ×2 · `connection.rs` ×1 · `fanout.rs` ×1. **Chat read FOUR FILE-GROUPS as FIVE SLOTS.** ✅ **The guess was right about the cause**: they are `TransportMessage` **enum variant fields**, invisible to a struct-scan by construction. 🔑 ***Third undercount by the same author inside one milestone — which is the argument for the hand-read, not against it.*** Kept not erased (`D-131`).
 
 ⚠️ **Chat reported "30 boundary slots" to Joe before this inventory ran, and the real boundary set is larger. Corrected here rather than left standing** — ***a claim narrower than the thing it describes, reused as if complete***, is this project's named recurring species, and it appeared inside the very pass that measures it.
 
 🔒 **⇒ LEG 0 IS NOT COMPLETE AT THIS DOCUMENT. It owes a HAND-VERIFIED classification of all 88**, each slot assigned INTERNAL / BOUNDARY / DESCRIPTIVE **by reading the struct and its consumers**, not by pattern. **No leg that changes a type may open before that read lands.**
+
+✅ **DISCHARGED AT v1.2 — §3a.**
+
+---
+
+## §3a — ✅ THE HAND-READ, 88 OF 88 (v1.2)
+
+**Method: each slot judged against Pass 3 §4.3's actual test — is this the external form AT a format edge, with the projection one step away — not against the heuristic buckets of §3.** Sibling evidence used the way `D-136` used it: **does the same file, or the same struct, choose differently?**
+
+### 🔒 BOUNDARY — stays `String` under an EXISTING lock · 65
+
+| slots | where | lock |
+|---|---|---|
+| **30** | `admin_ops.rs` CLI args + `*Result` admin-pipe structs | Pass 4 §4.3 α + §4.2 |
+| **16** | `app.rs` `*Args` (`BanArgs` · `LeaveArgs` · `RedactArgs` · `RoomsArgs` · `MembersArgs` · `RoomUpdateArgs` · `ThreadCreateArgs` · `ThreadStatusArgs`) | Pass 4 §4.3 α, **by name** |
+| **8** | `wire/types.rs` — `TransportMessage` variant fields | Pass 3 §4.3, **by name** |
+| **2** | `desktop.rs` `SelfStateInfo` | Pass 4 §4.2 — Tauri IPC |
+| **1** | `batch.rs` `FrontierEvent.event_id` | Pass 4 §4.2 — pipe JSON |
+| **3** | `protocol_audit.rs` `ProtocolAuditEntry` ×2 + `ProtocolAuditSink.node_id` | Pass 3 §4.3 — persistence |
+| **2** | `audit.rs` `AuditEntry.actor` + `AuditQueryFilter.actor` | Pass 3 §4.3 — persistence (`xgen-node_audit.db`) |
+| **1** | `fanout.rs:63` | wire |
+| **1** | `connection.rs:114` (variant field) | wire |
+| **1** | `trust_assertion.rs` `TrustAssertion.identity_id` | the **signed canonical form** — its own doc says *"reproduces the signed form"* |
+
+### 📌 DESCRIPTIVE — not an XGID at all · 5
+
+- **`envelope.rs` ×3** (`Command.id` `:57`, and `:144` / `:153`) — *"Driver-supplied correlation id, echoed verbatim into the reply."* **A correlation token, not an identifier of anything in the protocol.**
+- **`audit.rs` `AuditEntry.correlation_id`** — same shape.
+- 🔑 **`audit.rs` `AuditEntry.target`** — *"Verb-specific target (peer_node_id, identity_id, …)"*. **POLYMORPHIC: it holds a different flavour depending on the verb, so NO single flavour can type it.** ⚠️ **This is a fourth answer the rule does not currently name, and `admin_ops.rs` has the same shape at `:609` / `:574`.** *Filed, not invented into the rule here.*
+
+### 🛑 INTERNAL — a real regression; retype · 17
+
+| slots | struct | why it is internal |
+|---|---|---|
+| **2** | `address_book.rs` `SeenRecord` (`identity_id`, `home_node`) | the `D-136` case. `BTreeMap<String, SeenRecord>` is in-memory state holding the external form |
+| **7** | `ops.rs` `FetchedIdentity` ×2 · `ThreadCreateResult` · `ThreadStatusResult` · `RedactResult` · `VerbReject` · `RoomsResult` | 🔑 **`ops.rs` carries 68 typed field declarations — including `identity_id: IdentityXgid` and `home_node: NodeXgid` at `:186/:188`, `:214/:217`, `:288/:290` — while `FetchedIdentity` at `:428/:432` declares THE SAME TWO FIELD NAMES as `String`.** Pass 4 §4.1.a's own scope |
+| **3** | `resident.rs` `OutboundRequest` ×2 + `SendOutcome.event_id` | its own doc: *"A queued outbound message … the caller hands over intent"* — an **in-memory queue**, no format edge |
+| **2** | `connection.rs` `AuthOutcome` | derives **`Debug, Clone, PartialEq, Eq` and NO serde** ⇒ not a format struct; it is the in-memory result consumed by `ops::create_space` |
+| **1** | `session.rs` `SessionState.node_id` | in-memory session state |
+| **2** | `state.rs` `ThreadState.id` + `.origin_event` | 🛑 **see below** |
+
+🔑 **`ThreadState` IS A STRONGER INSTANCE THAN THE ONE THAT MINTED `D-136` — THAT WAS SAME-FILE; THIS IS SAME-STRUCT:**
+
+```rust
+pub id: String,               // "Conceptual Thread id (xgen://thread/sha256:)"  <- ThreadXgid EXISTS
+pub room_id: RoomXgid,        // typed
+pub created_by: IdentityXgid, // typed
+pub origin_event: String,     // "The thread.create event id"                    <- EventXgid EXISTS
+```
+
+**Four identifier slots in one struct; two typed, two `String`; both missing flavours exist; and the struct derives no serde at all** (`Debug, Clone, PartialEq, Eq`) ⇒ **pure in-memory Space state, not a format boundary.** ⚠️ *`state.rs` mentions `Xgid` 187 times — the type was emphatically in the room.*
+
+### ⚠️ UNREAD · 1 — named rather than guessed
+
+- **`envelope.rs` `ErrorBody.event_id`** (`:132`) — sits among correlation ids but is named `event_id`. **Whether it carries a real `EventXgid` or another correlation token needs its producer read. NOT classified here.**
+
+**65 + 5 + 17 + 1 = 88.** ✅ **Reconciled against the sweep total.**
 
 ---
 
@@ -121,6 +210,8 @@ The four-way bucketing (**30 `clap`-boundary · 47 serde-wire · 41 internal · 
 
 🔒 **CHAT RECOMMENDS ③ + ④ TOGETHER, AND ③ IS NEARLY FREE BECAUSE THIS DOCUMENT ALREADY BUILT IT.** The §1 sweep is a repeatable command; pointed at *post-arc slots not on the classified list*, it is exactly the check that would have caught `SeenRecord` in July. ⚠️ **④ alone is what `D-136` calls the weakest and most common choice — acceptable, but *"what is not fine is silence"*.**
 
+🔒 **④ IS RESTATED AT v1.1 AND IT IS NO LONGER "WRITE A NEW RULE": IT IS *PROMOTE `D-NNN-format-boundary` TO A REAL `D`* (§2b).** 🔑 **That is strictly better than a fresh `CLAUDE.md` convention, because the rule is already worked, already worded, already has its instance table, and already has a fired trigger** — what it lacks is a home outside `tasks/archive/`. ⚠️ **And it repairs the cause rather than the symptom: the convention was invisible because it was deliberately kept out of `DECISIONS.md`, not because nobody had written it.**
+
 🛑 **HONEST LIMIT, STATED RATHER THAN SOLD (the J-657 discipline): a grep gate catches a slot that is `String` and should not be. It CANNOT catch a slot that is correctly `String` at a boundary and wrongly consumed as internal state one function away.** That is the `SeenRecord` defect's actual shape, and **only the hand-read in §3 sees it.** ⇒ ***the gate clears the desk; it does not retire the read.***
 
 ---
@@ -132,6 +223,7 @@ The four-way bucketing (**30 `clap`-boundary · 47 serde-wire · 41 internal · 
 🔒 **THIS MILESTONE GOES FIRST.** Retype-then-extend ⇒ M13 writes its new fields already typed, and inherits the convention. Extend-then-retype ⇒ this milestone's retype touches fields M13 has just added, and M13 ships new `String` identifier slots in the meantime — **manufacturing the exact regression `D-136` describes, knowingly.**
 
 📌 **Identical in shape to the Leg D argument in `M_RP_IDENTITY_RESOLUTION.md` §8**, and named here so the collision is not discovered at it.
+
 ---
 
 ## §6 — Legs
@@ -143,6 +235,19 @@ The four-way bucketing (**30 `clap`-boundary · 47 serde-wire · 41 internal · 
 **Leg B — the three address-book structs.** `FetchedIdentity` · `SeenRecord` · `FillReport`, plus the `BTreeMap<String, _>` key and the `ops.rs:2734`/`:2742` downgrade that disappears with them. **Moves the cargo floor.** 🔒 **THIS IS THE ONLY LEG ON `M-RP-IDENTITY-RESOLUTION` LEG D's CRITICAL PATH.**
 
 **Leg C — the remainder**, sized by what Leg 0's hand-read actually finds. 🔓 **MAY BE SPLIT OFF INTO ITS OWN MILESTONE RATHER THAN BLOCKING** — see §7.
+
+✅ **SIZED AT v1.2 BY THE §3a HAND-READ, AND IT IS SMALL: 13 SLOTS IN 5 FILES.** 🛑 *A first draft of this line read "15 slots… Leg B takes the other 2" — **the total reconciled to 17 and the ATTRIBUTION was wrong**, because Leg B's `FetchedIdentity` IS 2 of the 7 `ops.rs` slots. Caught on re-derivation, corrected, kept not erased (`D-131`): ***a sum that reconciles is not a split that is right.***
+
+**INTERNAL · 17 total, split by leg:**
+
+| leg | slots | where |
+|---|---|---|
+| **Leg B** | **4** | `address_book.rs` `SeenRecord` ×2 + `ops.rs` `FetchedIdentity` ×2 |
+| **Leg C** | **13** | `ops.rs` ×5 (`ThreadCreateResult` · `ThreadStatusResult` · `RedactResult` · `VerbReject` · `RoomsResult`) · `resident.rs` ×3 · `connection.rs` ×2 · `state.rs` ×2 · `session.rs` ×1 |
+
+📌 **And `FillReport` contributes ZERO slots** — its identifier slot is already `Vec<IdentityXgid>` from `M-RP-IDENTITY-RESOLUTION` Leg A. **Leg B's name says three structs and only two of them carry work.**
+
+🔑 **⇒ CHAT RECOMMENDS LEG C IS *NOT* SPLIT OFF.** The split existed to stop a large unknown blocking `M-RP-IDENTITY-RESOLUTION` Leg D; **the unknown is now measured and it is 13 slots**, five of which sit in `ops.rs` — **the same file Leg B already opens.** ⚠️ **Splitting would create a second milestone to carry 13 mechanical retypes and a second cargo-floor move, and would make Leg B and Leg C edit one file from two milestones** — the rider-versus-milestone judgement running the other way. 🔓 **Still Joe's.**
 
 **Leg D — records + close.** JOURNAL + `CLAUDE.md` PLAY + ROADMAP + this document, one commit (`D-074`). 🛑 **Its close must state how the convention is enforced from then on, or state that it is not — `D-136` §3 binds this milestone to its own rule.**
 
@@ -166,8 +271,11 @@ At J-658 Chat sequenced this milestone **ahead of** `M-RP-IDENTITY-RESOLUTION` L
 - [x] §2a's third category ruled — ✅ **boundary slots stay `String` under a named-projection test (Joe, 2026-08-02)**
 - [x] §4's enforcement posture ruled — ✅ **③ + ④ (Joe, 2026-08-02)**
 - [x] §5's M13 ordering ruled — ✅ **this milestone first (Chat, `D-123`)**
-- [ ] **All 88 slots HAND-CLASSIFIED**, each assigned INTERNAL / BOUNDARY / DESCRIPTIVE **by reading the struct and its consumers** — **Leg 0**
-- [ ] The 5 unresolved sites (`wire/types.rs`, `connection.rs`, `fanout.rs`, `envelope.rs`) **named** — the heuristic could not see them — **Leg 0**
+- [ ] **All 88 slots HAND-CLASSIFIED**, each assigned INTERNAL / BOUNDARY / DESCRIPTIVE **by reading the struct and its consumers** — **Leg 0** — ✅ **DONE at v1.2, §3a: 65 BOUNDARY · 5 DESCRIPTIVE · 17 INTERNAL · 1 UNREAD-and-named; reconciled to 88**
+- [ ] **`ErrorBody.event_id` read to a verdict** — the one slot §3a refused to classify — **Leg 0**
+- [ ] **The POLYMORPHIC `target` shape ruled** — `AuditEntry.target` and `admin_ops.rs:574`/`:609` hold a different flavour per verb, so no single flavour can type them. 🔓 **A fourth answer the rule does not name; Joe's** — **Leg A**
+- [ ] The **12** unresolved sites (`wire/types.rs` ×8 · `envelope.rs` ×2 · `connection.rs` · `fanout.rs`) **named** — ✅ **DONE at v1.1: they are `TransportMessage` enum variant fields, covered by Pass 3 §4.3 by name.** ⚠️ *the DoD read "5" at v1.0; superseded, kept not erased (`D-131`)* — **Leg 0**
+- [ ] **`D-NNN-format-boundary` PROMOTED to a real `D`**, with its fired trigger recorded — 🛑 **the milestone's central deliverable, and it is a `DECISIONS.md` edit, not a code edit** — **Leg A**
 - [ ] The grep gate exists, **runs, and FAILS on a planted `String` identifier slot** — 🛑 **exercised, not asserted; a gate that has never failed is not known to work** — **Leg A**
 - [ ] The written rule lands in `CLAUDE.md` as a standing convention — **Leg A**
 - [ ] `SeenRecord.home_node` is `NodeXgid` — 🔑 **it contradicts a Pass 4 borderline lock BY NAME** (§4.1.a: *"2 NodeXgid for `home_node` ×3"*) — **Leg B**

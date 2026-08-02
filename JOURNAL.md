@@ -8,6 +8,81 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-660 — the category was never missing; it was a promotion-watch with a trigger nobody owned
+
+**Date:** 2026-08-02 · **Seat:** Joe (*"go"*) · Chat (the read, the retraction, the classification, records). **NO CODE.**
+
+**Opened at** `470c9a1`, tree clean, local == origin — **verified, not taken.**
+
+---
+
+### 🛑 J-659's HEADLINE FINDING WAS FALSE. RETRACTED, NOT HEDGED.
+
+The Phase-0 written hours earlier said *"Pass 4's classification is binary and the codebase has three categories"* and *"`admin_ops.rs` is not a file that broke the rule; it is a file the rule does not reach."* **Both are wrong.**
+
+| where | what it locks |
+|---|---|
+| **Pass 3 §4.3** | *format-boundary preservation (wire OR persistence)* — keep `String` **at the format boundary**; convert **at the format/in-memory boundary, one projection per direction**. Names **"(general) any `TransportMessage::*` variant field carrying identifier-shaped strings"** |
+| **Pass 4 §4.2** | the same rule extended to **Tauri IPC / pipe JSON / stdout** |
+| **Pass 4 §4.3 Option α** | **clap `Args` keep all 16 identifier-shaped `String` slots at the parse boundary; the dispatcher arm projects** — `app.rs`'s `*Args` **by name** |
+
+⇒ **`admin_ops.rs` and `TransportMessage` are inside an existing lock and comply.** ⚠️ ***I read Pass 4 §4.1.a and never opened Pass 3 §4.3*** — a claim narrower than the thing it describes, in a document written the same day it names that species.
+
+### 🔑 AND THE REAL DEFECT IS SHARPER THAN THE ONE I INVENTED
+
+`D-NNN-format-boundary` was **flagged-not-promoted at Pass 3** and **held open at Pass 4**, with the promotion trigger written down: *"fourth structurally-distinct instance at Pass 5 OR cross-milestone closes the gap."*
+
+🛑 **The trigger fired at `M6` — the node admin write-path, `admin_ops.rs`, closed J-197, an admin named-pipe boundary. Nobody returned.**
+
+🔑 ***A PROMOTION-WATCH WITH A NAMED TRIGGER IS WORTH NOTHING IF NOBODY OWNS THE TRIGGER.*** That is `D-136`'s own thesis one level up: **the convention was invisible not because it was unwritten, but because it was deliberately kept OUT of `DECISIONS.md`**, living in two archived design docs.
+
+⚠️ **`D-136` §2 carries the same gap** — it quotes Pass 4 §4.1.a as *the* locked rule and never cites Pass 3 §4.3.
+
+✅ **The verdict is untouched.** §4.3 puts the projection **at** the boundary; a `BTreeMap<String, SeenRecord>` sits on the **in-memory side** ⇒ `SeenRecord` fails the three-way rule exactly as it failed the two-way one.
+
+✅ **And Joe's §2a ruling survives and gets cheaper: it is not *invent a category*, it is *promote the watch*.** His wording and Pass 3 §4.3's are the same rule reached independently — **corroboration, not coincidence.**
+
+### ✅ §3a — THE HAND-READ, 88 OF 88, RECONCILED
+
+**65 BOUNDARY · 5 DESCRIPTIVE · 17 INTERNAL · 1 UNREAD-and-named.**
+
+🔑 **`state.rs` `ThreadState` is a stronger instance than the one that minted `D-136` — that was same-FILE; this is same-STRUCT:**
+
+```rust
+pub id: String,               // "Conceptual Thread id (xgen://thread/sha256:)"  <- ThreadXgid EXISTS
+pub room_id: RoomXgid,
+pub created_by: IdentityXgid,
+pub origin_event: String,     // "The thread.create event id"                    <- EventXgid EXISTS
+```
+
+**No serde derive at all** ⇒ pure in-memory Space state, no format edge. And `state.rs` mentions `Xgid` **187 times** — the type was emphatically in the room.
+
+🔑 **`ops.rs` carries 68 typed field declarations** — incl. `identity_id: IdentityXgid` / `home_node: NodeXgid` — **while `FetchedIdentity` declares the same two field names as `String`.**
+
+📌 **A FOURTH ANSWER SURFACED AND WAS NOT INVENTED INTO THE RULE: `AuditEntry.target` is POLYMORPHIC** (*"peer_node_id, identity_id, …"*) ⇒ **no single flavour can type it**; `admin_ops.rs:574`/`:609` share the shape. 🔓 **Joe's.**
+
+✅ **One slot was refused rather than guessed** — `envelope.rs` `ErrorBody.event_id`, which sits among correlation ids but is named `event_id`.
+
+### 🛑 THREE COUNTING ERRORS AND TWO EDIT DEFECTS, ALL MINE, ALL SELF-CAUGHT
+
+① *"30 boundary slots"* — the real set is larger · ② *"5 unresolved sites"* — **it is 12**; I read four file-groups as five slots · ③ a Leg B/C split that **summed to 17 and attributed wrongly**, because Leg B's `FetchedIdentity` is 2 of the 7 `ops.rs` slots. 🔑 ***A sum that reconciles is not a split that is right.***
+
+⚠️ **And two edit defects, both caught by reading the returned diff:** a chunked file write **dropped a blank line above a `---`**, turning a paragraph into a setext heading (swept programmatically — one instance, fixed); and a ROADMAP anchor **matched only the opening fragment of a line, gluing its now-false tail onto an unrelated new line** — split back out and annotated rather than deleted. 🔑 ***The diff is the check; the anchor you remember is not the anchor on disk.***
+
+### ✅ LEG SIZING, MEASURED
+
+**Leg B = 4 slots** (`SeenRecord` ×2 + `FetchedIdentity` ×2). 📌 **`FillReport` contributes ZERO** — already `Vec<IdentityXgid>` from identity-resolution Leg A ⇒ **the leg's name says three structs and only two carry work.** **Leg C = 13 slots in 5 files.**
+
+🔑 **⇒ I now recommend Leg C is NOT split off, reversing my own J-659 hedge.** The split existed to stop a large unknown blocking identity-resolution Leg D; **the unknown is measured and it is 13**, five of them in `ops.rs` — **the file Leg B already opens.** Splitting would make two milestones edit one file and move the cargo floor twice. 🔓 **Still Joe's.**
+
+**FLOORS — NOT RE-MEASURED, ZERO CODE:** cargo **1589 / 0 / 62 × 56** · svelte-check **0 / 34 / 15** · sampler catalogue **435**. **No new D, no new N** — 🛑 *the `D` this milestone owes is `D-NNN-format-boundary`, and it is **Leg A's deliverable and Joe's to number**.*
+
+🟡 **NEXT: Leg A** — promote the watch, then the grep gate that must **run and fail** on a planted slot. 🔓 **Joe's: the polymorphic `target` shape · whether Leg C splits.**
+
+→ J-660 · `tasks/M_RP_XGID_SLOT_RETYPE.md` v1.2 · ROADMAP v6.48.
+
+---
+
 ## Entry J-659 — the sweep D-136 declined to claim, and it shows the milestone was mis-sized in both directions
 
 **Date:** 2026-08-02 · **Seat:** Joe (ruled — *"go by your recommendations"*) · Chat (sweep, Phase-0, records). **NO CODE. Four documents + one new, one commit.**

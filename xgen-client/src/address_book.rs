@@ -47,6 +47,8 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use xgen_common::xgid::{IdentityXgid, NodeXgid};
+
 /// The address-book storage file, beside `xgen-client_state.json` in the
 /// instance data dir (runbook §1, `xgen-client_*` convention).
 pub const ADDRESS_BOOK_FILE: &str = "xgen-client_address_book.json";
@@ -77,7 +79,7 @@ pub const T1_DEFAULT_RETENTION_DAYS: i64 = 182;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SeenRecord {
     /// The Identity XGID — the book key. From the wire.
-    pub identity_id: String,
+    pub identity_id: IdentityXgid,
     /// Global display name — the whole point of the cache. From the wire.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
@@ -86,7 +88,7 @@ pub struct SeenRecord {
     #[serde(default)]
     pub is_ai: bool,
     /// Home Node — needed to route a re-fetch. From the wire.
-    pub home_node: String,
+    pub home_node: NodeXgid,
     /// RFC-3339 observation time, stamped on every touch. **Book-local.**
     /// Shape copied from `FederatedPeer.last_seen_at` (`state.rs:118`). The
     /// input to §6 E3 eviction.
@@ -171,7 +173,14 @@ impl SeenRecord {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct AddressBook {
-    records: BTreeMap<String, SeenRecord>,
+    /// Keyed by the typed [`IdentityXgid`]. `AddressBook` serialises to disk
+    /// (`save`/`load`) and crosses the Tauri IPC boundary (`get_address_book`),
+    /// yet this map is INTERNAL state, not a boundary slot: under D-137 §1
+    /// clause 3 a slot that is the external form at an edge stays `String` only
+    /// if no internal state holds that form — and this map IS that state. The
+    /// key stays typed; `#[serde(transparent)]` keeps its on-disk / on-wire
+    /// bytes byte-identical to the old bare-`String` form.
+    records: BTreeMap<IdentityXgid, SeenRecord>,
 }
 
 impl AddressBook {
@@ -201,7 +210,12 @@ impl AddressBook {
     }
 
     /// Iterate the records in deterministic (`identity_id`) order.
-    pub fn iter(&self) -> impl Iterator<Item = (&String, &SeenRecord)> {
+    ///
+    /// Yields the key as `&IdentityXgid` — forced by the typed map key, not a
+    /// discretionary widening: a `BTreeMap<IdentityXgid, _>` has no `&String` to
+    /// hand out. (Widening the `&str`-taking accessors is the separate follow-on
+    /// filed under D-137's Leg B, runbook §5/§8.)
+    pub fn iter(&self) -> impl Iterator<Item = (&IdentityXgid, &SeenRecord)> {
         self.records.iter()
     }
 
@@ -336,13 +350,21 @@ impl AddressBook {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+    use xgen_common::xgid::Xgid;
+
+    fn ix(s: &str) -> IdentityXgid {
+        IdentityXgid::from_xgid(Xgid::new(s.to_string()))
+    }
+    fn nx(s: &str) -> NodeXgid {
+        NodeXgid::from_xgid(Xgid::new(s.to_string()))
+    }
 
     fn rec(id: &str, name: Option<&str>, last_seen: &str) -> SeenRecord {
         SeenRecord {
-            identity_id: id.to_string(),
+            identity_id: ix(id),
             display_name: name.map(|s| s.to_string()),
             is_ai: false,
-            home_node: "xgen://pubkey/ed25519:NODE".to_string(),
+            home_node: nx("xgen://pubkey/ed25519:NODE"),
             last_seen: last_seen.to_string(),
             update_version: 0,
             revoked: false,
@@ -356,10 +378,10 @@ mod tests {
         let mut book = AddressBook::new();
         // A record with every field non-default, so a dropped field is caught.
         book.insert(SeenRecord {
-            identity_id: "xgen://pubkey/ed25519:ALICE".to_string(),
+            identity_id: ix("xgen://pubkey/ed25519:ALICE"),
             display_name: Some("Alice".to_string()),
             is_ai: true,
-            home_node: "xgen://pubkey/ed25519:NODE".to_string(),
+            home_node: nx("xgen://pubkey/ed25519:NODE"),
             last_seen: "2026-07-25T12:00:00Z".to_string(),
             update_version: 7,
             revoked: true,
@@ -421,21 +443,21 @@ mod tests {
         // The wire ceiling made concrete: a fetched record NEVER claims a
         // version, a revocation state, or a trust assertion (runbook §2).
         let fetched = crate::ops::FetchedIdentity {
-            identity_id: "xgen://pubkey/ed25519:ERIN".to_string(),
+            identity_id: ix("xgen://pubkey/ed25519:ERIN"),
             display_name: Some("Erin".to_string()),
             registered_at: "2026-07-25T00:00:00Z".to_string(),
             devices: vec![],
-            home_node: "xgen://pubkey/ed25519:NODE".to_string(),
+            home_node: nx("xgen://pubkey/ed25519:NODE"),
             is_ai: true,
             ai_capabilities: None,
         };
         let seen = SeenRecord::from_fetched(&fetched, "2026-07-25T12:00:00Z");
 
         // The wire fields carry over…
-        assert_eq!(seen.identity_id, "xgen://pubkey/ed25519:ERIN");
+        assert_eq!(seen.identity_id.as_str(), "xgen://pubkey/ed25519:ERIN");
         assert_eq!(seen.display_name.as_deref(), Some("Erin"));
         assert!(seen.is_ai, "is_ai carries over from the wire");
-        assert_eq!(seen.home_node, "xgen://pubkey/ed25519:NODE");
+        assert_eq!(seen.home_node.as_str(), "xgen://pubkey/ed25519:NODE");
         assert_eq!(seen.last_seen, "2026-07-25T12:00:00Z", "last_seen is stamped by the caller");
         // …and the three wire-absent fields hold their no-opinion defaults.
         assert_eq!(seen.update_version, 0, "no wire update_version → floor 0");
@@ -453,10 +475,10 @@ mod tests {
 
     fn carol(name: &str, version: u64) -> SeenRecord {
         SeenRecord {
-            identity_id: "xgen://pubkey/ed25519:CAROL".to_string(),
+            identity_id: ix("xgen://pubkey/ed25519:CAROL"),
             display_name: Some(name.to_string()),
             is_ai: false,
-            home_node: "xgen://pubkey/ed25519:NODE".to_string(),
+            home_node: nx("xgen://pubkey/ed25519:NODE"),
             last_seen: "2026-07-25T00:00:00Z".to_string(),
             update_version: version,
             revoked: false,
@@ -526,11 +548,11 @@ mod tests {
         book.insert(carol("Carol M.", 2));
         let wire = SeenRecord::from_fetched(
             &crate::ops::FetchedIdentity {
-                identity_id: "xgen://pubkey/ed25519:CAROL".to_string(),
+                identity_id: ix("xgen://pubkey/ed25519:CAROL"),
                 display_name: Some("carol".to_string()), // stale wire name
                 registered_at: "2026-07-25T00:00:00Z".to_string(),
                 devices: vec![],
-                home_node: "xgen://pubkey/ed25519:NODE".to_string(),
+                home_node: nx("xgen://pubkey/ed25519:NODE"),
                 is_ai: false,
                 ai_capabilities: None,
             },
@@ -717,5 +739,99 @@ mod tests {
         book.touch("xgen://pubkey/ed25519:GHOST", "2026-07-25T12:00:00Z");
         assert!(!book.contains("xgen://pubkey/ed25519:GHOST"), "touch never creates a record");
         assert_eq!(book.len(), 1);
+    }
+
+    // ── D-137 Leg B: the typed BTreeMap key round-trips byte-identically ───────
+    //
+    // These three exist because the retype's on-disk / on-wire invariance is an
+    // ARGUMENT until it is a test (runbook §2c): a typed map KEY travels a
+    // different serde path from a typed value, so it is BROKEN DELIBERATELY here
+    // rather than confirmed.
+
+    #[test]
+    fn v3a_book_round_trips_to_the_bare_xgid_keyed_json_shape() {
+        // The literal IS the test: a save→load equality alone would pass even if
+        // both sides had changed shape together. This pins the on-disk bytes to
+        // bare "xgen://pubkey/ed25519:…" keys and plain-string identity_id /
+        // home_node — proving #[serde(transparent)] keeps the typed key's bytes
+        // identical to the old bare-String form.
+        let dir = tempdir().unwrap();
+        let mut book = AddressBook::new();
+        book.insert(rec("xgen://pubkey/ed25519:ALICE", Some("Alice"), "2026-07-25T00:00:00Z"));
+        book.insert(rec("xgen://pubkey/ed25519:BOB", Some("Bob"), "2026-07-25T00:00:00Z"));
+        book.save(dir.path()).unwrap();
+
+        let on_disk = std::fs::read_to_string(dir.path().join(ADDRESS_BOOK_FILE)).unwrap();
+        let expected = r#"{
+  "xgen://pubkey/ed25519:ALICE": {
+    "identity_id": "xgen://pubkey/ed25519:ALICE",
+    "display_name": "Alice",
+    "is_ai": false,
+    "home_node": "xgen://pubkey/ed25519:NODE",
+    "last_seen": "2026-07-25T00:00:00Z",
+    "update_version": 0,
+    "revoked": false
+  },
+  "xgen://pubkey/ed25519:BOB": {
+    "identity_id": "xgen://pubkey/ed25519:BOB",
+    "display_name": "Bob",
+    "is_ai": false,
+    "home_node": "xgen://pubkey/ed25519:NODE",
+    "last_seen": "2026-07-25T00:00:00Z",
+    "update_version": 0,
+    "revoked": false
+  }
+}"#;
+        assert_eq!(on_disk, expected, "on-disk bytes must be the bare-XGID-keyed shape");
+
+        // …and it loads back equal — the key deserialises through the double
+        // newtype IdentityXgid → Xgid → String.
+        let loaded = AddressBook::load(dir.path()).unwrap();
+        assert_eq!(loaded, book, "save→load preserves the typed-key book");
+    }
+
+    #[test]
+    fn v3b_a_pre_retype_on_disk_file_still_loads() {
+        // The one that proves nobody's existing book file breaks. This JSON is a
+        // book written BEFORE the retype — a bare object keyed by XGID URI, the
+        // shape a String-keyed BTreeMap produced. It must deserialise into the
+        // typed map. Fed, not asserted (N-091): the typed-key deserialise path
+        // had never run against a real on-disk file.
+        let dir = tempdir().unwrap();
+        let legacy = r#"{
+  "xgen://pubkey/ed25519:ALICE": {
+    "identity_id": "xgen://pubkey/ed25519:ALICE",
+    "display_name": "Alice",
+    "is_ai": false,
+    "home_node": "xgen://pubkey/ed25519:NODE",
+    "last_seen": "2026-07-25T00:00:00Z",
+    "update_version": 0,
+    "revoked": false
+  }
+}"#;
+        std::fs::write(dir.path().join(ADDRESS_BOOK_FILE), legacy).unwrap();
+
+        let book = AddressBook::load(dir.path()).expect("a pre-retype file must load");
+        let alice = book.get("xgen://pubkey/ed25519:ALICE").expect("alice present after load");
+        assert_eq!(alice.identity_id.as_str(), "xgen://pubkey/ed25519:ALICE");
+        assert_eq!(alice.home_node.as_str(), "xgen://pubkey/ed25519:NODE");
+        assert_eq!(alice.display_name.as_deref(), Some("Alice"));
+    }
+
+    #[test]
+    fn v3c_borrow_str_lookup_path_is_real() {
+        // D-137 §5 / runbook R3: the four accessors keep &str, driven by the
+        // flavour's Borrow<str>. Prove get/contains/remove all reach a
+        // typed-keyed record by a bare &str, not by a wrapped key.
+        let mut book = AddressBook::new();
+        book.insert(rec("xgen://pubkey/ed25519:ZED", Some("Zed"), "2026-07-25T00:00:00Z"));
+
+        assert!(book.contains("xgen://pubkey/ed25519:ZED"), "contains by &str");
+        assert!(book.get("xgen://pubkey/ed25519:ZED").is_some(), "get by &str");
+        assert!(
+            book.remove("xgen://pubkey/ed25519:ZED").is_some(),
+            "remove by &str returns the record"
+        );
+        assert!(book.is_empty(), "the record is gone after remove");
     }
 }

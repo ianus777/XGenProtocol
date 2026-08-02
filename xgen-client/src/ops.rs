@@ -425,11 +425,11 @@ pub async fn register(
 /// fields become field-mapping on top of this type rather than new design.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FetchedIdentity {
-    pub identity_id: String,
+    pub identity_id: IdentityXgid,
     pub display_name: Option<String>,
     pub registered_at: String,
     pub devices: Vec<xgen_core::wire::types::IdentityDeviceEntry>,
-    pub home_node: String,
+    pub home_node: NodeXgid,
     /// AI declaration (spec 3.6.10). Serde-defaults to `false` when the wire
     /// omits it, matching the human-record byte-identity rule (`types.rs:468`).
     pub is_ai: bool,
@@ -454,11 +454,14 @@ fn parse_identity_get_response(
             ai_capabilities,
             ..
         }) => Ok(Some(FetchedIdentity {
-            identity_id,
+            // The one projection per direction (D-137 §1): the wire delivers
+            // `identity_id` / `home_node` as `String`; they cross into the typed
+            // form HERE, at the fetch boundary, and are typed everywhere after.
+            identity_id: IdentityXgid::from_xgid(Xgid::new(identity_id)),
             display_name,
             registered_at,
             devices,
-            home_node,
+            home_node: NodeXgid::from_xgid(Xgid::new(home_node)),
             is_ai,
             ai_capabilities,
         })),
@@ -2723,23 +2726,25 @@ fn is_message_event(t: &xgen_core::wire::types::EventType) -> bool {
 fn observed_identities(
     space: &str,
     events: &[xgen_core::wire::types::Event],
-) -> Result<Vec<String>> {
+) -> Result<Vec<IdentityXgid>> {
     use std::collections::BTreeSet;
 
-    let mut ids: BTreeSet<String> = BTreeSet::new();
+    let mut ids: BTreeSet<IdentityXgid> = BTreeSet::new();
 
-    // F1 — authors of MESSAGE events (Joe ruling B).
+    // F1 — authors of MESSAGE events (Joe ruling B). `Event.sender` is already
+    // an `IdentityXgid` (`wire.rs`), so this is a typed clone, no downgrade.
     for e in events {
         if is_message_event(&e.event_type) {
-            ids.insert(e.sender.as_str().to_string());
+            ids.insert(e.sender.clone());
         }
     }
 
     // F2 — current members (causal-replay projection over the same drain).
     // Errors propagate; the caller logs and the background fill retries.
+    // `MemberEntry.identity_id` is already an `IdentityXgid`, so again a clone.
     let projected = members_projection(space, events)?;
     for m in &projected.members {
-        ids.insert(m.identity_id.as_str().to_string());
+        ids.insert(m.identity_id.clone());
     }
 
     Ok(ids.into_iter().collect())
@@ -2757,11 +2762,13 @@ fn observed_identities(
 /// Lookup Widening` makes a re-fetch informative, and lands with it — not
 /// reserved here. Pure — unit-testable without a live Node.
 fn partition_observed(
-    observed: Vec<String>,
+    observed: Vec<IdentityXgid>,
     book: &crate::address_book::AddressBook,
-) -> (Vec<String>, Vec<String>) {
+) -> (Vec<IdentityXgid>, Vec<IdentityXgid>) {
     // `partition` routes the `true` arm — the unheld — into the first bucket.
-    observed.into_iter().partition(|id| !book.contains(id))
+    // `book.contains` takes `&str` (D-137 §5: accessors stay `&str`), so the
+    // typed id reaches through via `as_str`.
+    observed.into_iter().partition(|id| !book.contains(id.as_str()))
 }
 
 /// Report from one [`fill_from_space`] pass, for observability + testing.
@@ -2898,7 +2905,7 @@ async fn fill_from_events(
     // its `last_seen` — no fetch (a re-fetch is a no-op under the wire ceiling)
     // — and it keeps E3 from evicting someone who is demonstrably still present.
     for id in &to_touch {
-        book.touch(id, &now);
+        book.touch(id.as_str(), &now);
     }
 
     let mut report = FillReport {
@@ -2922,17 +2929,12 @@ async fn fill_from_events(
     // Pass 2 — fetch the unknowns on ONE reused connection, goodbye once.
     let conn = ctx.session.ensure_connected(ctx.node_override).await?;
     for id in &to_fetch {
-        let fetched = identity_get_on(conn, id).await?;
+        let fetched = identity_get_on(conn, id.as_str()).await?;
         if absorb_fetch(book, fetched, &now) {
             report.fetched += 1;
         } else {
             report.not_found += 1;
-            // D-136 / M-RP-XGID-SLOT-RETYPE: `to_fetch` is Vec<String> only because
-            // observed_identities downgrades typed ids (:2734/:2742) to feed the
-            // String-keyed AddressBook — a post-retrofit regression, filed not fixed.
-            // This re-wrap goes away when that milestone lands; the field type is
-            // already correct and needs no rework.
-            report.not_found_ids.push(IdentityXgid::from_xgid(Xgid::new(id.clone())));
+            report.not_found_ids.push(id.clone());
         }
     }
     let _ = conn.goodbye("client_disconnect").await;
@@ -3265,7 +3267,7 @@ mod tests {
         let got = parse_identity_get_response(inbound)
             .unwrap()
             .expect("identity.record must map to Some");
-        assert_eq!(got.identity_id, "xgen://pubkey/ed25519:CAROL");
+        assert_eq!(got.identity_id.as_str(), "xgen://pubkey/ed25519:CAROL");
         assert_eq!(got.display_name.as_deref(), Some("Carol"));
         assert!(got.is_ai, "is_ai must be preserved from the wire");
     }
@@ -3788,7 +3790,7 @@ mod pass_4_commit_1_tests {
         );
 
         let observed = observed_identities(&space_id, &events).unwrap();
-        assert!(observed.contains(&bob_id), "silent member bob must enter via F2");
+        assert!(observed.contains(&ix(&bob_id)), "silent member bob must enter via F2");
     }
 
     #[test]
@@ -3824,7 +3826,7 @@ mod pass_4_commit_1_tests {
         );
         // …but F1 catches her.
         let observed = observed_identities(&space_id, &events).unwrap();
-        assert!(observed.contains(&carol_id), "author-who-left carol must enter via F1");
+        assert!(observed.contains(&ix(&carol_id)), "author-who-left carol must enter via F1");
     }
 
     #[test]
@@ -3845,7 +3847,7 @@ mod pass_4_commit_1_tests {
 
         let observed = observed_identities(&space_id, &events).unwrap();
         assert_eq!(
-            observed.iter().filter(|c| *c == &alice_id).count(),
+            observed.iter().filter(|c| c.as_str() == alice_id.as_str()).count(),
             1,
             "an identity that is both an author and a member appears once, not twice"
         );
@@ -3867,11 +3869,11 @@ mod pass_4_commit_1_tests {
         let mut book = crate::address_book::AddressBook::new();
         book.insert(crate::address_book::SeenRecord::from_fetched(
             &FetchedIdentity {
-                identity_id: bob_id.clone(),
+                identity_id: ix(&bob_id),
                 display_name: Some("Bob".into()),
                 registered_at: "2026-07-25T00:00:00Z".into(),
                 devices: vec![],
-                home_node: TEST_HOME.into(),
+                home_node: nx(TEST_HOME),
                 is_ai: false,
                 ai_capabilities: None,
             },
@@ -3880,8 +3882,8 @@ mod pass_4_commit_1_tests {
 
         let observed = observed_identities(&space_id, &events).unwrap();
         let (to_fetch, to_touch) = partition_observed(observed, &book);
-        assert!(!to_fetch.contains(&bob_id), "an already-held identity is not re-fetched");
-        assert!(to_touch.contains(&bob_id), "an already-held identity is touched instead");
+        assert!(!to_fetch.contains(&ix(&bob_id)), "an already-held identity is not re-fetched");
+        assert!(to_touch.contains(&ix(&bob_id)), "an already-held identity is touched instead");
     }
 
     #[test]
@@ -3898,11 +3900,11 @@ mod pass_4_commit_1_tests {
     fn absorb_fetch_some_upserts_stamping_last_seen() {
         let mut book = crate::address_book::AddressBook::new();
         let fetched = FetchedIdentity {
-            identity_id: "xgen://pubkey/ed25519:DAN".into(),
+            identity_id: ix("xgen://pubkey/ed25519:DAN"),
             display_name: Some("Dan".into()),
             registered_at: "2026-07-25T00:00:00Z".into(),
             devices: vec![],
-            home_node: TEST_HOME.into(),
+            home_node: nx(TEST_HOME),
             is_ai: false,
             ai_capabilities: None,
         };
@@ -3988,17 +3990,17 @@ mod pass_4_commit_1_tests {
         let mut book = AddressBook::new();
         let candidates = observed_identities(&space_id, &events).unwrap();
         for want in [&alice_id, &bob_id, &erin_id, &carol_id, &dave_id, &frank_id] {
-            assert!(candidates.contains(want), "every corpus identity is observed: {want}");
+            assert!(candidates.contains(&ix(want)), "every corpus identity is observed: {want}");
         }
-        assert!(candidates.contains(&bob_id), "bob (silent) enters via F2, not F1");
+        assert!(candidates.contains(&ix(&bob_id)), "bob (silent) enters via F2, not F1");
 
         // ── Simulate the node registry (Option A) and run the fetch/absorb loop.
         let mk = |ident: &str, name: &str, is_ai: bool| FetchedIdentity {
-            identity_id: ident.to_string(),
+            identity_id: ix(ident),
             display_name: Some(name.to_string()),
             registered_at: "2026-07-25T00:00:00Z".to_string(),
             devices: vec![],
-            home_node: TEST_HOME.to_string(),
+            home_node: nx(TEST_HOME),
             is_ai,
             ai_capabilities: None,
         };
@@ -4012,7 +4014,7 @@ mod pass_4_commit_1_tests {
 
         let now = "2026-07-25T13:00:00Z";
         for cand in &candidates {
-            absorb_fetch(&mut book, registry.get(cand).cloned(), now);
+            absorb_fetch(&mut book, registry.get(cand.as_str()).cloned(), now);
         }
 
         // ── NOW-tier assertions (live-derivable).

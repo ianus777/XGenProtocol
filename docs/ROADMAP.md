@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.53  
+> Version: 6.54  
 > Date: May 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -321,6 +321,8 @@ XGen Protocol
 │   │   ├── ✅ **Leg B the four address-book slots** — 4 slots plus the `BTreeMap` key; three `String`/typed bridge sites gone; cargo 1589 to 1592 · J-665 (J-660, J-661, J-664) · runbook `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_B.md` **v1.2 COMPLETED**
 │   │   ├── 🟡 **Leg C the remainder** — 13 slots in 5 files; Chat recommends it is not split off · J-660 · `tasks/M_RP_XGID_SLOT_RETYPE.md` §7 ↳ trigger: fired J-665 — Leg B landed; Joe rules the split
 │   │   └── 🟡 **Leg D records + close** — the close must state the enforcement posture · DECISIONS.md D-136 §3 ↳ trigger: Leg C resolves
+│   ├── 🟡 **M-RP-VIEW-MENU** — a View menu between File and Help, items Address Book and Self Card · J-589 (J-666) · `tasks/M_RP_MEMBERS.md` §4c ↳ trigger: the Address Book UI and the Self Card UI both exist
+│   ├── 🟡 **M-RP-WIDGET-SETTINGS** — a settings icon on each widget's tile stripe, deep-linking to that plugin's Settings section · J-666 ↳ trigger: every relevant plugin ships a `settingsComponent` — 1 of 6 today
 │   ├── 🟡 **Clean-table UI milestone** — the live UI build
 │   │   ↳ trigger: Round-2 audit GO + M10 closed *(transcribed from the UI container)*
 │   └── 🟡 **Multi-device arc** — R2-F09 ↳ trigger: the UI prototype exercises device add/remove

@@ -8,6 +8,60 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-666 — three filed items: the View menu gets a node, the widget settings button gets a node, and the third one the code says cannot be happening
+
+**Date:** 2026-08-02 · **Seat:** Joe (filed all three) · Chat (grounding, records). **NO CODE.** ROADMAP v6.53 → v6.54, **two new nodes**.
+
+Joe, from memory: *"my proposal was new menu View, between File and Help. so the full path was view > address book + one other."*
+
+---
+
+### ① THE VIEW MENU — FOUND, AND IT WAS LOCKED A WEEK AGO
+
+🔒 **`View > Address Book, Self Card`, locked by Joe 2026-07-25, recorded at J-589 and `tasks/M_RP_MEMBERS.md` §4c/§9.** His wording: *"i meant: View > Address Book, Self Card is analogous to File > Setting, Exit now."* **Two distinct items, not a submenu** — Address Book opens its own modal, Self Card opens the self **widget** (it carries more logic than a card). 🔑 **It discharges a collision Chat had filed:** `E2` per-entry erasure had **no UI to delete from**.
+
+⚠️ **AND THE REASON HE COULD NOT FIND IT IS THE POINT OF THIS ENTRY: IT WAS LOCKED IN A TASK DOC AND A JOURNAL ENTRY, AND ON NO STATE BOARD ANYWHERE.** The ROADMAP carried **zero** menu nodes, and **`M-RP-MEMBERS` still has no ROADMAP node at all** — the absence J-616 flagged and left for the unnamed back-fill milestone. 🔑 ***A locked design with no state-board presence is not findable by anyone who was not in the room*** — `D-137` §2's thesis (*a rule parked where nobody looks is parked*) reaching a design instead of a decision. **The fix is one node, and it is written this entry.**
+
+📌 **Chat's own error inside that same exchange is worth re-reading and is kept:** Joe's *"like Settings and Exit"* was an analogy about **STRUCTURE** — a menu holding two items — and Chat read it as an analogy about **LOCATION**, concluding *"the View-menu proposal is dropped, they go in File."* Corrected by Joe the same day. **It cost one sentence instead of a milestone only because it was filed as a reading and not as a lock.**
+
+🔒 **THE GATE, JOE'S, THIS SESSION:** *"it is gated by existing address book ui and self card ui. then we would link them to the menu."* ⇒ the node's trigger is **both UIs existing**, and neither does today — there is no Address Book modal, no Self Card item, and no verb for either beyond `get_address_book`, which is live. 🔓 **Still open from J-589 and untouched: whether the self widget behind Self Card *is* Settings › Account or merely reaches it.** Joe said *"maybe"*, and the doc carries the warning that ***a "maybe" is not a design and must not harden by repetition.***
+
+### ③ THE PER-WIDGET SETTINGS BUTTON — NODE WRITTEN, GATE ALREADY MEASURABLE
+
+Joe: *"setting icon button on each ui widget, which will be linked to plugin setting modal … with agreement that we linked the buttons when all relevant setting modals will be created."*
+
+✅ **The gate is not a judgement call — it is already a countable predicate in the code.** `plugin-list.svelte:79` computes `hasSettings = !!p.settingsComponent`, and the Settings modal only reaches a plugin's own pane when that field is set (`settings-dialog.svelte:193`). **Exactly ONE `settingsComponent` exists today** — `grid-plate-settings.svelte`, *"the FIRST `settingsComponent` in the project"* — against **six** client plugins. ⇒ the trigger reads **"every relevant plugin ships a `settingsComponent` — 1 of 6 today"**, which is checkable by grep rather than by opinion.
+
+📌 **It is NOT `M-RP6.1m`.** That one is the **action row inside the plugin list** (info / settings / disable / uninstall on a row). This is an affordance on the **tile stripe** of every mounted widget, deep-linking into the same modal — a second entry point to one pane, the J-503 precedent. ⚠️ **And it lands on `region-tile`, a shipped `core` component whose stripe currently holds exactly `[move-grip · title · fold×2]`** ⇒ a `core` change, which by this project's own rule is its own milestone and never a rider.
+
+### ② 🛑 THE THIRD ITEM — AND THE CODE SAYS IT CANNOT BE HAPPENING, SO IT IS FILED AS AN OBSERVATION AND NOT AS A DIAGNOSIS
+
+Joe: *"in plugins settings, in the setting section of text processing, we have text area with replacement pairs def. we need to turn off the processor on particularly this text area. now the whole definitions are processing too."*
+
+🛑 **Grounded against the source, and it reads the opposite way.** `substitutions-editor.svelte` mounts its `<TextArea>` **without** the processor spread — `<TextArea bind:value={draft} {rows} id={cid('rules')} … />`, no `{...processor(…)}`. The processor is **opt-in per call site**: `textarea.svelte` forwards `{...rest}` and carries no logic of its own, and the **only** consumer that spreads it is `composer-panel.svelte:114`.
+
+🔑 **AND THE REFUSAL IS EXPLICIT, IN A COMMENT WRITTEN FOR EXACTLY THIS CASE** (`composer-panel.svelte:31-40`): *"THE TEXT PROCESSOR IS WIRED HERE, AND HERE ONLY … The other — `substitutions-editor`'s own textarea — is refused permanently: processing the box where you AUTHOR substitution rules is a feedback loop, where typing `:)` into the rule list rewrites the rule you are in the middle of writing."* The criterion recorded there is **COMPOSING vs CONFIGURING**, and the editor is the configuring case.
+
+⚠️ **SO ONE OF TWO THINGS IS TRUE, AND CHAT CANNOT TELL WHICH FROM THE SOURCE ALONE:** either the behaviour Joe saw has **another cause** — the shadowed-rule warning, the `-->`/`<--` seed substring-shadowing (D-100 amend), or a rule whose output another rule rewrites — or **the refusal has regressed and the comment is now a false statement about the build**, which is precisely the `N-116` shape (*the record self-consistent while the code is not*) and the `N-109` shape (*a careful note left standing after the state that made it true died*).
+
+🔒 **NOT FILED AS A BUG, AND NOT DISMISSED EITHER.** 🔑 **J-645 is the standing precedent: Joe's memory overturned a Chat finding and underneath it was a real regression.** ⇒ **it needs an INTERACTIVE look — his app, his eyes, one reproduction** (what he typed, in which box, what came back). **No node, no milestone, no diagnosis until it is reproduced.** *A bug written from a symptom whose mechanism nobody located is a record that will be cited later as though it had been.*
+
+### Written
+
+**Two ROADMAP nodes, both 🟡 PENDING, both with a named trigger:** `M-RP-VIEW-MENU` (trigger: the Address Book UI and the Self Card UI both exist) and `M-RP-WIDGET-SETTINGS` (trigger: every relevant plugin ships a `settingsComponent` — 1 of 6 today). 📌 **Both IDs are Chat's and reversible on one word** — naming is Joe's under `D-123`.
+
+**VERIFIED:** ROADMAP **492 lines · crlf 492 · bareLF 0** · node lines **260 → 262** (exactly the two added) · annotations **trigger 12 / Owes 2 / other 0** · unofficial icons **0** · new descriptions **88** and **119** chars (R-5 bound ≈160).
+
+**FLOORS — not re-measured, zero code:** cargo **1592/0/62 × 56** · svelte-check **0/34/15** · sampler catalogue **435** · gate **PASS 84**.
+
+**No new D. No new N.**
+
+🔓 **OPEN FOR JOE:** the two node IDs · one reproduction of ② · Leg C's split ruling · whether `M-RP-IDENTITY-RESOLUTION` Leg D opens · the unnamed back-fill milestone, which now has one more reason to exist.
+
+→ J-666 · ROADMAP v6.54.
+
+---
+
 ## Entry J-665 — Leg B lands: four slots typed, the map key with them, and a runbook instruction that pointed at the wire
 
 **Date:** 2026-08-02 · **Seat:** Clair (implementation, commit `c2975f3`) · Chat (re-drive, records) · Joe (pushes). ROADMAP v6.52 → v6.53 · Phase-0 v1.4 → v1.5 · runbook v1.1 → **v1.2 COMPLETED** · `M_RP_IDENTITY_RESOLUTION.md` v1.14 → v1.15.

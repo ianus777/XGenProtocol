@@ -8,6 +8,72 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-661 — Leg A closes, and I raised a false alarm against my own uncommitted work
+
+**Date:** 2026-08-02 · **Seat:** Joe (*"go by your recomms"*, then the correction) · Chat (`D-137`, the gate, records).
+
+**Opened at** `5eefa6a`, verified against origin.
+
+---
+
+### 🔒 `D-137` — PROMOTED, NOT MINTED
+
+The format-boundary rule was written in full at **Pass 3 §4.3** and extended at **Pass 4 §4.2**. **This entry does not invent it; it gives it a home.**
+
+**The three-way rule:** INTERNAL ⇒ retype · DESCRIPTIVE ⇒ stays `String` · **BOUNDARY ⇒ stays `String` iff a named projection converts it at the edge AND no internal state holds the `String` form.** 🛑 **The second half is what stops (3) being a loophole: a slot does not become BOUNDARY by sitting NEAR a boundary.**
+
+📌 **Polymorphic slots are a second independent reason, not a fourth category** — `AuditEntry.target`, `admin_ops.rs:574`/`:609`. An **in-memory** polymorphic slot would need an `AnyXgid` and would re-open it; none exists.
+
+🔑 **§2 is the entry's real content, and it is `D-136` one level up.** The rule was **not unwritten** — it was deliberately kept out of `DECISIONS.md` pending a trigger (*"fourth structurally-distinct instance at Pass 5 OR cross-milestone"*) **which fired at `M6` (J-197) and sat unnoticed for two months.** ⇒ ***A promotion-watch with a named trigger is worth nothing if nobody owns the trigger.*** A watch needs **(a) a trigger, (b) an owner, (c) a place the owner will actually read**; absent (c), **an imperfect rule in `DECISIONS.md` beats a perfect one in `tasks/archive/`.**
+
+### ✅ THE GATE, EXERCISED RATHER THAN ASSERTED
+
+```
+clean tree                    -> PASS  (88 slots: 65 BOUNDARY / 5 DESCRIPTIVE / 17 INTERNAL / 1 UNREAD)
+planted slot, no -AllowDirty  -> FAIL  "1 uncommitted .rs change(s) - the baseline is not reproducible."
+planted slot, -AllowDirty     -> FAIL  "xgen-client/src/session.rs:84  SessionState.gate_test_target_id"
+after revert                  -> PASS  (88 slots)
+```
+
+**The revert sits in `finally`, so the plant cannot outlive the test.** 🔑 ***A gate that has never failed is not known to work.***
+
+### 🛑 THE FALSE ALARM — THE MOST EXPENSIVE THING I DID TODAY
+
+Mid-turn I found a planted line in `session.rs` and two untracked files I could not account for, and **raised them to Joe as an unexplained third-party write to a tracked source file.** Joe: *"check file modify date. it is yours."*
+
+**They were mine**, written 13:57–13:58 in that same turn. 🔑 ***I checked the tree's STATE before checking AUTHORSHIP*** — and the decisive evidence was already on screen: **the gate's header is my own sentences verbatim, and the manifest's `EXPECTED` line is my §3a counts.**
+
+⇒ **An artifact read without provenance is this milestone's own species turned on the tooling.** And *"unexplained modification to a source file"* is an alarm that costs a great deal when it is wrong — **it is not a cheap default to reach for.**
+
+✅ **What survived the alarm was true and did matter:** the plant broke the build; it was labelled *"reverted immediately"* and **had not been reverted**; and it had **contaminated my own sweep** — **255 became 256** because `planted_target_id` matches on the `_id` suffix. 🔒 **The committed `255 / 125 / 130` needed no correction**, re-confirmed after the revert.
+
+🔑 **The off-by-one was only ever caught because I refused to build the manifest on an unreconciled number.** *A manifest built on a number nobody reconciled bakes the error in permanently.*
+
+### 🛑 AND THE GATE HAD A DEFECT MY OWN MISTAKE EXPOSED
+
+It swept the **filesystem**. Two contamination vectors, and the obvious fix closes only one:
+
+- **untracked** `.rs` → excluded by sourcing the file set from `git ls-files`.
+- **modified tracked** `.rs` → **still reads dirty from disk**, so it is now **refused outright** unless `-AllowDirty` is passed, which prints a loud warning that the run measures the working tree and its numbers must not be quoted.
+
+⚠️ *`git ls-files` alone would NOT have caught my case. Stating that because the tempting one-line fix is the incomplete one.*
+
+### 🔒 RULE 0 GAINS ITEM (5)
+
+Run the gate when the session will touch Rust. **Bolted to the one list in this project that is genuinely re-read every session** — which is the entire point, given that `D-137` exists because a rule filed somewhere tidier was never read again.
+
+### Calls taken under `D-123`, reversible on one line
+
+① polymorphic = a clause, not a category · ② **Leg C is not split.**
+
+**FLOORS — NOT RE-MEASURED. The only Rust touched was a test plant, reverted, tree verified clean:** cargo **1589 / 0 / 62 × 56** · svelte-check **0 / 34 / 15** · sampler catalogue **435**. **One new D (`D-137`). No new N.**
+
+🟡 **NEXT: Leg B — 4 slots** (`SeenRecord` ×2 + `FetchedIdentity` ×2), which unblocks `M-RP-IDENTITY-RESOLUTION` Leg D. 🔓 **Joe's: the `D-137` number if he wants another · whether Leg C splits.**
+
+→ J-661 · `DECISIONS.md` `D-137` · ROADMAP v6.49.
+
+---
+
 ## Entry J-660 — the category was never missing; it was a promotion-watch with a trigger nobody owned
 
 **Date:** 2026-08-02 · **Seat:** Joe (*"go"*) · Chat (the read, the retraction, the classification, records). **NO CODE.**

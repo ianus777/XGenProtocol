@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-01  
+> **Last updated:** 2026-08-02  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -5101,3 +5101,61 @@ and **always**, including when the run dies or is abandoned:
 ⚠️ **It does not retroactively fault `M-RP-ADDRESS-BOOK` Leg D.** With no enforcement in place, `String` was the locally reasonable choice and nothing signalled otherwise. 🔑 **A convention nobody can see is not a convention anyone can follow — that is the whole point of this entry.**
 
 📌 **RELATION TO THE EXISTING FAMILY.** Sibling to **a trigger that has fired is a defect**: both concern a completed action being mistaken for a durable property. Distinct from `D-071` (audits precede dependent milestones), which governs **order**; this governs **what a completed pass leaves behind**.
+
+---
+
+## D-137 — Format-boundary preservation is a project rule, not a design-doc note; and a promotion-watch whose trigger has no owner will not fire
+
+**Date:** 2026-08-02 · **Layer:** project-wide type discipline + decision-record durability · **Ref:** J-659, J-660, J-661; XGID Retrofit Pass 3 §4.3, Pass 4 §4.2 / §4.3; `D-136`; `M-RP-XGID-SLOT-RETYPE` Leg A
+
+🔒 **PROMOTED, NOT MINTED.** This rule was written in full at **Pass 3 §4.3** (2026-05-28) and extended at **Pass 4 §4.2**. It was deliberately held as candidate `D-NNN-format-boundary` under `D-069`/`D-077` surface-diversity discipline, with a written promotion trigger. **This entry does not invent it. It gives it a home.**
+
+### §1 — THE RULE
+
+**An identifier slot is one of three things, and the third is not a loophole:**
+
+1. **INTERNAL** — held in in-memory state. **Retype to the typed XGID flavour.**
+2. **DESCRIPTIVE** — not an identifier of anything in the protocol (a correlation token, a display string). **Stays `String`.**
+3. **BOUNDARY** — the external form at a parse or serialisation edge. **Stays `String` if and only if a named projection converts it at that edge AND no internal state holds the `String` form.**
+
+**Pass 3 §4.3's canonical wording, which is the authority:** *conversion happens at the format/in-memory boundary, **one projection per direction**.*
+
+🛑 **THE SECOND HALF OF (3) IS WHAT STOPS IT BECOMING AN EXCUSE.** `SeenRecord` fails it: a `BTreeMap<String, SeenRecord>` is in-memory state holding the external form. **A slot does not become BOUNDARY by sitting near a boundary.**
+
+📌 **POLYMORPHIC SLOTS ARE A SECOND, INDEPENDENT REASON A BOUNDARY SLOT STAYS `String`, NOT A FOURTH CATEGORY.** `AuditEntry.target` and `admin_ops.rs:574`/`:609` hold a different flavour per verb, so **no single flavour can type them at all**. Recorded so a later reader does not "fix" them. ⚠️ **An in-memory polymorphic slot would need an `AnyXgid` enum and would re-open this. None exists today.**
+
+### §2 — THE MECHANISM THIS ENTRY ACTUALLY FIXES
+
+`D-136` says *a completed sweep is not a standing rule*. **This entry is that thesis one level up.**
+
+The format-boundary rule was **not unwritten**. It was written, worked, tabled and reasoned — and then **deliberately kept out of `DECISIONS.md`** pending a promotion trigger: *"fourth structurally-distinct instance at Pass 5 OR cross-milestone closes the gap."*
+
+🛑 **THE TRIGGER FIRED AT `M6`** — the node admin write-path (`admin_ops.rs`, closed J-197) is a cross-milestone, structurally-distinct admin named-pipe boundary. **Nobody returned to the watch.** It sat fired and unnoticed for two months.
+
+🔑 ***A PROMOTION-WATCH WITH A NAMED TRIGGER IS WORTH NOTHING IF NOBODY OWNS THE TRIGGER.*** A deferral is only real if some named artifact will be read again. **A candidate parked in an archived design doc is parked where nobody looks.**
+
+⇒ 🔒 **A promotion-watch is created with (a) a trigger, (b) an owner, and (c) a place the owner will actually read.** Absent (c), record the rule now and refine it later — **an imperfect rule in `DECISIONS.md` beats a perfect one in `tasks/archive/`.**
+
+### §3 — THE ENFORCEMENT, EXERCISED RATHER THAN ASSERTED
+
+`xgid-slot-gate.ps1` + `xgid-slot-manifest.tsv` at the repo root. It sweeps identifier-shaped `String` slots authored **after** the arc-close commit `7ed4e30` and diffs them against the per-slot manifest, keyed on **File + Struct + Field** — never line numbers, which shift.
+
+- **New slot not on the manifest → FAIL.** Classify it under §1, then add it.
+- **Manifest row gone → WARN.** Expected while Legs B/C retype; **never silent.**
+- **Manifest tally disagreeing with its own `EXPECTED` header → FAIL.** This is what stops the manifest and the Phase-0 §3a drifting apart.
+
+🛑 **PARTITION BY ANCESTRY, NEVER BY AUTHOR DATE.** `7ed4e30` landed at **12:24:02** on 2026-05-29 and **36 in-arc slots carry that same date**, so a day-granularity test cannot separate them.
+
+🛑 **THE GATE REFUSES A DIRTY TREE.** Two contamination vectors, and the obvious fix only closes one: **untracked** files are excluded by sourcing the file set from `git ls-files`; **modified tracked** files still read dirty from disk and are refused outright. ⚠️ *Both were found the hard way — a planted test slot in a tracked file was counted as production and moved the sweep from 255 to 256 (J-661).*
+
+✅ **EXERCISED AT J-661, NOT ASSERTED:** clean tree → **PASS** (88 slots: 65 / 5 / 17 / 1). Planted slot, no `-AllowDirty` → **FAIL** on the dirty guard. Planted slot with `-AllowDirty` → **FAIL** naming `SessionState.gate_test_target_id`. Revert in `finally`, so the plant cannot outlive the test. 🔑 ***A gate that has never failed is not known to work.***
+
+### §4 — WHAT THIS DOES NOT CLAIM
+
+🛑 **It does not claim the gate catches the defect that minted `D-136`.** A grep catches a slot that is `String` and should not be. It **cannot** catch a slot correctly `String` at a boundary and wrongly consumed as internal state one function away — which is `SeenRecord`'s actual shape. ***The gate clears the desk; it does not retire the read.***
+
+⚠️ **It does not fault the retrofit passes.** Pass 3 and Pass 4 reasoned this rule better than this entry does; they were right to hold promotion under `D-077` durability discipline. **The defect is that holding had no owner, not that it held.**
+
+⚠️ **It does not fault `D-136`.** That entry quotes Pass 4 §4.1.a's binary classification and never cites Pass 3 §4.3 — **a claim narrower than the thing it describes** — but its verdict is untouched: `SeenRecord` fails the three-way rule exactly as it failed the two-way one.
+
+📌 **RELATION TO THE FAMILY.** Child of `D-136` (what a completed pass leaves behind) and sibling to **a trigger that has fired is a defect** — here the fired trigger was a *promotion* trigger, and nothing was watching it. Distinct from `D-131` (annotate, never silently repair), which governs how a superseded claim is retired.

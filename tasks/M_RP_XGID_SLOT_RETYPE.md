@@ -1,6 +1,6 @@
 # M-RP-XGID-SLOT-RETYPE — the identifier slots that regressed to `String` after the retrofit arc closed
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -232,6 +232,14 @@ pub origin_event: String,     // "The thread.create event id"                   
 
 **Leg A — the enforcement mechanism.** ③ the grep gate + ④ the written rule in `CLAUDE.md`. **Moves no floor** (a script and a document). 🔑 **FIRST, DELIBERATELY** — so that every later leg lands under the rule instead of beside it.
 
+✅ **CLOSED J-661.** `D-137` promoted to `DECISIONS.md` · `xgid-slot-gate.ps1` + `xgid-slot-manifest.tsv` at the repo root · `CLAUDE.md` **Rule 0 gains item (5)**, which is where the trigger finally gets an owner.
+
+🔒 **④ turned out not to be *"write a new rule"* but *promote `D-NNN-format-boundary`*, whose own trigger had fired at `M6` and gone unread for two months.** 🔑 ***A promotion-watch with a named trigger is worth nothing if nobody owns the trigger*** ⇒ a watch needs **(a) a trigger, (b) an owner, (c) a place the owner will actually read**.
+
+✅ **THE GATE WAS EXERCISED, NOT ASSERTED:** clean tree **PASS** (88 — 65/5/17/1) · planted slot **FAIL** on the dirty guard · planted slot with `-AllowDirty` **FAIL** naming `SessionState.gate_test_target_id` · revert in `finally` · post-revert **PASS**.
+
+🛑 **AND THE GATE'S OWN FIRST DEFECT WAS FOUND THE HARD WAY: IT SWEPT THE FILESYSTEM.** A planted slot in a **tracked** file was counted as production and moved the sweep **255 → 256**. Two vectors, and **the tempting one-line fix closes only one**: untracked files die to `git ls-files`; **modified tracked files still read dirty from disk** and are now refused outright unless `-AllowDirty` prints its warning. ⚠️ *`ls-files` alone would NOT have caught the actual incident.*
+
 **Leg B — the three address-book structs.** `FetchedIdentity` · `SeenRecord` · `FillReport`, plus the `BTreeMap<String, _>` key and the `ops.rs:2734`/`:2742` downgrade that disappears with them. **Moves the cargo floor.** 🔒 **THIS IS THE ONLY LEG ON `M-RP-IDENTITY-RESOLUTION` LEG D's CRITICAL PATH.**
 
 **Leg C — the remainder**, sized by what Leg 0's hand-read actually finds. 🔓 **MAY BE SPLIT OFF INTO ITS OWN MILESTONE RATHER THAN BLOCKING** — see §7.
@@ -273,11 +281,12 @@ At J-658 Chat sequenced this milestone **ahead of** `M-RP-IDENTITY-RESOLUTION` L
 - [x] §5's M13 ordering ruled — ✅ **this milestone first (Chat, `D-123`)**
 - [ ] **All 88 slots HAND-CLASSIFIED**, each assigned INTERNAL / BOUNDARY / DESCRIPTIVE **by reading the struct and its consumers** — **Leg 0** — ✅ **DONE at v1.2, §3a: 65 BOUNDARY · 5 DESCRIPTIVE · 17 INTERNAL · 1 UNREAD-and-named; reconciled to 88**
 - [ ] **`ErrorBody.event_id` read to a verdict** — the one slot §3a refused to classify — **Leg 0**
-- [ ] **The POLYMORPHIC `target` shape ruled** — `AuditEntry.target` and `admin_ops.rs:574`/`:609` hold a different flavour per verb, so no single flavour can type them. 🔓 **A fourth answer the rule does not name; Joe's** — **Leg A**
+- [ ] **The POLYMORPHIC `target` shape ruled** — `AuditEntry.target` and `admin_ops.rs:574`/`:609` hold a different flavour per verb, so no single flavour can type them. 🔓 **A fourth answer the rule does not name; Joe's** — **Leg A** ⚠️ *superseded by the ticked item above; kept not erased (`D-131`)*
 - [ ] The **12** unresolved sites (`wire/types.rs` ×8 · `envelope.rs` ×2 · `connection.rs` · `fanout.rs`) **named** — ✅ **DONE at v1.1: they are `TransportMessage` enum variant fields, covered by Pass 3 §4.3 by name.** ⚠️ *the DoD read "5" at v1.0; superseded, kept not erased (`D-131`)* — **Leg 0**
-- [ ] **`D-NNN-format-boundary` PROMOTED to a real `D`**, with its fired trigger recorded — 🛑 **the milestone's central deliverable, and it is a `DECISIONS.md` edit, not a code edit** — **Leg A**
-- [ ] The grep gate exists, **runs, and FAILS on a planted `String` identifier slot** — 🛑 **exercised, not asserted; a gate that has never failed is not known to work** — **Leg A**
-- [ ] The written rule lands in `CLAUDE.md` as a standing convention — **Leg A**
+- [x] **`D-NNN-format-boundary` PROMOTED to a real `D`**, with its fired trigger recorded — ✅ **`D-137`, J-661** — **Leg A**
+- [x] The grep gate exists, **runs, and FAILS on a planted `String` identifier slot** — ✅ **J-661: PASS clean · FAIL on the dirty guard · FAIL naming the planted slot · PASS after revert** — **Leg A**
+- [x] The written rule lands in `CLAUDE.md` as a standing convention — ✅ **Rule 0 item (5), J-661** — **Leg A**
+- [x] **The POLYMORPHIC `target` shape ruled** — ✅ **`D-137` §1: a second independent reason a BOUNDARY slot stays `String`, NOT a fourth category** — **Leg A**
 - [ ] `SeenRecord.home_node` is `NodeXgid` — 🔑 **it contradicts a Pass 4 borderline lock BY NAME** (§4.1.a: *"2 NodeXgid for `home_node` ×3"*) — **Leg B**
 - [ ] The `ops.rs:2734`/`:2742` downgrade is **GONE, not moved** — **Leg B**
 - [ ] cargo floor re-measured on every Rust leg, delta explained — **Legs B, C**

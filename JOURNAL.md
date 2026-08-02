@@ -8,6 +8,81 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-663 — the roadmap audited against its own node format; 61 KB of journal duplication removed
+
+**Date:** 2026-08-02 · **Seat:** Joe (ruled) · Chat (audit, cleanup, records). **NO CODE.** ROADMAP v6.50 → v6.51.
+
+**Joe:** *"entries start to be duplicated records of journal. pls check all entries against the node format definition, which is defined in the same file."* Then: *"owes should be written"* and *"i dont need eyeballing, i suppose that those info are in journal or in decisions files."*
+
+---
+
+### The format admits two annotations. There were 170 of a third kind.
+
+The spec at **How to read this view** defines exactly one: `↳ trigger: <condition>`. `Owes:` was in use as a `D-133` convention the format had never absorbed — **Joe ruled it written in**, so the tree now admits two.
+
+Everything else on a `↳` line was narrative:
+
+| | count |
+|---|---|
+| `↳ trigger:` | 14 |
+| `↳ Owes:` | 3 |
+| **undefined — pure narrative** | **170** (168 inside the tree region) |
+
+**61,215 characters, averaging 360 per line, longest 1,707.** Exactly what R-5 was written to prevent: *"Without a bound, a chronicle simply relocates from prose into a tree row."*
+
+### The growth curve is the argument, and it is mine
+
+```
+2026-07-31  ROADTREE Leg G close    68,890 bytes   <- the cleanup baseline
+2026-08-01  J-651                   86,787
+2026-08-02  J-662                  119,889        <- +74% in eight days
+2026-08-02  J-663 (this)            52,508        <- below the baseline
+```
+
+**Eleven of the twelve commits that grew it are mine, from this session.** `M-DOC-ROADTREE` cut a 761 KB chronicle down to 43 KB; the chronicle walked back in through the annotation lines while I was closing legs.
+
+### The deletion was safe, and that was checked rather than assumed
+
+**169 of 170 narrative lines sat under a node that already cites a `J-nnn`, `D-nnn` or `tasks/` record** ⇒ the pointer survives and the detail is where the spec says it lives. **The one exception** — `Leg B spaces/rooms consumer`, whose narrative carried J-641 while the node cited nothing — **got the citation moved onto the node before its line was removed.**
+
+### Three audit results were wrong, and the third was the interesting one
+
+**R-5, first pass:** reported *1 node over 160*. I cut the description at the first ` · `, which is also used as a bullet **inside** narrative, so long lines were truncated before measurement. Re-cut, it was 8, and by total-text-length 9.
+
+**Four "PENDING/POSTPONED leaves missing a trigger"** — L210, L217, L290, L291 — **are all ⬛ DEPRECATED and need no trigger.**
+
+**The cause of that third error is worth keeping.** PowerShell's `String.StartsWith(string)` is **culture-sensitive by default**, and `'⏸️'` — which carries the variation selector U+FE0F — **matched a line beginning with U+2B1B**. Every symbol check I ran used it.
+
+🔑 **It also means my earlier "all 260 node lines start with a state symbol" was a FALSE PASS** — it returned true for everything. Re-run with `StringComparison::Ordinal`, one node has no symbol: `**Cross-cutting principles**` — and that one is **R-3 compliance**, not a breach: *"a container of non-work carries no status at all, only a link."*
+
+**Forward rule: symbol comparisons are ordinal. A culture-sensitive match on emoji will agree with you about the wrong thing.**
+
+### Also fixed
+
+- **Nine node lines trimmed** to a description plus citations. `M-RP2 di atomics` was left alone — its length is a 22-entry **link chain**, explicitly exempt under **R-5a**.
+- **Two R-2a breaches** — containers carrying a trigger, at `M-RP-LIVEFEED-REFRESH` and `M-RP-XGID-SLOT-RETYPE`. The condition belongs on the leaf that owns it.
+- **One stale pointer**, found while trimming: the Leg C node cited runbook **v1.1**; the file is **v1.3 COMPLETED**.
+
+### Verification
+
+```
+nodes                                    = 260   (all preserved)
+annotations: trigger 12, Owes 3, other   = 0
+nodes with text over 250 chars           = 0
+PENDING/POSTPONED leaves missing trigger = 0
+R-2a containers carrying a trigger       = 0
+unofficial icons                         = 0
+bytes 119,889 -> 52,508   lines=491 crlf=491 bareLF=0
+```
+
+**FLOORS — not re-measured; no code touched:** cargo **1589 / 0 / 62 x 56** · svelte-check **0 / 34 / 15** · sampler catalogue **435**. **No new D, no new N.**
+
+**NEXT: Leg B** — 4 slots, unblocks `M-RP-IDENTITY-RESOLUTION` Leg D.
+
+→ J-663 · ROADMAP v6.51.
+
+---
+
 ## Entry J-662 — the roadmap gets its symbol vocabulary back
 
 **Date:** 2026-08-02 · **Seat:** Joe (ruled) · Chat (measurement, cleanup, records). **NO CODE.** ROADMAP v6.49 → v6.50.

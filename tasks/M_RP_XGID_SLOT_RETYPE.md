@@ -1,6 +1,6 @@
 # M-RP-XGID-SLOT-RETYPE — the identifier slots that regressed to `String` after the retrofit arc closed
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -254,6 +254,12 @@ pub origin_event: String,     // "The thread.create event id"                   
 
 **Leg C — the remainder**, sized by what Leg 0's hand-read actually finds. 🔓 **MAY BE SPLIT OFF INTO ITS OWN MILESTONE RATHER THAN BLOCKING** — see §7.
 
+✅ **THE FORK IS CLOSED — JOE RULED 2026-08-02 (J-668): *"we will complete whole M-RP-XGID-SLOT-RETYPE if we can."* LEG C IS **NOT** SPLIT; the milestone runs to close.** 🔒 **Runbook `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_C.md` v1.1 ACTIVE**, locked as authored.
+
+🛑 **AND THE RUNBOOK'S GROUNDING CUT LEG C FROM 13 SLOTS TO 10, BECAUSE §3a's `ThreadXgid` CLAIM IS FALSE.** §3a argues `ThreadState.id` should retype because *"`ThreadXgid` and `EventXgid` both exist"*. **Measured: there are SEVEN flavours and `ThreadXgid` is not among them** (`declare_flavour!` call sites, `xgen-common/src/xgid/flavours.rs`). 🔑 **Its absence is a DECISION, stated in the code three times** — *"conceptual, no `ThreadXgid`"* (`wire.rs:122`) · *"AE-D8, no `ThreadXgid`"* (`state.rs:154`) · *"A Thread has no `ThreadXgid` flavour"* (`state.rs:1423`). ⇒ **`ThreadState.id`, `ThreadCreateResult.thread_id` and `ThreadStatusResult.thread_id` have nothing to retype INTO.** ⚠️ ***A claim narrower than the thing it describes*** — the fourth in this milestone, and the first to have survived a hand-read that was supposed to catch exactly this. **Kept not erased (`D-131`).**
+
+🔓 **FILED, JOE'S, DELIBERATELY NOT THIS LEG:** mint `ThreadXgid` against a documented refusal, or rule the three slots DESCRIPTIVE. **Minting a flavour is a protocol-shaped decision and must not ride a mechanical retype leg.** 🔒 **THEIR THREE MANIFEST ROWS STAY `INTERNAL`, AND THAT IS THE MECHANISM:** `D-137` §2 requires a watch to have a place its owner will actually read, and **the gate is the only artifact in this project re-read every session** (Rule 0 item 5). *A filed line in a task doc is exactly the parking spot that failed for two months.*
+
 ✅ **SIZED AT v1.2 BY THE §3a HAND-READ, AND IT IS SMALL: 13 SLOTS IN 5 FILES.** 🛑 *A first draft of this line read "15 slots… Leg B takes the other 2" — **the total reconciled to 17 and the ATTRIBUTION was wrong**, because Leg B's `FetchedIdentity` IS 2 of the 7 `ops.rs` slots. Caught on re-derivation, corrected, kept not erased (`D-131`): ***a sum that reconciles is not a split that is right.***
 
 **INTERNAL · 17 total, split by leg:**
@@ -301,6 +307,7 @@ At J-658 Chat sequenced this milestone **ahead of** `M-RP-IDENTITY-RESOLUTION` L
 - [x] The **THREE** `String`↔typed bridge sites are **GONE, not moved** — ✅ **J-665**, verified scoped to `observed_identities` + `fill_from_events`: zero downgrades, zero re-wraps, the `:2935` comment removed with its code — **Leg B** ⚠️ *this item read "the `ops.rs:2734`/`:2742` downgrade" until v1.4; the third site was found at runbook authoring. Superseded, kept not erased (`D-131`).*
 - [x] cargo floor re-measured on every Rust leg, delta explained — ✅ **Leg B: 1589 → 1592, Δ +3 = `v3a`/`v3b`/`v3c`, enumerated not derived**; ⏳ still owed by **Leg C**
 - [ ] Records in one commit (`D-074`), and **the close states the enforcement posture** (`D-136` §3) — **Leg D**
+- [ ] 🔓 **`ThreadXgid` ruled — mint it, or rule the three thread slots DESCRIPTIVE.** Their manifest rows are RETAINED as the standing reminder; **the milestone may close with them outstanding provided the close SAYS SO** — **Joe's, after Leg C**
 
 ---
 

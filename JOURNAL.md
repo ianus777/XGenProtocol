@@ -8,6 +8,70 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-668 — Leg C locked at TEN slots, not thirteen: the flavour three of them would retype into does not exist
+
+**Date:** 2026-08-02 · **Seat:** Joe (ruled the milestone runs to close; locked the runbook) · Chat (grounding, runbook, records). **NO CODE.** ROADMAP v6.54 → v6.55 · Phase-0 v1.5 → v1.6 · new runbook `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_C.md` v1.1 ACTIVE.
+
+Joe: *"ok we will complete whole M-RP-XGID-SLOT-RETYPE if we can"* → on the runbook's two scope questions, *"both by your recomms"* → *"locked."*
+
+---
+
+### ✅ THE SPLIT FORK IS CLOSED, AND IT CLOSED THE WAY THE MEASUREMENT POINTED
+
+Phase-0 §6/§7 held open whether Leg C splits into its own milestone. **Joe ruled it does not.** 📌 *Chat's recommendation had been unchanged across three entries for one reason — **five of the slots sit in `ops.rs`, the file Leg B had just closed** — so splitting would have put two milestones in one file and moved the cargo floor twice for one kind of change.*
+
+### 🛑 AND THE GROUNDING CUT THE LEG FROM 13 SLOTS TO 10, BECAUSE `§3a`'s `ThreadXgid` CLAIM IS FALSE
+
+Phase-0 §3a argues `ThreadState.id` should retype because *"`ThreadXgid` and `EventXgid` both exist"*, and calls that struct *"a stronger instance than the one that minted `D-136`"*.
+
+**Measured at the `declare_flavour!` call sites: there are SEVEN flavours** — `EventXgid · SpaceXgid · RoomXgid · TrustAssertionXgid · NodeXgid · IdentityXgid · AuthModuleXgid`. **`ThreadXgid` is not one of them.**
+
+🔑 **AND ITS ABSENCE IS A DECISION, WRITTEN INTO THE CODE THREE TIMES:** *"conceptual, no `ThreadXgid`"* (`xgen-common/src/wire.rs:122`) · *"AE-D8, no `ThreadXgid`"* (`xgen-core/src/space/state.rs:154`) · *"A Thread has no `ThreadXgid` flavour — the id is a `xgen://thread/sha256:`"* (`state.rs:1423`).
+
+⇒ **`ThreadState.id`, `ThreadCreateResult.thread_id` and `ThreadStatusResult.thread_id` have nothing to retype INTO.**
+
+⚠️ ***A claim narrower than the thing it describes*** — **the fourth in this milestone**, and the worst-placed of the four: it survived the **hand-read that existed specifically to catch this**, because the hand-read checked *does a flavour of this shape exist in the record* rather than *does this identifier appear in the seven-item list*. 🔑 ***A census taken against a memory of the set is not a census of the set.*** **Kept not erased (`D-131`).**
+
+🔒 **AND THE THREE MANIFEST ROWS STAY `INTERNAL` — THAT IS THE MECHANISM, NOT AN OVERSIGHT.** `D-137` §2 requires a promotion-watch to have **(a)** a trigger, **(b)** an owner, **(c)** a place the owner will actually read, and **the gate is the only artifact in this project re-read every session** (Rule 0 item 5). ⇒ **every future gate run surfaces the three outstanding slots.** *A filed line in a task doc is exactly the parking spot that let `D-NNN-format-boundary` sit fired and unnoticed for two months.* 🟡 **`M-RP-THREAD-XGID` also gets a ROADMAP node** — mint the flavour against a documented refusal, or rule the three DESCRIPTIVE. **Joe's, and its trigger names the refusal as the thing to read first.**
+
+### Three measurements that settled classifications without appeal to a rule
+
+**① SEVEN OF THE TEN ARE SAME-STRUCT, WITH THE SIBLING TYPED ON THE LINE ABOVE.** `RedactResult` carries `event_id: EventXgid`, `space_id: SpaceXgid`, `room_id: RoomXgid` — and `target_event_id: String`. 🔑 **Three of four identifier slots typed and one not is not a boundary struct**; a format struct under `D-137` clause 3 would have **all four** as `String`. *The file already voted.* (`D-136`'s instance was same-**file**; J-660 found same-**struct**; this is same-struct with the counter-example adjacent.)
+
+**② THE PIPE-JSON WORRY IS MEASURED AWAY, NOT ARGUED AWAY.** `RedactResult` and `RoomsResult` derive full serde and both appear in `batch.rs` — a Pass 4 §4.2 boundary, which is exactly the shape that would make them BOUNDARY. **It does not, because `batch.rs` DISCARDS them:** *"the protocol only needs OK/ERROR — the `RoomsResult` data is discarded"* (`:382`), *"the `RedactResult` is discarded here"* (`:584`). 🔑 ***A struct is not at a boundary because it CAN be serialised; it is at one because something serialises it.*** Checked at the consumer.
+
+**③ `ThreadState.origin_event` IS WRITE-ONLY** — declared `state.rs:176`, assigned `state.rs:931`, **read nowhere in the repo**; those two lines are every occurrence. The retype is two lines with zero consumers. 📌 **Filed, not acted on: *a field nothing reads is a field nobody has round-tripped*** (the M-RP6.1k *reserve nothing* finding, in Rust). **Whether it should exist is a `xgen-core` Space-state question, and mixing a deletion into a retype leg makes the cargo delta unattributable.**
+
+### 🛑 THE LEG LEAVES `xgen-client`, AND LEG B NEVER DID
+
+`AuthOutcome` and `ThreadState` are **`xgen-core`** — the crate everything else depends on. ⇒ **R4 is binding: if a signature has to change in `xgen-node`, `xgen-mptest` or `xgen-common` to make this compile, the leg STOPS and reports.** That is a scope finding, not a chore. *(Measured: `AuthOutcome` 3 refs in one file; `ThreadState` 8 refs across 4 files including the multiparty test crate — but only the write-only `origin_event` is in scope. ⚠️ Those are `grep` counts; **the compiler is the authority**, and §8 says so.)*
+
+### The one slot that crosses to the webview, and why it gets its own test
+
+`SendOutcome.event_id: Option<String>` → `Option<EventXgid>`. It crosses at `desktop.rs:309` and the frontend mirrors it **verbatim** (`echo-state.svelte.ts:37`, *"carried VERBATIM — snake_case, no mapping layer"*), **28 references** — the largest consumer set in the leg.
+
+Transparency should keep the JSON a plain string-or-null, so the mirror needs no change. 🛑 **That is Leg B's §2c claim ONE SHAPE FURTHER OUT, and it gets a test rather than an argument:** `Option` adds a `null` case Leg B never exercised, **and `Xgid` derives `Default`, so an empty-but-present `EventXgid` is representable.** ⇒ **V3-a asserts the `null` arm explicitly** — a failed send must still emit `event_id: null`, never `""`, ***or the client claims a failed send has an event***, which is the exact lie `SendOutcome`'s four-way honesty exists to prevent (D6).
+
+### Predicted, to be measured not assumed
+
+cargo **1592 → 1595** (three tests, named) · `svelte-check` **0/34/15 unchanged** · gate **PASS 84 → 74 (65 / 5 / 3 / 1)** · sampler **435** by scope.
+
+### §8 names three places this runbook is most likely wrong
+
+① the byte-identity claim at `Option<EventXgid>` · ② **the flavour choices themselves** — `target_event_id → EventXgid` and `origin_event → EventXgid` are read from **field names and doc comments, not from a producer**, and J-665's lesson was that a flavour confirmed at the writer beats one inferred from a name, so **the check is written into the runbook rather than performed by Chat** · ③ R4's blast radius, where grep is not cargo.
+
+**VERIFIED:** ROADMAP **crlf-clean**, node lines **262 → 263** (the `M-RP-THREAD-XGID` addition), annotations trigger / Owes / other reconciled, unofficial icons **0**. Runbook **16,671 B**, LF, no BOM, 8 header lines with two trailing spaces, slot table reconciles to **10**.
+
+**FLOORS — not re-measured, zero code:** cargo **1592/0/62 × 56** · svelte-check **0/34/15** · sampler **435** · gate **PASS 84**.
+
+**No new D. No new N.**
+
+**NEXT: Clair implements Leg C from the locked runbook. Standing her up is Joe's.** 🔓 **Open:** `M-RP-THREAD-XGID` · the `D-137` number · `M-RP-IDENTITY-RESOLUTION` Leg D (unblocked since J-665) · the unnamed back-fill milestone.
+
+→ J-668 · ROADMAP v6.55.
+
+---
+
 ## Entry J-667 — the rule field was not being processed; the FONT was drawing the replacement over the pattern
 
 **Date:** 2026-08-02 · **Seat:** Joe (reported, reproduced independently, ruled the fix) · Chat (grounding, skin fix, verification, records). **SKIN ONLY — 1 file, +23 lines.** No ROADMAP change: no milestone state moved.

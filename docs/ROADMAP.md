@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.54  
+> Version: 6.55  
 > Date: May 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -315,12 +315,13 @@ XGen Protocol
 │   │   ├── 🟡 **Leg D Tier-1 fetch on join** — a new Tauri command plus a merge-one setter; moves the cargo floor · J-659 · `tasks/M_RP_IDENTITY_RESOLUTION.md` §7 ↳ trigger: fired J-665 — `M-RP-XGID-SLOT-RETYPE` Leg B landed; openable
 │   │   ├── 🟡 **Leg E the refresh trigger** — R1, a re-fill on the transition into `READY`; built by `M-RP-LIVEFEED-REFRESH` Leg C, consumed here; also gates C-3 · J-658 (J-654) ↳ trigger: `M-RP-LIVEFEED-REFRESH` Leg C lands
 │   │   └── 🟡 **Leg F live verify + records** — two clients, a real join, a real `not_found`; carries three obligations moved out of Leg B and is the milestone's first behaviour verification · J-653 ↳ trigger: Legs A–E land
-│   ├── 🟢 **M-RP-XGID-SLOT-RETYPE** — the identifier slots that regressed to `String` after the retrofit arc closed · J-645 (J-658, J-659, J-660, J-661, J-664, J-665)
+│   ├── 🟢 **M-RP-XGID-SLOT-RETYPE** — the identifier slots that regressed to `String` after the retrofit arc closed · J-645 (J-658, J-659, J-660, J-661, J-664, J-665, J-668)
 │   │   ├── 🟢 **Leg 0 Phase-0** — the sweep, the three rulings, and the hand-verified classification of all 88 · J-659 (J-660) · `tasks/M_RP_XGID_SLOT_RETYPE.md` §3a ↳ trigger: fired — one slot outstanding, `envelope.rs` `ErrorBody.event_id`
 │   │   ├── ✅ **Leg A the enforcement mechanism** — `D-137` promoted; `xgid-slot-gate.ps1` and `xgid-slot-manifest.tsv` added; Rule 0 gains item (5) · J-661 · DECISIONS.md D-137
 │   │   ├── ✅ **Leg B the four address-book slots** — 4 slots plus the `BTreeMap` key; three `String`/typed bridge sites gone; cargo 1589 to 1592 · J-665 (J-660, J-661, J-664) · runbook `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_B.md` **v1.2 COMPLETED**
-│   │   ├── 🟡 **Leg C the remainder** — 13 slots in 5 files; Chat recommends it is not split off · J-660 · `tasks/M_RP_XGID_SLOT_RETYPE.md` §7 ↳ trigger: fired J-665 — Leg B landed; Joe rules the split
-│   │   └── 🟡 **Leg D records + close** — the close must state the enforcement posture · DECISIONS.md D-136 §3 ↳ trigger: Leg C resolves
+│   │   ├── 🟢 **Leg C the remainder** — 10 slots in 6 files, two crates; 3 thread slots held out, no `ThreadXgid` exists · J-668 (J-660) · runbook `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_C.md` **v1.1 ACTIVE**
+│   │   └── 🟡 **Leg D records + close** — the close must state the enforcement posture · DECISIONS.md D-136 §3 ↳ trigger: Leg C lands
+│   ├── 🟡 **M-RP-THREAD-XGID** — mint a `ThreadXgid` flavour, or rule the three thread id slots DESCRIPTIVE · J-668 ↳ trigger: Joe rules; `AE-D8` refused the flavour and the refusal needs reading first
 │   ├── 🟡 **M-RP-VIEW-MENU** — a View menu between File and Help, items Address Book and Self Card · J-589 (J-666) · `tasks/M_RP_MEMBERS.md` §4c ↳ trigger: the Address Book UI and the Self Card UI both exist
 │   ├── 🟡 **M-RP-WIDGET-SETTINGS** — a settings icon on each widget's tile stripe, deep-linking to that plugin's Settings section · J-666 ↳ trigger: every relevant plugin ships a `settingsComponent` — 1 of 6 today
 │   ├── 🟡 **Clean-table UI milestone** — the live UI build

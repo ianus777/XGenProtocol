@@ -1,8 +1,8 @@
 # M-RP-IDENTITY-RESOLUTION — what a member row shows before the client knows who it is
 > **Status**: ACTIVE  
-> Version: 1.12  
+> Version: 1.13  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-01  
+> **Last updated**: 2026-08-02  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -232,6 +232,22 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 
 **Candidate triggers, none locked:** retry on reconnect (rides the parent's §5, 🔓 Joe's and open) · refresh when the panel gains a row it cannot resolve · a bounded per-row retry. 📌 **Cheapest honest option is the reconnect hook, because that decision is being made anyway.**
 
+🔒 **RULED 2026-08-02 (Joe, J-658) — OPTION T2: THE RECONNECT HOOK (R1) *AND* §7's TIER-1 FETCH ON JOIN, TOGETHER.** ⚠️ *v1.0–v1.12 carried the sentence above as the whole option space; it is not superseded — it is the menu the ruling chose from, and the paragraph following is the finding that removed one item from it. Kept not erased (`D-131`).*
+
+### 🛑 §6b — N-168: THE RECONNECT HOOK ALONE DOES NOT CLOSE G-B, AND ADOPTING IT ALONE WOULD HAVE CLOSED G-B ON PAPER
+
+**Re-grounded before the ruling, not inherited:** `app_client.svelte:168` — `const sid = roomLatch.effectiveSpaceId; // the sole tracked dependency`. One trigger, confirmed. And `selfState.connection` is read in exactly **two** places — `:144` (the status feed) and `:267` (`guardedSend`'s guard) — ⇒ **nothing re-fills on reconnect today.** G-B holds exactly as written.
+
+🔑 **THE FINDING: R1 FIRES ON A TRANSITION INTO `READY`. G-B's FAILURE CASE IS A LONG SESSION IN ONE SPACE THAT NEVER DISCONNECTS.** A member who joins that session is dimmed for the rest of it. ⇒ **R1 discharges §4c-i's promise only in sessions that happen to suffer a network fault** — and a *good* session has none. 🛑 **Had §6 been ruled R1-alone, `docs/ROADMAP.md` would have carried `G-B closed` beside a panel that still promises a resolution it cannot deliver, and C-3 would have shipped on it.**
+
+🔑 **N-168, STATED SO IT OUTLIVES THIS MILESTONE: *A TRIGGER THAT FIRES ONLY ON AN EXCEPTIONAL CONDITION CANNOT DISCHARGE A PROMISE MADE IN THE ORDINARY ONE.*** The reconnect hook is a **recovery** mechanism; §4's dimming is an **ordinary-path** claim. *Pairing them looks complete because both contain the word "refresh".*
+
+⇒ **G-B IS CLOSED BY LEG D *AND* LEG E TOGETHER, NEVER BY EITHER ALONE.** Leg D makes the attempt happen on the ordinary path; Leg E recovers the exceptional one. **Neither leg may record `G-B closed` on its own.**
+
+🛑 **AND THE RESIDUE IS NAMED, WITH AN OWNER AND A TRIGGER, SO IT IS NOT AN UNOWNED DEFERRAL.** A Tier-1 fetch that **times out** is still ④, and nothing retries it. §7 says so itself (*"a fetch that times out **is** ④"*). **T3 — a bounded per-row retry — was the option that literally satisfies §4c-i and it was NOT taken**, because its terminal state has no word and would re-open `D-126` (deferred J-588) for a case nobody has yet seen occur.
+
+> **`Owes:` — LEG F MEASURES HOW OFTEN THE RESIDUE OCCURS, AND T3 IS RE-PRICED THEN.** Leg F is the first two-client run and therefore the first surface on which a real timed-out Tier-1 fetch can happen at all. ⚠️ **If the residue is common, T3 stops being an option and becomes a defect.** 📌 *Written as an obligation rather than an intention — `M_RP_LIVEFEED_REFRESH.md` §8a's own lesson: a deferral written without an owner and a trigger has neither.*
+
 ---
 
 ## §7 — 🔓 TIER-1 FETCH ON JOIN — CHAT PROPOSES, NOT LOCKED
@@ -246,6 +262,12 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 ⚠️ **AND IT DOES NOT MAKE ④ DISAPPEAR.** A fetch that times out **is** ④. ⇒ **§4's dimming is required whether or not §7 ships**; §7 only makes ④ rare instead of universal.
 
 **Chat recommends §7 ships**, because without it the AI-transparency guarantee has a hole that widens every time someone joins a room you are watching. 🔓 **Joe's, because it moves a floor and adds a command.**
+
+🔒 **LOCKED 2026-08-02 (Joe, J-658): §7 SHIPS, AS LEG D.** Ruled together with §6 as one decision (option **T2**) — see §6b. 🔑 **THE REASON IT IS ONE DECISION AND NOT TWO: §7 IS THE ATTEMPT AND §6 IS THE RETRY, AND A RETRY OF AN ATTEMPT THAT NEVER HAPPENS IS NOT A RETRY.** Today no live joiner is looked up at all (G7) ⇒ without §7 the reconnect hook re-runs a fill for a member the fill was never asked about.
+
+⚠️ **D-121 LENS ① WAS STATED FOR THE SHIPPED PRODUCT, NOT FOR TODAY'S DESK — AND THAT IS A DEPARTURE FROM J-654 THAT WAS MADE DELIBERATELY.** J-654's *"no user-facing impact"* was legal because that decision was about **ORDER**, and ③/④ need two clients. **This decision is about whether a promise is kept**, and it becomes visible the day two identities share a room — where §7's own grounding says ④ is *the default outcome of every live join*. 🔑 ***"Unreachable on one desk" is a fact about the test setup, not about the product*** — the argument that has now been wrong five times in this project (N-091 · N-097 · N-099 · N-109 · N-116).
+
+🛑 **AND LEG D DOES NOT OPEN FIRST — SEE §8's Leg D.** `M-RP-XGID-SLOT-RETYPE` (`D-136`) lands ahead of it, standalone.
 
 ---
 
@@ -303,9 +325,22 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 
 📌 **FILED, DELIBERATELY NOT TAKEN: the case for shipping the BASE rule now.** A bare `.entity-item[data-unresolved]` muting `.ei-name` is defensible **today** — a machine identifier currently renders at the same weight and colour as a human display name, a false equivalence **whether or not a refresh ever arrives.** 🛑 **Not taken, because it also lands on ④, and ④ is what the gate holds.** Re-openable at C-3. *Recorded rather than silently decided (`D-065`).*
 
-**Leg D — Tier-1 fetch on join.** 🔓 Gated on §7. New Tauri command + merge-one setter. **Moves the cargo floor.**
+**Leg D — Tier-1 fetch on join.** 🔒 **UNGATED — §7 RULED, IT SHIPS (Joe, J-658).** ⚠️ *v1.0–v1.12 read "🔓 Gated on §7"; superseded, kept not erased (`D-131`).* New Tauri command + merge-one setter. **Moves the cargo floor.**
 
-**Leg E — the refresh trigger.** 🔓 Gated on **G-B** and on the parent's §5. ⚠️ **The milestone must not close before this**, or §4 ships a promise it cannot keep.
+🛑 **AND IT IS NOT THE NEXT LEG TO OPEN. `M-RP-XGID-SLOT-RETYPE` (`D-136`) LANDS FIRST, STANDALONE — RULED 2026-08-02 (Chat, under `D-123`; Joe reverses on one line).** The v1.0–v1.12 record offered *"lands first, OR Leg D absorbs it"*; **the fork is taken, not left open.** Three reasons, the third decisive:
+
+1. **`D-071`** — subsystem audits precede dependent milestones, and this is one.
+2. Leg D's new command **carries an `identity_id` slot** ⇒ retyping afterwards means touching that command **twice**. Leg A already documented a re-wrap workaround for exactly this (§9).
+3. 🔑 **`M-RP-XGID-SLOT-RETYPE` IS A FILED MILESTONE WITH ITS OWN ID.** Folding it into a leg makes it a **rider** — and *"its own milestone, never a rider"* is a standing refusal in this project (`mergeClasses` · `M-RP-ROVING` · the `dialog` footer slot). ⚠️ **Both move cargo**, so absorbing it also makes the delta unattributable **within** the floor, which §8's split-by-floor rule exists to prevent.
+
+**Leg E — the refresh trigger.** 🔒 **RULED — R1, a re-fill on the transition into `READY` (Joe, J-658, option T2).** ⚠️ **It does NOT close G-B alone — see §6b / N-168; G-B closes on Leg D *and* Leg E together.** ⚠️ **The milestone must not close before this**, or §4 ships a promise it cannot keep.
+
+🛑 **AND LEG E IS NOT A NEW BUILD — IT IS `M_RP_LIVEFEED_REFRESH.md` §7's LEG C UNDER A SECOND NAME. NAMED HERE RATHER THAN DISCOVERED AT IMPLEMENTATION.** Both are *an `$effect` on `selfState.connection`* in **`ui/client/src/app_client.svelte`**. Two milestones filed one build.
+
+- 🔒 **THE PARENT OWNS IT.** §5 is the parent's section and the reconnect rule is the parent's decision ⇒ **`M-RP-LIVEFEED-REFRESH` Leg C BUILDS; this Leg E CONSUMES AND VERIFIES**, and is discharged when the parent's Leg C lands. ⚠️ *Two seats writing one `$effect` from two runbooks is the one-writer-per-file-per-atom breach.*
+- 🛑 ⇒ **C-3 IS GATED ON A LEG IN A DIFFERENT MILESTONE.** Legal, but it must appear in **both** `Owes:` lines (`D-133`) or one record goes stale invisibly.
+- ✅ **GROUNDED, NOT ASSUMED — THE PARENT'S LEG C DOES NOT DEPEND ON ITS LEG B.** Leg B builds **delta setters** for live events; Leg C **re-runs fills**. Different mechanisms. ⇒ the ordering is free.
+- 🔑 **AND LEG C HAS TWO HALVES, OF WHICH THIS MILESTONE NEEDS ONLY ONE.** The **members** half is free — `loadMembers(sid)` is already a named callable with the §3.5 late-guard. The **spaces/rooms** half is not: `spacesState.setSpaces(await invoke('get_spaces'))` is an **inline line inside the startup block** (`app_client.svelte:625`), **not a function**, and needs extracting. ⇒ **this milestone's dependency is the cheaper half**, which is worth knowing before the parent's runbook is scoped.
 
 **Leg F — live verify + records.** Two clients, a real join, a real `not_found`. ⚠️ **A store driven by hand is a probe that cannot fail.** 🔒 **AND IT NOW CARRIES THREE OBLIGATIONS MOVED OUT OF LEG B (Joe, J-653):** ① a real join producing `data-unresolved="unasked"` · ② a real `not_found` producing the ③ filter **and §5a's E2 exception** · ③ a populated roster giving `erasedHidden` something to count. 🛑 **Leg F is the FIRST behaviour verification of this milestone — Legs A and B are compile- and type-verified only.**
 
@@ -331,9 +366,11 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 - [x] §5 ③ hiding locked, **and the count question C1/C2/C3 ruled** — ✅ **C1 locked 2026-08-01, with a trigger: the first milestone rendering a member count re-opens it**
 - [x] §5a the DM-counterpart exception ruled — ✅ **E2 locked 2026-08-01 (J-648): ③ is never hidden when it is the DM counterpart; the rule keys on `is_dm`, not member count**
 - [x] §5a-i the DM highlight on an erased counterpart ruled by Joe — ✅ **KEEP locked 2026-08-01 (J-650); it costs ZERO lines, the highlight already flows from the roster**
-- [ ] §7 Tier-1 fetch ruled by Joe
+- [x] §7 Tier-1 fetch ruled by Joe — ✅ **RULED 2026-08-02 (J-658): IT SHIPS, as Leg D**, together with §6 as one decision (option **T2**)
+- [x] §6's refresh trigger ruled by Joe — ✅ **RULED 2026-08-02 (J-658): R1**, a re-fill on the transition into `READY`; **the parent's Leg C builds it**
 - [x] **G-A closed** — ✅ **J-647.** `FillReport.not_found_ids: Vec<IdentityXgid>` ships; the client can name which members returned `not_found`
-- [ ] **G-B closed** — a refresh trigger that actually fires, named and built
+- [ ] **G-B closed** — a refresh trigger that actually fires, named and built. 🛑 **CLOSES ON LEG D *AND* LEG E TOGETHER, NEVER EITHER ALONE (N-168, §6b)** — Leg D makes the attempt happen on the ordinary path, Leg E recovers the exceptional one. **No single leg may tick this**
+- [ ] **The residue re-priced** — Leg F measures how often a Tier-1 fetch times out; **T3's bounded retry returns as a live option, or becomes a defect** (§6b `Owes:`)
 - [ ] cargo floor re-measured on every Rust leg, delta explained
 - [ ] `svelte-check` floor re-measured on every frontend leg, delta explained
 - [ ] **Live-verified, EXERCISED not asserted** — two clients, a real join, a real `not_found`; ③ hidden, ④ dimmed, both resolving on refresh
@@ -345,7 +382,11 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 
 🔒 **LOCKED:** §2's tier frame (Joe) · §4's ④ treatment — dimmed, own selector (Joe) · **§5a's DM exception — E2, the counterpart is never hidden (Joe, J-648)** · **§8 B-2's hook shape — P1, a prop through `entity-panel` → `entity-item` (Joe, J-648)** · Leg A's type / boundary / test posture — X1 · ② · T-a (Joe, J-646) · **§5a-i — the erased DM counterpart KEEPS the L16 highlight (Joe, J-650)** · **Leg C ships SEPARATE from Leg B (Joe, J-650)** · **LEG C SPLITS — S3: C-1 + C-2 ship now (③ only), C-3 is gated on Leg E (Joe, J-654)** · **this leg's `skin.css` default values are DELEGATED TO CHAT, as a narrow carve-out that leaves the standing rule intact (Joe, J-654)**.
 
-🔓 **JOE'S, OPEN:** §7 **Tier-1 fetch on join** (Chat recommends it ships) · §6's **refresh trigger**, which overlaps the parent's §5 reconnect rule and should probably be decided once for both — 🛑 **and it now GATES C-3, so it is no longer only a milestone-close item** · §5's **DAG-divergence read** (Chat recorded it ACCEPTABLE AND CHOSEN; if Joe disagrees it becomes a real fork and needs writing as one).
+🔓 **JOE'S, OPEN — ONE ITEM LEFT:** §5's **DAG-divergence read** (Chat recorded it ACCEPTABLE AND CHOSEN; if Joe disagrees it becomes a real fork and needs writing as one).
+
+⚠️ *v1.0–v1.12 also listed §7's **Tier-1 fetch** and §6's **refresh trigger** here. **Both were ruled together on 2026-08-02 (J-658) as one decision — option T2: §7 ships as Leg D, and §6's trigger is R1.** The line's own hedge — *"should probably be decided once for both"* — **was right, and it was right for a reason it did not state**: §7 is the ATTEMPT and §6 is the RETRY. ⚠️ **But the pairing it proposed was still not sufficient — R1 alone does not close G-B (§6b / N-168).** Superseded, kept not erased (`D-131`).*
+
+🔒 **AND TWO ITEMS WERE TAKEN BY CHAT UNDER `D-123` RATHER THAN ROUTED, BOTH RECORDED SO THEY CAN BE REVERSED ON ONE LINE:** ① **`M-RP-XGID-SLOT-RETYPE` lands first, standalone** — not absorbed into Leg D (§8 Leg D, three reasons) · ② **the parent's Leg C owns the `$effect`; this Leg E consumes it** (§8 Leg E). 🔑 *Both are sequencing and attribution, not architecture or appearance — the seat where `D-123` names **under-stepping** as the failure mode.*
 
 ⚠️ *v1.0–v1.10 listed **"the `skin.css` values — including E2's mark, which is entirely his"** among the OPEN items. **Superseded at v1.11 for THIS LEG ONLY** — Joe delegated the two Leg C selectors to Chat (§8 Leg C) while keeping `skin.css` his as a standing rule and keeping the right to re-tune with no milestone. **The line was correct when written and is now narrower than the arrangement; kept not erased (`D-131`).*** 🔑 **The distinction that matters: what moved is TWO SELECTORS, not the FILE.***
 

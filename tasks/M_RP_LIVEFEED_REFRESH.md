@@ -1,8 +1,8 @@
 # M-RP-LIVEFEED-REFRESH — the live event router behind the members and rooms panels
 > **Status**: ACTIVE  
-> Version: 1.14  
+> Version: 1.15  
 > Date: Jul 2026  
-> **Last updated**: 2026-08-01  
+> **Last updated**: 2026-08-02  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -107,7 +107,16 @@ Joe's *"it will have sense to use it intensively"* is right about frequency and 
 - **② Tier:** neutral.
 - **③ Resource:** free, and it forfeits the milestone's reason for existing.
 
-**CHAT PROPOSES (R4 for the stream + R1 for the panels).** 🔓 **RULING: OPEN.** ⚠️ **Leg C does not open until it lands**, but Legs A and B are unaffected and can proceed.
+**CHAT PROPOSES (R4 for the stream + R1 for the panels).** ⚠️ *v1.0–v1.14 read "🔓 **RULING: OPEN.** ⚠️ Leg C does not open until it lands"; superseded 2026-08-02, kept not erased (`D-131`).*
+
+🔒 **RULED 2026-08-02 (Joe, J-658) — BUT ONLY HALF OF IT, AND THE HALVES ARE NAMED SO THE OTHER IS NOT READ AS SETTLED.**
+
+- 🔒 **R1 IS LOCKED, FOR THE PANELS.** A re-fill of every live consumer on the transition into `READY`. ⇒ **Leg C is UNGATED and may open.**
+- 🔓 **R4 IS STILL OPEN, FOR THE MESSAGE STREAM.** Sync-from-cursor on reconnect, replayed through the router. **It was deliberately NOT bundled** — different consumer, different question, and it carries its own honest cost (a persisted sync cursor, §5a). **Nothing in Leg C may assume it.**
+
+🔑 **WHY THE SPLIT IS REAL AND NOT BOOKKEEPING — §5a ALREADY SAID SO:** *the message stream needs the missed EVENTS* (order and content matter) ⇒ replay; *the panels need current STATE, not history* ⇒ re-fill. ✅ **The ruling takes the re-fill half and leaves the replay half exactly where §5a put it.**
+
+🛑 **AND R1 WAS RULED IN COMPANY WITH A CHILD MILESTONE'S §6, BECAUSE IT DOES NOT STAND ALONE THERE — SEE `M_RP_IDENTITY_RESOLUTION.md` §6b (N-168).** That milestone's G-B failure case is **a long session in ONE Space that never disconnects**, and R1 fires only on a *reconnect* ⇒ ***a trigger that fires only on an exceptional condition cannot discharge a promise made in the ordinary one.*** **R1 is correct and it is not sufficient there**; its sibling ruling (§7's Tier-1 fetch on join) covers the ordinary path. 📌 **Recorded here because R1 is THIS document's decision and a reader must not infer from it that G-B is closed.**
 
 ---
 
@@ -480,7 +489,16 @@ pub struct NegotiatedCapabilities {
 
 **Leg B — the spaces/rooms consumer.** The `state.*` branch plus delta setters on `spaces-state`. **Surface: `ui/client/src/app_client.svelte`, `ui/common/lib/stores/spaces-state.svelte.ts`.** Moves **`svelte-check`**. 📌 **A and B are split deliberately: the second consumer is what proves the seam rather than asserting it.** One commit spanning both makes a regression ambiguous.
 
-**Leg C — the reconnect rule.** 🔓 **Gated on §5.** **Surface: `ui/client/src/app_client.svelte`** (an `$effect` on `selfState.connection`).
+**Leg C — the reconnect rule.** 🔒 **UNGATED — §5's R1 IS RULED (Joe, J-658).** ⚠️ *v1.0–v1.14 read "🔓 Gated on §5"; the trigger has FIRED and **a trigger that has fired is a defect**, so it moves in the same commit. Superseded, kept not erased (`D-131`).* **Surface: `ui/client/src/app_client.svelte`** (an `$effect` on `selfState.connection`). 🔓 **R4 is NOT in this leg** — still open, still the stream's.
+
+🛑 **AND THIS LEG NOW SERVES TWO MILESTONES — IT IS ALSO `M_RP_IDENTITY_RESOLUTION.md`'s LEG E. NAMED HERE RATHER THAN DISCOVERED AT IMPLEMENTATION.** Both were filed as *an `$effect` on `selfState.connection`* in this same file. 🔒 **THIS MILESTONE OWNS THE BUILD** (§5 is this document's decision); **that milestone's Leg E CONSUMES AND VERIFIES** and is discharged when this leg lands. ⚠️ *Two seats writing one `$effect` from two runbooks is the one-writer-per-file-per-atom breach — which is why one runbook is authored, not two.*
+
+✅ **GROUNDED 2026-08-02, NOT ASSUMED — LEG C DOES NOT DEPEND ON LEG B.** Leg B builds **delta setters** for live events; Leg C **re-runs fills**. **Different mechanisms ⇒ the ordering between them is free**, and Leg C may precede Leg B if Joe wants the reconnect hook sooner.
+
+🔑 **BUT LEG C HAS TWO HALVES AND THEY ARE NOT THE SAME PRICE — MEASURED:**
+- **The members half is FREE.** `loadMembers(sid)` (`app_client.svelte:171`) is already a **named callable**, and the §3.5 late-guard already discards a resolve whose `spaceId` no longer matches ⇒ re-entrancy is already handled.
+- **The spaces/rooms half needs an EXTRACTION.** `spacesState.setSpaces(await invoke('get_spaces'))` (`:625`) is an **inline line inside the startup block, not a function**. ⚠️ **And it is a WHOLESALE replace** ⇒ the runbook must establish what it does to selection and to the room latch before it is fired a second time in a session. **`setSpaces` has had exactly ONE caller since it was written; Leg C makes it two.**
+- ⇒ 📌 **`M_RP_IDENTITY_RESOLUTION.md`'s Leg E needs ONLY the members half**, which is the free one.
 
 **Leg D — live verify.** **Surface: the real client on 9222, driven over CDP, against the REAL node (`run-node_service.lnk`), with the second identity `--instance bob`.** Two identities, one observer. **Observed:** a real `membership.join` updating the observer's roster **without a re-fill**; a real room create appearing in the rooms panel; the joiner NOT receiving its own join; churn returning the registry to its recorded baseline. **Measured:** the registry count recorded **with its store composition**, never bare.
 
@@ -500,7 +518,10 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item below that says "observe
 - [ ] `membership.join` **observed** updating an already-connected client's roster with no re-fill — **Leg D**
 - [ ] the joiner **observed** NOT receiving its own join — **Leg D**
 - [ ] a real room create **observed** appearing without an application restart — **Leg D**
-- [ ] §5's reconnect rule **exercised**, once ruled — **Leg C + Leg D**
+- [ ] §5's **R1** reconnect re-fill **exercised** — ✅ **ruled 2026-08-02 (J-658)** — **Leg C + Leg D**
+- [ ] **BOTH HALVES of Leg C exercised, named separately because they are not the same build** — the members re-fill (`loadMembers`) **and** the spaces/rooms re-fill (the extracted `get_spaces` call) — **Leg C + Leg D**
+- [ ] **`setSpaces` fired a SECOND time in one session leaves selection and the room latch intact** — it has had exactly one caller since it was written — **Leg C + Leg D**
+- [ ] 🔓 **R4 is NOT in this DoD.** Still open, still the stream's; **no item here may be read as covering it**
 - [ ] `svelte-check` floor re-**measured** on the final tree, no new warnings — **Legs A, B, C**
 - [ ] registry count **measured** with composition, churn returns to baseline — **Leg D**
 - [ ] §6-i's subject field: `membership.kick` **exercised** and the **TARGET** leaves the roster while the **MODERATOR** stays — **Leg D**
@@ -515,7 +536,8 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item below that says "observe
 
 - ⚠️ **A DEFERRAL WRITTEN AS A CODE COMMENT HAS NO OWNER AND NO TRIGGER.** `app_client.svelte:564-565` deferred live spaces push to M-RP6.6; M-RP6.6 closed at J-543 and nothing brought the comment back into view. **Proposal, Joe's to rule:** a deferral that survives a milestone belongs in ROADMAP or DECISIONS, not in a comment. Not fixed here.
 - `MembershipInvite · Mute · NodeUnban` unhandled by choice (§6).
-- No flap guard on §5's R1 reconnect re-fill.
+- **No flap guard on §5's R1 reconnect re-fill.** ⚠️ **R1 IS NOW LOCKED (J-658), so this stops being hypothetical** — §5's own option text called a flap guard *"a later amendment, not a v1 requirement"*, and that stands. 📌 **Leg C's runbook must state which it ships**, so the absence is a recorded choice rather than an oversight.
+- 🔓 **§5's R4 — SYNC-FROM-CURSOR ON RECONNECT — REMAINS OPEN AND IS NOT IN ANY LEG.** ⚠️ **Filed here explicitly because its sibling R1 was locked on 2026-08-02 and a half-ruled section is exactly how one half gets read as settled.** Its honest cost is named at §5a: **the GUI client persists no sync cursor**, so `since=""` means full replay. **Owner: Joe. Trigger: none named yet** — ⚠️ *and by §9's own first entry, a deferral without a trigger has no owner in practice; this one is at least in a filed list rather than a code comment.*
 - A third consumer would justify revisiting §2's one-router shape; two does not.
 - 📌 **SPEC GAP — `state.space_update` HAS NO CONTENT SCHEMA (§6a-i ③).** Dispatched to `=> Ok(())`; no applier function has ever existed. **Not this milestone's to fix** — a frontend router cannot invent a schema. Owed by whoever writes it.
 - 📌 **SPEC GAP — `docs/xgen_appendix_i_en.md:95` PROMISES `state.room_update` CARRIES *name* AND *topic*; THE APPLIER CARRIES NEITHER (§6a-i ③).** ⚠️ **The spec is ahead of the code, and in a protocol project the spec is the deliverable** ⇒ this is a real divergence, not a code TODO. **Named, not fixed, and not this milestone's.**
@@ -528,13 +550,13 @@ Applying `M_RP_MEMBERS.md` §8b's rule — **every item below that says "observe
 ## §10 — Handoff
 
 **Blocked on Joe:**
-- §5 — the reconnect rule. **Gates Leg C only.**
+- 🔓 **§5's R4 — the STREAM's sync-from-cursor replay. Gates NOTHING today; it is in no leg.** ⚠️ *v1.0–v1.14 read "§5 — the reconnect rule. **Gates Leg C only.**" **§5's R1 half was ruled 2026-08-02 (J-658) and Leg C is unblocked; the R4 half was deliberately not bundled.** Superseded, kept not erased (`D-131`).*
 - 🔓 **THE B1/B2/B3 SCOPE RULING — NEW AT v1.12, AND IT NOW HAS A MEASURED BASIS IT DID NOT HAVE BEFORE.** §6-ii establishes that **`get_spaces` reads disk and the router writes memory**, so **B1 makes the panel correct until restart and cannot make it true**. **Gates Leg B's runbook LOCK, not its authoring.**
 - 🔓 **WHETHER AN UNRESOLVED ROW RENDERS DISTINGUISHABLY — raised by §5-iv, DEFERRED BY JOE until after Leg A (2026-08-01).** ⚠️ **Gates nothing here**; it is `M_RP_MEMBERS.md` §6's word form and is filed there.
 
 **Not blocked:** ✅ **Leg A is DONE** (J-643). **Leg B's runbook may be authored.** §3 is locked.
 
-**Owes:** `M-RP-MEMBERS Leg C live-membership verify` — unblocked by Leg A, **not discharged by it**: Leg A shipped with no CDP and no live run by design, and Leg C's REQUIRED LEG is two clients and a real join. · `M-RP-LIVEFEED-REFRESH Leg D live verify` — where that run actually happens.
+**Owes:** `M-RP-MEMBERS Leg C live-membership verify` — unblocked by Leg A, **not discharged by it**: Leg A shipped with no CDP and no live run by design, and Leg C's REQUIRED LEG is two clients and a real join. · `M-RP-LIVEFEED-REFRESH Leg D live verify` — where that run actually happens. · 🔒 **`M-RP-IDENTITY-RESOLUTION Leg E refresh trigger` — NEW 2026-08-02: this milestone's Leg C IS that leg's build** (§7 Leg C). 🛑 **AND IT REACHES FURTHER THAN A LEG: that milestone's C-3 skin rule is gated on Leg E ⇒ `M-RP-IDENTITY-RESOLUTION` C-3 IS GATED ON THIS MILESTONE'S LEG C.** Recorded in **both** `Owes:` lines under `D-133`, because a cross-milestone gate written on one side only is a gate that goes stale invisibly on the other.
 
 **Chat owes:** the §0b registry composition model (carried from the M-RP-MEMBERS arc, needs a live client).
 

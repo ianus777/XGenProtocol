@@ -1,10 +1,76 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-01  
+> **Last updated:** 2026-08-02  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-658 — §6 and §7 ruled as one decision, and the half that looked obvious would have closed G-B on paper
+
+**Date:** 2026-08-02 · **Seat:** Joe (ruled — *"locked"*) · Chat (grounding, the finding, records). **NO CODE. Five documents, one commit.**
+
+**Opened at** `0c6cdaf`, tree clean, `HEAD == origin/main` — **verified first, before the reading order.**
+
+---
+
+### 🔒 THE RULING — OPTION T2
+
+§7's **Tier-1 fetch on join SHIPS** (Leg D) **and** §6's **refresh trigger is R1**, the reconnect re-fill (Leg E). 🔑 **They are one decision, and the reason is one the prior record hedged at without ever stating: §7 is the ATTEMPT and §6 is the RETRY — and a retry of an attempt that never happens is not a retry.** Today a live joiner is never looked up at all (G7), so without §7 the reconnect hook would re-run a fill for someone the fill was never asked about.
+
+### 🛑 N-168 — THE FINDING, AND IT IS WHY THE CHEAP ANSWER WAS REFUSED
+
+The kickoff and the Phase-0 both pointed at one answer. §6's own closing line read: *"Cheapest honest option is the reconnect hook, because that decision is being made anyway."* **It is cheap, it is honest, and it does not close G-B.**
+
+**R1 fires on a transition into `READY`. G-B's failure case is a long session in ONE Space that never disconnects.** ⇒ a member who joins a *good* session stays dimmed for the rest of it, and §4c-i's promise — *a transient state is only sayable if the attempt is guaranteed to conclude* — is discharged **only in sessions that happen to suffer a network fault.**
+
+🔑 **N-168, stated to outlive the milestone: *A TRIGGER THAT FIRES ONLY ON AN EXCEPTIONAL CONDITION CANNOT DISCHARGE A PROMISE MADE IN THE ORDINARY ONE.*** The reconnect hook is a **recovery** mechanism; §4's dimming is an **ordinary-path** claim. ***The pairing looks complete because both contain the word "refresh"*** — which is exactly the shape that made it feel like a bookkeeping merge rather than a decision.
+
+🛑 **What the wrong answer would have cost, concretely: `docs/ROADMAP.md` would now carry `G-B closed` beside a panel that still promises a resolution it cannot deliver — and C-3, which is gated on precisely that, would have shipped on it.** ⇒ 🔒 **G-B closes on Leg D AND Leg E together; no single leg may tick it.**
+
+**Re-grounded before the ruling rather than inherited from the Phase-0:** `app_client.svelte:168` — `const sid = roomLatch.effectiveSpaceId; // the sole tracked dependency` · `selfState.connection` has exactly **two** readers, `:144` (status feed) and `:267` (`guardedSend`'s guard) ⇒ **nothing re-fills on reconnect today.** G-B holds exactly as written.
+
+### 🛑 AND THE RESIDUE WAS NAMED RATHER THAN LEFT AS AN INTENTION
+
+**A Tier-1 fetch that TIMES OUT is still ④, and nothing retries it** — §7 says so itself. **T3, a bounded per-row retry, is the only option that literally satisfies §4c-i, and it was refused for now**: its terminal state has no word, which re-opens `D-126` (deferred J-588) **for a case nobody has yet seen occur**. ⇒ `Owes:` — **Leg F measures how often the residue happens and T3 is re-priced then; if it is common, T3 stops being an option and becomes a defect.** 📌 *Written with an owner and a trigger because this milestone's own §9 records what a deferral without either becomes.*
+
+### 🛑 THE SECOND FINDING — TWO MILESTONES HAD FILED ONE BUILD, AND NEITHER RECORD SHOWED THE OTHER
+
+`M-RP-IDENTITY-RESOLUTION` **Leg E** and `M-RP-LIVEFEED-REFRESH` **Leg C** are **the same `$effect` on `selfState.connection` in the same file.** Two leg-letters, one build.
+
+🔒 **The parent owns it** — §5 is its decision ⇒ **Leg C builds, Leg E consumes and verifies, ONE runbook not two.** *Two seats writing one `$effect` from two runbooks is the one-writer-per-file-per-atom breach.* 🛑 ⇒ **C-3 is now gated on a leg in a different milestone**, recorded on **both** `Owes:` lines (`D-133`) — *a cross-milestone gate written on one side only goes stale invisibly on the other.*
+
+✅ **The ordering worry was grounded, not assumed: the parent's Leg C does NOT depend on its Leg B.** B builds **delta setters** for live events; C **re-runs fills**. Different mechanisms ⇒ the ordering is free.
+
+🔑 **But Leg C has two halves at different prices, and only the free one is owed here.** The **members** half is `loadMembers(sid)` (`:171`) — **already a named callable**, with the §3.5 late-guard handling re-entrancy. The **spaces/rooms** half is `spacesState.setSpaces(await invoke('get_spaces'))` (`:625`) — **an inline line inside the startup block, not a function**, and a **wholesale replace**. ⚠️ **`setSpaces` has had exactly ONE caller since it was written and Leg C makes it two**, so the runbook must establish what a second fire does to selection and the room latch. **Three new DoD items in the parent carry that.**
+
+### 🔒 ONLY HALF OF THE PARENT'S §5 WAS RULED, AND THE OTHER HALF IS FLAGGED IN FOUR PLACES
+
+**R1 is locked for the PANELS. R4 — sync-from-cursor replay for the MESSAGE STREAM — is still 🔓 OPEN and is in no leg.** §5a had already drawn the line: *panels need current STATE ⇒ re-fill; the stream needs the missed EVENTS ⇒ replay.* R4's honest cost stands — **the GUI client persists no sync cursor**, so `since=""` means full replay. 📌 *Flagged in §5, §7's Leg C, the DoD and §9 deliberately: **a half-ruled section is exactly how one half gets read as settled.***
+
+### 🔒 TWO ITEMS TAKEN UNDER `D-123` RATHER THAN ROUTED BACK
+
+① **`M-RP-XGID-SLOT-RETYPE` (`D-136`) lands FIRST, standalone.** The record had offered *"lands first, OR Leg D absorbs it"* since v6.32; **the fork is closed rather than left open.** Three reasons, the third decisive: **`D-071`** (audits precede dependents) · Leg D's command **carries an `identity_id` slot**, so retyping afterwards means touching it **twice** · 🔑 **it is a filed milestone with its own ID, and folding it into a leg makes it a RIDER** — *"its own milestone, never a rider"* is a standing refusal here (`mergeClasses` · `M-RP-ROVING` · the `dialog` footer slot); and **both move cargo**, so absorbing it makes the delta unattributable **within** the floor. ② **the parent's Leg C owns the `$effect`.** *Both are sequencing and attribution — not architecture, not appearance — and both are written so Joe reverses either on one line.*
+
+### ⚠️ D-121 LENS ① WAS STATED FOR THE PRODUCT, NOT THE DESK — A NAMED DEPARTURE FROM J-654
+
+J-654's *"no user-facing impact"* was **legal**, because that decision was about **ORDER** and ③/④ need two clients. **This one is about whether a promise is kept**, and it becomes visible the day two identities share a room — where §7's own grounding says ④ is *the default outcome of every live join*. 🔑 ***"Unreachable on one desk" is a fact about the TEST SETUP, not about the product*** — the argument that has now been wrong five times here (N-091 · N-097 · N-099 · N-109 · N-116). **Saying so first is what stopped the cheap answer being argued as if nobody were waiting.**
+
+### 🛑 ONE STALE POINTER, FOUND AND REPAIRED *WITH THE REPAIR RECORDED*
+
+`docs/ROADMAP.md`'s identity-resolution node read `Phase-0 … v1.11 ACTIVE` from v6.32 until today. **It went stale at J-655 (v1.12) and three careful sessions — including two adversarial reads — did not sweep it.** 🔑 **J-657's N-a is the rule being applied: the fix is fine, the SILENCE is not**, so the node now says what it used to read. 📌 *And it is one more instance of J-657's mechanism — `git diff` shows a pointer's text changing and says nothing about whether it still points true.*
+
+### ✅ SWEPT TWICE ON THE NAME (`D-135` §5a)
+
+Pass 2 found the two surviving hits of `Joe rules §7` / `Joe rules §6` sit **inside `D-131` annotation quotes**, which is correct; **zero live occurrences of `v1.11 ACTIVE`**. Line endings asserted after every write: `ROADMAP.md` **621 lines / 621 CRLF / 0 bare LF**, `CLAUDE.md` **767 / 767 / 0**, both task docs **LF only**. Header `> ` two-trailing-space rule asserted on all five.
+
+**FLOORS — NOT RE-MEASURED, ZERO CODE, STATED RATHER THAN SKIPPED:** cargo **1589 / 0 / 62 × 56** · svelte-check **0 / 34 / 15** · sampler catalogue **435**. **No new D. One new N (`N-168`).**
+
+🟡 **NEXT: `M-RP-XGID-SLOT-RETYPE` Phase-0** — unwritten, and `D-071` requires its sweep to go **wider than the address-book path already measured**. 🔓 **Still Joe's, and now the only open item in `M-RP-IDENTITY-RESOLUTION`: §5's DAG-divergence read.**
+
+→ J-658 · `M_RP_IDENTITY_RESOLUTION.md` v1.13 · `M_RP_LIVEFEED_REFRESH.md` v1.15 · ROADMAP v6.46.
 
 ---
 

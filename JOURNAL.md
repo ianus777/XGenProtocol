@@ -8,6 +8,68 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-662 — the roadmap gets its symbol vocabulary back
+
+**Date:** 2026-08-02 · **Seat:** Joe (ruled) · Chat (measurement, cleanup, records). **NO CODE.** ROADMAP v6.49 → v6.50.
+
+**Joe:** *"i lost track in roadmap. there are lots of unofficial icons … in roadmap there will be just official. otherwise they hijack attention to the other planetary systems."*
+
+---
+
+### The diagnosis was narrower than it felt
+
+**The tree was never broken.** All **260** node lines already began with a correct official state symbol — zero exceptions. Nothing was mislabelled. The noise was entirely around the state column, not in it.
+
+**Measured before touching anything:**
+
+| group | count | disposition |
+|---|---|---|
+| attention icons — stop, warning, key, lock, pin, unlock, recycle, book, check | **261** | **deleted** |
+| state symbols sitting in annotation prose | **62** occurrences | **deleted** |
+| tree glyphs, arrows, enumeration marks | 1,940 | kept — structure and punctuation, not icons |
+
+**Nothing converted; everything deleted.** That disposition is grounded rather than assumed: **because all 260 node lines already carried a correct state symbol, no unofficial icon was carrying state anywhere** — so deleting them loses nothing. The words they decorated (LOCKED, RULED, OPEN) already said it in text.
+
+### The finding Joe's rule did not reach, taken under D-123
+
+Joe ruled on *unofficial* icons. But **the biggest single contributor was an official one**: a check mark appeared **300** times, of which **62 were prose** in annotation lines. Searching for a DONE node returned those 62 as false hits. **Removed too**, so state symbols now live on node lines only. Reversible on one line.
+
+### The cleanup silently half-failed, and the byte count said it had worked
+
+First pass reported a plausible size reduction. It had removed the attention icons and **none of the check marks.**
+
+**Cause, found in the data rather than guessed:** the symbols that worked were built with `ConvertFromUtf32`, which returns a **string**; the two that failed were written `[char]0x2705` and `[char]0x2714`, which are **chars**. `.Replace($char, "")` binds to the `Replace(char, char)` overload, throws converting `""` to a char, and **the whole chained expression fails**, so the line is never reassigned.
+
+**The tell was in the numbers all along:** every string-built symbol dropped (PENDING 46 to 33, PLAY 17 to 5, POSTPONED 12 to 7) and every char-built one did not move at all (check mark 300 to 300, heavy check 1 to 1). **A partial failure whose size delta was indistinguishable from success.**
+
+**Forward rule:** verify a bulk edit against **what it was supposed to change**, not against the fact that something changed.
+
+**And a second, smaller one:** the first pass printed `$t.Length` labelled as bytes. That is **UTF-16 code units**. The follow-up read genuine bytes and appeared to grow the file by 6 KB — **an alarm caused purely by comparing two different units.** *A number needs its unit stated or it will be compared to the wrong thing.*
+
+### The rule now has a home
+
+**Symbol discipline** is written into the ROADMAP legend section itself — not into a task doc, not into an archive. **D-137's own lesson applied to the roadmap: a rule needs a place the reader will actually read.** The rule obeys itself: it is written without a single icon.
+
+**Exception, recorded rather than quietly legalised or quietly deleted:** CLOSED is in use at one node and is not in the legend table. **Joe left it for a later review**, and the legend now says so.
+
+### Verification
+
+```
+unofficial icons remaining          = 0
+node lines                          = 260
+node lines starting with a state    = 260
+state symbols on annotation lines   = 0
+lines=658  crlf=658  bareLF=0  header trailing-space violations=0
+```
+
+**FLOORS — not re-measured; no code touched:** cargo **1589 / 0 / 62 x 56** · svelte-check **0 / 34 / 15** · sampler catalogue **435**. **No new D, no new N.**
+
+**NEXT: Leg B** — 4 slots, unblocks `M-RP-IDENTITY-RESOLUTION` Leg D. **Open for Joe:** whether `CLAUDE.md`'s PLAY head gets the same treatment — it carries the same icon density and he reads it just as often.
+
+→ J-662 · ROADMAP v6.50.
+
+---
+
 ## Entry J-661 — Leg A closes, and I raised a false alarm against my own uncommitted work
 
 **Date:** 2026-08-02 · **Seat:** Joe (*"go by your recomms"*, then the correction) · Chat (`D-137`, the gate, records).

@@ -25,7 +25,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Context, Result};
 use ed25519_dalek::SigningKey;
 
-use xgen_common::xgid::{IdentityXgid, Xgid};
+use xgen_common::xgid::{IdentityXgid, NodeXgid, Xgid};
 use xgen_core::{
     identity::registration::identity_id_from_key,
     transport::client::connect_url,
@@ -79,7 +79,7 @@ pub struct SessionState {
     /// this is what `create_space` / `create_dm_space` write into a Space's
     /// signed `content["home_node"]`. `None` until connected, or against a
     /// pre-echo Node.
-    pub node_id: Option<String>,
+    pub node_id: Option<NodeXgid>,
     pub data_dir: PathBuf,
 
     pub bindings: HashMap<String, String>,

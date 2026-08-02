@@ -40,6 +40,8 @@ use xgen_core::space::state::sign_event;
 use xgen_core::transport::connection::{Connection, EventConfirm, Inbound};
 use xgen_core::wire::types::{Event, TransportMessage};
 
+use xgen_common::xgid::{EventXgid, RoomXgid, SpaceXgid, Xgid};
+
 use crate::lifecycle::ClientLifecycleState;
 
 // ── Traffic accounting (Leg C, §0 Path A) ─────────────────────────────────────
@@ -441,15 +443,15 @@ where
                 }
                 // Build → sign → write, anchored on the tracked frontier with the
                 // shipped root fallback when it is empty (the `ops::send` shape).
-                let mut prev = io.tips.tips_for(&req.space_id);
+                let mut prev = io.tips.tips_for(req.space_id.as_str());
                 if prev.is_empty() {
-                    prev = vec![req.space_id.clone()];
+                    prev = vec![req.space_id.as_str().to_string()];
                 }
                 let ev = sign_event(
                     build_message_text_event(
                         signing_key,
-                        &req.space_id,
-                        &req.room_id,
+                        req.space_id.as_str(),
+                        req.room_id.as_str(),
                         prev.clone(),
                         &req.text,
                     ),
@@ -465,7 +467,7 @@ where
                         // Our own send advances the frontier too — two messages
                         // typed in a row must chain, and the ack has not arrived
                         // yet when the second is built.
-                        io.tips.observe(&req.space_id, &event_id, &prev);
+                        io.tips.observe(req.space_id.as_str(), &event_id, &prev);
                         pending.insert(event_id, (req.reply, Instant::now()));
                     }
                     Err(e) => {
@@ -508,7 +510,7 @@ where
     // stated failure, not to silence.
     for (id, (reply, _)) in pending.drain() {
         let _ = reply.send(SendOutcome {
-            event_id: Some(id),
+            event_id: Some(EventXgid::from_xgid(Xgid::new(id))),
             status: "failed",
             code: None,
             reason: Some("connection ended before the node confirmed".to_string()),
@@ -707,8 +709,8 @@ impl TipTracker {
 /// both live resident-side, and putting event construction anywhere else would
 /// mean a second place that knows how to anchor (D-067).
 pub struct OutboundRequest {
-    pub space_id: String,
-    pub room_id: String,
+    pub space_id: SpaceXgid,
+    pub room_id: RoomXgid,
     pub text: String,
     /// Resolved when the node's outcome correlates, the send fails to write, or
     /// the session drops — D6's binding rule applied to the transport: a message
@@ -737,7 +739,7 @@ pub struct OutboundRequest {
 /// success or failure is precisely the lie D6 forbids.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SendOutcome {
-    pub event_id: Option<String>,
+    pub event_id: Option<EventXgid>,
     pub status: &'static str,
     pub code: Option<u32>,
     pub reason: Option<String>,
@@ -750,19 +752,19 @@ impl SendOutcome {
     fn from_confirm(event_id: String, confirm: EventConfirm) -> Self {
         match confirm {
             EventConfirm::Accepted => Self {
-                event_id: Some(event_id),
+                event_id: Some(EventXgid::from_xgid(Xgid::new(event_id))),
                 status: "accepted",
                 code: None,
                 reason: None,
             },
             EventConfirm::Rejected { code, reason, event_id } => Self {
-                event_id: Some(event_id),
+                event_id: Some(EventXgid::from_xgid(Xgid::new(event_id))),
                 status: "rejected",
                 code: Some(code),
                 reason: Some(reason),
             },
             EventConfirm::TimedOut => Self {
-                event_id: Some(event_id),
+                event_id: Some(EventXgid::from_xgid(Xgid::new(event_id))),
                 status: "timed_out",
                 code: None,
                 reason: None,
@@ -1325,7 +1327,7 @@ mod tests {
 
         let t = SendOutcome::from_confirm("e1".to_string(), EventConfirm::TimedOut);
         assert_eq!(t.status, "timed_out");
-        assert_eq!(t.event_id.as_deref(), Some("e1"));
+        assert_eq!(t.event_id.as_ref().map(|e| e.as_str()), Some("e1"));
 
         let r = SendOutcome::from_confirm(
             "e2".to_string(),
@@ -1341,6 +1343,31 @@ mod tests {
         let a = SendOutcome::from_confirm("e3".to_string(), EventConfirm::Accepted);
         assert_eq!(a.status, "accepted");
         assert!(a.code.is_none());
+    }
+
+    #[test]
+    fn send_outcome_serialises_event_id_identically_both_arms() {
+        // M-RP-XGID-SLOT-RETYPE Leg C V3-a. `event_id` is now
+        // `Option<EventXgid>`; under `#[serde(transparent)]` the confirmed arm
+        // serialises the id as a bare string and the failed arm serialises
+        // `null` — never an empty-but-present id. `EventXgid: Default` makes an
+        // empty string representable, so the `null` arm is the one that matters:
+        // a failed send that carried an event id would be the exact D6 lie
+        // `SendOutcome`'s four-way honesty exists to prevent.
+        let ok = SendOutcome::from_confirm(
+            "xgen://hash/sha256:abc".to_string(),
+            EventConfirm::Accepted,
+        );
+        assert_eq!(
+            serde_json::to_string(&ok).unwrap(),
+            r#"{"event_id":"xgen://hash/sha256:abc","status":"accepted","code":null,"reason":null}"#,
+        );
+
+        let failed = SendOutcome::failed("nope");
+        assert_eq!(
+            serde_json::to_string(&failed).unwrap(),
+            r#"{"event_id":null,"status":"failed","code":null,"reason":"nope"}"#,
+        );
     }
 
     #[test]
@@ -1536,8 +1563,8 @@ mod tests {
     fn an_abandoned_request_reads_as_closed() {
         let (reply, rx) = oneshot::channel::<SendOutcome>();
         let req = OutboundRequest {
-            space_id: "s".to_string(),
-            room_id: "r".to_string(),
+            space_id: SpaceXgid::from_xgid(Xgid::new("s".to_string())),
+            room_id: RoomXgid::from_xgid(Xgid::new("r".to_string())),
             text: "t".to_string(),
             reply,
         };

@@ -569,7 +569,10 @@ async fn run_cli_command(
         {
             Some(vr) => Err(DispatchError::VerbReject {
                 code: vr.code,
-                event_id: vr.event_id.clone(),
+                // INTERNAL (`ops::VerbReject.event_id`, EventXgid) → BOUNDARY:
+                // the aicontrol reply envelope field stays `String` (R2, D-137
+                // §1 clause 3). This is the one projection in this direction.
+                event_id: vr.event_id.as_str().to_string(),
                 message: format!("{e:#}"),
             }),
             None => Err(DispatchError::ClientVerb(format!("{e:#}"))),

@@ -173,7 +173,7 @@ pub struct ThreadState {
     /// Minimum Auth Tier to participate (narrow-not-widen vs the Room/Space; AE-D9).
     pub auth_tier_min: u32,
     /// The `thread.create` event id this Thread derives from.
-    pub origin_event: String,
+    pub origin_event: EventXgid,
 }
 
 // `PartialEq`/`Eq` added at M8 C1 (state-resolution convergence) — the
@@ -928,7 +928,10 @@ impl SpaceState {
                 title,
                 status: ThreadStatus::Open,
                 auth_tier_min,
-                origin_event: origin,
+                // The typed create-event id is already in hand (`event_xgid`);
+                // `origin` is its `String` projection kept only for the
+                // `thread_id_from_event_id` derivation above.
+                origin_event: event_xgid,
             },
         );
         Ok(())

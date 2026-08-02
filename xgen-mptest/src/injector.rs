@@ -272,7 +272,9 @@ pub async fn inject_event(
     let event_id = event.event_id.as_ref().map(|e| e.as_str().to_string());
     let error_reply = recv_error_within(&mut conn, Duration::from_millis(500)).await;
     Ok(InjectionResult {
-        authed_as: Some(authed_as),
+        // `AuthOutcome.identity_id` is now `IdentityXgid` (M-RP-XGID-SLOT-RETYPE
+        // Leg C); project to this result's `String` form at the consumer.
+        authed_as: Some(authed_as.as_str().to_string()),
         event_id,
         error_reply,
     })

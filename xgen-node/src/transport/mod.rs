@@ -54,7 +54,9 @@ mod tests {
 
         // Both sides agree on the identity.
         assert_eq!(server_identity_id, expected_id);
-        assert_eq!(returned_id, expected_id);
+        // `AuthOutcome.identity_id` is now `IdentityXgid` (M-RP-XGID-SLOT-RETYPE
+        // Leg C); compare against the `String` expected id via `.as_str()`.
+        assert_eq!(returned_id.as_str(), expected_id);
 
         // Client sends a WebSocket ping; server should receive it as Inbound::Ping.
         client_conn.ping().await.unwrap();

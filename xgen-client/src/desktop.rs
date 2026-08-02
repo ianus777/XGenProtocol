@@ -25,6 +25,7 @@ use crate::lifecycle::{make_state_event, ClientLifecycleState, ClientStateEvent}
 use crate::pacing::{PacingManager, PacingState};
 use crate::temperature::TemperatureUpdate;
 use xgen_common::event_trace::{write_session_footer, write_session_header, ExitReason};
+use xgen_common::xgid::{RoomXgid, SpaceXgid, Xgid};
 
 // ── Shared state ───────────────────────────────────────────────────────────────
 
@@ -352,8 +353,11 @@ async fn send_message(
         .state::<Outbound>()
         .0
         .try_send(crate::resident::OutboundRequest {
-            space_id,
-            room_id,
+            // The Tauri command params arrive as the external `String` form
+            // (Tauri IPC boundary, Pass 4 §4.2); project to OutboundRequest's
+            // typed fields here — D-137, one projection per direction.
+            space_id: SpaceXgid::from_xgid(Xgid::new(space_id)),
+            room_id: RoomXgid::from_xgid(Xgid::new(room_id)),
             text,
             reply: reply_tx,
         });

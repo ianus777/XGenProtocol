@@ -3388,7 +3388,7 @@ pub async fn cmd_redact(
     let r = crate::ops::redact(&mut ctx, args).await?;
     println!(
         "Redacted {} (event {})",
-        short_id(&r.target_event_id),
+        short_id(r.target_event_id.as_str()),
         short_id(r.event_id.as_str())
     );
     Ok(())

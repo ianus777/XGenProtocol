@@ -1,7 +1,7 @@
 # XGID identifier-slot manifest - the canonical per-slot classification (M-RP-XGID-SLOT-RETYPE Leg 0, J-660).
 # Reasoning and totals live in tasks/M_RP_XGID_SLOT_RETYPE.md section 3a. This file is the per-slot list, not a second copy of it.
 # Keyed on File + Struct + Field. NOT on line numbers - those shift.
-# EXPECTED: BOUNDARY=65 DESCRIPTIVE=5 INTERNAL=13 UNREAD=1 TOTAL=84
+# EXPECTED: BOUNDARY=65 DESCRIPTIVE=5 INTERNAL=3 UNREAD=1 TOTAL=74
 # Class	File	Struct	Field
 BOUNDARY	xgen-client/src/app.rs	BanArgs	identity
 BOUNDARY	xgen-client/src/app.rs	BanArgs	space
@@ -73,17 +73,7 @@ DESCRIPTIVE	xgen-common/src/aicontrol/envelope.rs	ENUM-VARIANT	id
 DESCRIPTIVE	xgen-common/src/aicontrol/envelope.rs	ENUM-VARIANT	id
 DESCRIPTIVE	xgen-node/src/audit.rs	AuditEntry	correlation_id
 DESCRIPTIVE	xgen-node/src/audit.rs	AuditEntry	target
-INTERNAL	xgen-client/src/ops.rs	RedactResult	target_event_id
-INTERNAL	xgen-client/src/ops.rs	RoomsResult	space_id
 INTERNAL	xgen-client/src/ops.rs	ThreadCreateResult	thread_id
 INTERNAL	xgen-client/src/ops.rs	ThreadStatusResult	thread_id
-INTERNAL	xgen-client/src/ops.rs	VerbReject	event_id
-INTERNAL	xgen-client/src/resident.rs	OutboundRequest	room_id
-INTERNAL	xgen-client/src/resident.rs	OutboundRequest	space_id
-INTERNAL	xgen-client/src/resident.rs	SendOutcome	event_id
-INTERNAL	xgen-client/src/session.rs	SessionState	node_id
 INTERNAL	xgen-core/src/space/state.rs	ThreadState	id
-INTERNAL	xgen-core/src/space/state.rs	ThreadState	origin_event
-INTERNAL	xgen-core/src/transport/connection.rs	AuthOutcome	identity_id
-INTERNAL	xgen-core/src/transport/connection.rs	AuthOutcome	node_id
 UNREAD	xgen-common/src/aicontrol/envelope.rs	ErrorBody	event_id

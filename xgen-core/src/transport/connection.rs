@@ -19,6 +19,7 @@ use futures_util::{SinkExt, StreamExt};
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
+use xgen_common::xgid::{IdentityXgid, NodeXgid, Xgid};
 
 use crate::wire::{
     framing::{decode_frame, encode_frame, FrameError},
@@ -127,8 +128,8 @@ pub enum EventConfirm {
 /// `ops::create_space`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthOutcome {
-    pub identity_id: String,
-    pub node_id: Option<String>,
+    pub identity_id: IdentityXgid,
+    pub node_id: Option<NodeXgid>,
 }
 
 // ── Connection ────────────────────────────────────────────────────────────────
@@ -617,7 +618,13 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Connection<S> {
         {
             Inbound::Transport(TransportMessage::AuthOk {
                 identity_id, node_id, ..
-            }) => Ok(AuthOutcome { identity_id, node_id }),
+            }) => Ok(AuthOutcome {
+                // BOUNDARY → INTERNAL: the wire `AuthOk` carries `String`
+                // identifiers; project once here, at the format/in-memory edge
+                // (D-137 §1 clause 3, one projection per direction).
+                identity_id: IdentityXgid::from_xgid(Xgid::new(identity_id)),
+                node_id: node_id.map(|n| NodeXgid::from_xgid(Xgid::new(n))),
+            }),
             Inbound::Transport(TransportMessage::AuthFail {
                 error_code,
                 error_string,
@@ -664,6 +671,29 @@ mod send_confirm_tests {
     use super::*;
     use std::time::Duration;
     use tokio::io::DuplexStream;
+
+    #[test]
+    fn auth_outcome_equality_holds_after_retype() {
+        // M-RP-XGID-SLOT-RETYPE Leg C V3-c. `AuthOutcome` derives
+        // `PartialEq, Eq`; the identifier retype (`identity_id` → `IdentityXgid`,
+        // `node_id` → `Option<NodeXgid>`) must not disturb the comparison that
+        // `ops::create_space` relies on.
+        let a = AuthOutcome {
+            identity_id: IdentityXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:id".to_string())),
+            node_id: Some(NodeXgid::from_xgid(Xgid::new(
+                "xgen://pubkey/ed25519:node".to_string(),
+            ))),
+        };
+        assert_eq!(a, a.clone());
+
+        let other = AuthOutcome {
+            identity_id: IdentityXgid::from_xgid(Xgid::new(
+                "xgen://pubkey/ed25519:other".to_string(),
+            )),
+            node_id: a.node_id.clone(),
+        };
+        assert_ne!(a, other);
+    }
 
     /// A connected in-process WS pair (no TCP, no TLS) over `tokio::io::duplex`.
     async fn ws_pair() -> (Connection<DuplexStream>, Connection<DuplexStream>) {

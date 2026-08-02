@@ -255,7 +255,9 @@ async fn run_ai_loop(
     let mut pacing = AiPacingTracker::new();
 
     let session_ctx = SessionContext {
-        identity_id: Some(auth_id.clone()),
+        // `auth_id` is `AuthOutcome.identity_id`, now `IdentityXgid`; project to
+        // SessionContext's `String` form at the consumer (Leg C).
+        identity_id: Some(auth_id.as_str().to_string()),
         role: Some(SpaceRole::Member),
         space_id: None,
     };

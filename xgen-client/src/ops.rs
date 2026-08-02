@@ -138,7 +138,9 @@ fn apply_single_event_confirm(
         }) => Err(anyhow::Error::new(VerbReject {
             verb: verb.to_string(),
             code,
-            event_id,
+            // BOUNDARY (`EventConfirm::Rejected.event_id`, wire) → INTERNAL:
+            // project once here (D-137 §1 clause 3).
+            event_id: EventXgid::from_xgid(Xgid::new(event_id)),
             reason,
         })),
         Err(e) => {
@@ -160,7 +162,7 @@ pub struct VerbReject {
     /// The node's wire reject code (e.g. 3030 `tier_mismatch`).
     pub code: u32,
     /// The rejected event's id (the correlation key).
-    pub event_id: String,
+    pub event_id: EventXgid,
     /// The node's wire reason string.
     pub reason: String,
 }
@@ -257,7 +259,7 @@ pub fn spaces(ctx: &mut OpContext<'_>) -> Result<SpacesResult> {
 /// zero-network local read, same shape as `spaces` (M6 Phase 1, R1).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoomsResult {
-    pub space_id: String,
+    pub space_id: SpaceXgid,
     pub space_name: String,
     pub rooms: Vec<xgen_common::state::KnownRoom>,
 }
@@ -272,7 +274,9 @@ pub fn rooms(ctx: &mut OpContext<'_>, args: &crate::app::RoomsArgs) -> Result<Ro
         .find(|s| s.space_id == args.space)
         .ok_or_else(|| anyhow::anyhow!("no known Space with ID {}", args.space))?;
     Ok(RoomsResult {
-        space_id: space.space_id,
+        // `KnownSpace.space_id` is the external `String` form; project at the
+        // result boundary (D-137 §1 clause 3, one projection per direction).
+        space_id: SpaceXgid::from_xgid(Xgid::new(space.space_id)),
         space_name: space.name,
         rooms: space.rooms,
     })
@@ -598,7 +602,13 @@ pub async fn create_space(
             "home Node did not advertise its node_id (older protocol?); refusing to \
              create a Space with a transport URL as home_node"
         )
-    })?;
+    })?
+    // `SessionState.node_id` is now `Option<NodeXgid>`; project back to the
+    // `String` form the rest of this function (KnownSpace, the signed
+    // `content["home_node"]`, tracing) already carries — D-137, one
+    // projection per direction, mirroring the space_id projection below.
+    .as_str()
+    .to_string();
 
     // Build + sign the space_create event locally so the assigned IDs are
     // available before any network work.
@@ -831,7 +841,11 @@ pub async fn create_dm_space(
             "home Node did not advertise its node_id (older protocol?); refusing to \
              create a DM Space with a transport URL as home_node"
         )
-    })?;
+    })?
+    // See create_space: `Option<NodeXgid>` projected to `String` here so the
+    // function body stays String-typed (D-137, one projection per direction).
+    .as_str()
+    .to_string();
 
     // 1) Root: state.dm_space_create — its event_id IS the space_id.
     let dm_ev = sign_event(
@@ -1365,7 +1379,7 @@ pub struct ThreadStatusResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedactResult {
     pub event_id: EventXgid,
-    pub target_event_id: String,
+    pub target_event_id: EventXgid,
     pub space_id: SpaceXgid,
     pub room_id: RoomXgid,
 }
@@ -1536,7 +1550,7 @@ pub async fn redact(ctx: &mut OpContext<'_>, args: &crate::app::RedactArgs) -> R
 
     Ok(RedactResult {
         event_id: EventXgid::from_xgid(Xgid::new(event_id)),
-        target_event_id: args.target.clone(),
+        target_event_id: EventXgid::from_xgid(Xgid::new(args.target.clone())),
         space_id: SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
         room_id: RoomXgid::from_xgid(Xgid::new(args.room.clone())),
     })
@@ -3184,11 +3198,33 @@ mod tests {
             space: "xgen://hash/sha256:abc".into(),
         };
         let r = rooms(&mut ctx, &args).unwrap();
-        assert_eq!(r.space_id, "xgen://hash/sha256:abc");
+        assert_eq!(r.space_id.as_str(), "xgen://hash/sha256:abc");
         assert_eq!(r.space_name, "Test Space");
         assert_eq!(r.rooms.len(), 2);
         assert_eq!(r.rooms[0].name, "general");
         assert_eq!(r.rooms[1].name, "random");
+    }
+
+    #[test]
+    fn redact_result_round_trips_byte_identically() {
+        // M-RP-XGID-SLOT-RETYPE Leg C V3-b. `RedactResult`'s identifier slots
+        // are typed XGID flavours; under `#[serde(transparent)]` the CLI stdout
+        // / pipe-JSON shape is byte-unchanged (bare strings) and a round-trip is
+        // stable. `RedactResult` derives no `PartialEq`, so the round-trip is
+        // asserted on the serialised text.
+        let original = RedactResult {
+            event_id: EventXgid::from_xgid(Xgid::new("xgen://hash/sha256:evt".to_string())),
+            target_event_id: EventXgid::from_xgid(Xgid::new("xgen://hash/sha256:tgt".to_string())),
+            space_id: SpaceXgid::from_xgid(Xgid::new("xgen://hash/sha256:spc".to_string())),
+            room_id: RoomXgid::from_xgid(Xgid::new("xgen://hash/sha256:rm".to_string())),
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        assert_eq!(
+            json,
+            r#"{"event_id":"xgen://hash/sha256:evt","target_event_id":"xgen://hash/sha256:tgt","space_id":"xgen://hash/sha256:spc","room_id":"xgen://hash/sha256:rm"}"#,
+        );
+        let back: RedactResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(serde_json::to_string(&back).unwrap(), json);
     }
 
     #[test]

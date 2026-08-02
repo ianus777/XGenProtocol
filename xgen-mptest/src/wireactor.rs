@@ -60,7 +60,9 @@ impl WireActor {
         Ok(WireActor {
             conn,
             key,
-            identity_id,
+            // `AuthOutcome.identity_id` is now `IdentityXgid`; project to this
+            // actor's `String` field at the consumer (M-RP-XGID-SLOT-RETYPE Leg C).
+            identity_id: identity_id.as_str().to_string(),
             node_url: node_url.to_string(),
         })
     }

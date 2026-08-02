@@ -8,6 +8,40 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-657 — the third read came back substantially clean, and the number that had been wrong twice is right
+
+**Date:** 2026-08-01 · **Seat:** Joe (asked for the third read) · Clair (read, **no code**) · Chat (re-drive, four anchor fixes, records). **NO CODE.**
+
+**Opened at** `99a05a8`, tree clean, local == origin — **verified first.**
+
+---
+
+### 🔑 THE YIELD CURVE IS THE RESULT: 9 → 3 → 1
+
+Read 1 found **nine** (of the implementation). Read 2 found **three** (of the corrections). Read 3 found **one minor record lapse**. 🔑 **And Clair said so in those terms — *"a genuine result after a nine-then-three-then-one descent, not padding"* — rather than manufacturing a finding to justify the session.** ***A read that reports thin when it is thin is the only kind whose thick reports are worth anything.***
+
+### ✅ THE ONE THAT MATTERED MOST HELD — AND IT HAD ALREADY BEEN WRONG TWICE
+
+The tail length was **16** (unusable), then **44** (false precision). **It is 43, and this time the derivation was carried to the SUBJECT instead of stopping at the encoding.** An identity's `identity_id` is minted as `xgen://pubkey/ed25519:{encode(pubkey)}` — **three mint sites, all `encode(<key>.as_bytes())` over 32 raw bytes**: `registration.rs:284` (`identity_id_from_key`), `auth.rs:157`, and `handshake.rs:405` for nodes — and `parse_vk` strips exactly that prefix. **There is no hash form or alternate URI for identity ids in production.** `URL_SAFE_NO_PAD` ⇒ 32 B → **43** (checked: 32→43, 33→44) ⇒ `tail()` → `ed25519:` + 43 = **51**. 🛑 ***The feared third wrong value did not happen, and the reason is nameable: read 2's fix verified the ENCODING; read 3 verified the SUBJECT. The first was necessary and not sufficient.***
+
+**Also verified and held:** N1's causal story is **true, not a narrative fitted to two numbers** — the F2 fix replaced a 3-line comment paragraph with a 9-line one (**+6**), which is exactly why +21 → **+27** and `:3060` + 6 = **`:3066`** · the measured figures are internally consistent (`textLen 51` = 8 + 43; `scrollWidth 383` = 391 minus one char; both > 250) · census clean in both directions, **no live `434`/`1+2N` and no live *"AUTHORED, NOT LOCKED"*** (the sole occurrence sits inside the **dated J-654 block**, a correct historical record) · **Phase-0 correctly needed no touch and stays v1.12.**
+
+### 🛑 N-a — THE FINDING: A SILENT REPAIR AMONG ANNOTATED SIBLINGS
+
+The J-655 PLAY header's ship figure went from `+42/−0` to `+54/−0` **with no `D-131` marker** — **in the same block and the same commit where F5's and F8's wrong text was deliberately KEPT and marked *"CORRECTED AT J-656"*.** ⇒ **the header now reads as though it had always been right.** 🔑 ***A silently-improved history is worse than a wrong one*** — and **the tell is that one author applied two different disciplines to three figures inside one block**, which is not a policy disagreement but an inattention. 📌 *The fact was never lost — J-656's N2 records `+42` and the truth — so this is a consistency lapse in how a correction was applied, not a false claim. Annotated here.*
+
+### 🛑 AND FOUR STALE ANCHORS, FOUND BY CHAT AFTER J-656 SHIPPED
+
+Checking the one class of number J-656 had **not** re-derived turned up four more: the runbook cited `app_sampler.svelte:937-939` · `:967-971` · `:979-986` · `:266-270`; the truth is **`:959-961` · `:987-991` · `:1003-1008` · `:265-269`** — and `:979-986` was **also wrong in SPAN** (the inert row is six lines, not eight). **C-1's own insertions moved every anchor below them.** ⚠️ ***N1's species in the other file, and NEITHER of Clair's first two reads caught it.*** 🔑 **THE MECHANISM IS WORTH NAMING BECAUSE IT EXPLAINS THE WHOLE RECURRENCE: `git diff` SHOWS A CITATION'S TEXT CHANGING AND SAYS NOTHING ABOUT THE LINE IT POINTS AT.** A reviewer working from a diff **cannot see this class at all**, which is why three careful passes missed it and a targeted grep found it in one command.
+
+### 🔑 WHAT THIS ARC CONCLUDES
+
+**The remaining defect species is MECHANICALLY CHECKABLE and should stop consuming a reasoning seat.** A `file:NNN` checker — extract every citation from a document set, assert the cited line still contains the claimed token — is proposed to Joe. 🛑 **With its limit stated rather than sold: it catches a stale POINTER, never a citation that points at the right line and DESCRIBES IT WRONGLY. That is exactly what F2 was, and F2 was the most dangerous finding of the arc.** ***So a checker clears the read's desk; it does not retire the read.***
+
+**FLOORS — not re-measured, zero code:** cargo **1589 / 0 / 62 × 56** · svelte-check **0 / 34 / 15** · sampler catalogue **435**. **No new D. No new N.** → J-657 · runbook v1.2 → v1.3 · ROADMAP v6.44 → v6.45.
+
+---
+
 ## Entry J-656 — the second read, and the corrections had reproduced the very defect they corrected
 
 **Date:** 2026-08-01 · **Seat:** Joe (asked for the second read) · Clair (adversarial read of the corrections — **no code**) · Chat (re-drive, fixes, records). **Code by Chat: one string-length change.**

@@ -1,6 +1,6 @@
 # M-RP-IDENTITY-RESOLUTION — what a member row shows before the client knows who it is
 > **Status**: ACTIVE  
-> Version: 1.13  
+> Version: 1.14  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -327,7 +327,9 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 
 **Leg D — Tier-1 fetch on join.** 🔒 **UNGATED — §7 RULED, IT SHIPS (Joe, J-658).** ⚠️ *v1.0–v1.12 read "🔓 Gated on §7"; superseded, kept not erased (`D-131`).* New Tauri command + merge-one setter. **Moves the cargo floor.**
 
-🛑 **AND IT IS NOT THE NEXT LEG TO OPEN. `M-RP-XGID-SLOT-RETYPE` (`D-136`) LANDS FIRST, STANDALONE — RULED 2026-08-02 (Chat, under `D-123`; Joe reverses on one line).** The v1.0–v1.12 record offered *"lands first, OR Leg D absorbs it"*; **the fork is taken, not left open.** Three reasons, the third decisive:
+🛑 **AND IT IS NOT THE NEXT LEG TO OPEN. `M-RP-XGID-SLOT-RETYPE` (`D-136`) LANDS FIRST, STANDALONE — RULED 2026-08-02 (Chat, under `D-123`; Joe reverses on one line).**
+
+🔒 **NARROWED AT v1.14 (J-659), AFTER THAT MILESTONE'S SWEEP RAN: THIS LEG IS GATED ON ITS **LEG B** — the three address-book structs — NOT ON ITS CLOSE.** ⚠️ **The narrowing is forced by a measurement, not a preference: the record said *three structs*; the sweep found **88 identifier slots across 59 struct sites in four crates**.** 🔑 ***A dependency priced from a record that described three structs was a dependency priced from a sample*** — and gating this leg on all 88 would block it behind work it has no relationship to. ✅ **Legs A (enforcement) and B (the three structs) are small and on the path; Leg C is not.** 📌 *Recorded on both sides under `D-133`; see `tasks/M_RP_XGID_SLOT_RETYPE.md` §7.* The v1.0–v1.12 record offered *"lands first, OR Leg D absorbs it"*; **the fork is taken, not left open.** Three reasons, the third decisive:
 
 1. **`D-071`** — subsystem audits precede dependent milestones, and this is one.
 2. Leg D's new command **carries an `identity_id` slot** ⇒ retyping afterwards means touching that command **twice**. Leg A already documented a re-wrap workaround for exactly this (§9).

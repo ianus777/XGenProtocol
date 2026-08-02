@@ -8,6 +8,84 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-659 — the sweep D-136 declined to claim, and it shows the milestone was mis-sized in both directions
+
+**Date:** 2026-08-02 · **Seat:** Joe (ruled — *"go by your recommendations"*) · Chat (sweep, Phase-0, records). **NO CODE. Four documents + one new, one commit.**
+
+**Opened at** `4bb7b45`, tree clean, `HEAD == origin/main` — **verified rather than taken**, because this kickoff names two prior occasions where *"push done"* was true in intent and false on disk.
+
+---
+
+### ✅ `D-136` §4's OWED SWEEP HAS RUN
+
+That entry closed with an explicit disclaimer — *"only the structs on the address-book fill path were measured; no sweep has been run for other post-2026-05-29 structs"* — and named this milestone's Phase-0 as owing it.
+
+**255 candidate identifier slots repo-wide. 125 in-arc, 130 POST-arc, across 19 files and ALL FOUR CRATES.** 🛑 **`address_book.rs`, the file that minted the decision, contributes 2 of 130.**
+
+✅ **Scope settled from the five pass documents before the numbers were read, because the numbers are meaningless without it:** Pass 1 `xgen-common`+`xgen-core` data structures · Pass 2 `xgen-core` functions · Pass 3 `xgen-node` · Pass 4 `xgen-client` · Pass 5 trace/`Display`. ⇒ **all four crates were swept**, so no candidate can be dismissed as out of scope.
+
+### 🛑 THE PARTITION WAS RUN TWICE, AND THE FIRST SUBJECT WAS THE WRONG ONE
+
+`D-136`'s mechanism is regression in code written **after the pass closed**, and the obvious proxy is an author-date test against 2026-05-29. **It cannot separate the cases: the close commit `7ed4e30` landed at 12:24:02 that same day, and 36 candidates carry that date.**
+
+✅ Re-run as `git merge-base --is-ancestor` over the 55 distinct blame commits, the partition came back **identical**. 🔑 ***The date proxy was right, and it was right by luck rather than by construction*** — a check that COULD have failed and did not is evidence, where one that cannot fail is not. *The J-655 broken-probe lesson, applied before the number was used rather than after it was published.*
+
+### 🔑 THE FINDING — PASS 4's CLASSIFICATION IS BINARY AND THE CODEBASE HAS THREE CATEGORIES
+
+`xgen-node/src/admin_ops.rs` holds **63 of the 130**, and they are **CLI-argument and admin-pipe result structs**. `admin_ops.rs:977` already carries the projection, commented: *"Project a wire-format Identity URI to the typed key at the registry boundary."*
+
+🛑 **That is the exact inverse of the case that minted `D-136`, whose third corroboration reads *"the downgrade reads as a deliberate seam and is not one"*.** Here the seam reads as deliberate and **is** deliberate.
+
+⇒ 🔑 ***`admin_ops.rs` is not a file that broke the rule. It is a file the rule does not reach.*** ⚠️ **And that is a better explanation for a two-month silent regression than carelessness** — it matches `D-136`'s own second corroboration, *"the type was never in the room"*. **A binary rule offered no bucket for a boundary slot, so a subsystem was written outside it without anyone choosing to.**
+
+### 🔒 JOE RULED ALL THREE OPEN QUESTIONS
+
+① **A BOUNDARY slot may stay `String`, as a named third category** — **iff a named projection converts it at the edge AND no internal state holds the `String` form.** 🔑 **The second half is what stops it becoming an excuse: `SeenRecord` fails it**, because a `BTreeMap<String, SeenRecord>` *is* internal state holding the external form. 📌 `D-121` lens ① is **none under either answer** — internal type discipline; the legal answer, stated plainly rather than dressed up.
+
+② **ENFORCEMENT FIRST** — `D-136` §3's ③ grep gate + ④ written rule, before any retype. 🔑 ***A retype of 88 slots that ships without enforcement regresses again by construction*** — **a milestone whose whole content is a second completed sweep would be `D-136`'s own mistake, one arc later, committed by the work that catalogues it.** 🛑 **Limit stated rather than sold: a gate catches a slot that is `String` and should not be; it cannot catch one correctly `String` at a boundary and wrongly consumed as internal state one function away — which is `SeenRecord`'s actual shape.** *The gate clears the desk; it does not retire the read.*
+
+③ **M13 GOES SECOND** — a call Chat made at this document rather than earlier, and said so. `ops.rs:423-425` records that M13's new fields become field-mapping on top of `FetchedIdentity`; **extend-then-retype ships new `String` identifier slots knowingly.**
+
+### 🛑 CHAT'S OWN CLAIM, CORRECTED INSIDE THE PASS THAT MADE IT
+
+The four-way bucketing (30 boundary · 47 serde-wire · 41 internal · 12 fn-param) came from a **heuristic** — nearest struct plus a backward derive-scan. **It is a hypothesis, not a measurement, and it undercounts its own largest bucket.**
+
+Chat reported **30** boundary slots to Joe. The inventory then showed **~25 `admin_ops.rs` `*Result` structs** and **eight `app.rs` `*Args` structs** are the same species, plus **5 sites the scan could not resolve to a struct at all**. ⚠️ ***A claim narrower than the thing it describes, reused as if complete — the named recurring species, appearing inside the pass that measures it.***
+
+⇒ 🔒 **Leg 0 owes a HAND-VERIFIED classification of all 88, and no leg that changes a type opens before it lands.**
+
+### 🛑 AND A SEQUENCING ASSUMPTION OF CHAT'S OWN
+
+J-658 put this milestone ahead of `M-RP-IDENTITY-RESOLUTION` Leg D on three reasons that remain sound — **plus an unstated fourth premise: that it was small.** The record said *three structs*. **It is 88 slots across 59 struct sites in four crates.**
+
+🔑 ***A dependency priced from a record that described three structs is a dependency priced from a sample.*** 🔒 **The ordering survives on a narrower claim: Leg D is gated on LEG B — the three address-book structs — not on the close.** Recorded on both sides (`D-133`), because Leg C has no relationship to Leg D and must not block it.
+
+📌 *It surfaced only because the sweep ran before the runbook rather than after it.*
+
+### ⚠️ A RECORD DEFECT OF CHAT'S OWN, CAUGHT IN THE DIFF AND REPAIRED IN THE SAME SESSION
+
+The first ROADMAP edit inserted the new leg tree **above** the node's remaining annotations — leaving the node reading legs-then-annotations, **with two `trigger:` lines.** ⚠️ **It was applied without a dry run, and that omission is what let it land.**
+
+✅ **Found by reading the returned diff rather than assuming the anchors sat where memory put them**, repaired in a second edit that *was* dry-run first, and the structure then **re-verified programmatically rather than by eye**: header → annotations → `Owes:` → exactly one node-level trigger → leg tree. 🔑 *The first classifier pass over that check was itself wrong — it tested `trigger:` before the leg marker, and leg lines carry an inline trigger — so it reported six triggers where there is one. **Re-run with the precedence corrected.** A verification that has not been verified is a claim.*
+
+### 🛑 AND THE `D-135` §5a PASS-2 SWEEP CAUGHT A SECOND STALE POINTER — THE SAME ONE, AGAIN, WITHIN ONE DAY
+
+J-658 repaired ROADMAP's identity-resolution pointer from `v1.11 ACTIVE` to `v1.13`. **J-659 bumped that document to v1.14, and the pointer went stale again in the same session that had just annotated it for going stale.**
+
+🔑 **Caught BOTH times by the pass-2 sweep on the name and NEITHER time by a re-read.** 🛑 ***That is the sixth consecutive entry on which pass 2 has been required*** — and this instance is the sharpest argument for it yet, because **the author who wrote the annotation about the stale pointer is the author who then made it stale.** Repaired, with both repairs recorded rather than silently applied.
+
+### Legs
+
+**0** Phase-0 + the hand-read · **A** enforcement, first, so every later leg lands under the rule instead of beside it — 🛑 *its DoD requires the gate to RUN AND FAIL on a planted slot; a gate that has never failed is not known to work* · **B** the three address-book structs, the only leg on Leg D's critical path · **C** the remainder, 🔓 **may split into its own milestone rather than block** · **D** records, whose close must state the enforcement posture — `D-136` §3 binds this milestone to its own rule.
+
+**FLOORS — NOT RE-MEASURED, ZERO CODE, STATED RATHER THAN SKIPPED:** cargo **1589 / 0 / 62 × 56** · svelte-check **0 / 34 / 15** · sampler catalogue **435**. **No new D, no new N.**
+
+🟢 **NEXT: Leg 0's hand-read** — all 88 classified INTERNAL / BOUNDARY / DESCRIPTIVE by reading each struct and its consumers. 🔓 **Joe's: whether Leg C splits, and its name if it does.**
+
+→ J-659 · `tasks/M_RP_XGID_SLOT_RETYPE.md` v1.0 · `M_RP_IDENTITY_RESOLUTION.md` v1.14 · ROADMAP v6.47.
+
+---
+
 ## Entry J-658 — §6 and §7 ruled as one decision, and the half that looked obvious would have closed G-B on paper
 
 **Date:** 2026-08-02 · **Seat:** Joe (ruled — *"locked"*) · Chat (grounding, the finding, records). **NO CODE. Five documents, one commit.**

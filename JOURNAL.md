@@ -8,6 +8,80 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-664 — Leg B's runbook authored and locked; the kickoff's "two downgrades" turned out to be three
+
+**Date:** 2026-08-02 · **Seat:** Chat (grounding, runbook, records) · Joe (locked). **NO CODE.** ROADMAP v6.51 → v6.52 · Phase-0 v1.3 → v1.4 · new runbook `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_B.md` v1.1 ACTIVE.
+
+Joe, on which of the two openable legs to take: *"what is better for you? i have no preferency. you know the relations better."* Then: *"locked and go."*
+
+---
+
+### The choice was made on relations, not preference
+
+Two legs were openable and only one sits in this milestone. **Leg B was taken because it is the only one of the two that removes a block.** `M-RP-IDENTITY-RESOLUTION` Leg D is gated on it; `M-RP-LIVEFEED-REFRESH` Leg C **is** that milestone's Leg E under a second name, and under **N-168** G-B closes on Leg D **and** Leg E together — so Leg C alone ticks nothing. Doing Leg B first strictly shrinks the blocked set; doing Leg C first leaves Leg D blocked and Leg B still openable.
+
+Three supporting reasons, none of them decisive alone: Leg B was fully grounded in this session and its runbook needed no second pass, where Leg C's spaces half needs an extraction at `app_client.svelte:625` nobody has opened; Leg B's floor delta is attributable by construction (one crate, Rust only, no `ui/**`); and Leg B is **not** INTERACTIVE, where Leg C needs two live clients and a custody transfer under `D-132`.
+
+### 🛑 THE KICKOFF SAID TWO DOWNGRADES. THERE ARE THREE SITES, AND THE THIRD ONE PREDICTED ITS OWN REMOVAL IN A COMMENT.
+
+Beside `ops.rs:2734` and `:2742`, `fill_from_events` carries a **compensating re-wrap** at `:2935`:
+
+```rust
+report.not_found_ids.push(IdentityXgid::from_xgid(Xgid::new(id.clone())));
+```
+
+Its four-line comment names `D-136` and this milestone by name and says *"This re-wrap goes away when that milestone lands; the field type is already correct and needs no rework."*
+
+🔑 **All three vanish together or none do.** The two downgrades exist only to feed the `String`-keyed map; the re-wrap exists only to undo them.
+
+⚠️ **The species is the named recurring one — *a claim narrower than the thing it describes* — and this time it was in the session kickoff, which is the document every reader trusts first.** It survived because the record was re-read instead of the code being opened. **It fell in the first ten minutes of opening `fill_from_events`.**
+
+### Four measurements that shaped the runbook before it was written
+
+**① `Borrow<str>` makes the leg much smaller than it looks.** Every flavour derives `Ord, Hash` and impls `Borrow<str>` (`flavours.rs:128-194`) ⇒ `BTreeMap<IdentityXgid, SeenRecord>` is legal **and** `get`/`contains`/`touch`/`remove` keep `&str` signatures ⇒ **~30 test call sites passing string literals compile untouched.**
+
+**② The retype is invisible on disk and across Tauri IPC.** `SeenRecord` reaches two format edges — `AddressBook::save`/`load`, and `get_address_book` returning the whole book to the webview (`desktop.rs:637-642`). Under `#[serde(transparent)]` both emit the bytes they emit today ⇒ **zero `ui/**`, `svelte-check` must not move.** 🛑 **Recorded as an argument, not a measurement:** a typed map **key** travels a different serde path from a typed value, so the runbook's V3-a/V3-b exist to *break* it rather than confirm it.
+
+🔑 **This is also the honest answer to a real tension: `SeenRecord` sits at two boundaries and is still INTERNAL.** `D-137` §1 clause 3's second half is what disqualifies it — a `BTreeMap<String, SeenRecord>` is in-memory state holding the external form. **The retype does not move the boundary, because transparency makes the projection a no-op at the format edge.** A doc line saying so is part of B1, so a later reader does not "restore" `String` on the argument that the struct is serialised.
+
+**③ `NodeXgid` confirmed at the producer, not inherited from the Pass 4 lock.** `xgen-node/src/app.rs:3561` builds the wire `home_node` as `record.home_node.as_str().to_string()` — **projected down from a typed `NodeXgid` node-side.** The `"ws://…"` `home_node` literals in `ops.rs` tests belong to `ClientState`, a different struct; **no fixture is lying.**
+
+**④ 🛑 THE CARGO FLOOR DOES NOT MOVE BY ITSELF, AND THE KICKOFF SAID IT WOULD.** A pure retype adds no tests ⇒ `1589/0/62` would come back identical, which is the *inverse* signal this project reads. ⇒ **the floor moves because three tests are added deliberately, and by exactly that many.** *A delta explained after the fact is not an explained delta.*
+
+### One call taken under `D-123`, reversible on one line
+
+**The four `AddressBook` accessors keep `&str` rather than widening to `&IdentityXgid`.** ① **User-visible impact: none, either way** — `D-121`'s legal answer and the true one. ② **Cost:** ~12 edited lines against ~30 further test call sites, for discipline on a surface **Phase-0 §9 already excludes** (function parameters are Pass 2/3/4 territory, kept out so a cargo delta stays attributable). ③ Elegance argues for widening and ranks third.
+
+🔒 **It is not a half-fix: `D-137`'s test is that no internal STATE holds the external form. The state is the map, and the map key becomes typed. A parameter is not state.** Widening is filed, unowned.
+
+### The rename, and why it is not cosmetic
+
+*"Leg B — the three address-book structs"* → ***"the four address-book slots"***. The old name counts **structs**, and **only two of the three carry work** — `FillReport` contributes zero, its identifier slot already `Vec<IdentityXgid>` from `M-RP-IDENTITY-RESOLUTION` Leg A. **The unit that is true of this leg is the slot.** Old name annotated in Phase-0 §6, not erased (`D-131`).
+
+### ⚠️ A measurement of mine disagreed with J-663 and the record was right
+
+Verifying the ROADMAP after the edit, my first pass returned **262 nodes / 37 annotations / 30 trigger / 4 other** against J-663's **260 / 15 / 12 / 3 / 0**. **The file had not changed; my regex had.** `↳ trigger:` is written **inline at the end of a node line**, not on its own line, so a naive contains-match counts node lines as annotations.
+
+Re-cut on "first non-tree character is `↳`", it reconciles exactly: **260 / 15 / 12 / 3 / 0.** 🔑 ***A number that disagrees with the record is a hypothesis, not a discovery — test the measurement first*** (N-105's rule, and the J-660 discipline of refusing to build on an unreconciled number).
+
+### Verified on disk
+
+ROADMAP **52,489 B · 491 lines · crlf 491 · bareLF 0**, node lines **260**, annotations **trigger 12 / Owes 3 / other 0**, unofficial icons **0**, header violations **0**, the new node's description **119 chars** (R-5 bound is ~160). Runbook and Phase-0 LF-only, no BOM, all eight header lines carrying two trailing spaces.
+
+### Floors — NOT re-measured, and deliberately so
+
+**No `.rs`, no `ui/**`, no code of any kind this entry.** cargo **1589/0/62 × 56** · svelte-check **0/34/15** · sampler catalogue **435**. 🛑 **The runbook's B0 makes re-measuring the baseline the first step of the leg rather than an inherited claim** — six entries of no code is not the same statement as a verified floor.
+
+**Gate re-run at session open: PASS, 88 slots (65 BOUNDARY / 5 DESCRIPTIVE / 17 INTERNAL / 1 UNREAD).** After Leg B it must read **PASS at 84 (65 / 5 / 13 / 1)** with the manifest rows dropped **and** its `# EXPECTED:` header moved in the same commit — dropping rows alone is a **FAIL** on the gate's own tally check, not a warning.
+
+**No new D. No new N.**
+
+**NEXT: Clair implements Leg B from the locked runbook. Standing her up is Joe's.** 🔓 **Open for Joe:** whether Leg C splits (Chat says no) · the `D-137` number itself · whether this PLAY head gets the J-662/J-663 icon-and-length treatment.
+
+→ J-664 · ROADMAP v6.52.
+
+---
+
 ## Entry J-663 — the roadmap audited against its own node format; 61 KB of journal duplication removed
 
 **Date:** 2026-08-02 · **Seat:** Joe (ruled) · Chat (audit, cleanup, records). **NO CODE.** ROADMAP v6.50 → v6.51.

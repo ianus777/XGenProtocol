@@ -1,6 +1,6 @@
 # M-RP-XGID-SLOT-RETYPE — the identifier slots that regressed to `String` after the retrofit arc closed
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -240,7 +240,13 @@ pub origin_event: String,     // "The thread.create event id"                   
 
 🛑 **AND THE GATE'S OWN FIRST DEFECT WAS FOUND THE HARD WAY: IT SWEPT THE FILESYSTEM.** A planted slot in a **tracked** file was counted as production and moved the sweep **255 → 256**. Two vectors, and **the tempting one-line fix closes only one**: untracked files die to `git ls-files`; **modified tracked files still read dirty from disk** and are now refused outright unless `-AllowDirty` prints its warning. ⚠️ *`ls-files` alone would NOT have caught the actual incident.*
 
-**Leg B — the three address-book structs.** `FetchedIdentity` · `SeenRecord` · `FillReport`, plus the `BTreeMap<String, _>` key and the `ops.rs:2734`/`:2742` downgrade that disappears with them. **Moves the cargo floor.** 🔒 **THIS IS THE ONLY LEG ON `M-RP-IDENTITY-RESOLUTION` LEG D's CRITICAL PATH.**
+**Leg B — the four address-book slots.** `SeenRecord` ×2 + `FetchedIdentity` ×2, plus the `BTreeMap<String, _>` key and the sites that disappear with them. **Moves the cargo floor.** 🔒 **THIS IS THE ONLY LEG ON `M-RP-IDENTITY-RESOLUTION` LEG D's CRITICAL PATH.**
+
+🔒 **RUNBOOK AUTHORED AND LOCKED 2026-08-02 (J-664): `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_B.md` v1.1 ACTIVE.** Locked as authored, no corrections raised. **Clair implements from it; standing her up is Joe's.**
+
+📌 **RENAMED AT LOCK — *"the three address-book structs"* is superseded, kept not erased (`D-131`).** The old name counts **structs** and only **two of the three** carry work (`FillReport` contributes zero — already `Vec<IdentityXgid>`). **The unit that is true of this leg is the SLOT, and there are four.**
+
+🛑 **AND THE SITE COUNT WAS WRONG IN EVERY RECORD THAT NAMED IT — THERE ARE THREE, NOT TWO.** Beside the two downgrades (`ops.rs:2734` / `:2742`) there is a **compensating re-wrap at `ops.rs:2935`** — `report.not_found_ids.push(IdentityXgid::from_xgid(Xgid::new(id.clone())))` — whose own comment names this milestone and predicts its own removal. 🔑 **All three vanish together or none do:** the downgrades exist only to feed the `String`-keyed map, and the re-wrap exists only to undo them. ⚠️ ***A claim narrower than the thing it describes*** — the named recurring species, this time in a session kickoff, and it survived because every reader re-read the record instead of opening `fill_from_events`.
 
 **Leg C — the remainder**, sized by what Leg 0's hand-read actually finds. 🔓 **MAY BE SPLIT OFF INTO ITS OWN MILESTONE RATHER THAN BLOCKING** — see §7.
 
@@ -288,7 +294,7 @@ At J-658 Chat sequenced this milestone **ahead of** `M-RP-IDENTITY-RESOLUTION` L
 - [x] The written rule lands in `CLAUDE.md` as a standing convention — ✅ **Rule 0 item (5), J-661** — **Leg A**
 - [x] **The POLYMORPHIC `target` shape ruled** — ✅ **`D-137` §1: a second independent reason a BOUNDARY slot stays `String`, NOT a fourth category** — **Leg A**
 - [ ] `SeenRecord.home_node` is `NodeXgid` — 🔑 **it contradicts a Pass 4 borderline lock BY NAME** (§4.1.a: *"2 NodeXgid for `home_node` ×3"*) — **Leg B**
-- [ ] The `ops.rs:2734`/`:2742` downgrade is **GONE, not moved** — **Leg B**
+- [ ] The **THREE** `String`↔typed bridge sites are **GONE, not moved** — `ops.rs:2734` · `:2742` · **`:2935` with its comment** — **Leg B** ⚠️ *this item read "the `ops.rs:2734`/`:2742` downgrade" until v1.4; the third site was found at runbook authoring. Superseded, kept not erased (`D-131`).*
 - [ ] cargo floor re-measured on every Rust leg, delta explained — **Legs B, C**
 - [ ] Records in one commit (`D-074`), and **the close states the enforcement posture** (`D-136` §3) — **Leg D**
 

@@ -8,6 +8,79 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-667 — the rule field was not being processed; the FONT was drawing the replacement over the pattern
+
+**Date:** 2026-08-02 · **Seat:** Joe (reported, reproduced independently, ruled the fix) · Chat (grounding, skin fix, verification, records). **SKIN ONLY — 1 file, +23 lines.** No ROADMAP change: no milestone state moved.
+
+Joe, at J-666: *"in plugins settings … we need to turn off the processor on particularly this text area. now the whole definitions are processing too."* Then, after the fix: *"i see this for the first time that the font has it own arrow ligatures. i saw it just on fi ff fl pairs."*
+
+---
+
+### 🛑 J-666 FILED THIS AS *"NEEDS ONE REPRODUCTION"*. IT GOT TWO, AND THE ANSWER WAS NONE OF THE THREE CAUSES CHAT OFFERED.
+
+J-666 established that the processor is **not** attached to `substitutions-editor`'s textarea — true, and it is still true. It then named three candidate causes: the shadowed-rule warning, the `-->`/`<--` seed substring-shadowing (D-100 amend), or one rule rewriting another's output. ⚠️ **All three were wrong.** *Kept not erased (`D-131`); J-666's item ② is superseded by this entry.*
+
+**The chain, measured end to end and in this order:**
+
+| # | measured | result |
+|---|---|---|
+| 1 | Rust seed `DEFAULT_SUBSTITUTIONS_SEED` (`app.rs:173`) | `-> → \| <- ← \| …` — **correct** |
+| 2 | Joe's live config on disk, codepoints | `U+002D U+003E …` — **correct** |
+| 3 | the store (`store.svelte.ts:39-40`) | `_source = text`, **verbatim**, no transform |
+| 4 | the editor (`substitutions-editor.svelte:75-80`) | `draft = substitutions.source`, `<TextArea>` with **no processor spread** |
+| 5 | the live textarea's `value` over CDP | `U+2D U+3E …` — **correct** |
+
+⇒ **every byte in the pipeline was right, and the field still showed `→ →`.**
+
+🔑 **THE CAUSE IS THE TYPEFACE. `"XGen UI Sans"` IS INTER, AND INTER SHIPS ARROW CONTEXTUAL ALTERNATES (`calt`) THAT ARE ON BY DEFAULT** — `->` renders as a single arrow glyph, `<-` as its mirror. **That is exactly why ONLY those two rules looked transformed** and `:)`, `<3`, `:(`, `--` did not: they are not in Inter's arrow set. *The evidence was in the pattern of what did NOT change, and Chat spent three passes on the pipeline instead of reading it.*
+
+🔑 **AND WHY IT MATTERS RATHER THAN BEING A CURIOSITY: THIS IS THE ONE FIELD IN THE CLIENT WHERE THE USER AUTHORS A LITERAL PATTERN.** The left column is the `find`. The font was **drawing the REPLACEMENT over the PATTERN**, so a correct `-> →` read back as a visible no-op `→ →` ⇒ **a user cannot tell a rule they typed from one they broke, and cannot tell whether they typed `->` or pasted `→`.** *In a message body an arrow ligature is a nicety; in a pattern field it is a lie about the bytes.*
+
+### 🔑 THE FINDING WAS JOE'S, AND HIS METHOD BEAT CHAT'S
+
+He copied the line out of the app and **pasted it into Notepad++** — leaving our stack entirely, where no CSS, no bundle and no store could flatter the result — and saw two plain ASCII characters. 🔑 ***A probe aimed at the wrong layer returns a clean-looking nothing.*** Chat read the data path three times; the defect was never in it. **The escape from the frame is what solved it, and Chat had no such move available.**
+
+📌 *Joe: he had seen `fi`/`ff`/`fl` before — those are standard ligatures (`liga`), which nearly every text face ships. Arrows are **contextual alternates**, a different feature most text faces do not carry at all. Inter does, deliberately.* ⚠️ **FORWARD RULE: A FONT IS NOT NEUTRAL.** This project had chosen its type for reading and never asked what it does to text a user is **authoring**. That question now has exactly one answer in exactly one place.
+
+### The fix — skin only, scope narrow on Joe's word
+
+```css
+.substitutions-editor textarea {
+  font-family: "XGen UI Mono", ui-monospace, monospace;
+  font-variant-ligatures: none;
+}
+```
+
+🔒 **BOTH DECLARATIONS OR NEITHER, AND THAT IS GROUNDED RATHER THAN TIDY: JetBrains Mono (`"XGen UI Mono"`) SHIPS THE SAME ARROW LIGATURES**, so the family swap alone fixes **nothing** — `font-variant-ligatures: none` is what disables `calt`. 🔑 **The mono family is the second half of the value, not decoration:** the grammar splits each pair on its **first space**, so a stray leading or trailing space is the real authoring failure mode and it is **invisible in a proportional face**.
+
+🔒 **SCOPE NARROW (Joe: *"monospace is better in this case"*).** A general `.no-ligatures` utility would be a rule nothing else feeds — the shape this project keeps refusing. **It widens the day a second pattern field exists, not before.** The reasoning lives in the skin comment, beside the rule, where the next person tuning appearance will actually read it.
+
+### Verified live (Joe launched; ports swept clean first — no orphan Vite, N-165)
+
+| check | result |
+|---|---|
+| computed `font-family` | `"XGen UI Mono", ui-monospace, monospace` |
+| computed `font-variant-ligatures` | **`none`** — the declaration doing the work reaches WebView2 |
+| textarea `value`, 14 codepoints | `U+2D U+3E U+20 U+2192 …`, length 42 — **unchanged** |
+| face genuinely monospaced | `iiiiiiiiii` **72px** = `WWWWWWWWWW` **72px** |
+| 🔑 **`->` occupies TWO CELLS** | **14.4px against a 7.2px cell** |
+
+🔑 **THE LAST ROW IS THE ONE THAT PROVES IT.** Family and ligature settings are **declarations**; two cells is the **rendered consequence** — a ligated `->` collapses to one cell whatever the computed style claims. *The check has to be able to catch the failure, not merely agree with the intent.* And the `value` row is load-bearing in the other direction: **the whole point is that the bytes never changed**, so a check unable to catch a byte change would not be a check.
+
+⚠️ **AND CHAT'S FIRST VERIFICATION PROBE RETURNED `monospaced: false` — THE INSTRUMENT, NOT THE BUILD.** `getComputedStyle(el).font` returns an **empty string** in Chromium when the shorthand cannot be serialised, so `span.style.font = ''` left the probe span in the body face and measured Inter against itself. Re-cut on explicit `fontFamily`/`fontSize`/`fontWeight` it reconciles. 🔑 ***A number that disagrees with the record is a hypothesis, not a discovery*** — **third instance this session, all three Chat's** (the ROADMAP annotation regex at J-664, the file-wide `as_str().to_string()` scope at J-665, this).
+
+### Floors — untouched BY SCOPE, and the scope is one CSS file
+
+**Zero `.rs`, zero `.ts`, zero `.svelte`, zero component, zero registry.** cargo **1592/0/62 × 56** · svelte-check **0/34/15** (CSS is not typechecked) · sampler catalogue **435** · gate **PASS 84**. `skin.css` **163,490 B**, braces balanced **484/484**, LF preserved, `git diff --stat` = **1 file, +23**.
+
+**No new D. No new N.** 📌 *A `D` is not minted for this: it is one skin rule with its reasoning attached, and D-100/D-099 already own the processor's policy. If a second pattern field ever forces the general rule, that is when it earns a number.*
+
+🔓 **STILL OPEN, UNCHANGED:** Leg C's split ruling · whether `M-RP-IDENTITY-RESOLUTION` Leg D opens · the `D-137` number · the unnamed back-fill milestone · whether the `CLAUDE.md` PLAY head gets the J-662/J-663 treatment.
+
+→ J-667.
+
+---
+
 ## Entry J-666 — three filed items: the View menu gets a node, the widget settings button gets a node, and the third one the code says cannot be happening
 
 **Date:** 2026-08-02 · **Seat:** Joe (filed all three) · Chat (grounding, records). **NO CODE.** ROADMAP v6.53 → v6.54, **two new nodes**.

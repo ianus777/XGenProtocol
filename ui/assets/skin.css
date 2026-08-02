@@ -1966,6 +1966,29 @@ html, body {
   gap: var(--sp-1);
   max-width: 380px;
 }
+/* THE RULE FIELD IS THE ONE PLACE A FONT MAY NOT EDITORIALISE (J-667, Joe 2026-08-02).
+ * Inter ("XGen UI Sans") ships ARROW CONTEXTUAL ALTERNATES that are ON BY DEFAULT: `->`
+ * renders as a single arrow glyph and `<-` as its mirror. In every other field that is a
+ * nicety; HERE the left column is the `find` PATTERN the user is authoring, so the field
+ * was drawing the REPLACEMENT over the pattern - a correct `-> →` read back as a no-op
+ * `→ →`, and a user could not tell a rule they typed from one they broke. The bytes were
+ * always correct (measured: the textarea `value` is U+2D U+3E, and the config on disk
+ * matches); only the glyphs lied.
+ *
+ * BOTH DECLARATIONS OR NEITHER. The family swap alone fixes NOTHING - JetBrains Mono
+ * ("XGen UI Mono") ships the SAME arrow ligatures, so `font-variant-ligatures: none` is
+ * what actually disables `calt`. The mono family is the second half of the value, not
+ * decoration: the grammar splits each pair on its FIRST SPACE, so a stray leading or
+ * trailing space is the real authoring failure mode and it is invisible in a proportional
+ * face.
+ *
+ * SCOPE IS DELIBERATELY NARROW (Joe: "in this case"). This is the only field in the client
+ * where a user types a literal pattern. A general `.no-ligatures` utility would be a rule
+ * nothing else feeds - it lands the day a second pattern field exists, not before. */
+.substitutions-editor textarea {
+  font-family: "XGen UI Mono", ui-monospace, monospace;
+  font-variant-ligatures: none;
+}
 .substitutions-editor .subs-status {
   min-height: var(--fs-1);
   font-size: var(--fs-1);

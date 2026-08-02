@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.52  
+> Version: 6.53  
 > Date: May 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -312,15 +312,14 @@ XGen Protocol
 │   │   ├── ✅ **Leg A the `not_found` id list** — `FillReport` gained `not_found_ids: Vec<IdentityXgid>` through `fill_space_records` + the TS mirror · **CLOSED J-647** ⇒ closes **G-A**
 │   │   ├── ✅ **Leg B the render rules** — ③ filtered from the rendered list (except the DM counterpart, §5a) · **CLOSED J-653** · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_B.md` **v1.4 COMPLETED**
 │   │   ├── 🟢 **Leg C the skin** — split into C-1 / C-2 / C-3; C-1 and C-2 shipped, Clair read the diff · J-654 (J-650, J-655) · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_C.md` **v1.3 COMPLETED**
-│   │   ├── 🟡 **Leg D Tier-1 fetch on join** — a new Tauri command plus a merge-one setter; moves the cargo floor · J-659 · `tasks/M_RP_IDENTITY_RESOLUTION.md` §7 ↳ trigger: `M-RP-XGID-SLOT-RETYPE` Leg B lands
+│   │   ├── 🟡 **Leg D Tier-1 fetch on join** — a new Tauri command plus a merge-one setter; moves the cargo floor · J-659 · `tasks/M_RP_IDENTITY_RESOLUTION.md` §7 ↳ trigger: fired J-665 — `M-RP-XGID-SLOT-RETYPE` Leg B landed; openable
 │   │   ├── 🟡 **Leg E the refresh trigger** — R1, a re-fill on the transition into `READY`; built by `M-RP-LIVEFEED-REFRESH` Leg C, consumed here; also gates C-3 · J-658 (J-654) ↳ trigger: `M-RP-LIVEFEED-REFRESH` Leg C lands
 │   │   └── 🟡 **Leg F live verify + records** — two clients, a real join, a real `not_found`; carries three obligations moved out of Leg B and is the milestone's first behaviour verification · J-653 ↳ trigger: Legs A–E land
-│   ├── 🟢 **M-RP-XGID-SLOT-RETYPE** — the identifier slots that regressed to `String` after the retrofit arc closed · J-645 (J-658, J-659, J-660, J-661, J-664)
-│   │   ↳ `Owes:` — **`M-RP-IDENTITY-RESOLUTION Leg D Tier-1 fetch on join` — unblocked by LEG B, NOT by close** (recorded on both sides, `D-133`)
+│   ├── 🟢 **M-RP-XGID-SLOT-RETYPE** — the identifier slots that regressed to `String` after the retrofit arc closed · J-645 (J-658, J-659, J-660, J-661, J-664, J-665)
 │   │   ├── 🟢 **Leg 0 Phase-0** — the sweep, the three rulings, and the hand-verified classification of all 88 · J-659 (J-660) · `tasks/M_RP_XGID_SLOT_RETYPE.md` §3a ↳ trigger: fired — one slot outstanding, `envelope.rs` `ErrorBody.event_id`
 │   │   ├── ✅ **Leg A the enforcement mechanism** — `D-137` promoted; `xgid-slot-gate.ps1` and `xgid-slot-manifest.tsv` added; Rule 0 gains item (5) · J-661 · DECISIONS.md D-137
-│   │   ├── 🟢 **Leg B the four address-book slots** — 4 slots plus the `BTreeMap` key; three `String`/typed bridge sites go with them · J-660 (J-661, J-664) · runbook `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_B.md` **v1.1 ACTIVE**
-│   │   ├── 🟡 **Leg C the remainder** — 13 slots in 5 files; Chat recommends it is not split off · J-660 · `tasks/M_RP_XGID_SLOT_RETYPE.md` §7 ↳ trigger: Leg B lands + Joe rules the split
+│   │   ├── ✅ **Leg B the four address-book slots** — 4 slots plus the `BTreeMap` key; three `String`/typed bridge sites gone; cargo 1589 to 1592 · J-665 (J-660, J-661, J-664) · runbook `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_B.md` **v1.2 COMPLETED**
+│   │   ├── 🟡 **Leg C the remainder** — 13 slots in 5 files; Chat recommends it is not split off · J-660 · `tasks/M_RP_XGID_SLOT_RETYPE.md` §7 ↳ trigger: fired J-665 — Leg B landed; Joe rules the split
 │   │   └── 🟡 **Leg D records + close** — the close must state the enforcement posture · DECISIONS.md D-136 §3 ↳ trigger: Leg C resolves
 │   ├── 🟡 **Clean-table UI milestone** — the live UI build
 │   │   ↳ trigger: Round-2 audit GO + M10 closed *(transcribed from the UI container)*

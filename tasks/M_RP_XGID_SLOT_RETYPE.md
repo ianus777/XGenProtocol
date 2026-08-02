@@ -1,6 +1,6 @@
 # M-RP-XGID-SLOT-RETYPE — the identifier slots that regressed to `String` after the retrofit arc closed
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -240,9 +240,13 @@ pub origin_event: String,     // "The thread.create event id"                   
 
 🛑 **AND THE GATE'S OWN FIRST DEFECT WAS FOUND THE HARD WAY: IT SWEPT THE FILESYSTEM.** A planted slot in a **tracked** file was counted as production and moved the sweep **255 → 256**. Two vectors, and **the tempting one-line fix closes only one**: untracked files die to `git ls-files`; **modified tracked files still read dirty from disk** and are now refused outright unless `-AllowDirty` prints its warning. ⚠️ *`ls-files` alone would NOT have caught the actual incident.*
 
+✅ **LEG B CLOSED J-665. Commit `c2975f3` (code) + the doc bridge.** Four slots typed · `records: BTreeMap<IdentityXgid, SeenRecord>` carrying the `D-137` note · **all THREE bridge sites gone** · accessors kept `&str` · **cargo 1589 → 1592 (Δ +3 = the three round-trip tests, named)** · svelte-check **0/34/15 unchanged** · **gate PASS at 84 (65/5/13/1), no WARN** · scope exactly 3 files. Runbook `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_B.md` **v1.2 COMPLETED**. 🔒 **`M-RP-IDENTITY-RESOLUTION` Leg D IS NOW UNBLOCKED — the `Owes:` obligation is DISCHARGED.**
+
+🛑 **AND THE RUNBOOK CONTAINED ONE WRONG INSTRUCTION, WHICH POINTED AT THE WIRE.** Its §B4 listed `ops.rs:3257/:3261` as `FetchedIdentity` fixtures to wrap; **they are the `IdentityMessage::Record` WIRE variant's fields and stay `String` under `D-137` §1 clause 3.** Clair refused it and flagged it under Rule 6. ⚠️ *Absorbed, it would have retyped a wire enum field — a defect at the exact boundary this milestone exists to respect.* 🔑 **The mechanism was Chat enumerating fixture sites from a grep of `identity_id:` / `home_node:` LINE NUMBERS without checking which type each belonged to** — ***a claim narrower than the thing it describes***, for the third time in this milestone, and the first time it pointed somewhere expensive.
+
 **Leg B — the four address-book slots.** `SeenRecord` ×2 + `FetchedIdentity` ×2, plus the `BTreeMap<String, _>` key and the sites that disappear with them. **Moves the cargo floor.** 🔒 **THIS IS THE ONLY LEG ON `M-RP-IDENTITY-RESOLUTION` LEG D's CRITICAL PATH.**
 
-🔒 **RUNBOOK AUTHORED AND LOCKED 2026-08-02 (J-664): `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_B.md` v1.1 ACTIVE.** Locked as authored, no corrections raised. **Clair implements from it; standing her up is Joe's.**
+🔒 **RUNBOOK AUTHORED AND LOCKED 2026-08-02 (J-664): `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_B.md` v1.1 ACTIVE.** Locked as authored, no corrections raised. **Clair implements from it; standing her up is Joe's.** ⚠️ **SUPERSEDED AT J-665 — the runbook is now v1.2 COMPLETED and the leg has landed.** *Kept not erased (`D-131`): the sentence is true of J-664 and stale as a pointer.*
 
 📌 **RENAMED AT LOCK — *"the three address-book structs"* is superseded, kept not erased (`D-131`).** The old name counts **structs** and only **two of the three** carry work (`FillReport` contributes zero — already `Vec<IdentityXgid>`). **The unit that is true of this leg is the SLOT, and there are four.**
 
@@ -275,7 +279,7 @@ At J-658 Chat sequenced this milestone **ahead of** `M-RP-IDENTITY-RESOLUTION` L
 
 🔒 **THE ORDERING SURVIVES, ON A NARROWER CLAIM: `M-RP-IDENTITY-RESOLUTION` Leg D is gated on THIS MILESTONE'S LEG B — the three address-book structs — NOT on the whole milestone.** Legs A and B are small and on the path; **Leg C is not, and must not be allowed to block a milestone it has no relationship to.**
 
-> **`Owes:` — `M-RP-IDENTITY-RESOLUTION Leg D Tier-1 fetch on join` is unblocked by LEG B, not by close.** ⚠️ **If Leg 0's hand-read shows Leg C is large, Leg C splits into its own milestone and this one closes at B** — 🔓 **the split is Joe's to name (`D-123`), and the trigger is the hand-read, not a guess.**
+> **`Owes:` — `M-RP-IDENTITY-RESOLUTION Leg D Tier-1 fetch on join` is unblocked by LEG B, not by close.** ✅ **DISCHARGED J-665 — Leg B landed (`c2975f3`); Leg D is openable.** ⚠️ **If Leg 0's hand-read shows Leg C is large, Leg C splits into its own milestone and this one closes at B** — 🔓 **the split is Joe's to name (`D-123`); the hand-read has now run and sized Leg C at 13 slots, so the trigger has fired and the ruling is outstanding.**
 
 ---
 
@@ -293,9 +297,9 @@ At J-658 Chat sequenced this milestone **ahead of** `M-RP-IDENTITY-RESOLUTION` L
 - [x] The grep gate exists, **runs, and FAILS on a planted `String` identifier slot** — ✅ **J-661: PASS clean · FAIL on the dirty guard · FAIL naming the planted slot · PASS after revert** — **Leg A**
 - [x] The written rule lands in `CLAUDE.md` as a standing convention — ✅ **Rule 0 item (5), J-661** — **Leg A**
 - [x] **The POLYMORPHIC `target` shape ruled** — ✅ **`D-137` §1: a second independent reason a BOUNDARY slot stays `String`, NOT a fourth category** — **Leg A**
-- [ ] `SeenRecord.home_node` is `NodeXgid` — 🔑 **it contradicts a Pass 4 borderline lock BY NAME** (§4.1.a: *"2 NodeXgid for `home_node` ×3"*) — **Leg B**
-- [ ] The **THREE** `String`↔typed bridge sites are **GONE, not moved** — `ops.rs:2734` · `:2742` · **`:2935` with its comment** — **Leg B** ⚠️ *this item read "the `ops.rs:2734`/`:2742` downgrade" until v1.4; the third site was found at runbook authoring. Superseded, kept not erased (`D-131`).*
-- [ ] cargo floor re-measured on every Rust leg, delta explained — **Legs B, C**
+- [x] `SeenRecord.home_node` is `NodeXgid` — ✅ **J-665**; 🔑 it contradicted a Pass 4 borderline lock BY NAME (§4.1.a: *"2 NodeXgid for `home_node` ×3"*), and the flavour was confirmed **at the producer** (`xgen-node/src/app.rs:3561` projects down from a typed `NodeXgid`) rather than inherited from the lock — **Leg B**
+- [x] The **THREE** `String`↔typed bridge sites are **GONE, not moved** — ✅ **J-665**, verified scoped to `observed_identities` + `fill_from_events`: zero downgrades, zero re-wraps, the `:2935` comment removed with its code — **Leg B** ⚠️ *this item read "the `ops.rs:2734`/`:2742` downgrade" until v1.4; the third site was found at runbook authoring. Superseded, kept not erased (`D-131`).*
+- [x] cargo floor re-measured on every Rust leg, delta explained — ✅ **Leg B: 1589 → 1592, Δ +3 = `v3a`/`v3b`/`v3c`, enumerated not derived**; ⏳ still owed by **Leg C**
 - [ ] Records in one commit (`D-074`), and **the close states the enforcement posture** (`D-136` §3) — **Leg D**
 
 ---

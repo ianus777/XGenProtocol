@@ -8,6 +8,75 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-665 — Leg B lands: four slots typed, the map key with them, and a runbook instruction that pointed at the wire
+
+**Date:** 2026-08-02 · **Seat:** Clair (implementation, commit `c2975f3`) · Chat (re-drive, records) · Joe (pushes). ROADMAP v6.52 → v6.53 · Phase-0 v1.4 → v1.5 · runbook v1.1 → **v1.2 COMPLETED** · `M_RP_IDENTITY_RESOLUTION.md` v1.14 → v1.15.
+
+---
+
+### 🛑 THE ENTRY'S REAL FINDING: MY OWN RUNBOOK TOLD HER TO RETYPE A WIRE FIELD, AND SHE REFUSED IT
+
+Runbook §B4 listed `ops.rs:3257/:3261` among the *"`FetchedIdentity` fixtures — wrap"*. **They are not `FetchedIdentity` at all.** They are the fields of the `IdentityMessage::Record` **wire enum variant**, inside `identity_get_record_maps_to_some_…`, and under `D-137` §1 clause 3 they are **BOUNDARY — they stay `String`.**
+
+**Clair did not wrap them. She flagged the instruction under Rule 6 and left the fixture alone.** ⚠️ **Absorbed, it would have retyped a wire enum field** — a defect at precisely the boundary this milestone exists to respect, in the file the gate sweeps, shipped inside the leg that promotes the rule.
+
+🔑 **THE MECHANISM IS MINE AND IT IS THE THIRD INSTANCE IN THIS MILESTONE.** I built §B4's fixture list from a `git grep -n 'identity_id:\|home_node:'` over the two files and **transcribed line numbers without checking which type each line belonged to.** The grep was right about where the strings are and silent about what owns them. ***A claim narrower than the thing it describes*** — after a Phase-0 headline (J-660), a `D` entry's quoted rule (`D-136` §2), and a session kickoff (J-664), and **the first one that pointed somewhere expensive.**
+
+🔒 **AND IT IS THE SECOND TIME RULE 6 HAS PAID FOR ITSELF ON A RUNBOOK OF MINE** — J-516 was `migrateLayout`'s fallback, where my runbook would have made `core` import a shell-local default. ***An implementer who silently absorbs a bad instruction ships the architect's mistake***, and this arc it would have shipped a wire regression rather than a drift surface.
+
+### Her two other Rule-6 flags, both correct, both forced rather than discretionary
+
+**① §B4 under-enumerated the assertion sites.** Retyping `observed_identities → Vec<IdentityXgid>` cascades into `.contains(&bob_id)`, the filter comparisons, `registry.get(cand)` and the `candidates.contains` pair — about ten sites B4 did not list. **All are forced by the locked type change**, and she fixed them minimally with the existing `ix()` / `nx()` helpers rather than inventing new ones.
+
+**② `AddressBook::iter` is not in §B1 and had to move.** A `BTreeMap<IdentityXgid, _>` **has no `&String` to hand out**, so the item type becomes `(&IdentityXgid, &SeenRecord)` by construction. 🔑 **This is NOT the discretionary accessor widening §5 defers** — that is about `&str` *parameters*, which all four accessors kept. She documented the distinction in place at `address_book.rs:212-218`, which is exactly where a later reader will ask.
+
+### Re-driven by Chat under Rule 5 — not one number taken on report
+
+| # | check | result |
+|---|---|---|
+| V0 | floor before the first edit | **1589 / 0 / 62 × 56** — reconciled to the record |
+| V1 | cargo after the leg | **1592 / 0 / 62 × 56**, final `test result:` line present, `FAILED` grep **case-sensitive** = 0 |
+| Δ | the delta, enumerated | **+3** = `v3a` · `v3b` · `v3c`, each read `... ok` in the log |
+| V2 | svelte-check | **0 / 34 / 15** — unchanged |
+| V4 | gate, clean tree | **PASS at 84 (65 / 5 / 13 / 1)**, no WARN; manifest re-tallied by hand to 84 |
+| V5 | R1, scoped to the two functions | `observed_identities`: two typed `.clone()`s · `fill_from_events`: **zero** downgrades, **zero** re-wraps |
+| V6 | scope by diffstat | exactly 3 files; zero `ui/**` · `xgen-node` · `xgen-core` · `xgen-common` |
+| V7 | sampler catalogue | **435**, by scope |
+
+⚠️ **One of my own reads had to be re-scoped before it meant anything.** A file-wide grep for `as_str().to_string()` in `ops.rs` returns **41** — a number that says nothing, because R1 is a claim about **two functions**, not a file. Re-cut to the `observed_identities` and `fill_from_events` bodies it is **0 and 0**. *A count taken at the wrong scope is not a weaker measurement; it is a different question.*
+
+### 🔑 The byte-identity claim: proven twice, and the second proof is structural
+
+`v3a` pins the **exact on-disk JSON literal** — bare `"xgen://pubkey/ed25519:…"` keys, plain-string `identity_id` / `home_node` — and then loads it back equal. That is the test the runbook demanded, and **it can fail**: a `save`→`load` equality alone would have passed even if both sides moved together.
+
+**And I checked the structural reason separately rather than trusting the test alone:** the `bb3ac6e→c2975f3` diff of `address_book.rs` changes **only the two type names** — **no field renamed, no serde attribute added or removed.** That is *why* the bytes cannot move; `v3a` is the evidence that they did not.
+
+📌 **HONEST LIMIT, RECORDED RATHER THAN LEFT TO BE DISCOVERED: `v3a` AND `v3b` ARE NOT TWO INDEPENDENT PROOFS.** Because transparency makes the pre- and post-retype bytes **identical**, `v3b`'s hand-written "legacy" fixture is byte-identical to what the new code writes. 🔑 **That identity IS the finding** — §2c's argument restated as data — but `v3b` is a **regression pin**, not a second measurement. *Recorded so nobody later cites two proofs where there is one proof and one guard.*
+
+### What landed
+
+`SeenRecord.identity_id → IdentityXgid` · `.home_node → NodeXgid` · `FetchedIdentity` the same two · `records: BTreeMap<IdentityXgid, SeenRecord>` carrying the `D-137` note that says **why it stays INTERNAL despite two format edges** · the one projection per direction at `parse_identity_get_response` · **all three bridge sites gone**, the `:2935` four-line comment removed with its code · the four accessors still `&str`, ~30 test call sites untouched · `FillReport` untouched.
+
+✅ **`SeenRecord.home_node` discharges the Phase-0 §8 item that contradicted a Pass 4 borderline lock by name** — and the flavour was confirmed **at the producer** (`xgen-node/src/app.rs:3561` projects down from a typed `NodeXgid`), not inherited from the lock.
+
+### The obligations this moves
+
+✅ **The `Owes:` is DISCHARGED.** `M-RP-IDENTITY-RESOLUTION` Leg D was gated on **Leg B, not on close** (`D-133`, recorded on both sides) — Leg B has landed, so **Leg D is openable**. The ROADMAP `Owes:` line is removed (a discharged obligation is not an obligation, and the node format admits only live annotations); the discharge is recorded here and in both task docs.
+
+⚠️ **Leg C's trigger has FIRED and half of it is outstanding: "Leg B lands + Joe rules the split."** Leg B has landed; **the split ruling is Joe's and still open.** Chat's recommendation is unchanged and unchanged for the same reason — **13 slots, five of them in `ops.rs`, the file Leg B just closed** — so splitting would put two milestones in one file and move the cargo floor twice.
+
+### Seat note
+
+**Clair did not close her own leg** — she handed back with the numbers and stopped. The close, the records and the `Status: COMPLETED` are this entry. **Her code commit is first, the doc bridge second, Joe pushes both.**
+
+**No new D. No new N.**
+
+**NEXT: Joe's — Leg C's split ruling, or open `M-RP-IDENTITY-RESOLUTION` Leg D, which is now unblocked.** 🔓 **Also open:** the `D-137` number · whether the `CLAUDE.md` PLAY head gets the J-662/J-663 treatment.
+
+→ J-665 · ROADMAP v6.53.
+
+---
+
 ## Entry J-664 — Leg B's runbook authored and locked; the kickoff's "two downgrades" turned out to be three
 
 **Date:** 2026-08-02 · **Seat:** Chat (grounding, runbook, records) · Joe (locked). **NO CODE.** ROADMAP v6.51 → v6.52 · Phase-0 v1.3 → v1.4 · new runbook `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_B.md` v1.1 ACTIVE.

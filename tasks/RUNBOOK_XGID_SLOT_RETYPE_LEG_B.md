@@ -1,6 +1,6 @@
 # M-RP-XGID-SLOT-RETYPE Leg B — the four address-book slots, the map key, and the three sites that disappear with them
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -9,6 +9,10 @@
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 ---
+
+✅ **LEG B IS IMPLEMENTED, RE-DRIVEN AND CLOSED (J-665). Commit `c2975f3` [Clair, code] + the doc bridge [Chat]. Every number below was re-measured by Chat under Rule 5; not one entered the record on report.**
+
+🛑 **AND ONE OF THIS RUNBOOK'S OWN INSTRUCTIONS WAS WRONG — B4 POINTED AT THE WIRE.** §B4 listed `ops.rs:3257/:3261` as *"`FetchedIdentity` fixtures — wrap"*. **They are the `IdentityMessage::Record` WIRE variant's fields**, which stay `String` under `D-137` §1 clause 3. **Clair refused the instruction and flagged it (Rule 6).** ⚠️ *Had she absorbed it she would have retyped a wire enum field — a defect at the exact boundary this milestone exists to respect.* Kept not erased (`D-131`); the mechanism is recorded at J-665.
 
 🔒 **LOCKED BY JOE 2026-08-02 (*"locked and go"*), AS AUTHORED — no corrections raised. Chat wrote it; Clair implements from THIS version and does not close her own leg (D-123).**
 
@@ -212,19 +216,19 @@ Phase-0 §8 flags that `SeenRecord.home_node: NodeXgid` *"contradicts a Pass 4 b
 
 ## §7 — DoD
 
-- [ ] **B0 baseline re-measured and reconciled to 1589/0/62 × 56** — or the leg stopped and reported
-- [ ] `SeenRecord.identity_id` is `IdentityXgid`
-- [ ] `SeenRecord.home_node` is `NodeXgid` — 🔑 **discharges the Phase-0 §8 item that contradicts a Pass 4 borderline lock by name**, and §2d confirms the flavour at the producer
-- [ ] `FetchedIdentity.identity_id` is `IdentityXgid` · `.home_node` is `NodeXgid`
-- [ ] `AddressBook.records` is `BTreeMap<IdentityXgid, SeenRecord>` **and carries the D-137 note (§2c)**
-- [ ] **All THREE sites are GONE, not moved** — `ops.rs:2734` · `:2742` · **`:2935` with its comment** (V5)
-- [ ] The four accessors still take `&str` and the ~30 test call sites are unedited
-- [ ] **V3-b run against a hand-written pre-retype on-disk fixture** — fed, not asserted
-- [ ] **cargo floor re-measured and the delta explained by name** (V1)
-- [ ] `svelte-check` **0/34/15 unchanged** (V2)
-- [ ] **Manifest rows dropped AND `# EXPECTED:` moved to `INTERNAL=13 TOTAL=84`, in the same commit** (R8)
-- [ ] **Gate re-run on a clean tree: PASS at 84, no WARN** (V4)
-- [ ] Scope confirmed by diffstat (V6)
+- [x] **B0 baseline re-measured and reconciled to 1589/0/62 × 56** — ✅ exact, clean run, 56 terminators, final `test result:` line present
+- [x] `SeenRecord.identity_id` is `IdentityXgid` — ✅ `address_book.rs:82`
+- [x] `SeenRecord.home_node` is `NodeXgid` — ✅ `address_book.rs:91`; **discharges the Phase-0 §8 item that contradicts a Pass 4 borderline lock by name**, flavour confirmed at the producer (§2d)
+- [x] `FetchedIdentity.identity_id` is `IdentityXgid` · `.home_node` is `NodeXgid` — ✅ `ops.rs:428/:432`
+- [x] `AddressBook.records` is `BTreeMap<IdentityXgid, SeenRecord>` **and carries the D-137 note** — ✅ `address_book.rs:176-183`
+- [x] **All THREE sites are GONE, not moved** — ✅ V5 scoped to the two functions: `observed_identities` uses typed `.clone()` ×2, `fill_from_events` has **zero** downgrades and **zero** re-wraps; the `:2935` push is `id.clone()` and the four-line comment is gone
+- [x] The four accessors still take `&str` and the ~30 test call sites are unedited — ✅ `:203 :208 :259 :267`
+- [x] **V3-b run against a hand-written pre-retype on-disk fixture** — ✅ fed, not asserted
+- [x] **cargo floor re-measured and the delta explained by name** — ✅ **1592/0/62 × 56**, Δ **+3** = `v3a` · `v3b` · `v3c`, each seen `... ok` in the log, **enumerated not derived**
+- [x] `svelte-check` **0/34/15 unchanged** — ✅ re-run by Chat
+- [x] **Manifest rows dropped AND `# EXPECTED:` moved to `INTERNAL=13 TOTAL=84`, same commit** — ✅ 1 insertion / 5 deletions, tally re-counted 65/5/13/1 = 84
+- [x] **Gate re-run on a clean tree: PASS at 84, no WARN** — ✅
+- [x] Scope confirmed by diffstat — ✅ exactly 3 files; zero `ui/**`, `xgen-node`, `xgen-core`, `xgen-common`
 
 🛑 **NOT IN THIS DoD, AND NO ITEM HERE MAY BE READ AS DISCHARGING THEM:** `M-RP-IDENTITY-RESOLUTION` **Leg D** (this leg *unblocks* it; it does not begin it) · that milestone's **Leg E** and **Leg F** (**Leg F is the first behaviour verification of that whole milestone and nothing in it has been exercised against two clients**) · this milestone's **Leg C** (13 slots) and **Leg D** (records + close). 🔒 **Under N-168, G-B closes on Leg D AND Leg E together and no single leg may tick it.**
 
@@ -234,7 +238,11 @@ Phase-0 §8 flags that `SeenRecord.home_node: NodeXgid` *"contradicts a Pass 4 b
 
 ## §8 — Filed, NOT fixed
 
-- 📌 **Widening the `AddressBook` accessor surface to `&IdentityXgid`** (§5) — and the same question for `iter`'s `&String` item type.
+✅ **§9's TWO NAMED RISK POINTS ARE NOW MEASURED, NOT ARGUED.** ① The byte-identity claim at the `BTreeMap` key: `v3a` pins the **exact on-disk JSON literal** (bare `"xgen://…"` keys, plain-string `identity_id` / `home_node`) and it round-trips; **and Chat checked the structural reason separately — the `bb3ac6e→c2975f3` diff changes ONLY the two type names, with no field rename and no serde attribute added or removed**, which is *why* the bytes cannot move. ② The floor arithmetic returned **1592**, exactly the prediction, delta named.
+
+📌 **AND AN HONEST LIMIT ON THE PAIR: `v3a` AND `v3b` ARE NOT TWO INDEPENDENT PROOFS.** Because transparency makes the pre- and post-retype bytes **identical**, `v3b`'s "legacy" fixture is byte-identical to what the new code writes. 🔑 **That identity IS the finding — stated as data instead of as an argument** — but `v3b` is best read as a **regression pin** (it keeps the promise explicit if transparency is ever removed) rather than as a second, separate measurement. *Recorded so nobody later cites two proofs where there is one proof and one guard.*
+
+- 📌 **Widening the `AddressBook` accessor surface to `&IdentityXgid`** (§5). ⚠️ **`AddressBook::iter` moved anyway and that is NOT this item** — a `BTreeMap<IdentityXgid, _>` has no `&String` to hand out, so its item type is **forced by the key retype**, not chosen. Documented in place at `address_book.rs:212-218`.
 - 📌 **`ops.rs`'s five remaining Leg C slots sit in the file this leg opens** (`ThreadCreateResult` · `ThreadStatusResult` · `RedactResult` · `VerbReject` · `RoomsResult`). ⚠️ **They are NOT taken here.** Phase-0 §6 recommends Leg C is not split off *precisely because* it shares this file — **that argument is about milestone boundaries, not about scope creep inside a leg.**
 - 📌 **`envelope.rs` `ErrorBody.event_id`** — the one UNREAD slot of the 88. Its producer still needs reading. **Not this leg.**
 - ⚠️ **The kickoff's "two downgrades" (§2a).** Recorded as a finding rather than silently corrected (D-131), because the same species has now appeared in a Phase-0, a `D` entry and a session kickoff inside one arc.

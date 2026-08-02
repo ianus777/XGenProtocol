@@ -8,6 +8,83 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-669 — M-RP-XGID-SLOT-RETYPE CLOSES: ten more slots typed, R4 fired and was ruled, and the close states its own enforcement
+
+**Date:** 2026-08-02 · **Seat:** Clair (implementation, commit `b99e202`) · Chat (R4 ruling, re-drive, records) · Joe (seat boundary restated; pushes). **MILESTONE CLOSED.** ROADMAP v6.55 → v6.56 · Phase-0 v1.6 → **v1.7 COMPLETED** · Leg C runbook v1.2 → **v1.3 COMPLETED**.
+
+---
+
+### 🔒 R4 FIRED, AND THAT IS THE RULE WORKING RATHER THAN THE LEG FAILING
+
+Clair retyped all ten slots, ran `cargo check --workspace --all-targets`, and **the compiler found three consumers outside `xgen-client` that no grep could see.** All three chain `.identity_id` straight off `client_authenticate(...)` under **aliased locals** — `authed_as`, `identity_id`, `returned_id` — so nothing matching `AuthOutcome` or `auth.identity_id` ever appeared: `xgen-mptest/src/injector.rs:275` · `xgen-mptest/src/wireactor.rs:63` · `xgen-node/src/transport/mod.rs:57`.
+
+🔑 **THE RUNBOOK'S §8.3 SAID *"grep is not cargo; the compiler is the authority"* AND IT WAS RIGHT ABOUT ITS OWN §2.** I had written *"`AuthOutcome` 3 refs, one file"* from a search. ⇒ ***A reference count is only as wide as the name you searched for — and a value chained straight off its producer carries no name at all.***
+
+✅ **`AuthOutcome.node_id` never leaked.** The entire escape was `identity_id`.
+
+### 🔒 THE RULING — (A) MINIMAL. TAKEN BY CHAT, AND IT SHOULD NOT HAVE BEEN OFFERED TO JOE AT ALL.
+
+Chat put the fork to Joe. **He answered by restating the seat boundary instead: *"mine are appearance and architecture; yours are technicalities and anything else."*** ⚠️ ***UNDER-STEPPING — the recurring seat error, second instance this arc*** (J-618 was the first). **`D-123` already said this; it had to be said again because Chat routed a technicality upward.**
+
+🔒 **RULED: fix the three sites by PROJECTION AT THE CONSUMER — `.identity_id.as_str().to_string()` — changing NO type in either crate.** 🔑 **That is `D-137`'s own shape, not an exception to it:** a consumer that wants the external form takes it through a **named projection at its own edge**. Three call-site lines; and **all three consumers are test infrastructure** (`xgen-mptest` is a test crate, the `xgen-node` site is `#[cfg(test)]`) — **no production code in either crate reads the field.**
+
+🛑 **(B) — dropping `AuthOutcome.identity_id` — WAS REFUSED ON THE MILESTONE'S OWN THESIS:** it would have left a slot the hand-read classified INTERNAL as `String` **because a test harness wanted a `String`**, and *a slot does not become BOUNDARY by sitting near something that wants the external form*. **That is the exact defect this milestone exists to remove, shipped knowingly, in the crate with the widest reach.**
+
+⚠️ **THE COST WAS WRITTEN INTO THE CHECK RATHER THAN GLOSSED: V6 GOT WEAKER.** It was *"zero `xgen-node`/`xgen-mptest`/`xgen-common`"* — an absolute, which is what made it checkable. It now **names the three lines**, and a fourth site anywhere in those crates re-fires R4. *R4's letter says **signature** change and a one-line projection is not one — but V6 was written as an absolute, and stopping on it was right.*
+
+### 🛑 FIVE OF CHAT'S LINES WERE WRONG THIS LEG, AND CLAIR CAUGHT ALL FIVE
+
+1. **The `grep` ref count** (above).
+2. **The aicontrol projection is not `:122`.** `:122` is a `String → String` move into `ErrorBody`; the real `EventXgid → String` seam is `vr.event_id` — **now at `:575`** after her explanatory comment. 📌 *v1.2 §0 wrote `:572`, which was true before the comment; the runbook now carries the line that is actually there.* **Third runbook line of mine in this milestone pointing at the wrong place.**
+3. **Both `node_id` slots are `Option<String>`** ⇒ `Option<NodeXgid>`, and `SessionState.node_id` is assigned from `auth.node_id` (`session.rs:165`), so **the two retype together.**
+4. **The file list was incomplete** — `OutboundRequest` is constructed at `desktop.rs:354`, and `app.rs:3391` reads `short_id(&r.target_event_id)`. **Both `xgen-client`, so R4 never applied; correctly absorbed as forced consequences rather than refused** (the J-665 pattern).
+5. **My kickoff said the gate passes at *"84 (65/5/3/1)"*.** It is **65/5/13/1**; 3 is the post-leg number. She checked it against the file, called it a transcription slip, and moved on.
+
+✅ **AND §8.2 EARNED ITS KEEP IN THE OTHER DIRECTION.** It told her to check my two `EventXgid` guesses **at their writers** rather than trusting the names — J-665's lesson written in as an instruction. She did, and all three hold: `RedactResult.target_event_id` ← `RedactArgs.target` · `ThreadState.origin_event` ← `event.event_id`, already bound as `event_xgid` (**assigned directly, no projection**) · `VerbReject`/`SendOutcome.event_id` ← `EventConfirm::Rejected.event_id`, BOUNDARY-wire and **staying `String`**.
+
+### Re-driven by Chat under Rule 5 — not one number on report
+
+| # | check | result |
+|---|---|---|
+| V0 | floor before edits | **1592 / 0 / 62 × 56** |
+| V1 | cargo after C-4 | **1595 / 0 / 62 × 56**, final `test result:` present, `FAILED` **case-sensitive** = 0 |
+| Δ | +3, enumerated | `redact_result_round_trips_byte_identically` · `send_outcome_serialises_event_id_identically_both_arms` · `auth_outcome_equality_holds_after_retype`, each `... ok` |
+| V2 | svelte-check | **0 / 34 / 15** — unchanged |
+| V4 | gate, clean tree | **PASS at 74 (65 / 5 / 3 / 1)**, manifest re-tallied to 74 |
+| R3 | retained rows | **exactly** the three thread slots |
+| V5 | aicontrol | `:88` still `String`; **exactly one** projection, at `:575` |
+| V6 | R4 crates | **three lines, all consumer projections, zero type changes** |
+| V7 | scope | 13 files; zero `ui/**`, zero `xgen-common` |
+
+🔑 **V3-a IS A TEST THAT CAN FAIL** — it pins the **exact JSON literal for both arms**, and the failed arm asserts `"event_id":null` outright. **`EventXgid` derives `Default`, so an empty-but-present id was representable**; had the retype gone through `unwrap_or_default` anywhere, a failed send would have claimed an event id — **the exact D6 lie `SendOutcome`'s four-way honesty exists to prevent.**
+
+### ✅ THE CLOSE STATES ITS OWN ENFORCEMENT, BECAUSE `D-136` §3 BINDS THIS MILESTONE TO ITS OWN RULE
+
+**Phase-0 §0 is that statement.** Enforcement is **③ a grep gate that runs** (exercised at J-661: clean PASS · planted-slot FAIL on the dirty guard · planted-slot FAIL naming it · PASS after revert) **+ ④ the rule with a home and an owner** (`D-137` in `DECISIONS.md`; `CLAUDE.md` **Rule 0 item (5)**).
+
+🔑 ***A milestone whose whole content was a second completed sweep would have been `D-136`'s own mistake one arc later, performed by the document that catalogues it.*** **§0 is what stops that** — and it names four limits rather than leaving them to be found:
+
+1. **The gate cannot catch the defect that minted `D-136`** — a slot correctly `String` at a boundary and wrongly consumed as internal state one function away. ***It clears the desk; it does not retire the read.***
+2. **Nor can it see a value chained off its producer** — this leg's own R4 leak.
+3. **Three INTERNAL slots stay `String`, named:** `ThreadState.id` · `ThreadCreateResult.thread_id` · `ThreadStatusResult.thread_id`. **No `ThreadXgid` exists and its absence is a documented decision (`AE-D8`).** 🔒 **Their manifest rows are RETAINED so every session's gate run surfaces them**; `M-RP-THREAD-XGID` owns the question. ⚠️ *The milestone closes with a **known, named, visible** gap rather than a silent one — which is the distinction `D-136` §3 actually draws.*
+4. **`envelope.rs` `ErrorBody.event_id` is still UNREAD** — 1 of the 88, riding the manifest as `UNREAD`.
+
+🛑 **AND THE LIMIT THAT COVERS THE WHOLE MILESTONE: NOTHING IN IT WAS EXERCISED AGAINST A RUNNING SYSTEM.** Every leg is compile-, test- and gate-verified. **Transparency makes the wire / disk / IPC bytes provably unchanged, and that is what was proven — not behaviour.**
+
+### Final state
+
+**88 slots classified → 74 remain on the manifest** (65 BOUNDARY · 5 DESCRIPTIVE · **3 INTERNAL** · 1 UNREAD). **14 INTERNAL slots retyped across Legs B and C.** cargo **1589 → 1595** · `svelte-check` **0/34/15 throughout** · **zero `ui/**` in the entire milestone.**
+
+🔒 **SEAT: Clair did not close her own leg.** She handed back with the numbers and stopped, twice — once on R4 and once at the end. **Code commit first, doc bridge second, Joe pushes both.**
+
+**No new D. No new N.**
+
+🔓 **OPEN:** `M-RP-THREAD-XGID` · the `D-137` number · **`M-RP-IDENTITY-RESOLUTION` Leg D, unblocked since J-665 and now with nothing in front of it** · `M-RP-LIVEFEED-REFRESH` Leg C · the unnamed back-fill milestone · whether the PLAY head gets the J-662/J-663 treatment.
+
+→ J-669 · ROADMAP v6.56.
+
+---
+
 ## Entry J-668 — Leg C locked at TEN slots, not thirteen: the flavour three of them would retype into does not exist
 
 **Date:** 2026-08-02 · **Seat:** Joe (ruled the milestone runs to close; locked the runbook) · Chat (grounding, runbook, records). **NO CODE.** ROADMAP v6.54 → v6.55 · Phase-0 v1.5 → v1.6 · new runbook `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_C.md` v1.1 ACTIVE.

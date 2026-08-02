@@ -1,6 +1,6 @@
 # M-RP-XGID-SLOT-RETYPE — the identifier slots that regressed to `String` after the retrofit arc closed
-> **Status**: ACTIVE  
-> Version: 1.6  
+> **Status**: COMPLETED  
+> Version: 1.7  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -10,7 +10,28 @@
 
 ---
 
-## §0 — What this is, and what it is NOT
+## §0 — ✅ CLOSED (J-669, 2026-08-02). THE ENFORCEMENT POSTURE, WHICH `D-136` §3 BINDS THIS MILESTONE TO STATE.
+
+🔒 **`D-136` §3: *a pass that closes MUST state, in its own closing record, how the convention will be enforced after it — or state explicitly that it will not be, so the gap is known rather than assumed.*** **This milestone exists because a previous close did not. Here is its answer.**
+
+**Enforcement is ③ + ④ of `D-136` §3's four-rung ladder, and both are LIVE:**
+
+- **③ A GREP GATE THAT RUNS.** `xgid-slot-gate.ps1` + `xgid-slot-manifest.tsv` sweep every post-arc identifier-shaped `String` slot in the four crates and diff them against a per-slot manifest keyed on **File + Struct + Field**. **A new slot not on the manifest FAILS. A manifest row that vanishes WARNs. A tally disagreeing with the manifest's own `# EXPECTED:` header FAILS.** ✅ **Exercised, not asserted (J-661): clean PASS · planted slot FAIL on the dirty guard · planted slot with `-AllowDirty` FAIL naming it · PASS after revert.** 🔑 ***A gate that has never failed is not known to work.***
+- **④ THE RULE HAS A HOME AND AN OWNER.** `D-137` is in `DECISIONS.md`, and **`CLAUDE.md` Rule 0 gained item (5): run the gate when the session will touch Rust.** 🔑 **That is the whole repair** — the rule was never unwritten, it was written **in two archived design docs**, and its promotion trigger fired at `M6` and sat unnoticed for two months. **A watch needs (a) a trigger, (b) an owner, (c) a place the owner will actually read**, and Rule 0 is the one list re-read every session.
+
+🛑 **AND THE HONEST LIMIT, STATED AT CLOSE RATHER THAN LEFT TO BE DISCOVERED — `D-136` §3 ASKS FOR THE GAP TO BE NAMED:**
+
+1. **THE GATE CANNOT CATCH THE DEFECT THAT MINTED `D-136`.** A grep catches a slot that is `String` and should not be. It **cannot** catch a slot correctly `String` at a boundary and wrongly consumed as internal state one function away — which is `SeenRecord`'s actual shape. ***The gate clears the desk; it does not retire the read.***
+2. **NOR CAN IT SEE A VALUE CHAINED OFF ITS PRODUCER.** Leg C's R4 leak was three consumers reading `.identity_id` straight off `client_authenticate(...)` under aliased locals — **invisible to any search on the type or the field name, and found only by the compiler.** ***A reference count is only as wide as the name you searched for.***
+3. **THREE INTERNAL SLOTS REMAIN `String`, DELIBERATELY, AND THEY ARE NAMED:** `ThreadState.id` · `ThreadCreateResult.thread_id` · `ThreadStatusResult.thread_id`. **No `ThreadXgid` exists and its absence is a documented decision (`AE-D8`).** 🔒 **Their manifest rows are RETAINED so every session's gate run surfaces them**, and **`M-RP-THREAD-XGID` owns the question.** ⚠️ *This milestone closes with a known, named, visible gap rather than a silent one — which is the distinction `D-136` §3 actually draws.*
+4. **`envelope.rs` `ErrorBody.event_id` IS STILL UNREAD** — 1 of the 88, its producer never opened. **It rides the manifest as `UNREAD`.**
+5. **NOTHING IN THIS MILESTONE WAS EXERCISED AGAINST A RUNNING SYSTEM.** Every leg is compile-, test- and gate-verified. **Transparency makes the wire / disk / IPC bytes provably unchanged, and that is what was proven — not behaviour.**
+
+**FINAL STATE:** 88 slots classified → **74 remain on the manifest** (65 BOUNDARY · 5 DESCRIPTIVE · **3 INTERNAL** · 1 UNREAD). **14 INTERNAL slots retyped across Legs B and C**; cargo **1589 → 1595**; `svelte-check` **0/34/15 throughout**; **zero `ui/**` in the whole milestone.**
+
+---
+
+## §0a — What this is, and what it is NOT
 
 **This is the Phase-0 for `M-RP-XGID-SLOT-RETYPE`, the milestone `D-136` §4 names as owing the sweep that entry deliberately did not run.** `D-136` closed with an explicit disclaimer: *"It does not claim the XGID regression's full extent is known. Only the structs on the address-book fill path were measured. No sweep has been run for other post-2026-05-29 structs that regressed the same way."*
 
@@ -275,6 +296,8 @@ pub origin_event: String,     // "The thread.create event id"                   
 
 **Leg D — records + close.** JOURNAL + `CLAUDE.md` PLAY + ROADMAP + this document, one commit (`D-074`). 🛑 **Its close must state how the convention is enforced from then on, or state that it is not — `D-136` §3 binds this milestone to its own rule.**
 
+✅ **CLOSED J-669. §0 IS THAT STATEMENT.** Enforcement ③ + ④, both live and both exercised; **four limits named rather than left to be found**, including the three slots that stay `String` and why. 🔑 ***A milestone whose whole content is a second completed sweep would have been `D-136`'s own mistake one arc later, performed by the document that catalogues it*** — §0 is what stops that.
+
 ---
 
 ## §7 — 🛑 A SEQUENCING ASSUMPTION OF CHAT'S OWN, CORRECTED HERE
@@ -305,8 +328,8 @@ At J-658 Chat sequenced this milestone **ahead of** `M-RP-IDENTITY-RESOLUTION` L
 - [x] **The POLYMORPHIC `target` shape ruled** — ✅ **`D-137` §1: a second independent reason a BOUNDARY slot stays `String`, NOT a fourth category** — **Leg A**
 - [x] `SeenRecord.home_node` is `NodeXgid` — ✅ **J-665**; 🔑 it contradicted a Pass 4 borderline lock BY NAME (§4.1.a: *"2 NodeXgid for `home_node` ×3"*), and the flavour was confirmed **at the producer** (`xgen-node/src/app.rs:3561` projects down from a typed `NodeXgid`) rather than inherited from the lock — **Leg B**
 - [x] The **THREE** `String`↔typed bridge sites are **GONE, not moved** — ✅ **J-665**, verified scoped to `observed_identities` + `fill_from_events`: zero downgrades, zero re-wraps, the `:2935` comment removed with its code — **Leg B** ⚠️ *this item read "the `ops.rs:2734`/`:2742` downgrade" until v1.4; the third site was found at runbook authoring. Superseded, kept not erased (`D-131`).*
-- [x] cargo floor re-measured on every Rust leg, delta explained — ✅ **Leg B: 1589 → 1592, Δ +3 = `v3a`/`v3b`/`v3c`, enumerated not derived**; ⏳ still owed by **Leg C**
-- [ ] Records in one commit (`D-074`), and **the close states the enforcement posture** (`D-136` §3) — **Leg D**
+- [x] cargo floor re-measured on every Rust leg, delta explained — ✅ **Leg B: 1589 → 1592** (Δ +3, `v3a`/`v3b`/`v3c`) · ✅ **Leg C: 1592 → 1595** (Δ +3, `redact_result_round_trips_byte_identically` / `send_outcome_serialises_event_id_identically_both_arms` / `auth_outcome_equality_holds_after_retype`) — **both enumerated, neither derived**
+- [x] Records in one commit (`D-074`), and **the close states the enforcement posture** (`D-136` §3) — ✅ **Leg D, J-669: §0 states it, names the four limits, and names the three slots that stay `String`**
 - [ ] 🔓 **`ThreadXgid` ruled — mint it, or rule the three thread slots DESCRIPTIVE.** Their manifest rows are RETAINED as the standing reminder; **the milestone may close with them outstanding provided the close SAYS SO** — **Joe's, after Leg C**
 
 ---

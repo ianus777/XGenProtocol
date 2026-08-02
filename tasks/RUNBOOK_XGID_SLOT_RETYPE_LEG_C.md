@@ -1,6 +1,6 @@
 # M-RP-XGID-SLOT-RETYPE Leg C — the remainder: ten slots in six files, across two crates
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -10,7 +10,62 @@
 
 ---
 
+✅ **LEG C IS IMPLEMENTED, RE-DRIVEN AND CLOSED (J-669). Commit `b99e202` [Clair, 13 files] + the doc bridge [Chat]. Every number below was re-measured by Chat under Rule 5; not one entered the record on report.**
+
+📌 **ONE CORRECTION TO THE v1.2 AMENDMENT AND TO CLAIR'S OWN HAND-BACK: THE AICONTROL PROJECTION SITS AT `aicontrol.rs:575`, NOT `:572`.** §0 said `:572` because that is where it sat **before** she wrote the explanatory comment above it. **The record should carry the line that is actually there.** *Cosmetic, and recorded anyway — a pointer that is three lines out is how the `:122` error started.*
+
 🔒 **LOCKED BY JOE 2026-08-02 (*"locked"*), AS AUTHORED — no corrections raised (J-668). Chat wrote it; Clair implements from THIS version and does not close her own leg (D-123).**
+
+---
+
+## §0 — 🛑 v1.2 AMENDMENT: R4 FIRED, THE RULING IS TAKEN, AND FOUR OF THIS RUNBOOK'S OWN LINES WERE WRONG
+
+🔒 **R4 FIRED AND CLAIR STOPPED. THAT IS THE RULE WORKING, NOT THE LEG FAILING.** She retyped all ten slots, ran `cargo check --workspace --all-targets`, and the **compiler found three consumers outside `xgen-client` that no grep could see** — all three chain `.identity_id` straight off `client_authenticate(...)` under different local names, so nothing matching `AuthOutcome` or `auth.identity_id` ever appeared:
+
+| crate | site | wants |
+|---|---|---|
+| `xgen-mptest` | `injector.rs:275` → `authed_as: Option<String>` (`:90`) | a `String` |
+| `xgen-mptest` | `wireactor.rs:63` → `identity_id: String` (`:38`) | a `String` |
+| `xgen-node` | `transport/mod.rs:57` — a `#[cfg(test)]` `assert_eq!` | a `String` |
+
+✅ **`AuthOutcome.node_id` is CLEAN** — no cross-crate reader. **The entire leak is `identity_id`.**
+
+### 🔒 THE RULING — (A) IN ITS MINIMAL FORM. CHAT'S, UNDER `D-123`, REVERSIBLE ON ONE WORD.
+
+**Joe, restating the seat boundary rather than answering: *"mine are appearance and architecture; yours are technicalities and anything else."*** ⚠️ *Routing this to him was UNDER-STEPPING — the recurring seat error, second instance this arc.*
+
+🔒 **FIX THE THREE SITES BY PROJECTION AT THE CONSUMER, CHANGING NO TYPE IN EITHER CRATE:** `….identity_id.as_str().to_string()`.
+
+- 🔑 **That is `D-137`'s own shape, not an exception to it** — a consumer that wants the external form takes it through a **named projection at its own edge**. **Nothing in `xgen-node` or `xgen-mptest` changes type; three call-site lines change.**
+- 🔑 **All three consumers are TEST INFRASTRUCTURE.** `xgen-mptest` is a test crate and the `xgen-node` site is `#[cfg(test)]`. **No production code in either crate reads this field.**
+- 🛑 **(B) — dropping `AuthOutcome.identity_id` from the leg — IS REFUSED, and the reason is the milestone's own thesis:** it would leave a slot the hand-read classified INTERNAL as `String` **because a test harness wanted a `String`**, and *a slot does not become BOUNDARY by sitting near something that wants the external form* (`D-137` §1 clause 3). **That is the exact defect this milestone exists to remove, shipped knowingly, in the crate with the widest reach.**
+
+⚠️ **AND THE HONEST COST, STATED RATHER THAN SOLD: V6 GETS WEAKER.** It was *"zero `xgen-node` / `xgen-mptest` / `xgen-common`"* — an absolute, which is what made it checkable. It now has to **name the three lines**, or it stops being a check. **See the amended V6.** *R4's letter says **signature** change and a one-line projection is not one — but V6 was written as an absolute, and stopping on it was right.*
+
+### 🛑 FOUR LINES OF THIS RUNBOOK WERE WRONG. ALL FOUR ARE CHAT'S; ALL FOUR ARE CORRECTED BELOW AND KEPT NOT ERASED (`D-131`).
+
+1. **§8.3 SAID THE COMPILER IS THE AUTHORITY AND IT WAS RIGHT.** §2/§§3 recorded *"`AuthOutcome` 3 refs, one file"* from `grep`. **The compiler found three more, in two gated crates.** 🔑 ***A reference count is only as wide as the name you searched for — and a value chained straight off its producer carries no name at all.***
+2. **THE AICONTROL PROJECTION IS `aicontrol.rs:572`, NOT `:122`** (§2c, C-1, R2, V5). `:122` is a `String → String` move into `ErrorBody`; the real `EventXgid → String` seam is `event_id: vr.event_id.clone()` at **`:572`**. **Third line in this milestone where a runbook of mine pointed at the wrong place.**
+3. **BOTH `node_id` SLOTS ARE `Option<String>`** ⇒ the target is **`Option<NodeXgid>`**, not `NodeXgid`. §1b's table wrote the bare flavour. `SessionState.node_id` is assigned from `auth.node_id` at `session.rs:165`, so **the two retype together**.
+4. **§1b/V7's FILE LIST WAS INCOMPLETE.** `OutboundRequest` is **constructed at `desktop.rs:354`** from the Tauri command's `String` params, and `app.rs:3391` reads `short_id(&r.target_event_id)`. Both are **`xgen-client`**, so R4 never applied — **forced consequences of a locked retype, correctly absorbed rather than refused** (the J-665 pattern). `ai_service.rs:258` joins them under this amendment.
+
+### ✅ AND WHAT SHE GOT RIGHT THAT THIS RUNBOOK ASKED FOR
+
+**§8.2 told her to check my two `EventXgid` guesses at their WRITERS rather than trusting the names. She did, and all three hold:** `RedactResult.target_event_id` ← `RedactArgs.target` · `ThreadState.origin_event` ← `event.event_id`, already bound as `event_xgid` at `state.rs:916` (**assigned directly, no projection needed**) · `VerbReject`/`SendOutcome.event_id` ← `EventConfirm::Rejected.event_id`, which is BOUNDARY-wire and **stays `String`**, projecting at each writer.
+
+### The five sites this amendment adds to C-1
+
+| # | site | edit |
+|---|---|---|
+| 1 | `xgen-mptest/src/injector.rs:275` | `.as_str().to_string()` |
+| 2 | `xgen-mptest/src/wireactor.rs:63` | `.as_str().to_string()` |
+| 3 | `xgen-node/src/transport/mod.rs:57` | `.as_str()` in the `assert_eq!` |
+| 4 | `xgen-client/src/ai_service.rs:258` | project into `SessionContext.identity_id: Option<String>` |
+| 5 | `xgen-client/src/ops.rs:3201` | `assert_eq!(r.space_id.as_str(), "…")` |
+
+🛑 **NOTHING ELSE IN `xgen-node` OR `xgen-mptest` MAY BE TOUCHED.** If a fourth site appears there, **R4 fires again and the leg stops again** — the ruling covers the three sites the compiler named, not the crates.
+
+---
 
 🔒 **PARENT:** `tasks/M_RP_XGID_SLOT_RETYPE.md` §3a (the 88-slot hand-read) · §6 (Leg C) · §9 (out of scope) · `DECISIONS.md` **D-136** and **D-137**. **Predecessor:** `tasks/RUNBOOK_XGID_SLOT_RETYPE_LEG_B.md` v1.2 COMPLETED (J-665) — read its §2 and §9 before this one; every trap it names is live here and two of them are worse.
 
@@ -157,26 +212,28 @@ The boundary-crossing slot. **`SendOutcome::failed` keeps `event_id: None`** (R6
 | **V2** | `svelte-check` | **0/34/15 UNCHANGED** — §2e proven at the TS edge |
 | **V3** | the three new tests | pass; **V3-a asserts the `null` arm explicitly** |
 | **V4** | `.\xgid-slot-gate.ps1`, clean tree | **PASS at 74** (65 / 5 / 3 / 1), no WARN |
-| **V5** | R2 by read | `aicontrol.rs:88` still `event_id: String`; exactly ONE projection at `:122` |
-| **V6** | R4 by diffstat | **zero `xgen-node`, zero `xgen-mptest`, zero `xgen-common`** |
-| **V7** | scope by diffstat | `ops.rs` · `resident.rs` · `session.rs` · `aicontrol.rs` · `connection.rs` · `state.rs` · `xgid-slot-manifest.tsv` — **and nothing else**; zero `ui/**` |
+| **V5** | R2 by read, amended at v1.2 | `aicontrol.rs:88` **and** `ErrorBody.event_id` still `String`; exactly ONE projection, at **`:572`** — **not `:122`**, which is a `String → String` move |
+| **V6** | R4, amended at v1.2 (§0) | **EXACTLY THREE lines outside `xgen-client`/`xgen-core`, and they are named:** `xgen-mptest/src/injector.rs:275` · `xgen-mptest/src/wireactor.rs:63` · `xgen-node/src/transport/mod.rs:57`. **No TYPE changes in either crate.** A fourth site ⇒ **STOP** |
+| **V7** | scope by diffstat, amended at v1.2 | `ops.rs` · `resident.rs` · `session.rs` · `aicontrol.rs` · `desktop.rs` · `app.rs` · `ai_service.rs` · `connection.rs` · `state.rs` · the three V6 lines · `xgid-slot-manifest.tsv` — **and nothing else**; zero `ui/**` |
 | **V8** | sampler catalogue | **435 UNCHANGED, by scope** |
 
 ---
 
 ## §6 — DoD
 
-- [ ] **C-0 baseline reconciled to 1592/0/62 × 56** — or the leg stopped and reported
-- [ ] All **ten** slots typed per §1b
-- [ ] **The three thread slots UNTOUCHED and their manifest rows RETAINED** (R3)
-- [ ] `aicontrol.rs:88` still `String`, one projection at `:122` (V5)
-- [ ] **`SendOutcome::failed` still emits `event_id: null`** — asserted, not assumed (R6, V3-a)
-- [ ] **No `xgen-node` / `xgen-mptest` / `xgen-common` file changed** (R4, V6)
-- [ ] No `ui/**` file changed; `svelte-check` **0/34/15** (V2)
-- [ ] **cargo floor re-measured and the delta explained by name** (V1)
-- [ ] **Manifest rows dropped AND header moved to `INTERNAL=3 TOTAL=74`, same commit** (R7)
-- [ ] **Gate: PASS at 74, no WARN** (V4)
-- [ ] Scope confirmed by diffstat (V7)
+- [x] **C-0 baseline reconciled to 1592/0/62 × 56** — ✅ exact, 56 terminators, final `test result:` present
+- [x] All **ten** slots typed per §1b — ✅ with `Option<NodeXgid>` on both `node_id` slots (§0 correction 3)
+- [x] **The three thread slots UNTOUCHED and their manifest rows RETAINED** — ✅ re-read: the three remaining `INTERNAL` rows are **exactly** `ThreadCreateResult.thread_id` · `ThreadStatusResult.thread_id` · `ThreadState.id`
+- [x] `aicontrol.rs:88` still `String`, one projection — ✅ at **`:575`**; `ErrorBody.event_id` untouched
+- [x] **`SendOutcome::failed` still emits `event_id: null`** — ✅ **asserted on an exact JSON literal, both arms**; the test can fail
+- [x] **No `xgen-common` file changed; `xgen-node`/`xgen-mptest` limited to the three ruled lines** — ✅ all three are consumer projections, **zero type changes** (§0 ruling (A) minimal)
+- [x] No `ui/**` file changed; `svelte-check` **0/34/15** — ✅ re-run by Chat
+- [x] **cargo floor re-measured and the delta explained by name** — ✅ **1595/0/62 × 56**, Δ **+3** = `redact_result_round_trips_byte_identically` · `send_outcome_serialises_event_id_identically_both_arms` · `auth_outcome_equality_holds_after_retype`, each read `... ok`
+- [x] **Manifest rows dropped AND header moved to `INTERNAL=3 TOTAL=74`, same commit** — ✅ tally re-counted 65/5/3/1 = 74
+- [x] **Gate: PASS at 74, no WARN** — ✅
+- [x] Scope confirmed by diffstat — ✅ 13 files; zero `ui/**`, zero `xgen-common`
+
+🛑 **HONEST LIMIT, CARRIED FORWARD RATHER THAN QUIETLY DROPPED: THIS LEG IS COMPILE- AND TEST-VERIFIED ONLY.** No CDP, no live client, nothing exercised against a running system. Transparency means the wire / disk / Tauri-IPC bytes are unchanged and V2 + V3-a/-b pin that — **but a type discipline leg cannot claim behaviour it never ran.**
 
 🛑 **NOT IN THIS DoD:** Leg D (records + close) · the `ThreadXgid` question (§8) · `envelope.rs` `ErrorBody.event_id`, the milestone's one UNREAD slot · `M-RP-IDENTITY-RESOLUTION` Leg D/E/F · `M13`.
 

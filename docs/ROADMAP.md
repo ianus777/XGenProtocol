@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.56  
+> Version: 6.57  
 > Date: May 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -296,24 +296,25 @@ XGen Protocol
 │   │   ├── ✅ **M-RP4 processors + widget tier** — 4 processor kinds, D-099/D-102, first two widgets · J-435 (J-441, J-443, J-444, J-445, J-453, J-454, J-455, J-456)
 │   │   └── ✅ **M-RP5 dd track** — `entity-avatar` → `entity-panel` → `entity-context-menu` · J-462 (J-463, J-464, J-465, J-467, J-468, J-469)
 │   ├── 🟡 **M-RP-LIVEFEED-REFRESH** — the live event router behind the members and rooms panels · J-598
-│   │   ↳ `Owes:` — **`M-RP-IDENTITY-RESOLUTION Leg E refresh trigger` (NEW J-658)** — **this milestone's Leg C IS that leg's build**, and because that leg gates C-3, **`M-RP-IDENTITY-RESOLUTION` C-3 is gated on THIS milestone's Leg C.** *Written on both sides under `D-133` — a cross-milestone gate recorded on one side only goes stale invisibly on the other* · **§5's R4 (the stream's sync-from-cursor replay) is still OPEN and in no leg**
+│   │   ↳ `Owes:` — **§5's R4 (the stream's sync-from-cursor replay) is still OPEN and in no leg** · **Leg B's scope (B1/B2/B3) is Joe's** · **N-169: any caller of `setSpaces`, ever, triggers a members re-fill — recorded J-670, deliberately not fixed; memoising `effectiveSpaceId` is architecture and would silently un-build Leg C** · *`M-RP-IDENTITY-RESOLUTION Leg E refresh trigger` (NEW J-658) — **DISCHARGED J-670**: Leg C landed and Leg E needed no line of its own; C-3 unblocked (both sides, `D-133`)*
 │   │   ├── ✅ **Leg 0 Phase-0** — routing shape + delta-vs-fill boundary locked; second-reader pass over §6 vs `wire.rs` done, three findings · J-616 (J-598, J-601)
 │   │   ├── ✅ **Leg A router + members consumer** — runbook `tasks/RUNBOOK_LIVEFEED_LEG_A.md` v1.5 **COMPLETED**; **three** files, frontend only · J-618 (J-639)
 │   │   ├── 🟡 **Leg B spaces/rooms consumer** · J-641
 │   │   │   ↳ trigger: Joe rules Leg B's scope — **B1 / B2 / B3**. §6-ii turned it from a preference into a measured question; the runbook may be AUTHORED, not LOCKED
-│   │   ├── 🟡 **Leg C reconnect rule** — an `$effect` on `selfState.connection`; also serves `M-RP-IDENTITY-RESOLUTION` Leg E · J-658 · `tasks/M_RP_LIVEFEED_REFRESH.md` §7 ↳ trigger: fired J-658 — none outstanding; needs a runbook
+│   │   ├── ✅ **Leg C reconnect rule** — the `$effect` on `selfState.connection`; `loadSpaces()` extracted, `seenReady` latch + 5000 ms flap guard (provisional) · **CLOSED J-670** (J-658) · runbook `tasks/RUNBOOK_LIVEFEED_LEG_C.md` **v1.5 COMPLETED** ⇒ discharges `M-RP-IDENTITY-RESOLUTION` Leg E
+│   │   │   ↳ `Owes:` — a **comment-only** fix on `app_client.svelte`: the C-b comment carries *"a node round trip"*, false (`get_spaces` is a sync on-disk read); Chat's error, Clair's commit
 │   │   ├── 🟡 **Leg D live verify** — two identities, one observer; `membership.kick` added at v1.11
 │   │   │   ↳ trigger: Legs A–C land
 │   │   └── 🟡 **Leg E records + close**
 │   │       ↳ trigger: Leg D lands
 │   ├── 🟡 **M-RP-IDENTITY-RESOLUTION** — what a member row shows before the client knows who it is · J-644
-│   │   ↳ `Owes:` — **the first milestone that RENDERS A MEMBER COUNT** · re-opens §5's C1 mismatch, at which point C2 and C3 return as live options · **`M-RP-LIVEFEED-REFRESH Leg C reconnect rule` — NEW J-658: it BUILDS this milestone's Leg E, and therefore GATES C-3** (recorded on both sides under `D-133`) · **`Leg F` re-prices the T3 residue** — a Tier-1 fetch that TIMES OUT is still ④ and nothing retries it; **T3's bounded retry was refused for now because its terminal state has no word (`D-126`, deferred J-588), and Leg F is the first surface where the residue can occur at all**
+│   │   ↳ `Owes:` — **the first milestone that RENDERS A MEMBER COUNT** · re-opens §5's C1 mismatch, at which point C2 and C3 return as live options · **`Leg F` re-prices the T3 residue** — a Tier-1 fetch that TIMES OUT is still ④ and nothing retries it; **T3's bounded retry was refused for now because its terminal state has no word (`D-126`, deferred J-588), and Leg F is the first surface where the residue can occur at all** · *`M-RP-LIVEFEED-REFRESH Leg C reconnect rule` (NEW J-658) — **DISCHARGED J-670**, C-3 unblocked (both sides, `D-133`)*
 │   │   ├── ✅ **Leg 0 Phase-0** — the four states, the tier frame, the two capability gaps · J-644
 │   │   ├── ✅ **Leg A the `not_found` id list** — `FillReport` gained `not_found_ids: Vec<IdentityXgid>` through `fill_space_records` + the TS mirror · **CLOSED J-647** ⇒ closes **G-A**
 │   │   ├── ✅ **Leg B the render rules** — ③ filtered from the rendered list (except the DM counterpart, §5a) · **CLOSED J-653** · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_B.md` **v1.4 COMPLETED**
 │   │   ├── 🟢 **Leg C the skin** — split into C-1 / C-2 / C-3; C-1 and C-2 shipped, Clair read the diff · J-654 (J-650, J-655) · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_C.md` **v1.3 COMPLETED**
 │   │   ├── 🟡 **Leg D Tier-1 fetch on join** — a new Tauri command plus a merge-one setter; moves the cargo floor · J-659 · `tasks/M_RP_IDENTITY_RESOLUTION.md` §7 ↳ trigger: fired J-665 — `M-RP-XGID-SLOT-RETYPE` Leg B landed; openable
-│   │   ├── 🟡 **Leg E the refresh trigger** — R1, a re-fill on the transition into `READY`; built by `M-RP-LIVEFEED-REFRESH` Leg C, consumed here; also gates C-3 · J-658 (J-654) ↳ trigger: `M-RP-LIVEFEED-REFRESH` Leg C lands
+│   │   ├── ✅ **Leg E the refresh trigger** — R1; **needed NO line of its own** — C-b0 MEASURED that the spaces re-fill cascades into the members fill · **CLOSED J-670** by `M-RP-LIVEFEED-REFRESH` Leg C (J-658, J-654) ⇒ **C-3 unblocked**
 │   │   └── 🟡 **Leg F live verify + records** — two clients, a real join, a real `not_found`; carries three obligations moved out of Leg B and is the milestone's first behaviour verification · J-653 ↳ trigger: Legs A–E land
 │   ├── ✅ **M-RP-XGID-SLOT-RETYPE** — the identifier slots that regressed to `String` after the retrofit arc closed · **CLOSED J-669** (J-645, J-658, J-659, J-660, J-661, J-664, J-665, J-668) → `M-RP-THREAD-XGID`
 │   │   ├── ✅ **Leg 0 Phase-0** — the sweep, the three rulings, and the hand-verified classification of all 88 · J-659 (J-660) · `tasks/M_RP_XGID_SLOT_RETYPE.md` §3a

@@ -8,6 +8,111 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-670 — M-RP-LIVEFEED-REFRESH Leg C CLOSES: the reconnect re-fill ships, the cascade that makes `M-RP-IDENTITY-RESOLUTION` Leg E free was MEASURED, and four of Chat's own lines were wrong
+
+**Date:** 2026-08-02 · **Seat:** Chat (runbook, the C-b0 measurement, V4–V8, five `D-123` rulings, records) · Clair (implementation, commits `4c50796` + `9983988`) · Joe (stood Clair up; pushed). **LEG CLOSED.** ROADMAP v6.56 → v6.57 · runbook `tasks/RUNBOOK_LIVEFEED_LEG_C.md` v1.0 → **v1.5 COMPLETED** (new file).
+
+---
+
+### ✅ WHAT SHIPPED — ONE FILE, TWO COMMITS, `R-b`'s SPLIT HELD
+
+`4c50796` **C-a** — `loadSpaces()` extracted from the inline `app_client.svelte:625` startup line, **behaviour-identical, provable by diff** (+14/−4). `9983988` **C-b** — the reconnect `$effect` (+39). Combined **+53/−4, one file**; `svelte-check` **0/34/15** unmoved at every stage; `i/lf`; zero `.rs`, zero `ui/core`, zero `ui/sampler`.
+
+🔑 **Clair reconstructed the split by checking out pristine HEAD and re-applying C-a alone, then restoring the full version — and verified the final committed tree was `sha256`-identical to the version that had passed `svelte-check`.** *A commit split that is not proven to reproduce the tested tree has tested nothing.*
+
+---
+
+### 🔒 C-b0 — THE CASCADE, AND IT INVERTED THE PRICE **BOTH** TASK DOCS CARRIED
+
+`M_RP_LIVEFEED_REFRESH.md` §7 and `M_RP_IDENTITY_RESOLUTION.md` §8 both said *"the members half is FREE, the spaces half needs the extraction."* **In the reconnect path that is backwards.**
+
+`roomLatch.effectiveSpaceId` is a **plain getter that iterates `spacesState.spaces` on every read** (`room-latch.svelte.ts:43/46/69`) — no `$derived`, no memo. The members `$effect` tracks it. ⇒ **`spacesState.spaces` is a transitive dependency of the members fill**, and `setSpaces` assigns a fresh array, so the fill re-runs on the **reference**.
+
+**MEASURED, not argued.** Probe wrapped `setInflight` on the store object (`__XGEN_MEMBERS__ === addressBook`, same reference, so the wrap intercepts the shell's own path):
+
+| read | value |
+|---|---|
+| **falsification** — real Space+room click | **+1** ⇒ the probe **can** fire |
+| **idle control, 3 s** | **0** ⇒ no ambient increment |
+| **fire** — fresh array, byte-identical content | **+1** |
+| **repeat fire** | **+1** ⇒ reproducible |
+| `sidBefore === sidAfter` | **true** |
+
+🛑 **THE LAST ROW IS THE ONE THAT MATTERS: the fill re-ran on a BYTE-IDENTICAL resolved space id.** The probe needed **no code** — `setSpaces([...spaces])` isolates the reference change from any content change, which a real `invoke('get_spaces')` could not.
+
+⚠️ **WHY NO PRIOR SESSION SAW IT:** `setSpaces` has had **one caller** its entire life, at startup, at a moment when **nothing is latched** — `effectiveSpaceId` is `null` before and after, so the cascade has never once been able to produce an observable second fill. *A coupling that only manifests in a state the code has never been in is invisible to every reading of that code.*
+
+---
+
+### 🛑 N-169 — ANY CALLER OF `setSpaces`, EVER, TRIGGERS A MEMBERS RE-FILL
+
+**Recorded, deliberately NOT fixed.** Today there are two callers (startup, reconnect) and **both want it**. A third that does not would get it anyway, **silently** — the members panel would blink to UNKNOWN for a reason nowhere near the call site.
+
+🔑 **The fix is to memoise `effectiveSpaceId`, and that is an architecture change** — Joe's, not Chat's, and not this leg's. ⚠️ **It is also load-bearing RIGHT NOW:** this leg and `M-RP-IDENTITY-RESOLUTION` Leg E both depend on the cascade firing. **Memoising it without replacing the members trigger would silently un-build both.** *Recorded here so the next person who sees an unmemoised getter and reaches for the obvious cleanup finds out first.*
+
+---
+
+### 🔒 `M-RP-IDENTITY-RESOLUTION` LEG E IS DISCHARGED BY MEASUREMENT, NOT BY ARGUMENT
+
+The members re-fill Leg E needs is **already delivered** by the spaces re-fill. ⇒ **Leg E requires no line of its own and is closed by this leg landing.** Recorded on **both** sides under `D-133`. ⇒ **`M-RP-IDENTITY-RESOLUTION` C-3 is unblocked.**
+
+🔑 **AND THIS IS WHY THE ONE-RUNBOOK RULE WAS RIGHT.** Two milestones filed one build; had they been written as two runbooks, **two seats would have written one `$effect` from two documents**, and the cheaper of the two would have shipped `loadMembers()` beside `loadSpaces()` — **two fills, two UNKNOWN blinks per reconnect**, caused by our own recovery mechanism.
+
+---
+
+### ✅ THE VERIFICATION GATES — ALL GREEN, ON A COLD-RESTARTED CLIENT AT `9983988`
+
+Fresh CDP target; `typeof __CB0__ === 'undefined'` asserted before arming, so **no probe residue from C-b0**. Trusted `Input.dispatchMouseEvent` clicks. Pre-drop values **captured**, so V6 compared against a record rather than a memory.
+
+- **V4 outage** — node PID hard-killed `/T /F` (**a server that disappears, not a graceful goodbye**). Client cycled `CONNECTING`/`RECONNECTING` across 8 polls, **counter 0 throughout** ⇒ no spurious fire during an outage.
+- **V4 recovery** — node relaunched; 6 polls `RECONNECTING`, then `READY` ⇒ **counter +1**, log entry stamped `conn: READY`. 🔑 **THE LEG'S FIRST REAL BEHAVIOUR VERIFICATION.**
+- **V5 flap** — two genuine `!READY→READY` edges **1603 ms** apart ⇒ **counter 1**, at edge 1. Guard holds.
+- **V6** — `latchSame` · `sidSame` · `ridSame` · `selSame` · `selRegionSame` **all true**. The parent's own DoD item.
+- **V7** — phase `ready`, roster non-null (1), book 2, notFound 0, spaces 3.
+- **V8** — **169 / 169** DOM `data-debug-id`s, conn `READY`.
+
+⚠️ **TWO METHOD POINTS THAT DECIDED WHETHER THE NUMBERS MEAN ANYTHING.** V5's edges were **scheduled via `setTimeout`, not written in one eval** — four synchronous `setConnection` calls would have measured **Svelte's batching**, not the guard. And V5 was driven through `setConnection`, the single writer the event listener itself calls (the J-548 rule), **but only after V4's real drop had landed**, so the synthetic path was never the sole evidence.
+
+**Cleanup discharged (N-123):** `setInflight` restored and asserted `===` original, probes deleted, `location.reload()`, post-reload read confirms both `undefined`.
+
+---
+
+### 🛑 V3 WAS RETIRED, NOT TICKED — AND THAT IS `D-121` DOING ITS JOB
+
+V3 asked whether `R-c`'s `seenReady` latch swallows the cold-start `READY`. **Both outcomes are invisible** (see below), and the only instrument that could separate them is a new `Page.addScriptToEvaluateOnNewDocument` harness mode. ⇒ **Building tooling to distinguish two invisible outcomes is elegance over impact, which `D-121` exists to refuse.**
+
+🔑 **AND THE DANGEROUS DIRECTION WAS NEVER UNCOVERED:** a latch that swallowed *later* READYs too would have read **0** at V4. It read **1**. *V3 covered the harmless failure; V4 covers the one that can hurt.*
+
+---
+
+### 🛑 FOUR OF CHAT'S LINES WERE WRONG THIS LEG. CLAIR CAUGHT THREE; THE FOURTH FELL TO A PRODUCER CHECK.
+
+1. **The kickoff's state section was a PLAN WRITTEN IN THE PRESENT TENSE.** It said *"the runbook commit (J-670) should be the tip"* and *"tree CLEAN"* — in the same arc in which Chat had just written *"say go and I write it."* **There was no J-670.** The section even carried ⚠️ *DO NOT TRUST THIS SECTION*, which made the fiction look measured. ⇒ **FORWARD RULE: a kickoff's state section may contain only what was read AFTER the last write. Anything the author still intends to do is named as INTENDED, never as state.**
+2. **§4.1's `invoke` does not resolve where §4.1 puts the function.** `invoke` at `:625` is a **destructured local from a dynamic import at `:598`, inside the `onMount` `try`**; at `:171` it is undefined. The sibling `loadMembers` uses `tauriInvoke` (`:764`). 🔑 ***§1's own G5 recorded that the call is INLINE IN `onMount` — a fact about LOCATION — and the body was then written as if that fact were also about BINDING SCOPE, which was never measured.*** The named class: **a claim narrower than the thing it describes, reused as if complete.** Clair refused it against the file (J-516 · J-665 · this).
+3. **§10's DoD said the M-RP6.6 deferral was "discharged", flat.** The deferral has **two halves** — reconnect recovery (this leg) and **incremental live delta push (still M-RP6.6's, unbuilt)**. **Clair softened the code comment to "its reconnect-recovery half" BEFORE the checklist was fixed**, and the checklist moved to match her, not the reverse. An N-109 overclaim was about to be baked into a code comment *and* a DoD tick.
+4. **`R-c`'s entire justification was false, and Chat found it only by checking the producer before spending a day on tooling.** v1.0–1.3 said an un-guarded first `READY` costs *"a redundant fill plus **a node round trip**"*. **`get_spaces` is `fn`, NOT `async fn` — a synchronous on-disk read whose own doc comment says it never touches `session`** (`desktop.rs:612`). **There is no round trip, and no blink either** — nothing is latched at cold start, so the cascaded effect resets an empty book. ⇒ ① **NO USER-VISIBLE IMPACT EITHER WAY.** *The cost was inferred from the word `invoke` at the call site instead of read at the producer.* **`R-c` still stands — correct, four lines, and it makes the effect's contract honest — but a ruling with a false reason and a true conclusion is CORRECTED, not reversed.**
+
+🔑 **THE PATTERN ACROSS ALL FOUR IS ONE PATTERN: A NAME WAS READ INSTEAD OF ITS PRODUCER.** `invoke` looked like an import; `invoke` looked like a network call; `G5` looked like a scope fact; a planned commit looked like a state. **Every one was caught from OUTSIDE the text — by Clair, or by a deliberate producer check. None was caught by re-reading.**
+
+---
+
+### 🛑 THE SEAT ERROR, THIRD INSTANCE — AND JOE CAUGHT IT IN FOUR WORDS
+
+Runbook v1.0 §11 put `R-a … R-e` — **five rulings Chat had just taken under `D-123`** — to Joe as *"LOCK OR REVERSE"*. He replied: ***"do i have to lock Rs?"***
+
+🔒 **No. Writing a ruling as Chat's and then presenting it for approval is UNDER-STEPPING WEARING A LOCK'S CLOTHES** (J-618 · J-669 · this). *"Reversible on one word"* is a promise about **Chat's** behaviour, not a request for Joe's; **silence is not consent, and the rulings hold either way.** ⚠️ **`R-d`'s user-visible consequence does not move the seat** — `D-121` says *state the lens*, not *hand over the decision*. ⇒ **Two things were actually Joe's in this leg and neither was an `R`: standing Clair up, and the push.**
+
+---
+
+### 🛑 OWED — A COMMENT-ONLY FIX, AND IT IS CHAT'S ERROR IN CLAIR'S COMMIT
+
+The committed C-b comment carries *"a redundant fill + a node round trip"* — **the false claim corrected above.** It was **true in the runbook when Clair transcribed it**, so this is **not a Rule 6 miss on her part**: it is **Chat's error propagated into code by a faithful implementer, which is exactly how a bad runbook line does its damage** — it outlives the document that carried it. ⇒ **A comment-only fix commit on `app_client.svelte` is owed; that file is Clair's for this leg. No logic change; `svelte-check` re-run.**
+
+🔒 **NOT TICKED: `G-B`.** It closes on `M-RP-IDENTITY-RESOLUTION` Leg D **and** this leg together (N-168). **This leg alone does not close it.**
+✅ **NOT TOUCHED:** R4 (the stream's sync-from-cursor replay, still open and in no leg) · §5b's blackout marker (Joe's, unbuilt) · `routeMembershipEvent` · `ingest.push` · Leg B's delta setters.
+
+---
+
 ## Entry J-669 — M-RP-XGID-SLOT-RETYPE CLOSES: ten more slots typed, R4 fired and was ruled, and the close states its own enforcement
 
 **Date:** 2026-08-02 · **Seat:** Clair (implementation, commit `b99e202`) · Chat (R4 ruling, re-drive, records) · Joe (seat boundary restated; pushes). **MILESTONE CLOSED.** ROADMAP v6.55 → v6.56 · Phase-0 v1.6 → **v1.7 COMPLETED** · Leg C runbook v1.2 → **v1.3 COMPLETED**.

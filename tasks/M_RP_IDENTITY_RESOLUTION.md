@@ -1,6 +1,6 @@
 # M-RP-IDENTITY-RESOLUTION — what a member row shows before the client knows who it is
 > **Status**: ACTIVE  
-> Version: 1.15  
+> Version: 1.16  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -315,7 +315,7 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 |---|---|---|
 | **C-1** `ui/sampler/src/app_sampler.svelte` | **now** | one `entity-panel#unresolved` cell — resolved control + `unasked` + `erased`, **inert and one-way, mirroring `members-panel.svelte:164`**. **The only surface on which either state can be made to render at all** (both need two clients in the client). Catalogue **427 → 435, MEASURED** — 🛑 *v1.11 predicted 434 on a `1 + 2N` model; a panel costs `2 + 2N`, because `entity-panel` wraps a self-registering `<Section>` (`section.svelte:69`). Superseded, kept not erased (`D-131`)* |
 | **C-2** `ui/assets/skin.css` | **now** | **③'s mark ONLY.** Moves **neither floor** |
-| **C-3** `ui/assets/skin.css` | **🔓 GATED ON LEG E** | the bare `[data-unresolved]` base rule **and** `[data-unresolved="unasked"]`. **Not written as an instruction; it does not exist yet** |
+| **C-3** `ui/assets/skin.css` | ✅ **UNGATED J-670** — Leg E discharged | the bare `[data-unresolved]` base rule **and** `[data-unresolved="unasked"]`. **Not written as an instruction; it does not exist yet** |
 
 🔒 **THE VALUES ARE DELEGATED TO CHAT FOR THIS LEG ONLY, AND THE STANDING RULE IS UNCHANGED (Joe, 2026-08-01).** *"normally i have skin.css, this rule still stays, especially when we build complex components. but those are small elements that are not worthy obvious workflow."* ⇒ **`ui/assets/skin.css` REMAINS JOE'S FILE.** This is a narrow carve-out for two selectors on an existing component, where the round-trip costs more than the decision; **he re-tunes any of it in Notepad++ at any time, with no milestone attached and no runbook required.** ⚠️ *Chat first stated this as "Chat now owns the Leg C default values" and proposed annotating the five documents that say `skin.css` is Joe's — **wider than what was given, and it would have converted a carve-out into a seat change.** Superseded before anything was written, kept not erased (`D-131`).* 🔑 ***A delegation accepted more broadly than it was given is how a seat quietly moves.***
 
@@ -337,7 +337,7 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 2. Leg D's new command **carries an `identity_id` slot** ⇒ retyping afterwards means touching that command **twice**. Leg A already documented a re-wrap workaround for exactly this (§9).
 3. 🔑 **`M-RP-XGID-SLOT-RETYPE` IS A FILED MILESTONE WITH ITS OWN ID.** Folding it into a leg makes it a **rider** — and *"its own milestone, never a rider"* is a standing refusal in this project (`mergeClasses` · `M-RP-ROVING` · the `dialog` footer slot). ⚠️ **Both move cargo**, so absorbing it also makes the delta unattributable **within** the floor, which §8's split-by-floor rule exists to prevent.
 
-**Leg E — the refresh trigger.** 🔒 **RULED — R1, a re-fill on the transition into `READY` (Joe, J-658, option T2).** ⚠️ **It does NOT close G-B alone — see §6b / N-168; G-B closes on Leg D *and* Leg E together.** ⚠️ **The milestone must not close before this**, or §4 ships a promise it cannot keep.
+**Leg E — the refresh trigger.** ✅ **CLOSED J-670 — AND IT NEEDED NO LINE OF ITS OWN.** Built by `M-RP-LIVEFEED-REFRESH` Leg C (commits `4c50796` + `9983988`). 🔑 **C-b0 MEASURED that the spaces re-fill CASCADES into the members fill** — `roomLatch.effectiveSpaceId` is an unmemoised getter over `spacesState.spaces`, counter **+1** with `sidBefore === sidAfter` **true** ⇒ **the members re-fill this leg needs was already delivered.** *Discharged by measurement, not by argument.* ⇒ ✅ **C-3 IS UNBLOCKED.** 🛑 **It does NOT close G-B — see §6b / N-168; G-B closes on Leg D *and* Leg E together, and Leg D has not landed.** ⚠️ **The milestone still must not close before Leg D**, or §4 ships a promise it cannot keep. 🛑 **N-169 (recorded on the parent, not fixed): ANY caller of `setSpaces`, ever, triggers a members re-fill** — **this leg's discharge DEPENDS on that cascade**, so memoising `effectiveSpaceId` would silently un-build it.
 
 🛑 **AND LEG E IS NOT A NEW BUILD — IT IS `M_RP_LIVEFEED_REFRESH.md` §7's LEG C UNDER A SECOND NAME. NAMED HERE RATHER THAN DISCOVERED AT IMPLEMENTATION.** Both are *an `$effect` on `selfState.connection`* in **`ui/client/src/app_client.svelte`**. Two milestones filed one build.
 

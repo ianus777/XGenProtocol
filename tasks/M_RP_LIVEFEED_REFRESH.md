@@ -1,6 +1,6 @@
 # M-RP-LIVEFEED-REFRESH — the live event router behind the members and rooms panels
 > **Status**: ACTIVE  
-> Version: 1.15  
+> Version: 1.16  
 > Date: Jul 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -489,7 +489,9 @@ pub struct NegotiatedCapabilities {
 
 **Leg B — the spaces/rooms consumer.** The `state.*` branch plus delta setters on `spaces-state`. **Surface: `ui/client/src/app_client.svelte`, `ui/common/lib/stores/spaces-state.svelte.ts`.** Moves **`svelte-check`**. 📌 **A and B are split deliberately: the second consumer is what proves the seam rather than asserting it.** One commit spanning both makes a regression ambiguous.
 
-**Leg C — the reconnect rule.** 🔒 **UNGATED — §5's R1 IS RULED (Joe, J-658).** ⚠️ *v1.0–v1.14 read "🔓 Gated on §5"; the trigger has FIRED and **a trigger that has fired is a defect**, so it moves in the same commit. Superseded, kept not erased (`D-131`).* **Surface: `ui/client/src/app_client.svelte`** (an `$effect` on `selfState.connection`). 🔓 **R4 is NOT in this leg** — still open, still the stream's.
+**Leg C — the reconnect rule.** ✅ **CLOSED J-670.** Commits `4c50796` (C-a, `loadSpaces()` extracted, behaviour-identical) + `9983988` (C-b, the reconnect `$effect`). One file, **+53/−4**; `svelte-check` **0/34/15** unmoved. Runbook `tasks/RUNBOOK_LIVEFEED_LEG_C.md` **v1.5 COMPLETED**. **V4–V8 all green on a real drop and a real recovery; V3 RETIRED with its reason, not ticked.** 🛑 **`G-B` NOT TICKED — it closes on `M-RP-IDENTITY-RESOLUTION` Leg D *and* this leg together (N-168).** 🛑 **OWES a comment-only fix on `app_client.svelte`:** the C-b comment carries *"a node round trip"*, **false** — `get_spaces` is `fn`, a synchronous on-disk read (`desktop.rs:612`). **Chat's error, transcribed faithfully by Clair from runbook v1.3.** ⚠️ *v1.0–v1.14 read "🔓 Gated on §5"; v1.15 read "UNGATED". Superseded, kept not erased (`D-131`).* **Surface: `ui/client/src/app_client.svelte`.** 🔓 **R4 is NOT in this leg** — still open, still the stream's.
+
+🔑 **AND THE MEASUREMENT INVERTED THIS DOCUMENT'S OWN §7 PRICE.** §7 said *"the members half is FREE, the spaces half needs an extraction"*. **C-b0 measured the opposite in the reconnect path:** `roomLatch.effectiveSpaceId` is an **unmemoised getter over `spacesState.spaces`**, so the spaces re-fill **cascades into the members fill** — counter **+1** with `sidBefore === sidAfter` **true**. ⇒ **the effect calls `loadSpaces()` and NOTHING else**; a second `loadMembers()` would be **two fills and two UNKNOWN blinks per reconnect**. 🛑 **N-169 recorded, deliberately not fixed: ANY caller of `setSpaces`, ever, triggers a members re-fill** — memoising `effectiveSpaceId` is architecture (Joe's) **and is load-bearing right now**.
 
 🛑 **AND THIS LEG NOW SERVES TWO MILESTONES — IT IS ALSO `M_RP_IDENTITY_RESOLUTION.md`'s LEG E. NAMED HERE RATHER THAN DISCOVERED AT IMPLEMENTATION.** Both were filed as *an `$effect` on `selfState.connection`* in this same file. 🔒 **THIS MILESTONE OWNS THE BUILD** (§5 is this document's decision); **that milestone's Leg E CONSUMES AND VERIFIES** and is discharged when this leg lands. ⚠️ *Two seats writing one `$effect` from two runbooks is the one-writer-per-file-per-atom breach — which is why one runbook is authored, not two.*
 

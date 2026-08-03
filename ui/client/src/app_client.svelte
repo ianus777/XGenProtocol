@@ -146,6 +146,45 @@
     if (!gaps.paused) untrack(() => gaps.apply(conn, res));
   });
 
+  // M-RP-LIVEFEED-REFRESH Leg C (§5 R1) — re-fill the live panels on RECONNECT. Lives beside the gaps feeder
+  // above because both observe the same surface, `selfState.connection`. TRANSITION not level (§6.2): a plain
+  // `let prevReadyState` memo (NOT $state — a memo, not a rendered value, so it creates no dependency) and we
+  // act ONLY on a genuine `!READY -> READY` edge. `seenReady` (R-c) swallows the cold-start READY, whose fill
+  // onMount already did; without it every launch pays a redundant fill + a node round trip. The flap guard
+  // (R-d) skips a re-fill within RECONNECT_REFILL_MIN_MS of the previous one, so a flapping link does not
+  // blink the roster to UNKNOWN on every bounce (setInflight nulls _roster first). 5000 ms is PROVISIONAL —
+  // no flap has ever been observed; M-RP-LIVEFEED-REFRESH Leg D can re-price it. Monotonic performance.now(),
+  // not wall clock. Calls `loadSpaces()` and NOTHING else: C-b0 MEASURED (+1, 2026-08-02) that setSpaces
+  // cascades into the members fill via `roomLatch.effectiveSpaceId` (an unmemoised getter, G8), so a second
+  // `loadMembers()` here would fire two fills = two UNKNOWN blinks per reconnect. This ALSO discharges
+  // M_RP_IDENTITY_RESOLUTION Leg E, which needs exactly that members re-fill and now needs no line of its own.
+  // `untrack` the call (N-136): loadSpaces writes store $state; an un-untracked read would self-invalidate.
+  // The catch is the reconnect caller's (loadSpaces keeps none, C-a): a rejected re-fill must NOT propagate
+  // and must NOT fake success — the panels keep whatever they had; there is no "stale" marker to set (that is
+  // §5b's R2, Joe's and unbuilt).
+  const RECONNECT_REFILL_MIN_MS = 5000; // R-d flap guard, PROVISIONAL (§6.4 / §9.2)
+  let prevReadyState = null; // R-c/§6.2 — transition memo, plain let (not $state)
+  let seenReady = false; // R-c — the cold-start READY is not a reconnect
+  let lastReconnectRefillAt = Number.NEGATIVE_INFINITY; // R-d — monotonic; first real re-fill never flap-skipped
+  $effect(() => {
+    const next = selfState.connection.state; // track (event-timed lifecycle)
+    if (prevReadyState !== 'READY' && next === 'READY') {
+      if (!seenReady) {
+        seenReady = true; // R-c: swallow the cold-start READY — onMount already filled
+      } else {
+        const now = performance.now();
+        if (now - lastReconnectRefillAt >= RECONNECT_REFILL_MIN_MS) {
+          lastReconnectRefillAt = now;
+          // R-e: loadSpaces ONLY — the members re-fill rides the setSpaces cascade (C-b0 = +1).
+          untrack(() => loadSpaces().catch(() => {
+            // reconnect re-fill failed: keep whatever the panels had; do NOT fake success (§6.6).
+          }));
+        }
+      }
+    }
+    prevReadyState = next;
+  });
+
   // M-RP6.3 Leg D2 (§2.1) — feed the SHARED room latch. This is the ONE writer path, and the DEV
   // __XGEN_ROOM__.note IS the same function (single-writer rule, the J-548 tickNow lesson). It lives in the
   // SHELL, not in R5, because R5 and R6 are separate region widgets in separate tiles: a latch owned by R5

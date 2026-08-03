@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.57  
+> Version: 6.58  
 > Date: May 2026  
 > **Last updated**: 2026-08-02  
 > Language: English  
@@ -301,8 +301,7 @@ XGen Protocol
 │   │   ├── ✅ **Leg A router + members consumer** — runbook `tasks/RUNBOOK_LIVEFEED_LEG_A.md` v1.5 **COMPLETED**; **three** files, frontend only · J-618 (J-639)
 │   │   ├── 🟡 **Leg B spaces/rooms consumer** · J-641
 │   │   │   ↳ trigger: Joe rules Leg B's scope — **B1 / B2 / B3**. §6-ii turned it from a preference into a measured question; the runbook may be AUTHORED, not LOCKED
-│   │   ├── ✅ **Leg C reconnect rule** — the `$effect` on `selfState.connection`; `loadSpaces()` extracted, `seenReady` latch + 5000 ms flap guard (provisional) · **CLOSED J-670** (J-658) · runbook `tasks/RUNBOOK_LIVEFEED_LEG_C.md` **v1.5 COMPLETED** ⇒ discharges `M-RP-IDENTITY-RESOLUTION` Leg E
-│   │   │   ↳ `Owes:` — a **comment-only** fix on `app_client.svelte`: the C-b comment carries *"a node round trip"*, false (`get_spaces` is a sync on-disk read); Chat's error, Clair's commit
+│   │   ├── ✅ **Leg C reconnect rule** — the `$effect` on `selfState.connection`; `loadSpaces()` extracted, `seenReady` latch + 5000 ms flap guard (provisional) · **CLOSED J-670** (J-658) · `4c50796` · `9983988` · `87307e8` · runbook `tasks/RUNBOOK_LIVEFEED_LEG_C.md` **v1.6 COMPLETED** ⇒ discharges `M-RP-IDENTITY-RESOLUTION` Leg E
 │   │   ├── 🟡 **Leg D live verify** — two identities, one observer; `membership.kick` added at v1.11
 │   │   │   ↳ trigger: Legs A–C land
 │   │   └── 🟡 **Leg E records + close**

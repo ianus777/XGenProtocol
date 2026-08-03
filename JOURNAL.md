@@ -90,7 +90,7 @@ V3 asked whether `R-c`'s `seenReady` latch swallows the cold-start `READY`. **Bo
 1. **The kickoff's state section was a PLAN WRITTEN IN THE PRESENT TENSE.** It said *"the runbook commit (J-670) should be the tip"* and *"tree CLEAN"* — in the same arc in which Chat had just written *"say go and I write it."* **There was no J-670.** The section even carried ⚠️ *DO NOT TRUST THIS SECTION*, which made the fiction look measured. ⇒ **FORWARD RULE: a kickoff's state section may contain only what was read AFTER the last write. Anything the author still intends to do is named as INTENDED, never as state.**
 2. **§4.1's `invoke` does not resolve where §4.1 puts the function.** `invoke` at `:625` is a **destructured local from a dynamic import at `:598`, inside the `onMount` `try`**; at `:171` it is undefined. The sibling `loadMembers` uses `tauriInvoke` (`:764`). 🔑 ***§1's own G5 recorded that the call is INLINE IN `onMount` — a fact about LOCATION — and the body was then written as if that fact were also about BINDING SCOPE, which was never measured.*** The named class: **a claim narrower than the thing it describes, reused as if complete.** Clair refused it against the file (J-516 · J-665 · this).
 3. **§10's DoD said the M-RP6.6 deferral was "discharged", flat.** The deferral has **two halves** — reconnect recovery (this leg) and **incremental live delta push (still M-RP6.6's, unbuilt)**. **Clair softened the code comment to "its reconnect-recovery half" BEFORE the checklist was fixed**, and the checklist moved to match her, not the reverse. An N-109 overclaim was about to be baked into a code comment *and* a DoD tick.
-4. **`R-c`'s entire justification was false, and Chat found it only by checking the producer before spending a day on tooling.** v1.0–1.3 said an un-guarded first `READY` costs *"a redundant fill plus **a node round trip**"*. **`get_spaces` is `fn`, NOT `async fn` — a synchronous on-disk read whose own doc comment says it never touches `session`** (`desktop.rs:612`). **There is no round trip, and no blink either** — nothing is latched at cold start, so the cascaded effect resets an empty book. ⇒ ① **NO USER-VISIBLE IMPACT EITHER WAY.** *The cost was inferred from the word `invoke` at the call site instead of read at the producer.* **`R-c` still stands — correct, four lines, and it makes the effect's contract honest — but a ruling with a false reason and a true conclusion is CORRECTED, not reversed.**
+4. **`R-c`'s entire justification was false, and Chat found it only by checking the producer before spending a day on tooling.** v1.0–1.3 said an un-guarded first `READY` costs *"a redundant fill plus **a node round trip**"*. **`get_spaces` is `fn`, NOT `async fn` — a synchronous on-disk read whose own doc comment says it never touches `session`** (`desktop.rs:613` — ⚠️ *written `:612` here originally, corrected in the addendum*). **There is no round trip, and no blink either** — nothing is latched at cold start, so the cascaded effect resets an empty book. ⇒ ① **NO USER-VISIBLE IMPACT EITHER WAY.** *The cost was inferred from the word `invoke` at the call site instead of read at the producer.* **`R-c` still stands — correct, four lines, and it makes the effect's contract honest — but a ruling with a false reason and a true conclusion is CORRECTED, not reversed.** ⚠️ **AND THE PRODUCER CHECK ITSELF WAS TOO NARROW — SEE THE ADDENDUM.**
 
 🔑 **THE PATTERN ACROSS ALL FOUR IS ONE PATTERN: A NAME WAS READ INSTEAD OF ITS PRODUCER.** `invoke` looked like an import; `invoke` looked like a network call; `G5` looked like a scope fact; a planned commit looked like a state. **Every one was caught from OUTSIDE the text — by Clair, or by a deliberate producer check. None was caught by re-reading.**
 
@@ -104,12 +104,29 @@ Runbook v1.0 §11 put `R-a … R-e` — **five rulings Chat had just taken under
 
 ---
 
-### 🛑 OWED — A COMMENT-ONLY FIX, AND IT IS CHAT'S ERROR IN CLAIR'S COMMIT
+🛑 **OWED — A COMMENT-ONLY FIX, AND IT IS CHAT'S ERROR IN CLAIR'S COMMIT** *(✅ DISCHARGED — see the ADDENDUM below)*
 
 The committed C-b comment carries *"a redundant fill + a node round trip"* — **the false claim corrected above.** It was **true in the runbook when Clair transcribed it**, so this is **not a Rule 6 miss on her part**: it is **Chat's error propagated into code by a faithful implementer, which is exactly how a bad runbook line does its damage** — it outlives the document that carried it. ⇒ **A comment-only fix commit on `app_client.svelte` is owed; that file is Clair's for this leg. No logic change; `svelte-check` re-run.**
 
 🔒 **NOT TICKED: `G-B`.** It closes on `M-RP-IDENTITY-RESOLUTION` Leg D **and** this leg together (N-168). **This leg alone does not close it.**
 ✅ **NOT TOUCHED:** R4 (the stream's sync-from-cursor replay, still open and in no leg) · §5b's blackout marker (Joe's, unbuilt) · `routeMembershipEvent` · `ingest.push` · Leg B's delta setters.
+
+---
+
+### ✅ ADDENDUM — THE OWED FIX LANDED, AND VERIFYING IT FOUND A **FIFTH** CHAT ERROR (`87307e8`, 2026-08-02)
+
+**Discharged.** `87307e8` — comment-only, **+2/−1**, `svelte-check` **0/34/15** unmoved, one file, `i/lf`. Clair asserted the diff contained **no line whose content, stripped of `//`, is code**.
+
+🛑 **AND SHE RE-VERIFIED THE GROUNDING ON A TASK SHE HAD BEEN TOLD WAS ALREADY GROUNDED — WHICH IS THE ONLY REASON THE FIFTH ERROR SURFACED.**
+
+1. 📌 **`fn get_spaces` is at `desktop.rs:613`, not `:612`.** `:612` is the `#[tauri::command]` attribute. Cited as `:612` in this entry as originally written, in the PLAY head, in the runbook and in the task doc — **all four corrected in the same commit as this addendum** (`D-131`: the wrong number is annotated where it was load-bearing, not silently swapped).
+2. 🛑 **THE DOC COMMENT SAYS *"no node round-trip, no mutation, no CLI meaning"* — IN THOSE WORDS — AT `desktop.rs:603`.** Chat's read window for that doc block started at **`:606`**, three lines late, caught the tail, and **missed the sentence that answers the question outright** — then reported the result as *a producer check*.
+
+🔑 ***A PARTIAL READ OF A PRODUCER IS NOT A PRODUCER CHECK.*** The conclusion was right and the grounding was not sound, and **those are separable** — which is precisely what makes this the harder failure to notice: nothing downstream was wrong, so nothing downstream complained. ⇒ **FORWARD RULE, joining lesson ④ (*scope your measurement before you believe it*): when a claim is settled by reading a producer, the read must cover the producer's WHOLE declaration — doc comment included — and the window used must be stated, so a short read is visible as a short read.**
+
+⚠️ **THIS IS THE FIFTH OF CHAT'S LINES THIS ARC AND IT IS THE SAME SPECIES AS THE OTHER FOUR** — a source of truth consulted **narrowly** and then trusted **broadly**. Four were caught by Clair; the fourth was caught by a producer check that **was itself too narrow**, and the fifth by Clair checking that check. 🔑 ***The outside reader is not a redundancy in this loop. It is the mechanism.***
+
+✅ **`Owes:` on the Leg C node is CLEARED.** 🔒 **`G-B` still NOT ticked** (N-168). ✅ **R4 untouched.**
 
 ---
 

@@ -189,6 +189,19 @@
     }
   }
 
+  // M-RP6.2 — the known-Space tree (D1); unregistered → get_spaces returns [] (honest empty; R1 shows
+  // "No spaces yet"), and rooms ride embedded so R2 needs no second fetch. Fetched at startup (the
+  // get_self_state shape) AND re-filled on every reconnect (M-RP-LIVEFEED-REFRESH Leg C, R1) — so it is no
+  // longer "static per session / fetched once". That M-RP6.6 "no live push until the resident" deferral sat
+  // un-owned after M-RP6.6 closed (J-598); this milestone owns it, and Leg C discharges its
+  // reconnect-recovery half — incremental live delta push is still that milestone's later work, not here.
+  // NO internal try/catch: the startup caller (onMount) keeps its try so startup is byte-identical (C-a);
+  // the reconnect caller owns its own catch (C-b). Uses tauriInvoke (loadMembers' idiom) because the literal
+  // `invoke` in the old inline call was onMount-local (:598) and does not resolve at this scope.
+  async function loadSpaces() {
+    spacesState.setSpaces(await tauriInvoke('get_spaces'));
+  }
+
   // M-RP-LIVEFEED-REFRESH Leg A — the live membership router. Called from the `xgen-event` listener beside
   // `ingest.push` (:552, untouched): every inbound Event flows through here, and only `membership.*` deltas
   // that change WHO IS IN THE ROOM NOW reach the address-book roster. The three non-obvious store rules
@@ -619,10 +632,7 @@
       // working. Unregistered → registered:false + a real keypair-derived XGID (rendered honestly, D6).
       selfState.setIdentity(await invoke('get_self_state'));
 
-      // M-RP6.2 — the known-Space tree (D1). Static per session (no live push until the resident, M-RP6.6),
-      // so fetched ONCE here (the get_self_state shape). Rooms ride embedded, so R2 needs no second fetch.
-      // Unregistered → get_spaces returns [] (honest empty; R1 shows "No spaces yet").
-      spacesState.setSpaces(await invoke('get_spaces'));
+      await loadSpaces();
 
       // M-RP4.2 — hydrate the user-owned substitution pairs from the client
       // TOML ([substitutions] rules). The store parses + validates (Tier-2);

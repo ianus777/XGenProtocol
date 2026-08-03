@@ -150,7 +150,8 @@
   // above because both observe the same surface, `selfState.connection`. TRANSITION not level (§6.2): a plain
   // `let prevReadyState` memo (NOT $state — a memo, not a rendered value, so it creates no dependency) and we
   // act ONLY on a genuine `!READY -> READY` edge. `seenReady` (R-c) swallows the cold-start READY, whose fill
-  // onMount already did; without it every launch pays a redundant fill + a node round trip. The flap guard
+  // onMount already did; the latch keeps the effect's contract honest — it fires on RECONNECT, not on any READY —
+  // and skips only a redundant LOCAL re-fill (get_spaces is a sync file read, no node round-trip). The flap guard
   // (R-d) skips a re-fill within RECONNECT_REFILL_MIN_MS of the previous one, so a flapping link does not
   // blink the roster to UNKNOWN on every bounce (setInflight nulls _roster first). 5000 ms is PROVISIONAL —
   // no flap has ever been observed; M-RP-LIVEFEED-REFRESH Leg D can re-price it. Monotonic performance.now(),

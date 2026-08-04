@@ -5190,17 +5190,21 @@ The format-boundary rule was **not unwritten**. It was written, worked, tabled a
 
 ⇒ ***CHAT IS NOT PROPOSING AN APPEARANCE. CHAT IS SUPPLYING THE MECHANISM SO THAT JOE CAN EXERCISE AN AUTHORITY HE ALREADY HAS.***
 
-🔑 **AND THE TWO FRAMINGS PRODUCE DIFFERENT CODE.** *Awaiting approval* optimises for being defensible; **scaffolding optimises for being EDITABLE BY SOMEONE WHO DOES NOT WORK IN MODERN CSS DAILY.** That is a real design constraint with consequences in §3, and it is invisible under the wrong framing.
+🔑 **AND THE TWO FRAMINGS PRODUCE DIFFERENT CODE.** *Awaiting approval* optimises for being defensible; **scaffolding optimises for being CORRECT AND SIMPLE ENOUGH TO EDIT.** ⚠️ *Chat's first reading of "simple enough to edit" was "heavily annotated" — §3's superseded version, and the opposite of what was asked for.*
 
 ### §3 — WHAT IT OBLIGES IN THE WRITING
 
-**FEW KNOBS, AND OBVIOUS ONES.** A rule should expose the smallest number of tunable values that can express the intent. *Leg C-3's block exposes exactly two — `font-weight: 500` and `color: var(--t3)`.*
+🛑 **NARROWED BY JOE, 2026-08-04, SAME SESSION:** *"it is enough that your definitions will be regular ones, like you would done them autonomously, no some special additions."*
 
-**NAME THE DIAL, IN PLAIN TERMS, AT THE POINT OF CHANGE.** A comment that explains only *why the design is what it is* leaves Joe to reverse-engineer which token is the dial. It must also say what to change and what moves with it: *"too faint? `--t3` → `--t2` on this line; nothing else moves."*
+⇒ **WRITE THE DEFINITIONS NORMALLY.** House style, the voice the file already uses, **no annotation apparatus.**
 
-**SAY WHAT THE SELECTOR MATCHES, NOT ONLY ITS RATIONALE.** `[data-unresolved="unasked"]` carries a plain-language line: *matches a member row the client has not looked up yet.*
+⚠️ **v1.0 OF THIS ENTRY OBLIGED A MARKED "DIAL" LINE NAMING EACH TUNABLE VALUE, ITS ALTERNATIVES, AND AN ESCAPE HATCH FOR EVERY STRUCTURAL CHOICE. THAT IS SUPERSEDED, KEPT NOT ERASED (`D-131`).** 🔑 **The error was conflating *cannot write it* with *cannot read it*.** Joe named the gap precisely — **authoring** a selector from scratch — and Chat widened it into an inability to read `color: var(--t3)` and change the token. ***A claim narrower than the thing it was used for, and this time it was a claim about a person.***
 
-**ISOLATE THE DIALS FROM EACH OTHER.** A value Joe may want to turn must not sit where turning it disturbs something else. *This is a second, independent reason Leg C-3's base rule sets weight only and no colour — it already had one (the (0,3,0) source-order hazard), and this makes it overdetermined.*
+**WHAT SURVIVES IS STRUCTURAL, NOT EDITORIAL** — because it is invisible from the outside and therefore genuinely Chat's:
+
+- **FEW VALUES, IN ONE PLACE EACH.** A value that can be changed in one declaration beats the same value spread across two rules. *This is why Leg C-3's base rule sets weight only.*
+- **ISOLATE THEM.** Changing one value must not disturb another. ⚠️ *This is a property of how the rules are CUT, not of what the comments say.*
+- **COMMENT AS THE FILE ALREADY COMMENTS.** `skin.css`'s existing blocks are long and explain rationale; **match that.** Neither strip them nor add scaffolding the file does not otherwise use.
 
 ### §4 — THE REASON IS NOT TASTE. IT IS SIGHT.
 

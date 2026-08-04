@@ -8,6 +8,81 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-674 — M-RP-IDENTITY-RESOLUTION Leg F OPENS: the two-client question was the whole leg, and the runbook's adversarial read found a control that destroyed the state it was controlling for
+
+**Date:** 2026-08-04 · **Seat:** Chat (grounding, Phase-0, runbook, the technical rulings, records) · Clair (the adversarial read — **no authority to code**) · Joe (§2 and §3 locked; the runbook locked). **NO CODE. NOTHING LAUNCHED.** New: `tasks/M_RP_IDENTITY_RESOLUTION_LEGF_PHASE0.md` **v1.0 ACTIVE** · `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_F.md` v1.0 → v1.1 → **v1.2 ACTIVE (LOCKED)** · `M_RP_IDENTITY_RESOLUTION.md` v1.19 → **v1.20** · ROADMAP v6.61 → **v6.62**.
+
+---
+
+### 🛑 §8's PRICE FOR LEG F HID THE WHOLE LEG
+
+§8 reads *"two clients, a real join, a real `not_found`"*. Grounded at `3bde951`, **there was no way to launch a second client**: `run-client.ps1` takes two parameters (`-Mode`, `-Debug`), and Guarantee 1 (`:85-99`) **refuses to start** when 5173 is held. 🔑 *The named defect class — a claim narrower than the thing it describes — sitting in a canonical record, priced as one sentence.*
+
+**✅ BUT THE PIECES WERE DESIGNED, NOT MISSING.** `main.rs:40-61` resolves `--data-dir` > `XGEN_DATA_DIR` > platform default, then rebases `--instance`; `bin/instances/` holds five client instance dirs from 17 May 2026, **each with its own `xgen-client_keypair.enc`**. `app.rs:413`: D-101 wipes **`xgen-client_config.toml` only** ⇒ keypairs and `state.json` survive, so an instance keeps one stable XGID.
+
+🔑 **AND THE ASYMMETRY COLLAPSED THE PROBLEM: THE JOINER NEEDS NO GUI AT ALL.** `main.rs` dispatches `Register · Invite · Join · Leave · Members · Send · CreateSpace · CreateDmSpace`. Only the **observing** client needs the harness. ✅ **And it is not a weaker stimulus, proven at the producer:** `cmd_join` (`app.rs:3032`) is a thin shim onto **`ops::join`** (`ops.rs:1579`), which signs **`EventType::MembershipJoin`** — the same function the GUI arm reaches.
+
+---
+
+### 🔒 TWO DECISIONS, LOCKED BY JOE
+
+- **§2 = J1** — the headless CLI joiner. All three options had **zero user-visible impact**, so D-121 put the whole decision on cost: a warm `cargo build` against J2's full `cargo tauri build` and J3's two hard blocks.
+- **§3 = E1** — registry-row surgery, **recorded as file surgery and never as *"an erased identity"***.
+
+🛑 **§3 EXISTS BECAUSE THE PRODUCT CANNOT ERASE AN IDENTITY.** `xgen-core/src/identity/registry.rs` exposes `new · register · get · contains · apply_update · revoke · is_revoked · set_trust_expiry · len · is_empty · all · upsert · save · load` — **no `remove`, no `erase`, no `delete`, in any crate** (checked both directions). `identity.not_found` fires at `xgen-node/src/app.rs:3567` on exactly one condition: `registry.get()` returned `None`. 🔑 **E1 and E2 reach the observer as ONE `identity.not_found`** — §9 already records that the client cannot distinguish erased-here from never-replicated-here ⇒ **E1's cheapness costs no fidelity for what Leg F actually tests.**
+
+---
+
+### 🔑 R3 GROUNDED — AND J1 PAID A SECOND TIME, BY LUCK
+
+The `--ai` chain holds end to end: `app.rs:220` → `:2714` → `ops.rs:342-343` → `:439/457/469` → `address_book.rs:89/:130` → `flags.isAi`. ⚠️ **The obvious fear — `--ai` writes to the config file and D-101 wipes the config file — is FORECLOSED, not mitigated:** `clean_slate_config` (`app.rs:566`) has **exactly one production call site, `desktop.rs:866`, the GUI path**; the nine `app.rs` sites all sit between the `#[cfg(test)]` markers at `:6492` and `:7008`. ⇒ **the CLI never runs the wipe.** 🔑 **J1 was chosen on cost and happens to be the only vehicle where D-101 cannot eat the AI flag between two commands. Recorded as luck, not design** — under J2 the joiner would have been a GUI and this would have been live.
+
+---
+
+### 🛑 THE RULING THE RUNBOOK NEEDED: ① AND ④ CANNOT BE THE SAME JOIN
+
+`members-panel.svelte:101` is `flags: m.unresolved ? {} : { isAi: rec?.is_ai ?? false }`. ① wants a row **resting** at `unasked`; ④ wants that marker **cleared** with the badge lit — and `resolveMember` clears it the moment the fetch returns. ⇒ on a healthy node `unasked` lives for one tick. **Chat's ruling (mechanical, `D-123`):** ① **instrument before stimulus** (a `MutationObserver` installed before the join), and ⑥ **is also how ① is seen at rest** — a failed fetch parks the row indefinitely because nothing retries. ***Two obligations filed a week apart are one mechanism seen twice.*** ⇒ ①+④ ride R-1; ①-at-rest+⑥ ride R-2.
+
+---
+
+### 🛑 THE ADVERSARIAL READ RAN BEFORE THE LOCK (J-642) AND IT WAS NOT CLEAN — FIVE FINDINGS, FOUR ABSENT FROM §11
+
+**F1 — WRONG / UNRUNNABLE, and it is Chat's.** R-3's step 1 had Dave *"join and resolve normally (proves the row exists as a control)"*. Resolving him writes his record to the observer's disk book, and **`partition_observed` (`ops.rs:2778-2786`, doc `:2767-2777`) routes held identities to `to_touch`, NEVER re-fetching them**; `fill_from_events` (`:2916-2923`) fetches only `to_fetch`. ⇒ **the re-fill never re-asks, `not_found_ids` never contains Dave, and ②③⑤ cannot be produced at all.**
+
+🔑 **THE SHAPE, NAMED: A CONTROL THAT DESTROYS THE STATE IT IS CONTROLLING FOR.** Step 1 existed to prove the row could exist; proving it is what made the erasure unobservable.
+
+🛑 **AND THE SPECIES IS NOT THE USUAL ONE.** This is not a source read too narrowly. It is `M_RP_IDENTITY_RESOLUTION.md` **§5b — a locked finding in Chat's own milestone document, which Chat had read** — and the **Phase-0 Chat wrote two hours earlier states the correct timing** (*"between the join and the observer's fetch"*). ***A source consulted, understood, recorded, and then not applied by the same author in the next document.*** Filing it under the familiar label would have hidden that.
+
+⚠️ **AND §11-2 POINTED THE WRONG WAY.** It worried that Dave *might not* resolve first. The hazard was that he **does**. ***A doubt aimed at the inverse of the real risk is worse than no doubt, because it reads like the question was already asked.*** Annotated, kept not erased (`D-131`).
+
+**F2 — IMPRECISE.** O3's *"there is no join without a prior invite"* is **false**: `ops::join`'s match (`ops.rs:1615-1646`) has a `_ =>` arm falling to `get_dag_tips` → `rejoin_anchor_or_root`, signing a `MembershipJoin` with no invite. Chat read only the `Some` arm. **The ordering survives; its stated reason did not** — the real reason is the observer's data-dir file lock. 🔑 *A rule kept for a false reason is a rule that will be discarded the first time someone checks it.*
+
+**F3 — IMPRECISE, and it would have lost ①'s primary capture.** v1.0's observer was **attributes-only**. A joiner's row **mounts with `data-unresolved="unasked"` already set** — a **childList** record, not an attribute mutation ⇒ the probe reports nothing, which reads exactly like the state never occurring. Config is now `{ childList, subtree, attributes, attributeOldValue }` with added nodes inspected.
+
+**F4 — IMPRECISE, a real E1 trap.** `xgen-node_identities.db` is a **pretty-printed JSON array, not SQLite** (`registry.rs:240-256`; ⚠️ **`CLAUDE.md`'s file-placement table says SQLite and is wrong** — filed, not fixed). 🛑 **And a malformed edit does not fail loudly:** `xgen-node/src/app.rs:776-784` warns and **keeps `NodeRuntime::new`'s EMPTY registry** ⇒ **every identity returns `not_found`**, corrupting ①②③④⑤ at once into rows that all look erased. ***A broken rig would read exactly like a finding.*** Now a hard stop condition.
+
+**F5 — OMISSION.** No Space, room or DM-Space creation anywhere in the rig, while obligation ⑤ rests on the DM Space. ***A locked obligation must not rest on unstated setup.***
+
+---
+
+### ✅ SIX THINGS CAME BACK CLEAN, AND A CLEAN RESULT IS A RESULT
+
+🔑 **THE MOST VALUABLE QUESTION ASKED, AND THE FEARED DEFECT IS ABSENT.** R-2 rests on a failed fetch leaving the row at ④ rather than at ③. `app_client.svelte:249-256`: `fetchJoinerIdentity` wraps `tauriInvoke('fetch_identity')` in `try { … resolveMember(record ?? null) } catch { /* the row stays ④ */ }`, and `desktop.rs:763` maps a fetch `Err` to `Err(String)` so the invoke **rejects**. ⇒ **a rejected invoke never reaches `resolveMember`; only `Ok(None)` coerces to null and routes to `_notFound`.** ***A node blip cannot show a live person as erased.***
+
+Also clean: the `clean_slate_config` census in both directions · `cmd_register`'s config path (`main.rs:76/93-96/254` — closing v1.0's own §11-4) · the `data-unresolved` DOM chain with the node **named** (`div.members-panel` → `section` → `ul.entity-panel` → `li.entity-panel-listitem` → `div.entity-item`, attribute at `entity-item.svelte:126`) · the node not repopulating the registry from the DAG · the absence of any erasure verb.
+
+🔑 **AND §2b CHANGED STATUS RATHER THAN BEING CONFIRMED.** Both the marker clear and the badge derive from the **same** `m.unresolved` flip ⇒ they land in one reactive flush and **badge-before-clear is UNREACHABLE, not merely unobserved.** **R-1 still runs it — but as CORROBORATION of a structural property, no longer as DISCOVERY of an unknown ordering.** *The two must not be written the same way.*
+
+---
+
+### 🔒 LOCKED, WITH TWO ACCEPTED RISKS NAMED
+
+Joe locked v1.1 as read. ⚠️ **He was offered a second short read on the restructured R-3 and declined it ⇒ §11-6 (the *"observer not scoped to that Space"* no-op route is READ, not RUN) and §11-7 (the E1 edit is unrehearsed) ship as LIVE, ACCEPTED risks, not as doubts awaiting a pass.** *Recorded so that if either bites in F-2 it is a known acceptance and not a surprise.*
+
+**NO CODE, NO `.rs`, NO `ui/**` ⇒ FLOORS UNTOUCHED AND DELIBERATELY NOT RE-MEASURED:** cargo **1596/0/62 × 56** · svelte-check **0/34/15** · catalogue **435**. Slot gate re-run clean-tree: **PASS 74**. **No new D, no new N.** → J-674 · ROADMAP v6.62.
+
+---
+
 ## Entry J-673 — M-RP-IDENTITY-RESOLUTION Leg C CLOSES: the unasked skin ships, D-138 is minted and narrowed twice, and the leg introduced a fresh staleness into the sentence it was correcting
 
 **Date:** 2026-08-04 · **Seat:** Clair (implementation, commits `8a650b1` + `03c92cc`) · Chat (the runbook, `D-138`, every gate re-driven, the records) · Joe (the seat ruling and its two narrowings; pushed both). **LEG CLOSED.** Runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_C3.md` v1.0 → **v1.5 COMPLETED** (new file) · `M_RP_IDENTITY_RESOLUTION.md` v1.18 → **v1.19** · ROADMAP v6.60 → **v6.61** · `DECISIONS.md` gains **`D-138`**.

@@ -1,10 +1,118 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-03  
+> **Last updated:** 2026-08-04  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-672 — M-RP-IDENTITY-RESOLUTION Leg D CLOSES: the Tier-1 fetch ships, G-B is ticked by the pair, and V8 stopped being an argument
+
+**Date:** 2026-08-04 · **Seat:** Clair (implementation, commits `aa7d9c9` + `9901036`) · Chat (every gate re-driven on the committed tree, one ruling, the records) · Joe (pushed both). **LEG CLOSED.** Runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_D.md` v1.0 → **v1.1 COMPLETED** · Phase-0 `tasks/M_RP_IDENTITY_RESOLUTION_LEGD_PHASE0.md` v1.1 → **v1.2 COMPLETED** · `M_RP_IDENTITY_RESOLUTION.md` v1.17 → **v1.18** · ROADMAP v6.59 → **v6.60**.
+
+---
+
+### ✅ WHAT SHIPPED
+
+**D-i — `aa7d9c9`** [2 files, +109/−2, zero `ui/**`]. `fetch_identity`, the **19th** Tauri command: takes the `FillLock` first, runs `fill_space_records`'s session preamble, loads the book, calls `ops::identity_get`, absorbs through `absorb_fetch` (private → **`pub(crate)`, not `pub`**) and **saves**, returning `Option<SeenRecord>`. The `found` flag is kept load-bearing — `absorb_fetch` leaves the book unchanged on `not_found`, so without it a cached-but-erased identity would report as resolved and starve the ③ arm.
+
+**D-ii — `9901036`** [2 files, +49/−6, zero `.rs`]. `resolveMember` merges ONE record into `_book`, **clears `unresolved` on the roster row**, and pushes a null to `_notFound`; `addMember` returns `boolean` so the router fetches only on a real add; `routeMembershipEvent` stays synchronous and fires an un-awaited `fetchJoinerIdentity` through `tauriInvoke`.
+
+---
+
+### 🔒 EVERY GATE RE-DRIVEN BY CHAT ON THE COMMITTED TREE, NOT READ OFF THE HANDBACK
+
+| # | gate | result at `9901036` |
+|---|---|---|
+| V1 | cargo | **1596 / 0 / 62 × 56**, `FAILED` case-sensitive **0**, `^error` **0** — Δ exactly **+1** off V0's 1595 |
+| V2 | the Δ by name | `fetch_identity_return_serde_transparent_to_js_frontend ... ok`, the only add |
+| V3 | proven able to fail | literal flipped → **1 failed**, panic at the assertion; reverted clean |
+| V4 | slot gate, **CLEAN TREE** | **PASS 74 (65 / 5 / 3 / 1)** — unchanged |
+| V6 | `svelte-check` | **0 / 34 / 15**, Δ **0** off a V5 baseline Clair measured rather than inherited |
+| V7 | scope | D-i `{desktop.rs, ops.rs}` · D-ii `{app_client.svelte, address-book.svelte.ts}` — disjoint |
+| V8 | the split reproduces | **PROVEN — see below** |
+
+📌 **CLAIR'S OWN V4 RAN `-AllowDirty`, AND SHE DID NOT QUOTE IT.** The gate script prints *"measures the WORKING TREE… do not quote its numbers"* when the tree is dirty; she reported it as informative and said the quotable clean-tree run rides Chat's re-drive. 🔑 *An instrument that refuses to be quoted out of context is worth more than one that always answers — and it only works if the reader obeys it.*
+
+---
+
+### 🔑 V8 UPGRADED FROM AN ARGUMENT TO A MEASUREMENT
+
+Clair reported V8 *"satisfied by construction"*: V1 was run when the tree held only D-i's `.rs`, and the file sets are disjoint. **True, and it is still an argument about what happened, not a measurement of what is committed.**
+
+**Measured:** `git diff --name-only aa7d9c9 9901036 -- '*.rs'` returns **empty**. **D-ii changed zero `.rs`** ⇒ ***the Rust source at `9901036` is byte-identical to D-i's committed tree***, so the cargo re-drive at HEAD **is** a measurement of D-i's tree — no checkout, no second full run.
+
+✅ **FORWARD FORM, GENERAL: a commit split whose halves touch DISJOINT FILE SETS is PROVEN by diffing the halves for the other half's file types.** 🔑 *J-670 established that a split not proven to reproduce the tested tree has tested nothing, and paid for it with a full `sha256` rebuild from pristine HEAD. **This is the cheap proof of the same property**, and it is available whenever the split was drawn along a file-type boundary — which is exactly what §8's split-by-floor rule guarantees.*
+
+✅ **AND THE `svelte-check` Δ IS A REAL ARGUMENT RATHER THAN A NUMBER MATCH:** a new warning in a previously-clean file moves **15 → 16**; one in an already-warning file moves **34 → 35**; D-ii is **pure addition**, so nothing could have been removed to mask one. **Both figures unchanged ⇒ no new warning.** *Two numbers that can only both hold still if nothing happened.*
+
+---
+
+### 🔑 THE DELIBERATE HOLE WORKED, AND THAT IS THE TRANSFERABLE PART
+
+The runbook §7-b did not know which helper produces the `now` that `absorb_fetch` takes. **It left the line as a marked gap inside the code block** rather than writing a plausible `chrono` call, and said why: *a second timestamp format in the same `last_seen` field is a silent data defect that no gate in this leg can see.*
+
+Clair filled it by grounding — **`chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)`**, the exact producer `fill_from_events` uses at **`ops.rs:2913`**, flowing into `absorb_fetch(book, fetched, &now)` at **`:2947`**.
+
+🔑 ***A NAMED HOLE IS A LOOKUP. AN UNNAMED ONE IS A COIN-FLIP THAT READS LIKE A FACT.*** A guessed `chrono` line would have compiled, passed every gate in this leg, and been wrong only in a field nobody reads until eviction runs.
+
+✅ **§7's OTHER SIX RISK ITEMS ALL HELD, AND (e) EARNED ITS KEEP.** It told her the *"additive"* claim for `addMember`'s `void`→`boolean` came from a grep of ONE file — *a reference count is only as wide as the name you searched* (J-669). She swept all of `ui/**` **including the sampler**: exactly one call site, a bare statement. **Additive as measured, not as assumed.**
+
+---
+
+### 🔑 B2 PAID TWICE — IN A PLACE ITS OWN DERIVATION NEVER LOOKED
+
+Clair flagged a real mismatch: the runbook's `resolveMember` scope-guards the **whole function**, so the `_book` merge is scoped too — while `R-D3`'s aside read *"the `_book` half is scope-free — the book is a global cache keyed by identity."*
+
+🔒 **RULED (Chat, `D-123`): THE CODE IS THE INTENT.** `R-D3`'s note was an **observation about what `_book` is**, never an instruction to leave the merge unguarded. Annotated in the runbook, not changed in the source.
+
+⚠️ **Her consequence was right in direction and wrong in mechanism — and wrong in the SAFE direction.** She wrote *"a harmless missed cache entry, **re-fetched** by the next fill."* **Measured: it is not re-fetched.** D-i persisted the record to disk **before the frontend guard ever ran**, so `get_address_book` returns it on the next fill, and §5b's rule — *once the book holds someone it never asks again* — means no re-fetch occurs.
+
+🔑 ***THE WHOLE-FUNCTION GUARD IS SAFE BECAUSE §4 LOCKED B2. UNDER B1 THE LATE-RESOLVING RECORD WOULD HAVE BEEN LOST OUTRIGHT.*** B2 was chosen to stop an AI joiner rendering as human on the next room switch (`N-097` inverted); **it also, unnoticed, made a stricter scope guard costless.** ⚠️ *A lock load-bearing in a place its own derivation never examined is the inverse of this project's recurring defect — a claim NARROWER than the thing it describes, but this time in the direction of safety. It is recorded because next time it will not be.*
+
+---
+
+### 🔒 G-B CLOSED — BY THE PAIR, EXACTLY AS N-168 REQUIRED
+
+`G-B` — *"the next refresh does not currently arrive"* — is §4c-i's rule one level out: **dimming says *not yet*, and *not yet* commits the panel to eventually resolving.**
+
+- **Leg E** (the refresh trigger, R1) — discharged **J-670** by `M-RP-LIVEFEED-REFRESH` Leg C. Recovers the exceptional path.
+- **Leg D** (the attempt) — landed **here**. Makes it happen on the ordinary path.
+
+🔑 **NEITHER LEG TICKED IT ALONE, AND THE RECORD CARRIES BOTH DATES.** §6b's rule existed because adopting the reconnect hook alone *"would have closed `G-B` on paper"* — R1 fires on a transition into `READY`, and **`G-B`'s failure case is a long session in one Space that never disconnects.** The rule held under its own test.
+
+⚠️ **THE MECHANISM IS BUILT AND COMPILE-VERIFIED. THAT A REFRESH FIRES ON SCREEN IS LEG F's**, and that distinction is stated in the DoD tick rather than left to be inferred.
+
+---
+
+### 🛑 LEG F NOW CARRIES SEVEN OBLIGATIONS — FOUR CREATED BY THIS LEG
+
+Three were moved out of Leg B (J-653). Leg D added four, and **it is the leg that created the surface for every one of them:**
+
+- ④ **a joiner resolving to ①/② — the name lands AND the AI badge lights.** 🔑 *The only thing that can demonstrate the badge is gated on the `unresolved` clear and not on the record arriving — the finding that re-priced the whole leg (J-671 §2b).*
+- ⑤ **a joiner resolving to ③** — hidden, or **marked** as the DM counterpart. §5a's E2 exception becomes reachable **for the first time**.
+- ⑥ **a fetch that FAILS or TIMES OUT** — the row stays ④ and nothing retries it. The T3 residue (`D-126`), and Leg D is what creates the state at all.
+- ⑦ **JOIN CONCURRENCY** — A3 shipped the one-shot form; if N-at-once joins are common the batched form returns as a live option, **and if they are not it is closed with its reason.** *Priced against a number, not a fear.*
+
+---
+
+### 📌 Recorded so it is not misread later
+
+`ops.rs`, `app_client.svelte` and `address-book.svelte.ts` are **CRLF in the working tree via `core.autocrlf`** and **LF in the index** (`i/lf` on all four touched files); `desktop.rs` is LF throughout. **Pre-existing — the J-643 shape — not introduced by this leg**, and the index form is what ships. All four diffs are clean localized hunks with no whole-file EOL churn. 🔑 *Clair raised this unprompted rather than letting a `w/crlf` reading sit in the record as a defect someone would later chase.*
+
+---
+
+### Final state
+
+**cargo 1595 → 1596 / 0 / 62 × 56** · **`svelte-check` 0/34/15 unmoved** · **slot gate PASS 74 clean-tree** · four files, two commits, disjoint by floor. ✅ **`G-B` CLOSED.** ✅ **NOT TOUCHED:** `ui/assets/skin.css` (C-3 is Leg C's remaining third) · `N-169`'s memoisation (architecture, Joe's, and it would un-build two shipped legs) · R4 · `ingest.push` · the leave/kick/ban/node_eject arms · the four fill-path setters.
+
+**No new D. No new N.** *(The V8 forward form attaches to J-670's split-reproduction rule; the marked-hole practice attaches to the producer-window rule. Neither warrants its own designation yet — both are recorded where they will be read.)*
+
+🔓 **OPEN, JOE'S:** C-3 (Leg C's remaining third, ungated since J-670) · Leg F, whose trigger is now **C-3 alone** · §5's DAG-divergence read · `M-RP-THREAD-XGID` · `M-RP-LIVEFEED-REFRESH` Leg B's scope · the unnamed back-fill milestone · `N-169`'s memoisation · **the `CLAUDE.md` PLAY head's own length — raised a third time, acted on not at all.**
+
+→ J-672 · ROADMAP v6.60.
 
 ---
 

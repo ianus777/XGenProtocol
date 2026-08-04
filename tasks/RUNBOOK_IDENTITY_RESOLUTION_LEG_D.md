@@ -1,8 +1,8 @@
 # RUNBOOK — M-RP-IDENTITY-RESOLUTION Leg D — Tier-1 fetch on join
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-03  
+> **Last updated**: 2026-08-04  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -291,13 +291,55 @@ async function fetchJoinerIdentity(sid, identityId) {
 
 ## §9 — DoD (Leg D)
 
-- [ ] **D-i** — `fetch_identity` + registration + the witness test, **one commit, zero `ui/**`**
-- [ ] V0…V4 green; the cargo Δ is **`+1`, named**, and the new test was **proven able to fail**
-- [ ] **D-ii** — `resolveMember` + `addMember`'s return + the router hook, **one commit, zero `.rs`**
-- [ ] V5…V8 green; the `svelte-check` Δ stated against a **freshly measured** baseline
-- [ ] `M_RP_IDENTITY_RESOLUTION.md` §5b annotated: ③ is reachable for any erased live joiner, not only on a fresh install (`D-131` — the rule stands, the example set was narrower)
-- [ ] `M_RP_IDENTITY_RESOLUTION.md` §8 Leg D updated with the outcome; §9's `address_book.rs` citations annotated
-- [ ] **`G-B` TICKED — here and nowhere else.** Leg E is discharged (J-670); Leg D landing is what closes it (`N-168`)
-- [ ] Leg F's obligation list grown by this leg's three unverifiable cases **and** the join-concurrency count (§3 A3's `Owes:`)
-- [ ] Records: JOURNAL + `CLAUDE.md` PLAY + `ROADMAP.md` + the milestone doc + this runbook in one commit (`D-074`)
-- [ ] 🛑 **Clair hands back with the numbers. Chat re-drives every gate. Joe pushes.**
+✅ **LEG D LANDED 2026-08-04. `aa7d9c9` (D-i, Clair, 2 files, +109/−2) · `9901036` (D-ii, Clair, 2 files, +49/−6). Pushed by Joe; every gate RE-DRIVEN by Chat on the COMMITTED tree at `9901036`.**
+
+| # | gate | result, re-driven at `9901036` |
+|---|---|---|
+| **V0** | cargo before the first `.rs` edit | **1595 / 0 / 62 × 56** — Clair, measured not inherited |
+| **V1** | cargo after D-i | ✅ **1596 / 0 / 62 × 56**, `FAILED` case-sensitive **0**, `^error` **0** — Δ exactly **+1** |
+| **V2** | the Δ by name | `desktop::pass_4_commit_1_tests::fetch_identity_return_serde_transparent_to_js_frontend ... ok` — the only add |
+| **V3** | the test proven able to fail | ✅ literal flipped → **1 failed**, panic at the assertion; reverted, zero leftovers |
+| **V4** | slot gate, **CLEAN TREE** | ✅ **PASS 74 (65 / 5 / 3 / 1)** — unchanged. 📌 *Clair's own V4 ran `-AllowDirty` and the script itself says its numbers are not quotable; **this** run is the quotable one, and the guard doing its job is why* |
+| **V5** | `svelte-check` before the first `ui/**` edit | **0 / 34 / 15** (255 files) — freshly measured, **not** the inherited `87307e8` figure |
+| **V6** | `svelte-check` after D-ii | ✅ **0 / 34 / 15**, Δ **0** |
+| **V7** | scope | ✅ D-i = `{desktop.rs, ops.rs}`, zero `ui/**` · D-ii = `{app_client.svelte, address-book.svelte.ts}`, zero `.rs` — disjoint |
+| **V8** | the split reproduces | 🔑 **PROVEN, NOT ARGUED — see below** |
+
+🔑 **V8 UPGRADED FROM AN ARGUMENT TO A MEASUREMENT.** Clair reported it *"satisfied by construction"*. Measured: `git diff --name-only aa7d9c9 9901036 -- '*.rs'` returns **empty** — **D-ii changed ZERO `.rs`** ⇒ ***the Rust source at `9901036` is byte-identical to D-i's committed tree***, so V1's re-drive at HEAD **is** a measurement of D-i's tree rather than an inference about it. ✅ **FORWARD FORM, GENERAL: a commit split whose halves touch DISJOINT FILE SETS is PROVEN by diffing the halves for the other half's file types — no checkout, no second full run, and no "by construction" required.** *A split not proven to reproduce the tested tree has tested nothing (J-670); this is the cheap proof.*
+
+✅ **AND THE `svelte-check` Δ IS A REAL ARGUMENT, NOT A NUMBER MATCH:** a new warning in a previously-clean file moves **15 → 16**; a new warning in an already-warning file moves **34 → 35**; and D-ii is **pure addition**, so nothing could have been removed to mask one. **Both figures unchanged ⇒ no new warning.**
+
+- [x] **D-i** — `fetch_identity` + registration + the witness test, **one commit, zero `ui/**`** — `aa7d9c9`
+- [x] V0…V4 green; the cargo Δ is **`+1`, named**, and the new test was **proven able to fail**
+- [x] **D-ii** — `resolveMember` + `addMember`'s return + the router hook, **one commit, zero `.rs`** — `9901036`
+- [x] V5…V8 green; the `svelte-check` Δ stated against a **freshly measured** baseline
+- [x] `M_RP_IDENTITY_RESOLUTION.md` §5b annotated — ✅ landed at `304742b`
+- [x] `M_RP_IDENTITY_RESOLUTION.md` §8 Leg D updated with the outcome; §9's citations annotated
+- [x] **`G-B` TICKED** — Leg E discharged J-670, Leg D landed here; `N-168` satisfied by the pair
+- [x] Leg F's obligation list grown by this leg's three unverifiable cases **and** the join-concurrency count
+- [x] Records: JOURNAL + `CLAUDE.md` PLAY + `ROADMAP.md` + the milestone doc + this runbook in one commit (`D-074`)
+- [x] 🛑 **Clair handed back with the numbers and did not close her own leg. Chat re-drove every gate. Joe pushed.**
+
+---
+
+## §10 — WHAT THE IMPLEMENTATION FOUND THAT THE RUNBOOK DID NOT KNOW
+
+### ✅ §7-b's deliberate hole, filled by grounding
+
+**`chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)`** — the exact producer `fill_from_events` uses at **`ops.rs:2913`**, whose value flows into `absorb_fetch(book, fetched, &now)` at **`:2947`**. 🔑 *The hole was marked rather than guessed precisely so this would be a lookup instead of a coin-flip, and it was.* **No second timestamp format enters `last_seen`.**
+
+### ✅ §7's other six items — all grounded, all held
+
+(a) `SeenRecord` derives `Serialize` (`address_book.rs:79`) and already crosses IPC inside `get_address_book`'s map · (c) `absorb_fetch` was private, now `pub(crate)`, **not `pub`** · (d) `book.get` takes `&str` (`:203`) and `IdentityXgid: Borrow<str>`, so `&String` coerces · (e) 🔑 **`addMember` has exactly ONE call site across all of `ui/**` INCLUDING the sampler** — the sweep §7 demanded, and the `void`→`boolean` change is genuinely additive · (f) the `{ identityId }` camelCase mapping matches `:222`'s precedent · (g) only the roster-marker `unresolved` was touched; the dock leaf and `echo-status` are untouched.
+
+### 🔒 R-D3's PARENTHETICAL IS ANNOTATED; THE CODE STANDS (`D-131`)
+
+Clair flagged a real mismatch: §5-1(b)'s code guards the **whole function** on `spaceId !== _spaceId`, so the `_book` merge is scoped too — while `R-D3`'s aside read *"the `_book` half is scope-free — the book is a global cache keyed by identity."*
+
+🔒 **RULED (Chat): THE CODE IS THE INTENT. `R-D3`'s note was an OBSERVATION about what `_book` is, never an instruction to leave the merge unguarded.** Annotated, not changed.
+
+🔑 **AND CLAIR'S CONSEQUENCE WAS RIGHT IN DIRECTION AND WRONG IN MECHANISM — IN THE SAFE DIRECTION.** She wrote: *"a harmless missed cache entry, re-fetched by the next fill."* **Measured: it is NOT re-fetched.** D-i persisted the record to disk **before** the frontend guard ever ran, so the next `get_address_book` returns it, and §5b's rule — *once the book holds someone it never asks again* — means the fill does not re-fetch at all. ⇒ ***THE WHOLE-FUNCTION GUARD IS SAFE BECAUSE §4 LOCKED B2.*** Under B1 the late-resolving record would have been **lost outright**. 🔑 **That is a SECOND consequence of B2 that nobody priced when B2 was chosen** — the lock is load-bearing in a place its own derivation never looked.
+
+### 📌 EOL, recorded so it is not misread later
+
+`ops.rs`, `app_client.svelte` and `address-book.svelte.ts` are **CRLF in the working tree via `core.autocrlf`** and **LF in the index** (`i/lf` on all four touched files); `desktop.rs` is LF throughout. **Pre-existing, the J-643 shape, not introduced by this leg** — and the index form is what ships. All four diffs are clean localized hunks with no whole-file EOL churn.

@@ -1,8 +1,8 @@
 # M-RP-IDENTITY-RESOLUTION Leg D — Tier-1 fetch on join — Phase-0
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-03  
+> **Last updated**: 2026-08-04  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -252,12 +252,12 @@ These are sequencing, records and technical execution. **Reversible on one line;
 - [x] §5 `FillLock` ruled — ✅ **C1 (Joe, 2026-08-03)**
 - [x] §6 the ③ arm ruled — ✅ **D1 (Joe, 2026-08-03)**
 - [x] Runbook authored from the locked answers, **written so Clair can refuse it** — ✅ **`tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_D.md` v1.0 ACTIVE (2026-08-03).** §7 names where it is most likely wrong and states outright that the list is **not** a census of its errors
-- [ ] D-i lands alone; cargo delta stated **before** the run and explained after
-- [ ] D-ii lands alone; `svelte-check` re-measured before the first edit
-- [ ] xgid-slot-gate re-run after D-i; any manifest movement **ruled, not suppressed**
-- [ ] §9's four annotations applied in the `D-074` bundle
-- [ ] **`G-B` TICKED — and only here.** Leg E is discharged (J-670); **Leg D landing is what closes it** (`N-168`). No other leg may tick it
-- [ ] Records: JOURNAL + `CLAUDE.md` PLAY + `ROADMAP.md` + `M_RP_IDENTITY_RESOLUTION.md` + this doc in one commit (`D-074`)
+- [x] D-i lands alone; cargo delta stated **before** the run and explained after — ✅ `aa7d9c9`, **1595 → 1596**, the `+1` predicted in the runbook §3 and the added test named at V2
+- [x] D-ii lands alone; `svelte-check` re-measured before the first edit — ✅ `9901036`, V5 **0/34/15** freshly measured, V6 Δ **0**
+- [x] xgid-slot-gate re-run after D-i; any manifest movement **ruled, not suppressed** — ✅ **PASS 74 unchanged, CLEAN TREE** (Clair's own run was `-AllowDirty` and not quotable; the guard doing its job is why)
+- [x] §9's four annotations applied in the `D-074` bundle — ✅ landed at `304742b`
+- [x] **`G-B` TICKED — and only here.** ✅ Leg E discharged J-670; **Leg D landed at `aa7d9c9` + `9901036`** ⇒ `N-168` satisfied by the pair, ticked by neither alone
+- [x] Records: JOURNAL + `CLAUDE.md` PLAY + `ROADMAP.md` + `M_RP_IDENTITY_RESOLUTION.md` + this doc in one commit (`D-074`) — ✅ J-672
 
 ---
 
@@ -266,6 +266,8 @@ These are sequencing, records and technical execution. **Reversible on one line;
 ✅ **ALL FOUR RULED 2026-08-03 (Joe): A3 · B2 · C1 · D1 — taken as ONE answer, which is the shape this section predicted they had.** §5 is forced by §4, §4 by §2b + the `N-097` inversion, §6 by `G-B`'s own logic; **§3 was the only one with genuine slack**, and A3 defers it onto a measurement Leg F already owes.
 
 🔓 **NOTHING IN THIS DOCUMENT REMAINS OPEN FOR JOE.** ⇒ **the runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_D.md` is authored from these four locks**, and Clair implements from it. 🛑 **She does not close her own leg.**
+
+✅ **CLOSED 2026-08-04 (J-672). Leg D landed at `aa7d9c9` (D-i) + `9901036` (D-ii), Clair; every gate re-driven by Chat on the committed tree; `G-B` ticked.** 🔑 **THE FOUR LOCKS ALL PAID:** B2's persistence turned out to be load-bearing in a **second** place its own derivation never looked — it is what makes `resolveMember`'s whole-function scope guard safe, because a late-resolving fetch's record is already on disk and §5b guarantees the fill will not re-ask for it. 📌 *Runbook §10 carries the finding.* ⚠️ **AND THE LEG IS COMPILE- AND TYPE-VERIFIED ONLY — no joiner, no `not_found`, no badge observed. Every positive case is Leg F's, whose list grew by four.**
 
 🔒 **NOT JOE'S, AND NOT BEING PUT UP:** §7's five `R-D` rulings. They are sequencing, naming and records — `D-123`'s Chat seat, where **under-stepping is the named failure mode** (J-618 · J-669 · J-670).
 

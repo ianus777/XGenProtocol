@@ -1,8 +1,8 @@
 # M-RP-IDENTITY-RESOLUTION — what a member row shows before the client knows who it is
 > **Status**: ACTIVE  
-> Version: 1.17  
+> Version: 1.18  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-03  
+> **Last updated**: 2026-08-04  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -344,6 +344,8 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 
 ⚠️ *v1.13–v1.16 read: **"AND IT IS NOT THE NEXT LEG TO OPEN. `M-RP-XGID-SLOT-RETYPE` (`D-136`) LANDS FIRST, STANDALONE."** ✅ **DISCHARGED — that milestone CLOSED at J-669** (74 slots on the manifest, gate PASS, re-run at `aae60be`). **Nothing is in front of Leg D.** Superseded, kept not erased (`D-131`).*
 
+✅ **LEG D CLOSED 2026-08-04 (J-672). `aa7d9c9` D-i [Clair, 2 files, +109/−2] · `9901036` D-ii [Clair, 2 files, +49/−6]; every gate re-driven by Chat on the COMMITTED tree.** `fetch_identity` ships as an 18→19th Tauri command returning `Option<SeenRecord>`, holding the `FillLock`, absorbing through `absorb_fetch` (now `pub(crate)`) and saving the book; `resolveMember` merges one record, **clears `unresolved`**, and routes a null to `_notFound`; `addMember` returns `boolean` so the router fetches only on a real add. **cargo 1595 → 1596** (Δ named, and the new test **proven able to fail**) · **`svelte-check` 0/34/15 → 0/34/15** against a freshly measured baseline · **slot gate PASS 74 unchanged on a CLEAN tree.** 🔑 **THE `now` PRODUCER WAS GROUNDED, NOT GUESSED** — the runbook left it as a marked hole and Clair filled it from `ops.rs:2913`, so no second timestamp format enters `last_seen`. 🔑 **AND B2 PAID TWICE:** persistence is also what makes `resolveMember`'s whole-function scope guard safe — a fetch resolving after a room switch drops its frontend write, but the record is **already on disk**, and §5b guarantees the next fill will not re-ask. **Under B1 it would have been lost outright** — a consequence B2's own derivation never looked at. 📌 *Runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_D.md` **v1.1 COMPLETED** §10; Phase-0 `tasks/M_RP_IDENTITY_RESOLUTION_LEGD_PHASE0.md` **v1.2 COMPLETED**.* ⚠️ **COMPILE- AND TYPE-VERIFIED ONLY — no joiner, no `not_found`, no badge observed.**
+
 ✅ **GATE DISCHARGED 2026-08-02 (J-665): `M-RP-XGID-SLOT-RETYPE` LEG B LANDED at `c2975f3`.** `SeenRecord` and `FetchedIdentity` are typed, the address book is `BTreeMap<IdentityXgid, SeenRecord>`, and the three `String`↔typed bridge sites in `ops.rs` are gone. 🔒 **THIS LEG IS NOW OPENABLE** — opening it is Joe's. 📌 *The leg's name there is now **"the four address-book slots"**; "the three address-book structs" below is the superseded name, kept not erased (`D-131`).*
 
 🔒 **NARROWED AT v1.14 (J-659), AFTER THAT MILESTONE'S SWEEP RAN: THIS LEG IS GATED ON ITS **LEG B** — the three address-book structs — NOT ON ITS CLOSE.** ⚠️ **The narrowing is forced by a measurement, not a preference: the record said *three structs*; the sweep found **88 identifier slots across 59 struct sites in four crates**.** 🔑 ***A dependency priced from a record that described three structs was a dependency priced from a sample*** — and gating this leg on all 88 would block it behind work it has no relationship to. ✅ **Legs A (enforcement) and B (the three structs) are small and on the path; Leg C is not.** 📌 *Recorded on both sides under `D-133`; see `tasks/M_RP_XGID_SLOT_RETYPE.md` §7.* The v1.0–v1.12 record offered *"lands first, OR Leg D absorbs it"*; **the fork is taken, not left open.** Three reasons, the third decisive:
@@ -361,7 +363,14 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 - ✅ **GROUNDED, NOT ASSUMED — THE PARENT'S LEG C DOES NOT DEPEND ON ITS LEG B.** Leg B builds **delta setters** for live events; Leg C **re-runs fills**. Different mechanisms. ⇒ the ordering is free.
 - 🔑 **AND LEG C HAS TWO HALVES, OF WHICH THIS MILESTONE NEEDS ONLY ONE.** The **members** half is free — `loadMembers(sid)` is already a named callable with the §3.5 late-guard. The **spaces/rooms** half is not: `spacesState.setSpaces(await invoke('get_spaces'))` is an **inline line inside the startup block** (`app_client.svelte:625`), **not a function**, and needs extracting. ⇒ **this milestone's dependency is the cheaper half**, which is worth knowing before the parent's runbook is scoped.
 
-**Leg F — live verify + records.** Two clients, a real join, a real `not_found`. ⚠️ **A store driven by hand is a probe that cannot fail.** 🔒 **AND IT NOW CARRIES THREE OBLIGATIONS MOVED OUT OF LEG B (Joe, J-653):** ① a real join producing `data-unresolved="unasked"` · ② a real `not_found` producing the ③ filter **and §5a's E2 exception** · ③ a populated roster giving `erasedHidden` something to count. 🛑 **Leg F is the FIRST behaviour verification of this milestone — Legs A and B are compile- and type-verified only.**
+**Leg F — live verify + records.** Two clients, a real join, a real `not_found`. ⚠️ **A store driven by hand is a probe that cannot fail.** 🔒 **AND IT NOW CARRIES THREE OBLIGATIONS MOVED OUT OF LEG B (Joe, J-653):** ① a real join producing `data-unresolved="unasked"` · ② a real `not_found` producing the ③ filter **and §5a's E2 exception** · ③ a populated roster giving `erasedHidden` something to count. 🛑 **Leg F is the FIRST behaviour verification of this milestone — Legs A, B and D are compile- and type-verified only.**
+
+🔒 **AND LEG D ADDED FOUR MORE (J-672) — IT IS THE LEG THAT CREATED THE SURFACE FOR ALL OF THEM:**
+
+- ④ **a joiner resolving to ①/②** — the name lands **and the AI badge lights.** 🔑 *This is the one that proves §2b: the badge is gated on the `unresolved` clear, not on the record arriving, and nothing before Leg F can show which.*
+- ⑤ **a joiner resolving to ③** — an erased live joiner reaches `_notFound` and is hidden, or **marked** if they are the DM counterpart. 📌 *§5a's E2 exception is reachable for the first time here — Leg D is what made it so.*
+- ⑥ **a joiner whose fetch FAILS or TIMES OUT** — the row stays ④ and **nothing retries it.** This is the T3 residue (`D-126`), and Leg D is what creates the state at all.
+- ⑦ **JOIN CONCURRENCY** — how many joins arrive at once. 🔒 *A3 shipped one-shot `identity_get` (one connect/auth/`goodbye` per joiner); if N-at-once joins are common the batched form returns as a live option, and if they are not it is **closed with its reason**. Priced against a number, not a fear.*
 
 📌 **A/B/C/D split by floor deliberately** — A and D move cargo, B moves `svelte-check`, C moves neither. One commit spanning them makes a regression unattributable.
 
@@ -388,10 +397,10 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 - [x] §7 Tier-1 fetch ruled by Joe — ✅ **RULED 2026-08-02 (J-658): IT SHIPS, as Leg D**, together with §6 as one decision (option **T2**)
 - [x] §6's refresh trigger ruled by Joe — ✅ **RULED 2026-08-02 (J-658): R1**, a re-fill on the transition into `READY`; **the parent's Leg C builds it**
 - [x] **G-A closed** — ✅ **J-647.** `FillReport.not_found_ids: Vec<IdentityXgid>` ships; the client can name which members returned `not_found`
-- [ ] **G-B closed** — a refresh trigger that actually fires, named and built. 🛑 **CLOSES ON LEG D *AND* LEG E TOGETHER, NEVER EITHER ALONE (N-168, §6b)** — Leg D makes the attempt happen on the ordinary path, Leg E recovers the exceptional one. **No single leg may tick this**
-- [ ] **The residue re-priced** — Leg F measures how often a Tier-1 fetch times out; **T3's bounded retry returns as a live option, or becomes a defect** (§6b `Owes:`)
-- [ ] cargo floor re-measured on every Rust leg, delta explained
-- [ ] `svelte-check` floor re-measured on every frontend leg, delta explained
+- [x] **G-B closed** — ✅ **CLOSED 2026-08-04 (J-672) BY THE PAIR, EXACTLY AS `N-168` REQUIRED.** Leg E (the refresh trigger, R1) discharged J-670 by `M-RP-LIVEFEED-REFRESH` Leg C; **Leg D (the attempt on the ordinary path) landed at `aa7d9c9` + `9901036`.** 🔑 *Neither leg ticked it alone, and the record shows both dates — which is the whole point of §6b's rule.* ⚠️ **The MECHANISM is built and compile-verified; that a refresh actually fires ON SCREEN is Leg F's ⑤/⑥.**
+- [ ] **The residue re-priced** — Leg F measures how often a Tier-1 fetch times out; **T3's bounded retry returns as a live option, or becomes a defect** (§6b `Owes:`). 📌 *Now REACHABLE — Leg D created the state; before it, a Tier-1 fetch could not time out because there was no Tier-1 fetch.*
+- [x] cargo floor re-measured on every Rust leg, delta explained — ✅ Leg A, Leg D-i (**1595 → 1596**, Δ named, test proven able to fail)
+- [x] `svelte-check` floor re-measured on every frontend leg, delta explained — ✅ Leg B, Leg C, Leg D-ii (**0/34/15 → 0/34/15** against a freshly measured baseline, not the inherited figure)
 - [ ] **Live-verified, EXERCISED not asserted** — two clients, a real join, a real `not_found`; ③ hidden, ④ dimmed, both resolving on refresh
 - [ ] Records: JOURNAL + CLAUDE.md PLAY + ROADMAP + this doc in one commit (D-074)
 

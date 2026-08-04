@@ -2549,6 +2549,29 @@ html, body {
   box-shadow: inset 2px 0 0 var(--accent, var(--pr));
 }
 
+/* base — both unresolved states: what sits in `.ei-name` on those rows is an xgid TAIL, not a
+ * display name, so it does not carry a name's weight. `500` is the step the inline variant above
+ * already uses. Scoped to `.ei-name` for the same reason the erased rule is: an `opacity` on the
+ * ROOT would composite the `[data-selected]` inset bar away with everything else (§5a-i). It sets
+ * weight ONLY, so it shares no property with either state rule and their source order carries no
+ * meaning between them. */
+.entity-item[data-unresolved] .ei-name {
+  font-weight: 500;
+}
+
+/* unasked — state ④: the client has not looked this identity up yet. The row RECEDES and asserts
+ * nothing; `--t3` is already this component's supporting-text tone (`.ei-secondary`, `.ei-meta`).
+ * No decoration — a mark is a CLAIM, and ④ is the absence of one, which is the whole difference
+ * from `erased` below, a terminal fact and therefore marked.
+ *
+ * ⚠️ Honest only because G-B closed (J-672): dimming says *not yet*, and *not yet* commits the
+ * panel to eventually resolving. Leg D fetches on join (the ordinary path), Leg E re-fills on
+ * reconnect (the exceptional one). Shipping this before both existed was the defect Leg C was
+ * split to avoid. */
+.entity-item[data-unresolved="unasked"] .ei-name {
+  color: var(--t3);
+}
+
 /* unresolved — what the CLIENT knows about this identity, never a property of the entity
  * (M-RP-IDENTITY-RESOLUTION §4/§5a). The hook is VALUED: `erased` = state ③, the node answered
  * `identity.not_found` ⇒ the identity is GONE and can never sign an event again (§1 G3) — a
@@ -2561,14 +2584,14 @@ html, body {
  *
  * ⚠️ THIS RULE IS (0,3,0) AND TARGETS A DESCENDANT — it does not compete with `[data-selected]`
  * (0,2,0, on the ROOT) at all; the two paint different elements. Nothing later in this file
- * reaches `.ei-name` (only :2452 and the inline-variant rule above), so it wins by source order
+ * reaches `.ei-name` (only :2475 and the inline-variant rule above), so it wins by source order
  * among equals. It sets no `background` because a background here would paint the TEXT BOX, not
  * the row — which is not what a mark means.
  *
  * ⚠️ What is struck is an xgid TAIL, not a display name — an erased row has no name to strike
- * (§5b). ⚠️ `[data-unresolved="unasked"]` (state ④, DIMMED) is DELIBERATELY ABSENT: it must not
- * ship before a refresh trigger exists, or the panel promises a resolution it cannot deliver
- * (Phase-0 §11, G-B). It lands with Leg C-3, and its BASE rule must be placed ABOVE this one. */
+ * (§5b). `[data-unresolved="unasked"]` (state ④) shipped at Leg C-3 and sits above this rule with
+ * the shared base rule; it became honest when G-B closed (J-672), a refresh now arriving on both
+ * the ordinary path (Leg D's fetch on join) and the exceptional one (Leg E's reconnect). */
 .entity-item[data-unresolved="erased"] .ei-name {
   color: var(--t2);
   text-decoration: line-through;

@@ -2583,10 +2583,12 @@ html, body {
  * row's own surface to the selection.
  *
  * ⚠️ THIS RULE IS (0,3,0) AND TARGETS A DESCENDANT — it does not compete with `[data-selected]`
- * (0,2,0, on the ROOT) at all; the two paint different elements. Nothing later in this file
- * reaches `.ei-name` (only :2475 and the inline-variant rule above), so it wins by source order
- * among equals. It sets no `background` because a background here would paint the TEXT BOX, not
- * the row — which is not what a mark means.
+ * (0,2,0, on the ROOT) at all; the two paint different elements. Nor does it compete with the
+ * `.ei-name` rules above it: the shared base rule sets only `font-weight`, and `unasked` can
+ * never match the same element as `erased` — `data-unresolved` carries one value per row. It is
+ * also the LAST `.ei-name` rule in the file, so source order would settle any tie that did
+ * arise. It sets no `background` because a background here would paint the TEXT BOX, not the
+ * row — which is not what a mark means.
  *
  * ⚠️ What is struck is an xgid TAIL, not a display name — an erased row has no name to strike
  * (§5b). `[data-unresolved="unasked"]` (state ④) shipped at Leg C-3 and sits above this rule with

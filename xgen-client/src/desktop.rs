@@ -712,6 +712,79 @@ async fn fill_space_records(
     result.map_err(|e| format!("{e:#}"))
 }
 
+/// Fetch ONE Identity record on demand and absorb it into the book
+/// (M-RP-IDENTITY-RESOLUTION Leg D, §7 Tier-1 fetch on join).
+///
+/// Called by the shell's membership router when a live `membership.join`
+/// adds a member the fill was never asked about (G7) — the ONLY state in
+/// which a roster row exists with no book record.
+///
+/// Returns the record AS THE BOOK NOW HOLDS IT, not as the wire delivered
+/// it: `merge` is version-aware (§5 V2), so a seeded higher-version record
+/// out-ranks a fetch and the caller must mirror what won, not what was sent.
+///
+/// `Ok(None)` ⇔ `identity.not_found` ⇔ state ③ (ERASED under `D-127`) — a
+/// normal outcome, never an error. The frontend routes it to `_notFound`.
+///
+/// Takes the `FillLock` (§3): this is the SECOND writer of the on-disk book
+/// and a read-modify-write race with a concurrent fill would silently
+/// discard resolved records — the outcome `fill_space_records:678-679`
+/// names in its own words.
+#[tauri::command]
+async fn fetch_identity(
+    identity_id: String,
+    data: tauri::State<'_, DataDir>,
+    config: tauri::State<'_, ConfigPath>,
+    lock: tauri::State<'_, FillLock>,
+) -> Result<Option<crate::address_book::SeenRecord>, String> {
+    let _guard = lock.0.lock().await;
+
+    let data_dir = data.0.clone();
+    let config_path = config.0.clone();
+
+    // The `fill_space_records` preamble, unchanged: resolve the node so
+    // `home_node` is non-empty (else `ensure_connected` bails), load the
+    // identity so the fetch can authenticate.
+    let node = app::resolve_node(None, &config_path);
+    let mut session = crate::session::SessionState::new(node, data_dir.clone());
+    session
+        .ensure_identity(&app::resolve_keypair_path(&config_path))
+        .map_err(|e| format!("{e:#}"))?;
+
+    let mut book = crate::address_book::AddressBook::load(&data_dir).map_err(|e| format!("{e:#}"))?;
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir: &data_dir,
+        node_override: None,
+    };
+
+    let fetched = crate::ops::identity_get(&mut ctx, &identity_id)
+        .await
+        .map_err(|e| format!("{e:#}"))?;
+
+    let found = fetched.is_some();
+    // The SAME "now" the fill stamps (ops.rs:2913) — an identical RFC-3339
+    // millisecond form, so a joiner's `last_seen` is byte-comparable with a
+    // fill's `last_seen` and never a second timestamp format in the one field
+    // (runbook §7-b: the producer was grounded, not guessed).
+    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    let _absorbed = crate::ops::absorb_fetch(&mut book, fetched, &now);
+
+    // Persist before answering, for the same reason `fill_space_records`
+    // does: an absorbed observation that is not saved is work thrown away.
+    book.save(&data_dir).map_err(|e| format!("{e:#}"))?;
+
+    // `found` is load-bearing and NOT redundant with `book.get`: `absorb_fetch`
+    // leaves the book UNCHANGED on `not_found` (ops.rs:2837), so a pre-existing
+    // cached record would still be returned by `book.get` — and reporting an
+    // erased identity as resolved would keep the frontend's ③ arm from firing.
+    Ok(if found {
+        book.get(&identity_id).cloned()
+    } else {
+        None
+    })
+}
+
 #[tauri::command]
 fn quit(app: AppHandle) {
     emit_state(&app, ClientLifecycleState::Closing);
@@ -1027,7 +1100,8 @@ pub fn run(
             get_self_state,
             get_spaces,
             get_address_book,
-            fill_space_records
+            fill_space_records,
+            fetch_identity
         ])
         .run(tauri::generate_context!())
         .expect("error while running xgen-client desktop shell");
@@ -1063,6 +1137,39 @@ mod pass_4_commit_1_tests {
         assert!(json.contains(r#""space_id":"xgen://hash/sha256:S""#), "got {json}");
         assert!(
             json.contains(r#""sender_identity_id":"xgen://pubkey/ed25519:M""#),
+            "got {json}"
+        );
+    }
+
+    /// Leg D — `fetch_identity`'s return (`Option<SeenRecord>`) crosses the IPC
+    /// boundary with its two identifier slots as PLAIN STRINGS. `SeenRecord`
+    /// carries `IdentityXgid` and `NodeXgid`; if either lost serde-transparency
+    /// the frontend's `_book` would silently receive nested objects and every
+    /// name lookup would miss. Exhaustive named literal (no `..Default`) so a
+    /// future field addition breaks this test rather than passing silently
+    /// (the J-669 V3-a rule).
+    #[test]
+    fn fetch_identity_return_serde_transparent_to_js_frontend() {
+        use xgen_common::xgid::NodeXgid;
+        let rec = crate::address_book::SeenRecord {
+            identity_id: IdentityXgid::from_xgid(Xgid::new(
+                "xgen://pubkey/ed25519:M".to_string(),
+            )),
+            display_name: Some("Ada".to_string()),
+            is_ai: true,
+            home_node: NodeXgid::from_xgid(Xgid::new("xgen://pubkey/ed25519:N".to_string())),
+            last_seen: "2026-08-03T12:00:00.000Z".to_string(),
+            update_version: 0,
+            revoked: false,
+            trust_assertion: None,
+        };
+        let json = serde_json::to_string(&rec).unwrap();
+        assert!(
+            json.contains(r#""identity_id":"xgen://pubkey/ed25519:M""#),
+            "got {json}"
+        );
+        assert!(
+            json.contains(r#""home_node":"xgen://pubkey/ed25519:N""#),
             "got {json}"
         );
     }

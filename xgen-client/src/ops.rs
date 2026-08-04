@@ -2824,7 +2824,7 @@ pub struct FillReport {
 /// seeded higher version. In the live fill this is a plain insert — held
 /// identities are never re-fetched — but routing through `merge` keeps the
 /// wire-vs-seed precedence correct for Option C and for M13.
-fn absorb_fetch(
+pub(crate) fn absorb_fetch(
     book: &mut crate::address_book::AddressBook,
     fetched: Option<FetchedIdentity>,
     now: &str,

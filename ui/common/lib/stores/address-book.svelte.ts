@@ -179,12 +179,17 @@ export const addressBook = {
   //        router) keeps ONE scope authority for the store (the D-067 drift a second one would open).
   /** Add a live-joined member. Stamps the `unresolved` marker (§5): this member reached the roster via a
    *  delta, so the book was never consulted for them. No-op if the roster is unknown (R1), if the scope has
-   *  moved on (R4), or if the member is already present (R3). Reassigns a fresh array (Svelte 5 $state). */
-  addMember(spaceId: string, entry: MemberEntry): void {
-    if (spaceId !== _spaceId) return; // R4 — scope guard
-    if (_roster === null) return; // R1 — no delta onto an unknown roster
-    if (_roster.some((m) => m.identity_id === entry.identity_id)) return; // R3 — idempotent add
+   *  moved on (R4), or if the member is already present (R3). Reassigns a fresh array (Svelte 5 $state).
+   *  Returns `true` iff the roster ACTUALLY gained the member (Leg D / R-D6): the router fires the Tier-1
+   *  fetch only on a real add, so a no-op under R1/R3/R4 does not fetch. The three rules stay INSIDE the
+   *  store — the router cannot see which one fired without duplicating them outside it (the D-067 drift the
+   *  rules were centralised to prevent). */
+  addMember(spaceId: string, entry: MemberEntry): boolean {
+    if (spaceId !== _spaceId) return false; // R4 — scope guard
+    if (_roster === null) return false; // R1 — no delta onto an unknown roster
+    if (_roster.some((m) => m.identity_id === entry.identity_id)) return false; // R3 — idempotent add
     _roster = [..._roster, { ...entry, unresolved: true }];
+    return true;
   },
   /** Remove a member the live channel says has left or been removed. No-op if the roster is unknown (R1),
    *  if the scope has moved on (R4), or if the member is absent (R3 — not an error). */
@@ -193,6 +198,28 @@ export const addressBook = {
     if (_roster === null) return; // R1 — no delta onto an unknown roster
     if (!_roster.some((m) => m.identity_id === identityId)) return; // R3 — idempotent remove (no-op if absent)
     _roster = _roster.filter((m) => m.identity_id !== identityId);
+  },
+  /** Leg D — one member resolved by the Tier-1 fetch on join. `record === null` means the node answered
+   *  `identity.not_found` (state ③, ERASED under D-127), NOT that the fetch failed — a rejected invoke never
+   *  reaches here. Three writes, and the SECOND is the point:
+   *    ① merge ONE record into `_book` — `setResult` stays the only WHOLESALE writer;
+   *    ② CLEAR `unresolved` on the roster row — `members-panel:101` tests the marker BEFORE it reads the
+   *       book, so without this the record lands and the AI badge stays dark;
+   *    ③ on null, push to `_notFound` — otherwise an erased joiner is dimmed forever and §4c-i's promise
+   *       never concludes.
+   *  Scope-guarded like `setResult`/`addMember`: a fetch fired at join and resolving after a room switch
+   *  must not clear a marker in a scope the user has left. */
+  resolveMember(spaceId: string, identityId: string, record: SeenRecord | null): void {
+    if (spaceId !== _spaceId) return; // scope guard — the setResult/addMember idiom
+    if (_roster === null) return; // R1 — no delta onto an unknown roster
+    if (record !== null) {
+      _book = { ..._book, [identityId]: record }; // ① merge one, never wholesale
+    } else if (!_notFound.includes(identityId)) {
+      _notFound = [..._notFound, identityId]; // ③ the erased arm, idempotent
+    }
+    _roster = _roster.map((m) =>
+      m.identity_id === identityId ? { ...m, unresolved: false } : m,
+    ); // ② the marker clear — the leg's whole point
   },
 };
 

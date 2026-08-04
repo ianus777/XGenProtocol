@@ -242,6 +242,19 @@
     spacesState.setSpaces(await tauriInvoke('get_spaces'));
   }
 
+  // Leg D — the Tier-1 fetch on join (§7). Fire-and-forget: the router must not become async, and a failed
+  // fetch leaves the row at state ④ (dimmed), which is exactly what §4 says ④ is for. `tauriInvoke`, NOT the
+  // bare `invoke` at :651 — that one is an onMount-local destructured import and does not resolve at this
+  // scope (the J-670 lesson ②). A null record is `identity.not_found` (state ③); a rejected invoke is caught.
+  async function fetchJoinerIdentity(sid, identityId) {
+    try {
+      const record = await tauriInvoke('fetch_identity', { identityId });
+      addressBook.resolveMember(sid, identityId, record ?? null);
+    } catch {
+      /* the fetch failed or timed out — the row stays ④. Leg F measures how often (§6b Owes:). */
+    }
+  }
+
   // M-RP-LIVEFEED-REFRESH Leg A — the live membership router. Called from the `xgen-event` listener beside
   // `ingest.push` (:552, untouched): every inbound Event flows through here, and only `membership.*` deltas
   // that change WHO IS IN THE ROOM NOW reach the address-book roster. The three non-obvious store rules
@@ -260,12 +273,15 @@
         // buildEntry (runbook §4): REAL wire fields only. The `unresolved` marker is stamped by addMember,
         // not here. `role: ''` is honest-empty — no wire field carries authority, and 'member' would be an
         // invented claim (D-065). `joined_at` is the real wire timestamp; `invited_by` is not carried.
-        addressBook.addMember(payload.space_id, {
+        const added = addressBook.addMember(payload.space_id, {
           identity_id: subject,
           role: '',
           joined_at: payload.timestamp,
           invited_by: null,
         });
+        // Leg D (§7) — resolve the joiner's identity (name + AI badge) only on a REAL add. addMember returns
+        // false on an R1/R3/R4 no-op (R-D6), so firing the fetch then would be a wasted round trip.
+        if (added) void fetchJoinerIdentity(payload.space_id, subject);
         return;
       }
       case 'membership.leave': {

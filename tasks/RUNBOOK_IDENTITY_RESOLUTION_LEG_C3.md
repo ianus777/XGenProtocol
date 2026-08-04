@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-IDENTITY-RESOLUTION Leg C-3 — the base rule and the unasked skin
-> **Status**: ACTIVE  
-> Version: 1.4  
+> **Status**: COMPLETED  
+> Version: 1.5  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-04  
 > Language: English  
@@ -174,13 +174,65 @@
 
 ## §7 — DoD (Leg C-3)
 
-- [ ] Both rules land in `ui/assets/skin.css`, **above** the erased rule
-- [ ] 🛑 **Step C3-2's two surgical edits made** — the *"DELIBERATELY ABSENT"* sentence retired verbatim as written (`N-109`, J-655's obligation), and the stale `:2452` corrected to `:2475`, **re-derived not copied**
-- [ ] W1…W5 green; `cargo` **not run, and the close says so** with the by-scope proof
-- [ ] W6…W11 green on the sampler, **computed style not rule text**, ids **enumerated not assumed**
-- [ ] 🔒 **W9 and W10 explicitly re-checked** — the erased row is touched by this leg and must be shown still correct
-- [ ] The close records the weight change on the erased row as **expected (R-C3-4)**, not as a delta to explain away
-- [ ] 🛑 **The close says: *the mechanism is verified, the values are Joe's and unreviewed* (`D-138` §4).** Never *"verified"* flat, and never *"pending approval"* — the instruments cover application, not appearance
-- [ ] `M_RP_IDENTITY_RESOLUTION.md` Leg C node → all three thirds shipped; ROADMAP Leg C 🟢 → ✅
-- [ ] Records: JOURNAL + `CLAUDE.md` PLAY + `ROADMAP.md` + the milestone doc + this runbook in one commit (`D-074`)
-- [ ] 🛑 **Clair hands back with the numbers. Chat re-drives every gate. Joe pushes.**
+✅ **LEG C-3 LANDED 2026-08-04. `8a650b1` (Clair, 1 file, +27/−4) · `03c92cc` (the comment follow-up, Clair, 1 file, +6/−4). Pushed by Joe; every gate RE-DRIVEN by Chat on the committed tree.**
+
+| # | gate | result at `03c92cc` |
+|---|---|---|
+| **W1** | `git diff --stat` | ✅ **1 file, +27 / −4** — reconciles against the `+~26/−5` estimate: C3-1 = 23 insertions, the N-109 retirement = 3/3 (its first line is identical), the citation = 1/1 |
+| **W2** | `svelte-check` | ✅ **0 / 34 / 15 UNCHANGED** |
+| **W3** | sampler catalogue | ✅ **435 UNCHANGED**, read live off `__XGEN_DEBUG__.ids().length` — **and zero `.svelte` by scope, so the measurement and the argument agree** |
+| **W4** | cargo | 🔒 **NOT RUN**, zero `.rs` by scope. Floor stays **1596 / 0 / 62 × 56**, stated rather than silently skipped |
+| **W5** | `git ls-files --eol` | ✅ **`i/lf w/lf`** |
+| **W6** | ids **enumerated**, not assumed | ✅ `attr` reads **`'unasked'`** and **`'erased'`** off the painted DOM |
+| **W7** | computed style, unasked `.ei-name` | ✅ **`rgb(138, 136, 128)`** (`--t3`) · weight **500** · `text-decoration-line` **none** |
+| **W8** | the root untouched | ✅ **STRONGER THAN ASKED — see §8** |
+| **W9** | the erased row still marked | ✅ `line-through` · **`rgb(200,196,188)`** (`--t2`) · rule **`rgb(88,92,100)`** (`--t4`) · **1px** — **and weight now 500** (`R-C3-4`, expected) |
+| **W10** | §5a-i survives | ✅ **`box-shadow: rgb(154,106,48) 2px 0px 0px 0px inset`**, `data-selected` true |
+| **W11** | the resolved control row | ✅ weight **600** · **`rgb(236,233,225)`** (`--t`) · no decoration · **`data-unresolved` absent entirely** |
+
+**Follow-up `03c92cc` — F1…F7 all green:** 1 file **+6/−4** · **comment-only PROVEN** (`git diff -U0`, every changed line begins ` *`) · live gates **not re-run and the close says why** · `svelte-check` **0/34/15** · cargo **not run** · **`i/lf`** · braces **486/486** — 🔑 *and comment delimiters **279/279**, which is the sharper check for a comment edit and the one that would catch an early `*/` swallowing the rules below.*
+
+- [x] Both rules land in `ui/assets/skin.css`, **above** the erased rule — base `:2558`, unasked `:2571`
+- [x] 🛑 **Step C3-2's two surgical edits made** — the *"DELIBERATELY ABSENT"* sentence retired verbatim (`N-109`, J-655's obligation **paid**), and `:2452` → `:2475` **re-derived not copied**
+- [x] W1…W5 green; `cargo` **not run, and the close says so** with the by-scope proof
+- [x] W6…W11 green on the sampler, **computed style not rule text**, ids **enumerated not assumed**
+- [x] 🔒 **W9 and W10 explicitly re-checked** — the erased row is touched by this leg and was shown still correct
+- [x] The close records the weight change on the erased row as **expected (`R-C3-4`)**, not as a delta to explain away
+- [x] 🛑 **The close says: *the mechanism is verified, the values are Joe's and unreviewed* (`D-138` §4)** — not *"verified"* flat, not *"pending approval"*
+- [x] `M_RP_IDENTITY_RESOLUTION.md` Leg C node → all three thirds shipped; ROADMAP Leg C 🟢 → ✅
+- [x] Records: JOURNAL + `CLAUDE.md` PLAY + `ROADMAP.md` + the milestone doc + this runbook in one commit (`D-074`) — J-673
+- [x] 🛑 **Clair handed back with the numbers and did not close her own leg. Chat re-drove every gate. Joe pushed.**
+
+---
+
+## §8 — WHAT THE RUN FOUND THAT THE RUNBOOK DID NOT KNOW
+
+### 🔑 W8 CAME OUT STRONGER THAN THE GATE ASKED FOR, BECAUSE THE GATE AS WRITTEN HAD NO SUBJECT
+
+W8 asked for `.ei-secondary` and `.ei-meta` colours *"unchanged from the control row"*. **The fixture rows carry neither element** — both read `null`. 🛑 **That half of W8 is UNMEASURABLE ON THIS FIXTURE and is NOT recorded as passed.** *A gate whose subject does not exist has not been satisfied; it has been skipped, and the two must not be written the same way.*
+
+✅ **The substitute is better than the original.** The **roots** were read directly: `color` **`rgb(236,233,225)`**, `font-weight` **400**, `text-decoration-line` **none** — ***IDENTICAL ON ALL THREE ROWS***, resolved and unasked alike. ⇒ **the root of an unasked row is indistinguishable from the root of a resolved one**, which proves confinement to `.ei-name` more directly than a two-element comparison would have. 📌 *The erased row's `background-color` differs only because it carries `[data-selected]` — the selection, not this leg's rules.*
+
+### ✅ THE CONTROL ROW IS THE FALSIFICATION CONTROL, NOT A FORMALITY
+
+All three rows went through **one eval, one code path**. The control returned **600 / `--t` / no attribute**; the other two returned **500** and their own tones. 🔑 ***A probe that returns identical values for differentiated inputs cannot fail. This one demonstrably discriminates, and W11 is what shows it.***
+
+### 🛑 THE LEG INTRODUCED A FRESH STALENESS INTO THE VERY SENTENCE IT WAS CORRECTING
+
+C-3 existed partly to fix `:2452` → `:2475` in the erased rule's comment. **C3-1 then invalidated a THIRD clause of that same sentence**: the parenthetical *"(only `:2475` and the inline-variant rule above)"* stopped enumerating the two rules C-3 had just placed above it.
+
+🔑 **AND IT WAS WORSE THAN AN INCOMPLETE LIST.** That parenthetical exists to justify *"so it wins by source order among equals"* — **and that mechanism had stopped being the operative one**: the base rule shares no property with the erased rule, and `unasked`/`erased` can never co-match, because `data-unresolved` carries one value per row. ***A sentence claiming a cascade reason that no longer applies is worse than a stale line number — the number is checkable and the reason is not.***
+
+⚠️ **CHAT'S ERROR, NOT CLAIR'S.** The runbook locked C3-2 to two surgical edits and its author did not notice that inserting two `.ei-name` rules above the comment invalidates a third clause — **while §5(d) of that same runbook said *"a comment wrong in one clause has not earned trust in its others."*** Clair flagged it in handback and correctly left it: scope was locked and the content is a mechanism call. Discharged at `03c92cc`, the J-670 `87307e8` shape.
+
+🔒 **AND THE FIX REMOVED THE CITATION RATHER THAN RE-CORRECTING IT.** ⇒ ***A LINE NUMBER IN A COMMENT IS A CLAIM THAT DECAYS.*** This one went stale **twice in one file**: once by drift, once by C-3 adding rules above it. The replacement asserts an **invariant** — *"the LAST `.ei-name` rule in the file"* — verified live at `03c92cc` (`2475 / 2538 / 2558 / 2571 / 2597`) and checkable by one grep. 📌 *C-3 corrected the number and the follow-up retired it; that is not a reversal, it is the durable form of the same fix.*
+
+### 📌 C3-G5's COUNT: THE NUMBER WAS RIGHT AND THE PREDICATE WAS UNSTATED (`D-131`)
+
+C3-G5 read *"`opacity` appears 24 times in `skin.css`"*. Clair measured **26** and flagged it. **Both were right about different things:** `opacity:` **declarations = 24**; bare `opacity` = **26 lines** pre-C-3 (**27** after, since C3-1's comment adds one). The extras are comment mentions at `:607`, `:2554`, `:2581`.
+
+⚠️ **The figure stands; the WORDING invited the mismatch by not saying what it counted.** 🔑 *Her flag was legitimate even though the number held — and resolving it cost one command, which is the argument for resolving disagreements rather than labelling them non-material.*
+
+### 📌 A HANDBACK IS A STATE CLAIM, AND IT DECAYS TOO
+
+Clair's handback said the follow-up was **uncommitted**. **True when written.** By the time Chat re-drove, `03c92cc` was committed **and pushed**. ✅ **Caught by measuring rather than by reading the handback** — the J-671 failure shape, avoided this time by the forward rule it produced: **repository state is re-measured, never inherited within a turn.**

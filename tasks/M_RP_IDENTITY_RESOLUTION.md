@@ -1,6 +1,6 @@
 # M-RP-IDENTITY-RESOLUTION — what a member row shows before the client knows who it is
 > **Status**: ACTIVE  
-> Version: 1.18  
+> Version: 1.19  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-04  
 > Language: English  
@@ -309,7 +309,9 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 
 📌 **Leg B also OWES the `Vec<IdentityXgid>` wire witness** (§9) — it is the first leg with a real consumer to assert the shape against.
 
-**Leg C — the skin.** 🔒 **SPLIT INTO THREE, AND THE SPLIT IS THE RULING (Joe, 2026-08-01, J-654 — option S3).** ✅ **Runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_C.md` v1.1 COMPLETED — C-1 and C-2 implemented, measured and recorded (J-655).** ⚠️ *v1.11 read "v1.0 AUTHORED, NOT LOCKED"; true when written, killed by Joe's **"chat"** ruling — **the file was never locked and was implemented anyway, by Chat, with Clair reading the diff instead.** Superseded, kept not erased (`D-131`).* 🔒 **LOCKED SEPARATE FROM LEG B — IT DOES NOT RIDE ALONG (Joe, J-650).** 🛑 **CONSEQUENCE, WRITTEN DOWN SO LEG B's CLOSE IS NOT READ AS A FAILURE: LEG B LANDS SILENTLY.** ④'s dimming and E2's mark are both `skin.css` values ⇒ after Leg B the only visible change on screen is that erased non-DM members disappear from the list.
+**Leg C — the skin.** 🔒 **SPLIT INTO THREE, AND THE SPLIT IS THE RULING (Joe, 2026-08-01, J-654 — option S3).** ✅ **Runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_C.md` v1.1 COMPLETED — C-1 and C-2 implemented, measured and recorded (J-655).**
+
+✅ **LEG C CLOSED 2026-08-04 (J-673) — ALL THREE THIRDS SHIPPED.** C-3 landed at `8a650b1` [Clair, 1 file, +27/−4] plus the comment follow-up `03c92cc` [+6/−4]; runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_C3.md` **v1.5 COMPLETED**. The shared base rule (`.entity-item[data-unresolved] .ei-name`, weight `500`) and the unasked rule (`color: var(--t3)`) sit above the erased rule; the `N-109` obligation filed at J-655 is **paid** — the *"DELIBERATELY ABSENT"* note is retired now that the rule ships. **Eleven gates green, re-driven by Chat on the committed tree:** catalogue **435** and `svelte-check` **0/34/15** both unchanged · cargo **not run**, zero `.rs` by scope · live computed-style reads on the sampler — unasked `.ei-name` **`rgb(138,136,128)` / 500 / no decoration**, the erased row **still marked** with §5a-i's selection bar intact, the control row **untouched at 600**. 🔒 **`D-138`: the mechanism is verified; `500` and `--t3` are Joe's values and unreviewed** — a computed-style read proves a rule applies and cannot prove it looks right. 📌 *Runbook §8 carries what the run found, including a fresh staleness this leg introduced into the very sentence it was correcting.* ⚠️ *v1.11 read "v1.0 AUTHORED, NOT LOCKED"; true when written, killed by Joe's **"chat"** ruling — **the file was never locked and was implemented anyway, by Chat, with Clair reading the diff instead.** Superseded, kept not erased (`D-131`).* 🔒 **LOCKED SEPARATE FROM LEG B — IT DOES NOT RIDE ALONG (Joe, J-650).** 🛑 **CONSEQUENCE, WRITTEN DOWN SO LEG B's CLOSE IS NOT READ AS A FAILURE: LEG B LANDS SILENTLY.** ④'s dimming and E2's mark are both `skin.css` values ⇒ after Leg B the only visible change on screen is that erased non-DM members disappear from the list.
 
 🛑 **THE CONTRADICTION THAT FORCED THE SPLIT, AND IT WAS REAL RATHER THAN A WORDING SLIP.** §11 and Leg B's runbook §9 both say *"§4's dimming must not SHIP before a refresh trigger exists"* — **G-B is open** — while `docs/ROADMAP.md`'s Leg C node read `↳ trigger: Leg B has landed — fired`. ⚠️ **A trigger that has fired is a defect by the standing convention**, and the node carried it beside a 🟡 state. **Two canonical records disagreed about whether the leg was unblocked.**
 
@@ -400,8 +402,8 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 - [x] **G-B closed** — ✅ **CLOSED 2026-08-04 (J-672) BY THE PAIR, EXACTLY AS `N-168` REQUIRED.** Leg E (the refresh trigger, R1) discharged J-670 by `M-RP-LIVEFEED-REFRESH` Leg C; **Leg D (the attempt on the ordinary path) landed at `aa7d9c9` + `9901036`.** 🔑 *Neither leg ticked it alone, and the record shows both dates — which is the whole point of §6b's rule.* ⚠️ **The MECHANISM is built and compile-verified; that a refresh actually fires ON SCREEN is Leg F's ⑤/⑥.**
 - [ ] **The residue re-priced** — Leg F measures how often a Tier-1 fetch times out; **T3's bounded retry returns as a live option, or becomes a defect** (§6b `Owes:`). 📌 *Now REACHABLE — Leg D created the state; before it, a Tier-1 fetch could not time out because there was no Tier-1 fetch.*
 - [x] cargo floor re-measured on every Rust leg, delta explained — ✅ Leg A, Leg D-i (**1595 → 1596**, Δ named, test proven able to fail)
-- [x] `svelte-check` floor re-measured on every frontend leg, delta explained — ✅ Leg B, Leg C, Leg D-ii (**0/34/15 → 0/34/15** against a freshly measured baseline, not the inherited figure)
-- [ ] **Live-verified, EXERCISED not asserted** — two clients, a real join, a real `not_found`; ③ hidden, ④ dimmed, both resolving on refresh
+- [x] `svelte-check` floor re-measured on every frontend leg, delta explained — ✅ Leg B, Leg C, Leg D-ii (**0/34/15 → 0/34/15** against a freshly measured baseline, not the inherited figure), **Leg C-3 (0/34/15 unchanged, twice — the rule commit and the comment follow-up)**
+- [ ] **Live-verified, EXERCISED not asserted** — two clients, a real join, a real `not_found`; ③ hidden, ④ dimmed, both resolving on refresh. 📌 *Leg C-3 verified the SKIN on the sampler (④'s tone and weight read off the painted DOM, J-673); **the STORE delivering that state to a real client row is still Leg F's**, and the two must not be read as the same claim.*
 - [ ] Records: JOURNAL + CLAUDE.md PLAY + ROADMAP + this doc in one commit (D-074)
 
 ---

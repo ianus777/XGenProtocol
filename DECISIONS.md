@@ -5164,7 +5164,7 @@ The format-boundary rule was **not unwritten**. It was written, worked, tabled a
 
 ## D-138 — When Joe asks Chat for skin definitions, the MECHANISM is Chat's and the VALUES are Joe's; the CSS is scaffolding written to be edited, not an appearance awaiting approval
 
-**Date:** 2026-08-04 · **Layer:** seats · appearance · how skin work is written · **Ref:** J-672; `D-123` (seats), of which this is an amendment; `D-121` (the two lenses); J-655 (the C-1/C-2 carve-out); `M-RP-IDENTITY-RESOLUTION` Leg C-3.
+**Date:** 2026-08-04 · **Layer:** seats · appearance · how skin work is written · **Ref:** **minted BETWEEN J-672 and J-673 and recorded in J-673** — ⚠️ *v1.0–v1.2 of this line cited J-672 alone, which was written before this entry existed and ends with "No new D"; a reader following that ref would find an entry saying no designation was minted. Corrected, and J-672 carries a forward pointer (`D-131`).* · `D-123` (seats), of which this is an amendment; `D-121` (the two lenses); J-655 (the C-1/C-2 carve-out); `M-RP-IDENTITY-RESOLUTION` Leg C-3.
 
 🔒 **STATED BY JOE AT THE THIRD OCCURRENCE, RECORDED BY CHAT SO THERE IS NOT A FOURTH.** *"skin.css is still mine … logic that i ask you to write new definitions to the skin.css is, that i will use your new defs as an placeholder or template. honestly i dont know exactly what i need to write as definition. all those key words and `[data-unresolved="unasked"]` are beyond my momentary skill. i ended working with css maybe on v3. i intention is to take your lines later and modify them to be better, or leave them as you wrote."*
 

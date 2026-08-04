@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.60  
+> Version: 6.61  
 > Date: May 2026  
 > **Last updated**: 2026-08-04  
 > Language: English  
@@ -311,10 +311,10 @@ XGen Protocol
 │   │   ├── ✅ **Leg 0 Phase-0** — the four states, the tier frame, the two capability gaps · J-644
 │   │   ├── ✅ **Leg A the `not_found` id list** — `FillReport` gained `not_found_ids: Vec<IdentityXgid>` through `fill_space_records` + the TS mirror · **CLOSED J-647** ⇒ closes **G-A**
 │   │   ├── ✅ **Leg B the render rules** — ③ filtered from the rendered list (except the DM counterpart, §5a) · **CLOSED J-653** · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_B.md` **v1.4 COMPLETED**
-│   │   ├── 🟢 **Leg C the skin** — split into C-1 / C-2 / C-3; C-1 and C-2 shipped, Clair read the diff · J-654 (J-650, J-655) · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_C.md` **v1.3 COMPLETED**
+│   │   ├── ✅ **Leg C the skin** — split into C-1 / C-2 / C-3, all three shipped; C-3 added the shared base rule (weight 500) and the unasked tone (--t3) above the erased rule and PAID the N-109 obligation, retiring the now-false DELIBERATELY ABSENT note; catalogue 435 and svelte-check 0/34/15 both unmoved, eleven gates re-driven on the committed tree · **CLOSED J-673** (J-650, J-654, J-655, J-672) · `8a650b1` C-3 · `03c92cc` the comment follow-up · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_C.md` **v1.3 COMPLETED** · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_C3.md` **v1.5 COMPLETED**
 │   │   ├── ✅ **Leg D Tier-1 fetch on join** — `fetch_identity` holds the `FillLock`, persists the book and returns `Option<SeenRecord>`; `resolveMember` merges one record and **clears `unresolved`** (the gate on the AI badge) and routes `not_found` to `_notFound`; `addMember` returns boolean so the router fetches only on a real add; cargo 1595 to 1596, svelte-check 0/34/15 unmoved, slot gate PASS 74 clean-tree · **CLOSED J-672** (J-658, J-659, J-665, J-671) · `aa7d9c9` D-i · `9901036` D-ii · `tasks/M_RP_IDENTITY_RESOLUTION_LEGD_PHASE0.md` **v1.2 COMPLETED** · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_D.md` **v1.1 COMPLETED** ⇒ closes **G-B** with Leg E (`N-168`)
 │   │   ├── ✅ **Leg E the refresh trigger** — R1; **needed NO line of its own** — C-b0 MEASURED that the spaces re-fill cascades into the members fill · **CLOSED J-670** by `M-RP-LIVEFEED-REFRESH` Leg C (J-658, J-654) ⇒ **C-3 unblocked**
-│   │   └── 🟡 **Leg F live verify + records** — two clients, a real join, a real `not_found`; carries SEVEN obligations, three moved out of Leg B and four added by Leg D (the joiner resolving, the erased joiner, the timed-out fetch, join concurrency), and is the milestone's first behaviour verification · J-653 (J-672) ↳ trigger: C-3 lands, the last of Legs A to E
+│   │   └── 🟡 **Leg F live verify + records** — two clients, a real join, a real `not_found`; carries SEVEN obligations, three moved out of Leg B and four added by Leg D (the joiner resolving, the erased joiner, the timed-out fetch, join concurrency), and is the milestone's first behaviour verification · UNGATED since J-673 — C-3 was the last of Legs A to E and it landed; opening the leg is Joe's · J-653 (J-672, J-673)
 │   ├── ✅ **M-RP-XGID-SLOT-RETYPE** — the identifier slots that regressed to `String` after the retrofit arc closed · **CLOSED J-669** (J-645, J-658, J-659, J-660, J-661, J-664, J-665, J-668) → `M-RP-THREAD-XGID`
 │   │   ├── ✅ **Leg 0 Phase-0** — the sweep, the three rulings, and the hand-verified classification of all 88 · J-659 (J-660) · `tasks/M_RP_XGID_SLOT_RETYPE.md` §3a
 │   │   ├── ✅ **Leg A the enforcement mechanism** — `D-137` promoted; `xgid-slot-gate.ps1` and `xgid-slot-manifest.tsv` added; Rule 0 gains item (5) · J-661 · DECISIONS.md D-137

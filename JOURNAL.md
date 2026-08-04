@@ -8,6 +8,109 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-673 — M-RP-IDENTITY-RESOLUTION Leg C CLOSES: the unasked skin ships, D-138 is minted and narrowed twice, and the leg introduced a fresh staleness into the sentence it was correcting
+
+**Date:** 2026-08-04 · **Seat:** Clair (implementation, commits `8a650b1` + `03c92cc`) · Chat (the runbook, `D-138`, every gate re-driven, the records) · Joe (the seat ruling and its two narrowings; pushed both). **LEG CLOSED.** Runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_C3.md` v1.0 → **v1.5 COMPLETED** (new file) · `M_RP_IDENTITY_RESOLUTION.md` v1.18 → **v1.19** · ROADMAP v6.60 → **v6.61** · `DECISIONS.md` gains **`D-138`**.
+
+---
+
+### ✅ WHAT SHIPPED
+
+**`8a650b1`** [1 file, +27/−4] — two rules in `ui/assets/skin.css`, placed after `[data-selected]` and **above the erased rule's comment block**: a shared base `.entity-item[data-unresolved] .ei-name { font-weight: 500 }` and `[data-unresolved="unasked"] .ei-name { color: var(--t3) }`. Plus the two surgical comment edits — **the `N-109` obligation filed at J-655 is PAID** (the *"DELIBERATELY ABSENT"* note is retired now that the rule ships) and the stale `:2452` corrected to `:2475`.
+
+**`03c92cc`** [1 file, +6/−4] — the comment follow-up. **Chat's error, discharged.**
+
+🔑 **THE TWO STATES DIFFER IN KIND AND THE SKIN NOW SAYS SO.** ③ `erased` is a **claim** — the identity is gone — and is **marked**. ④ `unasked` is the **absence** of a claim and merely **recedes**, with no decoration at all. *A mark is a claim, and ④ is the absence of one.*
+
+---
+
+### 🔒 ELEVEN GATES RE-DRIVEN BY CHAT ON THE COMMITTED TREE
+
+| # | gate | result at `03c92cc` |
+|---|---|---|
+| W1 | `git diff --stat` | 1 file **+27/−4**, reconciled against the estimate |
+| W2 | `svelte-check` | **0 / 34 / 15 UNCHANGED** |
+| W3 | sampler catalogue | **435 UNCHANGED** — read live, **and** zero `.svelte` by scope |
+| W4 | cargo | **NOT RUN**, zero `.rs` by scope; floor stays 1596/0/62 × 56 |
+| W5 | `ls-files --eol` | **`i/lf`** |
+| W6 | ids **enumerated** | `'unasked'` and `'erased'` off the painted DOM |
+| W7 | unasked `.ei-name` | **`rgb(138,136,128)`** · **500** · decoration **none** |
+| W8 | the root untouched | **stronger than asked — below** |
+| W9 | erased still marked | `line-through` · `rgb(200,196,188)` · rule `rgb(88,92,100)` · 1px — **and 500** (`R-C3-4`) |
+| W10 | §5a-i survives | `box-shadow: rgb(154,106,48) 2px 0px 0px 0px inset`, `data-selected` |
+| W11 | the control row | **600** · `rgb(236,233,225)` · **no `data-unresolved` at all** |
+
+🔑 **W2 AND W3 ARE UNUSUAL GATES: THEY PASS BY NOT MOVING.** Unchanged is not an absence of evidence here — **it is the evidence** that a CSS-only change shipped no component and touched no registry.
+
+---
+
+### 🔑 W8 CAME OUT STRONGER THAN THE GATE ASKED, BECAUSE THE GATE HAD NO SUBJECT
+
+W8 wanted `.ei-secondary` and `.ei-meta` compared against the control. **The fixture rows carry neither** — both read `null`. 🛑 **That half is recorded SKIPPED, NOT PASSED.** ***A gate whose subject does not exist has not been satisfied, and the two must not be written the same way.***
+
+✅ **The substitute is better than the original.** The **roots** were read directly: `color` **`rgb(236,233,225)`**, `font-weight` **400**, `text-decoration-line` **none** — **identical on all three rows.** ⇒ ***the root of an unasked row is indistinguishable from the root of a resolved one***, which proves confinement to `.ei-name` more directly than the intended check would have. 📌 *The erased row's `background-color` differs only because it carries `[data-selected]`.*
+
+✅ **AND THE CONTROL ROW IS THE FALSIFICATION CONTROL, NOT A FORMALITY.** All three rows went through **one eval, one code path**; the control returned **600 / `--t` / no attribute** while the others returned 500 and their own tones. ***A probe that returns identical values for differentiated inputs cannot fail. W11 is what shows this one discriminates.***
+
+---
+
+### 🛑 THE LEG INTRODUCED A FRESH STALENESS INTO THE VERY SENTENCE IT WAS CORRECTING
+
+C-3 existed partly to fix `:2452` → `:2475` in the erased rule's comment. **C3-1 then invalidated a THIRD clause of that same sentence:** the parenthetical *"(only `:2475` and the inline-variant rule above)"* stopped enumerating the two rules C-3 had just placed above it.
+
+🔑 **AND IT WAS WORSE THAN AN INCOMPLETE LIST.** That parenthetical exists to justify *"so it wins by source order among equals"* — **and that mechanism had stopped being the operative one.** The base rule sets only `font-weight`, so it shares no property with the erased rule; and `unasked`/`erased` can never match the same element, because `data-unresolved` carries one value per row. ⇒ **nothing competes at all; source order settles a tie that does not arise.** ***A sentence claiming a cascade reason that no longer applies is worse than a stale line number — the number is checkable and the reason is not.***
+
+⚠️ **CHAT'S ERROR, NOT CLAIR'S.** The runbook locked C3-2 to two surgical edits and its author did not notice that inserting two `.ei-name` rules above the comment invalidates a third clause — **while §5(d) of that same runbook said *"a comment wrong in one clause has not earned trust in its others."*** She flagged it in handback and **correctly left it**: scope was locked and the content is a mechanism call. Discharged at `03c92cc`, the J-670 `87307e8` shape.
+
+🔒 **AND THE FIX RETIRED THE CITATION RATHER THAN RE-CORRECTING IT.** ⇒ ***A LINE NUMBER IN A COMMENT IS A CLAIM THAT DECAYS.*** This one went stale **twice in one file**: once by drift, once by C-3 itself. The replacement asserts an **invariant** — *"the LAST `.ei-name` rule in the file"* — verified live (`2475 / 2538 / 2558 / 2571 / 2597`) and checkable by one grep. 📌 *C-3 corrected the number and the follow-up retired it; not a reversal, the durable form of the same fix.*
+
+✅ **AND THE FOLLOW-UP's REAL GATE WAS F7, NOT THE DIFF.** A comment edit's one way to break CSS is closing `*/` early and silently swallowing the rules below. Braces **486/486** and **comment delimiters 279/279** — the second being the sharper instrument, and the one that would actually catch it.
+
+---
+
+### 🔒 D-138 MINTED, AND NARROWED TWICE BY JOE — BOTH NARROWINGS WERE CHAT OVERBUILDING FROM A MODEST STATEMENT
+
+Joe, at the third occurrence of being asked to lock CSS he had not authored: *"skin.css is still mine … i will use your new defs as an placeholder or template … all those key words and `[data-unresolved="unasked"]` are beyond my momentary skill. i ended working with css maybe on v3."*
+
+**THE RULE:** `skin.css` stays Joe's · **Chat supplies the MECHANISM** (selector, specificity, placement, cascade) · **the VALUES are Joe's** · the artefact is a **scaffold written to be edited**, shipped with **real values and never a `TODO`**, because *something that does not render cannot be looked at*.
+
+🔑 **§4 — THE REASON IS NOT TASTE, IT IS SIGHT.** *"i fully understand that you can have problem with choosing proper weight of a text line. i naturally look on it and correct some definition, especially values."* ⇒ **choosing the right weight for a line of text requires looking at it, and only one of us looks.** Chat can derive a value from the file's own vocabulary and that derivation is worth something; **it is not the same as seeing the row, and no amount of grounding closes that gap, because the gap is not in the reasoning.** ⇒ 🔒 **A VALUE JOE CHANGES IS NOT AN ERROR OF CHAT'S — IT IS THE HANDOFF WORKING**, and is **never** recorded as a defect, annotated as superseded, or counted in an error tally. ⚠️ *A record that logged every tone change as a mistake would punish the workflow it exists to describe and teach the next scaffold to hedge instead of ship.*
+
+🛑 **CHAT GOT THE FRAMING BACKWARDS TWICE, AND THE SECOND TIME IS THE INSTRUCTIVE ONE.**
+
+1. First as *"appearance proposals ship as proposals; Joe reviews after"* — which puts the aesthetic choice with Chat until blessed. **Wrong seat.**
+2. Then, correcting that, as *"therefore name every dial, list its alternatives, and give an escape hatch for every structural choice."* 🔑 ***That conflated CANNOT WRITE IT with CANNOT READ IT.*** Joe named the gap precisely — **authoring** a selector — and Chat widened it into an inability to read `color: var(--t3)` and change the token. ***A claim narrower than the thing it was used for, and this time it was a claim about a person.*** Joe: *"it is enough that your definitions will be regular ones, like you would done them autonomously, no some special additions."*
+
+⇒ **§3 now keeps only what is structural and invisible from outside** — few values, one place each, isolated so turning one does not disturb another, **and comment as the file already comments.** The editorial apparatus is gone.
+
+🔑 **THE CONFIRMATION IS QUOTED IN THE ENTRY AND THAT IS DELIBERATE:** *a rule about seats, written by the seat it constrains, is not settled until the other seat has read the words back.*
+
+---
+
+### 📌 TWO SMALLER THINGS, BOTH ABOUT CLAIMS THAT DECAY
+
+**C3-G5's `opacity` count.** The runbook said 24; Clair measured **26** and flagged it. **Both were right about different things:** `opacity:` **declarations = 24**, bare `opacity` = **26 lines** pre-C-3 (27 after). ⚠️ **The figure stands and the WORDING invited the mismatch by not saying what it counted.** 🔑 *Her flag was legitimate even though the number held — and resolving it cost one command, which is the argument for resolving disagreements rather than filing them as non-material.*
+
+**A handback is a state claim, and it decays too.** Clair's said the follow-up was **uncommitted** — **true when written**. By re-drive time `03c92cc` was committed **and pushed**. ✅ **Caught by measuring rather than by reading the handback** — J-671's exact failure shape, avoided by the forward rule it produced.
+
+---
+
+### Final state
+
+**catalogue 435** · **`svelte-check` 0/34/15** · **cargo not run**, floor 1596/0/62 × 56 · **slot gate PASS 74** · two commits, one file each. ✅ **LEG C CLOSED — all three thirds.** ⚠️ **`D-138`: the mechanism is verified; `500` and `--t3` are Joe's values and unreviewed.**
+
+🔓 **LEG F IS NOW UNGATED.** C-3 was the last of Legs A–E, so the ROADMAP trigger is **removed rather than left to fire** — *a trigger that has fired is a defect.* **It carries SEVEN obligations and opening it is Joe's.**
+
+✅ **NOT TOUCHED:** any `.svelte`/`.ts`/`.rs` · the erased rule's declarations · `entity-avatar`'s `isAi` third-state collapse (J-655, Joe's) · `M_RP_MEMBERS.md` §6a's tail-8 gap — **which this leg makes MORE visible, not less** (J-618, Joe's) · `N-169` · R4 · `ingest.push` · the address-book setters.
+
+**One new D (`D-138`). No new N.**
+
+🔓 **OPEN, JOE'S:** **Leg F** · §5's DAG-divergence read · `M-RP-THREAD-XGID` · `M-RP-LIVEFEED-REFRESH` Leg B's scope · the unnamed back-fill milestone · `N-169`'s memoisation · **the `CLAUDE.md` PLAY head's own length — raised a fourth time, acted on not at all.**
+
+→ J-673 · ROADMAP v6.61.
+
+---
+
 ## Entry J-672 — M-RP-IDENTITY-RESOLUTION Leg D CLOSES: the Tier-1 fetch ships, G-B is ticked by the pair, and V8 stopped being an argument
 
 **Date:** 2026-08-04 · **Seat:** Clair (implementation, commits `aa7d9c9` + `9901036`) · Chat (every gate re-driven on the committed tree, one ruling, the records) · Joe (pushed both). **LEG CLOSED.** Runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_D.md` v1.0 → **v1.1 COMPLETED** · Phase-0 `tasks/M_RP_IDENTITY_RESOLUTION_LEGD_PHASE0.md` v1.1 → **v1.2 COMPLETED** · `M_RP_IDENTITY_RESOLUTION.md` v1.17 → **v1.18** · ROADMAP v6.59 → **v6.60**.
@@ -109,6 +212,8 @@ Three were moved out of Leg B (J-653). Leg D added four, and **it is the leg tha
 **cargo 1595 → 1596 / 0 / 62 × 56** · **`svelte-check` 0/34/15 unmoved** · **slot gate PASS 74 clean-tree** · four files, two commits, disjoint by floor. ✅ **`G-B` CLOSED.** ✅ **NOT TOUCHED:** `ui/assets/skin.css` (C-3 is Leg C's remaining third) · `N-169`'s memoisation (architecture, Joe's, and it would un-build two shipped legs) · R4 · `ingest.push` · the leave/kick/ban/node_eject arms · the four fill-path setters.
 
 **No new D. No new N.** *(The V8 forward form attaches to J-670's split-reproduction rule; the marked-hole practice attaches to the producer-window rule. Neither warrants its own designation yet — both are recorded where they will be read.)*
+
+⚠️ **ANNOTATION (added at J-673, `D-131`): "No new D" was TRUE FOR THIS ARC AND STOPPED BEING TRUE LATER THE SAME DAY.** `D-138` was minted after this entry was written, and its `Ref:` line originally pointed **here** — so a reader following it would land on an entry saying no designation was minted. 🔑 ***A closing statement about what an arc did NOT produce is dated at the moment the entry closes, not at the end of the day*** — corrected on both sides rather than on one. ⇒ **`D-138` is recorded in J-673.**
 
 🔓 **OPEN, JOE'S:** C-3 (Leg C's remaining third, ungated since J-670) · Leg F, whose trigger is now **C-3 alone** · §5's DAG-divergence read · `M-RP-THREAD-XGID` · `M-RP-LIVEFEED-REFRESH` Leg B's scope · the unnamed back-fill milestone · `N-169`'s memoisation · **the `CLAUDE.md` PLAY head's own length — raised a third time, acted on not at all.**
 

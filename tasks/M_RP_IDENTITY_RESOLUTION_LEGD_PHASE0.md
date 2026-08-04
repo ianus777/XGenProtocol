@@ -1,6 +1,6 @@
 # M-RP-IDENTITY-RESOLUTION Leg D — Tier-1 fetch on join — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-03  
 > Language: English  
@@ -14,7 +14,7 @@
 
 **This is the design close for Leg D only.** `tasks/M_RP_IDENTITY_RESOLUTION.md` v1.16 remains the milestone Phase-0; this document does not replace it and does not restate it.
 
-🛑 **IT IS NOT A RUNBOOK AND MUST NOT BE IMPLEMENTED FROM.** Four questions in §§3–6 are open. The runbook (`tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_D.md`) is authored **after** those are locked, and Clair implements from that.
+🛑 **IT IS NOT A RUNBOOK AND MUST NOT BE IMPLEMENTED FROM.** ✅ **All four questions in §§3–6 were LOCKED 2026-08-03 — A3 · B2 · C1 · D1.** The runbook (`tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_D.md`) is authored **from those locks**, and Clair implements from **that**, never from this. ⚠️ *v1.0 read "four questions are open"; true when written. Superseded, kept not erased (`D-131`).*
 
 🔒 **WHY IT EXISTS AT ALL:** `M_RP_IDENTITY_RESOLUTION.md` §7 prices Leg D as *"a new Tauri command + a merge-one-record setter."* **Measured, that is narrower than the thing it describes** — the named recurring defect class, live in the record. §§1–6 are what the measurement found.
 
@@ -98,7 +98,11 @@ A repo-wide sweep of `ui/**` (`*.ts`, `*.svelte`, `node_modules` excluded) retur
 
 ---
 
-## §3 — 🔓 OPEN Q1: THE CONNECTION SHAPE
+## §3 — 🔒 Q1 LOCKED: THE CONNECTION SHAPE — **A3** (Joe, 2026-08-03)
+
+🔒 **LOCKED: A3 — one-shot `identity_get` now; A2's batched form FILED with a trigger.** Ruled together with §§4–6 as **one answer** (*"go by your recomms"*), which is the shape §12 said they had.
+
+⚠️ *The option list and Chat's argument below are the menu the ruling chose from. Kept, not erased (`D-131`).*
 
 `identity_get` opens, authenticates and `goodbye`s **per call** (G-D2). One join = one full cycle. A rejoin storm of N joiners = N cycles. `fill_and_members` (`ops.rs:2995`) batches on **one** connection precisely to avoid this — and the mechanism that lets it, `identity_get_on`, exists but is **private** (G-D3).
 
@@ -118,7 +122,11 @@ A repo-wide sweep of `ui/**` (`*.ts`, `*.svelte`, `node_modules` excluded) retur
 
 ---
 
-## §4 — 🔓 OPEN Q2: DOES THE COMMAND PERSIST THE BOOK?
+## §4 — 🔒 Q2 LOCKED: THE COMMAND PERSISTS — **B2** (Joe, 2026-08-03)
+
+🔒 **LOCKED: B2 — absorb via `absorb_fetch` and `book.save()`, mirroring `fill_space_records`.** B1 was not a live option and was not offered as one.
+
+⚠️ *Kept, not erased (`D-131`).*
 
 **§7 does not ask this.** `identity_get` touches no book; absorption happens via `absorb_fetch` inside the fill (G-D6), and there is **no resident book between Tauri commands** (G-D5) — so "absorb but do not save" is not a third option, it is a no-op.
 
@@ -135,7 +143,11 @@ A repo-wide sweep of `ui/**` (`*.ts`, `*.svelte`, `node_modules` excluded) retur
 
 ---
 
-## §5 — 🔓 OPEN Q3: DOES THE JOIN FETCH TAKE THE `FillLock`?
+## §5 — 🔒 Q3 LOCKED: THE JOIN FETCH TAKES THE LOCK — **C1** (Joe, 2026-08-03)
+
+🔒 **LOCKED: C1 — `let _guard = lock.0.lock().await;` first, before any book I/O.** Forced by B2 rather than chosen.
+
+⚠️ *Kept, not erased (`D-131`).*
 
 Live only if §4 resolves B2.
 
@@ -150,7 +162,11 @@ Live only if §4 resolves B2.
 
 ---
 
-## §6 — 🔓 OPEN Q4: THE ③ ARM — WHAT HAPPENS WHEN A JOINER'S FETCH RETURNS `not_found`
+## §6 — 🔒 Q4 LOCKED: THE ③ ARM SHIPS — **D1** (Joe, 2026-08-03)
+
+🔒 **LOCKED: D1 — a null result pushes to `_notFound`.** ⇒ **Leg D is what makes §5a's E2 DM exception reachable at all**, and the §5b annotation in §9 is therefore owed, not optional.
+
+⚠️ *Kept, not erased (`D-131`).*
 
 `identity_get` returns `Ok(None)` for `identity.not_found` — **a normal outcome, not an error** (G-D2). But `_notFound` has four writers and **all four are fill-path** (G-D12). ⇒ **a live joiner who has been ERASED cannot reach `_notFound`.**
 
@@ -171,7 +187,8 @@ Live only if §4 resolves B2.
 
 These are sequencing, records and technical execution. **Reversible on one line; that is a statement about Chat's behaviour, not a request for Joe's.** Silence is not consent and none of these is being put up for a lock (J-670's seat lesson, third instance).
 
-- **R-D1 — this brief lands ALONE, unreferenced.** The §8 pointer into `M_RP_IDENTITY_RESOLUTION.md` lands with the lock, in the `D-074` bundle. *Reason: a locked task doc pointing at an unratified design reads as if the design were settled — the J-670 ① failure shape. An orphan file for one turn is cheaper than a canonical record that overclaims.*
+- **R-D1 — ✅ EXECUTED AS WRITTEN.** *"This brief lands ALONE, unreferenced; the §8 pointer into `M_RP_IDENTITY_RESOLUTION.md` lands with the lock, in the `D-074` bundle."* **v1.0 shipped alone at `9531a1d` (2026-08-03), pushed.** ⇒ the pointer, the runbook and the records land as a **second** commit, which is the shape the ruling designed. *Reason it was taken: a locked task doc pointing at an unratified design reads as if the design were settled — the J-670 ① failure shape. An orphan file for one turn is cheaper than a canonical record that overclaims.*
+  - 🛑 **AND CHAT'S FIRST v1.1 EDIT ANNOTATED THIS LINE AS *"SUPERSEDED BY EVENTS — the lock arrived before the brief was committed (`HEAD` still `aae60be`, the file still untracked), so there was never an unratified state to protect against."* THAT ANNOTATION WAS FALSE AND IS ITSELF ANNOTATED HERE, NOT DELETED (`D-131` — including a correction's correction).** `9531a1d` had already landed and been pushed when it was written. 🔑 ***The `git status` it rested on was read at the START of the turn and trusted for the whole of it — a source of truth consulted narrowly at time T and reused broadly at time T+n.*** The same species as the last arc's five. ⇒ **FORWARD RULE, joining the producer-window rule: a claim about REPOSITORY STATE carries the moment it was read, and any claim about the tree made later in the same turn is RE-MEASURED, not inherited — the tree has a writer who is not Chat.**
 - **R-D2 — Leg D SPLITS: D-i (Rust, moves cargo) / D-ii (frontend, moves `svelte-check`).** Forced by §8's split-by-floor rule; a single commit makes the delta unattributable within the floor.
 - **R-D3 — the new merge setter carries its OWN scope guard**, mirroring `setResult :144` and `addMember :184`. A fetch fired at join and resolving after a room switch must not clear a marker in a scope the user has left. *(The `_book` half is scope-free — the book is a global cache keyed by identity. Only the roster touch is scoped.)*
 - **R-D4 — `routeMembershipEvent` STAYS SYNCHRONOUS.** The fetch is fired as an un-awaited call to a module-scope async helper with its own `catch` — the `loadMembers` idiom (`app_client.svelte:209`, `untrack`ed), using `tauriInvoke` (G-D16), never the `onMount`-local `invoke`.
@@ -188,7 +205,9 @@ These are sequencing, records and technical execution. **Reversible on one line;
 3. Conditional on §5 = C1: `let _guard = lock.0.lock().await;` first.
 4. Registration in the `invoke_handler` list.
 
-⚠️ **THE CARGO DELTA IS AN OPEN MEASUREMENT, NOT A PREDICTION.** The natural witness is **extending** `tauri_command_return_serde_transparent_to_js_frontend` (`desktop.rs:1050`) to cover `FetchedIdentity`'s return shape — which adds **no new test count**. ⇒ **D-i's cargo delta may legitimately be `+0`.** The runbook states the expected delta **before** the run so a surprise is visible as a surprise; it does not assert one here.
+⚠️ **THE CARGO DELTA WAS AN OPEN MEASUREMENT AND IS NOW SETTLED — SEE THE RUNBOOK §3.** v1.0 offered *"extending `tauri_command_return_serde_transparent_to_js_frontend` (`desktop.rs:1050`) adds no new test count ⇒ the delta may legitimately be `+0`."* **Measured while authoring the runbook: T8 asserts against `PacingState` and is ABOUT that type**, so widening it would make one test answer two questions. ⇒ **a NEW test ships and the expected delta is `1595 → 1596`.** Superseded, kept not erased (`D-131`).
+
+🔑 **AND THE RETURN TYPE IS `Option<SeenRecord>`, NOT `FetchedIdentity`** — settled in the runbook §4. The frontend's `_book` values **are** `SeenRecord`; returning the wire type would force a TS-side reconstruction of `SeenRecord::from_fetched`, duplicating the single producer. **And no new struct means no new manifest slots**, which is why V4 expects PASS 74 unchanged.
 
 ⚠️ **RUN THE GATE AFTER D-i.** `FetchedIdentity` is already typed; the command's `identity_id: String` parameter is a **function parameter, not a struct slot**, and whether the manifest counts it is **unmeasured**. **Expect PASS 74 unchanged; if the count moves, that is a FINDING to be ruled, not a failure to be suppressed.**
 
@@ -228,11 +247,11 @@ These are sequencing, records and technical execution. **Reversible on one line;
 
 ## §11 — DoD (Leg D)
 
-- [ ] §3 connection shape ruled
-- [ ] §4 persistence ruled
-- [ ] §5 `FillLock` ruled
-- [ ] §6 the ③ arm ruled
-- [ ] Runbook authored from the locked answers, **written so Clair can refuse it** — producers cited, not names; the places it is most likely wrong named, and that list **not** presented as a census of its errors
+- [x] §3 connection shape ruled — ✅ **A3 (Joe, 2026-08-03)**
+- [x] §4 persistence ruled — ✅ **B2 (Joe, 2026-08-03)**
+- [x] §5 `FillLock` ruled — ✅ **C1 (Joe, 2026-08-03)**
+- [x] §6 the ③ arm ruled — ✅ **D1 (Joe, 2026-08-03)**
+- [x] Runbook authored from the locked answers, **written so Clair can refuse it** — ✅ **`tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_D.md` v1.0 ACTIVE (2026-08-03).** §7 names where it is most likely wrong and states outright that the list is **not** a census of its errors
 - [ ] D-i lands alone; cargo delta stated **before** the run and explained after
 - [ ] D-ii lands alone; `svelte-check` re-measured before the first edit
 - [ ] xgid-slot-gate re-run after D-i; any manifest movement **ruled, not suppressed**
@@ -244,9 +263,9 @@ These are sequencing, records and technical execution. **Reversible on one line;
 
 ## §12 — Handoff
 
-🔓 **JOE'S — FOUR RULINGS:** §3 (**A3** recommended) · §4 (**B2**; B1 stated as not live) · §5 (**C1**; forced by B2) · §6 (**D1**).
+✅ **ALL FOUR RULED 2026-08-03 (Joe): A3 · B2 · C1 · D1 — taken as ONE answer, which is the shape this section predicted they had.** §5 is forced by §4, §4 by §2b + the `N-097` inversion, §6 by `G-B`'s own logic; **§3 was the only one with genuine slack**, and A3 defers it onto a measurement Leg F already owes.
 
-🔑 **THEY CAN BE TAKEN AS ONE ANSWER.** §5 is forced by §4, §4 is forced by §2b + the `N-097` inversion, and §6 is forced by `G-B`'s own logic. **§3 is the only one with genuine slack** — and A3 defers it onto a measurement Leg F already owes.
+🔓 **NOTHING IN THIS DOCUMENT REMAINS OPEN FOR JOE.** ⇒ **the runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_D.md` is authored from these four locks**, and Clair implements from it. 🛑 **She does not close her own leg.**
 
 🔒 **NOT JOE'S, AND NOT BEING PUT UP:** §7's five `R-D` rulings. They are sequencing, naming and records — `D-123`'s Chat seat, where **under-stepping is the named failure mode** (J-618 · J-669 · J-670).
 

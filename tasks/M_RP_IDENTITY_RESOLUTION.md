@@ -1,8 +1,8 @@
 # M-RP-IDENTITY-RESOLUTION — what a member row shows before the client knows who it is
 > **Status**: ACTIVE  
-> Version: 1.16  
+> Version: 1.17  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-02  
+> **Last updated**: 2026-08-03  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -185,6 +185,10 @@ if !id_registry.contains(sender) {
 
 📌 **REACHABLE IN EXACTLY ONE SITUATION: a client with no cached record** — fresh install, new device, or a wiped book. **Real, but it is the multi-device case, not the one the row shape was drawn for.**
 
+🛑 **NARROWED 2026-08-03 BY LEG D's DESIGN CLOSE — THE RULE STANDS, THE EXAMPLE SET DID NOT (`D-131`, kept not erased).** *"Exactly one situation"* enumerated three **installation** states. **A LIVE JOINER IS, BY CONSTRUCTION, NOT IN THE BOOK** — they arrived through a `membership.join` delta, and G7 says the fill was never asked about them. ⇒ once Leg D's Tier-1 fetch ships (§7, locked J-658; §6 D1 locked 2026-08-03), **③ is reachable for any erased live joiner in an ordinary session on an ordinary install.** 🔑 ***The rule that produced the enumeration — a held record is never re-fetched and never removed — is unchanged and still true; the enumeration was a claim narrower than the rule it came from, reused as if complete.*** ⇒ **§5a's E2 DM exception becomes reachable at Leg D**, and Leg F is the first surface that can exercise it. 📌 *Leg D's Phase-0 §6 carries the derivation.*
+
+📌 **CITATION DRIFT, ANNOTATED NOT REPAIRED (`D-131`):** the two producers cited above sit at **`address_book.rs:267`** (`remove`) and **`:299`** (`evict_older_than`) as measured at `aae60be` on 2026-08-03; `:253`/`:285` were true when written and were moved by the `M-RP-XGID-SLOT-RETYPE` legs. **The claim they support — every caller is a test — is unaffected.**
+
 ✅ **§5a's E2 LOCK STANDS AND NEEDS NO REWORK.** It is the correct rule *when* the state occurs; only the row's visual design is belayed.
 
 **What the belay drops, and what it therefore does NOT cost:**
@@ -325,9 +329,20 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 
 📌 **FILED, DELIBERATELY NOT TAKEN: the case for shipping the BASE rule now.** A bare `.entity-item[data-unresolved]` muting `.ei-name` is defensible **today** — a machine identifier currently renders at the same weight and colour as a human display name, a false equivalence **whether or not a refresh ever arrives.** 🛑 **Not taken, because it also lands on ④, and ④ is what the gate holds.** Re-openable at C-3. *Recorded rather than silently decided (`D-065`).*
 
-**Leg D — Tier-1 fetch on join.** 🔒 **UNGATED — §7 RULED, IT SHIPS (Joe, J-658).** ⚠️ *v1.0–v1.12 read "🔓 Gated on §7"; superseded, kept not erased (`D-131`).* New Tauri command + merge-one setter. **Moves the cargo floor.**
+**Leg D — Tier-1 fetch on join.** 🔒 **UNGATED — §7 RULED, IT SHIPS (Joe, J-658).** ⚠️ *v1.0–v1.12 read "🔓 Gated on §7"; superseded, kept not erased (`D-131`).*
 
-🛑 **AND IT IS NOT THE NEXT LEG TO OPEN. `M-RP-XGID-SLOT-RETYPE` (`D-136`) LANDS FIRST, STANDALONE — RULED 2026-08-02 (Chat, under `D-123`; Joe reverses on one line).**
+🔒 **DESIGN CLOSED 2026-08-03 — `tasks/M_RP_IDENTITY_RESOLUTION_LEGD_PHASE0.md` v1.1, four locks (Joe): A3 · B2 · C1 · D1.** Runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_D.md` **v1.0 ACTIVE**, authored from those locks; Clair implements from it and does not close her own leg.
+
+🛑 **AND §7's PRICE — *"a new Tauri command + a merge-one-record setter"* — WAS NARROWER THAN THE THING IT DESCRIBES.** Measured at `aae60be`, and this is a live instance of the named defect class sitting in this document:
+
+1. ✅ **The Rust half is SMALLER than stated.** `ops::identity_get` already exists, public, one-shot (`ops.rs:539`, doc from `:528`). The command is a thin wrapper reusing `fill_space_records`'s session preamble; **no new `ops::` verb.**
+2. 🛑 **But `fill_space_records` also LOADS AND SAVES the book** (`desktop.rs:671-713`), and there is **no resident book between Tauri commands**. ⇒ **persistence (§4 → B2) and the `FillLock` (§5 → C1) are two decisions §7 does not ask.** A command that returns without saving would let the next `setResult` wholesale-replace `_book` from a disk book that never heard of the joiner — and the fill's rows carry no `unresolved` field, so `members-panel.svelte:101` would take the **book branch with no record** and render `isAi: false`. **An AI joiner as a human — `N-097` inverted.**
+3. 🛑 **THE AI BADGE DOES NOT LIGHT WHEN THE RECORD LANDS; IT LIGHTS WHEN `unresolved` CLEARS.** `members-panel.svelte:101` tests `m.unresolved` **before** it reads the book. ⇒ the marker clear is **the gate on the badge**, not cosmetic dimming — and there is **no clearing path today** (`address-book.svelte.ts:187` is the only assignment, swept both directions).
+4. 🛑 **A LIVE JOINER CANNOT REACH `_notFound`** — its four writers (`:137` `:147` `:155` `:163`) are all fill-path. Without §6's D1 arm an erased joiner is dimmed forever, which is `G-B`'s own defect re-created inside the leg that closes it.
+
+🔒 **SPLIT BY FLOOR (§8's rule): D-i Rust (cargo `1595 → 1596`, stated before the run) / D-ii frontend (`svelte-check`, re-measured before its first edit).** 🔑 **THE RETURN TYPE IS `Option<SeenRecord>`, not `FetchedIdentity`** — the frontend's `_book` values *are* `SeenRecord`, and returning the wire type would duplicate `SeenRecord::from_fetched` in TS. **No new struct ⇒ the slot gate expects PASS 74 unchanged.**
+
+⚠️ *v1.13–v1.16 read: **"AND IT IS NOT THE NEXT LEG TO OPEN. `M-RP-XGID-SLOT-RETYPE` (`D-136`) LANDS FIRST, STANDALONE."** ✅ **DISCHARGED — that milestone CLOSED at J-669** (74 slots on the manifest, gate PASS, re-run at `aae60be`). **Nothing is in front of Leg D.** Superseded, kept not erased (`D-131`).*
 
 ✅ **GATE DISCHARGED 2026-08-02 (J-665): `M-RP-XGID-SLOT-RETYPE` LEG B LANDED at `c2975f3`.** `SeenRecord` and `FetchedIdentity` are typed, the address book is `BTreeMap<IdentityXgid, SeenRecord>`, and the three `String`↔typed bridge sites in `ops.rs` are gone. 🔒 **THIS LEG IS NOW OPENABLE** — opening it is Joe's. 📌 *The leg's name there is now **"the four address-book slots"**; "the three address-book structs" below is the superseded name, kept not erased (`D-131`).*
 
@@ -387,6 +402,8 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 🔒 **LOCKED:** §2's tier frame (Joe) · §4's ④ treatment — dimmed, own selector (Joe) · **§5a's DM exception — E2, the counterpart is never hidden (Joe, J-648)** · **§8 B-2's hook shape — P1, a prop through `entity-panel` → `entity-item` (Joe, J-648)** · Leg A's type / boundary / test posture — X1 · ② · T-a (Joe, J-646) · **§5a-i — the erased DM counterpart KEEPS the L16 highlight (Joe, J-650)** · **Leg C ships SEPARATE from Leg B (Joe, J-650)** · **LEG C SPLITS — S3: C-1 + C-2 ship now (③ only), C-3 is gated on Leg E (Joe, J-654)** · **this leg's `skin.css` default values are DELEGATED TO CHAT, as a narrow carve-out that leaves the standing rule intact (Joe, J-654)**.
 
 🔓 **JOE'S, OPEN — ONE ITEM LEFT:** §5's **DAG-divergence read** (Chat recorded it ACCEPTABLE AND CHOSEN; if Joe disagrees it becomes a real fork and needs writing as one).
+
+✅ **LEG D's FOUR DESIGN LOCKS ADDED 2026-08-03 (Joe, one answer): A3** one-shot `identity_get`, the batched form filed with a Leg F trigger · **B2** the command persists the book · **C1** it takes the `FillLock` · **D1** a `not_found` reaches `_notFound`. 📌 *Derivations and the option lists they chose from live in `tasks/M_RP_IDENTITY_RESOLUTION_LEGD_PHASE0.md` v1.1 §§3–6; the implementation instructions live in the runbook. Neither is restated here.*
 
 ⚠️ *v1.0–v1.12 also listed §7's **Tier-1 fetch** and §6's **refresh trigger** here. **Both were ruled together on 2026-08-02 (J-658) as one decision — option T2: §7 ships as Leg D, and §6's trigger is R1.** The line's own hedge — *"should probably be decided once for both"* — **was right, and it was right for a reason it did not state**: §7 is the ATTEMPT and §6 is the RETRY. ⚠️ **But the pairing it proposed was still not sufficient — R1 alone does not close G-B (§6b / N-168).** Superseded, kept not erased (`D-131`).*
 

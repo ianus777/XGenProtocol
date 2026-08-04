@@ -1,8 +1,8 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.58  
+> Version: 6.59  
 > Date: May 2026  
-> **Last updated**: 2026-08-02  
+> **Last updated**: 2026-08-03  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -307,12 +307,12 @@ XGen Protocol
 │   │   └── 🟡 **Leg E records + close**
 │   │       ↳ trigger: Leg D lands
 │   ├── 🟡 **M-RP-IDENTITY-RESOLUTION** — what a member row shows before the client knows who it is · J-644
-│   │   ↳ `Owes:` — **the first milestone that RENDERS A MEMBER COUNT** · re-opens §5's C1 mismatch, at which point C2 and C3 return as live options · **`Leg F` re-prices the T3 residue** — a Tier-1 fetch that TIMES OUT is still ④ and nothing retries it; **T3's bounded retry was refused for now because its terminal state has no word (`D-126`, deferred J-588), and Leg F is the first surface where the residue can occur at all** · *`M-RP-LIVEFEED-REFRESH Leg C reconnect rule` (NEW J-658) — **DISCHARGED J-670**, C-3 unblocked (both sides, `D-133`)*
+│   │   ↳ `Owes:` — **the first milestone that RENDERS A MEMBER COUNT** · re-opens §5's C1 mismatch, at which point C2 and C3 return as live options · **`Leg F` re-prices the T3 residue** — a Tier-1 fetch that TIMES OUT is still ④ and nothing retries it; **T3's bounded retry was refused for now because its terminal state has no word (`D-126`, deferred J-588), and Leg F is the first surface where the residue can occur at all** · **`Leg F` ALSO measures JOIN CONCURRENCY** — Leg D ships one-shot `identity_get` (A3, 2026-08-03) and a rejoin storm costs N connect/auth/goodbye cycles; if N-at-once joins are common the batched form returns as a live option, and if they are not it is closed with its reason · *`M-RP-LIVEFEED-REFRESH Leg C reconnect rule` (NEW J-658) — **DISCHARGED J-670**, C-3 unblocked (both sides, `D-133`)*
 │   │   ├── ✅ **Leg 0 Phase-0** — the four states, the tier frame, the two capability gaps · J-644
 │   │   ├── ✅ **Leg A the `not_found` id list** — `FillReport` gained `not_found_ids: Vec<IdentityXgid>` through `fill_space_records` + the TS mirror · **CLOSED J-647** ⇒ closes **G-A**
 │   │   ├── ✅ **Leg B the render rules** — ③ filtered from the rendered list (except the DM counterpart, §5a) · **CLOSED J-653** · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_B.md` **v1.4 COMPLETED**
 │   │   ├── 🟢 **Leg C the skin** — split into C-1 / C-2 / C-3; C-1 and C-2 shipped, Clair read the diff · J-654 (J-650, J-655) · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_C.md` **v1.3 COMPLETED**
-│   │   ├── 🟡 **Leg D Tier-1 fetch on join** — a new Tauri command plus a merge-one setter; moves the cargo floor · J-659 · `tasks/M_RP_IDENTITY_RESOLUTION.md` §7 ↳ trigger: fired J-665 — `M-RP-XGID-SLOT-RETYPE` Leg B landed; openable
+│   │   ├── 🟢 **Leg D Tier-1 fetch on join** — design closed A3/B2/C1/D1; the command takes the `FillLock`, persists the book and returns `Option<SeenRecord>`; the setter clears `unresolved` (the gate on the AI badge) and routes `not_found` to `_notFound`; splits D-i Rust / D-ii frontend · J-671 (J-658, J-659, J-665) · `tasks/M_RP_IDENTITY_RESOLUTION_LEGD_PHASE0.md` **v1.1** · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_D.md` **v1.0 ACTIVE** ⇒ closes **G-B** with Leg E (`N-168`)
 │   │   ├── ✅ **Leg E the refresh trigger** — R1; **needed NO line of its own** — C-b0 MEASURED that the spaces re-fill cascades into the members fill · **CLOSED J-670** by `M-RP-LIVEFEED-REFRESH` Leg C (J-658, J-654) ⇒ **C-3 unblocked**
 │   │   └── 🟡 **Leg F live verify + records** — two clients, a real join, a real `not_found`; carries three obligations moved out of Leg B and is the milestone's first behaviour verification · J-653 ↳ trigger: Legs A–E land
 │   ├── ✅ **M-RP-XGID-SLOT-RETYPE** — the identifier slots that regressed to `String` after the retrofit arc closed · **CLOSED J-669** (J-645, J-658, J-659, J-660, J-661, J-664, J-665, J-668) → `M-RP-THREAD-XGID`

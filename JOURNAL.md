@@ -1,10 +1,115 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-02  
+> **Last updated:** 2026-08-03  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-671 — M-RP-IDENTITY-RESOLUTION Leg D: design closed on four locks, §7's price was narrower than the thing it describes, and a sixth Chat error landed inside the correction of the fifth
+
+**Date:** 2026-08-03 · **Seat:** Chat (grounding, the Phase-0, the runbook, the records, seven `D-123` rulings) · Joe (four locks in one answer; pushed `9531a1d`). **NO CODE. DESIGN CLOSE ONLY.** Phase-0 `tasks/M_RP_IDENTITY_RESOLUTION_LEGD_PHASE0.md` **v1.0 → v1.1** (new file) · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_D.md` **v1.0 ACTIVE** (new file) · `M_RP_IDENTITY_RESOLUTION.md` v1.16 → **v1.17** · ROADMAP v6.58 → **v6.59**.
+
+---
+
+### ✅ THE FLOOR WAS MEASURED, NOT INHERITED — AND THAT WAS THE POINT OF DOING IT FIRST
+
+`cargo test --workspace` at `aae60be`: **1595 / 0 / 62 × 56 terminators**, `FAILED` grepped **case-sensitively** = 0, `^error` = 0. It matches the figure carried since J-669 exactly — **and it had not been run since**, because zero `.rs` was touched in the whole Leg C arc. 🔑 *Leg D is the first Rust work since; a delta claimed against an inherited number is a delta claimed against a memory.* Gate re-run at `aae60be`: **PASS 74** (65 BOUNDARY / 5 DESCRIPTIVE / 3 INTERNAL / 1 UNREAD). `svelte-check` **remains inherited** from `87307e8` and is recorded as inherited rather than quoted as a baseline.
+
+---
+
+### 🛑 §7's PRICE WAS NARROWER THAN THE THING IT DESCRIBES — THE NAMED DEFECT CLASS, LIVE, IN A CANONICAL RECORD
+
+`M_RP_IDENTITY_RESOLUTION.md` §7 priced Leg D as ***"a new Tauri command + a merge-one-record setter."*** Four measurements, windows stated:
+
+1. ✅ **The Rust half is SMALLER than stated.** `ops::identity_get` already exists, **public, one-shot** (`ops.rs:539`, doc comment from `:528`, read window 495–585). The command is a thin wrapper reusing `fill_space_records`'s session preamble. **No new `ops::` verb.** 18 `#[tauri::command]`s exist and none fetches an identity — re-counted, not inherited.
+2. 🛑 **But `fill_space_records` does more than fetch: it `AddressBook::load`s and `book.save()`s UNCONDITIONALLY** (`desktop.rs:671-713`, window 660–720), and **there is no resident book between Tauri commands.** ⇒ **persistence and the `FillLock` are two decisions §7 never asks**, and they are where the actual work of this leg sits.
+3. 🛑 **THE AI BADGE DOES NOT LIGHT WHEN THE RECORD LANDS. IT LIGHTS WHEN `unresolved` CLEARS.** The session kickoff carried *"`members-panel.svelte:101` reads `flags` from the BOOK, so writing the record lights the AI badge."* **Measured, false:** `:101` is `flags: m.unresolved ? {} : { isAi: rec?.is_ai ?? false }` and tests the marker **before** it reads the book. 🔑 ***The conclusion — no new `MemberEntry` mirror field — stands, and the reason was false; those are separable, which is the J-670 addendum's exact species.*** ⇒ the marker clear is **the gate on the badge**, not cosmetic dimming — and `address-book.svelte.ts:187` is the **only** assignment of it, swept both directions across the whole 191-line file.
+4. 🛑 **A live joiner cannot reach `_notFound`** — its four writers (`:137` `:147` `:155` `:163`) are all fill-path. Without an explicit arm, an erased joiner is dimmed forever: **`G-B`'s own defect re-created inside the leg that closes it.**
+
+---
+
+### 🔒 FOUR LOCKS, TAKEN AS ONE ANSWER (Joe: *"go by your recomms"*)
+
+| § | ruling |
+|---|---|
+| **§3 → A3** | one-shot `identity_get`; the batched form (`identity_get_on`, private at `ops.rs:502`, whose own doc says the caller owns the lifecycle **so lookups can batch**) is FILED with a trigger — **Leg F measures join concurrency alongside the Tier-1 residue it already owes** |
+| **§4 → B2** | the command **persists** — `absorb_fetch` + `book.save()`, mirroring `fill_space_records` |
+| **§5 → C1** | it takes the **`FillLock`**, first, before any book I/O |
+| **§6 → D1** | a `not_found` result reaches the frontend and pushes to `_notFound` |
+
+🔑 **B1 — return without saving — WAS NOT A LIVE OPTION, AND IT WAS KILLED BY A CHAIN RATHER THAN A PREFERENCE.** `setResult` replaces `_book` **and** `_roster` wholesale; the fill's rows carry **no** `unresolved` field ⇒ `undefined` ⇒ falsy ⇒ `:101` takes the **book branch with no record** ⇒ `isAi: rec?.is_ai ?? false` ⇒ **`false`**. ***AN AI JOINER RENDERS AS HUMAN on the next room switch — `N-097` inverted, the exact trap `members-panel.svelte:97-100` was written to prevent.*** Not a lost badge; a **false** one. ⇒ **§5 is forced by §4, §4 by finding 3, §6 by `G-B`'s own logic; §3 was the only one with genuine slack.**
+
+🔒 **AND THE RETURN TYPE IS `Option<SeenRecord>`, NOT `FetchedIdentity`.** The frontend's `_book` values **are** `SeenRecord`; returning the wire type would force a TS-side reconstruction of `SeenRecord::from_fetched` (`address_book.rs:123`), duplicating the single producer. ⇒ **no new struct ⇒ the slot gate expects PASS 74 unchanged**, which is why the gate run after D-i is a real check rather than a formality.
+
+---
+
+### 🔒 SEVEN RULINGS TAKEN BY CHAT UNDER `D-123` — RECORDED, NOT ROUTED
+
+`R-D1` the brief lands **alone and unreferenced** · `R-D2` **split by floor**, D-i Rust / D-ii frontend · `R-D3` the new setter carries **its own scope guard** (`setResult:144` / `addMember:184` idiom) · `R-D4` **`routeMembershipEvent` stays synchronous** — an un-awaited call to a module-scope helper using `tauriInvoke` (`:814`), never the `onMount`-local `invoke` (`:651`) · `R-D5` the name is **`fetch_identity`, never `get_*`** — that prefix in `desktop.rs` means a **local** read, and J-670's fourth error was exactly a cost inferred from such a name · `R-D6` **`addMember` returns `boolean`**, so the fetch does not fire when the add no-ops under R1/R3/R4 and the three rules stay inside the store · `R-D7` **NO self-guard in the router — considered and REFUSED with its reason.** `app_client.svelte` has **no `selfId`** (measured: the only `identity_id` in the file is `:264`), so guarding self would thread self's identity into the shell's event router to save at most one fetch per Space join, and `R3` already prevents repeats. 📌 *If self's own join reaches the router, self's record is cached — harmless under `L4`, and named here so Leg F does not report it as a defect.*
+
+⚠️ **None of the seven was put to Joe.** J-618 · J-669 · J-670 are three instances of routing a technicality upward; *"reversible on one line"* is a promise about Chat's behaviour, not a request for Joe's.
+
+---
+
+### 🛑 THE SIXTH CHAT ERROR OF THIS ARC, AND IT LANDED INSIDE THE CORRECTION OF THE FIFTH
+
+Chat read `git --no-pager status` at the **start** of the turn: `HEAD = aae60be`, the brief untracked. It then wrote files for the rest of the turn and, on that reading, annotated `R-D1` as ***"SUPERSEDED BY EVENTS — the lock arrived before the brief was committed, so there was never an unratified state to protect against."***
+
+**Measured afterwards: `9531a1d` had already landed and been pushed.** Joe ran the prepared block while the files were being written. ⇒ **`R-D1` executed exactly as written, and the annotation claiming otherwise was false.**
+
+🔑 ***A SOURCE OF TRUTH CONSULTED NARROWLY AT TIME T AND TRUSTED BROADLY AT TIME T+n.*** The same species as the five of the last arc — and this one is worse-placed, because it sat **inside a `D-131` annotation**, the mechanism whose whole purpose is to keep a superseded claim visible. **It is annotated in place, not deleted; `D-131` reaches a correction's correction.**
+
+🔒 **FORWARD RULE, JOINING THE PRODUCER-WINDOW RULE FROM J-670's ADDENDUM: a claim about REPOSITORY STATE carries the moment it was read, and any claim about the tree made later in the same turn is RE-MEASURED, never inherited.** ⚠️ *The producer-window rule was about reading **enough** of a static source. This one is about a source that **is not static** — the tree has a writer who is not Chat, and "I read it at the top of the turn" is not a measurement of now.*
+
+---
+
+### 🛑 AND THE `unresolved` GREP TRAP HAS THREE CONCEPTS, NOT TWO
+
+Repo-wide sweep of `ui/**` (`*.ts`, `*.svelte`, `node_modules` excluded): **34 hits across 10 files.**
+
+- **① the roster marker** — this leg's — 24 hits, 7 files.
+- **② `echo-status`'s send-status tone** for a timed-out message — 6 hits, 3 files. *Named in the kickoff.*
+- **③ 🆕 THE DOCK LEAF** — *"never render an unresolved leaf"* — `app_client.svelte:451` `:473` `:485` `:501`. **4 hits, inside the very file the kickoff cited for ①.**
+
+⇒ **a file-level hit count on `app_client.svelte` reads as 5 marker hits; ONE is.** *Scope the sweep before believing it — the J-669 lesson, in a third place.*
+
+📌 **LEAD, NOT A CLAIM, AND IT IS LEG F's:** `echo-status` **has** a word for a timed-out terminal state, and `D-126` deferred T3's bounded retry because its terminal state *"has no word"*. Precedent or coincidence — ten minutes at Leg F, when the residue is re-priced. **Not opened here.**
+
+---
+
+### ✅ ANNOTATIONS APPLIED, NOT REPAIRS (`D-131`)
+
+1. **§5b's *"reachable in exactly one situation"* is NARROWED.** It enumerated three **installation** states (fresh install, new device, wiped book). **A live joiner is, by construction, not in the book.** ⇒ once Leg D ships, **③ is reachable for any erased live joiner in an ordinary session on an ordinary install**, and **§5a's E2 DM exception becomes reachable at all.** 🔑 ***The rule that produced the enumeration — a held record is never re-fetched and never removed — is unchanged and still true; the enumeration was a claim narrower than the rule it came from.*** The same shape as §7's price, in the same document, found by the same pass.
+2. **§5b's citations drifted:** `remove` and `evict_older_than` are at **`address_book.rs:267`** and **`:299`**, not `:253`/`:285` — moved by the `M-RP-XGID-SLOT-RETYPE` legs. **The claim they support — every caller is a test — is unaffected.**
+3. **§8 Leg D's *"it is not the next leg to open; `M-RP-XGID-SLOT-RETYPE` lands first"* is DISCHARGED** — that milestone closed at J-669. **Nothing is in front of Leg D.**
+4. **The ROADMAP's Leg D node carried `↳ trigger: fired J-665`.** **A trigger that has fired is a defect by the standing convention.** Removed with the node's flip to 🟢.
+
+---
+
+### 🔑 THE RUNBOOK IS WRITTEN SO CLAIR CAN REFUSE IT
+
+§7 names seven places the document is most likely wrong — including **a deliberate hole**: the `now` timestamp `absorb_fetch` takes is left as a marked gap because **which helper the fill uses was not measured**, and a second timestamp format in the same `last_seen` field is a silent data defect no gate in this leg could see. 🛑 **And §7 states outright that it is NOT a census of the runbook's errors — only the doubts its author already had.** *Four of five errors last arc were caught from outside the text; none by re-reading it.*
+
+✅ **The other repeats, deliberately:** the new cargo test must be **proven able to fail** before its result is believed (V3), built with an **exhaustive named literal, no `..Default`**, and the expected delta — **`1595 → 1596`** — is **stated before the run** so a surprise is visible as a surprise.
+
+⚠️ *And one Phase-0 line was superseded by the runbook's own grounding: v1.0 offered that **extending** T8 might make D-i's delta `+0`. Measured — **T8 asserts against `PacingState` and is ABOUT that type**; widening it would make one test answer two questions. Kept, not erased.*
+
+---
+
+### Final state
+
+**NO CODE. NO FLOOR MOVED.** cargo **1595 / 0 / 62 × 56 (measured)** · gate **PASS 74** · `svelte-check` untouched and still inherited. 🔒 **`G-B` NOT TICKED** — it closes on Leg D **and** Leg E together (`N-168`), and Leg D has not landed. ✅ **NOT TOUCHED:** `skin.css` (C-3 is Leg C's remaining third, ungated since J-670) · `N-169`'s memoisation (architecture, Joe's, and it would un-build two shipped legs) · R4 · `ingest.push` · Leg B's delta setters.
+
+**No new D. No new N.** *(The two forward rules above attach to existing ones rather than minting; the sixth-error rule extends J-670's producer-window rule and is recorded there.)*
+
+🔓 **OPEN, JOE'S:** §5's DAG-divergence read · `M-RP-THREAD-XGID` · `M-RP-LIVEFEED-REFRESH` Leg B's scope · the unnamed back-fill milestone · `N-169`'s memoisation · **the `CLAUDE.md` PLAY head's own length — raised again, acted on not at all.**
+
+**NEXT: Clair implements D-i from the locked runbook, alone, and hands back with the numbers. Standing her up is Joe's.**
+
+→ J-671 · ROADMAP v6.59.
 
 ---
 

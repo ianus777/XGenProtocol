@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-02  
+> **Last updated:** 2026-08-04  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -5159,3 +5159,65 @@ The format-boundary rule was **not unwritten**. It was written, worked, tabled a
 ⚠️ **It does not fault `D-136`.** That entry quotes Pass 4 §4.1.a's binary classification and never cites Pass 3 §4.3 — **a claim narrower than the thing it describes** — but its verdict is untouched: `SeenRecord` fails the three-way rule exactly as it failed the two-way one.
 
 📌 **RELATION TO THE FAMILY.** Child of `D-136` (what a completed pass leaves behind) and sibling to **a trigger that has fired is a defect** — here the fired trigger was a *promotion* trigger, and nothing was watching it. Distinct from `D-131` (annotate, never silently repair), which governs how a superseded claim is retired.
+
+---
+
+## D-138 — When Joe asks Chat for skin definitions, the MECHANISM is Chat's and the VALUES are Joe's; the CSS is scaffolding written to be edited, not an appearance awaiting approval
+
+**Date:** 2026-08-04 · **Layer:** seats · appearance · how skin work is written · **Ref:** J-672; `D-123` (seats), of which this is an amendment; `D-121` (the two lenses); J-655 (the C-1/C-2 carve-out); `M-RP-IDENTITY-RESOLUTION` Leg C-3.
+
+🔒 **STATED BY JOE AT THE THIRD OCCURRENCE, RECORDED BY CHAT SO THERE IS NOT A FOURTH.** *"skin.css is still mine … logic that i ask you to write new definitions to the skin.css is, that i will use your new defs as an placeholder or template. honestly i dont know exactly what i need to write as definition. all those key words and `[data-unresolved="unasked"]` are beyond my momentary skill. i ended working with css maybe on v3. i intention is to take your lines later and modify them to be better, or leave them as you wrote."*
+
+🔒 **REFINED BY JOE IN THE SAME SESSION, AND CONFIRMED BY HIM AS WRITTEN:** *"may be better explanation: you make scaffolding where enters some syntax. i fully understand that you can have problem with choosing proper weight of a text line. i naturally look on it and correct some definition, especially values."* → §1.4, §1.5 and §4 below were put to him in those three parts and answered ***"exactly that"*** (2026-08-04).
+
+🔑 **THE CONFIRMATION IS LOAD-BEARING AND IS WHY IT IS QUOTED HERE.** Chat's **first** recording of this practice (§2) got the framing backwards, and got it backwards while being confident and careful. ⇒ ***a rule about seats, written by the seat it constrains, is not settled until the other seat has read the words back.*** The quotes above are what makes this version authoritative rather than merely current.
+
+### §1 — THE RULE
+
+**When Joe asks Chat to add definitions to `ui/assets/skin.css`:**
+
+1. **`skin.css` remains Joe's file.** Ownership does not move, is not shared, and is not implied by any number of accepted proposals.
+2. **Chat supplies the MECHANISM** — the selector, its specificity, its source placement, the cascade interaction, the token reference. **This is technical work and it is Chat's seat under `D-123`.**
+3. **The VALUES remain Joe's** — which tone, how faint, how heavy. He changes them at any time, without notice, and Chat implements the change without defending the original.
+4. 🔑 **THE ARTEFACT IS A SCAFFOLD, NOT A PROPOSAL.** It ships working and correct **so that it can be edited**, not so that it can be approved. 📌 **The scaffold is where the SYNTAX enters** — that is its whole job; the values ride along because a rule needs them to render.
+5. 🛑 **THE SCAFFOLD SHIPS WITH PLAUSIBLE VALUES, NEVER BLANKS.** A `/* TODO: pick a colour */` does not render, and **something that does not render cannot be looked at.** ⇒ ***the provisional values are LOAD-BEARING: they are what makes the block correctable at all.*** A scaffold Joe cannot see on screen is not a scaffold.
+
+### §2 — WHY THIS IS NOT A DELEGATION OF APPEARANCE, AND WHY GETTING THAT BACKWARDS MATTERS
+
+🛑 **CHAT'S FIRST RECORDING OF THIS PRACTICE (Leg C-3 runbook v1.0 §0) FRAMED IT AS *"appearance proposals ship as proposals; Joe reviews after"* — AND THAT IS WRONG IN A WAY THAT WOULD HAVE COMPOUNDED.** It puts the aesthetic choice with Chat until Joe blesses it, which is **not what was delegated and not what Joe said.**
+
+**What is actually delegated is SYNTAX.** Attribute selectors, custom properties, and the cascade rules deciding which of two equal-specificity rules wins are **outside Joe's current working CSS vocabulary** — he says so plainly, and says where it stopped. **He is not short of an opinion about how the row should look. He is short of the notation to write it in.**
+
+⇒ ***CHAT IS NOT PROPOSING AN APPEARANCE. CHAT IS SUPPLYING THE MECHANISM SO THAT JOE CAN EXERCISE AN AUTHORITY HE ALREADY HAS.***
+
+🔑 **AND THE TWO FRAMINGS PRODUCE DIFFERENT CODE.** *Awaiting approval* optimises for being defensible; **scaffolding optimises for being EDITABLE BY SOMEONE WHO DOES NOT WORK IN MODERN CSS DAILY.** That is a real design constraint with consequences in §3, and it is invisible under the wrong framing.
+
+### §3 — WHAT IT OBLIGES IN THE WRITING
+
+**FEW KNOBS, AND OBVIOUS ONES.** A rule should expose the smallest number of tunable values that can express the intent. *Leg C-3's block exposes exactly two — `font-weight: 500` and `color: var(--t3)`.*
+
+**NAME THE DIAL, IN PLAIN TERMS, AT THE POINT OF CHANGE.** A comment that explains only *why the design is what it is* leaves Joe to reverse-engineer which token is the dial. It must also say what to change and what moves with it: *"too faint? `--t3` → `--t2` on this line; nothing else moves."*
+
+**SAY WHAT THE SELECTOR MATCHES, NOT ONLY ITS RATIONALE.** `[data-unresolved="unasked"]` carries a plain-language line: *matches a member row the client has not looked up yet.*
+
+**ISOLATE THE DIALS FROM EACH OTHER.** A value Joe may want to turn must not sit where turning it disturbs something else. *This is a second, independent reason Leg C-3's base rule sets weight only and no colour — it already had one (the (0,3,0) source-order hazard), and this makes it overdetermined.*
+
+### §4 — THE REASON IS NOT TASTE. IT IS SIGHT.
+
+🔑 ***CHOOSING THE RIGHT WEIGHT FOR A LINE OF TEXT REQUIRES LOOKING AT IT, AND ONLY ONE OF US LOOKS.*** Joe: *"i fully understand that you can have problem with choosing proper weight of a text line. i naturally look on it and correct some definition, especially values."*
+
+**That is the whole asymmetry, and it is not a deficiency on either side.** Chat can derive a value from the file's existing vocabulary — which tone already means *subordinate*, which weight already means *less assertive* — and that derivation is worth something. **It is not the same as seeing the row.** No amount of grounding closes that gap, because the gap is not in the reasoning.
+
+⇒ 🔒 **A VALUE JOE CHANGES IS NOT AN ERROR OF CHAT'S. IT IS THE HANDOFF WORKING.** 🛑 **It is NOT recorded as a defect, NOT annotated as a superseded claim, and NOT counted in any error tally.** ⚠️ *A record that logs every tone change as a Chat mistake would start punishing the workflow it exists to describe — and would teach the next scaffold to hedge instead of to ship.*
+
+📌 **WHAT THE CLOSE THEREFORE SAYS: *the mechanism is verified; the values are Joe's and unreviewed.*** ⚠️ **Not *"verified"* flat** — a computed-style read proves a rule **applies** and cannot prove it **looks right**; those are different claims and the first must not carry the second. ⚠️ **And not *"pending Joe's approval"*** — nothing is pending. The mechanism is done and the values are in the seat they belong to.
+
+### §5 — WHAT THIS DOES NOT CHANGE
+
+⚠️ **It does not make Chat an owner of `skin.css`.** Accepted scaffolds do not accumulate into ownership. **A hundred unedited proposals leave the seat exactly where it was.**
+
+⚠️ **It does not extend past the skin.** `D-123` gives Joe architecture and appearance; **this amendment moves the TIMING of appearance review only, and touches architecture not at all.**
+
+⚠️ **It does not license Chat to skip §3 when time is short.** *A scaffold Joe cannot edit is worse than no scaffold, because it looks like help and functions like a lock-in.*
+
+📌 **RELATION TO THE FAMILY.** Amendment to `D-123`, which named **under-stepping** as the recurring seat error and carved appearance out; **this is the carve-out being narrowed from *authority* to *values*, which is where it always belonged.** Sibling to `D-121` — stating the lens is not handing over the decision, and supplying the mechanism is not taking one. Distinct from J-655's C-1/C-2 delegation, which was a **narrow carve-out for two selectors** and is now superseded by a standing rule rather than repeated per leg.

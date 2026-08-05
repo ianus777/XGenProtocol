@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.65  
+> Version: 6.66  
 > Date: May 2026  
 > **Last updated**: 2026-08-05  
 > Language: English  
@@ -306,6 +306,9 @@ XGen Protocol
 │   │   │   ↳ trigger: Legs A–C land
 │   │   └── 🟡 **Leg E records + close**
 │   │       ↳ trigger: Leg D lands
+│   ├── 🟢 **M-RP-TAIL8** — the unresolved-row fallback shows a short tail, not the whole key · **first application of `D-142`; discharges `M_RP_MEMBERS.md` §6a, open since J-643** · J-678
+│   │   ↳ Phase-0 `tasks/M_RP_TAIL8_PHASE0.md` **v1.2 ACTIVE** · runbook `tasks/RUNBOOK_TAIL8.md` **v1.0 ACTIVE** · scope **A1+A2 only** (both `tail()` call sites in `members-panel.svelte`); **A3 latent, A4 is `M-RP-OWN-ROW-NAME`'s** — `D-142`'s own table carries every known surface with its reason
+│   │   ↳ trigger: Joe stands Clair up — 2 files, 2 lines, `svelte-check` only, zero `.rs`
 │   ├── ✅ **M-RP-IDENTITY-RESOLUTION** — what a member row shows before the client knows who it is · **CLOSED J-675** (J-644)
 │   │   ↳ `Owes:` — **the first milestone that RENDERS A MEMBER COUNT** · re-opens §5's C1 mismatch, at which point C2 and C3 return as live options · **`D-126` T3 RE-PRICED J-675, NOT CLOSED** — ⚠️ **`D-126` MISCITED; the label is §6b's option `T3` in `M_RP_IDENTITY_RESOLUTION.md`, owned by no decision (J-676, `D-131`)** — ⑥ measured 108 s at rest with zero retries while connected, but the row **heals on reconnect via a whole-list re-fill**, and the app **does** report the outage globally (self panel `Reconnecting`) ⇒ a bounded retry buys **less** than §6b assumed; the ROW still carries no failure affordance · **A3's BATCHED `identity_get` RETURNS AS A LIVE OPTION WITH A NUMBER** — ⑦ measured N=5 **serial**, 1151 ms for one and 5459 ms for five (**linear in N**, five sequential connect/auth/goodbye), DAG-corroborated at a 330 ms join spread · *`M-RP-LIVEFEED-REFRESH Leg C reconnect rule` (NEW J-658) — **DISCHARGED J-670**, C-3 unblocked (both sides, `D-133`)*
 │   │   ├── ✅ **Leg 0 Phase-0** — the four states, the tier frame, the two capability gaps · J-644

@@ -5317,3 +5317,46 @@ Leg F's obligation ④ asked whether the AI badge is gated on the `unresolved` m
 ⚠️ **This does not require a quote for every delegated item.** *"Lock all by your recomms"* is a real utterance and delegation is real — **recorded as delegation** (`D-127`), never laundered into a considered lock.
 
 📌 **RELATION TO THE FAMILY.** The same species as `D-139` (a negative claim whose evidence is an absence) reaching provenance instead of search: **an absence read as a finding.** Sibling to `D-131` — that rule protects a citation's target, this one protects a decision's author.
+
+---
+
+## D-142 — Where a display name is unknown, an identity renders in the UI as `…` + the last 8 characters of its key, never the raw long pubkey
+
+**Date:** 2026-08-05 · **Layer:** UI display of identity (not wire, not storage, not logs) · **Ref:** `D-126` (the humane pubkey label — this is its tail family, adopted for one purpose), `C-8` (do not fabricate a name map — untouched), `D-123` (appearance is Joe's), `D-136` (a convention not enforced regresses silently), `D-139`, J-588 (the `tail-8` lock this generalises), J-677 · **Journal:** J-678 · **Code:** none yet — first application is `M-RP-TAIL8`.
+
+**Joe, 2026-08-05**, across three narrowings, each one cutting scope rather than widening it:
+
+> *"i still want to use the tail() instead of raw long pub key in the case the node and the client dont know display_name."*
+> *"i meant when we have to use long raw pub key as name."*
+> *"i rather meant name of identity ig. member/user, and 'display' it, ig. in ui, not in code or transferred data."*
+
+### The rule
+
+🔒 **Wherever the UI must show a person and no display name is known, it shows `…` + the last 8 characters of the key** — e.g. `…gMpQaXrB`. **Never the raw long pubkey.** The ellipsis is **U+2026 HORIZONTAL ELLIPSIS** (`E2 80 A6`), one character, **leading**, not three periods and not trailing.
+
+🔒 **Scope is DISPLAY.** Not the wire, not persisted records, not logs or CLI output, not anything a machine reads. *A short form on the wire would be a second identifier; this is a rendering.*
+
+🔒 **It applies to IDENTITIES — a member, a user, a person.** ⚠️ **Not to rooms, Spaces, events or nodes:** those have no display name the short form stands in for, and `short_id` in `xgen-client/src/app.rs` and `xgen-node/src/app.rs` serves all of them from one helper. *A rule stated as "shorten identifiers" would have reached five call sites it has no business touching.*
+
+🔒 **`C-8` IS UNTOUCHED AND THIS IS NOT A NAME MAP.** The label is a **deterministic function of the key** — `D-126`'s language, *"a different alphabet for the same number, not a second identifier"*. Nothing is invented, stored, or assigned; the full XGID stays reachable.
+
+### It is open by construction — applying it later needs no new decision
+
+🔑 **This is a STANDING RULE, not a milestone's scope.** `M-RP-TAIL8` applies it at the members and self panels; **any later surface that renders an identity without a name follows it automatically.** Joe widens it by pointing at a surface, not by re-deciding the form. ***`D-136` exists because a completed sweep was mistaken for a standing rule; this is written as the rule.***
+
+### ⚠️ KNOWN SURFACES NOT YET APPLIED — listed so "widen later" is never read as "no other cases exist"
+
+| | surface | why not yet |
+|---|---|---|
+| **A1** | `members-panel.svelte:96` member row | ✅ **`M-RP-TAIL8`** |
+| **A2** | `members-panel.svelte:82` self row | ✅ **`M-RP-TAIL8`** |
+| **A3** | `entity-item.svelte:73` — `descriptor.name ?? descriptor.id` | **LATENT — no production caller omits `name`** (members / rooms / spaces / self panels all set it). Reachable the day one does; `core` cannot apply the rule itself because it does not know the `kind` |
+| **A4** | `message.svelte:69` — `author?.name ?? author?.id`, rendered by `<Label>` at `:159` on every ungrouped row | 🛑 **LIVE — message rows show the full 65-char XGID today.** Not a truncation problem: `stream-panel.svelte:115` and `derive.ts:80` supply **no name at all** (`C-8`), and **`addressBook` has exactly two importers, neither of them the stream.** Belongs to `M-RP-OWN-ROW-NAME` (Phase-0 locked J-577, unshipped), and carries `D-130`'s re-render question |
+| — | the feed's `shortId` (`derive.ts:33`, last 6) | Out of scope as written: it is **already short**, so no raw long key is displayed. A CONSISTENCY question (6 vs 8, no ellipsis), not this rule |
+| — | `entity-avatar` initials | Out of scope: two characters standing in for initials, not for a key |
+
+🔒 **A CLOSE THAT APPLIES THIS RULE SAYS WHERE.** *"`D-142` applied at the roster"*, never *"`D-142` applied"* — the second is a claim narrower than the thing it describes, in the entry that closes it.
+
+⚠️ **CORRECTION OWED TO `D-126`, ANNOTATED NOT REPAIRED (`D-131`):** D-126 justifies tail truncation as *"already the pattern in `app.rs`/`ops.rs`"*. **Measured 2026-08-05: `app.rs:4652` takes the FIRST 8 characters of the key and appends trailing dots** (`7WGuWOqU...`). True that a short form exists there; **false about which end.** Once the scheme is stripped both ends are equally distinguishing, so the choice is consistency, and this decision settles it as the tail.
+
+📌 **RELATION TO THE FAMILY.** The narrow, adopted half of `D-126`: **the tail family, for one named purpose, on one named layer.** D-126's **word form** (`amber-falcon`) remains **deferred and Joe's** — untouched by this, and its own hard limits (never typeable, searchable, or usable to address anyone) apply to this form too.

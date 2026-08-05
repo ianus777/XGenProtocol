@@ -1,6 +1,6 @@
 # M-RP-MEMBERS — the R7 members widget over the address book
 > **Status**: ACTIVE  
-> Version: 1.17  
+> Version: 1.18  
 > Date: Jul 2026  
 > **Last updated**: 2026-08-05  
 > Language: English  
@@ -478,6 +478,8 @@ Three distinct truths, and conflating them is the trap:
 📌 **D-126's other openings are NOT settled by this lock:** canonical-vs-cosmetic, the wordlist and its language remain open and Joe's. This milestone consumes the cheapest family and reserves the rest.
 
 ### 🛑 §6a — THE LOCK AND THE SHIPPED BUILD DISAGREE: `tail-8` WAS LOCKED, THE CODE RENDERS THE CONSTANT HEAD (filed by `M-RP-LIVEFEED-REFRESH` Leg A, 2026-08-01, J-643 — FILED, NOT FIXED)
+
+✅ **OWNED 2026-08-05 (J-678): `M-RP-TAIL8` — the unresolved-row fallback shows a short tail, not the whole key.** Runbook `tasks/RUNBOOK_TAIL8.md` **v1.0 ACTIVE** · Phase-0 `tasks/M_RP_TAIL8_PHASE0.md` **v1.2** · standing rule **`D-142`**, of which this is the first application. **This § is no longer an unowned filed gap.** ⚠️ *Marked DISCHARGED only when the code ships and the gates are re-driven — opening a milestone is not discharging a gap.*
 
 ✅ **STATUS CONFIRMED AND STRENGTHENED 2026-08-05 (J-677) — THIS SECTION IS RIGHT, AND A LATER RECORD APPEARED TO OVERTURN IT WITHOUT ANYONE DECIDING ANYTHING.** `J-675` recorded *"Joe ruled: keep `tail()`"* under 🔒 **JOE'S RULINGS**. 🛑 **Joe never said it** — it was manufactured from a proposal of his that had been withdrawn on measurement (`D-141`). ⇒ **§6's `tail-8` lock was never reversed and was never in competition.** ⚠️ *Being newer, the fabricated line would have won on any ordinary read of the record.*
 

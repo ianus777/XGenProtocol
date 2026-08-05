@@ -8,6 +8,65 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-678 — M-RP-TAIL8 opens: `D-142` minted as a standing rule, and the mechanism Joe locked could not express it
+
+**Date:** 2026-08-05 · **Seats:** Chat Claude + Joe · **Code:** NONE — zero `.rs`, zero `ui/**` · **New:** `tasks/M_RP_TAIL8_PHASE0.md` **v1.2 ACTIVE** · `tasks/RUNBOOK_TAIL8.md` **v1.0 ACTIVE** · `DECISIONS.md` gains **`D-142`** · `M_RP_MEMBERS.md` §6a now owned · ROADMAP v6.65 → **v6.66**.
+
+🔒 **THE MILESTONE: `M-RP-TAIL8` — the unresolved-row fallback shows a short tail, not the whole key.** It discharges `M_RP_MEMBERS.md` **§6a**, the lock-versus-build gap filed at J-643: Joe locked `tail-8` at J-588 and the build renders the whole key, letting CSS clip it.
+
+### 🔒 `D-142` — JOE'S RULE, ARRIVED AT BY THREE NARROWINGS, EACH ONE CUTTING SCOPE
+
+> *"i still want to use the tail() instead of raw long pub key in the case the node and the client dont know display_name."*
+> *"i meant when we have to use long raw pub key as name."*
+> *"i rather meant name of identity ig. member/user, and 'display' it, ig. in ui, not in code or transferred data."*
+
+🔑 **THE THIRD NARROWING IS THE ONE THAT DID THE WORK: SELECT BY WHAT THE STRING STANDS IN FOR, NOT BY WHICH FUNCTION PRODUCED IT.** Chat had enumerated **six** truncation producers and was pricing a four-option scope ladder up to a whole-product sweep. Joe's framing cut it to **two call sites in one widget** — the feed's `shortId` is *already short* (a consistency question, not a raw-key one), `.rs`'s `short_id` is already short **and serves rooms, events and node ids from one helper**, and avatar initials stand in for initials, not for a key.
+
+⚠️ ***A RULE STATED AS "SHORTEN IDENTIFIERS" WOULD HAVE REACHED FIVE CALL SITES IT HAS NO BUSINESS TOUCHING.***
+
+🔒 **AND IT IS WRITTEN AS A STANDING RULE, NOT AS THIS MILESTONE'S SCOPE** — Joe: *"with possibility to widen/expand usage, if i see some in the future."* Widening needs **no new decision**; he points at a surface and the form is already settled. 🔑 ***`D-136` exists because a completed sweep was mistaken for a standing rule; this one is written as the rule.***
+
+📌 **AND THE KNOWN-BUT-UNAPPLIED SURFACES ARE LISTED INSIDE THE DECISION**, so *"widen later"* is never read as *"no other cases exist"* — the project's named defect class, pre-empted in the record that would have carried it.
+
+### 🛑 THE MECHANISM JOE LOCKED COULD NOT EXPRESS THE RULE, AND THE FAULT WAS CHAT'S DESCRIPTION
+
+Chat offered three mechanisms and recommended **the ellipsis in the skin**; Joe locked it — *"exactly right"*. 🛑 **Writing the runbook forced the SELECTOR to be named, and it does not exist.** The skin would key on `data-unresolved`, but that attribute and *"the name is a fallback"* are **different predicates with partial overlap**: `toDescriptor` resolves the name (`:96`) independently of how `unresolved` is computed (`:128-135`), and **`SeenRecord.display_name` is optional** (`address-book.svelte.ts:75`).
+
+| row | `data-unresolved` | name shown | a `::before` would be |
+|---|---|---|---|
+| live joiner, not yet fetched | `unasked` | tail | ✅ right |
+| erased, **cached name survives** | `erased` | **`DAVE`** | 🛑 **`…DAVE`** |
+| erased, no cached record | `erased` | tail | ❌ missed |
+| **resolved, person never set a `display_name`** | **absent** | **tail** | ❌ **missed — the common case** |
+
+🔑 **IN A NO-ANONYMITY NETWORK THAT NEVER COMPELS A NAME, THE FOURTH ROW IS THE ORDINARY ONE** — and no CSS selector can reach it, because **only the widget knows it fell back.**
+
+🔒 **RE-LOCKED: MECHANISM M3 — the ellipsis lives in the STRING, plus one line in `deriveInitials`** stripping *leading* non-letter/non-digit characters so the avatar reads `7W` and not `…7`. **Correct on all four rows by construction. 2 files, 2 lines, no new prop.**
+
+⚠️ **PROVENANCE: DELEGATED** — *"let's go by your recomms finaly"*. **Recorded as delegated, not as a walked appearance decision (`D-127` shape).** `D-141` is one day old and this is exactly the distinction it protects.
+
+🔑 **AND WHY THE CHEAPER ANSWER ARRIVED SECOND, RECORDED BECAUSE IT SHOULD BE:** Chat first recommended threading **a new public prop through two `core` components** to tell the skin something the widget already knew. ***That was pattern-matching — the last thing shipped through that path was a prop — not reasoning.*** M3 puts the decision where the knowledge is.
+
+### 📌 FOUR TWO-MEANING TOKENS IN ONE ARC, AND THE FOURTH WAS CHAT'S OWN LABELS
+
+`"T3"` (§6b option label vs. a designation, J-676) · `"word"` (status term vs. pubkey rendering, J-676) · `"tail()"` (the short handle in conversation vs. **the whole key** in code, J-677) · and here **`(A)/(B)/(C)` mechanisms colliding with `A1–A4` surfaces** — Joe asked *"what is your recommendation? a1 a2 a3 a4?"* and the two label sets were indistinguishable. **Mechanisms renamed M1/M2/M3.** 🔑 ***Each of the four produced a false or unreadable record before anyone noticed the seam, and none was caught by re-reading.***
+
+### ⚠️ TWO CORRECTIONS AND ONE NEAR-MISS, ALL CHAT'S
+
+- ⚠️ **`D-126`'s grounding is wrong about which end.** It justifies tail truncation as *"already the pattern in `app.rs`/`ops.rs`"*; **measured, `app.rs:4652` takes the FIRST 8 characters with TRAILING dots.** True that a short form exists there, false about which end. Annotated in `D-142`, not repaired (`D-131`).
+- ⚠️ **Chat called the DM-Space name defect "LIVE". It is not.** `create_dm_space` writes `format!("DM with {}", args.invitee)` — a raw XGID inside a persisted name (`ops.rs:968`) — but **`create_dm_space` has NO Tauri command and no `ui/**` caller**: 19 Tauri commands, none of them this. **DM Spaces can only be created from the CLI.** 🔑 ***Chat checked that the code path exists and not whether a user can reach it — a claim about the codebase presented as a claim about the product.*** Joe: *"this is an artificial name … just for testing."* 📌 **Filed with an owner and a trigger rather than as a finding: whatever a DM Space ends up called, no identity key is materialised into a persisted name — trigger, the DM-creation workflow design.** *The self branch already does this correctly (`SELF_THREAD_LABEL`).*
+- 🛑 **A ROADMAP edit glued two lines together**, the J-660 defect exactly: the anchor swallowed a line break and the milestone header absorbed the `Owes:` line. **Caught by reading the returned diff, repaired in the same turn.** ⚠️ **And `edit_file` flattened the whole file to LF** — 496 line endings — **restored to CRLF and proven by the diffstat returning to 5 changed lines.** *Both were caught by measuring, neither by trusting the tool.*
+
+### ✅ STATE
+
+✅ **RE-MEASURED, NOT INHERITED:** clean tree at open, HEAD `1ea59de` = `origin/main`. ✅ **FLOORS UNTOUCHED AND NOT RE-RUN, STATED RATHER THAN SKIPPED** (zero `.rs`, zero `ui/**`): cargo **1596/0/62 × 56** · svelte-check **0/34/15** · catalogue **435**. 🔒 **The runbook requires `svelte-check` to be RE-MEASURED before Clair's first edit — the figure on record is inherited from J-673 and is not a baseline.**
+
+🟡 **NEXT:** Clair implements from `RUNBOOK_TAIL8.md` — **standing her up is Joe's.** 2 files, 2 lines, `svelte-check` only.
+
+🔓 **OPEN AND JOE'S:** `D-126`'s **word form** (`amber-falcon`), still deferred and untouched · whether **`M-RP-OWN-ROW-NAME`** moves up the order, since surface **A4 — every ungrouped message row rendering a 65-character XGID where a name belongs — is genuinely live.**
+
+---
+
 ## Entry J-677 — A ruling that was never uttered: *"Joe ruled: keep `tail()`"* was manufactured from a withdrawn proposal, and `J-588`'s `tail-8` lock was never reversed
 
 **Date:** 2026-08-05 · **Seats:** Chat Claude + Joe · **Code:** NONE — zero `.rs`, zero `ui/**` · **Milestone:** none opened.

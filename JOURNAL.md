@@ -1,10 +1,80 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-04  
+> **Last updated:** 2026-08-05  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-676 — A CORRECTION ARC: `D-126` was cited for something it is not about across seventeen sites, and the claim that killed the pseudonym question was a search that never opened `DECISIONS.md`
+
+**Date:** 2026-08-05 · **Seats:** Chat Claude + Joe · **Code:** NONE — zero `.rs`, zero `ui/**` · **Milestone:** none opened; `M-RP-IDENTITY-RESOLUTION` stays ✅ CLOSED (J-675).
+
+🛑 **BOTH ERRORS ARE CHAT'S, BOTH WERE CAUGHT BY JOE ASKING ONE QUESTION AFTER THE RECORDS WERE WRITTEN AND PUSHED, AND NEITHER IS REPAIRED IN PLACE — ALL SEVENTEEN SITES ARE ANNOTATED (`D-131`).**
+
+### 🛑 ERROR 1 — `D-126` IS CITED FOR SOMETHING IT IS NOT ABOUT, AND THE MISCITATION IS OLDER THAN THE LEG THAT CARRIED IT
+
+**Grounded in full at `DECISIONS.md:4710–4767`:** `D-126` is **"Humane pubkey label: a display-only rendering of an XGID for convenience listings"** (2026-07-24, J-579). **The string `T3` does not appear anywhere in its span.**
+
+🔑 **WHAT ACTUALLY OWNS T3: `tasks/M_RP_IDENTITY_RESOLUTION.md` §6b — A TASK-DOC-LOCAL OPTION LABEL.** §6b's option space is `T1`/`T2`/`T3`; Joe ruled **T2** at J-658. **`T3` = "a bounded per-row retry."** There is no `D`-number, and there never was one — *not a broken citation to a real decision, but a citation to a decision that was never the subject.*
+
+🔑 **THE MECHANISM — TWO SENSES OF ONE TOKEN, WELDED BY A CITATION.** §6b refused T3 because *"its terminal state has no word"*, meaning **no STATUS TERM for a timed-out row**. `D-126`'s *"word"* means **a WORD-RENDERING of a pubkey** (`amber-falcon`). ***The two are unrelated, and the sentence that joined them reads perfectly.***
+
+🛑 **AND THE SECOND HALF OF THE CLAUSE INVERTS ITS OWN SOURCE.** Every site reads *"deferred J-588"*; J-588 states **"D-121/D-123/`D-126`/D-127/D-129 all apply unextended"** (`JOURNAL.md:4436`). What J-588 deferred was **D-126's word form for the members panel** — nothing about any retry.
+
+🔑 **ORIGIN ESTABLISHED RATHER THAN ASSUMED: J-658, 2026-08-02 (`JOURNAL.md:1383`), THREE ENTRIES BEFORE LEG F.** The kickoff warned it might pre-date the arc; it does. **Leg F propagated it, Leg D's Phase-0 built a lead on top of it, and the ROADMAP `Owes:` line inherited it** — which is why the annotation had to reach back to the J-658 artefacts rather than stopping at the Leg F ones.
+
+### 🔒 SEVENTEEN SITES ANNOTATED, EIGHTEEN CORRECT CITATIONS LEFT UNTOUCHED
+
+| file | sites |
+|---|---|
+| `CLAUDE.md` | 4 (incl. the J-658 origin block at `:155`) |
+| `JOURNAL.md` | 3 (incl. `:1383`, the origin sentence) |
+| `tasks/M_RP_IDENTITY_RESOLUTION.md` | 3 — **§6b carries the full correction; the rest point to it** |
+| `tasks/M_RP_IDENTITY_RESOLUTION_LEGF_PHASE0.md` | 3 |
+| `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_F.md` | 2 |
+| `docs/ROADMAP.md` | 1 (the `Owes:` line) |
+| `tasks/M_RP_IDENTITY_RESOLUTION_LEGD_PHASE0.md` | 1 |
+
+🔑 **`D-131` EARNED ITS KEEP MECHANICALLY, NOT AS A PRINCIPLE.** `D-126` is cited **correctly** at eighteen other sites — the tail-8 lock, the wordlist deferral, the room-header family, the address-book placeholder. ***A search-and-replace would have corrupted eighteen sound citations to fix seventeen false ones.*** The plan named every file before a single edit, and the inventory grew by one during execution (`LEGF_PHASE0.md:132`), found on the read rather than in the plan.
+
+📌 **The refusal of T3 itself stands on its own merits** — a terminal state with no vocabulary, for a case not yet observed. **Only the citation was false, and the citation is what a later reader would have followed.**
+
+### 🛑 ERROR 2 — CHAT TOLD JOE A MECHANISM DID NOT EXIST. IT DOES, AND IT IS `D-126`
+
+Joe: *"i think we have a function that creates stable pseudonyms … this pseudonym has to replace the long id key. this is somewhere written."* Chat searched `docs/` and `tasks/` for *pseudonym* / *petname* / *wordlist*, searched the codebase for generators, found nothing, and answered **"no pseudonym generator exists in code, and no doc specifies one."**
+
+🛑 **IT IS `D-126`** — *"Word rendering — SHA-256 the XGID, slice into 11-bit chunks, index a fixed 2048-word list, join (`amber-falcon`)."* **Adopted intent, J-579, no code yet**, which is exactly why every code search came back empty.
+
+🔑 **THE SHAPE, AND IT IS THE PROJECT'S NAMED DEFECT CLASS COMMITTED ONE HOUR AFTER WRITING THE SAME DECISION INTO A CANONICAL RECORD AS SOMEONE ELSE'S:** *a search narrower than the claim it was used to support.* **`DECISIONS.md` was never in the corpus, and when it was searched it was searched for the WORD, never for the CONCEPT.** ⇒ 🔒 **`D-139` MINTED:** *a "does not exist" claim states the corpus it searched, and `DECISIONS.md` is part of every corpus.* 🔑 **A decision adopted without code is invisible to every code search by construction — which is precisely the class `DECISIONS.md` exists to hold.**
+
+### 🔓 RUNBOOK §8 FINDING 5 RESTED ON A FALSE PREMISE, AND JOE'S RULING IS RETURNED TO HIM
+
+Finding 5 recorded **`C-8`** (*"do not fabricate a name map"*) as settling the truncation question. 🛑 **`C-8` (`M_RP6_3_COMPOSER.md` §9.8) GOVERNS NAMES — A MAP FROM AN XGID TO A HUMAN'S NAME. `D-126` IS NOT A MAP:** it is *"a pure deterministic function of the XGID … a different alphabet for the same number, not a second identifier."* Nothing is fabricated, nothing is stored, nobody assigns it. ⇒ **`C-8` was a rule about a different object.**
+
+🔒 **`D-126` DRAWS ITS OWN LINE, AND IT IS THE ONE THAT BEARS ON A ROSTER:** the label **MUST NOT be typeable, searchable, or usable to address anyone**; the full XGID MUST stay reachable; *"an attacker can grind keys to render as any target label in seconds"* (the PGP short-key-ID lesson). 📌 **It also scopes itself** to *"statistics listings"* and *"not for serious/identifying use"*.
+
+🔓 **JOE'S `keep tail()` IS REOPENED, NOT OVERTURNED, AND DELIBERATELY NOT PRE-EMPTED.** It may well stand — a member roster is arguably neither a statistics listing nor a serious/identifying use. **The point is that he ruled on Chat's false premise and must get the question back with the accurate picture.** Annotated at the runbook, at J-675 and in the PLAY head so no reader finds it recorded as settled.
+
+### 🔒 `D-140` MINTED — A RULE LEG F EARNED AND NOBODY DESIGNATED
+
+⚠️ **J-675 states *"A FALSIFICATION CRITERION MUST NAME THE LAYER THAT DECIDES IT"* in its own text as a 🔒 FORWARD RULE — and ends with *"No new D"*.** It was journalled and never given a number, **so nothing downstream could cite it.** 🔑 ***A forward rule with no designation is a forward rule that will be re-derived from scratch by whoever next needs it*** — `D-136`'s own thesis, one document over. Minted with the gap named.
+
+📌 **NOT MINTED, FILED FOR JOE:** Leg F's second earned law — *every observation of an unresolved identity is single-use per identity* (`partition_observed` never re-fetches a held record and the book persists) — is **operational and address-book-specific rather than project-wide**, so it reads as an `N` rather than a `D`. **Left undesignated deliberately, and named here so the omission is visible.**
+
+### ✅ WHAT WAS RE-MEASURED, AND WHAT WAS NOT
+
+✅ **REPOSITORY STATE RE-MEASURED AT OPEN, NOT INHERITED (J-671's rule, which the previous session violated):** `git status` clean · HEAD `51b784a` = `origin/main` by `git ls-remote`, not the tracking ref.
+
+✅ **FLOORS UNTOUCHED AND DELIBERATELY NOT RE-RUN — stated rather than silently skipped.** Zero `.rs`, zero `ui/**`: cargo **1596/0/62 × 56** · svelte-check **0/34/15** · sampler catalogue **435**. *A documents-only arc that re-runs a suite is measuring nothing and claiming a number.*
+
+📌 **TWO ITEMS TAKEN UNDER `D-123`, REVERSIBLE ON ONE WORD:** (a) `M_RP_IDENTITY_RESOLUTION_LEGF_PHASE0.md` read `Status: ACTIVE` with the milestone closed at J-675 → set **COMPLETED**; (b) the commit boundary — the locked plan staged A-1/A-2/A-3 as three commits, but every annotation cites **J-676**, so committing A-1 alone would push seventeen forward-references to an entry no reader could find. **`D-074` puts them in one commit; the staging stands as work order.**
+
+**DOCUMENTS:** `DECISIONS.md` gains **`D-139`** and **`D-140`** · `RUNBOOK_IDENTITY_RESOLUTION_LEG_F.md` v1.7 → **v1.9** · `M_RP_IDENTITY_RESOLUTION.md` v1.21 → **v1.22** · `M_RP_IDENTITY_RESOLUTION_LEGD_PHASE0.md` v1.2 → **v1.3** · `M_RP_IDENTITY_RESOLUTION_LEGF_PHASE0.md` v1.0 → **v1.1 COMPLETED** · `docs/ROADMAP.md` v6.63 → **v6.64**. **Two new D. No new N.**
+
+🔓 **OPEN AND JOE'S:** `keep tail()`, reopened above — **the only item this arc hands back.**
 
 ---
 
@@ -64,7 +134,7 @@ N=5 (locked before the run, `D-123`). **Peak concurrent unasked = 5.** Bob alone
 
 Feed entries never re-render on resolution (`Bk9glk joined`, three resolutions, unchanged) · **`members-panel.svelte:11-14` overstates its own source** — inertness was **deferred, not rejected** (`M_RP_PANEL_INERT.md` §0), though the inertness itself **verified by probe** against a working control · **`entity-context-menu` is COMPLETE and never instantiated**, zero `oncontextmenu` anywhere, and **its deferral is recorded everywhere while its REASON is recorded nowhere** · four candidate menu items, each earned by an observed state · **three inconsistent truncations of one identity render at once**, and the avatar's `ED` is initials of the ALGORITHM · **remembering names is built, forgetting them is designed and unwired** — M13 §3c EXERCISED, not argued · the panel's outage affordance **cannot fire once a roster is loaded**.
 
-🔒 **JOE'S RULINGS THIS ARC:** keep `tail()` · keep the LegF Spaces · `tail (display_name)` **withdrawn on measurement** (the two are mutually exclusive by construction — `tail()` renders *because* no name exists).
+🔒 **JOE'S RULINGS THIS ARC:** keep `tail()` · keep the LegF Spaces · `tail (display_name)` **withdrawn on measurement** (the two are mutually exclusive by construction — `tail()` renders *because* no name exists). 🔓 **`keep tail()` REOPENED 2026-08-05 (J-676) — it was ruled on Chat's false claim that no pseudonym mechanism exists; `D-126`'s word rendering does exist as adopted intent. NOT OVERTURNED; returned to Joe with the accurate picture (`D-131`, `D-139`).**
 
 ---
 
@@ -335,7 +405,7 @@ Three were moved out of Leg B (J-653). Leg D added four, and **it is the leg tha
 
 - ④ **a joiner resolving to ①/② — the name lands AND the AI badge lights.** 🔑 *The only thing that can demonstrate the badge is gated on the `unresolved` clear and not on the record arriving — the finding that re-priced the whole leg (J-671 §2b).*
 - ⑤ **a joiner resolving to ③** — hidden, or **marked** as the DM counterpart. §5a's E2 exception becomes reachable **for the first time**.
-- ⑥ **a fetch that FAILS or TIMES OUT** — the row stays ④ and nothing retries it. The T3 residue (`D-126`), and Leg D is what creates the state at all.
+- ⑥ **a fetch that FAILS or TIMES OUT** — the row stays ④ and nothing retries it. The T3 residue (`D-126`), and Leg D is what creates the state at all. ⚠️ **`D-126` MISCITED — annotated 2026-08-05 (J-676, `D-131`), not repaired.** `T3` is a **§6b-local option label** in `M_RP_IDENTITY_RESOLUTION.md`, owned by no decision; `D-126` is the humane pubkey label.
 - ⑦ **JOIN CONCURRENCY** — A3 shipped the one-shot form; if N-at-once joins are common the batched form returns as a live option, **and if they are not it is closed with its reason.** *Priced against a number, not a fear.*
 
 ---
@@ -428,7 +498,7 @@ Repo-wide sweep of `ui/**` (`*.ts`, `*.svelte`, `node_modules` excluded): **34 h
 
 ⇒ **a file-level hit count on `app_client.svelte` reads as 5 marker hits; ONE is.** *Scope the sweep before believing it — the J-669 lesson, in a third place.*
 
-📌 **LEAD, NOT A CLAIM, AND IT IS LEG F's:** `echo-status` **has** a word for a timed-out terminal state, and `D-126` deferred T3's bounded retry because its terminal state *"has no word"*. Precedent or coincidence — ten minutes at Leg F, when the residue is re-priced. **Not opened here.**
+📌 **LEAD, NOT A CLAIM, AND IT IS LEG F's:** `echo-status` **has** a word for a timed-out terminal state, and `D-126` deferred T3's bounded retry because its terminal state *"has no word"*. ⚠️ **THIS LEAD IS VOID — `D-126` NEVER DEFERRED ANY RETRY; annotated 2026-08-05 (J-676, `D-131`), not repaired.** The `echo-status` observation survives as precedent for **§6b's vocabulary gap**, not for anything `D-126` decided. Precedent or coincidence — ten minutes at Leg F, when the residue is re-priced. **Not opened here.**
 
 ---
 
@@ -1380,7 +1450,7 @@ The kickoff and the Phase-0 both pointed at one answer. §6's own closing line r
 
 ### 🛑 AND THE RESIDUE WAS NAMED RATHER THAN LEFT AS AN INTENTION
 
-**A Tier-1 fetch that TIMES OUT is still ④, and nothing retries it** — §7 says so itself. **T3, a bounded per-row retry, is the only option that literally satisfies §4c-i, and it was refused for now**: its terminal state has no word, which re-opens `D-126` (deferred J-588) **for a case nobody has yet seen occur**. ⇒ `Owes:` — **Leg F measures how often the residue happens and T3 is re-priced then; if it is common, T3 stops being an option and becomes a defect.** 📌 *Written with an owner and a trigger because this milestone's own §9 records what a deferral without either becomes.*
+**A Tier-1 fetch that TIMES OUT is still ④, and nothing retries it** — §7 says so itself. **T3, a bounded per-row retry, is the only option that literally satisfies §4c-i, and it was refused for now**: its terminal state has no word, which re-opens `D-126` (deferred J-588) **for a case nobody has yet seen occur**. 🛑 **`D-126` MISCITED — AND THIS SENTENCE IS THE ORIGIN OF THE MISCITATION ACROSS SEVENTEEN SITES. Annotated 2026-08-05 (J-676, `D-131`), not repaired.** `T3` is a **§6b-local option label** (the third item in that §'s own `T1`/`T2`/`T3` menu, from which `T2` was ruled here) and is **owned by no decision**; `D-126` is the **humane pubkey label** (`DECISIONS.md:4710`) and the string `T3` does not appear in its span; and *"deferred J-588"* inverts J-588, which records *"D-126 … applies unextended"* (`JOURNAL.md:4436`). **The refusal of T3 stands on its own merits — only its citation was false.** ⇒ `Owes:` — **Leg F measures how often the residue happens and T3 is re-priced then; if it is common, T3 stops being an option and becomes a defect.** 📌 *Written with an owner and a trigger because this milestone's own §9 records what a deferral without either becomes.*
 
 ### 🛑 THE SECOND FINDING — TWO MILESTONES HAD FILED ONE BUILD, AND NEITHER RECORD SHOWED THE OTHER
 

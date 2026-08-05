@@ -1,8 +1,8 @@
 # M-RP-IDENTITY-RESOLUTION Leg D — Tier-1 fetch on join — Phase-0
 > **Status**: COMPLETED  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-04  
+> **Last updated**: 2026-08-05  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -95,6 +95,8 @@ A repo-wide sweep of `ui/**` (`*.ts`, `*.svelte`, `node_modules` excluded) retur
 ⚠️ **The kickoff named ② and missed ③ — inside the very file it cited for ①.** ⇒ **SCOPE THE SWEEP BEFORE BELIEVING IT.** A file-level hit count on `app_client.svelte` reads as 5 marker hits; **one** is the marker.
 
 📌 **LEAD, NOT A CLAIM, AND IT IS LEG F'S NOT LEG D'S:** `echo-status` *has* a word for a timed-out terminal state, and `D-126` deferred T3's bounded retry because its terminal state *"has no word"*. Whether that is precedent or coincidence is worth ten minutes at Leg F, when the residue is re-priced. **Not opened here.**
+
+⚠️ **THIS LEAD IS VOID — IT RESTS ON A MISCITATION, CORRECTED 2026-08-05 (J-676), ANNOTATED NOT REPAIRED (`D-131`).** `D-126` **never deferred any retry**: it is the humane pubkey label (`DECISIONS.md:4710`, J-579) and the string `T3` does not appear in its span. `T3` is a **§6b-local option label** in `M_RP_IDENTITY_RESOLUTION.md`, owned by no decision — see that §'s annotation for the full correction. 🔑 **The `echo-status` observation itself survives and is still worth the ten minutes**, but it is precedent for **§6b's vocabulary gap**, not for anything `D-126` decided.
 
 ---
 

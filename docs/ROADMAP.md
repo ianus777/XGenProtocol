@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.63  
+> Version: 6.64  
 > Date: May 2026  
 > **Last updated**: 2026-08-05  
 > Language: English  
@@ -307,7 +307,7 @@ XGen Protocol
 │   │   └── 🟡 **Leg E records + close**
 │   │       ↳ trigger: Leg D lands
 │   ├── ✅ **M-RP-IDENTITY-RESOLUTION** — what a member row shows before the client knows who it is · **CLOSED J-675** (J-644)
-│   │   ↳ `Owes:` — **the first milestone that RENDERS A MEMBER COUNT** · re-opens §5's C1 mismatch, at which point C2 and C3 return as live options · **`D-126` T3 RE-PRICED J-675, NOT CLOSED** — ⑥ measured 108 s at rest with zero retries while connected, but the row **heals on reconnect via a whole-list re-fill**, and the app **does** report the outage globally (self panel `Reconnecting`) ⇒ a bounded retry buys **less** than §6b assumed; the ROW still carries no failure affordance · **A3's BATCHED `identity_get` RETURNS AS A LIVE OPTION WITH A NUMBER** — ⑦ measured N=5 **serial**, 1151 ms for one and 5459 ms for five (**linear in N**, five sequential connect/auth/goodbye), DAG-corroborated at a 330 ms join spread · *`M-RP-LIVEFEED-REFRESH Leg C reconnect rule` (NEW J-658) — **DISCHARGED J-670**, C-3 unblocked (both sides, `D-133`)*
+│   │   ↳ `Owes:` — **the first milestone that RENDERS A MEMBER COUNT** · re-opens §5's C1 mismatch, at which point C2 and C3 return as live options · **`D-126` T3 RE-PRICED J-675, NOT CLOSED** — ⚠️ **`D-126` MISCITED; the label is §6b's option `T3` in `M_RP_IDENTITY_RESOLUTION.md`, owned by no decision (J-676, `D-131`)** — ⑥ measured 108 s at rest with zero retries while connected, but the row **heals on reconnect via a whole-list re-fill**, and the app **does** report the outage globally (self panel `Reconnecting`) ⇒ a bounded retry buys **less** than §6b assumed; the ROW still carries no failure affordance · **A3's BATCHED `identity_get` RETURNS AS A LIVE OPTION WITH A NUMBER** — ⑦ measured N=5 **serial**, 1151 ms for one and 5459 ms for five (**linear in N**, five sequential connect/auth/goodbye), DAG-corroborated at a 330 ms join spread · *`M-RP-LIVEFEED-REFRESH Leg C reconnect rule` (NEW J-658) — **DISCHARGED J-670**, C-3 unblocked (both sides, `D-133`)*
 │   │   ├── ✅ **Leg 0 Phase-0** — the four states, the tier frame, the two capability gaps · J-644
 │   │   ├── ✅ **Leg A the `not_found` id list** — `FillReport` gained `not_found_ids: Vec<IdentityXgid>` through `fill_space_records` + the TS mirror · **CLOSED J-647** ⇒ closes **G-A**
 │   │   ├── ✅ **Leg B the render rules** — ③ filtered from the rendered list (except the DM counterpart, §5a) · **CLOSED J-653** · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_B.md` **v1.4 COMPLETED**

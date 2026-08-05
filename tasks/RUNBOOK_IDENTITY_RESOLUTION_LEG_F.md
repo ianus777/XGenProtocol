@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-IDENTITY-RESOLUTION Leg F: live verification of the seven obligations
 > **Status**: COMPLETED  
-> Version: 1.7  
+> Version: 1.9  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-05  
 > Language: EN  
@@ -121,7 +121,7 @@ Every run carries an **idle control** and a **falsification case**. 🔑 *A prob
 3. Node stays down; the row is read at rest, then again after ≥60 s.
 - **Expect:** the row RESTS at `data-unresolved="unasked"`, name = `tail()` fallback, **no badge**, **nothing retries** — the second read equals the first.
 - **Control:** Bob's resolved row from R-1 is unchanged by the node going down.
-- **Number for `D-126`:** seconds/attempts elapsed with the row stuck, and whether anything on screen explains it. **MEASUREMENT, not a tick.**
+- **Number for `D-126`:** seconds/attempts elapsed with the row stuck, and whether anything on screen explains it. **MEASUREMENT, not a tick.** ⚠️ **`D-126` MISCITED — see `M_RP_IDENTITY_RESOLUTION.md` §6b's annotation (J-676, `D-131`).** The number belongs to **§6b's option `T3`**, a task-doc-local label owned by no decision; `D-126` is the humane pubkey label and contains no `T3`. **The measurement stands — only its addressee was misnamed.**
 - ⚠️ *Timing is a race; retry is expected and is not a finding. If it proves unhittable, that is recorded as a limit of the lever and ⑥ reports on what was reached.*
 
 ### R-3 — ⑤, ② and ③: Dave is never fetched, then erased
@@ -218,6 +218,16 @@ Registry 11 → delete one object → node banner **`Identities: 10 registered`*
 3. **`entity-context-menu` is COMPLETE and never instantiated in the client** (`registry.ts:103`); the only consumer is the sampler. **Zero `oncontextmenu` handlers exist anywhere.** Seam reserved at `entity-avatar.svelte:101`; a third consumer waits at `xgen-dd-message-family-phase0.md:97`. ⚠️ **The DEFERRAL is recorded everywhere; its REASON (Joe: *"wait for the real needed menu items"*) is recorded NOWHERE.** *A deferral without its reason reads as an oversight — Chat misread it exactly that way during this run.*
 4. **Candidate menu items, each earned by an observed state:** *Retry identity fetch* (⑥'s residue as a user action rather than a background policy) · *Copy identity ID* · *Show AI capabilities* (`dm_initiate`/`spontaneous_post` live on the node, invisible in UI) · an action for an erased DM counterpart.
 5. **THREE inconsistent truncations of one identity render simultaneously:** feed `Bk9glk` (`slice(-6)`) · row `ed25519:7WGuWOqU…` (`tail()`) · avatar `ED` (initials). ⚠️ **The avatar initials derive from the literal string `ed25519`** ⇒ **every** unresolved identity shows `ED` — initials of the ALGORITHM, not of the person. 🔒 **Joe ruled: keep `tail()`.** `C-8` forbids fabricating a name map; it does **not** require three inconsistent truncations.
+
+   🛑 **FINDING 5 RESTED ON A FALSE PREMISE, AND JOE'S RULING WAS TAKEN ON IT — CORRECTED 2026-08-05 (J-676), ANNOTATED NOT REPAIRED (`D-131`).** During this run Chat told Joe, in answer to his own recollection of *"a function that creates stable pseudonyms"*, that **no such mechanism exists in code or in any document**. ⚠️ **That answer was wrong** — the corpus searched was `docs/` + `tasks/` + the codebase, and **`DECISIONS.md` was never searched** (`D-139`, minted from this).
+
+   🔑 **THE MECHANISM IS `D-126` — *"Word rendering — SHA-256 the XGID, slice into 11-bit chunks, index a fixed 2048-word list, join (`amber-falcon`)"*.** Adopted intent, J-579, **no code yet**, which is why every code search came back empty.
+
+   🛑 **AND `C-8` DOES NOT REACH THE QUESTION AT ALL.** `C-8` (`M_RP6_3_COMPOSER.md` §9.8) governs **NAMES** — a map from an XGID to a human's name, which the client must not invent. **`D-126` is not a map:** it is *"a pure deterministic function of the XGID … a different alphabet for the same number, not a second identifier."* Nothing is fabricated, nothing is stored, nobody assigns it. ⇒ **citing `C-8` as settling the truncation question was citing a rule about a different object.**
+
+   🔒 **`D-126` DRAWS ITS OWN LINE, AND IT IS THE ONE THAT ACTUALLY BEARS ON A ROSTER:** the label **MUST NOT be typeable, searchable, or usable to address anyone**; the full XGID MUST stay reachable; and *"an attacker can grind keys to render as any target label in seconds"* (the PGP short-key-ID lesson). 📌 **It also scopes itself** to *"statistics listings"* and *"not for serious/identifying use"* — and whether a **member roster** is such a surface is exactly the open question.
+
+   🔓 **JOE'S `keep tail()` IS THEREFORE REOPENED FOR HIM — NOT OVERTURNED, AND NOT PRE-EMPTED BY CHAT.** It may well stand on the accurate picture. **It is his call, and this annotation exists so that he makes it with the correct information rather than on Chat's false premise.** 📌 *The three-truncation observation itself is untouched and still holds: `slice(-6)` · `tail()` · initials, with `ED` being the initials of the ALGORITHM.*
 6. **Remembering names is built; forgetting them is designed and NOT wired.** `SeenRecord.display_name` persists across restarts (*"the whole point of the cache"*); `T1_DEFAULT_RETENTION_DAYS = 182` is **provisional (J-580)** and explicitly *"never `∞`"*; `E2` targeted erasure exists in the book API. Eviction is unwired in production (`M-RP-LIVEFEED-REFRESH`). 🔑 **Leg F EXERCISED M13 §3c rather than arguing it: Dave was erased on the node, and every client holding a cached record would still show his name.**
 7. **The members panel has an outage affordance that CANNOT FIRE once a roster is loaded.** `:44-57` defines five PANEL states (numbered ①–⑤ independently of the seven obligations — do not read them as the same series) and distinguishes panel-④ `failed` *"I cannot reach the others"* from panel-⑤ `offline` *"I cannot see the others"* **by the connection, not the phase** — but only when `rosterKnown` is false. Measured during a live outage with a roster in hand: **`opacity 1`, `filter none`, names at weight 600, no `data-*` state on the panel** ⇒ panel-state ② `known` renders **fully confident about a roster it can no longer verify.** ⚠️ *Chat first reported "no outage affordance at all" — wrong at the panel level, corrected on reading `:44-57`.* 🔒 **Joe's `tail (display_name)` proposal was WITHDRAWN on measurement, correctly**: `tail()` is used *precisely when the book holds no `display_name`* (`:28-29`) ⇒ the two are **mutually exclusive by construction** and the parenthetical can never be populated.
 
@@ -239,7 +249,7 @@ Registry 11 → delete one object → node banner **`Identities: 10 registered`*
 
 ## §10 — RECORDS (`D-074`, one commit)
 
-JOURNAL + `CLAUDE.md` PLAY + `docs/ROADMAP.md` + `M_RP_IDENTITY_RESOLUTION.md` + the Leg F Phase-0 + this runbook. ⑥ and ⑦'s numbers feed back into **`D-126`** and **A3's batched form** — each re-priced or **closed with its reason**. **The milestone closes with this leg.**
+JOURNAL + `CLAUDE.md` PLAY + `docs/ROADMAP.md` + `M_RP_IDENTITY_RESOLUTION.md` + the Leg F Phase-0 + this runbook. ⑥ and ⑦'s numbers feed back into **`D-126`** and **A3's batched form** — each re-priced or **closed with its reason**. **The milestone closes with this leg.** ⚠️ **`D-126` MISCITED — ⑥ feeds back into §6b's option `T3`, not into any decision; see §6b's annotation (J-676, `D-131`).**
 
 📌 **Also owed to the record, found by this read and NOT fixed here:** `CLAUDE.md`'s file-placement table describes `xgen-node_identities.db` as **SQLite**; it is a JSON array (`registry.rs:240-256`). Annotated, not repaired (`D-131`), and it belongs to whichever milestone next touches that table.
 

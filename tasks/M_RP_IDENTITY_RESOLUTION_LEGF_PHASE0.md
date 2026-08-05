@@ -1,8 +1,8 @@
 # M-RP-IDENTITY-RESOLUTION Leg F — Phase-0: how the seven obligations are produced
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-04  
+> **Last updated**: 2026-08-05  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -80,7 +80,7 @@ G7 is the constraint: **the product cannot erase an identity.** So the state is 
 
 Locked at §8, restated because it changes how the runbook is written: **⑥ and ⑦ produce NUMBERS that re-price a deferred decision. They are never written as ticks and they cannot fail.**
 
-- **⑥ — the fetch that fails or times out.** Lever: **G6 — the node is down at fetch time.** Expected: the row STAYS ④ and **nothing retries it**. That residue is `D-126`'s T3. The number is *how visible the stuck row is*, after which T3's bounded retry returns as a live option or becomes a defect.
+- **⑥ — the fetch that fails or times out.** Lever: **G6 — the node is down at fetch time.** Expected: the row STAYS ④ and **nothing retries it**. That residue is `D-126`'s T3. The number is *how visible the stuck row is*, after which T3's bounded retry returns as a live option or becomes a defect. ⚠️ **`D-126` MISCITED — see `M_RP_IDENTITY_RESOLUTION.md` §6b's annotation (J-676, `D-131`).** `T3` is a §6b-local option label, not a designation; `D-126` is the humane pubkey label and contains no `T3`. **The obligation is unaffected — only its citation was.**
 - **⑦ — join concurrency.** A3 shipped one-shot `identity_get` (one connect/auth/`goodbye` per joiner). The question is a COUNT: how many joins land at once in real use. 🔑 **J1 is what makes this measurable at all** — N CLI processes launched together is a scripted loop; N GUIs is not. If N-at-once is common the batched form returns as a live option; **if it is not, it is CLOSED WITH ITS REASON.**
 
 ---
@@ -129,7 +129,7 @@ Rows are `M_RP_IDENTITY_RESOLUTION.md` §8's seven. Columns say what produces th
 - **F-0** — this document. No code, no launch. Open §§: **§2** and **§3**.
 - **F-1** — the runbook, written from the LOCKED §§ only. First job: R3, the AI-registration route. 🔑 *Written so Clair can refuse it: cite the producer, not the name; name where it is most likely wrong; and never present that list as a census of its errors.*
 - **F-2** — **THE RUN. INTERACTIVE, CUSTODY TRANSFERS TO JOE UNDER `D-132`.** Start announced, end announced, hands off in between.
-- **F-3** — the close: records, plus ⑥/⑦'s numbers feeding back into `D-126` and A3's filed option. **The milestone closes with this leg.**
+- **F-3** — the close: records, plus ⑥/⑦'s numbers feeding back into `D-126` and A3's filed option. **The milestone closes with this leg.** ⚠️ **`D-126` MISCITED — ⑥'s number feeds back into §6b's option `T3`, which no decision owns; see §6b's annotation (J-676, `D-131`).**
 
 ---
 
@@ -139,7 +139,7 @@ Rows are `M_RP_IDENTITY_RESOLUTION.md` §8's seven. Columns say what produces th
 - [ ] §3 ⑤'s production route locked by Joe
 - [ ] R3 grounded before the runbook locks — the AI-registration route read end to end, **window stated**
 - [ ] ①–⑤ observed on a real client row, EXERCISED not asserted, with an idle control in the same run
-- [ ] ⑥ and ⑦ recorded as NUMBERS, never as ticks; `D-126` T3 and A3's batched form each re-priced or closed with a reason
+- [ ] ⑥ and ⑦ recorded as NUMBERS, never as ticks; `D-126` T3 and A3's batched form each re-priced or closed with a reason — ⚠️ **`D-126` MISCITED; read as §6b's option `T3` (J-676, `D-131`)**
 - [ ] floors re-measured before the first edit if Leg F becomes a fix leg — **cargo BEFORE any `.rs` touch**
 - [ ] Records: JOURNAL + CLAUDE.md PLAY + ROADMAP + `M_RP_IDENTITY_RESOLUTION.md` + this doc in one commit (`D-074`)
 

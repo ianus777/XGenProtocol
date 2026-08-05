@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-04  
+> **Last updated:** 2026-08-05  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -5225,3 +5225,59 @@ The format-boundary rule was **not unwritten**. It was written, worked, tabled a
 ⚠️ **It does not license Chat to skip §3 when time is short.** *A scaffold Joe cannot edit is worse than no scaffold, because it looks like help and functions like a lock-in.*
 
 📌 **RELATION TO THE FAMILY.** Amendment to `D-123`, which named **under-stepping** as the recurring seat error and carved appearance out; **this is the carve-out being narrowed from *authority* to *values*, which is where it always belonged.** Sibling to `D-121` — stating the lens is not handing over the decision, and supplying the mechanism is not taking one. Distinct from J-655's C-1/C-2 delegation, which was a **narrow carve-out for two selectors** and is now superseded by a standing rule rather than repeated per leg.
+
+---
+
+## D-139 — A "does not exist" claim states the corpus it searched, and `DECISIONS.md` is part of every corpus
+
+**Date:** 2026-08-05 · **Layer:** project-wide grounding discipline (applies to Chat Claude, Clair, every audit, every Phase-0, every answer to Joe) · **Ref:** `D-065` (honest over polite), `D-071` (audits precede dependents), `D-131` (annotate, never silently repair), `D-136` (a convention not enforced regresses silently); the named defect class — *a claim narrower than the thing it describes, reused as if complete* · **Journal:** J-676 · **Code:** none — this is a discipline.
+
+⚠️ **PROVENANCE: Chat's own error, one hour after committing it to a canonical record. Recorded as such rather than as a general observation.**
+
+### What happened
+
+Joe: *"i think we have a function that creates stable pseudonyms … this pseudonym has to replace the long id key. this is somewhere written."* Chat searched `docs/` and `tasks/` for *pseudonym* / *petname* / *wordlist*, searched the whole codebase for generators, found nothing, and answered **"no pseudonym generator exists in code, and no doc specifies one."**
+
+🛑 **It is `D-126`** — *"Word rendering — SHA-256 the XGID, slice into 11-bit chunks, index a fixed 2048-word list, join (`amber-falcon`)."* Adopted intent at J-579, **no code yet**, which is exactly why every code search came back empty and why the emptiness read as absence.
+
+### The mechanism, stated so it is checkable
+
+**`DECISIONS.md` was never searched — and when it was searched, it was for the WORD and not for the CONCEPT.** Two separate narrowings compounding: a corpus that omitted the one document that records adopted-but-unbuilt intent, and a query keyed to vocabulary rather than to the thing described.
+
+🔑 **A NEGATIVE CLAIM IS THE ONE KIND OF CLAIM WHOSE EVIDENCE IS AN ABSENCE, AND AN ABSENCE IS INDISTINGUISHABLE FROM A SEARCH THAT DID NOT REACH.** *"I did not find it"* and *"it is not there"* are different statements, and only the first is ever measured. **A decision adopted without code is invisible to every code search by construction** — which is precisely the class `DECISIONS.md` exists to hold.
+
+### The rule
+
+🔒 **Any claim that something DOES NOT EXIST must state the corpus searched — the paths, and the terms.** A bare *"there is no X"* is not a finding; it is an unmeasured negative.
+
+🔒 **`DECISIONS.md` is part of every such corpus, without exception.** It is the only document in the project that records **intent adopted but not built**, so omitting it makes every negative claim about an unbuilt feature wrong by default.
+
+🔒 **Search the CONCEPT, not only the word.** Joe said *pseudonym*; the record says *humane pubkey label* and *word rendering*. **A vocabulary match is a lower bar than a subject match, and the record was written by someone who did not know which word the reader would arrive with.**
+
+⚠️ **This does not license hedging every answer.** A negative claim with its corpus stated is a strong, useful answer; a negative claim with no corpus is a guess wearing a finding's clothes. **The cost is one clause, and the failure it prevents is telling Joe that a thing he remembers correctly does not exist.**
+
+📌 **RELATION TO THE FAMILY.** The same species `D-136` records structurally and `D-131` records citationally, arriving a third way: **a source of truth consulted narrowly and then trusted broadly.** Sibling to `D-065` — surfacing *"I looked here and not there"* is the honest-over-polite rule applied to one's own search.
+
+---
+
+## D-140 — A falsification criterion must name the layer that decides it
+
+**Date:** 2026-08-05 · **Layer:** project-wide verification discipline (runbooks, Phase-0 gates, CDP probes, any check written to be able to fail) · **Ref:** `D-071`, `D-121` (lens ① is about what a person SEES), `D-135` (a predicate is tested in both directions), N-154 (a live transformer is a function of input sequence), the broken-probe lesson (J-655) · **Journal:** **earned at J-675, minted J-676** — ⚠️ *J-675 states this rule in its own text as a 🔒 FORWARD RULE and ends with "No new D"; it was journalled and never designated, so nothing downstream could cite it. Recorded here with that gap named (`D-131`).* · **Code:** none — this is a discipline.
+
+### The evidence, and it is exact
+
+Leg F's obligation ④ asked whether the AI badge is gated on the `unresolved` marker clearing or on the identity record arriving. The runbook's criterion read: ***"if `[data-ai]` is present while `unasked` is still set ⇒ §2b is wrong."***
+
+🛑 **THE CRITERION WAS MET — `data-ai` genuinely does precede the marker clear in DOM-mutation order — AND IT MEANT NOTHING.** All four mutations landed in **one synchronous flush** with no style or layout recalculation between them ⇒ **no frame is ever painted in that state.**
+
+🔑 ***§2b IS A CLAIM ABOUT PAINT. THE CRITERION TESTED ATTRIBUTE PRESENCE.*** Reading only the criterion would have reported a headline defect that does not exist; reading only the intent would have missed that the badge does precede the clear.
+
+### The rule
+
+🔒 **A criterion written to falsify a claim must name the LAYER at which the claim lives** — paint, layout, DOM, store, wire, disk — **and must be evaluated at that layer.** A probe one layer below the claim can return a clean, decisive, quotable result about the wrong thing.
+
+🔒 **Where the layers can diverge, the criterion says which divergence would count.** *"Attribute A precedes attribute B"* and *"a user could see A without B"* are different propositions; a batching flush separates them.
+
+⚠️ **This is not a demand for the most expensive layer.** An attribute probe is often exactly right — it is right whenever the claim is about attributes. **The defect is silent substitution: a claim made about one layer and checked at another, with no line in the document recording the swap.**
+
+📌 **RELATION TO THE FAMILY.** `D-135` says a predicate must be able to fail; **this says a predicate able to fail can still be aimed at the wrong target.** Sibling to `D-121` lens ① — *what does a person SEE* is a question about paint, and a verification vocabulary with no word for paint cannot answer it.

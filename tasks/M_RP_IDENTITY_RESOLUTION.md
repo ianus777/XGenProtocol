@@ -1,8 +1,8 @@
 # M-RP-IDENTITY-RESOLUTION — what a member row shows before the client knows who it is
-> **Status**: ACTIVE  
-> Version: 1.20  
+> **Status**: COMPLETED  
+> Version: 1.21  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-04  
+> **Last updated**: 2026-08-05  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -365,7 +365,21 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 - ✅ **GROUNDED, NOT ASSUMED — THE PARENT'S LEG C DOES NOT DEPEND ON ITS LEG B.** Leg B builds **delta setters** for live events; Leg C **re-runs fills**. Different mechanisms. ⇒ the ordering is free.
 - 🔑 **AND LEG C HAS TWO HALVES, OF WHICH THIS MILESTONE NEEDS ONLY ONE.** The **members** half is free — `loadMembers(sid)` is already a named callable with the §3.5 late-guard. The **spaces/rooms** half is not: `spacesState.setSpaces(await invoke('get_spaces'))` is an **inline line inside the startup block** (`app_client.svelte:625`), **not a function**, and needs extracting. ⇒ **this milestone's dependency is the cheaper half**, which is worth knowing before the parent's runbook is scoped.
 
-**Leg F — live verify + records.** 🟢 **OPENED J-674 (2026-08-04).** Phase-0 `tasks/M_RP_IDENTITY_RESOLUTION_LEGF_PHASE0.md` **v1.0 ACTIVE** · runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_F.md` **v1.2 ACTIVE (LOCKED)**. ⚠️ **A store driven by hand is a probe that cannot fail.** 🔒 **IT CARRIES THREE OBLIGATIONS MOVED OUT OF LEG B (Joe, J-653):** ① a real join producing `data-unresolved="unasked"` · ② a real `not_found` producing the ③ filter **and §5a's E2 exception** · ③ a populated roster giving `erasedHidden` something to count. 🛑 **Leg F is the FIRST behaviour verification of this milestone — Legs A, B and D are compile- and type-verified only.**
+**Leg F — live verify + records.** ✅ **CLOSED J-675 (2026-08-05) — AND THE MILESTONE CLOSES WITH IT.** All seven obligations discharged against a real second identity. Runbook `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_F.md` **v1.7 COMPLETED**, §8 carries the findings and §9 the ledger.
+
+🔑 **①②③④⑤ VERIFIED — EACH BY A COUNTER OR A CONTRAST, NEVER BY AN EMPTY SCREEN.** ① at insertion (`atInsert_unresolved="unasked"`) **and** at rest for 108 s · ②③ `memberCount:2 · rowCount:1 · erasedHidden:1` — **the roster stayed COMPLETE while the render dropped him**, B-1 exactly · ⑤ the SAME identity in two rooms with opposite outcomes (DM `rowCount:2 · erasedHidden:0 · counterpart:DAVE`, `line-through`, §5a-i's bar surviving at `rgb(154,106,48) 2px 0 0 inset`).
+
+🛑 **④ — §2b RESOLVED AT A FINER GRAIN THAN IT WAS ASKED, AND THE CRITERION WAS WRONG.** In DOM-mutation order `data-ai` lands **before** `data-unresolved` clears — so the runbook's falsification criterion **was met**. But all four mutations share ONE synchronous flush with no style/layout recalculation between them ⇒ **no frame is ever painted in that state.** ***§2b is a claim about PAINT; the criterion tested ATTRIBUTE PRESENCE.*** 🔒 **Forward rule: a falsification criterion must name the LAYER that decides it.**
+
+🛑 **⑥ — THE RESIDUE IS REAL BUT NARROWER THAN WRITTEN.** 108 s at rest, zero retries, zero mutations — then the node returned and the row **healed via a whole-list RE-FILL**, not a retry (`partition_observed` saw the identity unheld). **Two regimes:** no retry while connected, ever; self-heals across a reconnect as a side effect. ⚠️ **And the app DOES report the outage globally** (self panel `Reconnecting`) — Chat's *"nothing on screen explains it"* was retracted in-run. ⇒ `D-126`'s T3 re-priced on the accurate, weaker statement: **the ROW carries no failure affordance; the APP does.**
+
+🔑 **⑦ — A3 PRICED ON A NUMBER.** N=5: peak concurrent unasked **5**; one identity **1151 ms**, five **5459 ms** (5 × 1151 = 5755) ⇒ **the one-shot fetches SERIALISE; cost is LINEAR IN N.** ✅ Corroborated at an unrelated layer — the DAG stamps the five joins across **330 ms**, matching the DOM adds exactly.
+
+✅ **AND §5b WAS EXERCISED, NOT ARGUED.** Dave was erased on the node while every client holding a cached record would still show his name — M13 §3c, live. 🔑 *Which also produced the operational law this milestone did not know it had: **`partition_observed` + a disk-persisted book ⇒ every observation here is SINGLE-USE PER IDENTITY.** A misfire costs the identity, not a retry.*
+
+📌 **Seven findings filed, none a Leg F obligation** — see runbook §8. Most were surfaced by Joe looking at the screen or asking a question the text did not answer.
+
+🔒 **IT CARRIED THREE OBLIGATIONS MOVED OUT OF LEG B (Joe, J-653):** ① a real join producing `data-unresolved="unasked"` · ② a real `not_found` producing the ③ filter **and §5a's E2 exception** · ③ a populated roster giving `erasedHidden` something to count — **all three discharged.** 🛑 **Leg F was the FIRST behaviour verification of this milestone — Legs A, B and D are compile- and type-verified only.**
 
 🛑 **AND THIS SECTION'S OWN PRICE — *"two clients, a real join, a real `not_found`"* — HID THE WHOLE LEG. SUPERSEDED, KEPT NOT ERASED (`D-131`).** Grounded at `3bde951`: **there was no way to launch a second client** (`run-client.ps1` has two parameters and REFUSES to start when 5173 is held, `:85-99`); and **the product has no verb that can erase an identity** (`registry.rs` exposes fourteen methods and **no `remove`/`erase`/`delete` in any crate**; `identity.not_found` fires at `xgen-node/src/app.rs:3567` on `registry.get() == None`). *One sentence naming two capabilities the repository does not have.*
 
@@ -410,11 +424,11 @@ The fill's only trigger is a change in `roomLatch.effectiveSpaceId`, de-duped ac
 - [x] §6's refresh trigger ruled by Joe — ✅ **RULED 2026-08-02 (J-658): R1**, a re-fill on the transition into `READY`; **the parent's Leg C builds it**
 - [x] **G-A closed** — ✅ **J-647.** `FillReport.not_found_ids: Vec<IdentityXgid>` ships; the client can name which members returned `not_found`
 - [x] **G-B closed** — ✅ **CLOSED 2026-08-04 (J-672) BY THE PAIR, EXACTLY AS `N-168` REQUIRED.** Leg E (the refresh trigger, R1) discharged J-670 by `M-RP-LIVEFEED-REFRESH` Leg C; **Leg D (the attempt on the ordinary path) landed at `aa7d9c9` + `9901036`.** 🔑 *Neither leg ticked it alone, and the record shows both dates — which is the whole point of §6b's rule.* ⚠️ **The MECHANISM is built and compile-verified; that a refresh actually fires ON SCREEN is Leg F's ⑤/⑥.**
-- [ ] **The residue re-priced** — Leg F measures how often a Tier-1 fetch times out; **T3's bounded retry returns as a live option, or becomes a defect** (§6b `Owes:`). 📌 *Now REACHABLE — Leg D created the state; before it, a Tier-1 fetch could not time out because there was no Tier-1 fetch.*
+- [x] **The residue re-priced** — ✅ **J-675.** ⑥ measured: **108 s at rest, zero retries, zero mutations while connected**; the row then **healed on reconnect via a whole-list RE-FILL, not a retry**. ⇒ `D-126`'s **T3 stays a live option, re-priced on the ACCURATE residue**: the ROW carries no failure affordance, but the APP reports the outage globally (self panel `Reconnecting`) — *weaker than the "unreported" version Chat first wrote and retracted in-run.* ⚠️ **A bounded retry buys less than §6b assumed**, because the reconnect path already heals the row.
 - [x] cargo floor re-measured on every Rust leg, delta explained — ✅ Leg A, Leg D-i (**1595 → 1596**, Δ named, test proven able to fail)
 - [x] `svelte-check` floor re-measured on every frontend leg, delta explained — ✅ Leg B, Leg C, Leg D-ii (**0/34/15 → 0/34/15** against a freshly measured baseline, not the inherited figure), **Leg C-3 (0/34/15 unchanged, twice — the rule commit and the comment follow-up)**
-- [ ] **Live-verified, EXERCISED not asserted** — two clients, a real join, a real `not_found`; ③ hidden, ④ dimmed, both resolving on refresh. 📌 *Leg C-3 verified the SKIN on the sampler (④'s tone and weight read off the painted DOM, J-673); **the STORE delivering that state to a real client row is still Leg F's**, and the two must not be read as the same claim.*
-- [ ] Records: JOURNAL + CLAUDE.md PLAY + ROADMAP + this doc in one commit (D-074)
+- [x] **Live-verified, EXERCISED not asserted** — ✅ **J-675.** A real join, a real `not_found`, ③ hidden (`erasedHidden:1` with the roster COMPLETE), ④ rendered at weight 500 / `rgb(138,136,128)` on a **client** row for the first time. ⚠️ **TWO DIVERGENCES FROM THIS LINE'S OWN WORDING, ANNOTATED NOT ERASED (`D-131`): (a) "two clients" — the joiner was a HEADLESS CLI process (J1), which `ops::join` proves emits the identical `MembershipJoin`; (b) "both resolving on refresh" is FALSE for ③ — an erased identity NEVER resolves, that is what erasure means.** *Only ④ heals, and only across a reconnect.* 📌 *Leg C-3 verified the SKIN on the sampler (J-673); Leg F verified the STORE delivering that state to a real client row — the two remain separate claims and both now hold.*
+- [x] Records: JOURNAL + CLAUDE.md PLAY + ROADMAP + this doc in one commit (D-074) — ✅ **J-675**
 
 ---
 

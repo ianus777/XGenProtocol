@@ -8,6 +8,70 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-675 — M-RP-IDENTITY-RESOLUTION Leg F RUNS AND THE MILESTONE CLOSES: seven obligations discharged, and the falsification criterion that mattered most was written at the wrong layer
+
+**Date:** 2026-08-05 · **Seat:** Chat (rig, probes, measurement, records) · Joe (custody under `D-132`, the eyes, five rulings). **NO CODE. NO `.rs`. NO `ui/**`.** `RUNBOOK_IDENTITY_RESOLUTION_LEG_F.md` v1.2 → **v1.7 COMPLETED** · `M_RP_IDENTITY_RESOLUTION.md` v1.20 → **v1.21 COMPLETED** · ROADMAP v6.62 → **v6.63**.
+
+🔒 **THE MILESTONE CLOSES.** §10's last two unticked lines — *"the residue re-priced"* and *"Live-verified, EXERCISED not asserted"* — are both discharged.
+
+---
+
+### 🔑 THE RIG: J1 PAID THREE TIMES, AND ONLY ONE WAS PLANNED
+
+J1 was locked on **cost** (all options had zero user-visible impact, so `D-121` decided it). It then paid twice more, neither foreseen: **(a)** `clean_slate_config` has one production call site, `desktop.rs:866`, the GUI path ⇒ the CLI never runs D-101's wipe, so `[ai]` survives `init` → `register` **by construction**; **(b)** ⑦ became measurable at all — five GUIs cannot be fired in one loop.
+
+✅ **AND THE JOINS WERE REAL, PROVEN AT THE DAG:** the Space event store holds **`membership.join` × 10 · `membership.invite` × 8 · `state.space_create` · `state.room_create`**, every join **signed** (138 ch) by a **distinct sender key** with real `prev_events` chains. *Nothing was injected into the client store.*
+
+---
+
+### 🛑 R0 — THE RUN ORDER IS NOT THE RUNBOOK NUMBERING, AND THAT WAS UNRECOVERABLE
+
+③'s first fill is observable **once**; ① exists only on the live join path. ⇒ Dave joined and was erased **before the GUI ever launched**. Executed: **R-3 group → R-3 DM → R-1 → R-2 → R-4.** 🔑 **And the protection turned out STRUCTURAL, not procedural:** every production address-book write is in `desktop.rs` (`:710`, `:775`) ⇒ **no CLI command can write the observer's book at all**, which closed §11-6 by a stronger fact than the one doubted.
+
+🔑 **A NEW OPERATIONAL LAW, MEASURED: EVERY OBSERVATION IS SINGLE-USE PER IDENTITY.** `partition_observed` never re-fetches a held record and the book persists to disk ⇒ a misfire costs the identity, not a retry. Mitigated by a hash-verified restore point taken before the run.
+
+---
+
+### ✅ ①②③④⑤ — VERIFIED, EACH BY A COUNTER OR A CONTRAST, NEVER BY AN EMPTY SCREEN
+
+① at insertion (`atInsert_unresolved="unasked"`) **and** at rest 108 s — *and F3 was right: the row MOUNTS carrying the attribute, so v1.0's attributes-only observer would have recorded nothing.* ②③ `memberCount:2 · rowCount:1 · erasedHidden:1` — **the roster stayed COMPLETE while the render dropped him** (B-1). ⑤ same identity, two rooms, opposite outcomes: DM `rowCount:2 · erasedHidden:0 · counterpart:DAVE`, `line-through`, and §5a-i's bar survives (`rgb(154,106,48) 2px 0 0 inset`).
+
+---
+
+### 🛑 ④ — THE CRITERION WAS MET AND IT WAS THE WRONG CRITERION
+
+One flush at t=14513, in DOM-mutation order: `aria-label`→`LegF-Bob` · **`data-ai` null→true** · seed hue 73→35 · **`data-unresolved` unasked→null**. The runbook said *"if `[data-ai]` is present while `unasked` is still set ⇒ §2b is wrong."* **It is present.** But all four land in ONE synchronous flush with no style/layout recalculation between them ⇒ **no frame is ever painted in that state.**
+
+🔑 ***§2b IS A CLAIM ABOUT PAINT; THE CRITERION TESTED ATTRIBUTE PRESENCE.*** Reading only the criterion ⇒ report a headline defect that does not exist. Reading only the intent ⇒ miss that the badge genuinely precedes the clear. **🔒 FORWARD RULE: a falsification criterion must name the LAYER that decides it.**
+
+---
+
+### 🛑 ⑥ — THE CLAIM WAS BROADER THAN WHAT HOLDS, AND CHAT RETRACTED A SECOND CLAIM MID-RUN
+
+108 s, ONE log entry, zero mutations. **Then the node returned and the row healed** — both Bob's and Carol's rows **re-ADDED with `atInsert=null`**, a whole-list rebuild. ⇒ **nothing retried the failed fetch; a RE-FILL re-asked.** **Two regimes written as one claim:** no retry while connected, ever; self-heals across a reconnect as a *side effect*, by no policy. ⚠️ *The reconnect itself was not instrumented — inferred, then corroborated independently by Joe's screenshots.*
+
+🛑 **AND: Chat wrote *"nothing on screen explains why the row is stuck."* FALSE** — Joe's screenshot shows the self panel reading `Reconnecting`. **Accurate residue: the ROW carries no failure affordance and never retries while connected; the APP does report the disconnection globally.** *Weaker than "unreported", and it changes what a bounded retry would buy.* ⇒ `D-126` T3 re-priced on that, not on the stronger version.
+
+---
+
+### 🔑 ⑦ — A3 IS PRICED ON A MEASURED LINEAR COST, NOT ON A FEAR
+
+N=5 (locked before the run, `D-123`). **Peak concurrent unasked = 5.** Bob alone **1151 ms**; five **5459 ms**; 5 × 1151 = 5755 ⇒ **the one-shot fetches SERIALISE — cost is LINEAR IN N.** ✅ **Corroborated at an unrelated layer:** the DAG stamps the five joins across **330 ms**, matching the DOM adds exactly. ⇒ A3's batched form returns as a live option **with a number attached**.
+
+---
+
+### 📌 SEVEN FILED FINDINGS — none a Leg F obligation, most surfaced by Joe looking at the screen
+
+Feed entries never re-render on resolution (`Bk9glk joined`, three resolutions, unchanged) · **`members-panel.svelte:11-14` overstates its own source** — inertness was **deferred, not rejected** (`M_RP_PANEL_INERT.md` §0), though the inertness itself **verified by probe** against a working control · **`entity-context-menu` is COMPLETE and never instantiated**, zero `oncontextmenu` anywhere, and **its deferral is recorded everywhere while its REASON is recorded nowhere** · four candidate menu items, each earned by an observed state · **three inconsistent truncations of one identity render at once**, and the avatar's `ED` is initials of the ALGORITHM · **remembering names is built, forgetting them is designed and unwired** — M13 §3c EXERCISED, not argued · the panel's outage affordance **cannot fire once a roster is loaded**.
+
+🔒 **JOE'S RULINGS THIS ARC:** keep `tail()` · keep the LegF Spaces · `tail (display_name)` **withdrawn on measurement** (the two are mutually exclusive by construction — `tail()` renders *because* no name exists).
+
+---
+
+**FLOORS UNTOUCHED AND DELIBERATELY NOT RE-MEASURED** (no `.rs`, no `ui/**`): cargo **1596/0/62 × 56** · svelte-check **0/34/15** · catalogue **435**. Client debug registry read **185** live. All apps down; 5173/5174/5175/9222/9322/9422/8080 free. Probe residue **0**; observers disconnected; `window.__LEGF` deleted (`N-123`). **No new D, no new N.** → J-675 · ROADMAP v6.63.
+
+---
+
 ## Entry J-674 — M-RP-IDENTITY-RESOLUTION Leg F OPENS: the two-client question was the whole leg, and the runbook's adversarial read found a control that destroyed the state it was controlling for
 
 **Date:** 2026-08-04 · **Seat:** Chat (grounding, Phase-0, runbook, the technical rulings, records) · Clair (the adversarial read — **no authority to code**) · Joe (§2 and §3 locked; the runbook locked). **NO CODE. NOTHING LAUNCHED.** New: `tasks/M_RP_IDENTITY_RESOLUTION_LEGF_PHASE0.md` **v1.0 ACTIVE** · `tasks/RUNBOOK_IDENTITY_RESOLUTION_LEG_F.md` v1.0 → v1.1 → **v1.2 ACTIVE (LOCKED)** · `M_RP_IDENTITY_RESOLUTION.md` v1.19 → **v1.20** · ROADMAP v6.61 → **v6.62**.

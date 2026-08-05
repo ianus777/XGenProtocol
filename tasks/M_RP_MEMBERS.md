@@ -1,8 +1,8 @@
 # M-RP-MEMBERS — the R7 members widget over the address book
 > **Status**: ACTIVE  
-> Version: 1.16  
+> Version: 1.17  
 > Date: Jul 2026  
-> **Last updated**: 2026-08-01  
+> **Last updated**: 2026-08-05  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -478,6 +478,12 @@ Three distinct truths, and conflating them is the trap:
 📌 **D-126's other openings are NOT settled by this lock:** canonical-vs-cosmetic, the wordlist and its language remain open and Joe's. This milestone consumes the cheapest family and reserves the rest.
 
 ### 🛑 §6a — THE LOCK AND THE SHIPPED BUILD DISAGREE: `tail-8` WAS LOCKED, THE CODE RENDERS THE CONSTANT HEAD (filed by `M-RP-LIVEFEED-REFRESH` Leg A, 2026-08-01, J-643 — FILED, NOT FIXED)
+
+✅ **STATUS CONFIRMED AND STRENGTHENED 2026-08-05 (J-677) — THIS SECTION IS RIGHT, AND A LATER RECORD APPEARED TO OVERTURN IT WITHOUT ANYONE DECIDING ANYTHING.** `J-675` recorded *"Joe ruled: keep `tail()`"* under 🔒 **JOE'S RULINGS**. 🛑 **Joe never said it** — it was manufactured from a proposal of his that had been withdrawn on measurement (`D-141`). ⇒ **§6's `tail-8` lock was never reversed and was never in competition.** ⚠️ *Being newer, the fabricated line would have won on any ordinary read of the record.*
+
+✅ **AND JOE RESTATED THE INTENT HIMSELF THE SAME DAY, INDEPENDENTLY:** *"i still want to use the tail() instead of raw long pub key in the case the node and the client dont know display_name."* 🔑 **Measured at the producer, that sentence resolves to `tail-8`, because `tail()` IS the raw long pubkey** — which is precisely what this section says. **Two statements of the same intent, fifteen days apart.**
+
+⚠️ **ONE CLAIM BELOW IS BROADER THAN WHAT HOLDS — ANNOTATED, NOT REPAIRED (`D-131`).** *"Two unresolved members are indistinguishable FROM EACH OTHER"* was **not measured when written.** Leg F measured a real client row: **`ed25519:7WGuWOqU…`** — the constant head, then **8 distinguishing characters**, then the ellipsis. ⇒ **the rows ARE distinguishable in practice.** 📌 *Honest limit, and it is why the gap still matters: the count is WIDTH-DEPENDENT, not guaranteed — a narrower panel renders fewer entropy characters, and nothing in the code makes any minimum hold.* **The lock-versus-build gap stands on that, not on indistinguishability.**
 
 **Measured on the render path, not inferred:**
 

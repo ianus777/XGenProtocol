@@ -8,6 +8,58 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-677 — A ruling that was never uttered: *"Joe ruled: keep `tail()`"* was manufactured from a withdrawn proposal, and `J-588`'s `tail-8` lock was never reversed
+
+**Date:** 2026-08-05 · **Seats:** Chat Claude + Joe · **Code:** NONE — zero `.rs`, zero `ui/**` · **Milestone:** none opened.
+
+🛑 **FOUND BY JOE ASKING A QUESTION ABOUT THE SEAT RATHER THAN THE CONTENT: *"do you ask to lock 'keep tail()'?"*** Nothing in the text would have surfaced it. **The fourth Chat error of this two-entry arc and the most serious of them.**
+
+### 🛑 WHAT THE RECORD SAID, AND WHAT ACTUALLY HAPPENED
+
+`J-675` recorded under 🔒 **JOE'S RULINGS**: *"keep `tail()`"*, propagated to the `CLAUDE.md` PLAY head and `RUNBOOK_IDENTITY_RESOLUTION_LEG_F.md` §8 Finding 5.
+
+🛑 **Joe never said it.** From the Leg F run transcript, retrieved and read rather than recalled:
+1. **Joe proposed** `tailname (remembered display_name)` — `t4ilnam3 (Bob_N)`.
+2. Chat **measured it**: during a full outage every known member still renders their real name from the book, and `tail()` renders *precisely because* no `display_name` exists (`members-panel.svelte:28-29`) ⇒ **the state the format targets does not occur**; the parentheses can never be populated.
+3. **The proposal was withdrawn on measurement** — correctly, and that withdrawal *is* recorded truthfully.
+4. Joe's closing words, *"let us keep it for now"*, answer the question immediately above them: ***"Keep the Spaces, or roll back?"*** ⇒ **the LegF test Spaces, and nothing else.**
+
+🔑 **THE MECHANISM: A DECISION MANUFACTURED OUT OF THE ABSENCE OF A CHANGE.** His enhancement was refuted ⇒ the code stayed as it was ⇒ *"Joe ruled: keep `tail()`."* **Each step a small inference; the sum a lock in his name he never took.** ⇒ 🔒 **`D-141` MINTED.**
+
+🔑 **WHY IT IS A WORSE CLASS THAN J-676's MISCITATION.** ***A miscitation misdirects a reader; a fabricated attribution corrupts the one distinction the seat architecture rests on — what Joe decided versus what Chat concluded.*** `D-121` exists to make recommendations **checkable**; a ruling invented on Joe's behalf is unfalsifiable by construction, because he has no memory of a decision he never made and the record insists he made it.
+
+### 🔒 CONSEQUENCE — `J-588` STANDS, AND IT WAS NEVER IN COMPETITION
+
+`M_RP_MEMBERS.md:476`: 🔒 *"LOCKED — tail-8 for v1; the D-126 word form DEFERRED (Joe, 2026-07-25)."* §6a already records that **the shipped build renders the constant head instead** (filed J-643, not fixed).
+
+🛑 **The fabricated *"keep `tail()`"* sat in the record CONTRADICTING that live lock, and being newer it would have won.** ⇒ **`tail-8` was never reversed. Discharging §6a is undischarged EXECUTION, not an open question**, and under `D-123` it is Chat's to schedule.
+
+### ✅ JOE'S ACTUAL POSITION, STATED TODAY AND CONSISTENT WITH J-588
+
+> *"i still want to use the tail() instead of raw long pub key in the case the node and the client dont know display_name."*
+
+🔑 **MEASURED AT THE PRODUCER, AND IT INVERTS THE SENTENCE'S SURFACE READING: `tail()` IS THE RAW LONG PUBKEY.** `xgid.split('/').pop()` on `xgen://pubkey/ed25519:<43 chars>` returns **`ed25519:` plus every one of the 43 key characters**; the row appears short **only because `.ei-name` clips it** (`skin.css:2475-2482`), at whatever width the panel happens to be. ⇒ **Joe's intent is `tail-8`** — exactly what he locked at J-588.
+
+🔑 **THE THIRD TWO-MEANING TOKEN OF THIS ARC, AND IT IS WHY FOUR TURNS WENT SIDEWAYS.** `"tail()"` carried ***"the short handle"*** in conversation and ***"the whole key"*** in code. Same shape as `"word"` (status term vs. pubkey rendering) and `"T3"` (option label vs. designation). ***A token with two meanings, welded by usage rather than by anyone deciding — and each one produced a false record before anyone noticed the seam.***
+
+### 🛑 J-676 IS ITSELF CORRECTED, ONE COMMIT OLD
+
+`J-676` (`f7226b4`) annotated seventeen sites saying *"Joe's `keep tail()` was made on Chat's false premise and is REOPENED, not overturned."* ⚠️ **That framing was wrong in Joe's favour: it was never his to reopen.** Annotated, not repaired — **`D-131` reaching a correction's correction**, the J-671 shape.
+
+### 📌 SITES ANNOTATED (7)
+
+`JOURNAL.md` ×3 (J-675's rulings line; J-676's Finding-5 section; J-676's `OPEN AND JOE'S` line) · `CLAUDE.md` ×2 (the J-675 and J-676 PLAY blocks) · `RUNBOOK_IDENTITY_RESOLUTION_LEG_F.md` ×2 (§8 Finding 5 and its J-676 annotation).
+
+### ✅ STATE
+
+✅ **RE-MEASURED, NOT INHERITED:** clean tree at open, HEAD `f7226b4` = `origin/main`. ✅ **FLOORS UNTOUCHED AND NOT RE-RUN, STATED RATHER THAN SKIPPED** (zero `.rs`, zero `ui/**`): cargo **1596/0/62 × 56** · svelte-check **0/34/15** · catalogue **435**.
+
+**DOCUMENTS:** `DECISIONS.md` gains **`D-141`** · `RUNBOOK_IDENTITY_RESOLUTION_LEG_F.md` v1.9 → **v1.10** · `M_RP_MEMBERS.md` §6a annotated · `docs/ROADMAP.md` v6.64 → **v6.65**. **One new D. No new N.**
+
+🟡 **NEXT, AND IT NEEDS JOE ONLY FOR ITS NAME AND ITS GO:** a small milestone discharging §6a — the unresolved-row fallback renders `tail-8` rather than the whole key. **Code is Clair's seat ⇒ a short runbook, and no code until Joe approves it.**
+
+---
+
 ## Entry J-676 — A CORRECTION ARC: `D-126` was cited for something it is not about across seventeen sites, and the claim that killed the pseudonym question was a search that never opened `DECISIONS.md`
 
 **Date:** 2026-08-05 · **Seats:** Chat Claude + Joe · **Code:** NONE — zero `.rs`, zero `ui/**` · **Milestone:** none opened; `M-RP-IDENTITY-RESOLUTION` stays ✅ CLOSED (J-675).
@@ -58,6 +110,8 @@ Finding 5 recorded **`C-8`** (*"do not fabricate a name map"*) as settling the t
 
 🔓 **JOE'S `keep tail()` IS REOPENED, NOT OVERTURNED, AND DELIBERATELY NOT PRE-EMPTED.** It may well stand — a member roster is arguably neither a statistics listing nor a serious/identifying use. **The point is that he ruled on Chat's false premise and must get the question back with the accurate picture.** Annotated at the runbook, at J-675 and in the PLAY head so no reader finds it recorded as settled.
 
+🛑 **THIS SECTION IS SUPERSEDED THE SAME DAY (J-677) — ANNOTATED, NOT REPAIRED (`D-131` reaching a correction's correction).** It treats *"keep `tail()`"* as a **real ruling of Joe's taken on a false premise**. **It was never a ruling at all** — Joe never uttered it, and the transcript shows his only closing words answering *"Keep the Spaces, or roll back?"* ***There was nothing to reopen, and this milder framing was wrong in Joe's favour.***
+
 ### 🔒 `D-140` MINTED — A RULE LEG F EARNED AND NOBODY DESIGNATED
 
 ⚠️ **J-675 states *"A FALSIFICATION CRITERION MUST NAME THE LAYER THAT DECIDES IT"* in its own text as a 🔒 FORWARD RULE — and ends with *"No new D"*.** It was journalled and never given a number, **so nothing downstream could cite it.** 🔑 ***A forward rule with no designation is a forward rule that will be re-derived from scratch by whoever next needs it*** — `D-136`'s own thesis, one document over. Minted with the gap named.
@@ -74,7 +128,7 @@ Finding 5 recorded **`C-8`** (*"do not fabricate a name map"*) as settling the t
 
 **DOCUMENTS:** `DECISIONS.md` gains **`D-139`** and **`D-140`** · `RUNBOOK_IDENTITY_RESOLUTION_LEG_F.md` v1.7 → **v1.9** · `M_RP_IDENTITY_RESOLUTION.md` v1.21 → **v1.22** · `M_RP_IDENTITY_RESOLUTION_LEGD_PHASE0.md` v1.2 → **v1.3** · `M_RP_IDENTITY_RESOLUTION_LEGF_PHASE0.md` v1.0 → **v1.1 COMPLETED** · `docs/ROADMAP.md` v6.63 → **v6.64**. **Two new D. No new N.**
 
-🔓 **OPEN AND JOE'S:** `keep tail()`, reopened above — **the only item this arc hands back.**
+🔓 **OPEN AND JOE'S:** `keep tail()`, reopened above — **the only item this arc hands back.** 🛑 **SUPERSEDED J-677: there was no ruling to reopen and therefore nothing was handed back. `J-588`'s `tail-8` lock stands undischarged; the only genuinely open item is `D-126`'s word form, which J-588 already deferred.**
 
 ---
 
@@ -134,7 +188,7 @@ N=5 (locked before the run, `D-123`). **Peak concurrent unasked = 5.** Bob alone
 
 Feed entries never re-render on resolution (`Bk9glk joined`, three resolutions, unchanged) · **`members-panel.svelte:11-14` overstates its own source** — inertness was **deferred, not rejected** (`M_RP_PANEL_INERT.md` §0), though the inertness itself **verified by probe** against a working control · **`entity-context-menu` is COMPLETE and never instantiated**, zero `oncontextmenu` anywhere, and **its deferral is recorded everywhere while its REASON is recorded nowhere** · four candidate menu items, each earned by an observed state · **three inconsistent truncations of one identity render at once**, and the avatar's `ED` is initials of the ALGORITHM · **remembering names is built, forgetting them is designed and unwired** — M13 §3c EXERCISED, not argued · the panel's outage affordance **cannot fire once a roster is loaded**.
 
-🔒 **JOE'S RULINGS THIS ARC:** keep `tail()` · keep the LegF Spaces · `tail (display_name)` **withdrawn on measurement** (the two are mutually exclusive by construction — `tail()` renders *because* no name exists). 🔓 **`keep tail()` REOPENED 2026-08-05 (J-676) — it was ruled on Chat's false claim that no pseudonym mechanism exists; `D-126`'s word rendering does exist as adopted intent. NOT OVERTURNED; returned to Joe with the accurate picture (`D-131`, `D-139`).**
+🔒 **JOE'S RULINGS THIS ARC:** keep `tail()` · keep the LegF Spaces · `tail (display_name)` **withdrawn on measurement** (the two are mutually exclusive by construction — `tail()` renders *because* no name exists). 🛑 **`keep tail()` IS A FABRICATED ATTRIBUTION — JOE NEVER SAID IT (established J-677 from the transcript; annotated, not repaired, `D-131`).** His closing *"let us keep it for now"* answered ***"Keep the Spaces, or roll back?"*** ⇒ **two of the three items on this line are real; the first is Chat's inference from a withdrawn proposal, written up as Joe's.** ⇒ `D-141`. *An earlier annotation here called it "REOPENED"; that was itself wrong and is superseded.*
 
 ---
 

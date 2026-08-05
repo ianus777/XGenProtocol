@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.64  
+> Version: 6.65  
 > Date: May 2026  
 > **Last updated**: 2026-08-05  
 > Language: English  

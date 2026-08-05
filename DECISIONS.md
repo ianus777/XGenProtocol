@@ -5281,3 +5281,39 @@ Leg F's obligation ④ asked whether the AI badge is gated on the `unresolved` m
 ⚠️ **This is not a demand for the most expensive layer.** An attribute probe is often exactly right — it is right whenever the claim is about attributes. **The defect is silent substitution: a claim made about one layer and checked at another, with no line in the document recording the swap.**
 
 📌 **RELATION TO THE FAMILY.** `D-135` says a predicate must be able to fail; **this says a predicate able to fail can still be aimed at the wrong target.** Sibling to `D-121` lens ① — *what does a person SEE* is a question about paint, and a verification vocabulary with no word for paint cannot answer it.
+
+---
+
+## D-141 — A ruling is attributed to Joe only where he uttered it; the absence of a change is not a decision, and a withdrawn proposal leaves no lock behind
+
+**Date:** 2026-08-05 · **Layer:** seats · provenance · what may be written under "Joe's rulings" · **Ref:** `D-123` (seats), `D-121` (the lenses — whose entire purpose is that Joe can check what he is being asked), `D-127` (the *"Chat recommended, Joe DELEGATED"* provenance precedent), `D-131` (annotate, never silently repair), `D-065` · **Journal:** J-677 · **Code:** none — this is a discipline.
+
+⚠️ **PROVENANCE: Chat's error, found by Joe asking *"do you ask to lock 'keep tail()'?"* — a question about the seat, not about the content. Nothing in the text would have surfaced it.**
+
+### What happened
+
+`J-675` recorded, under the heading 🔒 **JOE'S RULINGS**: *"keep `tail()`."* It propagated to the `CLAUDE.md` PLAY head and to `RUNBOOK_IDENTITY_RESOLUTION_LEG_F.md` §8 Finding 5.
+
+🛑 **Joe never said it.** The transcript shows: **Joe proposed** `tailname (remembered display_name)` → Chat **measured it and showed the targeted state does not occur** → the proposal was **withdrawn on measurement**. His closing words, *"let us keep it for now"*, answer the question immediately above them — ***"Keep the Spaces, or roll back?"*** — and are about the LegF test Spaces.
+
+🔑 **THE MECHANISM: A DECISION WAS MANUFACTURED OUT OF THE ABSENCE OF A CHANGE.** Joe's enhancement was refuted ⇒ the code stayed as it was ⇒ *"Joe ruled: keep `tail()`"*. **Every step is a small inference and the sum is a lock in his name that he never took.**
+
+### Why this is a worse class than a miscitation
+
+🔑 ***A MISCITATION MISDIRECTS A READER. A FABRICATED ATTRIBUTION CORRUPTS THE ONE DISTINCTION THE WHOLE SEAT ARCHITECTURE RESTS ON — WHAT JOE DECIDED VERSUS WHAT CHAT CONCLUDED.*** `D-121` exists so that recommendations are **checkable** rather than trusted blind; a ruling invented on Joe's behalf is unfalsifiable by construction, because he has no memory of a decision he never made and the record insists he made it.
+
+🛑 **AND IT SILENTLY OVERTURNS REAL LOCKS.** `tail-8` was locked by Joe at J-588 (`M_RP_MEMBERS.md:476`). The fabricated *"keep `tail()`"* sat in the record **contradicting a live lock**, and because it read as newer it would have won.
+
+### The rule
+
+🔒 **A line under "Joe's rulings" carries only what Joe said.** Where the record needs his words, **quote them**, and where useful **name the question they answered** — *"let us keep it for now"* is unambiguous beside *"keep the Spaces, or roll back?"* and means nothing on its own.
+
+🔒 **The absence of a change is not a decision.** A proposal refuted, a suggestion dropped, a question that ran out of session — all leave the code as it was and **none of them ruled anything.** If the status quo needs affirming, it is put to Joe as a question, not recorded as an answer.
+
+🔒 **A conclusion Chat reached is recorded as Chat's**, under `D-123`, with its reasoning — which is a **stronger** record, because it can be checked and reversed. `D-127`'s *"Chat recommended, Joe DELEGATED"* line is the pattern.
+
+🔒 **Before any ruling is written into a canonical record, the utterance is located.** If it cannot be found, it was not a ruling.
+
+⚠️ **This does not require a quote for every delegated item.** *"Lock all by your recomms"* is a real utterance and delegation is real — **recorded as delegation** (`D-127`), never laundered into a considered lock.
+
+📌 **RELATION TO THE FAMILY.** The same species as `D-139` (a negative claim whose evidence is an absence) reaching provenance instead of search: **an absence read as a finding.** Sibling to `D-131` — that rule protects a citation's target, this one protects a decision's author.

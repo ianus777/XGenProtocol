@@ -81,7 +81,10 @@
   }
 
   function deriveInitials(nm: string | undefined, xgid: string): string {
-    const n = (nm ?? '').trim();
+    // D-142: a fallback name is `…` + last-8 (members-panel). Strip LEADING non-letter/
+    // non-digit chars so it yields `gM`, not `…g`. `\p{L}`/`\p{N}` deliberately — a blanket
+    // `[^a-z0-9]` would empty a CJK/Cyrillic name; anchored so interior punctuation survives.
+    const n = (nm ?? '').trim().replace(/^[^\p{L}\p{N}]+/u, '');
     if (n) {
       const words = n.split(/\s+/);
       const pick =

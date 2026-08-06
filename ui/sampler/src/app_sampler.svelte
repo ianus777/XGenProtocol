@@ -287,21 +287,28 @@
   ];
   let epSelRooms = $state();
 
-  // unresolved (M-RP-IDENTITY-RESOLUTION §4/§5a) — the two states a member row can be in when the
-  // client holds NO identity record. ⚠️ The names are xgid TAILS on purpose: with no book record
-  // `toDescriptor` already falls back to `tail(identity_id)`, so a real ③/④ row has NO display
-  // name (Phase-0 §5b). A fixture with a human name would be tuning a case the product cannot
-  // produce. The first row is RESOLVED and is the control — a mark is only readable against one.
-  // ⚠️ TAIL LENGTH IS LOAD-BEARING: `tail()` returns the whole final segment (`ed25519:` + a
-  // 43-char key — an Ed25519 pubkey is 32 raw bytes and `crypto/encoding.rs` is base64url with NO
-  // padding, so 32B encodes to 43 chars, not 44) and `.ei-name` is LEFT-anchored, so the real
-  // render KEEPS the constant head and ellipsises the distinguishing bytes (`M_RP_MEMBERS.md`
-  // §6a). A short fixture tail would not clip, and would show a more legible string than the
-  // product can produce.
+  // unresolved (M-RP-IDENTITY-RESOLUTION §4/§5a, D-142) — the two states a member row can be in when
+  // the client holds NO identity record. ⚠️ The names are the fallback FORM on purpose: with no book
+  // record `toDescriptor` falls back to `tail8(identity_id)` = `…` + the last 8 of the key (D-142), so
+  // a real ③/④ row has NO display name (Phase-0 §5b). A fixture with a human name would be tuning a
+  // case the product cannot produce. The first row is RESOLVED and is the control — a mark is only
+  // readable against one.
+  // 🔑 THESE FIXTURES CARRY THE PRODUCT'S OUTPUT, NOT ITS TRANSFORM. The sampler does not mount
+  // `members-panel` and has no `tail8` of its own — it renders `descriptor.name` VERBATIM — so each
+  // fixture holds the already-rendered `…` + 8 string. The two tails are DISTINCT ON PURPOSE
+  // (`cZkW5jU0` vs `gMpQaXrB`) so the two unresolved states are distinguishable; the unasked tail is
+  // the last 8 of a 43-char key whose head is `7WGuWOqU` — the characters Leg F actually observed on
+  // screen.
+  // ⚠️ SUPERSEDED SENTENCE, kept per D-131 (false since D-142): « TAIL LENGTH IS LOAD-BEARING:
+  // `tail()` returns the whole final segment (`ed25519:` + a 43-char key) and `.ei-name` is
+  // LEFT-anchored, so the real render KEEPS the constant head and ellipsises the distinguishing
+  // bytes; a short fixture tail would not clip, and would show a more legible string than the product
+  // can produce. » — the product's own string is now `…` + 8 and does not clip, so `.ei-name`'s left
+  // anchor no longer decides what is shown.
   const epUnresolved = [
     { descriptor: { kind: 'identity', name: 'Bob Lee', id: 'xgen://identity/bob-9c04', flags: {} } },
-    { descriptor: { kind: 'identity', name: 'ed25519:9xK2vN8pLdA3QmR47bTfHs1YnE6cZkW5jU0gMpQaXrB', id: 'xgen://identity/unasked-1', flags: {} }, unresolved: 'unasked' },
-    { descriptor: { kind: 'identity', name: 'ed25519:Zk9WbT5cH1sYnE6f7QmR4xK2vN8pLdA3jU0gMpQaXrB', id: 'xgen://identity/erased-1', flags: {} }, unresolved: 'erased' },
+    { descriptor: { kind: 'identity', name: '\u2026cZkW5jU0', id: 'xgen://identity/unasked-1', flags: {} }, unresolved: 'unasked' },
+    { descriptor: { kind: 'identity', name: '\u2026gMpQaXrB', id: 'xgen://identity/erased-1', flags: {} }, unresolved: 'erased' },
   ];
   // §5a-i — the erased row is the DM counterpart and is pre-SELECTED, because the lock (the L16
   // highlight SURVIVES the mark) is unobservable unless something renders the two together.

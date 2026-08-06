@@ -25,9 +25,11 @@
   let { regionId, id = `region-${regionId}` }: { regionId: string; id?: string } = $props();
   const cid = (s: string) => (id ? `${id}__${s}` : undefined);
 
-  // Last-resort name: the xgid's final path segment (the `entity-panel` itemKey shape). Used when the book
-  // holds no `display_name` — v1 renders the last resort of the name chain for everybody (Phase-0).
-  const tail = (xgid: string) => xgid.split('/').pop() || xgid;
+  // D-142: where no display name is known, an identity shows `…` + the last 8 characters of its
+  // key — never the raw long pubkey. The ellipsis is part of the STRING, not the skin: only this
+  // widget knows the name is a fallback (a resolved member may simply have no display_name, and
+  // an erased member may still carry a cached one), and no CSS selector can express that.
+  const tail8 = (xgid: string) => (xgid ? `\u2026${xgid.slice(-8)}` : '');
 
   // ── The scope (L1) ────────────────────────────────────────────────────────────────────────────
   // `roomLatch.effectiveSpaceId` — `null` until a ROOM is latched (selecting a Space alone does NOT populate
@@ -79,7 +81,7 @@
           kind: 'identity',
           id: selfState.identity.identity_id ?? '',
           name:
-            selfState.identity.display_name ?? tail(selfState.identity.identity_id ?? ''),
+            selfState.identity.display_name ?? tail8(selfState.identity.identity_id ?? ''),
           flags: {}, // self carries no isAi/revoked here
         }
       : null,
@@ -93,7 +95,7 @@
     return {
       kind: 'identity',
       id: m.identity_id,
-      name: rec?.display_name ?? tail(m.identity_id), // §5-iii: NAME unchanged — tail() as today
+      name: rec?.display_name ?? tail8(m.identity_id), // §5-iii + D-142: `…` + last-8 fallback
       // §5-iii (D): a live-added member (the `unresolved` marker, Leg A) asserts NO `isAi`. `isAi?` is
       // optional and an absent book record must render UNKNOWN, never DEFINITELY-NOT-AN-AI — defaulting
       // `false` from a missing record is the N-097 trap inverted (an AI joiner would render as human). Fill

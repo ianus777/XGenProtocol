@@ -8,6 +8,79 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-680 — M-RP-MEMBER-ACT opens: the members panel acts, four locked answers were re-derived from scratch before the record was searched, and grounding found two shipped collisions underneath
+
+**Date:** 2026-08-06 · **Seats:** Chat Claude (grounding, Phase-0, the technical rulings, records) + Joe (the three new locks, the dispositions, the push) · Clair **stood down — Leg 0 is hers and carries NO authority to code** · **Code:** NONE — zero `.rs`, zero `ui/**`, nothing launched · **New:** `tasks/M_RP_MEMBER_ACT_PHASE0.md` **v1.1 ACTIVE** · ROADMAP v6.67 → **v6.68** · `CLAUDE.md` PLAY. **No new `D`, no new `N`.**
+
+🔒 **THE MILESTONE: `M-RP-MEMBER-ACT` — the members panel acts: LMC opens the DM, RMC opens the menu.** 🔑 **AND IT IS A COMMAND-SURFACE MILESTONE, NOT A FEATURE ONE.** `ops::create_dm_space` (`ops.rs:806`) and `ops::self_open` (`ops.rs:1002`) are **built, tested, idempotent — and unreachable from the UI**: `desktop.rs` exposes **19 `#[tauri::command]`s and neither is among them.** The DM machinery is not being written; it is being **wired**. ⚠️ *An earlier record called the self thread unbuilt — inferred from its ROADMAP position, never checked against the code. **A roadmap says what is planned, not what exists.***
+
+---
+
+### 🛑 THE SESSION'S REAL FINDING IS ABOUT CHAT, AND JOE PRODUCED IT IN ONE SENTENCE
+
+Joe described three changes he wanted after watching the running client. Chat replied with a collision analysis, a milestone ladder, and **four questions *"only you can answer"***. Joe: ***"we discussed this lock already and its solution is already recorded in your docs."***
+
+**Three of the four were already locked, and the fourth had been dissolved by Joe himself:**
+
+| Chat asked | already locked |
+|---|---|
+| *Should a click silently mint three signed events?* | 🔒 **CREATION IS LAZY** (2026-07-26) — LMC opens a **draft thread**, in memory, nothing signed; **first send** fires `create_dm_space`. Ten drafts, zero trace |
+| *Is self DM-able?* | 🔒 **THE SELF ROW OPENS A DM** — the Skype shape |
+| *How does open-or-create work?* | 🔒 `M_RP_MEMBERS.md:329` — scan known Spaces, exists → open, else draft |
+| *`selected` has two claimants and needs your ruling* | 🔒 **J-591 L14** — ***"when i go to dm someone, i pick him. otherwise the dm thread will not display itself."*** **Chat re-raised the exact objection Joe had already dissolved.** |
+
+🛑 **AND CHAT NAMED THE WRONG LOCK AS THE ONE BEING REVERSED.** It claimed the milestone reverses **`M-RP-PANEL-INERT`**, quoting `members-panel.svelte:11-14` as authority. **`M_RP_PANEL_INERT.md` §0 records inertness as DEFERRED, NOT REJECTED — and J-675 had already filed that those very lines *overstate their own source*.** 🔑 ***Chat cited a comment the record already flags as overstated, and cited it against the record.*** The lock actually reversed is **J-591's *"R7 must not call `selection.set()`"*** — a different lock, in a different document, for a different reason.
+
+🔑 **THE MECHANISM, AND IT IS `D-139`'s OWN CASE ARRIVING UNPROMPTED AND BEING MISSED.** `D-139` was minted **yesterday**: *a "does not exist" claim states the corpus it searched, and `DECISIONS.md` is part of every corpus.* Chat did not claim non-existence in words — it claimed it **by structure**, routing settled questions to Joe as open ones. **The corpus was searched only after being told to.** ⚠️ ***A rule minted for one phrasing did not fire on the same error wearing a different shape — and the cost was four turns of Joe's time re-answering himself.***
+
+---
+
+### 🔒 THREE NEW LOCKS, ALL UTTERED
+
+🔒 **`L-7` — (a): LMC DOES BOTH.** One gesture: **open the DM + write the selection bus + R8 shows the member's card.** Chat put three options up (A both / B card on RMC / C Discord's card-first popout); Joe took **A**. 🔑 *It is coherent precisely because of L14: opening the DM **is** the pick, so the card is that pick made visible — not a second meaning welded onto one click.*
+
+🔒 **`L-8` — NAVIGATION-ON-CLICK IS INTENDED** (*"yes, intended"*). Clicking a member in a 9-person room re-scopes R7 to the 2-person DM and that roster disappears. **Discord's shape, adopted knowingly rather than discovered later as a bug.**
+
+🔒 **`L-9` — RMC ON THE MEMBER AVATAR OPENS THE MENU *WITHOUT SELECTION*.** No bus write, no DM open, no R8 change, no navigation — the act-without-leaving hatch that makes `L-8` acceptable. ✅ **AND IT NEEDS NO NEW MACHINERY, MEASURED:** `entity-context-menu` takes **`descriptor` as a PROP**, is **gesture-agnostic** (`open(anchor)`/`close()`, consumer wires the trigger), and **does not import `selection` at all**. *"Menu without selection"* **is already its contract.** ⚠️ **Two records say the opposite and are wrong** — `selection.svelte.ts:2` and J-591 both call it a bus reader. *It was designed as one and built as a prop consumer.* ⇒ `D-131` annotations, Leg A.
+
+---
+
+### 🔑 TWO SHIPPED COLLISIONS, FOUND BY GROUNDING, NEITHER PREVIOUSLY RECORDED
+
+**① `selected` gets two writers the moment R7 goes interactive.** `entity-panel.selectAt` writes `selected = it.descriptor.id` **unconditionally, before `onActivate`** (`:101-106`); R7's `selected` is `$derived(counterpart)` and **non-bindable**. `M_RP_PANEL_INERT.md` §0 measured the consequence a month ago: *in a group room, where the highlight must be `null`, **one click manufactures one***. ⚠️ **Under `L-8` it partly self-corrects — and that is exactly why it must be decided rather than assumed: *"wrong for one frame during a navigation"* is a claim about PAINT, and `N-168` measured yesterday that paint does not follow from string and layout.**
+
+**② 🛑 THE DRAFT THREAD AND THE ROOM LATCH DO NOT COMPOSE, AND LOCK #12 FORBIDS THE ACT THAT CREATES THE DM.** A draft holds *"only the target identity — no `space_id`, no `room_id`"*; `roomLatch.resolveLatched()` (`:43-47`) resolves **only against the known-Space tree**. ⇒ during a draft: the stream says *"select a room"*, **R7 falls to state ① and the panel you just clicked in empties**, and **`canSend` is FALSE** (`room-latch.svelte.ts:73` → `composer-panel.svelte:56-58`). 🔑 ***THE FIRST SEND IS THE ACT THAT CREATES THE DM SPACE. THE SHIPPED GATE FORBIDS IT.***
+
+✅ **THIS IS THE *"WHICH LEG BUILDS THIS?"* GAP THE MEMBERS AUDIT NAMED — CAUGHT BEFORE A RUNBOOK EXISTED.** §6 of `AUDIT_MEMBERS_PANEL.md`: *scope gets written in terms of files, requirements in terms of behaviours, and nobody reconciles the two* — which happened three times in three sessions, each ending with a verification leg told to check something nobody had been told to build. *This time the reconciliation ran first.*
+
+---
+
+### ⚠️ FOUR DISPOSITIONS ADOPTED ON *"let's go by your recomms"* — RECORDED AS DELEGATED, NOT WALKED
+
+🔒 **OQ1 = P1** (`selected` stays the DM counterpart) · **OQ2 = S2** (the draft sits beside the latch; `canSend` becomes two-armed) · **OQ3 = A3, last** (a **DM home ships before** DMs leave the Spaces panel — otherwise a DM with someone you no longer share a room with becomes unreachable) · **OQ4 = NO** (the R8 card does not ship ahead of the DM, because `L-7` makes a card-only click an affordance promising an unwired interaction — the shape `M-RP-PANEL-INERT` exists to refuse).
+
+🔑 **TWO OF THE FOUR ARE ARCHITECTURE OR APPEARANCE — JOE'S RESERVED AREAS UNDER `D-123` — TAKEN ON RECOMMENDATION RATHER THAN EXAMINED.** The identical phrase carried `M-RP-TAIL8`'s mechanism M3, and `AUDIT_MEMBERS_PANEL.md` §8 already prices the pattern: *"decisions of record, but not decisions anybody judged."* 🔒 **They are ADOPTED but PROVISIONAL pending Leg 0.**
+
+🔓 **AND OQ5 IS NOT ANSWERED BY THE PHRASE, BECAUSE CHAT MADE NO RECOMMENDATION ON IT.** *Stated explicitly so silence is not later read as adoption — the `D-141` failure mode.* Two need Joe: **the partial first send** (create succeeds, message fails ⇒ the recipient holds an invitation with no message; `M_RP_MEMBERS.md:336` routes it here by name) and 🔑 **erased members are clickable** — `create_dm_space` takes **any** XGID, so LMC on an erased identity would create a DM that goes nowhere. ***New, unrecorded anywhere, surfaced by `M-RP-TAIL8`'s live run one entry ago.*** The third — cross-node invite discovery — is a **measurement nobody has taken**, Chat's, and gates nothing in Legs A–D.
+
+---
+
+### 🔒 LEG 0 IS CLAIR'S ADVERSARIAL READ, AND IT WAS RECOMMENDED AGAINST CHAT'S OWN DOCUMENT
+
+Six legs (**A** `D-131` annotations → **B** the command surface, cargo → **C** R7 acts → **D** RMC menu → **E** DM home + `is_dm`, cargo → **F** close), and **Leg 0 before all of them: Clair reads the Phase-0 with no authority to code.** §8 names six places it suspects itself — including that **§6's leg ORDER may be wrong**, because the find-existing-DM scan needs a counterpart field `KnownSpace` does not carry, which could pull `is_dm` forward from Leg E into Leg B.
+
+⚠️ ***FOUR DEFECTS IN `RUNBOOK_TAIL8.md` WERE CAUGHT BY CLAIR TRYING TO RUN IT AND THE FIFTH BY JOE LOOKING AT A SCREEN. CHAT'S OWN RE-READS PASSED EVERY TIME. THIS DOCUMENT HAS HAD NONE.***
+
+📌 **AND ONE THING THIS MILESTONE EXPLICITLY DOES NOT ADVANCE:** **H4, bilateral DM replication** — locked at J-591, unbuilt, and blocked on a measurement still owed and still Chat's: **can a `space_id` derive from the identity pair rather than the signed root event?** *That answer decides whether H4 is a milestone or a rewrite. A DM created by this milestone is single-homed and stays so.*
+
+---
+
+### ✅ STATE AND FLOORS
+
+Re-measured at open, **not inherited** (J-671): clean tree, HEAD **`d69c830`** = `origin/main` by `ls-remote`. **Floors untouched and deliberately not re-run, stated rather than skipped:** cargo **1596/0/62 × 56** · svelte-check **0/34/15** · catalogue **435** · **zero `.rs`, zero `ui/**`, nothing launched.** 📌 *Tooling note: `Filesystem:write_file` timed out after four minutes and wrote nothing — the Phase-0 was written via PowerShell here-strings in three chunks and verified byte-wise (21012 bytes, LF, no BOM, all header lines ending in two spaces). **The timeout was checked rather than assumed: `Test-Path` returned false and the tree was still clean.*** 🟡 **NEXT: Joe stands Clair up for Leg 0.** → J-680 · ROADMAP v6.68.
+
+---
+
 ## Entry J-679 — M-RP-TAIL8 closes: `tail8` ran for the first time on a real client row, the lever was already sitting in Joe's data, and the one finding the gates could not produce came from the painted screen
 
 **Date:** 2026-08-06 · **Seats:** Chat Claude (grounding, measurement, the live run, records) + Joe (custody, the disposition, the push) · Clair **stood down — her atom shipped at `165b821`** · **Code:** NONE this session · **Records:** `tasks/RUNBOOK_TAIL8.md` v1.3 → **v1.4 COMPLETED** · `tasks/M_RP_TAIL8_PHASE0.md` v1.2 → **v1.3 COMPLETED** · `M_RP_MEMBERS.md` v1.18 → **v1.19** · `ui/docs/xgen-ui-notes.md` v1.11 → **v1.12** · `CLAUDE.md` PLAY · ROADMAP v6.66 → **v6.67**. **No new `D`. One new `N` (`N-168`).**

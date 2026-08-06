@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-05  
+> **Last updated:** 2026-08-06  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -5360,3 +5360,117 @@ Leg F's obligation ④ asked whether the AI badge is gated on the `unresolved` m
 ⚠️ **CORRECTION OWED TO `D-126`, ANNOTATED NOT REPAIRED (`D-131`):** D-126 justifies tail truncation as *"already the pattern in `app.rs`/`ops.rs`"*. **Measured 2026-08-05: `app.rs:4652` takes the FIRST 8 characters of the key and appends trailing dots** (`7WGuWOqU...`). True that a short form exists there; **false about which end.** Once the scheme is stripped both ends are equally distinguishing, so the choice is consistency, and this decision settles it as the tail.
 
 📌 **RELATION TO THE FAMILY.** The narrow, adopted half of `D-126`: **the tail family, for one named purpose, on one named layer.** D-126's **word form** (`amber-falcon`) remains **deferred and Joe's** — untouched by this, and its own hard limits (never typeable, searchable, or usable to address anyone) apply to this form too.
+
+---
+
+## D-143 — When the cheap option is unsound, the proper one is taken even if it is heavier; the trigger is unsoundness, not effort
+
+**Date:** 2026-08-06 · **Layer:** Project-wide working principle (Chat Claude, Clair, every Phase-0, every runbook, every option list put to Joe) · **Ref:** `D-065` (honest behaviour over polite — a SIBLING, not a parent; the boundary is drawn below), `D-069`, `D-071` (audits precede dependent milestones — the paired discipline), `D-140` (a forward rule with no designation gets re-derived from scratch), `D-131`, `D-121` · **Journal:** J-683 · **Code:** none — the first named application is `M-RP-MEMBER-ACT` OQ8 (K3).
+
+**Joe, 2026-08-06**, closing `M-RP-MEMBER-ACT` OQ8 and taking the heavier option:
+
+> *"ok k3 then. we must not be afraid of proper solutions, even if they are slightly heavier."*
+
+### The rule
+
+🔒 **When work surfaces a real gap and the cheap route would leave something UNSOUND, the proper route is taken — even at the cost of delay, and even where it pulls later work forward into the current milestone.**
+
+**Unsound** means the cheap route leaves a property that can go false without anything failing: a key that can collide, a claim that can become untrue, a branch that cannot be verified, a guard that a supported feature can walk around. *An unsound cheap option is not cheaper; its cost has been moved to a future reader who will not know to look for it.*
+
+### 🛑 THE TRIGGER IS UNSOUNDNESS, NOT EFFORT — AND WITHOUT THIS CLAUSE THE RULE IS FALSE
+
+⚠️ **This decision does NOT say "prefer the heavier option", and it does NOT say "never defer".** Where the cheap option is **complete for what it does**, this decision **does not fire**, and `D-065`'s no-empty-machinery application governs instead: *build nothing you do not need yet, and ship the unbuilt part honestly empty.*
+
+🔑 **Joe drew both edges himself, one hour apart, in the same milestone:**
+
+| | the cheap option | sound? | ruling |
+|---|---|---|---|
+| **OQ8** | K1 — key the find-existing-DM scan on `KnownSpace.name`, a **free-form user-writable string** (`ops.rs:660`, max 128 chars) | 🛑 **NO** — *a Space you name `self` is indistinguishable from your self thread* | **K3**, the heavier one: a real `counterpart` field + a one-time backfill. Rust pulled forward from Leg E into Leg B |
+| **OQ9** | C — ship the empty-thread line as a module const with an honest note, build no settings mechanism | ✅ **YES** — complete for what it does; it asserts nothing that can go false | **C.** *"Proper" here means NOT building a settings section for a want nobody has stated* |
+
+***The same principle produced opposite answers, and the discriminator was soundness both times.***
+
+### Why it needed a designation — the measurement, not the sentiment
+
+The principle has operated **undesignated since the Federation Event Propagation audit**. Its canonical statement already sits in `docs/ROADMAP.md` as a cross-cutting principle, with an origin, a **recurrence ledger** (eight recurrences within Federation scope as of J-105; J-101 is the seventh), and a stated pairing with the audit-precedes-dependency discipline. `tasks/RUNBOOK_ROADTREE_LEGC.md:207` ranks it **beside `D-065` and `D-069`** as one of three standing rules — **two of the three carried designations and it did not.**
+
+🔑 **AND THE REAL COST OF LEAVING IT UNDESIGNATED, MEASURED 2026-08-06: `D-065` HAD BECOME A PORTMANTEAU CARRYING THREE SENSES, AND TWO OF THEM DECIDE "SHOULD I DO THIS WORK NOW?" IN OPPOSITE DIRECTIONS.**
+
+| sense | where | says |
+|---|---|---|
+| **(a)** `D-065`'s own text — a system misrepresenting its current state | throughout; e.g. `xgen_node_admin_ops_design.md:710`, dock-engine §0 | — |
+| **(b)** *no empty machinery / reserved-unfed / not built now* | ~20 live sites: `entity-context-menu-phase0.md:11,:35` · all five `xgen-dd-*-phase0.md` · `M_RP2_10:19` · `M_RP2_13:25,:40,:65,:72` · `M_RP2_14:38,:70` · `xgen-client-frame-phase0.md:162` (*"## 8. Deferred (D-065)"*) · `spaces-panel.svelte:38` | 🛑 **DEFER** |
+| **(c)** *honest longer work over fast shortcuts* | 156 lines / 35 files corpus-wide; **18 lines / 7 files in the live corpus** | 🛑 **DO NOT DEFER** |
+
+***A rule that a reader must disambiguate before applying is a rule that will be applied both ways.*** **(b) survives untouched and stays `D-065`'s;** what leaves is **(c)**, with the soundness trigger attached that tells a reader which of the two is in front of them.
+
+### ✅ THE TWO SUSPECTED MISCITATIONS WERE EXAMINED IN FULL AND BOTH ARE CLEARED — NOTHING IS SWEPT
+
+J-682 flagged two sites as *"genuinely arguable and deliberately not declared"*. Declared here, from a full re-read of `D-065`'s span:
+
+- **`tasks/archive/XGID_RETROFIT_PASS_3_IMPL.md:534`** — *"'Honest longer work over fast shortcuts' Pass 3 count at this commit: ONE (first Pass 3 recurrence; **recorded honestly per D-065**)"*. 🔑 **The `per D-065` attaches to "recorded honestly" — the RECORD being honest about its own count.** The principle is *quoted*; `D-065` is cited for something else entirely. **Not a miscitation.**
+- **`DECISIONS.md` D-106 Relationship line** — *"D-065 (honest longer work over **the papered-over asymmetry**)"*. The phrase is borrowed, but the sentence's object is **a papering-over**: the rejected alternative kept an avatar that made a continuation row read as a fresh message. **A fair application of `D-065` proper.**
+
+🔒 **CONSEQUENCE: no `D-065` citation anywhere is re-pointed by this decision, and none is swept** (`D-131`). *A designation minted to stop future conflation does not get to rewrite the past that lacked it.*
+
+### Relationship to other decisions
+
+| Decision | Relationship |
+|---|---|
+| `D-065` | **Sibling, not parent.** `D-065` governs what the running system says about its own state; `D-143` governs what the project does when it finds a gap. They share a family resemblance and not a decision procedure. |
+| `D-071` | The paired discipline: `D-071` says the gap is *found* before dependent work starts; `D-143` says what happens once it is found. |
+| `D-121` | `D-143` is priced through `D-121`'s lenses like anything else — *"heavier" is a resource cost and is stated second, after user-visible impact.* |
+| `D-140` | The reason this exists at all: a forward rule with no designation gets re-derived from scratch by whoever next needs it — and here the re-deriver reached for `D-065` and landed on a portmanteau. |
+
+### Provenance (`D-141`)
+
+🔒 **THE PRINCIPLE IS JOE'S, UTTERED** (the OQ8 sentence above, and the undesignated form locked during the Federation audit). **The DESIGNATION, the unsoundness-trigger clause, and the wording are CHAT'S, adopted by Joe on recommendation** (2026-08-06: *"by your recomm. agree with re-stylising and wording"*). ⚠️ ***Recorded split because they are different acts: the second was adopted, not examined.***
+
+---
+
+## D-144 — Owner content and client state copy are different classes; the second is authored by the client and by nobody else
+
+**Date:** 2026-08-06 · **Layer:** Trust boundary at the UI copy surface (client rendering; not the wire, not storage) · **Ref:** `D-065` (a client misreporting its own state is what this prevents), `D-110` (an access rule is only real if the data model can express the distinction it draws), `D-093` (the content-blind node), `D-113` S-5 (no trust chrome for a guest), `D-123` · **Journal:** J-683 · **Code:** none — `xgen-client` contains **zero** occurrences of `topic`; the lock costs nothing today and forecloses the widening.
+
+**Joe, 2026-08-06**, ruling `M-RP-MEMBER-ACT` OQ9 on the one string that raised it:
+
+> *"quasi private message, just for user."*
+
+### The two classes
+
+| class | examples | who authors it |
+|---|---|---|
+| **OWNER CONTENT** | Space name · room name · `topic` · a welcome message | ✅ **the owner** — describing **their own place**. Arrives over the wire; renders in the entity row's `secondary` slot |
+| **CLIENT STATE COPY** | *"Select a room to see its messages."* · *"No messages in this room yet."* · *"I cannot reach the others"* | 🛑 **the client** — describing **itself** |
+
+### The rule
+
+🔒 **Client state copy is authored by the client and by nothing else: not the Space owner, not the node operator, not a plugin, not anything that arrives over the wire.** The **user** may restyle or re-language their **own** client; they may not receive these words from a third party.
+
+🔒 **Owner content is the owner's and stays the owner's.** Nothing here narrows it. The line is not *who may write text* — it is **which text is a statement about the client's own state.**
+
+### 🛑 The teeth
+
+`members-panel`'s *"I cannot reach the others"* **means the fill failed** (`M_RP_MEMBERS.md` §4c-i, the five-state tree — three of those five states are the client reporting on itself). An owner who could supply that string could rewrite it to something reassuring, and ***a member's client would then misreport what it knows — precisely what `D-065` forbids, committed by a third party through a supported feature.***
+
+🔑 **`D-110`'s lesson, one layer up: an access rule is only real if the data model can express the distinction it draws.** Today the model does not — there is one undifferentiated notion of *"text the UI shows"*. **This entry draws the distinction before the data model needs it, which is the only order in which it is free.**
+
+### Grounded 2026-08-06 — and the socket is already shipped, unfed
+
+| # | measured | site |
+|---|---|---|
+| **1** | `pub topic: Option<String>` on **both** `SpaceState` and `RoomState`; event-sourced — parsed at `:284`/`:803`, built at `:1385-1401`/`:1440-1447` | `xgen-core/src/space/state.rs:117`, `:189` |
+| **2** | **`xgen-client/src/**.rs` — ZERO occurrences of `topic`** | measured |
+| **3** | 🔑 **`ui/**` has four hits and none is live — but two of them are the RECEPTACLE:** `entity-item.svelte:44` and `entity-panel.svelte:37` both comment `secondary?: string; // topic / last-message / handle`, and `spaces-panel.svelte:38` ships `secondary` **UNFED, citing `D-065`** | measured |
+
+⇒ ***The receptacle for owner content already exists in `core`, deliberately unfed. The day `topic` is wired it lands there and nothing has to be built to widen it*** — which is exactly why this line is drawn now rather than by the milestone that wires it.
+
+### What this does NOT decide
+
+- **Whether client state copy becomes user-configurable at all.** Untouched, and it is `M-RP-SETTINGS`-shaped: it would inherit every existing copy const at once, so it is a copy/localisation architecture and not a per-string question.
+- **The final phrasing of any string.** That remains `M-RP-SKIN`'s and Joe's.
+- **Anything about `topic`'s own milestone** beyond the class it belongs to.
+
+### Provenance (`D-141`)
+
+🔒 **THE RULING ON THE ONE STRING IS JOE'S, UTTERED** (*"quasi private message, just for user"* — the empty-thread line is client-owned). **The GENERALISATION into a two-class distinction, and the wording, are CHAT'S, adopted by Joe on recommendation** (2026-08-06: *"by your recomm. agree with re-stylising and wording"*). ⚠️ ***A ruling on one string and a rule about a class are different acts; recorded separately so a later revisit reads it correctly.***

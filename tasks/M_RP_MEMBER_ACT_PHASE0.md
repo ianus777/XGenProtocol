@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — the members panel acts: LMC opens the DM, RMC opens the menu — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.7  
+> Version: 1.8  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-06  
 > Language: EN  
@@ -292,6 +292,8 @@ The third (**cross-node invite discovery**) is a **measurement nobody has taken*
 
 ### 🔒 OQ8 — **CLOSED 2026-08-06: K3, IN LEG B. UTTERED BY JOE:** *"ok k3 then. we must not be afraid of proper solutions, even if they are slightly heavier."*
 
+✅ **THE PRINCIPLE IN THAT SENTENCE IS NOW `D-143`, MINTED 2026-08-06 (J-683)** — *when the cheap option is unsound, the proper one is taken even if it is heavier; **the trigger is unsoundness, not effort***. 🔑 **OQ8 IS ITS FIRST NAMED APPLICATION, AND OQ9 IS ITS FIRST NAMED NON-APPLICATION** — the two rulings drew both edges of the rule one hour apart, which is why the entry could be written with a boundary instead of a slogan.
+
 🛑 **K1 AND K2 ARE BOTH REFUSED, AND THE MEASUREMENTS THAT KILLED THEM ARRIVED AFTER v1.2's RECOMMENDATION.**
 
 **① K1 IS UNSOUND AGAINST USER INPUT.** `create_space` writes **`name: args.name.clone()`** — a free-form user string, max 128 chars (`ops.rs:660`) — into the **same field** the scan keys on: `.find(|s| s.role == "owner" && s.name == SELF_THREAD_LABEL)` where the label is the literal `"self"` (`:765`, `:1042`). ⇒ ***A Space you create and name `self` is indistinguishable from your self thread.*** 🔑 **Latent today because `self_open` has no UI path — and `OQ6-E2` PUTS THAT SCAN ON THE CLICK PATH.** *The two dispositions were taken an hour apart and the second made the first unsafe.*
@@ -316,6 +318,8 @@ The find-existing-DM scan works **because** the counterpart XGID sits inside the
 📌 **Chat's recommendation: K1 for Leg B, K2 folded into Leg E** — with the coupling written at the call site so the scan cannot be broken silently. *Doing K2 now would trade a measured no-op for real Rust before anything works end to end.* ⚠️ **If Joe wants DM Spaces renamed as part of OQ3, K2 stops being optional.**
 
 ### 🔒 OQ9 — **CLOSED 2026-08-06: OPTION C — THE CONST, AND NO CONTROL YET. DESTINATION NAMED, NOT BUILT.**
+
+✅ **THE CLASS DISTINCTION BELOW IS NOW `D-144`, MINTED 2026-08-06 (J-683)** — *owner content and client state copy are different classes; the second is authored by the client and by nobody else.* 🔑 **IT NO LONGER LIVES ONLY IN THIS PHASE-0**, which was the whole objection to leaving it here: a future milestone wiring `topic` would never have looked in a members-panel interaction document. 📌 **AND THE GROUNDING SHARPENED ON THE WAY OUT:** the receptacle already ships — `entity-item.svelte:44` and `entity-panel.svelte:37` both comment `secondary?: string; // topic / last-message / handle`, and `spaces-panel.svelte:38` ships `secondary` **UNFED citing `D-065`** ⇒ ***the day `topic` is wired, nothing has to be built to widen it.***
 
 🔑 **THE QUESTION DISSOLVED WHEN THE ASK WAS RE-READ.** Joe's request was **hygiene**: *"no hardcode in the code … into a constant with a note."* ⚠️ ***"NOT HARDCODED" IS NOT "USER-EDITABLE", AND CHAT TURNED THE FIRST INTO THE SECOND*** — then spent three turns siting a feature **nobody had asked for**, neither Joe nor any user.
 
@@ -345,6 +349,8 @@ The find-existing-DM scan works **because** the counterpart XGID sits inside the
 ### 🔓 OQ9 — 🆕 WHO OWNS USER-FACING COPY AT RUNTIME? (Joe, 2026-08-06: *"can we make this line text potentially customisable … no hardcode in the code"*)
 
 ✅ **THE EXTRACTION ITSELF IS SETTLED AND FREE — IT IS ALREADY THE HOUSE PATTERN, MEASURED AT 14 SITES.** Module-level `UPPER_SNAKE` const + a note naming who owns the final wording: `stream-panel.svelte:52-56` (`SESSION_START` · `SESSION_START_DROPPED` · `NO_MESSAGES` · `SELECT_ROOM`) · `composer-panel.svelte:63-64` · `members-panel.svelte:65` (`NOTE`, a Record over the five states) · `rooms-panel.svelte:54`. Every one reads **`// Functional copy, PROVISIONAL (appearance and final phrasing → M-RP-SKIN)`**. ⇒ **R5's draft copy is written the same way. Doing it otherwise would be the odd one out.**
+
+⚠️ **ANNOTATED 2026-08-06, NOT REPAIRED (`D-131`) — *"EVERY ONE READS"* IS FALSE, AND THE PATTERN IT DESCRIBES IS REAL.** Re-measured across `ui/**` excluding the sampler: **exactly ONE site carries that comment verbatim** — `composer-panel.svelte:60`. The others carry **variants** of it: `stream-panel.svelte:45` (*"Functional copy (Ms Design's WORDING is PROVISIONAL …)"*), `send-status.svelte:47` (*"Copy is FUNCTIONAL and PROVISIONAL …"*), `substitutions-editor.svelte:127`/`:159` (*"WORDING IS PROVISIONAL → M-RP-SKIN"*). 🔑 **The claim was a census stated as a quotation** — the house pattern holds, its *wording* does not, and the ruling below is unaffected because it prescribes what R5's note must SAY, not which existing string it must match.
 
 🔑 **WHAT IS *NOT* SETTLED IS THE OWNER, AND JOE'S PHRASE NAMED ONE.** *"Accessible by the node's setting"* is a different claim from what those 14 notes make:
 

@@ -8,6 +8,94 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-683 — `D-143` and `D-144` minted: the undesignated principle leaves `D-065`'s portmanteau, and the copy trust boundary leaves a Phase-0
+
+**Date:** 2026-08-06 · **Seats:** Joe (both mintings, adopted on recommendation; the push) · Chat Claude (grounding, measurement, wording, records) · Clair **stood down** · **Code:** NONE — zero `.rs`, zero `ui/**`, nothing launched · `DECISIONS.md` **D-142 → D-144** · `docs/ROADMAP.md` v6.70 → **v6.71** · `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.7 → **v1.8 ACTIVE** · `CLAUDE.md` PLAY. **TWO new `D`. No new `N`.**
+
+J-682 left two `D`s proposed and unminted, both Joe's. Both are now minted. 🔑 **PROVENANCE IS SPLIT PER ENTRY AND IS NOT UNIFORM** (`D-141`): the **principles** are Joe's, uttered; the **designations, the boundary clause and the wording** are Chat's, adopted on *"by your recomm. agree with re-stylising and wording"*. ***Adopted is not examined, and the entries say so in their own Provenance sections.***
+
+---
+
+### ✅ THE MISCITATION QUESTION J-682 DELIBERATELY LEFT UNDECLARED IS NOW DECLARED — AND IT RESOLVED AGAINST THE FLAG
+
+J-682 flagged two sites citing `D-065` for the build-effort principle as *"genuinely arguable"*. **Read in full, neither is a miscitation, and the second is not a citation of the principle at all:**
+
+| site | what it actually says | verdict |
+|---|---|---|
+| `tasks/archive/XGID_RETROFIT_PASS_3_IMPL.md:534` | *"… Pass 3 count at this commit: ONE (first Pass 3 recurrence; **recorded honestly per D-065**)"* | 🔑 **`per D-065` attaches to "recorded honestly"** — the RECORD being honest about its own count. The principle is *quoted*; `D-065` is cited for something else. **NOT a miscitation** |
+| `DECISIONS.md` D-106 Relationship line | *"D-065 (honest longer work over **the papered-over asymmetry**)"* | The phrase is borrowed; the sentence's **object** is a papering-over — an avatar that made a continuation row read as a fresh message. **Fair application** |
+
+🔒 **CONSEQUENCE: not one `D-065` citation is re-pointed and none is swept** (`D-131`). ***A designation minted to stop future conflation does not get to rewrite the past that lacked it.*** ⚠️ *A quick pass would have declared two miscitations and been wrong twice.*
+
+---
+
+### 🔑 THE REAL FINDING IS BIGGER THAN THE FLAG: `D-065` HAD BECOME A PORTMANTEAU, AND TWO OF ITS THREE SENSES POINT IN OPPOSITE DIRECTIONS
+
+| sense | measured where | says |
+|---|---|---|
+| **(a)** its own text — a system misrepresenting its current state at runtime | throughout | — |
+| **(b)** *no empty machinery / reserved-unfed / not built now* | ~20 live sites: `entity-context-menu-phase0.md:11,:35` · all five `xgen-dd-*-phase0.md` · `M_RP2_10:19` · `M_RP2_13:25,:40,:65,:72` · `M_RP2_14:38,:70` · `xgen-client-frame-phase0.md:162` · `spaces-panel.svelte:38` | 🛑 **DEFER** |
+| **(c)** *honest longer work over fast shortcuts* | 156 lines / 35 files corpus-wide; **18 / 7 live** | 🛑 **DO NOT DEFER** |
+
+***A rule a reader must disambiguate before applying is a rule that will be applied both ways.*** **(b) stays `D-065`'s, untouched. (c) leaves as `D-143`** — and it leaves **with a boundary**, which is the part that makes it usable.
+
+---
+
+### 🔒 `D-143` — AND THE CLAUSE WITHOUT WHICH IT WOULD BE FALSE
+
+> **Joe, OQ8:** *"ok k3 then. we must not be afraid of proper solutions, even if they are slightly heavier."*
+
+🛑 **THE TRIGGER IS UNSOUNDNESS, NOT EFFORT.** Without that clause the entry reads *"always do more work"* and **collides head-on with sense (b)**, which is shipped, cited ~20 times, and correct.
+
+🔑 **JOE DREW BOTH EDGES HIMSELF, ONE HOUR APART, IN THE SAME MILESTONE** — which is why the rule could be written with a boundary instead of a slogan:
+
+- **OQ8** — K1 keyed a lookup on `KnownSpace.name`, a **free-form user-writable string** (`ops.rs:660`) ⇒ **unsound** ⇒ the heavier **K3** taken, Rust pulled forward from Leg E into Leg B.
+- **OQ9** — a module const with an honest note **asserts nothing that can go false** ⇒ **sound** ⇒ the heavier option **refused**; *"proper" meant NOT building a settings section for a want nobody has stated.*
+
+📌 **The principle had operated undesignated since the Federation audit**, with a canonical statement in `docs/ROADMAP.md`, its own **recurrence ledger** (eight within Federation scope as of J-105; J-101 is the seventh), and `RUNBOOK_ROADTREE_LEGC.md:207` ranking it **beside `D-065` and `D-069`** — **two of the three carried designations and it did not.** `D-140` was minted for exactly this shape.
+
+---
+
+### 🔒 `D-144` — AND THE GROUNDING SHARPENED THE CASE RATHER THAN CONFIRMING IT
+
+> **Joe, OQ9:** *"quasi private message, just for user."*
+
+**Owner content** (Space/room `name`, `topic`, a welcome message) is the owner describing **their own place**. **Client state copy** (*"Select a room"*, *"No messages in this room yet"*, *"I cannot reach the others"*) is the client describing **itself** — 🔒 **authored by the client and by nothing else.**
+
+🛑 **THE TEETH:** `members-panel`'s *"I cannot reach the others"* **means the fill failed.** An owner who could rewrite it to something reassuring has made a member's client **misreport what it knows** — ***what `D-065` forbids, committed by a third party through a supported feature.*** 🔑 **`D-110`'s lesson one layer up: an access rule is only real if the data model can express the distinction it draws** — and today it cannot, so the line is drawn **before** the model needs it, which is the only order in which it is free.
+
+🔑 **AND THE MEASUREMENT ADDED SOMETHING THE PHASE-0 HAD NOT DRAWN.** ✅ `xgen-client/src/**.rs` has **ZERO** `topic` (confirmed) · `SpaceState`/`RoomState` carry `topic: Option<String>`, event-sourced (`space/state.rs:117`, `:189`, parsed `:284`/`:803`, built `:1385-1401`/`:1440-1447`) · 🔑 **`ui/**` has four hits, none live — but TWO ARE THE RECEPTACLE:** `entity-item.svelte:44` and `entity-panel.svelte:37` both comment `secondary?: string; // topic / last-message / handle`, and `spaces-panel.svelte:38` ships `secondary` **UNFED citing `D-065`**. ⇒ ***The socket for owner content already exists in `core`. The day `topic` is wired it lands there and nothing has to be built to widen it*** — which is precisely why the line could not stay filed inside a members-panel interaction document.
+
+---
+
+### ⚠️ TWO CLAIMS ANNOTATED, NOT REPAIRED (`D-131`)
+
+**① `CLAUDE.md`'s *"948 `D-065` citations"* IS UNREPRODUCIBLE, AND THE MEASUREMENT WAS TESTED BEFORE THE RECORD WAS DOUBTED (N-105).** Three predicates run: whole-repo `.md` **1603 lines / 289 files** (1711 matches) · live corpus excluding `archive/`, `JOURNAL_ARCHIVE.md`, `CLAUDE_HISTORY.md` **423 / 80** (457 matches) · all file types repo-wide **1704 / 350**. **None yields 948 and the predicate that would is not findable.** *The figure is annotated at its site, not deleted — it may have been true under a corpus that no longer exists.*
+
+**② THE PHASE-0's *"Every one reads `// Functional copy, PROVISIONAL …`"* ACROSS 14 COPY SITES IS FALSE.** Measured across `ui/**` minus the sampler: **exactly ONE** carries it verbatim (`composer-panel.svelte:60`); `stream-panel.svelte:45`, `send-status.svelte:47`, `substitutions-editor.svelte:127`/`:159` carry variants. 🔑 ***A census stated as a quotation.*** The house pattern holds; its wording does not. **OQ9-C is unaffected** — it prescribes what R5's note must SAY, not which existing string it must match.
+
+---
+
+### ⚠️ AND MY OWN INSTRUMENT PRODUCED A MEASUREMENT-SHAPED ARTIFACT THAT NEARLY TRIGGERED A DESTRUCTIVE RECOVERY
+
+After writing `docs/ROADMAP.md`, a byte census issued **immediately** after the write returned **`len=0`** — a complete, plausible, clean-looking reading of an empty file. 🛑 **The file was 60,502 B and had never been empty**; `git status` and `git diff --stat` (**4 insertions / 2 deletions**, no line-ending churn) showed it healthy. ***I was one command away from `git checkout --` on a file that was fine.***
+
+🔒 **RULE: a read issued immediately after a write to the same file is not a measurement. Confirm through `git diff` — which compares content — before treating a zero-length or absent result as a fact about the disk.** *Same family as the killed-detached-`cargo`-run artifact (M-RP7.1) and N-110's selector that could not see its subject: **the shapes that look most like clean data are the ones produced by an instrument that never reached the thing it claims about.***
+
+📌 **Also grounded while there:** `.gitattributes` pins only `Cargo.toml` to `eol=lf` and `core.autocrlf=true` handles the rest — the CRLF-restore step for `docs/ROADMAP.md` was a **no-op here**, and the clean 4/2 diff is the proof, not the byte census.
+
+---
+
+### STATE
+
+✅ **RE-MEASURED AT OPEN, NOT INHERITED** (`J-671`): clean tree, HEAD **`84b0101`** = `origin/main` by `git ls-remote`. ✅ **FLOORS UNTOUCHED AND DELIBERATELY NOT RE-RUN, STATED RATHER THAN SKIPPED** (zero `.rs`, zero `ui/**`): cargo **1596/0/62 × 56** · svelte-check **0/34/15** · catalogue **435**.
+
+🟢 **`M-RP-MEMBER-ACT` REMAINS PLAY AND OPEN. NO CODE HAS BEEN WRITTEN.** 🔓 **STILL OPEN:** `OQ5`'s three items (Chat has made **no** recommendation on any of them) · the **second Clair pass on v1.8** — *do the eight dispositions compose?* — which gates the Leg A/B runbook, and standing her up is Joe's · the Leg A `D-131` annotation list.
+
+→ J-683 · ROADMAP v6.71 · `D-143` · `D-144`.
+
+---
+
 ## Entry J-682 — M-RP-MEMBER-ACT: all eight dispositions close, and Chat inverted its own recommendation three times by one mechanism
 
 **Date:** 2026-08-06 · **Seats:** Joe (two rulings uttered with reasons, six taken on recommendation, the push) · Chat Claude (grounding, the technical rulings, records) · Clair **stood down — her Leg 0 read was of v1.1** · **Code:** NONE — zero `.rs`, zero `ui/**`, nothing launched · `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.2 → **v1.7 ACTIVE** · ROADMAP v6.69 → **v6.70** · `CLAUDE.md` PLAY. **No new `D`, no new `N` — and TWO `D`s PROPOSED AND UNMINTED.**

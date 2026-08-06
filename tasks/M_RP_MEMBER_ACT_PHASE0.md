@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — the members panel acts: LMC opens the DM, RMC opens the menu — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-06  
 > Language: EN  
@@ -64,7 +64,11 @@ Verbatim from J-591:
 | # | fact | site |
 |---|---|---|
 | **G1** | `create_dm_space` takes `CreateDmSpaceArgs { invitee: String }` — **an identity, not a relationship.** Any valid XGID; no prior contact needed | `app.rs`, `ops.rs:806` |
-| **G2** | `self_open` takes **no id** — auto-resolves the session identity (M11-D5) — and returns `SelfThreadResult { space_id, room_id, created }`. **`created` is the idempotence signal** | `ops.rs:1002` |
+| **G2** | `self_open` takes **no id** — auto-resolves the session identity (M11-D5) — and returns `SelfThreadResult { space_id, room_id, created }`. **`created` is the idempotence signal** | `ops.rs:1019` — ⚠️ *v1.0/v1.1 cited `:1002`, which is inside the result struct. Corrected at v1.2 from Clair's **M1**; `M_RP_MEMBERS.md:309` carries the same drift and is annotated in Leg A* |
+| **G2a** | 🔑 **THE COUNTERPART IS RECORDED IN THE DISPLAY NAME.** `create_dm_space` writes `KnownSpace.name = format!("DM with {}", args.invitee)` for a peer, or the constant `SELF_THREAD_LABEL` (`"self"`) when `invitee == identity_id` | `ops.rs:965-969` |
+| **G2b** | 🔑 **AND THAT NAME IS ALREADY USED AS A LOOKUP KEY, SHIPPED AND TESTED.** `self_open` finds an existing thread by `s.role == "owner" && s.name == SELF_THREAD_LABEL` | `ops.rs:1039-1042` |
+| **G2c** | 🛑 **`self_open` IS EAGER WHERE `L-4` IS LAZY.** Absent ⇒ it calls `create_dm_space` **immediately** and returns `created: true` — three signed events on the first click | `ops.rs:1052-1056` |
+| **G3a** | 🛑 **`composer-panel.submit()` HARD-BAILS ON A NULL id** — `if (!text \|\| spaceId == null \|\| roomId == null) return;` — and both ids come from `roomLatch`. `echo.send(spaceId: string, roomId: string, text: string)` has no draft arm | `composer-panel.svelte:66-77`, `echo-state.svelte.ts:162` |
 | **G3** | `desktop.rs` exposes **19** commands: `apply_window_geometry · fetch_identity · fill_space_records · get_about_info · get_address_book · get_conn_stats · get_pacing_state · get_resident_status · get_self_state · get_spaces · get_state · get_substitutions · get_ui_state · get_window_geometry · quit · resume_resident · send_message · set_substitutions · set_ui_state`. **Neither DM op is among them** | measured |
 | **G4** | `entity-panel` already has `interactive?: boolean` (default `true`), `onActivate?: (id) => void`, and `selected` **`$bindable`** | `entity-panel.svelte:51-74` |
 | **G5** | 🛑 **`selectAt` writes `selected = it.descriptor.id` UNCONDITIONALLY, *before* calling `onActivate`** | `entity-panel.svelte:101-106` |
@@ -106,6 +110,28 @@ The R8 card alone is two lines (`interactive`, `onActivate`) and needs nothing e
 **But `L-7` says one gesture does both.** Shipping the card first means LMC lights up and **does not open the DM** — an affordance promising an interaction that is not wired. ***That is precisely the shape `M-RP-PANEL-INERT` was created to refuse*** (§0: *"R7 would ship six affordances promising interactions Leg B does not wire"*). ⇒ the leg order in §6 puts the command surface first, and **§5-OQ4** offers Joe the alternative explicitly rather than assuming.
 
 ---
+### 🔒 LEG 0 CLOSED 2026-08-06 — CLAIR'S ADVERSARIAL READ RAN. **FIVE PLAN-MOVING FINDINGS, THREE WORDING. ALL EIGHT RE-MEASURED BY CHAT.**
+
+✅ **THE THREE CRITICAL FACTS SURVIVED** — the 19 commands (`invoke_handler` registers exactly 19, `:1085-1105`), `selectAt`'s unconditional write before `onActivate`, and `entity-context-menu`'s prop-not-bus contract. **G8, G11, G12 confirmed too.**
+
+🔑 **F1 — §8 ITEM 2 WAS WRONG, AND WRONG IN THE DIRECTION THAT MAKES THE PLAN EASIER.** Chat doubted whether the find-existing-DM scan is buildable, because `KnownSpace` carries no `is_dm` and no counterpart. **It is buildable, against a shipped and tested mechanism:** the counterpart is embedded in `KnownSpace.name` (**G2a**) and `self_open` already scans on exactly that field (**G2b**). ⇒ **§6's order (B before E) is CORRECT and `is_dm` stays in Leg E.** *Chat suspected the right section and drew the wrong conclusion from it.*
+
+🛑 **AND CHAT ADDS ONE FINDING TO F1 THAT THE READ DID NOT DRAW — IT IS A COLLISION, NOT A RELIEF.** `KnownSpace.name` now carries **two meanings**: *what the user is shown* and *which counterpart this Space is for*. 🔑 ***THAT IS THIS PROJECT'S NAMED DEFECT CLASS — one token, two meanings — and this arc has hit it five times*** (`T3` · `word` · `tail()` · mechanism-vs-surface labels · `selected`). ⚠️ **AND IT COLLIDES DIRECTLY WITH OQ3:** a DM home that renames DM Spaces to something humane — or `D-126`'s word form ever reaching that label — **breaks the scan silently.** *The scan is not free; it is borrowed against a field OQ3 wants to change.* ⇒ **OQ8.**
+
+🛑 **F2 — THE STRONGEST FINDING: `L-4`'s FIRST SEND IS ASSIGNED TO NO LEG.** OQ2-S2 makes `canSend` two-armed — **that fixes the BUTTON, not the SEND.** `submit()` hard-bails on a null id and `echo.send` has no draft arm (**G3a**). The real path is **detect draft → `create_dm_space` → receive `{space_id, room_id}` → `echo.send` → promote the draft**, and **neither Leg B nor Leg C names `composer-panel.svelte` or `echo-state.svelte.ts`.** ⚠️ ***THIS IS THE "WHICH LEG BUILDS THIS?" GAP, FOUND INSIDE THE DOCUMENT THAT CONGRATULATES ITSELF ON RECONCILING IT IN §4.2.*** ⇒ **§6 gains Leg C-bis.**
+
+🔑 **F3 — `L-3` AND `L-4` ARE DIFFERENT CREATION MODELS AND §6 WIRED THEM AS ONE.** `self_open` is **eager** (**G2c**): the first click on the self row signs three events and hits the network. A peer click is **lazy**. ⇒ **the two rows in one panel have different irreversibility, and Leg C would have shipped that silently.** ⇒ **OQ6.**
+
+🔑 **F4 — `L-8` AND §4.2 DESCRIBE OPPOSITE R7 OUTCOMES AND THE DOCUMENT NEVER NOTICED.** `L-8` promises the panel re-scopes to the 2-member DM; §4.2 says during a draft R7 **empties** to state ①. **Both are right — for different cases:** an existing DM has a room in the tree and latches; a never-contacted draft does not. ⇒ **OQ7.**
+
+⚠️ **F5 — OQ1-P1's COST IS OVERSTATED AS CERTAIN AND UNDERSTATED AS SIZE.** §4.1 lists *"one prop or one guard"* as a flat requirement of P1. It is **(a) contingent on the unmeasured paint** (§8 item 1 — under `L-8` every click navigates, so the spurious highlight self-corrects), and **(b) if incurred, it lands on `ui/core/.../entity-panel.svelte`** — the shared core composite whose last change was given **its own milestone** (`M-RP-PANEL-INERT`) precisely so a core touch stays attributable. ⇒ **not a Leg-C rider.** *§4.1 is annotated, not repaired.*
+
+📌 **WORDING, ALL THREE ACCEPTED:** **M1** `self_open` is `:1019` not `:1002` — fixed at **G2**, and `M_RP_MEMBERS.md:309` carries the same drift plus `create_dm_space :793` (it is **`:806`**) · **M2** `M_RP_MEMBERS.md:309` and `:406` both say **18** commands where it is **19** — *the Phase-0 is right and the document it leans on is stale* · **M3** §4's heading says three collisions and 4.3 is a sequencing argument — noted, no change.
+
+🔑 **WHAT THIS LEG PROVES ABOUT THE PROCESS, NOT THE PLAN.** §8 named six self-doubts. **Clair confirmed one, DISSOLVED another (item 2), and found three things §8 did not suspect at all — including the milestone's central behaviour having no owner.** ⚠️ ***Chat's own re-reads of this document had passed. Again.***
+
+---
+
 ## §5 — OPEN, AND JOE'S. Each carries `D-121` lenses: ① user-visible impact per option, then ② resource cost.
 
 ---
@@ -135,7 +161,7 @@ The third (**cross-node invite discovery**) is a **measurement nobody has taken*
 
 **P1 — `selected` stays the DM counterpart** (data-derived, today's meaning; `L-5`'s wording).
 ① The highlight always answers *"who am I talking to"*. In a group room nothing is highlighted even right after a click, so the click's only feedback is the navigation itself. Risk: one frame of a stale highlight during the transition (4.1).
-② Cheapest. No change to the derivation. Needs `entity-panel`'s unconditional `selectAt` write neutralised for this consumer — one prop or one guard.
+② Cheapest. No change to the derivation. Needs `entity-panel`'s unconditional `selectAt` write neutralised for this consumer — one prop or one guard. ⚠️ **AMENDED v1.2 (Clair **F5**, annotated not repaired):** that cost is **CONTINGENT, NOT CERTAIN** — under `L-8` every click navigates and the spurious highlight self-corrects, so the guard is needed **only if the unmeasured paint is unacceptable** (§8 item 1). **And if it IS incurred it lands on `ui/core/.../entity-panel.svelte`** — the shared core composite whose last change got **its own milestone** so a core touch stays attributable. ⇒ ***not a Leg-C rider, and "cheapest" was asserted before either half was checked.***
 
 **P2 — `selected` becomes `selection.current.entity.id`**, exactly like R1/R2.
 ① The highlight answers *"who did I last click"*, which in a DM is the same person, so the visible difference is narrow — **except when a DM is reached any other way** (the Spaces tree today), where **no member would be highlighted at all**. That is a visible regression against `L-5`'s purpose.
@@ -178,6 +204,29 @@ The third (**cross-node invite discovery**) is a **measurement nobody has taken*
 
 📌 **Chat's recommendation: NO** — §4.3's precedent is this project's own and it was expensive to learn. *Offered because it is a real choice, not to be talked out of.*
 
+### 🔓 OQ6 — 🆕 does the SELF row create eagerly, or lazily like a peer? (Clair **F3**)
+
+**E1 — eager, as `self_open` already behaves.** ① You always have a self thread; the first click signs 3 events and reaches the network. Skype's shape, and `L-3` cites Skype. ② **Zero** — it is the shipped behaviour.
+**E2 — lazy, matching `L-4`.** ① One rule for every row in the panel: nothing is signed until you send. ② A draft arm for self, and `self_open`'s create-if-absent becomes create-on-send — a Rust change to a tested op.
+
+📌 **Chat's recommendation: E1.** *`L-3` names Skype and Skype's self-thread always exists; and self-create writes only to your own node, so the asymmetry costs no one else anything.* ⚠️ **But the asymmetry must be WRITTEN DOWN either way** — two rows in one panel with different irreversibility is exactly the un-walked assumption this arc keeps paying for.
+
+### 🔓 OQ7 — 🆕 what does R7 show during a DRAFT? (Clair **F4** — `L-8` and §4.2 currently contradict)
+
+**R1 — the draft feeds R7 a pseudo-scope** so the panel shows the two of you. ① `L-8`'s promise holds uniformly; the panel never blinks empty. ② R7 gains a second scope source — **more unscoped work than `L-8` implies**, and a second scope authority (the `D-067` shape, again).
+**R2 — `L-8` is narrowed in writing: existing DMs re-scope, drafts show self-only.** ① Clicking a never-contacted person empties the members panel until you send. **Visibly odd, and it is the first thing a new user does.** ② Zero.
+
+📌 **Chat's recommendation: R1, but its cost is real and §4.2 understated it.** *An empty members panel at the exact moment you started a conversation is the worst instance of `L-8`'s cost, not a corner case.* 🔒 **This is appearance and it is Joe's.**
+
+### 🔓 OQ8 — 🆕 `KnownSpace.name` is both the label and the counterpart key (Chat, from Clair's **F1**)
+
+The find-existing-DM scan works **because** the counterpart XGID sits inside the display string (**G2a/G2b**). 🛑 **That is one token carrying two meanings, and OQ3 wants to change that exact field.**
+
+**K1 — use the name as the key; accept the coupling, record it.** ① None today. ② Zero now; **a silent breakage the day the label changes** — a DM home, a humane label, `D-126`'s word form.
+**K2 — `KnownSpace` gains a real `counterpart` (and/or `is_dm`) field, and the label becomes free.** ① None directly — it unblocks OQ3-A3 renaming DMs safely. ② **Rust: `xgen-common/src/state.rs` + the writer + the TS mirror. Pulls part of Leg E forward into Leg B** — the very move F1 just showed was not needed for the scan, but IS needed for OQ3.
+
+📌 **Chat's recommendation: K1 for Leg B, K2 folded into Leg E** — with the coupling written at the call site so the scan cannot be broken silently. *Doing K2 now would trade a measured no-op for real Rust before anything works end to end.* ⚠️ **If Joe wants DM Spaces renamed as part of OQ3, K2 stops being optional.**
+
 ### 🔓 OQ5 — inherited and still open (not opened by this milestone)
 
 - **A partial first send.** Create succeeds, message fails ⇒ the recipient holds an invitation with no message. *Defect, or a legitimate "someone started a conversation with you"?* (`M_RP_MEMBERS.md:336` — explicitly deferred to *"the interaction milestone's Phase-0"*, which is this one.)
@@ -190,16 +239,19 @@ The third (**cross-node invite discovery**) is a **measurement nobody has taken*
 
 | leg | what | floor | gated on |
 |---|---|---|---|
-| **A** | 🛑 **`D-131` annotations first, before any code.** `members-panel.svelte:11-14` (J-675's filed overstatement) · `selection.svelte.ts:2` and J-591's *"`entity-context-menu` READS the bus"* — **it takes a prop and does not import `selection`** (G7) | none | nothing |
-| **B** | **The command surface** — Tauri commands wrapping `create_dm_space` + `self_open`; find-existing-DM-for-counterpart; the draft object per OQ2 | **cargo** + svelte-check | OQ2 |
-| **C** | **R7 acts** — `interactive`, `onActivate` → open-or-draft **and** `selection.set()`; R8 renders the member card; `L-3` self row → `self_open` | svelte-check | OQ1, B |
+| **0** | ✅ **CLOSED 2026-08-06** — Clair's adversarial read. 5 plan-moving findings, 3 wording, all re-measured by Chat | none | — |
+| **A** | 🛑 **`D-131` annotations first, before any code.** `members-panel.svelte:11-14` (J-675's filed overstatement) · `selection.svelte.ts:2` and J-591's *"`entity-context-menu` READS the bus"* — **it takes a prop and does not import `selection`** (G7) · 🆕 **`M_RP_MEMBERS.md:309` and `:406`** — *18 commands* (it is **19**), `self_open :1002` (it is **`:1019`**), `create_dm_space :793` (it is **`:806`**) | none | nothing |
+| **B** | **The command surface** — Tauri commands wrapping `create_dm_space` + `self_open`; **find-existing-DM by `KnownSpace.name` (G2a/G2b, OQ8-K1)**; the draft object per OQ2 | **cargo** + svelte-check | OQ2, OQ6, OQ8 |
+| **C** | **R7 acts** — `interactive`, `onActivate` → open-or-draft **and** `selection.set()`; R8 renders the member card; `L-3` self row → `self_open` | svelte-check | OQ1, OQ7, B |
+| **C-bis** | 🆕 🛑 **FIRST SEND PROMOTES THE DRAFT** — `composer-panel.submit()` + `echo-state` gain the draft arm: detect draft → `create_dm_space` → `{space_id, room_id}` → `echo.send` → promote in place. **Added at v1.2 from Clair's F2 — `L-4`'s central behaviour previously had NO OWNER** | svelte-check | C |
 | **D** | **RMC → the menu, no selection** — the first `oncontextmenu` in the codebase (G8); `entity-context-menu` mounted with the row's descriptor as a prop | svelte-check | C |
-| **E** | **DM home + `is_dm`** per OQ3, **including G13's stale-flag question** | **cargo** + svelte-check | OQ3, D |
+| **E** | **DM home + `is_dm`** per OQ3, **including G13's stale-flag question and OQ8-K2** | **cargo** + svelte-check | OQ3, D |
 | **F** | Records + close (`D-074`) | — | E |
 
 🔑 **WHY B BEFORE C:** §4.3. Under `L-7` the click must do both or neither, so the op has to be reachable before the row is clickable.
-🔑 **WHY E LAST:** hiding DMs from the tree before they have a home makes existing DMs unreachable (OQ3-A3).
-📌 **A is free and unblocks nothing** — it is first because two records currently say the opposite of the code this milestone builds on, and a runbook written against them would be wrong in the same way this arc has already been wrong five times.
+🔑 **WHY E STAYS LAST, AND IT IS NOW MEASURED RATHER THAN ASSUMED:** Clair's **F1** dissolved the doubt that `is_dm` had to move forward — the scan runs against `KnownSpace.name`, which ships today. **E is last because DMs need a home before they lose the tree**, not because of the scan.
+📌 **A is free and unblocks nothing** — it is first because three records currently say the opposite of the code this milestone builds on.
+🛑 **AND C-bis IS THE LEG THIS DOCUMENT DID NOT HAVE.** §4.2 diagnosed the collision correctly and then assigned only its **enable gate** (OQ2-S2) to a leg. *The document that quotes the audit's "which leg builds this?" rule committed the error the rule names, and Clair found it by trying to run the send path.*
 
 🔒 **AND ONE LEG SITS BEFORE ALL OF THEM, ADOPTED 2026-08-06: LEG 0 — CLAIR'S ADVERSARIAL READ OF THIS DOCUMENT.** No authority to code. Her brief is §8 plus the two places it does not yet suspect itself: **§6's leg ORDER** (see §8 item 2 — the find-existing-DM scan may pull `is_dm` forward into Leg B) and **§5's four DELEGATED dispositions**, which were adopted rather than examined and are the class `AUDIT_MEMBERS_PANEL.md` §8 warns about. ⚠️ ***Clair caught four defects in `RUNBOOK_TAIL8.md` by trying to RUN it; Chat's own re-reads passed every time. This document has had none.***
 
@@ -216,8 +268,8 @@ The wire · any protocol event · `xgen-core` · `xgen-node` · the DM model its
 ## §8 — WHERE THIS DOCUMENT IS MOST LIKELY WRONG
 
 1. 🛑 **THE ONE-FRAME HIGHLIGHT IN §4.1 IS REASONED, NOT MEASURED.** No probe has been run. If the stale highlight persists rather than flashing, **OQ1-P1 gets more expensive** and P2 gets more attractive. **This is the first thing Leg C's runbook should measure, and it must be measured at the PAINT layer** (`N-168`, `D-140`) — a store read will not decide it.
-2. **The find-existing-DM scan is described and not designed.** `M_RP_MEMBERS.md:329` says *"scan known Spaces for an existing DM with that identity"* — but **G11: `KnownSpace` has no `is_dm` and no counterpart field.** Today that scan has nothing to scan on. ⇒ **OQ3's `is_dm` plumbing may be a prerequisite of Leg B, not Leg E.** *If so, this §6 order is wrong and E's Rust half moves forward.*
+2. ✅ **DISSOLVED AT v1.2 BY CLAIR'S F1, ANNOTATED NOT DELETED (`D-131`) — AND THE DOUBT WAS WRONG IN THE EASY DIRECTION.** The scan **is** buildable: the counterpart rides inside `KnownSpace.name` (**G2a**) and `self_open` already keys on that field (**G2b**). §6's order stands; `is_dm` stays in Leg E. 📌 **But the relief is borrowed — see OQ8**, and Clair's own bounded caveat rides with it: per `AUDIT_MEMBERS_PANEL.md` §4.8 the Spaces tree records **only your own actions**, so the name-scan finds only DMs **you** created — a peer-created DM is not in local `KnownSpace` at all, and clicking that peer makes a second Space. *That is the pre-existing duplicate-DM case (§4c-ii, host-by-race), not a defect in the scan.* *Superseded text follows.* — **The find-existing-DM scan is described and not designed.** `M_RP_MEMBERS.md:329` says *"scan known Spaces for an existing DM with that identity"* — but **G11: `KnownSpace` has no `is_dm` and no counterpart field.** Today that scan has nothing to scan on. ⇒ **OQ3's `is_dm` plumbing may be a prerequisite of Leg B, not Leg E.** *If so, this §6 order is wrong and E's Rust half moves forward.*
 3. **`self_open`'s idempotence is tested at the op layer, not through a Tauri command that does not yet exist.** `created: bool` (G2) is the right signal; nothing has exercised it from the UI.
 4. **Leg D assumes `entity-context-menu` works when mounted.** It is **COMPLETE and never instantiated** (J-675) — verified by its own sampler gates at M-RP5.3, never in the client against a real roster.
-5. **This Phase-0 has not been read by anyone outside its author.** *Five defects in `RUNBOOK_TAIL8.md` were caught by Clair trying to execute it or by Joe looking at a screen; Chat's own re-reads passed every time.* ⚠️ **An adversarial read by Clair before Joe locks anything is worth its cost, and the `M-RP-TAIL8` arc is the evidence.**
+5. ✅ **DISCHARGED 2026-08-06 — Leg 0 ran and this document was not executable as written.** *Superseded text follows.* — **This Phase-0 has not been read by anyone outside its author.** *Five defects in `RUNBOOK_TAIL8.md` were caught by Clair trying to execute it or by Joe looking at a screen; Chat's own re-reads passed every time.* ⚠️ **An adversarial read by Clair before Joe locks anything is worth its cost, and the `M-RP-TAIL8` arc is the evidence.** 🔑 **OUTCOME: five plan-moving findings. §8 confirmed ONE of its own doubts, DISSOLVED another, and MISSED THREE — including the milestone's central behaviour having no leg.** ***The cost was worth paying and the document should not be trusted to have found its own remaining errors either.***
 6. **The seat line on `L-9` is Chat's reading, and it is cheap to be wrong about.** *"RMC without member's selection"* is taken to mean no bus write, no navigation, no R8 change. **If Joe meant only "no highlight", Leg D is different.** Stated because a one-word ruling is easy to over-extend — the `D-141` failure mode.

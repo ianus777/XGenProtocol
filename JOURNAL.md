@@ -8,6 +8,66 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-681 — M-RP-MEMBER-ACT Leg 0 closes: Clair found that the milestone's central behaviour had no leg, and dissolved the one doubt Chat had flagged hardest
+
+**Date:** 2026-08-06 · **Seats:** Clair (the adversarial read, **no authority to code, and none was taken**) · Chat Claude (the brief, the re-measurement of all eight findings, the fold, records) · Joe (stood Leg 0 up; the push) · **Code:** NONE — zero `.rs`, zero `ui/**`, nothing launched · `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.1 → **v1.2 ACTIVE** · ROADMAP v6.68 → **v6.69** · `CLAUDE.md` PLAY. **No new `D`, no new `N`.**
+
+🔒 **EVERY CLAIR FINDING WAS RE-MEASURED BY CHAT BEFORE IT WAS FOLDED.** Numbers quoted by another seat are cross-checked, not adopted — all eight held, one of them with a correction of hers and one with an addition of Chat's.
+
+✅ **THE THREE CRITICAL FACTS THE PHASE-0 RESTS ON SURVIVED:** `desktop.rs` has 19 `#[tauri::command]`s and `invoke_handler` registers exactly 19 (`:1085-1105`), neither DM op among them · `entity-panel.svelte:105` writes `selected` then `:106` calls `onActivate`, and `members-panel.svelte:166` passes it one-way with no `bind:` · `entity-context-menu` takes `descriptor` as a prop and contains **no occurrence of `selection` at all**. **G8, G11, G12 confirmed too.**
+
+---
+
+### 🛑 F2 — THE MILESTONE'S CENTRAL BEHAVIOUR HAD NO LEG, AND THE § THAT MISSED IT IS THE § QUOTING THE RULE AGAINST IT
+
+§4.2 diagnosed the collision correctly: a draft has no `space_id`/`room_id`, `canSend` is false, ***"the first send is the act that creates the DM Space."*** Then it assigned **OQ2-S2** — which makes `canSend` two-armed.
+
+🔑 **THAT FIXES THE BUTTON, NOT THE SEND.** Measured: `composer-panel.submit()` **hard-bails** at `:72` — `if (!text || spaceId == null || roomId == null) return;` — and `echo.send(spaceId: string, roomId: string, text: string)` (`echo-state.svelte.ts:162`) **has no draft arm.** The real path is **detect draft → `create_dm_space` → receive `{space_id, room_id}` → `echo.send` → promote the draft in place**, and **neither Leg B nor Leg C named `composer-panel.svelte` or `echo-state.svelte.ts`.**
+
+⚠️ ***§4.2 QUOTES `AUDIT_MEMBERS_PANEL.md` §6's "WHICH LEG BUILDS THIS?" RULE AND THEN COMMITS THE ERROR THE RULE NAMES, IN THE SAME SECTION, ABOUT ITS OWN SUBJECT.*** *Chat congratulated the document on reconciling behaviours against files while leaving the one behaviour that defines the milestone unassigned.* ⇒ **Leg C-bis added.**
+
+---
+
+### 🔑 F1 — §8's LOUDEST SELF-DOUBT WAS WRONG, AND WRONG IN THE DIRECTION THAT MAKES THE PLAN EASIER
+
+§8 item 2, OQ3 and the Leg-0 brief all carried the same claim: `KnownSpace` has no `is_dm` and no counterpart, so the find-existing-DM scan *"has nothing to scan on"*, and `is_dm` might have to move forward into Leg B.
+
+**Measured, and it is a shipped mechanism rather than a gap:** `create_dm_space` writes `KnownSpace.name = format!("DM with {}", args.invitee)` for a peer and the constant `"self"` when `invitee == identity_id` (`ops.rs:965-969`) — **the counterpart XGID rides inside the display name.** And `self_open` **already scans on exactly that field**: `.find(|s| s.role == "owner" && s.name == SELF_THREAD_LABEL)` (`:1039-1042`). ⇒ **§6's order stands and `is_dm` stays in Leg E.**
+
+🛑 **BUT THE RELIEF IS BORROWED, AND CHAT ADDS THE HALF THE READ DID NOT DRAW.** `KnownSpace.name` now carries **two meanings**: *what the user is shown* and *which counterpart this Space is for*. 🔑 ***THAT IS THIS PROJECT'S NAMED DEFECT CLASS — ONE TOKEN, TWO MEANINGS — AND IT IS THE SIXTH INSTANCE IN THIS ARC*** (`T3` · `word` · `tail()` · mechanism-vs-surface labels · `selected` · now `name`). ⚠️ **AND IT COLLIDES WITH OQ3 SPECIFICALLY:** a DM home that renames DM Spaces, or `D-126`'s word form ever reaching that label, **breaks the scan silently.** ⇒ **`OQ8`.**
+
+📌 **Clair's own bounded caveat rides with it and is kept:** per `AUDIT_MEMBERS_PANEL.md` §4.8 the Spaces tree records **only your own actions**, so the name-scan finds only DMs **you** created — a peer-created DM is not in local `KnownSpace` at all, and clicking that peer makes a second Space. *That is the pre-existing duplicate-DM case (§4c-ii, host-by-race), not a defect in the scan.*
+
+---
+
+### 🔑 TWO COMPOSITION GAPS §8 DID NOT SUSPECT AT ALL
+
+**F3 — `self_open` IS EAGER WHERE `L-4` IS LAZY.** Absent ⇒ it calls `create_dm_space` **immediately** and returns `created: true` (`ops.rs:1052-1056`). ⇒ **the self row signs three events and hits the network on first click, while a peer row signs nothing until first send.** Two rows in one panel with **different irreversibility**, and §6 wired them as one line — *"`L-3` self row → `self_open`"*. **Leg C would have shipped the asymmetry silently.** ⇒ **`OQ6`.**
+
+**F4 — `L-8` AND §4.2 DESCRIBE OPPOSITE R7 OUTCOMES AND NOTHING RECONCILED THEM.** `L-8` promises the panel re-scopes to the 2-member DM; §4.2 says during a draft R7 falls to state ① and **empties**. **Both are correct, for different cases:** an existing DM has a room in the known-Space tree and latches; a never-contacted draft does not. ⇒ **`OQ7`** — and Chat's own reading of the cost is harsher than §4.2's: ***an empty members panel at the exact moment you started a conversation is the worst instance of `L-8`'s cost, not a corner case.***
+
+⚠️ **F5 — OQ1-P1's PRICE WAS BOTH OVERSTATED AS CERTAIN AND UNDERSTATED AS SIZE.** §4.1 listed *"one prop or one guard"* as a flat requirement. It is **contingent** — under `L-8` every click navigates, the roster is replaced and the spurious highlight self-corrects, so the guard is needed **only if the unmeasured paint is unacceptable** (§8 item 1). And **if incurred it lands on `ui/core/.../entity-panel.svelte`**, the shared composite whose last change was given **its own milestone** (`M-RP-PANEL-INERT`) precisely so a core touch stays attributable. ⇒ **not a Leg-C rider.** *"Cheapest" was asserted before either half was checked.*
+
+---
+
+### 📌 THREE WORDING FIXES — ALL ACCEPTED, ALL DRIFT IN THE DOCUMENTS THIS PHASE-0 LEANS ON
+
+`self_open` is **`ops.rs:1019`**, not `:1002` (that line sits inside the result struct) · `M_RP_MEMBERS.md:309` and `:406` both say **18** Tauri commands where the count is **19** · and `:309` also cites `create_dm_space :793` where it is **`:806`**. 🔑 **The Phase-0 was right about the count and wrong about one line number; the document it leans on is wrong about both.** ⇒ **Leg A's `D-131` annotation list grows from two records to three.**
+
+---
+
+### 🔑 WHAT LEG 0 PROVES IS ABOUT PROCESS, NOT PLAN
+
+§8 named **six** ways the document might be wrong. **Clair confirmed one, DISSOLVED another, and found three it did not suspect at all** — including the milestone's central behaviour having no owner.
+
+⚠️ ***CHAT'S OWN RE-READS OF THIS PHASE-0 HAD PASSED. AGAIN.*** That is six consecutive arcs in which every real defect came from **outside the text** — Clair trying to execute it, or Joe looking at a screen. 📌 *The Leg-0 brief told her the document had never been read and asked her to try to run it. She did, and it did not run clean. The leg cost one session and moved the plan twice.*
+
+🔓 **EIGHT ITEMS OPEN AND JOE'S.** OQ1–OQ4 remain **DELEGATED and PROVISIONAL** — and **OQ1 is worth re-confirming now that F5 has re-priced P1**. 🆕 **OQ6** eager-vs-lazy self · 🆕 **OQ7** what R7 shows during a draft (**appearance, Joe's**) · 🆕 **OQ8** the name-as-key coupling. **OQ5** still carries the partial first send and the clickable erased member.
+
+✅ **STATE RE-MEASURED, NOT INHERITED:** clean tree, HEAD **`344fe45`** = `origin/main` by `ls-remote`. **Floors untouched and deliberately not re-run, stated rather than skipped:** cargo **1596/0/62 × 56** · svelte-check **0/34/15** · catalogue **435** · **zero `.rs`, zero `ui/**`, nothing launched.** 🟡 **NEXT: Joe rules OQ6/OQ7/OQ8 and re-confirms OQ1 — then the Leg A/B runbook.** → J-681 · ROADMAP v6.69.
+
+---
+
 ## Entry J-680 — M-RP-MEMBER-ACT opens: the members panel acts, four locked answers were re-derived from scratch before the record was searched, and grounding found two shipped collisions underneath
 
 **Date:** 2026-08-06 · **Seats:** Chat Claude (grounding, Phase-0, the technical rulings, records) + Joe (the three new locks, the dispositions, the push) · Clair **stood down — Leg 0 is hers and carries NO authority to code** · **Code:** NONE — zero `.rs`, zero `ui/**`, nothing launched · **New:** `tasks/M_RP_MEMBER_ACT_PHASE0.md` **v1.1 ACTIVE** · ROADMAP v6.67 → **v6.68** · `CLAUDE.md` PLAY. **No new `D`, no new `N`.**

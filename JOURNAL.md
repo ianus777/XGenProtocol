@@ -8,6 +8,102 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-682 — M-RP-MEMBER-ACT: all eight dispositions close, and Chat inverted its own recommendation three times by one mechanism
+
+**Date:** 2026-08-06 · **Seats:** Joe (two rulings uttered with reasons, six taken on recommendation, the push) · Chat Claude (grounding, the technical rulings, records) · Clair **stood down — her Leg 0 read was of v1.1** · **Code:** NONE — zero `.rs`, zero `ui/**`, nothing launched · `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.2 → **v1.7 ACTIVE** · ROADMAP v6.69 → **v6.70** · `CLAUDE.md` PLAY. **No new `D`, no new `N` — and TWO `D`s PROPOSED AND UNMINTED.**
+
+🔒 **THE EIGHT.** OQ1 **P1** · OQ2 **S2** · OQ3 **A3-last** · OQ4 **no early card** · OQ6 **E2 lazy** · OQ7 **W4** · OQ8 **K3** · OQ9 **C**. 🔑 **PROVENANCE IS RECORDED PER ITEM AND IT IS NOT UNIFORM:** six were taken on *"go by your recomm"* and are **DELEGATED** (`D-141`, the `D-127` shape) · **OQ6 is Chat's own** under `D-123` · **OQ8 and OQ9 are Joe's, uttered, with reasons he gave.**
+
+---
+
+### 🛑 THE SESSION'S REAL FINDING IS A PATTERN IN CHAT, NOT IN THE PLAN
+
+**Three recommendations inverted. One mechanism, three times.**
+
+| # | first pricing | what it became |
+|---|---|---|
+| **OQ1** | *"cheapest — one prop or one guard"* | → Clair's F5: *"contingent on an unmeasured paint"* → **a guard on the FAILURE PATH only, likely no `ui/core` touch at all** |
+| **OQ6** | **E1** — *"it is the shipped behaviour, zero cost"* | → **E2**: true of the OP, **false of the MILESTONE** |
+| **OQ8** | *"K1 now, K2 later"* | → **K3**, once OQ6-E2 put the name-scan on the click path |
+
+⚠️ ***EACH TIME A COST WAS PRICED AGAINST ONE LEG AND NEVER RE-CHECKED AGAINST THE OTHERS. EACH TIME THE FIRST PRICING WAS CHEAPER THAN THE TRUTH.***
+
+🔒 **FORWARD RULE, WRITTEN INTO §8 AS ITEM 7: when a disposition lands, re-read every OTHER open disposition against it before the next one is taken.** 🔑 *`OQ6` and `OQ8` were settled an hour apart and **the second was made unsafe by the first** — nothing in this document's process would have caught that.*
+
+---
+
+### 🔑 OQ1 — THE MANUFACTURED HIGHLIGHT IS NOT WRONG, IT IS EARLY
+
+**Measured:** `entity-panel` has **no `$effect` re-syncing `selected` from props**; `selectAt:105` is a plain write to a `$bindable` passed without `bind:`, so the child's value persists until the parent's changes. ✅ *That confirms `M_RP_PANEL_INERT.md` §0.*
+
+🔑 **BUT §0's CLAIM WAS NEVER RE-READ AGAINST `L-8`, LOCKED IN THE SAME DOCUMENT.** §0 describes a panel where clicking does nothing else. **Under `L-8` you always leave — and you leave TO A DM WITH X, where X IS the counterpart.** The child writes `X`; the eventual correct value **is also X**. ⇒ ***the entire residue is an ERROR PATH***, not a frame and not a transition. 📌 **§8 item 1 partly dissolves: the paint does NOT decide OQ1** — code semantics plus `L-8` do, and both were readable that day.
+
+---
+
+### 🛑 OQ8 — THE NAME-AS-KEY WAS UNSOUND, AND JOE TOOK THE HEAVY OPTION WITH A PRINCIPLE ATTACHED
+
+🔒 **Joe, uttered:** *"ok k3 then. we must not be afraid of proper solutions, even if they are slightly heavier."*
+
+**① K1 is unsound against user input.** `create_space` writes **`name: args.name.clone()`** — free-form, max 128 chars (`ops.rs:660`) — into the **same field** the scan keys on (`s.role == "owner" && s.name == SELF_THREAD_LABEL`, `:1042`). ⇒ ***a Space you create and name `self` is indistinguishable from your self thread.*** **Latent only because `self_open` had no UI path — and OQ6-E2 put that scan on the click path.**
+**② K1 works in ONE DIRECTION ONLY.** Leg B builds-and-compares (no parsing); **Leg E's DM home needs `strip_prefix("DM with ")` — parsing a display string a user can write, which nothing in the codebase does today.**
+**③ K2 alone MANUFACTURES the duplicate-DM case.** `#[serde(default)]` gives Joe's existing DM `counterpart: None` ⇒ **clicking DAVE mints a SECOND Space** — §4c-ii's "pre-existing" case, caused by our own change.
+
+🔒 **K3: the field + a ONE-TIME BACKFILL at `load_or_default_state`.** ⇒ ***the parse exists exactly once, in a migration — never in a lookup, never in a render path.*** After one run the name is free, so OQ3's DM home may rename DM Spaces at will. **Rust pulled forward from Leg E into Leg B.**
+
+---
+
+### 🔑 OQ6 — CHAT ROUTED A NON-DECISION TO JOE TWICE, AND HE SAID SO
+
+**Joe:** *"honestly i dont know what you need to work it as as in the skype time ago. perhaps you know."*
+
+🔑 **HE COULD NOT PICTURE THE DIFFERENCE BECAUSE THERE IS NONE TO PICTURE.** The Skype shape `L-3` reaches for — your own entry in the list · clicking opens a normal conversation with yourself · it persists · same thread from any device — **holds under E1 AND E2.** Whether the thread is minted on the click or the first message **is invisible in that experience.**
+
+⇒ **the only user-visible difference is that E1 FAILS OFFLINE** (`self_open`'s create arm signs three events and sends them with send-confirm, `ops.rs:907-952`; the self row is always FIRST, the row most likely clicked while exploring). **Everything else is implementation cost — Chat's seat.** ⚠️ ***Routing it to Joe twice was the under-stepping the record keeps naming.***
+
+✅ **`D-021` WAS CHECKED BEFORE RECOMMENDING AND DOES NOT DECIDE IT** — its own closing sentence anticipates the Phase-2 proper-DM-Space form that M11 built. **Corpus stated** (`D-139`). 📌 **E2 also REMOVES a Tauri command from Leg B:** self becomes a draft target found by the same scan and created by C-bis's create-on-first-send. **`self_open` stays untouched and CLI-tested.**
+
+---
+
+### 🔑 OQ7 — THE FRAMING WAS TOO NARROW, AND THE MEASUREMENT KILLED IT
+
+The question asked what **R7** shows during a draft. Measured region by region with both latch ids `null`: **R4** is a placeholder with **no widget at all** · **R5** *"Select a room to see its messages."* · **R6** *"Select a room to send a message."*, send disabled · **R7** self only, `NOTE` deliberately `null` · ✅ **R8 shows the clicked member's card — `selection.clear` is called NOWHERE in the codebase, so the bus survives navigation.**
+
+🔑 ***FOUR REGIONS SAY "NOTHING IS SELECTED" AT THE MOMENT THE USER CLICKED A PERSON. R7 EMPTYING WAS THE LEAST OF IT.***
+
+🔒 **W4: R7 stays THIN and that is CORRECT, because `L-7`'s card carries the counterpart** — *"who am I talking to"* moved to the region `L-7` had just created. 🛑 **And W4 exposed a SECOND instance of Clair's F2, from the same lock:** `L-4` was locked on Discord's *"This is the beginning of your direct message history with …"* — **that is R5's empty-thread copy, and no leg built it.** ⇒ **Leg C-bis.** ⚠️ *W4 also leaves OQ1's failure-path guard alive, where R2 would have cleared it by unmounting the rows.*
+
+---
+
+### 🔑 OQ9 — THE QUESTION DISSOLVED WHEN THE ASK WAS RE-READ
+
+Joe asked for **hygiene**: *"no hardcode in the code … into a constant with a note."* ⚠️ ***"NOT HARDCODED" IS NOT "USER-EDITABLE", AND CHAT TURNED THE FIRST INTO THE SECOND***, then spent three turns siting a feature **nobody had asked for.**
+
+🔒 **Joe ruled the string CLIENT-OWNED** — *"quasi private message, just for user"* — and took **C: the const ships with an honest note, NO control is built, and the destination is NAMED** (Settings › an app-level copy section, **not** a widget pane), *"not so important, but we can access it in the future by a need."*
+
+**Two sitings refused with reasons, so they are not re-proposed:** the **Space/node setting** (Joe's first instinct) — killed on a mechanical fact, ***the empty-thread line is only ever visible at a moment when NO SPACE EXISTS*** · the **self widget** (his second, withdrawn by him) — a status readout, and **J-591's S2 already moved even self-record editing out of it** to *"Settings › Account, in the single place"*. **The Messages pane** was refused too: mechanically correct, but it mints *"copy lives in whichever widget rendered it"*, which at **14 copy sites across ~6 widgets** means six panes to hunt through for one sentence.
+
+🔑 **THE VALUABLE OUTPUT IS A CLASS DISTINCTION THAT EXISTS NOWHERE ELSE IN THE RECORD.** **OWNER CONTENT** — Space name, room name, `topic` — is the owner describing their own place, and **the channel is BUILT AND UNWIRED** (`SpaceState`/`RoomState` carry `name` + `topic: Option<String>`, event-sourced; **`xgen-client` contains ZERO occurrences of `topic`**). **CLIENT STATE COPY** — *"Select a room"*, *"I cannot reach the others"* — is the client describing **itself**. 🛑 ***AN OWNER WHO COULD REWRITE THE SECOND CLASS COULD MAKE A MEMBER'S CLIENT LIE ABOUT ITS OWN STATE — EXACTLY WHAT `D-065` FORBIDS, COMMITTED BY A THIRD PARTY THROUGH A SUPPORTED FEATURE.*** ⚠️ *Filed because a future milestone wiring `topic` could widen into copy-override without anyone deciding to.*
+
+---
+
+### 🔓 TWO `D`s PROPOSED, UNMINTED, BOTH JOE'S
+
+**① *"Proper over heavier."*** Measured: **948 `D-065` citations** across the corpus, and *"honest longer work over fast shortcuts"* appears **by name** in ~12 documents, carries its own **recurrence ledger** (*"Pass 3 count at this commit: ONE"* · *"Pass 4 count is at TWO"* · *"seven recurrences by J-101"*), and `RUNBOOK_ROADTREE_LEGC.md:207` ranks it **beside `D-065` and `D-069` as a standing rule** — ***with no designation.*** 🔑 **`D-140` was minted for exactly this shape** (*a forward rule with no designation gets re-derived from scratch*). **Joe's sentence this session is its cleanest statement, in his own words.** ⚠️ *Two sites cite `D-065` for it (`DECISIONS.md:4090`, `XGID_RETROFIT_PASS_3_IMPL.md:534`) while `D-065`'s text is about a system misrepresenting its own state, not about build effort. **Whether that is miscitation or fair application is genuinely arguable and is NOT declared here.***
+
+**② The owner-content vs client-state-copy line** — currently recorded **only inside a Phase-0**, where a future `topic` milestone would never look for it.
+
+---
+
+### ⚠️ WHAT THE NEXT SESSION MUST NOT INHERIT
+
+🛑 **THE PHASE-0 HAS BEEN REWRITTEN SEVEN TIMES SINCE CLAIR CERTIFIED IT.** Leg 0 read **v1.1**. **Leg C-bis, K3's Rust in Leg B, E2's removed command, W4, and OQ9's const all landed after.** ***The document she certified is not the document a runbook would be written from.*** ⇒ **the trigger is a SECOND, NARROWER Clair pass on v1.7, asking the one question nothing has asked: DO THE EIGHT DISPOSITIONS COMPOSE?** *§8 item 7 exists because they already failed to once.*
+
+🔓 **`OQ5` is the only open disposition, and Chat has made NO recommendation on any of its three items:** the partial first send (`M_RP_MEMBERS.md:336` routes it here by name) · **erased members are clickable and `create_dm_space` takes any XGID, so a DM to an erased identity would be created and go nowhere** · cross-node invite discovery (**a measurement nobody has taken**, Chat's, gating nothing in Legs A–D).
+
+✅ **STATE RE-MEASURED, NOT INHERITED (J-671):** HEAD **`eea4e4b`** = `origin/main` by `ls-remote`; the tree carried **only** the Phase-0, modified **deliberately** — records held across four dispositions rather than minting four near-identical entries, then folded here under `D-074`. **Floors untouched and deliberately not re-run, stated rather than skipped:** cargo **1596/0/62 × 56** · svelte-check **0/34/15** · catalogue **435** · **zero `.rs`, zero `ui/**`, nothing launched.** 🟡 **NEXT: Joe rules on the two proposed `D`s, then the second Clair pass, then the Leg A/B runbook.** → J-682 · ROADMAP v6.70.
+
+---
+
 ## Entry J-681 — M-RP-MEMBER-ACT Leg 0 closes: Clair found that the milestone's central behaviour had no leg, and dissolved the one doubt Chat had flagged hardest
 
 **Date:** 2026-08-06 · **Seats:** Clair (the adversarial read, **no authority to code, and none was taken**) · Chat Claude (the brief, the re-measurement of all eight findings, the fold, records) · Joe (stood Leg 0 up; the push) · **Code:** NONE — zero `.rs`, zero `ui/**`, nothing launched · `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.1 → **v1.2 ACTIVE** · ROADMAP v6.68 → **v6.69** · `CLAUDE.md` PLAY. **No new `D`, no new `N`.**

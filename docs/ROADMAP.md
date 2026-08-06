@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.69  
+> Version: 6.70  
 > Date: May 2026  
 > **Last updated**: 2026-08-06  
 > Language: English  
@@ -306,14 +306,17 @@ XGen Protocol
 │   │   │   ↳ trigger: Legs A–C land
 │   │   └── 🟡 **Leg E records + close**
 │   │       ↳ trigger: Leg D lands
-│   ├── 🟢 **M-RP-MEMBER-ACT** — the members panel acts: LMC opens the DM, RMC opens the menu · **a COMMAND-SURFACE milestone — `create_dm_space` + `self_open` are built and tested with no Tauri command** · J-681 (J-680)
-│   │   ↳ Phase-0 `tasks/M_RP_MEMBER_ACT_PHASE0.md` **v1.2 ACTIVE** · audit `tasks/AUDIT_MEMBERS_PANEL.md` satisfies the `D-071` gate · **9 inherited locks (L-1…L-9), 6 from J-591 and 3 uttered 2026-08-06**
+│   ├── 🟢 **M-RP-MEMBER-ACT** — the members panel acts: LMC opens the DM, RMC opens the menu · **a COMMAND-SURFACE milestone — `create_dm_space` + `self_open` are built and tested with no Tauri command** · J-682 (J-680)
+│   │   ↳ Phase-0 `tasks/M_RP_MEMBER_ACT_PHASE0.md` **v1.7 ACTIVE** · audit `tasks/AUDIT_MEMBERS_PANEL.md` satisfies the `D-071` gate · **9 inherited locks (L-1…L-9), 6 from J-591 and 3 uttered 2026-08-06**
 │   │   ↳ 🔒 **L-7 (a): LMC does BOTH** — opens the DM **and** writes the selection bus so R8 shows the member's card · **L-8** navigation-on-click is intended · **L-9** RMC on the avatar opens the menu **without selection**
 │   │   ↳ 🔒 **REVERSES J-591's *"R7 must not call `selection.set()`"*** — deliberately, the reason inverted not discarded · ⚠️ **does NOT reverse `M-RP-PANEL-INERT`** (inertness was deferred, not rejected)
-│   │   ↳ ✅ **Leg 0 CLOSED J-681 — Clair's adversarial read: 5 plan-moving findings, 3 wording, all re-measured by Chat.** 🛑 **F2: `L-4`'s FIRST SEND had NO LEG** ⇒ **Leg C-bis added** · **F1 DISSOLVED §8 item 2** — the DM scan runs on `KnownSpace.name`, so §6's order stands and `is_dm` stays in Leg E
-│   │   ↳ Legs: **0** ✅ → **A** `D-131` annotations → **B** the command surface (cargo) → **C** R7 acts → **C-bis** first send promotes the draft → **D** RMC menu → **E** DM home + `is_dm` (cargo) → **F** close
-│   │   ↳ 🔓 **OPEN AND JOE'S — EIGHT:** OQ1–OQ4 **adopted as DELEGATED and PROVISIONAL** (P1 · S2 · A3-last · no-early-card) · 🆕 **OQ6** self row eager vs lazy · 🆕 **OQ7** what R7 shows during a draft · 🆕 **OQ8** `KnownSpace.name` is both label and counterpart key · **OQ5** the partial first send + **erased members are clickable**
-│   │   ↳ trigger: Joe rules OQ6/OQ7/OQ8 and confirms OQ1–OQ4 now that F5 re-priced P1 — then the Leg A/B runbook
+│   │   ↳ ✅ **Leg 0 CLOSED J-681 — Clair's adversarial read: 5 plan-moving findings, 3 wording, all re-measured by Chat.** 🛑 **F2: `L-4`'s FIRST SEND had NO LEG** ⇒ **Leg C-bis added** · **F1 DISSOLVED §8 item 2** — the DM scan runs on `KnownSpace.name`
+│   │   ↳ ✅ **ALL EIGHT DISPOSITIONS CLOSED J-682** — OQ1 **P1** · OQ2 **S2** · OQ3 **A3-last** · OQ4 **no early card** · OQ6 **E2 lazy** (Chat's, `D-123`) · OQ7 **W4** · OQ8 **K3** (🔒 Joe uttered) · OQ9 **C** (🔒 Joe)
+│   │   ↳ 🛑 **K3 PULLS RUST FORWARD INTO LEG B:** `KnownSpace` gains `counterpart: Option<String>` + `#[serde(default)]` + a one-time backfill — **the name-as-key was unsound against a Space a user can name `self`**
+│   │   ↳ Legs: **0** ✅ → **A** `D-131` annotations → **B** command surface + K3 (cargo) → **C** R7 acts → **C-bis** first send promotes the draft + R5's copy → **D** RMC menu → **E** DM home + `is_dm` (cargo) → **F** close
+│   │   ↳ 🔓 **OPEN AND JOE'S — `OQ5` ONLY, and Chat has made NO recommendation on any of it:** the partial first send · **erased members are clickable and a DM to one would go nowhere** · cross-node invite discovery (a measurement, Chat's)
+│   │   ↳ 🔓 **TWO `D`s PROPOSED AND UNMINTED, BOTH JOE'S:** *"proper over heavier"* (a rule cited ~12 times by name with **no designation**) · **owner-content vs client-state-copy** (recorded only inside the Phase-0, where a future `topic` milestone would never look)
+│   │   ↳ trigger: ⚠️ **a SECOND Clair pass on v1.7 — she certified v1.1 and seven revisions have landed since** — then the Leg A/B runbook
 │   ├── ✅ **M-RP-TAIL8** — the unresolved-row fallback shows a short tail, not the whole key · **first application of `D-142`; DISCHARGES `M_RP_MEMBERS.md` §6a, open since J-643** · **CLOSED J-679** (J-678)
 │   │   ↳ Phase-0 `tasks/M_RP_TAIL8_PHASE0.md` **v1.3 COMPLETED** · runbook `tasks/RUNBOOK_TAIL8.md` **v1.4 COMPLETED** · code `165b821` (Clair, 3 files, +31/−19) — `tail` → `tail8`, both call sites
 │   │   ↳ 🔒 **CLOSED ON A LIVE CLIENT RUN, NOT ON THE COMMIT (Joe's L1).** §5a re-driven by Chat on WebView2 · **§5b V2 · V4 · V8 all GREEN** on the erased DM counterpart: `…sno_FWmw`, len 9, cp0 `U+2026`, bytes `e2 80 a6`, `scrollWidth 158 === clientWidth 158` at panel **218 px**

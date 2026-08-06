@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.11  
+> Version: 1.12  
 > Date: May 2026  
-> **Last updated**: 2026-07-26  
+> **Last updated**: 2026-08-06  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -3440,3 +3440,28 @@ document*.
 📌 **What the rule should say instead.** Counting raw bytes after a write stays mandatory — it catches **real** failures (a tool that emits CRLF where a doc is compared byte-for-byte, a truncated write, a BOM). But **do not convert line endings to satisfy the split**, and do not treat a CRLF/LF mismatch as evidence of a defect. **The test that decides is `git diff --stat`**: if it shows only the intended hunks, the endings are irrelevant; if it shows the whole file, something really is wrong.
 
 ⚠️ **This is the session's own defect class turned on a rule rather than on code: a claim narrower than the thing it described, reused as if complete.** It was never wrong about what it observed. It was never checked for what it implied.
+
+---
+
+### N-168 — an ERASED row that has no name carries TWO marks at once, and only the painted pixels show that they stack
+
+**Date:** 2026-08-06 · HEAD `165b821` · found by Joe looking at the screen during `M-RP-TAIL8` §5b (J-679). **FILED, NOT FIXED.**
+
+**What the probes said.** `D-142`'s tail-8 fallback was measured green at two layers on a real client row (DM counterpart, erased, unresolvable): the **string** — `…sno_FWmw`, length 9, cp0 `U+2026`, bytes `e2 80 a6` — and the **layout** — `scrollWidth 158 === clientWidth 158`, `clipped:false`, panel 218 px. Both correct. Both still correct.
+
+**What the screenshot said.** The row paints as a struck-through `…sno_FWmw`, and **`line-through` runs through the ellipsis**. Two independent marks land on one string:
+
+| mark | means | source |
+|---|---|---|
+| leading `…` | **no display name is known** — part of the STRING (`D-142`, `members-panel`) | the widget |
+| `line-through` | **this identity is ERASED from the registry** | `skin.css:2597-2602`, `[data-unresolved="erased"] .ei-name` |
+
+⇒ painted together, the dots read as struck-out *text* rather than as a separate signal — closer to *"a crossed-out fragment"* than to *"unnamed person, erased"*. **Neither rule is wrong; they were designed apart and never seen composed.**
+
+🔑 **THE LAYER LESSON, AND IT IS `D-140` GETTING ITS THIRD LAYER.** `D-140` says a falsification criterion must name the layer that decides it. This arc named two — **string** and **layout** — and treated **paint** as following from them. It does not. `textContent` + `scrollWidth <= clientWidth` are both satisfied by a row that composes badly on screen. ***A string is not a layout is not a picture, and the third one has no probe in this harness that a human eye does not beat.***
+
+📌 **And a second composition sits beside it, correct and still odd:** the avatar renders **`SN`** — §3.2's leading-`\p{L}` strip working exactly as specified, so no `…s`. But `SN` are two base64 characters of a public key wearing the shape of somebody's initials. **Same family as J-675's `ED`-is-the-initials-of-the-algorithm finding, now on a product surface rather than a fixture.**
+
+🔒 **DISPOSITION (Joe, 2026-08-06, DELEGATED — `D-141`): SHIP, AND FILE.** `M-RP-TAIL8`'s scope was the fallback **string**; how an *erased* **and** *unnamed* row should look is a question `D-142` never claimed to answer, and the unresolved styling predates it. ⚠️ **This note is the file.** Whoever opens the erased-row appearance pass inherits it — the options not taken were *ship as is, unfiled* and *rework before the close*.
+
+⚠️ **THE FINDING CAME FROM JOE, NOT FROM THE HARNESS — THE FOURTH TIME IN THIS ARC.** Chat's own re-reads passed at every layer it chose to measure. *The layer it did not choose is the one that produced the finding.*

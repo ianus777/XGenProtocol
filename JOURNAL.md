@@ -1,10 +1,82 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-05  
+> **Last updated:** 2026-08-06  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-679 — M-RP-TAIL8 closes: `tail8` ran for the first time on a real client row, the lever was already sitting in Joe's data, and the one finding the gates could not produce came from the painted screen
+
+**Date:** 2026-08-06 · **Seats:** Chat Claude (grounding, measurement, the live run, records) + Joe (custody, the disposition, the push) · Clair **stood down — her atom shipped at `165b821`** · **Code:** NONE this session · **Records:** `tasks/RUNBOOK_TAIL8.md` v1.3 → **v1.4 COMPLETED** · `tasks/M_RP_TAIL8_PHASE0.md` v1.2 → **v1.3 COMPLETED** · `M_RP_MEMBERS.md` v1.18 → **v1.19** · `ui/docs/xgen-ui-notes.md` v1.11 → **v1.12** · `CLAUDE.md` PLAY · ROADMAP v6.66 → **v6.67**. **No new `D`. One new `N` (`N-168`).**
+
+🔒 **THE MILESTONE CLOSED ON A LIVE RUN, NOT ON THE COMMIT — JOE'S L1, AND IT WAS THE RIGHT CALL FOR A REASON THE GATES THEMSELVES STATED.** §5a proved the render **FORM** against hardcoded sampler fixtures. It could not prove the **PRODUCER**: the sampler does not mount `members-panel`, so `tail8` — the function this milestone changed — **had never executed under test.** *A gate suite that cannot fail on the changed function is not a gate suite for that function.*
+
+---
+
+### 🔑 THE LEVER WAS ALREADY IN JOE'S DATA, AND FOUR SESSIONS OF PRICING HAD ASSUMED IT WOULD HAVE TO BE MANUFACTURED
+
+§8 priced V8 as needing *"a joiner, or the node down inside the fetch window"* — Leg F's shape, which had itself cost a whole leg because there was **no way to launch a second client**. **Grounding the existing data instead of designing a rig found the state already persisted.**
+
+The DM Space `…6af09cd8…` has **two members**: Joe, and `xgen://pubkey/ed25519:L87GVLyV…sno_FWmw`. 🔒 **THAT KEY IS LegF-DAVE, ESTABLISHED FROM THE DAG RATHER THAN FROM ITS NAME** — he is invite target #3 of the eight in `LegF Verification`; the other seven resolve in the address book as LegF-Bob / CAROL / N1–N5; he **signed two `membership.join` events himself**, so he was a real keyholder before erasure. He is absent from `xgen-node_identities.db` **and** from the client address book ⇒ the fill returns `identity.not_found`.
+
+🔑 **AND THE THING THAT MAKES HIM VISIBLE IS A RULE WRITTEN FOR A DIFFERENT REASON.** An erased row is normally **hidden**. The DM counterpart is **never** hidden (§5a E2, J-648) ⇒ the row renders, `rec?.display_name` is `undefined`, **`tail8` runs.** ⇒ **two latches, zero writes, no second client, no node-down window.** *The measurement that unlocked it was reading four persisted JSON files, not building a rig.*
+
+---
+
+### ✅ §5b — ALL THREE GATES GREEN, ON THE REAL CLIENT (WebView2, CDP 9222)
+
+| # | result | measured |
+|---|---|---|
+| **V8** | ✅ | `…sno_FWmw` · len **9** · cp0 **`0x2026`** · bytes **`e2 80 a6`** · `data-unresolved="erased"` · `data-selected="true"` |
+| **V2** | ✅ | `scrollWidth 158 === clientWidth 158` · `clipped:false` · `painted:true` · 🔒 **panel 218 px / `.ei-name` 158 px, RECORDED — one desk** |
+| **V4** | ✅ partial | self row first, `Joe`, resolved, weight 600, unmarked |
+
+🔒 **V8 IS PROVEN AS THE FUNCTION'S OUTPUT AND THE PROOF RODE IN THE SAME EVAL** — `book` held **9 keys, none ending `sno_FWmw`**; `roster` held 2. ⇒ `rec?.display_name` is `undefined`, `tail8(m.identity_id)` is the only producer on that path, and the sampler's fixtures are not mounted in the client. 📌 **THE ARM IS NAMED (`D-140`):** `m.unresolved` was `undefined` on both rows ⇒ this is the **fill / not-found** arm; the **live-delta** arm reaches the same call site and **was not exercised.**
+
+✅ **THE CONTROL DISCRIMINATES (J-655).** Latch 1 `LegF Room`: **8 rows**, all resolved, no `tail8`, identical 218/158 geometry — and **DAVE, a member there too, was correctly hidden.** *Same probe, different answer on differentiated inputs.*
+
+📌 **THREE MEASUREMENTS NO GATE ASKED FOR.** `font-weight 500` on the erased row vs `600` on `Joe` (`skin.css:2558` fires ⇒ the string was measured at the weight it ships at) · `line-through` present and scoped to the name, highlight intact · **avatar initials `SN`, not `…s`** — §3.2's leading-`\p{L}` strip working on a **product-produced** string, which §5a could only ever show against fixtures. ⇒ **§8's entry 1 (*"the `\p{L}` regex is written, not run"*) is CLOSED**, annotated not deleted.
+
+---
+
+### 🔑 THE FIFTH DEFECT IN THIS ARC CAME FROM OUTSIDE THE TEXT AGAIN — THIS TIME FROM THE PAINTED SCREEN
+
+Four previous defects in this runbook were caught by **Clair trying to run it**; Chat's own re-reads passed every time. **The fifth was caught by Joe looking at the render.**
+
+The gates were written at the **string** layer and the **layout** layer. Both passed, and both are still correct. The painted row shows the erased mark's **`line-through` running THROUGH the leading `…`** — two independent marks stacked on one string: *no display name is known* (`D-142`, in the string) and *this identity is erased* (`skin.css:2597-2602`, in the skin). Composed, the dots read as struck-out **text** rather than as a separate signal.
+
+🔑 ***`D-140` SAYS A FALSIFICATION CRITERION MUST NAME THE LAYER THAT DECIDES IT. THIS ARC NAMED TWO AND ASSUMED PAINT FOLLOWED FROM THEM. IT DOES NOT.*** `textContent` plus `scrollWidth <= clientWidth` are both satisfied by a row that composes badly on screen. **A string is not a layout is not a picture** — and the third layer has no probe in this harness that a human eye does not beat. 📌 *The same session had already recorded the §5a version of this error — reading text out of a `display:none` subtree — one day after `D-140` was minted. This is its sibling, one layer further out.*
+
+📌 **A SECOND COMPOSITION SITS BESIDE IT, CORRECT AND STILL ODD:** the avatar's **`SN`** is §3.2 working exactly as specified, yet those are two base64 characters of a public key wearing the shape of somebody's initials — **the same family as J-675's *the avatar's `ED` is the initials of the ALGORITHM*, now on a product surface rather than a fixture.**
+
+🔒 **DISPOSITION: SHIP, AND FILE (Joe — *"as you recommend"*). RECORDED AS DELEGATED, `D-141`.** `M-RP-TAIL8`'s scope was the fallback **string**; how an *erased* **and** *unnamed* row should look is a question `D-142` never claimed to answer, and the unresolved styling predates it. **The two options refused were *ship unfiled* and *rework before the close*.** ⇒ **`N-168`.**
+
+---
+
+### 🔒 THE CLOSE SAYS *"`D-142` APPLIED AT THE ROSTER"*, AND THE DISTINCTION IS NOT PEDANTRY
+
+What closed: surfaces **A1 + A2** — both `members-panel` call sites — and within them the **fill / not-found arm**. ⚠️ **What did not, stated so no later reader infers it:** the **live-delta arm** reaches the same call site untested · **A3 latent** · **A4 — every ungrouped message row still renders the full 65-character XGID, LIVE and untouched** · the feed still renders `slice(-6)`. ***A close that overstates itself commits this project's named defect class in the entry that closes it.***
+
+⚠️ **AND `V4`'s SECOND HALF IS AMENDED RATHER THAN PASSED (`D-131`).** Both §5a and §5b read *"with an absent self identity the row must be empty, not `…`"*. Measured at `self-state.svelte.ts:37-38` (both fields `string | null`), **that wording conflates two states**: `identity === null` ⇒ `selfDescriptor` is `null` ⇒ **no row renders at all, the guard never runs**; `identity_id === null` ⇒ `tail8('')` → `''` ⇒ **a rendered row with an empty name**, which is what the guard protects. The second is **unreachable by any product action** — only by driving `__XGEN_SELF__` — so it is recorded **NOT DRIVEN, with the reason**, never as passed and never silently omitted (the J-673 W8 lesson).
+
+---
+
+### ⚠️ TWO SEAT NOTES, BOTH WORTH THE LINE
+
+**Custody was declared Joe's under `D-132` and Joe handed it back twice with *"go"*.** Chat then drove the latches itself via trusted `Input.dispatchMouseEvent`. **Recorded because the runbook says the opposite** — §5b's header reads *"Chat drives, Joe holds custody"*, and what happened is that he transferred it in the moment. *Not a violation; an unrecorded transfer, which is the thing `D-141` exists to stop becoming a fabricated one later.*
+
+**Line endings: `CLAUDE.md` and `docs/ROADMAP.md` were flattened to LF by `edit_file` again — and were deliberately NOT converted back.** `N-167` measured this: `core.autocrlf=true`, both endings commit to the same blob, and **the test that decides is `git diff --stat`** — which returned **10 and 12 lines**, the intended hunks only. ⚠️ *The session brief still carries the superseded rule (*"check and restore after every write"*); acting on it would have been churn that changes nothing.*
+
+---
+
+### ✅ STATE AND FLOORS
+
+Re-measured at open, **not inherited** (J-671): HEAD `165b821` = `origin/main` by `ls-remote`; the tree carried `RUNBOOK_TAIL8.md` modified and uncommitted **by design** — the records seat's, travelling in this commit. Restore point **`legf-restore-point-20260805-065013` VERIFIED PRESENT** (6 files) after the brief flagged it unverified. **Floors untouched and deliberately not re-run, stated rather than skipped:** cargo **1596/0/62 × 56** · svelte-check **0/34/15** · catalogue **435** · **zero `.rs`, zero `ui/**` this session.** Client debug registry read **164** live. Apps launched detached, driven, and torn down; probe residue none.
+
+🟡 **NEXT, AND IT IS ALREADY DESIGNED:** the members-panel **interaction** milestone — a **command-surface** milestone, not a feature one (`ops::create_dm_space` and `ops::self_open` are built, tested and idempotent with **no Tauri command**; `AUDIT_MEMBERS_PANEL.md` §5). Joe locked its gesture model this session: **LMC = open the DM + write the selection bus + show the member's card in R8** (one gesture, because *"when i go to dm someone, i pick him"*), and **RMC on the avatar = the context menu WITHOUT selection.** 📌 **Three things that Phase-0 inherits, all measured here:** the R8 half **reverses J-591's *R7 must not call `selection.set()`*** — deliberately, since *"silently"* was the objection · **`entity-context-menu` takes `descriptor` as a PROP and does not import `selection` at all**, so *"menu without selection"* is already its contract — **two records say otherwise and are wrong** (`selection.svelte.ts:2`, J-591) · and 🔑 **the draft-thread model and the room latch do not compose:** a draft DM has no `space_id`/`room_id`, `resolveLatched()` resolves only against the known-Space tree, so **lock #12 fires and `canSend` is false — the first send is the act that creates the DM Space, and the current gate forbids it.** 🔓 **Genuinely unrecorded and Joe's:** DM Spaces disappearing from the Spaces panel — corpus searched, **512 `.md` files**, no decision — which collides with the shipped defect that **`is_dm` is set once at creation and never changed** (`AUDIT_MEMBERS_PANEL.md` §8). → J-679 · ROADMAP v6.67.
 
 ---
 

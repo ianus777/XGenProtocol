@@ -1,8 +1,8 @@
 # M-RP-MEMBERS — the R7 members widget over the address book
 > **Status**: ACTIVE  
-> Version: 1.18  
+> Version: 1.19  
 > Date: Jul 2026  
-> **Last updated**: 2026-08-05  
+> **Last updated**: 2026-08-06  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -478,6 +478,14 @@ Three distinct truths, and conflating them is the trap:
 📌 **D-126's other openings are NOT settled by this lock:** canonical-vs-cosmetic, the wordlist and its language remain open and Joe's. This milestone consumes the cheapest family and reserves the rest.
 
 ### 🛑 §6a — THE LOCK AND THE SHIPPED BUILD DISAGREE: `tail-8` WAS LOCKED, THE CODE RENDERS THE CONSTANT HEAD (filed by `M-RP-LIVEFEED-REFRESH` Leg A, 2026-08-01, J-643 — FILED, NOT FIXED)
+
+✅✅ **DISCHARGED 2026-08-06 (J-679) — CODE `165b821`, §5b DRIVEN LIVE. `M-RP-TAIL8` IS CLOSED AND THIS § IS NO LONGER A GAP.**
+
+`members-panel.svelte`'s helper is renamed **`tail` → `tail8`** and both call sites (`:82` self, `:96` member row) render **`…` + the last 8 characters** — the form Joe locked at J-588 and re-stated as `D-142`. Verified on the real client (WebView2, CDP 9222), **not on fixtures**: the DM counterpart row for the erased LegF-DAVE renders **`…sno_FWmw`** — len 9, cp0 `U+2026`, bytes `e2 80 a6` — with `book` holding no record for that identity, so `tail8` is provably the producer. **V2** `scrollWidth 158 === clientWidth 158` at panel **218 px** ⇒ no doubled ellipsis. **V4** self row renders resolved. Control: 8 resolved rows in `LegF Room`, no `tail8`, same geometry.
+
+🔒 **WHAT IS DISCHARGED IS `D-142` AT THE ROSTER — NEVER *"`D-142` APPLIED"*.** Surfaces **A1 + A2**, and within them the **fill / not-found arm** only. ⚠️ **STILL OPEN AND NOT CLAIMED:** the **live-delta arm** reaches the same call site untested · **A3 latent** · **A4 — message rows still render the full 65-character XGID, LIVE** · the feed still renders `slice(-6)`. **The inconsistency this § sits inside is narrower, not gone.**
+
+📌 **AND ONE FINDING THE GATES COULD NOT PRODUCE, FILED NOT FIXED:** on the painted row the erased mark's `line-through` **runs through the leading `…`**, stacking *"no name known"* and *"erased"* on one string. `N-168` · **SHIP AND FILE** (Joe, DELEGATED, `D-141`). *The gates were written at the string and layout layers; the finding came from the third.*
 
 ✅ **OWNED 2026-08-05 (J-678): `M-RP-TAIL8` — the unresolved-row fallback shows a short tail, not the whole key.** Runbook `tasks/RUNBOOK_TAIL8.md` **v1.0 ACTIVE** · Phase-0 `tasks/M_RP_TAIL8_PHASE0.md` **v1.2** · standing rule **`D-142`**, of which this is the first application. **This § is no longer an unowned filed gap.** ⚠️ *Marked DISCHARGED only when the code ships and the gates are re-driven — opening a milestone is not discharging a gap.*
 

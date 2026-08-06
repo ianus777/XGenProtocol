@@ -1,8 +1,8 @@
 # M-RP-TAIL8 — the unresolved-row fallback shows a short tail, not the whole key — Phase-0
-> **Status**: ACTIVE  
-> Version: 1.2  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-05  
+> **Last updated**: 2026-08-06  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -19,6 +19,18 @@
 **It is NOT:** `D-126`'s word form (deferred by Joe at J-588, untouched) · the `entity-context-menu` deferral · the feed's own truncation unless §4 says so · anything on the wire · any `.rs`.
 
 🔒 **JOE'S LOCK, 2026-08-05:** the visible form is **`…` + the last 8 characters** — `…7WGuWOqU`. The ellipsis is **U+2026 HORIZONTAL ELLIPSIS** (Alt+0133), the single character, `E2 80 A6` in UTF-8 — **not three periods.**
+
+---
+
+## ✅ CLOSED 2026-08-06 (J-679) — `D-142` APPLIED **AT THE ROSTER**
+
+Code shipped at **`165b821`** (Clair, 3 files, +31/−19). §5a re-driven by Chat on WebView2; **§5b driven live under Joe's L1 ruling — V2 · V4 · V8 all green**, on the DM counterpart row (LegF-DAVE, erased and unresolvable) which renders **`…sno_FWmw`** produced by `tail8`, at panel **218 px** / `.ei-name` **158 px**, `scrollWidth === clientWidth`.
+
+🔒 **WHAT CLOSED IS THE ROSTER, NOT THE INCONSISTENCY.** Surfaces **A1 + A2** only, and within them the **fill / not-found arm**. The **live-delta arm** (`addMember` → `resolveMember`) reaches the same call site untested · **A3 latent** · **A4 — message rows rendering the full 65-character XGID — LIVE and untouched** · the feed still renders `slice(-6)`.
+
+⚠️ **TWO ITEMS LEAVE THIS MILESTONE OPEN, BY DESIGN.** `V4`'s empty-guard sub-case is **NOT DRIVEN, with its reason** (unreachable by any product action; needs `__XGEN_SELF__`). And the **paint layer** produced a finding no gate here could have — the erased row's `line-through` runs through the leading `…`, stacking two marks on one string — filed at **`N-168`**, `SHIP AND FILE` (Joe, DELEGATED, `D-141`).
+
+Full results and the amended gate text: `tasks/RUNBOOK_TAIL8.md` **v1.4 COMPLETED** §5b + §8.
 
 ---
 

@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.75  
+> Version: 6.76  
 > Date: May 2026  
 > **Last updated**: 2026-08-06  
 > Language: English  
@@ -306,9 +306,9 @@ XGen Protocol
 │   │   │   ↳ trigger: Legs A–C land
 │   │   └── 🟡 **Leg E records + close**
 │   │       ↳ trigger: Leg D lands
-│   ├── 🟢 **M-RP-MEMBER-ACT** — the members panel acts: LMC opens the DM, RMC opens the menu · Phase-0 `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.10 · runbook `tasks/RUNBOOK_MEMBER_ACT_LEG_AB.md` v1.2 · `DECISIONS.md` D-143 + D-144 + D-145 · J-687 (J-680, J-681, J-682, J-683, J-685, J-686)
+│   ├── 🟢 **M-RP-MEMBER-ACT** — the members panel acts: LMC opens the DM, RMC opens the menu · Phase-0 `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.10 · runbook `tasks/RUNBOOK_MEMBER_ACT_LEG_AB.md` v1.2 ACTIVE, LOCKED · `DECISIONS.md` D-143 + D-144 + D-145 · J-688 (J-680, J-681, J-682, J-683, J-685, J-686, J-687)
 │   │   ↳ Owes: **`OQ5`** — the partial first send · erased members are clickable and a DM to one would go nowhere · cross-node invite discovery. Chat has made no recommendation on any of it
-│   │   ↳ trigger: Joe locks the Leg A/B runbook — three adversarial reads done, each blocker smaller than the last
+│   │   ↳ trigger: Clair implements Leg A, then Leg B — first code in this milestone
 │   ├── ✅ **M-RP-TAIL8** — the unresolved-row fallback shows a short tail, not the whole key · phase-0 `tasks/M_RP_TAIL8_PHASE0.md` v1.3 · runbook `tasks/RUNBOOK_TAIL8.md` v1.4 · `165b821` · **CLOSED J-679** (J-678) → discharges `M_RP_MEMBERS.md` §6a, open since J-643
 │   │   ↳ Owes: **`N-168`** — the erased row's `line-through` runs through the leading `…`; ship-and-file (Joe, `D-141`) · V4's empty-guard sub-case not driven, unreachable by product action
 │   ├── ✅ **M-RP-IDENTITY-RESOLUTION** — what a member row shows before the client knows who it is · **CLOSED J-675** (J-644)

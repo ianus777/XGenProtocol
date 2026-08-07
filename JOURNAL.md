@@ -8,6 +8,42 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-688 — the Leg A/B runbook is LOCKED at v1.2; three reads, three blockers, no code yet
+
+**Date:** 2026-08-06 · **Seats:** Joe (the lock, uttered; the push) · Chat Claude (records) · **Code:** NONE · `tasks/RUNBOOK_MEMBER_ACT_LEG_AB.md` **PENDING → ACTIVE** · ROADMAP v6.75 → **v6.76**. **No new `D`, no new `N`.**
+
+Joe, at `bfd7c75`: **"locked"**.
+
+🔒 **VERSION DELIBERATELY UNCHANGED AT v1.2** — only `Status` moved. ***The locked artefact is byte-identical to the one Clair read on the third pass.*** *A version bump would have made the reviewed document and the authorised document different names for different things, which is the one property a lock exists to guarantee.*
+
+### THE THREE READS THAT PRECEDED IT, AND WHAT EACH COST
+
+| version | blocker returned | severity |
+|---|---|---|
+| **v1.0** | the K3 migration was sited on `load_or_default_state` — **a loader the UI never calls** ⇒ Leg C's scan would have produced the exact duplicate K3 was adopted to prevent | 🛑 fatal — cost a new step (**L2**) |
+| **v1.1** | gate 4b asserted on a **display that cannot render the field** ⇒ unexecutable | 🛑 stops the leg — cost a rewritten gate |
+| **v1.2** | `private` where `ops.rs` and `app.rs` require **`pub(crate)`**; the read-side failure table omitted an arm | 🔧 two corrections |
+
+🔑 ***Each blocker was smaller than the last, and every one came from outside the text.*** ⚠️ **Chat's own re-reads of this runbook found none of the three** — consistent with the milestone's record across Leg 0, Leg 0-bis and all three runbook passes.
+
+### WHAT IS AUTHORISED, AND WHAT IS NOT
+
+✅ **Clair may now write code — Legs A and B ONLY.** Leg A: three `D-145`/`D-131` annotations, zero floors. Leg B: `KnownSpace.counterpart` + **five** literals, **L2's loader unification with all three read-side failure modes preserved**, the backfill with its self arm, one Tauri command (**19 → 20**), the witness test, the TS mirror. **Three commits under `D-074`; Joe pushes all three.**
+
+🛑 **NOT authorised:** Legs C, C-bis, D, E, F · any `ui/**` behaviour beyond the TS mirror field · `self_open` (untouched and unregistered per R-5) · anything touching `OQ5`.
+
+🔓 **`OQ5` REMAINS THE ONLY OPEN DISPOSITION** and Chat has made no recommendation on any of its three items. 📌 **The lock does not close it** — Legs A and B do not depend on it.
+
+### STATE
+
+✅ **Re-measured:** clean tree, HEAD `bfd7c75` = `origin/main` by `ls-remote`. ✅ **Floors untouched and not re-run, stated rather than skipped:** cargo **1596/0/62 × 56** · svelte-check **0/34/15** · catalogue **435** · both gates PASS. ⚠️ ***Leg B moves cargo, and the next entry that states a floor must MEASURE it.***
+
+🟢 **`M-RP-MEMBER-ACT` PLAY and OPEN.** 🔑 **The milestone has been open across nine journal entries and has produced ZERO lines of code.** *That is the cost of the discipline and it is stated plainly rather than defended: three defects that would have shipped were caught instead.*
+
+→ J-688 · runbook v1.2 ACTIVE · ROADMAP v6.76.
+
+---
+
 ## Entry J-687 — the third read: the wrapper split holds, and gate 4b was unexecutable a second time
 
 **Date:** 2026-08-06 · **Seats:** Clair (narrow third read, no authority to code) · Chat Claude (cross-check, the gate 4b ruling, records) · Joe (the push) · **Code:** NONE — zero `.rs`, zero `ui/**`, nothing launched · `tasks/RUNBOOK_MEMBER_ACT_LEG_AB.md` v1.1 → **v1.2** · ROADMAP v6.74 → **v6.75**. **No new `D`, no new `N`.**

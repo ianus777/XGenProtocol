@@ -1,5 +1,5 @@
 # RUNBOOK — M-RP-MEMBER-ACT Legs A + B — the annotations, then the command surface
-> **Status**: PENDING  
+> **Status**: ACTIVE  
 > Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-06  
@@ -31,6 +31,12 @@ Two legs of `M-RP-MEMBER-ACT`, written from `tasks/M_RP_MEMBER_ACT_PHASE0.md` **
 - 📌 **§8 gains the self-arm scoping note.**
 
 ⚠️ **AND A CHAT PROPOSAL THAT DIED ON MEASUREMENT, RECORDED SO IT IS NOT RE-PROPOSED:** routing gate 4b through the `--aicontrol` surface, which does serialise `ops::spaces` wholesale (`aicontrol.rs:418-421`). **It is a NAMED PIPE, not a CLI flag** (`aicontrol.rs:8-26`), spawned only from inside a resident client (`ai_service.rs:627`, `desktop.rs:835`), with a token check (`:318`) and **no existing harness that speaks it**. ***More expensive than both options on the table, proposed as "zero new code" — the same untraced-invocation error, one turn after diagnosing it.***
+
+🔒 **LOCKED BY JOE 2026-08-06 AT `bfd7c75` — STATUS `PENDING` → `ACTIVE`, VERSION DELIBERATELY UNCHANGED AT v1.2.** ***The locked artefact is byte-identical to the one Clair read on the third pass;*** a version bump would have made the reviewed document and the authorised document different names for different things. **Clair may now implement. Legs A and B only.**
+
+📌 **Three adversarial reads preceded this lock and each returned exactly one blocker, each smaller than the last:** v1.0 — the migration sited on a loader the UI never calls · v1.1 — a gate line asserting on a display that cannot render the field · v1.2 — `private` where the modules require `pub(crate)`.
+
+⚠️ **SUPERSEDED BY THE LOCK ABOVE, ANNOTATED NOT DELETED (`D-145`) — the paragraph below was true from v1.0 through v1.2 and is the reason three adversarial reads happened before a line of code was written. It is history, not instruction.**
 
 🛑 **THIS RUNBOOK IS NOT LOCKED.** Per this milestone's own record — Leg 0 found five plan-moving defects and Leg 0-bis found four more, and **Chat's own re-reads passed both times** — Clair reads this adversarially before Joe locks it. **No code is written until it is locked.**
 

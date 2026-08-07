@@ -1,10 +1,73 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-06  
+> **Last updated:** 2026-08-07  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-690 — Leg C's Phase-0: `L-7` needs two selections and the project has one bus
+
+**Date:** 2026-08-07 · **Seats:** Chat Claude (grounding, the live measurements, the document) · Joe (sequencing confirmed, the push) · **Code:** NONE — zero `.rs`, zero `ui/**` · **NEW** `tasks/M_RP_MEMBER_ACT_LEG_C_PHASE0.md` v1.0 ACTIVE · `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.10 → **v1.11** · ROADMAP v6.77 → **v6.78**. **No new `D`, no new `N`.**
+
+🔓 **SEQUENCING TAKEN UNDER THE J-689 DELEGATION AND CONFIRMED BY JOE** (*"sequencing confirmed"*): Leg C's Phase-0 opens, and **`OQ5` is surfaced INSIDE it with grounding attached** rather than answered in the abstract. *Recorded as DELEGATED-then-confirmed (`D-141`), not as Chat's by right — `D-123`:4610 gives Joe what gets built and in what order.*
+
+### 🔑 THE FINDING THAT SIZES THE LEG — AND NO DOCUMENT HAD IT
+
+🛑 **`L-7` REQUIRES TWO SELECTIONS AND THE PROJECT HAS ONE BUS.** Grounded: `selection` is a **single slot** whose own doc says *"a second `set` overwrites"* (`selection.svelte.ts:34-42`); `roomLatch.note()` writes `_latched` **only** when `sel.entity.kind === 'room'` (`room-latch.svelte.ts:79-82`).
+
+⇒ **An `identity` selection latches NOTHING, and latching by writing a `room` selection OVERWRITES the identity — so R8 would show the ROOM, not the member.** ***`L-7` would be broken by the only mechanism currently available.***
+
+🔑 **The milestone Phase-0's §6 reads Leg C as *"`onActivate` → open-or-draft **and** `selection.set()`"*, as if those were two independent calls. They are not: the first has no writer that does not destroy the second.** ⚠️ **And it is the THIRD item landing on `room-latch.svelte.ts`** — `F-E` already put `canSend`'s second arm there for Leg C-bis, and the file's own header calls `note()` **"THE SINGLE WRITER"**. ⇒ **`OQ-C1`, and it is architecture — Joe's.**
+
+### ✅ `OQ5`'s ERASED-MEMBER ITEM IS NOT REACHABLE IN THE FORM IT IS WRITTEN
+
+**Measured in `members-panel.svelte`:** `memberRows` **drops every `notFound` member**, with one exception — `id === counterpart` — and `counterpart` is `undefined` unless `addressBook.isDm`.
+
+🔒 **In a group room an erased member DOES NOT RENDER AT ALL. The only erased row that can exist is the counterpart of the DM you are already in** — the LegF-DAVE row `M-RP-TAIL8` used as its live lever. **And clicking it is a no-op by construction:** the DM exists, `counterpart` is on the read path (gate 4b), the scan finds it, the latch resolves (a DM Space carries exactly one `KnownRoom`) ⇒ ***you re-enter the conversation you are already in. Nothing is created; under `L-4` Leg C signs nothing on any path.***
+
+⚠️ **What IS reachable is a different thing, and no design prevents it: a live-joined member carries `unresolved: true`, renders, and is clickable BEFORE the client knows whether they are erased.** *You cannot guard against an erasure you have not learned of.* ⇒ **`OQ5`-item-2 SPLITS**, and the half with a wire consequence — **may a DM be CREATED to an erased identity** — is **Leg C-bis's**, because creation is what first-send does. **The partial first send goes there too. Cross-node invite discovery stays a measurement of Chat's.** 🔓 ***Re-sited, not answered.***
+
+### 🔬 MEASURED LIVE, NOT READ (sampler 9422, fresh launch, `location.reload()` before and after)
+
+🔒 **CATALOGUE = 435, MEASURED** — `ids 435 / unique 435 / domCount 435`. ***The floor carried BY SCOPE since before Leg B is now measured, and it is correct.***
+
+🔑 **THE FUSION, DRIVEN NOT ARGUED.** One `.click()` on row 2 of `entity-panel#rooms` — **a cell with `bind:selected` and NO `onActivate`** — moved all three at once: `selected` `null → "xgen://room/dev-2b"` · `aria-selected` `[false,false] → [false,true]` · `tabindex` `["0","-1"] → ["-1","0"]`. ⇒ ***`selected` is written by the click alone, independently of any consumer callback.*** ⚠️ *The probe mutated state; cleaned by `location.reload()` per N-123 — post-reload `selected` null, catalogue 435.*
+
+🔑 **AND `interactive` FUSES FIVE SITES, NOT THREE** (`:171` · `:173` · `:177` · with `:180/:182/:183/:184/:185` inside it · `:192`), while `selectAt` writes three things (`:104/:105/:106`). **Leg C needs all of the ARIA and all of the wiring; it must lose exactly one line — `:105`.** ⇒ **`OQ1-G1` is a single suppression, not a second mode.**
+
+🔒 **AND THE CATALOGUE QUESTION RESOLVES ARITHMETICALLY: a PROP registers no id ⇒ the flag moves the floor by ZERO. Only an ADDED SAMPLER CELL moves it, by exactly 8 for a 3-row panel** (3 `entity-item` + 3 `entity-avatar` + `entity-panel` + `section`, enumerated from `#inert` and `#unresolved`). **The runbook still MEASURES rather than adopts.**
+
+⚠️ **`M_RP_MEMBER_ACT_PHASE0.md` §5-OQ1 says *"8 sampler cells"*. It is SEVEN** — `#spaces · #dms · #empty · #collapsed · #inert · #unresolved · #rooms`. **Annotated at the site (`D-145`; that document is ACTIVE), not repaired.**
+
+### ⚠️ A PRE-EXISTING `ui/core` DEFECT LEG C WOULD MAKE REACHABLE IN R7
+
+`activeIndex` is seeded **once** (`entity-panel.svelte:94`), never re-seeded, **never clamped**; `tabindex` is `0` only where `i === activeIndex` (`:183`) and the `<ul>` carries none. ⇒ **when the list shrinks below the stored index, NO row is tabbable and the panel leaves the tab order.** 🛑 **`L-8` produces exactly that shrink on every click** — member #6 of nine → a 2-row DM roster. 📌 **Not Leg C's defect: `rooms-panel:65` and `spaces-panel:62` are `interactive` today and their items change without a remount ⇒ latent in the shipped build.** ⚠️ ***READ FROM THE SOURCE, NOT DRIVEN*** — the falsifying probe is a `[tabindex]` census at the **DOM** layer after a real roster change (`D-140`). ⇒ **`OQ-C3`: rider, own milestone, or filed — Joe's.**
+
+### 🔓 FOUR OPEN, ALL JOE'S
+
+| # | question | seat |
+|---|---|---|
+| **OQ-C1** | how the DM's room gets latched given `L-7` owns the bus — **N1** a direct `roomLatch.latch()` · N2 ordered double-write (**refused under `D-143`**) · N3 a second bus (**refused, S-6**) | **architecture** |
+| **OQ-C2** | is the erased DM counterpart's row clickable — **E-a** yes, like every row · E-b per-row inertness, *which `entity-panel` cannot express* | **appearance** |
+| **OQ-C3** | the `activeIndex` staleness — T-a file · **T-b** fix in the `OQ1-G1` commit · T-c own milestone | **sequencing** |
+| **OQ-C4** | the flag's name and default — **`selectOnActivate = true`** · `ownsSelection` · `selectable` | `ui/core` API |
+
+📌 **Chat recommends N1 · E-a · T-b (a genuinely close call) · `selectOnActivate`.** 🔒 **Nothing is locked and no runbook exists. Clair's adversarial read is Leg C's Leg 0 and runs before Joe locks anything** — *Chat's own re-reads have caught zero defects across seven arcs.*
+
+### ⚠️ ONE TOOLING FINDING, AND IT IS CHAT'S OWN PROBE LYING AGAIN
+
+The CRLF-restore one-liner for `docs/ROADMAP.md` used backtick escapes (`` `r `` / `` `n ``) and **silently produced bare LF** — 500 LF, 0 CRLF, measured on the bytes. 🛑 **AND `git diff` COULD NOT SEE IT: `core.autocrlf=true`, so git normalises line endings in the index and reported a clean 5-insertion/5-deletion diff either way.** ⇒ ***the project's own "confirm through `git diff`, which compares CONTENT" rule does NOT extend to line endings, and the CRLF restore must be verified by counting bytes.*** **Re-done with explicit `[char]13`/`[char]10` → 500/500, bytes 56,300 → 56,800, exactly one CR per line.** 📌 *A second measurement in the same command returned `size=0` on a 56 KB file — the N-117 family again; re-measured in a separate call.* ⚠️ **`roadmap-format-gate.ps1` PASS, tree lines 69..370 clean.**
+
+### STATE
+
+✅ **Re-measured at open, not inherited:** clean tree, HEAD `7203474` = `origin/main` by `ls-remote`. 🔒 **Floors:** cargo **1597/0/62 × 56** and svelte-check **0/34/15** carried and **stated, not re-run** (zero `.rs`, zero `ui/**`); **catalogue 435 MEASURED** and no longer by scope.
+
+🟢 **`M-RP-MEMBER-ACT` PLAY and OPEN.** ⇒ **NEXT: Joe locks `OQ-C1`–`OQ-C4`, then Clair's adversarial read of the Leg C Phase-0, then a runbook. 🛑 NO CODE UNTIL A RUNBOOK IS LOCKED.**
+
+→ J-690 · Leg C Phase-0 v1.0 · ROADMAP v6.78.
 
 ---
 

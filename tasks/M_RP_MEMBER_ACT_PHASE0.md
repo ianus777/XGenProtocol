@@ -1,8 +1,8 @@
 # M-RP-MEMBER-ACT — the members panel acts: LMC opens the DM, RMC opens the menu — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.10  
+> Version: 1.11  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-06  
+> **Last updated**: 2026-08-07  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -220,6 +220,8 @@ The third (**cross-node invite discovery**) is a **measurement nobody has taken*
 🔑 **G1 RIDES LEG C AS ITS FIRST COMMIT. NOT ITS OWN MILESTONE.** ⚠️ ***Chat recommended own-milestone twice and reversed on two arguments it had not drawn:*** ① an own-milestone G1 **ships a prop with ZERO consumers** until Leg C opts in — `D-065`'s no-empty-machinery case, and `D-143` explicitly hands the floor to `D-065` where the cheap option is sound; ② the attribution argument **dissolves at commit granularity** — `D-074` atomic commits already separate a `core` change from its consumer, which is why Leg C-bis exists. 📌 **And `M-RP-PANEL-INERT` is not the precedent claimed: it got a milestone because it CHANGED THE BEHAVIOUR of shipped consumers. G1 changes nobody's behaviour until Leg C opts in.** 🔓 **Seat: milestone split is Joe's by `D-123`:4610 (*"what gets built and in what order"*); the dock-engine arc grant is a scoped exception that proves the default. Joe DELEGATED this one (`D-141`) — adopted, not examined.**
 
 📌 **COST, AND ONE PIECE IS DELIBERATELY UNMEASURED:** one prop on `ui/core/.../entity-panel.svelte` · one guard in `selectAt` · **3 real consumers** (`members-panel:166`, `rooms-panel:65`, `spaces-panel:62`) **+ 8 sampler cells**. ⚠️ **Whether the catalogue floor of 435 moves at all is NOT predicted here — Leg C's runbook MEASURES it.** *The own-milestone case leaned on that floor moving, and it was never checked.*
+
+🛑 **ANNOTATED 2026-08-07, NOT REPAIRED (`D-145` — this document is ACTIVE). *"8 SAMPLER CELLS" IS 7, AND THE FLOOR QUESTION IS ANSWERED.*** Measured live on the sampler at `7203474`: **seven** `entity-panel` cells — `#spaces · #dms · #empty · #collapsed · #inert · #unresolved · #rooms` — and **catalogue 435 CONFIRMED BY MEASUREMENT** (`ids 435 / unique 435 / domCount 435`), the floor having been carried by scope alone since before Leg B. 🔑 **AND THE FLOOR QUESTION RESOLVES ARITHMETICALLY: a PROP registers no id, so the flag moves the catalogue by ZERO; only an ADDED SAMPLER CELL moves it, by exactly 8 for a 3-row panel** (3 `entity-item` + 3 `entity-avatar` + `entity-panel` + `section`, enumerated from `#inert` and `#unresolved`). ⇒ **`tasks/M_RP_MEMBER_ACT_LEG_C_PHASE0.md` §4 carries it; the runbook still MEASURES rather than adopts.**
 
 ⚠️ **WHAT REMAINS GENUINELY UNMEASURED IS NARROWER AND IS NOT A BLOCKER:** how LONG the early highlight shows before the roster catches up — the DM-open round trip. **Bounded, on the success path harmless, and unmeasurable until Leg B exists.**
 

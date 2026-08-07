@@ -29,6 +29,9 @@ export interface KnownSpace {
   /** "owner" | "admin" | "moderator" | "member" — no descriptor slot yet (v1 unfed, D6). */
   role: string;
   rooms: KnownRoom[];
+  /** DM counterpart XGID, or the session identity for the self thread. `null` for a Space
+   *  (M-RP-MEMBER-ACT OQ8-K3). Rust `Option<String>` → `string | null`; carried verbatim. */
+  counterpart: string | null;
 }
 
 let _spaces = $state<KnownSpace[]>([]);

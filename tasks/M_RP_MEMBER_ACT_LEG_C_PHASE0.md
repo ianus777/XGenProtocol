@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT Leg C — R7 acts: the row opens the DM and writes the bus — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-07  
 > Language: EN  
@@ -98,7 +98,22 @@ The milestone Phase-0 named three concerns (ARIA · click/keyboard · the `selec
 
 📌 **IT IS NOT LEG C's DEFECT.** `rooms-panel:65` and `spaces-panel:62` are `interactive` today and their `items` change without a remount ⇒ **latent in the shipped build**, reachable by selecting a Space with fewer rooms than the index last clicked.
 
-🔒 **READ FROM THE SOURCE, NOT YET DRIVEN.** The shrink half needs a live probe: **a `[tabindex]` census after the roster changes**, at the **DOM layer** (`D-140` — a store read cannot decide it). ⇒ **§5-OQ-C3: rider, own milestone, or filed.** ⚠️ ***`D-071` and this project's own record say a `core` fix is not a rider by default; it is named here rather than discovered in the runbook.***
+🔒 **DRIVEN 2026-08-07 ON THE REAL CLIENT (9222). THE DEFECT IS REAL, AND THE MEASUREMENT IS SHARPER THAN THIS SECTION PREDICTED, IN BOTH DIRECTIONS.**
+
+| step | rooms panel | `[tabindex]` | tabbable |
+|---|---|---|---|
+| select **Engineering** (2 rooms) | `general · random` | `["0","-1"]` | 1 |
+| click room index **1** (`random`) | same | `["-1","0"]` | 1 |
+| 🛑 select **Design** (1 room) | `ideas` | **`["-1"]`** | **0** |
+| select **LegBSpace** (2 rooms) | 2 rows | `["-1","0"]` | 1 |
+
+At the failing step **`focusables` inside the panel = 0**, the `<ul>` carries no `tabindex`, and its `role` is still **`listbox`** ⇒ ***a listbox announcing itself as focusable that nothing can focus.***
+
+🔑 **NOT PERMANENT — AND THAT IS NOT THE RELIEF IT SOUNDS LIKE.** The panel returns the moment the list grows past the stale index. **But it is escapable ONLY WITH A MOUSE:** a keyboard user cannot reach the panel to press the arrow key that would move `activeIndex` back into range. ***A self-healing trap you cannot heal from inside.***
+
+⚠️ **AND R7 WILL HIT IT HARDER THAN `rooms-panel` DOES — REASONED, NOT MEASURED.** Under `L-8` every click shrinks the roster (9 → 2) and under `OQ7-W4` a draft shrinks it to **one row**, so the stale index is out of range on essentially every click, and recovery needs a room with more members than the index last clicked. 📌 **R7 is `interactive={false}` today and carries no `tabindex` at all, so this cannot be tested until Leg C exists.**
+
+🔒 **READ FROM THE SOURCE — NOW DRIVEN (see the table above; §8 item 1 DISCHARGED).** The falsifying probe was a `[tabindex]` census at the **DOM** layer after a real roster change (`D-140`), and it did not falsify. ⇒ **§5-OQ-C3: rider, own milestone, or filed.** ⚠️ ***`D-071` and this project's own record say a `core` fix is not a rider by default; it is named here rather than discovered in the runbook.***
 
 ### ✅ 3.4 — `OQ5`'s ERASED-MEMBER ITEM IS NOT REACHABLE IN THE FORM IT IS WRITTEN
 
@@ -161,7 +176,9 @@ The milestone Phase-0 named three concerns (ARIA · click/keyboard · the `selec
 **T-b — fix it in the same `core` commit as `OQ1-G1`.** ① The defect never reaches R7. ② ~2 lines (clamp `activeIndex` against `items.length`), **but it changes the behaviour of `rooms-panel` and `spaces-panel`, which is precisely why `M-RP-PANEL-INERT` got its own milestone.**
 **T-c — its own milestone.** ① Same as T-a until it lands. ② A milestone for two lines.
 
-📌 **Chat's recommendation: T-b, and it is a genuinely close call.** *`D-143` does not decide it — a stale index is a real unsoundness, but `D-065`'s no-empty-machinery does not apply and `D-071` cuts the other way.* ⚠️ **The honest statement: the fix is trivial and the ATTRIBUTION is the whole cost.** 🔒 **Milestone split is Joe's (`D-123`:4610).** 📌 **Whichever is chosen, the runbook must DRIVE the shrink case at the DOM layer, before and after** — it has never been observed.
+🔒 **SEVERITY MEASURED 2026-08-07 (§3.3), AND IT CUTS BOTH WAYS — STATED SO THE CALL IS MADE ON THE NUMBER, NOT THE FEAR.** ✅ **Milder than feared:** the state is **not permanent** — the panel returns as soon as the list grows past the stale index. 🛑 **Worse than feared:** it is escapable **only with a mouse**, because a keyboard user cannot reach the panel to press the key that would fix it — ***a self-healing trap you cannot heal from inside*** — and **R7 under `L-8`/`OQ7-W4` shrinks the list on essentially every click**, where `rooms-panel` only shrinks it when you pick a smaller Space.
+
+📌 **Chat's recommendation: T-b, and it is a genuinely close call.** *`D-143` does not decide it — a stale index is a real unsoundness, but `D-065`'s no-empty-machinery does not apply and `D-071` cuts the other way.* ⚠️ **The honest statement: the fix is trivial and the ATTRIBUTION is the whole cost.** 🔒 **Milestone split is Joe's (`D-123`:4610).** ✅ **The shrink case is now DRIVEN, so whichever is chosen the runbook inherits a measurement rather than a prediction.**
 
 ### 🔓 OQ-C4 — the flag's name and default. **`ui/core` API, screen-reader-visible.**
 
@@ -193,10 +210,10 @@ Candidates: **`selectOnActivate` (default `true`)** — reads as what it does, a
 
 ## §8 — WHERE THIS DOCUMENT IS MOST LIKELY WRONG
 
-1. 🛑 **§3.3's SHRINK CASE IS READ, NOT DRIVEN.** `activeIndex` is not clamped **in the source**; that no row ends up tabbable **after a real roster change** has not been observed. **The falsifying probe is a `[tabindex]` census at the DOM layer, before and after** (`D-140`). *If Svelte re-creates the component on an `items` identity change, the defect does not exist and OQ-C3 dissolves.*
+1. ✅ **DISCHARGED 2026-08-07 — §3.3's SHRINK CASE WAS DRIVEN ON THE REAL CLIENT AND DID NOT FALSIFY.** `[tabindex]` census at the DOM layer: Engineering (2 rooms) → click index 1 → Design (1 room) ⇒ **`["-1"]`, tabbable 0, focusables 0**, `role="listbox"` intact. Svelte does **not** re-create the component on an `items` change. **OQ-C3 does not dissolve; it is live and it is Joe's.** *Superseded text follows.* — 🛑 **§3.3's SHRINK CASE IS READ, NOT DRIVEN.** `activeIndex` is not clamped **in the source**; that no row ends up tabbable **after a real roster change** has not been observed. **The falsifying probe is a `[tabindex]` census at the DOM layer, before and after** (`D-140`). *If Svelte re-creates the component on an `items` identity change, the defect does not exist and OQ-C3 dissolves.*
 2. 🛑 **§3.2 ASSUMES LEG C LATCHES AT ALL.** If the DM is instead reached by writing a `room` selection from somewhere else entirely, the collision changes shape. **No such path was found; the corpus searched was `room-latch.svelte.ts`, `selection.svelte.ts`, `members-panel.svelte`, `rooms-panel.svelte`, `spaces-panel.svelte` (`D-139`).**
 3. ⚠️ **§3.4's "no-op" IS ARGUED FROM C9/C10/C11 AND NOT RUN.** The DM re-entry path has never been clicked, because nothing is clickable yet. **First real exercise is C-4.**
-4. ⚠️ **THE FIND-DM SCAN ITSELF IS NOT DESIGNED HERE.** `spacesState.spaces.find(s => s.counterpart === id)` is the obvious form and `counterpart` is proven on the read path (C10) — **but the TS mirror's field has never been read by any consumer.** *First consumer, first proof.*
+4. ✅ **DISCHARGED 2026-08-07 — `counterpart` REACHES THE WEBVIEW, AND THIS IS THE FIRST TIME THE FIELD HAS BEEN READ BY ANYTHING.** Live client 9222, `window.__XGEN_SPACES__.spaces`: the key is present on **all five** Spaces, `null` on the four ordinary ones, and **`"xgen://pubkey/ed25519:L87…sno_FWmw"` on the DM.** 🔑 **The on-disk state holds NO `counterpart` key ⇒ the read-path migration is proven END TO END, disk → Rust → IPC → store** — gate 4b asserted on the Rust struct; this is the field crossing the boundary. ⇒ **`spacesState.spaces.find(s => s.counterpart === id)` will resolve.** *Superseded text follows.* — ⚠️ **THE FIND-DM SCAN ITSELF IS NOT DESIGNED HERE.** `spacesState.spaces.find(s => s.counterpart === id)` is the obvious form and `counterpart` is proven on the read path (C10) — **but the TS mirror's field has never been read by any consumer.** *First consumer, first proof.*
 5. ⚠️ **`OQ7-W4`'s R7-during-a-draft is INHERITED, not re-verified here.** W4 says R7 shows self only. **§3.4's clickability question does not arise in a draft, because a draft roster has no members.**
 6. 📌 **THIS DOCUMENT HAS NOT BEEN READ BY ANYONE OUTSIDE ITS AUTHOR.** 🔑 ***Chat's own re-reads have caught ZERO defects across seven arcs; every real one came from Clair executing or Joe looking.*** ⇒ **Clair's adversarial read is Leg C's Leg 0, and it runs before Joe locks anything.**
-7. ⚠️ **FOUR OF THIS DOCUMENT'S FIVE LIVE MEASUREMENTS WERE TAKEN ON THE SAMPLER, NOT THE CLIENT.** The catalogue, the cell census, the cell cost and the fusion are all sampler-side. **`members-panel` in the real client has not been driven this arc** — deliberately (R7 is inert, there is nothing to drive), but it means **C11's filter is read from source and has never been watched hiding a row.**
+7. ⚠️ **FOUR OF THIS DOCUMENT'S FIVE ORIGINAL LIVE MEASUREMENTS WERE TAKEN ON THE SAMPLER, NOT THE CLIENT.** The catalogue, the cell census, the cell cost and the fusion are all sampler-side. ✅ **PARTLY DISCHARGED 2026-08-07:** two probes since ran **on the real client at 9222** — §3.3's shrink case and `counterpart`'s arrival in the store. ⚠️ **`members-panel` ITSELF STILL HAS NOT BEEN DRIVEN** — deliberately (R7 is inert, there is nothing to drive), but it means **C11's erased-row filter is read from source and has never been watched hiding a row.** 📌 *And the members fill read `state: "failed"` throughout the probe run — the node was not launched, which is R7's honest state ④ and not a defect.*

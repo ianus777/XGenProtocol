@@ -8,6 +8,53 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-691 — both probes run on the real client: the tab-order defect reproduces, and `counterpart` reaches the webview
+
+**Date:** 2026-08-07 · **Seats:** Chat Claude (both probes, records) · Joe (the go, the push) · **Code:** NONE — zero `.rs`, zero `ui/**` · `tasks/M_RP_MEMBER_ACT_LEG_C_PHASE0.md` v1.0 → **v1.1** · ROADMAP v6.78 → **v6.79**. **No new `D`, no new `N`.**
+
+🔑 **BOTH PROBES WERE RUN BECAUSE ONE OF LEG C's FOUR OPEN QUESTIONS RESTED ON A PREMISE THAT HAD ONLY BEEN READ** — the milestone has already paid twice for exactly that (`OQ1` closed on an `onActivate`-only mount that does not exist; gate 2 asserted a clippy state never measured).
+
+### 🛑 P-a — THE TAB-ORDER DEFECT REPRODUCES. DRIVEN, NOT READ.
+
+`[tabindex]` census at the **DOM** layer, real client 9222:
+
+| step | rooms panel | `[tabindex]` | tabbable |
+|---|---|---|---|
+| select **Engineering** (2 rooms) | `general · random` | `["0","-1"]` | 1 |
+| click room index **1** (`random`) | same | `["-1","0"]` | 1 |
+| 🛑 select **Design** (1 room) | `ideas` | **`["-1"]`** | **0** |
+| select **LegBSpace** (2 rooms) | 2 rows | `["-1","0"]` | 1 |
+
+At the failing step **`focusables` inside the panel = 0**, the `<ul>` carries no `tabindex`, and its `role` is still **`listbox`** ⇒ ***a listbox announcing itself as focusable that nothing can focus.*** ✅ **Svelte does NOT re-create the component on an `items` change** — the falsifier named in §8 item 1 did not falsify.
+
+🔑 **AND THE MEASUREMENT IS SHARPER THAN THE PHASE-0 PREDICTED, IN BOTH DIRECTIONS.** ✅ **Milder:** not permanent — the panel returns the moment the list grows past the stale index. 🛑 **Worse:** escapable **only with a mouse**, because a keyboard user cannot reach the panel to press the arrow key that would move `activeIndex` back into range. ***A self-healing trap you cannot heal from inside.*** ⚠️ **And R7 will hit it harder than `rooms-panel` does — REASONED, NOT MEASURED:** under `L-8` every click shrinks the roster (9 → 2) and under `OQ7-W4` a draft shrinks it to **one row**, where `rooms-panel` only shrinks when you pick a smaller Space. 📌 **R7 is `interactive={false}` today and carries no `tabindex` at all, so it cannot be tested until Leg C exists.**
+
+⇒ **`OQ-C3` does not dissolve. It is live, it is Joe's, and it is now decided on a number rather than on a fear.**
+
+### ✅ P-b — `counterpart` REACHES THE WEBVIEW, AND THIS IS THE FIRST TIME THE FIELD HAS BEEN READ BY ANYTHING
+
+`window.__XGEN_SPACES__.spaces` on the live client: the key is present on **all five** Spaces, `null` on `Engineering`/`Design`/`LegBSpace`/`LegF Verification`, and **`"xgen://pubkey/ed25519:L87…sno_FWmw"` on the DM.**
+
+🔑 **THE ON-DISK STATE HOLDS NO `counterpart` KEY** — confirmed by parsing the file directly ⇒ ***the read-path migration is proven END TO END: disk → Rust → IPC → store.*** **Gate 4b asserted on the Rust struct; this is the field crossing the boundary.** 📌 **And the absence on disk is the L2 design working as written, not a gap** — the runbook's B-i-3 states the migrated state is deliberately not persisted on a read. ⇒ **`spacesState.spaces.find(s => s.counterpart === id)` will resolve. §8 item 4 DISCHARGED.**
+
+### 📌 INCIDENTAL, RECORDED SO IT IS NOT LATER READ AS A DEFECT
+
+The members fill read **`state: "failed"`** throughout — **the node was not launched**, so R7 correctly sat in its honest state ④ (*"I cannot reach the others"*). 📌 **And the room latch stayed on Engineering's `random` while the Spaces selection moved to Design and LegBSpace** — the documented two-latches behaviour (`room-latch.svelte.ts`: selecting a Space does not move the ROOM latch), not drift.
+
+### ✅ JOE'S LIVE STATE UNTOUCHED
+
+`%LOCALAPPDATA%\XGenProtocol\xgen-client_state.json` — **2,856 B, `LastWriteTime 5.8.2026 7:12:25`, unchanged before and after.** Both probes are reads; the room latch and the selection bus are in-memory only, and `uistate` is written solely by the diskette, which was never pressed.
+
+### STATE
+
+✅ Client launched, driven, and **torn down** — port 9222 closed, no orphan processes. 🔒 **Floors carried and STATED, not re-run** (zero `.rs`, zero `ui/**`): cargo **1597/0/62 × 56** · svelte-check **0/34/15** · catalogue **435**. 📌 *Client registry read **164** at mount and **174** after the navigation — the N-105/N-108/N-112 breathing, recorded not adopted; it is not a tracked floor.*
+
+🟢 **`M-RP-MEMBER-ACT` PLAY and OPEN.** ⇒ **NEXT, AND UNCHANGED: Joe stands Clair up for the adversarial read of the Leg C Phase-0, THEN locks `OQ-C1`–`OQ-C4`. 🛑 NO CODE UNTIL A RUNBOOK IS LOCKED.**
+
+→ J-691 · Leg C Phase-0 v1.1 · ROADMAP v6.79.
+
+---
+
 ## Entry J-690 — Leg C's Phase-0: `L-7` needs two selections and the project has one bus
 
 **Date:** 2026-08-07 · **Seats:** Chat Claude (grounding, the live measurements, the document) · Joe (sequencing confirmed, the push) · **Code:** NONE — zero `.rs`, zero `ui/**` · **NEW** `tasks/M_RP_MEMBER_ACT_LEG_C_PHASE0.md` v1.0 ACTIVE · `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.10 → **v1.11** · ROADMAP v6.77 → **v6.78**. **No new `D`, no new `N`.**

@@ -310,6 +310,8 @@ is there a scope?  (roomLatch.effectiveSpaceId)
 | `state.space_migrate` is a real wire event; identities can **rehome** | `wire.rs:192` · `registry.rs:321` | ✅ measured |
 | 🔑 **THE CLIENT PERSISTS NO CONVERSATION CONTENT AT ALL.** `xgen-client` has **zero** dependency on `xgen-store-sqlite` (the node has 8). It writes five files: pid, address book, config, keypair, state, uistate | `xgen-client/Cargo.toml` | ✅ measured |
 
+⚠️ **CORRECTED INLINE, ANNOTATED NOT REPAIRED (D-131, M-RP-MEMBER-ACT Leg A).** The `self_open`/`create_dm_space` row above (`:309`) drifted three ways, re-measured 2026-08-06 at `99bb266`: (1) `desktop.rs` has **19** `#[tauri::command]`s, not 18 (invoke_handler, `desktop.rs:1085-1105`); (2) `self_open` is at **`ops.rs:1019`**, not `:1002` (`:1002` is inside `SelfThreadResult`); (3) `create_dm_space` is at **`ops.rs:806`**, not `:793`. The original numbers are left untouched above.
+
 🔑 **⇒ THE CLIENT IS A PURE VIEW OVER THE NODE'S DAG.** Everything displayed was drained moments earlier and discarded. **This one absence is also why §4c's roster is unreachable offline** — offline history, offline roster and DM durability are **three symptoms of one missing client-side store**, not three problems.
 
 #### Joe's four propositions, corrected
@@ -404,6 +406,11 @@ The options were **A** leave it (node is the sole store) · **B** client-side ar
 ⇒ **BOTH interaction targets are BUILT at the ops level.** `self_open` returns `SelfThreadResult`, is **create-if-absent idempotent**, and carries an integration test (`self_open_creates_then_is_create_if_absent_idempotent`). `SELF_THREAD_LABEL` (`ops.rs:752`) is the shared key, applied by `create_dm_space` when invitee == creator and scanned by `self_open` — **one source of truth, already written.**
 
 ⚠️ **WHAT IS MISSING IS THE UI SURFACE, AND ONLY THAT.** `desktop.rs` holds **18** `#[tauri::command]`s and **none** of them reaches either verb. 🔑 **This is the M-RP-MEMBERS LEG A SHAPE EXACTLY — the capability existed and the command did not.**
+<!-- ⚠️ CORRECTED, ANNOTATED NOT REPAIRED (D-131, M-RP-MEMBER-ACT Leg A): "18" above is stale.
+     Re-measured 2026-08-06 at 99bb266: desktop.rs holds 19 #[tauri::command]s (invoke_handler,
+     desktop.rs:1085-1105). M-RP-MEMBER-ACT Leg B adds create_dm_space, taking it to 20.
+     Original number left untouched above. -->
+
 
 📌 **CONSEQUENCE FOR THE INTERACTION MILESTONE: IT IS A COMMAND-SURFACE MILESTONE, NOT A FEATURE MILESTONE.** Wrapping two existing, tested `ops::` verbs as Tauri commands — the work Leg A already did twice for the book. **Materially cheaper than "build M11 first"**, which is what Chat's wrong claim would have implied to whoever read it.
 

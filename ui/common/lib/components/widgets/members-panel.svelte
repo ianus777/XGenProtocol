@@ -12,6 +12,14 @@
   // M-RP-PANEL-INERT): no click, no keyboard, no bus write. The ONLY highlight is the DM counterpart (L16),
   // fed one-way through `selected` — the row RENDERS state, it never PRODUCES it. R7 must NEVER call
   // `selection.set()` (L15): writing the global bus would silently change what R8 inspector displays.
+  //
+  // ⚠️ SUPERSEDED, ANNOTATED NOT REPAIRED (D-131, J-675 + M-RP-MEMBER-ACT L-7).
+  // The "must NEVER call selection.set()" rule above is REVERSED by L-7 (2026-08-06, Joe
+  // uttered): LMC does BOTH — opens the DM and writes the bus, so R8 shows the member's
+  // card. The REASON was inverted, not discarded: J-591 objected that the bus write would
+  // be SILENT; under L-7 it is the point. Wiring lands in Leg C — the rows are still inert
+  // here. This comment also overstates its own source (J-675); M-RP-PANEL-INERT recorded
+  // inertness as DEFERRED, not rejected, so `interactive` is being USED, not overridden.
   import { envelope } from '$common/components/base/envelope';
   import { roomLatch } from '$common/stores/room-latch.svelte';
   import { addressBook, type MemberEntry } from '$common/stores/address-book.svelte';

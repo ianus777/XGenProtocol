@@ -5,6 +5,11 @@
 // a shell dep, so a shell-local bus would be structurally UN-consumable. A `.svelte.ts` module so its
 // module-level `$state` participates in Svelte 5 reactivity (the `processor/store.svelte.ts` precedent).
 //
+// ⚠️ CORRECTED, ANNOTATED NOT REPAIRED (D-131, M-RP-MEMBER-ACT Leg A). The line above says
+// `entity-context-menu` READS this bus. Measured 2026-08-06: it does NOT. It takes
+// `descriptor: EntityDescriptor` as a PROP, is gesture-agnostic, and does not import this
+// module. R8 (inspector) is the only consumer. J-591 carries the same claim.
+//
 // Shape is EXACTLY as locked (D3) — ONE meaning, do not widen. Joe killed the shelf minus-button precisely
 // so a second widget/leaf-selection bus is never needed (`xgen-widget-surfaces-phase0.md` S-6); this is the
 // single selection primitive.

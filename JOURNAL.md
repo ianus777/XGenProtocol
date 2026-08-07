@@ -8,6 +8,48 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-687 — the third read: the wrapper split holds, and gate 4b was unexecutable a second time
+
+**Date:** 2026-08-06 · **Seats:** Clair (narrow third read, no authority to code) · Chat Claude (cross-check, the gate 4b ruling, records) · Joe (the push) · **Code:** NONE — zero `.rs`, zero `ui/**`, nothing launched · `tasks/RUNBOOK_MEMBER_ACT_LEG_AB.md` v1.1 → **v1.2** · ROADMAP v6.74 → **v6.75**. **No new `D`, no new `N`.**
+
+Three questions were put to her: does `read_and_migrate` type-check, is `identity_id: Option<&str>` safe on the read path, does v1.1 still execute end to end. **✅ ✅ 🛑.**
+
+### ✅ ① THE WRAPPER SPLIT HOLDS — §8 ITEM 1 DISCHARGED
+
+Walked against both loaders: **`Option` carries missing-vs-present, `Result` carries the error distinction**, and both wrappers fall out cleanly without collapsing either behaviour. 🔧 **Two corrections, both accepted:** the body must be **`pub(crate)`, not private** — `load_or_default_state` is in `ops.rs`, `load_client_state` in `app.rs`; and **`load_client_state` has THREE failure modes, not the two v1.1's table named** — missing (`bail!`), **read-I/O (`?`)**, parse (`context("corrupt")`). *All three messages must survive the unification.*
+
+### ✅ ② SAFE FOR A/B, AND SHARPER THAN THE DEFENCE CLAIMED
+
+The read path has no identity, so the self arm skips there; the peer arm still runs. 🔑 **Her sharpening: NOTHING today uses `counterpart` for self at all** — `self_open` still name-scans at `ops.rs:1043` and R-5 leaves it untouched. **For the seam to matter, Leg C must both move self resolution onto the field AND keep it on a write path.** *Correctly a Leg C latent flag, not an A/B blocker.*
+
+### 🛑 ③ GATE 4b WAS UNEXECUTABLE FOR THE SECOND TIME — AND THIS ONE IS THE FINDING
+
+v1.1 fixed the parses-vs-backfilled conflation, **picked the right path**, and then named an observation the CLI cannot render. Re-measured by Chat: `cmd_spaces` prints `name`/`space_id`/`node_endpoint`/`role` + rooms and **nothing else** (`app.rs:2643-2652`) · there is no `--json` · the batch pipe arm discards the result (`batch.rs:378`) · and the migrated state **is not persisted on a read**, so it cannot be recovered from disk afterwards. ⇒ ***`counterpart` is not observable through any exposed command.***
+
+🔑 **THE CATEGORY ERROR, WHICH SHE NAMED AND CHAT HAD NOT: gate 4b's claim is about a LOADER, so the assertion belongs on the DATA, not on a display surface.** 🔒 **RULED (Chat, `D-123`): 4b becomes a Rust test calling `ops::spaces` against a copy of Joe's real state and asserting on `SpacesResult.spaces[..].counterpart`.**
+
+### ⚠️ AND CHAT PROPOSED A THIRD OPTION THAT DIED ON MEASUREMENT, ONE TURN AFTER DIAGNOSING THE SAME ERROR
+
+Chat spotted `aicontrol.rs:418-421` — which **does** serialise `ops::spaces` wholesale — and proposed routing 4b through it as *"executable today with zero new code"*. 🛑 **Measured: `--aicontrol` is a NAMED PIPE, not a CLI flag** (`aicontrol.rs:8-26`), spawned only from inside a resident client (`ai_service.rs:627`, `desktop.rs:835`), with a token check (`:318`), **and no harness anywhere speaks it.** ***More expensive than both options on the table, proposed as cheaper — the same untraced-invocation error, committed in the same turn that diagnosed it in someone else's text.*** Recorded in §0 so it is not re-proposed.
+
+### ✅ AND HER RE-MEASUREMENT OF CHAT'S OWN TABLE
+
+The kickoff told her `§1`'s B5/B5a/B5b were Chat's own and to trust none of them. **She re-measured all of them and they hold** — including a distinction Chat's census had made silently: **the sixth `KnownSpace` grep hit is the struct DEFINITION at `state.rs:185`, not a literal.** *Five literals stands.*
+
+### 📌 ONE NEW RISK FILED
+
+**Gate 4b does not exercise the self arm** — Joe's state has no self thread. ***The arm that Leg 0-bis was needed to find is proven by the witness fixture and by nothing else.***
+
+### STATE
+
+✅ **Re-measured at open:** clean tree, HEAD `fbd03c4` = `origin/main`. ✅ **Floors untouched and not re-run, stated:** cargo **1596/0/62 × 56** · svelte-check **0/34/15** · catalogue **435** · both gates PASS.
+
+🟢 **`M-RP-MEMBER-ACT` REMAINS PLAY AND OPEN. STILL NO CODE.** 🔓 `OQ5` unchanged, no Chat recommendation on any item. 🔑 **Three reads, three blockers, each smaller than the last — a fatal loader split → an unobservable gate line. v1.2's changes are corrections to text Clair has already read, not new design, so Chat recommends Joe LOCK v1.2 rather than commission a fourth read.** ⚠️ ***But gate 4b has now been written unexecutably twice by the same author. If a third version fails, the fault is not the gate.***
+
+→ J-687 · runbook v1.2 · ROADMAP v6.75.
+
+---
+
 ## Entry J-686 — the runbook's migration never reached its consumer, and `D-131` had been cited fifteen times for a rule it does not state
 
 **Date:** 2026-08-06 · **Seats:** Clair (adversarial read of the runbook, no authority to code) · Chat Claude (independent cross-check, the L2 design, the records) · Joe (L2, uttered; `D-145`, delegated; the push) · **Code:** `xgid-slot-gate.ps1` comment only — zero `.rs`, zero `ui/**` · `DECISIONS.md` **D-144 → D-145** · `tasks/RUNBOOK_MEMBER_ACT_LEG_AB.md` v1.0 → **v1.1** · `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.9 → **v1.10** · ROADMAP v6.73 → **v6.74**. **ONE new `D`. No new `N`.**

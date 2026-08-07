@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-MEMBER-ACT Legs A + B — the annotations, then the command surface
 > **Status**: PENDING  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-06  
 > Language: EN  
@@ -22,6 +22,15 @@ Two legs of `M-RP-MEMBER-ACT`, written from `tasks/M_RP_MEMBER_ACT_PHASE0.md` **
 - 🔧 **§5 gate 4 rewritten** — v1.0 asked for a proof no exposed command could give: it conflated *parses* (deserialisation → all `None`) with *backfilled* (`Some`) and named no mechanism.
 - 🔧 **§5.5 / §8.1 gate-5 prediction corrected** — her **Finding 2**: it was **inverted**. The gate does not flag `counterpart`, so the escalation could never have fired.
 - 📌 **§8 gains her Finding 3 and her serialisation note.**
+
+🔒 **v1.2 CHANGES, FROM CLAIR'S THIRD (NARROW) READ — REPAIRED, NOT ANNOTATED (`D-145`).**
+- 🛑 **§5 gate 4b rewritten AGAIN — v1.1 named an observation the CLI cannot render.** `cmd_spaces` prints `name`/`space_id`/`node_endpoint`/`role` + rooms and **nothing else** (`app.rs:2643-2652`); there is no `--json`; the batch pipe arm discards the result (`batch.rs:378`); and the migrated state is not persisted on a read, so it cannot be read off disk afterwards. 🔑 ***THE CATEGORY ERROR: gate 4b's claim is about a LOADER, so it must assert on the DATA, not on a display surface.***
+- 🔧 **§4 L2-a: `private` → `pub(crate)`.** `load_or_default_state` lives in `ops.rs` and `load_client_state` in `app.rs` — **different modules, so a module-private body cannot serve both.** *(`SELF_THREAD_LABEL` is already `pub(crate)`, `ops.rs:765`.)*
+- 🔧 **§4 L2-a's table corrected: `load_client_state` has THREE failure modes, not two** — missing (`bail!` with the init/register hint), **read-I/O error (`?` with "failed to read")**, and parse error (`.context("corrupt")`). **All three messages must survive.**
+- ✅ **§8 item 1 DISCHARGED** — she walked the signature against both loaders: `Option` carries missing-vs-present, `Result` carries the error distinction, both wrappers fall out cleanly. **The "cannot share a body" worry does not materialise.**
+- 📌 **§8 gains the self-arm scoping note.**
+
+⚠️ **AND A CHAT PROPOSAL THAT DIED ON MEASUREMENT, RECORDED SO IT IS NOT RE-PROPOSED:** routing gate 4b through the `--aicontrol` surface, which does serialise `ops::spaces` wholesale (`aicontrol.rs:418-421`). **It is a NAMED PIPE, not a CLI flag** (`aicontrol.rs:8-26`), spawned only from inside a resident client (`ai_service.rs:627`, `desktop.rs:835`), with a token check (`:318`) and **no existing harness that speaks it**. ***More expensive than both options on the table, proposed as "zero new code" — the same untraced-invocation error, one turn after diagnosing it.***
 
 🛑 **THIS RUNBOOK IS NOT LOCKED.** Per this milestone's own record — Leg 0 found five plan-moving defects and Leg 0-bis found four more, and **Chat's own re-reads passed both times** — Clair reads this adversarially before Joe locks it. **No code is written until it is locked.**
 
@@ -139,10 +148,13 @@ pub struct KnownSpace {
 | | `load_or_default_state` (`ops.rs:59`) | `load_client_state` (`app.rs:4613`) |
 |---|---|---|
 | **missing file** | returns a **default** `ClientState` | 🛑 **`bail!` with the "run init/register first" hint** |
-| **corrupt file** | falls through to the **default** | 🛑 **`Err` with "state file is corrupt"** |
+| **read-I/O error** | falls through to the **default** | 🛑 **`Err` via `?`, context "failed to read"** |
+| **corrupt / unparseable** | falls through to the **default** | 🛑 **`Err`, context "state file is corrupt"** |
 | **needs** | `identity_id`, `home_node` (to build the default) | neither |
 
-🔒 **RULED (Chat, `D-123`): keep BOTH behaviours behind ONE body.** One private `read_and_migrate(data_dir, identity_id: Option<&str>) -> Result<Option<ClientState>>` performs read → parse → **migrate**; the two existing public fns become thin wrappers that differ **only** in how they handle `None`/`Err`. ⚠️ ***Do NOT collapse the two error behaviours into one.*** `load_client_state`'s `bail!` carries a user-facing hint the CLI depends on; `load_or_default_state`'s default is what lets a first run work at all. **Collapsing them is a silent behaviour change to six call sites and is out of scope.**
+⚠️ **THREE failure modes on the read side, not two** (Clair, third read — v1.1's table omitted the read-I/O arm). **All three messages must survive the unification.**
+
+🔒 **RULED (Chat, `D-123`): keep BOTH behaviours behind ONE body.** One **`pub(crate)`** `read_and_migrate(data_dir, identity_id: Option<&str>) -> Result<Option<ClientState>>` performs read → parse → **migrate**; the two existing public fns become thin wrappers that differ **only** in how they handle `None`/`Err`. ⚠️ **`pub(crate)`, NOT private** — `load_or_default_state` is in `ops.rs` and `load_client_state` is in `app.rs`, so a module-private body cannot serve both (Clair, third read). ⚠️ ***Do NOT collapse the error behaviours.*** `load_client_state`'s messages are user-facing and the CLI depends on them; `load_or_default_state`'s default is what lets a first run work at all. **Collapsing them is a silent behaviour change to six call sites and is out of scope.**
 
 ⚠️ **`identity_id` is `Option` because the read path does not have one.** When it is `None` the **self arm cannot run** — the peer arm still does. 📌 **That is correct and not a hole:** `get_spaces` renders a list; the self thread's `counterpart` is only needed by a lookup, and every lookup path is a write path that has the identity. **If a later leg needs the self arm on a read, it passes the identity — the seam is there.**
 
@@ -196,8 +208,11 @@ One test proving the backfill's **three arms**: a peer DM (`"DM with xgen://…"
 3. `npm run check` → **0/34/15 unmoved** (the mirror adds a field, not an error).
 4. 🔑 **THE BACKWARD-COMPAT + MIGRATION PROOF, AND v1.0's VERSION OF THIS GATE WAS NOT EXECUTABLE.** *v1.0 said "load Joe's real state with the built binary and prove `counterpart = Some(…)`" — it conflated **parses** (deserialisation, which yields `None` for every legacy Space) with **backfilled** (`Some`), and named no mechanism. With L2 there IS now one.* **Two distinct proofs, both required:**
    - **4a — deserialisation (a Rust test).** A fixture JSON with **no `counterpart` key** parses into `ClientState` without error. *This is what `#[serde(default)]` buys, and it is the only thing it buys.*
-   - **4b — migration through the READ path, on real data.** **Copy** `%LOCALAPPDATA%\XGenProtocol\xgen-client_state.json` to a scratch dir (**five Spaces, one `DM with …sno_FWmw`, NO self thread**), point the binary at it, and call **`xgen-client spaces`** — the CLI verb that goes through `ops::spaces`, the same loader `get_spaces` uses. **Expected: `DM with …sno_FWmw` → `counterpart = Some("xgen://pubkey/ed25519:L87GVLyVH_fvg-5hV0PL1zpf_s4GUPenODusno_FWmw")`, the other four → `None`.** 🛑 ***Before L2 this returned `null` and the gate could not have been driven at all. It is the proof that the migration reaches the consumer.***
-   - ⚠️ **Never run against Joe's live file. Copy first, verify the copy, leave the original untouched.**
+   - **4b — migration through the READ PATH, on real data. A RUST TEST, ASSERTING ON THE RETURNED STRUCT.** **Copy** `%LOCALAPPDATA%\XGenProtocol\xgen-client_state.json` into the test's temp dir (**five Spaces, one `DM with …sno_FWmw`, NO self thread**), call **`ops::spaces`** against it — the same entry `get_spaces` uses (`desktop.rs:625`), reaching the same `load_client_state` — and assert on `SpacesResult.spaces[..].counterpart`. **Expected: `DM with …sno_FWmw` → `Some("xgen://pubkey/ed25519:L87GVLyVH_fvg-5hV0PL1zpf_s4GUPenODusno_FWmw")`, the other four → `None`.**
+   - 🔑 **WHY A TEST AND NOT A CLI RUN, WHICH v1.1 DEMANDED:** `cmd_spaces` prints only `name`/`space_id`/`node_endpoint`/`role` + rooms (`app.rs:2643-2652`), there is no `--json`, the batch pipe arm discards the result (`batch.rs:378`), and the migrated state is **not persisted on a read** so it cannot be recovered from disk afterwards. ⇒ ***`counterpart` is not observable through ANY exposed command.*** 🛑 **The claim under test is about a LOADER, so the assertion belongs on the DATA. v1.1 demanded an observation from a display surface — a category error, and the second unexecutable version of this same gate.**
+   - 🛑 ***THIS IS THE GATE THAT PROVES L2.*** Before the unification it returned `null` and could not have been driven at all. **If it passes, the migration reaches the consumer K3 exists to serve; if it is skipped, nothing else in this leg proves that.**
+   - ⚠️ **Never run against Joe's live file. Copy into the test temp dir; leave the original untouched.**
+   - 📌 **Gate 4b does NOT exercise the self arm** — Joe's real state has no self thread. **The self arm is proven only by the witness fixture (B-i-5), and that is its sole proof.**
 5. `xgid-slot-gate.ps1` → **PASS, and expect NO manifest change.** 🔑 **v1.0 predicted the opposite and was wrong (Clair's Finding 2).** The gate's identifier regex (`xgid-slot-gate.ps1:49`) is **name-keyed**, and `counterpart` matches none of its suffixes — tested directly: `pub counterpart: Option<String>` → **no match**; `space_id` → match; **`counterpart_id` → match.** ⚠️ ***So the pass is correct in outcome and wrong in reason: `counterpart` is a genuinely XGID-bearing `String` sitting inside the gate's own blind spot.*** **Report the pass; do NOT read it as classification.** Whether `D-137`'s mechanism should catch this is **Joe's**, filed separately, and gates nothing here.
 
 🛑 **Chat re-drives 1–5 independently on the committed tree (Rule 5).** Clair's numbers are cross-checked, never adopted.
@@ -219,7 +234,7 @@ One test proving the backfill's **three arms**: a peer DM (`"DM with xgen://…"
 - [ ] `create_dm_space` command registered; **19 → 20**
 - [ ] Witness test covers **all three** backfill arms
 - [ ] TS mirror carries `counterpart: string | null`
-- [ ] 🔑 **Gate 4b driven on a COPY of Joe's real state through `ops::spaces`** — the proof the migration reaches the read path
+- [ ] 🔑 **Gate 4b driven as a Rust test on a COPY of Joe's real state through `ops::spaces`, asserting on `SpacesResult.spaces[..].counterpart`** — the proof the migration reaches the read path
 - [ ] All §5 gates driven by Chat on the committed tree, exact numbers recorded
 - [ ] `self_open` untouched and unregistered
 - [ ] JOURNAL + CLAUDE.md PLAY + ROADMAP + this runbook updated in the same commit
@@ -228,12 +243,13 @@ One test proving the backfill's **three arms**: a peer DM (`"DM with xgen://…"
 
 ## §8 — 🛑 WHERE THIS RUNBOOK IS MOST LIKELY WRONG
 
-1. 🛑 **L2's WRAPPER SPLIT IS DESIGNED, NOT BUILT.** `read_and_migrate` keeping both error behaviours behind one body is the shape; **the exact signature has not been compiled.** If `load_client_state`'s `Result` and `load_or_default_state`'s infallible return cannot share a body cleanly, **stop and report rather than collapsing the two behaviours** — six call sites depend on the difference.
-2. ⚠️ **THE SELF ARM CANNOT RUN ON THE READ PATH** (no `identity_id` there). Argued safe because every lookup is a write path — **argued, not measured.** If Leg C's scan ever runs off `get_spaces` data for the SELF row specifically, this is a hole.
-3. 🛑 **The backfill parses `"DM with "` — an English literal `create_dm_space` writes.** If the label is ever localised, the migration silently yields `None` for every legacy DM. **One-time, so safe today and unsafe the day someone re-runs it against localised state.** *Filed, not guarded.*
-4. ⚠️ **`role == "owner"` is part of the self test, copied from `ops.rs:1042`.** If a self thread can exist with another role, the arm misses it. **Not verified.**
-5. ⚠️ **K3 CONTAINS the name-inference unsoundness; it does not REMOVE it (Clair's Finding 3).** Both arms still key on a field `create_space` lets a user write (`ops.rs:662`), so a legacy owner-Space named `self` — or `DM with X` — **gets a spurious `counterpart` at migration.** Bounded, one-time, consistent with `D-143`; **the Phase-0's occasional "removes the unsoundness" phrasing is stronger than the mechanism delivers** and is annotated there.
-6. 📌 **`#[serde(default)]` WITHOUT `skip_serializing_if` MEANS EVERY SPACE NOW SERIALISES `"counterpart":null` (Clair).** The wire-shape test at `desktop.rs:1203` survives **only because it uses `assert!(json.contains(…))`, not exact equality.** ***The `get_spaces` payload shape changes for every Space, including ordinary ones.*** Accepted — the TS mirror is `string | null` — but recorded so it is not later found as a surprise.
-7. ⚠️ **Not persisting the migrated state is a deliberate call, not a measurement.** A later reader expecting `counterpart` on disk after one launch will not find it until the next write.
-8. 🛑 **Leg B ships a command with NO CALLER — Leg C is its first consumer.** *`D-065`'s empty-machinery shape, accepted because §4.3 requires the op reachable before the row is clickable, and it is one leg, not one milestone.*
-9. ⚠️ **v1.1 has been read by Clair; the L2 STEP HAS NOT.** *She found Finding 1; the fix for it is new text nobody outside its author has read.*
+1. ✅ **DISCHARGED (Clair, third read): L2's WRAPPER SPLIT TYPE-CHECKS.** Walked against both loaders: `Option` carries missing-vs-present, `Result` carries the error distinction, both wrappers fall out cleanly. **The "cannot share a body" worry does not materialise** — provided the body is `pub(crate)` and all three read-side failure modes are preserved.
+2. ⚠️ **THE SELF ARM CANNOT RUN ON THE READ PATH** (no `identity_id` there). Argued safe because every lookup is a write path — **argued, not measured.** 📌 **Clair's sharpening: NOTHING today uses `counterpart` for self at all** — `self_open` still name-scans at `ops.rs:1043` and R-5 leaves it. **For the seam to matter, Leg C must both move self resolution onto the field AND keep it on a write path.** *A Leg C latent flag, not an A/B blocker.*
+3. 🛑 **GATE 4b'S SELF ARM HAS NO REAL-DATA PROOF.** Joe's state has no self thread, so 4b exercises the peer arm only. **The self arm is proven by the witness fixture and by nothing else.** *If the fixture is weak, the arm Leg 0-bis was needed to find is untested.*
+4. 🛑 **The backfill parses `"DM with "` — an English literal `create_dm_space` writes.** If the label is ever localised, the migration silently yields `None` for every legacy DM. **One-time, so safe today and unsafe the day someone re-runs it against localised state.** *Filed, not guarded.*
+5. ⚠️ **`role == "owner"` is part of the self test, copied from `ops.rs:1042`.** If a self thread can exist with another role, the arm misses it. **Not verified.**
+6. ⚠️ **K3 CONTAINS the name-inference unsoundness; it does not REMOVE it (Clair's Finding 3).** Both arms still key on a field `create_space` lets a user write (`ops.rs:662`), so a legacy owner-Space named `self` — or `DM with X` — **gets a spurious `counterpart` at migration.** Bounded, one-time, consistent with `D-143`; **the Phase-0's "removes the unsoundness" phrasing is stronger than the mechanism delivers** and is annotated there.
+7. 📌 **`#[serde(default)]` WITHOUT `skip_serializing_if` MEANS EVERY SPACE NOW SERIALISES `"counterpart":null` (Clair).** The wire-shape test at `desktop.rs:1203` survives **only because it uses `assert!(json.contains(…))`, not exact equality.** ***The `get_spaces` payload shape changes for every Space, including ordinary ones.*** Accepted — the TS mirror is `string | null` — but recorded so it is not later found as a surprise.
+8. ⚠️ **Not persisting the migrated state is a deliberate call, not a measurement.** A later reader expecting `counterpart` on disk after one launch will not find it until the next write.
+9. 🛑 **Leg B ships a command with NO CALLER — Leg C is its first consumer.** *`D-065`'s empty-machinery shape, accepted because §4.3 requires the op reachable before the row is clickable, and it is one leg, not one milestone.*
+10. 🔑 **THE HONEST STATE OF THIS DOCUMENT AT v1.2.** Three adversarial reads, three blockers, **each smaller than the last** — a fatal loader split → an unobservable gate line. **v1.2's changes are corrections to text Clair has already read, not new design.** ⚠️ ***But gate 4b has now been written unexecutably TWICE, by the same author, and the second time was one turn after diagnosing the first.*** **If a third version fails, the fault is not the gate.**

@@ -1,8 +1,8 @@
 # M-RP6.2 — R1 Spaces + R2 Rooms on real `KnownSpace`
 > **Status**: COMPLETED  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Jul 2026  
-> **Last updated**: 2026-07-17  
+> **Last updated**: 2026-08-08  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -200,6 +200,16 @@ The close travels as ONE commit set: this task doc `Status → COMPLETED` (+ a R
 **Nothing is coded until Joe locks D1–D8 (D4 and D8's `name` especially).**
 
 **✅ LOCKED 2026-07-17 (Joe: "go by your recommendation").** D1–D8 all locked as Chat recommended: **D4 = opt-1 (bus-pure)** — R1 highlights only while the bus holds that space, no second latch; **D8 `name` = `"Spaces"` / `"Rooms"`** (drops the `R1 ·`/`R2 ·` scaffold prefix). D8 `icon` = **left UNSET** on both descriptors → the documented `plugin-list` fallback `p.icon ?? 'square'` (`plugin-list.svelte:65`) paints the neutral placeholder. There is **no verified Material source SVG for a spaces/rooms glyph in-repo**, and Chat will not fabricate a `d` path from memory (Rule 5 + the byte-for-byte icon discipline, D-108) — real glyphs are filed to **M-RP-ICON-ADOPT / M-RP-SKIN**. Honest-provisional, not misleading. Status → ACTIVE; build proceeds.
+
+> 🛑 **SUPERSEDED 2026-08-08, ANNOTATED NOT REPAIRED (`D-145` — this document is COMPLETED, so the lock above stands as history and this annotation is the current state). `D4` = opt-2. THE OTHER SEVEN LOCKS ARE UNTOUCHED.**
+>
+> **Joe (`M-RP-SELECT-ORIENT`, J-692): selecting a room KEEPS the Space lit.** R1 no longer un-highlights while you browse a Space's rooms — which is exactly the *"persistent 'which space am I in'"* polish this document filed at `:131` as **opt-2**, *"for a later polish pass if Joe wants"*. **He wants it.**
+>
+> 🔑 **AND IT IS A RE-PRICE, NOT A CHANGE OF TASTE.** opt-1 won on ***"Simplest, single truth, no second latch"*** (`:128`). At the time opt-2 meant R1 growing a latch of its own. **It no longer does:** R2's `latchedSpaceId` has existed since this very milestone, and `roomLatch` since M-RP6.3 Leg D2 ⇒ **opt-2 now means R1 READING a latch that already exists.** *The cost opt-1 was chosen to avoid is no longer the cost — the option was priced once, in July, and never re-checked.*
+>
+> ⚠️ **`:219`'s V5 verification remains TRUE AS WRITTEN and is now a record of superseded behaviour**, not of a live contract: *"R1 un-highlights"* was correct for opt-1 and will be false once `M-RP-SELECT-ORIENT` lands.
+>
+> ⇒ **`DECISIONS.md` `D-146` · `tasks/M_RP_SELECT_ORIENT_PHASE0.md` §1 `J-2` · J-692.**
 
 ---
 

@@ -1,8 +1,8 @@
 # M-RP-MEMBER-ACT Leg C — R7 acts: the row opens the DM and writes the bus — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-07  
+> **Last updated**: 2026-08-08  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -86,6 +86,17 @@ The milestone Phase-0 named three concerns (ARIA · click/keyboard · the `selec
 
 ⇒ **Writing an `identity` selection latches nothing, and latching by writing a `room` selection would overwrite the identity — so R8 would show the ROOM, not the member. `L-7` would be broken by the only mechanism currently available.**
 
+🛑 **MECHANISM CORRECTED 2026-08-08, CONCLUSION UNCHANGED (`D-145`; Clair's F3 forced the re-drive and reached the OPPOSITE conclusion from the same fact).** The paragraph above gives the WRONG REASON. **The bus→latch bridge is an `$effect`** (`app_client.svelte:195-198`, reading `selection.current` as its sole tracked dependency) ⇒ **two SYNCHRONOUS `set` calls coalesce into ONE effect run that observes only the FINAL value.** ***The intermediate room selection is never seen by `note()` at all — it is not overwritten downstream, it is never observed upstream.***
+
+🔒 **MEASURED ON THE LIVE CLIENT (9222), WITH A CONTROL:**
+
+| drive | `latchedRoomId` after flush |
+|---|---|
+| `set(room)` then `set(identity)` — **N2's prescription** | **`null`** 🛑 |
+| `set(room)` alone — **control** | **the room id** ✅ |
+
+⇒ **`L-7` still cannot be delivered by the existing mechanism, and N2 is REFUTED BY MEASUREMENT rather than refused on judgement** — which matters, because `D-143` was the wrong instrument: **N2 is not unsound-but-workable, it simply does not work.**
+
 🔑 ***NOBODY HAS RECORDED THIS.*** The milestone Phase-0's §6 reads Leg C as *"`onActivate` -> open-or-draft **and** `selection.set()`"*, as if they were two independent calls. **They are not: the first has no writer that does not destroy the second.**
 
 ⚠️ **AND IT IS THE THIRD ITEM LANDING ON `room-latch.svelte.ts`** — `F-E` already put `canSend`'s second arm there for Leg C-bis, and `resolveLatched` is read by R5, R6 and `canSend`. **The shared latch is edited twice across two legs, and the file's own header calls `note()` *"THE SINGLE WRITER"*.** ⇒ **§5-OQ-C1, and it is architecture — Joe's.**
@@ -154,8 +165,8 @@ At the failing step **`focusables` inside the panel = 0**, the `<ul>` carries no
 ② One method on `room-latch.svelte.ts`. ⚠️ **The file's header declares `note()` *"THE SINGLE WRITER"*, so a claim in a shipped comment goes false** — though `clear()` already writes `_latched`, so the claim is **already** inexact and the annotation is owed either way (`D-131`).
 
 **N2 — R7 writes a `room` selection, then a second `identity` selection.** Ordering-dependent.
-① Same end state **if the order holds**; **R8 flickers the room card**, and one reordering makes `L-7` silently false.
-② Zero new API. 🛑 **Two writes to a single-slot bus whose meaning depends on sequence = a claim that can go false with nothing to decide it ⇒ `D-143` fires. Refused, listed for completeness.**
+🛑 **REFUTED BY MEASUREMENT 2026-08-08 (§3.2). N2 DOES NOT WORK** — the two synchronous writes coalesce into one `$effect` run that never observes the room, so nothing latches (`null` vs the control's room id). ⚠️ **The costs originally stated here were BOTH wrong: there is no "R8 flickers" (nothing renders the intermediate) and `D-143` was the wrong instrument (this is not unsound-but-workable, it is inoperative).** 📌 *Clair reached the opposite conclusion from the same batching fact, which is what forced the drive.*
+① *(moot)* ② *(moot)*
 
 **N3 — R8 reads a separate identity channel.** ① None. ② A second bus — **exactly what `xgen-widget-surfaces-phase0.md` S-6 was locked to prevent.** Refused.
 
@@ -172,6 +183,8 @@ At the failing step **`focusables` inside the panel = 0**, the `<ul>` carries no
 
 ### 🔓 OQ-C3 — the `activeIndex` staleness (§3.3). **SEQUENCING.**
 
+✅ **CLOSED 2026-08-08 — JOE FOLDED IT INTO `M-RP-SELECT-ORIENT`, WHICH LANDS BEFORE LEG C.** Effectively **T-c** (its own milestone) rather than Chat's recommended T-b, and it carries the attribution cost T-b was trying to avoid without polluting Leg C's `core` commit. ⇒ **Leg C inherits a clamped `activeIndex`. The options below stand as history.**
+
 **T-a — file it, name the owner, do not touch it in Leg C.** ① The members panel can drop out of the tab order after a navigation — **a keyboard user loses the panel**, silently. Already true of the sibling panels today. ② Zero now.
 **T-b — fix it in the same `core` commit as `OQ1-G1`.** ① The defect never reaches R7. ② ~2 lines (clamp `activeIndex` against `items.length`), **but it changes the behaviour of `rooms-panel` and `spaces-panel`, which is precisely why `M-RP-PANEL-INERT` got its own milestone.**
 **T-c — its own milestone.** ① Same as T-a until it lands. ② A milestone for two lines.
@@ -179,6 +192,12 @@ At the failing step **`focusables` inside the panel = 0**, the `<ul>` carries no
 🔒 **SEVERITY MEASURED 2026-08-07 (§3.3), AND IT CUTS BOTH WAYS — STATED SO THE CALL IS MADE ON THE NUMBER, NOT THE FEAR.** ✅ **Milder than feared:** the state is **not permanent** — the panel returns as soon as the list grows past the stale index. 🛑 **Worse than feared:** it is escapable **only with a mouse**, because a keyboard user cannot reach the panel to press the key that would fix it — ***a self-healing trap you cannot heal from inside*** — and **R7 under `L-8`/`OQ7-W4` shrinks the list on essentially every click**, where `rooms-panel` only shrinks it when you pick a smaller Space.
 
 📌 **Chat's recommendation: T-b, and it is a genuinely close call.** *`D-143` does not decide it — a stale index is a real unsoundness, but `D-065`'s no-empty-machinery does not apply and `D-071` cuts the other way.* ⚠️ **The honest statement: the fix is trivial and the ATTRIBUTION is the whole cost.** 🔒 **Milestone split is Joe's (`D-123`:4610).** ✅ **The shrink case is now DRIVEN, so whichever is chosen the runbook inherits a measurement rather than a prediction.**
+
+### 🔓 OQ-C5 — RE-SITED 2026-08-08, NOT ANSWERED HERE
+
+**When `L-7` puts an identity on the bus, R6's room highlight goes out** (`rooms-panel:44` matches on `kind === 'room'`) **while the latch — and therefore R5's content and the composer's target — keeps the room.** Measured on the live client, and **reachable TODAY via the R3 self card**, so it is not Leg C's to fix.
+
+🔒 **JOE OPENED `M-RP-SELECT-ORIENT` — the panels keep saying where you are — TO LAND BEFORE LEG C.** ⇒ **`OQ-C5` DISSOLVES: R6 will highlight from `roomLatch.effectiveRoomId`, so an identity selection no longer extinguishes it.** ⇒ **`tasks/M_RP_SELECT_ORIENT_PHASE0.md`.**
 
 ### 🔓 OQ-C4 — the flag's name and default. **`ui/core` API, screen-reader-visible.**
 
@@ -194,8 +213,10 @@ Candidates: **`selectOnActivate` (default `true`)** — reads as what it does, a
 |---|---|---|---|
 | **C-1** | 🔒 **`OQ1-G1` ALONE** — `entity-panel.svelte` gains the flag; `selectAt:105` guarded; the getter reports it. **No consumer changes.** Optional sampler cell per §4 | **catalogue** (+8 iff the cell lands, else 0) · svelte-check | ***measured alone, as the milestone Phase-0 requires*** |
 | **C-2** | `roomLatch.latch()` per **OQ-C1** + the header annotation | svelte-check | gated on OQ-C1 |
-| **C-3** | **R7 acts** — `interactive` on, the new flag off, `onActivate` -> find-DM-by-`counterpart` -> `latch()` **and** `selection.set('members', descriptor)`; draft otherwise | svelte-check | gated on C-1, C-2, OQ-C2 |
+| **C-3** | **R7 acts** — `interactive` on, the new flag off, `onActivate` -> find-DM-by-`counterpart` -> `latch()` **and** `selection.set('members', descriptor)`; **existing-DM ONLY** | svelte-check | gated on C-1, C-2, OQ-C2 |
 | **C-4** | live verify (client 9222) + records | — | Rule 5, Chat re-drives |
+
+🛑 **C-3 CORRECTED 2026-08-08 — CLAIR'S F2, RE-DRIVEN AND CONFIRMED. "draft otherwise" WAS NOT BUILDABLE IN LEG C AND CONTRADICTED §1 AND §7.** **The DM-draft object does not exist anywhere** — no store in `ui/common/lib/stores`, no state, nothing shipped by Legs A/B — and §1 forbids Leg C from reaching into Leg C-bis, which owns it. ⇒ **for a never-contacted member, `find` returns `undefined` and Leg C has nothing it is ALLOWED to write.** 🔓 ***Leg C therefore ships an EXISTING-DM-ONLY click, and what a never-DM'd click does in Leg C is an open question sited to Leg C-bis's Phase-0 — not silently "a draft".*** ⚠️ **AND A NAMING HAZARD FOR WHOEVER WRITES LEG C-bis:** `composer-panel.svelte:52` already has `let draft = $state('')` — **the textarea's TEXT BUFFER. Two different things called `draft` in one subsystem.**
 
 🔑 **WHY C-1 IS ALONE:** it is the only commit that can move the catalogue, and the milestone Phase-0 locked that this be **measured rather than predicted**.
 🔑 **WHY C-2 PRECEDES C-3:** C-3 cannot be written without knowing which writer it calls; and a latch method with no caller for one commit is the accepted `D-065` shape at **commit** granularity, not at **milestone** granularity — the `OQ1-G1` argument, applied.
@@ -211,7 +232,7 @@ Candidates: **`selectOnActivate` (default `true`)** — reads as what it does, a
 ## §8 — WHERE THIS DOCUMENT IS MOST LIKELY WRONG
 
 1. ✅ **DISCHARGED 2026-08-07 — §3.3's SHRINK CASE WAS DRIVEN ON THE REAL CLIENT AND DID NOT FALSIFY.** `[tabindex]` census at the DOM layer: Engineering (2 rooms) → click index 1 → Design (1 room) ⇒ **`["-1"]`, tabbable 0, focusables 0**, `role="listbox"` intact. Svelte does **not** re-create the component on an `items` change. **OQ-C3 does not dissolve; it is live and it is Joe's.** *Superseded text follows.* — 🛑 **§3.3's SHRINK CASE IS READ, NOT DRIVEN.** `activeIndex` is not clamped **in the source**; that no row ends up tabbable **after a real roster change** has not been observed. **The falsifying probe is a `[tabindex]` census at the DOM layer, before and after** (`D-140`). *If Svelte re-creates the component on an `items` identity change, the defect does not exist and OQ-C3 dissolves.*
-2. 🛑 **§3.2 ASSUMES LEG C LATCHES AT ALL.** If the DM is instead reached by writing a `room` selection from somewhere else entirely, the collision changes shape. **No such path was found; the corpus searched was `room-latch.svelte.ts`, `selection.svelte.ts`, `members-panel.svelte`, `rooms-panel.svelte`, `spaces-panel.svelte` (`D-139`).**
+2. ✅ **CORPUS REPAIRED 2026-08-08 AFTER CLAIR'S ADVERSARIAL READ — THE CONCLUSION SURVIVES, THE MECHANISM DID NOT.** Two repairs: **(a)** the corpus was too narrow — `app_client.svelte:195-198` is where a room actually becomes latched, and it was NOT in the five named files; the bus has **FIVE readers** (`inspector-panel:40` · `self-panel:55` · `rooms-panel:25,:44` · `spaces-panel:45` · `app_client:196`), so `selection.svelte.ts:12`'s *"R8 is the only consumer"* — **Chat's own Leg A annotation** — stands FALSE. **(b)** 🛑 **`_latched` has exactly THREE write sites, all in `room-latch.svelte.ts`; there is no sixth writer.** ⇒ **the collision is real, but NOT for the reason §3.2 gave** — see §3.2's own annotation. *Superseded text follows.* — 🛑 **§3.2 ASSUMES LEG C LATCHES AT ALL.** If the DM is instead reached by writing a `room` selection from somewhere else entirely, the collision changes shape. **No such path was found; the corpus searched was `room-latch.svelte.ts`, `selection.svelte.ts`, `members-panel.svelte`, `rooms-panel.svelte`, `spaces-panel.svelte` (`D-139`).**
 3. ⚠️ **§3.4's "no-op" IS ARGUED FROM C9/C10/C11 AND NOT RUN.** The DM re-entry path has never been clicked, because nothing is clickable yet. **First real exercise is C-4.**
 4. ✅ **DISCHARGED 2026-08-07 — `counterpart` REACHES THE WEBVIEW, AND THIS IS THE FIRST TIME THE FIELD HAS BEEN READ BY ANYTHING.** Live client 9222, `window.__XGEN_SPACES__.spaces`: the key is present on **all five** Spaces, `null` on the four ordinary ones, and **`"xgen://pubkey/ed25519:L87…sno_FWmw"` on the DM.** 🔑 **The on-disk state holds NO `counterpart` key ⇒ the read-path migration is proven END TO END, disk → Rust → IPC → store** — gate 4b asserted on the Rust struct; this is the field crossing the boundary. ⇒ **`spacesState.spaces.find(s => s.counterpart === id)` will resolve.** *Superseded text follows.* — ⚠️ **THE FIND-DM SCAN ITSELF IS NOT DESIGNED HERE.** `spacesState.spaces.find(s => s.counterpart === id)` is the obvious form and `counterpart` is proven on the read path (C10) — **but the TS mirror's field has never been read by any consumer.** *First consumer, first proof.*
 5. ⚠️ **`OQ7-W4`'s R7-during-a-draft is INHERITED, not re-verified here.** W4 says R7 shows self only. **§3.4's clickability question does not arise in a draft, because a draft roster has no members.**

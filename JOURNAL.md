@@ -1,10 +1,65 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-07  
+> **Last updated:** 2026-08-08  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-692 — Clair's read lands four findings, one refutes Chat's largest claim; `M-RP-SELECT-ORIENT` opens and `D4` is superseded
+
+**Date:** 2026-08-08 · **Seats:** Clair (adversarial read of the Leg C Phase-0) · Chat (re-drove all four, the live probes, the records) · Joe (the milestone, the supersede, the push) · **Code:** **ONE COMMENT BLOCK** in `ui/common/lib/stores/selection.svelte.ts` — no executable line · **NEW** `tasks/M_RP_SELECT_ORIENT_PHASE0.md` v1.0 ACTIVE · Leg C Phase-0 v1.1 → **v1.2** · `M_RP6_2_SPACES_ROOMS.md` v1.3 → **v1.4** · **NEW `D-146`** · ROADMAP v6.79 → **v6.80**.
+
+📌 **THE SESSION CROSSED MIDNIGHT.** Probes sit either side of 00:00 and were not individually timestamped; measurements are dated to the **session (2026-08-07/08)** rather than to a clock reading Chat did not take.
+
+### 🔑 CLAIR'S FOUR, ALL RE-DRIVEN BY CHAT BEFORE ENTERING THE RECORD (Rule 5)
+
+| # | her claim | measured | outcome |
+|---|---|---|---|
+| **F1** | the §8-2 corpus is too narrow; *"R8 is the only consumer"* is false | ✅ **and worse — FIVE readers** | **CONFIRMED, ENLARGED** |
+| **F2** | no draft object exists; §6's C-3 violates the leg boundary | ✅ no store, no state, nowhere | **CONFIRMED** |
+| **F3** | N2 works; the *"R8 flickers"* cost is false | 🛑 **N2 FAILS — measured, with a control** | **REFUTED** |
+| **F4** | "+8" is really 2N+2 | ✅ correct | **CONFIRMED (wording)** |
+
+🛑 **F3 — SHE FOUND THE RIGHT MECHANISM AND DREW THE OPPOSITE CONCLUSION, AND IT CORRECTS CHAT'S LARGEST CLAIM.** The bus→latch bridge is an **`$effect`** (`app_client.svelte:195-198`), so two synchronous `set` calls coalesce into ONE run reading only the final value. ⇒ ***the intermediate room selection is never OBSERVED — not overwritten downstream, as §3.2 claimed, but never seen upstream.*** **Driven with a control: `set(room)`+`set(identity)` → `latchedRoomId` `null`; `set(room)` alone → the room id.** ⇒ **§3.2's CONCLUSION survives, its MECHANISM did not, and `D-143` was the wrong instrument — N2 is not unsound-but-workable, it is inoperative.**
+
+🛑 **F1 — AND THE FALSE CLAIM WAS CHAT'S OWN.** `selection.svelte.ts:12` said *"R8 (inspector) is the only consumer"* — **the Leg A annotation of 2026-08-06, which corrected one false claim in that block while introducing another.** Measured: **five readers** — `inspector-panel:40` · `self-panel:55` · `rooms-panel:25,:44` · `spaces-panel:45` · `app_client:196`. **Annotated at the site (`D-131`); the count has now been wrong twice in one comment block.**
+
+### 🛑 THE DEFECT UNDERNEATH F1 — NEW, MEASURED, AND SHIPPED
+
+R1 and R6 derive their highlight by matching `entity.kind` against the bus. ⇒ **ANY identity selection extinguishes both highlights while the latch keeps the room.** **Driven live: click a room → `roomsSel` = the room; write an identity (what `L-7` does) → `roomsSel` → `null`, `latched` UNCHANGED.** ⇒ ***the composer keeps targeting the room while the room stops looking selected.*** ✅ **Reachable TODAY via the R3 self card — a shipped gesture. Not hypothetical, not Leg C's.**
+
+### 🛑 AND THEN CHAT GOT THE CENTRAL FACT WRONG — THE SESSION'S WORST ERROR
+
+Chat told Joe *"R1 has the same defect, and it is shipped today."* **It is not a defect. `M_RP6_2_SPACES_ROOMS.md:202` locked `D4` = opt-1 (bus-pure) on 2026-07-17, on Joe's *"go by your recommendation"*, with the alternative named and rejected at `:128` — *"Simplest, single truth, no second latch"* — and opt-2 filed at `:131` as the *"persistent 'which space am I in'"* polish.** 🔑 **Joe scoped a milestone on Chat's sentence before the lock was found.** ⚠️ **His reading was reasonable because Chat's own bullet asserted it — the mis-scope is Chat's, not a miscommunication.** 📌 *Corpus searched only afterwards: every `*.md` for `opt-1`/`bus-pure`.*
+
+📌 **A SECOND over-escalation followed:** Chat put a *"browsing Space vs talking Space"* question to Joe as `OQ-1`. **Joe did not understand it, and he was right not to** — under the lift there is no ambiguity, and the question was Chat's to settle. **`D-123`'s under-stepping, twice in one exchange.**
+
+### 🔒 WHAT JOE UTTERED
+
+**`M-RP-SELECT-ORIENT` — the panels keep saying where you are.** Scope **R1 + R6**, **`OQ-C3` folded in**, landing **BEFORE Leg C**. 🔒 **AND `D4` opt-1 IS SUPERSEDED — selecting a room KEEPS the Space lit** — recorded as **Joe's by utterance**, restated *after* being shown the July lock and told plainly that changing it supersedes `D4`.
+
+🔑 **AND IT IS A RE-PRICE, NOT A CHANGE OF TASTE — WHICH IS WHY `D-146` EXISTS.** opt-1 won on *"no second latch"*; at the time opt-2 meant R1 growing one. **It no longer does** — R2's `latchedSpaceId` and `roomLatch` both ship ⇒ **opt-2 now means R1 READING a latch that already exists. The cost opt-1 was chosen to avoid is no longer the cost.** ⇒ **`D-146` — a locked option is re-opened when its stated cost has EXPIRED, not when taste changes; the supersede must NAME the expired cost.** **Annotated at `M_RP6_2_SPACES_ROOMS.md` (COMPLETED, so `D-145` says annotate, not repair).**
+
+### 🔓 ONE OPEN, AND IT IS JOE'S
+
+**`OQ-1`** — R1's highlight source. **A** lift R2's private Space latch into a `$common` store (Chat's recommendation — the `roomLatch` lift repeated) · **B** read `roomLatch.effectiveSpaceId` — 🛑 **REFUSED: measured to make R1 light a DIFFERENT Space from the one R2 lists** · **C** a private copy in R1 — refused, the `D-067` drift `roomLatch`'s header rejects by name. ⚠️ ***A stands by elimination, which §8 flags as exactly where a fourth option hides.***
+
+### ✅ LEG C's PHASE-0 REPAIRED TO v1.2
+
+§8-2 corpus repaired · §3.2's mechanism corrected with the control measurement · **N2 refuted** · **C-3 is now EXISTING-DM-ONLY** — *"draft otherwise"* was unbuildable and contradicted §1/§7, and what a never-DM'd click does is re-sited to Leg C-bis · **`OQ-C3` CLOSED** (folded into `M-RP-SELECT-ORIENT`) · **`OQ-C5` DISSOLVES** (R6 moves to the latch). ⚠️ **A naming hazard recorded for Leg C-bis: `composer-panel:52`'s `draft` is the textarea TEXT BUFFER — two different things called `draft` in one subsystem.**
+
+### STATE
+
+✅ **`svelte-check` RE-RUN, not stated — `ui/**` was touched:** **0 errors / 34 warnings / 15 files**, byte-identical to the floor. 🔒 cargo **1597/0/62 × 56** and catalogue **435** carried and stated (zero `.rs`, zero rendered UI). ✅ Client torn down, 9222 closed; **Joe's live state 2,856 B, `5.8.2026 7:12:25`, unchanged.**
+
+⚠️ **TOOLING, EARNED AGAIN: a PowerShell here-string wrote `D-146` CORRUPTED.** `$nl` followed by a letter parsed as a variable name and **silently ate the first word of two paragraphs** (*"A locked decision"* → *" locked decision"*; *"The rule is Chat's"* → *" rule is Chat's"*). **Caught by reading the file back, not by the write succeeding.** 🔒 ***Never interpolate a bare `$var` immediately before a letter; the write reporting success proves nothing about what it wrote.***
+
+🟢 **`M-RP-SELECT-ORIENT` OPEN, ahead of `M-RP-MEMBER-ACT` Leg C.** ⇒ **NEXT: Clair's adversarial read of the new Phase-0, then Joe locks `OQ-1`, then a runbook. 🛑 NO CODE UNTIL A RUNBOOK IS LOCKED.**
+
+→ J-692 · `M-RP-SELECT-ORIENT` Phase-0 v1.0 · Leg C Phase-0 v1.2 · `D-146` · ROADMAP v6.80.
 
 ---
 

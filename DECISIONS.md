@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-06  
+> **Last updated:** 2026-08-08  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -5514,3 +5514,28 @@ J-682 flagged two sites as *"genuinely arguable and deliberately not declared"*.
 ### Provenance (`D-141`)
 
 ⚠️ **THE WORDING, THE BOUNDARY AND THE `D-131` DISTINCTION ARE ALL CHAT'S. Joe adopted on *"go"* after the split was put to him — ADOPTED, NOT EXAMINED.** 📌 *He did supply the question that produced it — "what will you do with that error in the documents? i suppose it has to be fixed, isn't it?" — and that instinct is the second row of the table.*
+---
+
+## D-146 — A locked option is re-opened when its stated cost has expired, not when taste changes; the supersede names the expired cost
+
+**Date:** 2026-08-08 · **Layer:** project-management discipline (decision hygiene) · **Ref:** `D-121` (the two lenses), `D-141` (attribution), `D-145` (annotate at the site) · **Milestone:** `M-RP-SELECT-ORIENT` — the panels keep saying where you are
+
+### The rule
+A locked decision may be re-opened when **the specific cost that decided it no longer exists**. The supersede record MUST name that cost and say why it expired. A supersede that cannot name an expired cost is a change of taste — legitimate, but it must be recorded as one, not dressed as a correction.
+
+🔑 **The asymmetry this exists to fix:** a lock is taken with a cost priced at that moment, then carried forward for months as if the price were a property of the option. It is not. **The option gets cheaper or dearer as the codebase moves underneath it, and nothing re-checks.**
+
+### The case that minted it
+
+`M-RP6.2` `D4` locked **opt-1 (bus-pure)** on 2026-07-17: R1 highlights only while the selection bus holds that Space, so selecting a room un-highlights R1. The stated reason at `M_RP6_2_SPACES_ROOMS.md:128` was ***"Simplest, single truth, no second latch"***, and `:131` filed **opt-2** — the persistent "which space am I in" — for "a later polish pass if Joe wants".
+
+**At lock time opt-2 meant R1 growing a latch of its own.** By 2026-08-08 it does not: R2's `latchedSpaceId` shipped in that same milestone and `roomLatch` shipped in M-RP6.3 Leg D2 ⇒ **opt-2 now means R1 READING a latch that already exists.** ⇒ ***the cost opt-1 was chosen to avoid is no longer the cost.***
+
+### What it does NOT license
+
+🛑 **This is not a licence to re-open locks at will.** The trigger is an **expired cost**, tested against the lock's own written rationale — not a general feeling that the old call was wrong. Where the rationale still holds, the lock holds.
+
+🛑 **And it does not move the seat.** Re-opening is Chat's to PROPOSE with the expired cost named; the supersede itself is **Joe's by utterance** (`D-141`). ⚠️ In this very case Chat mis-stated the locked behaviour as a defect, and Joe scoped a milestone on that sentence before the lock was found — **the proposal must lead with the search, not with the recommendation.**
+
+### Provenance (`D-141`)
+The rule is Chat's, minted from the `D4` case. **The `D4` supersede itself is Joe's**, restated in the 2026-08-07/08 session *after* being shown the July lock and told plainly that changing it supersedes `D4`.

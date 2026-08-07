@@ -10,6 +10,23 @@
 // `descriptor: EntityDescriptor` as a PROP, is gesture-agnostic, and does not import this
 // module. R8 (inspector) is the only consumer. J-591 carries the same claim.
 //
+// 🛑 CORRECTED AGAIN, ANNOTATED NOT REPAIRED (D-131, M-RP-SELECT-ORIENT, J-692). THE ANNOTATION
+// DIRECTLY ABOVE IS ITSELF FALSE: "R8 (inspector) is the only consumer" is wrong, and it was
+// written one arc earlier while correcting a different false claim in this same comment block.
+// Measured 2026-08-08 (grep "stores/selection" over ui/**) — THERE ARE FIVE READERS:
+//   inspector-panel.svelte:40  — R8, the acknowledged one
+//   self-panel.svelte:55       — its own `selected` highlight
+//   rooms-panel.svelte:25,:44  — an $effect (scope) AND its `selected` highlight
+//   spaces-panel.svelte:45     — its `selected` highlight
+//   app_client.svelte:196      — the bus→latch bridge ($effect → roomLatch.note)
+// 🔑 AND THE CONSEQUENCE IS A SHIPPED DEFECT, not bookkeeping: because R1/R6 derive their
+// highlight by matching `entity.kind`, ANY identity selection (R3's self card today, every
+// member click once M-RP-MEMBER-ACT Leg C lands) extinguishes BOTH panel highlights while the
+// room latch — and therefore R5's content and the composer's target — keeps the room. Driven on
+// the live client: roomsSel room-id → null, latched UNCHANGED.
+// ⇒ M-RP-SELECT-ORIENT moves R1/R6 off the bus and onto the latch. Until it lands, this comment
+//   is the honest record: FIVE readers, and the count has been wrong twice.
+//
 // Shape is EXACTLY as locked (D3) — ONE meaning, do not widen. Joe killed the shelf minus-button precisely
 // so a second widget/leaf-selection bus is never needed (`xgen-widget-surfaces-phase0.md` S-6); this is the
 // single selection primitive.

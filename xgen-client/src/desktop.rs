@@ -785,6 +785,39 @@ async fn fetch_identity(
     })
 }
 
+/// Create a DM Space with the given invitee (M-RP-MEMBER-ACT Leg B). Wraps the
+/// built-and-tested `ops::create_dm_space` — the DM machinery already exists; this
+/// is the Tauri surface that makes it reachable from the client UI (the
+/// `fetch_identity` precedent). Leg C is its first caller. Returns the op's
+/// `CreateDmSpaceResult` unchanged (R-2). Needs a LIVE node — it signs and sends
+/// three events — so it resolves the node + identity like `fetch_identity`, not
+/// the on-disk `get_spaces` shape.
+#[tauri::command]
+async fn create_dm_space(
+    invitee: String,
+    data: tauri::State<'_, DataDir>,
+    config: tauri::State<'_, ConfigPath>,
+) -> Result<crate::ops::CreateDmSpaceResult, String> {
+    let data_dir = data.0.clone();
+    let config_path = config.0.clone();
+
+    let node = app::resolve_node(None, &config_path);
+    let mut session = crate::session::SessionState::new(node, data_dir.clone());
+    session
+        .ensure_identity(&app::resolve_keypair_path(&config_path))
+        .map_err(|e| format!("{e:#}"))?;
+
+    let mut ctx = crate::ops::OpContext {
+        session: &mut session,
+        data_dir: &data_dir,
+        node_override: None,
+    };
+    let args = crate::app::CreateDmSpaceArgs { invitee };
+    crate::ops::create_dm_space(&mut ctx, &args)
+        .await
+        .map_err(|e| format!("{e:#}"))
+}
+
 #[tauri::command]
 fn quit(app: AppHandle) {
     emit_state(&app, ClientLifecycleState::Closing);
@@ -1101,7 +1134,8 @@ pub fn run(
             get_spaces,
             get_address_book,
             fill_space_records,
-            fetch_identity
+            fetch_identity,
+            create_dm_space
         ])
         .run(tauri::generate_context!())
         .expect("error while running xgen-client desktop shell");
@@ -1211,6 +1245,7 @@ mod m_rp6_2_tests {
                 name: "general".to_string(),
                 joined: true,
             }],
+            counterpart: None,
         }];
         let json = serde_json::to_string(&payload).unwrap();
         // Space keys, snake_case, plain-string ids.

@@ -189,6 +189,13 @@ pub struct KnownSpace {
     /// "owner", "admin", "moderator", "member".
     pub role: String,
     pub rooms: Vec<KnownRoom>,
+    /// The DM counterpart's XGID, or the session identity for the self thread.
+    /// `None` for an ordinary Space. Backfilled once at load from the legacy
+    /// `name` (M-RP-MEMBER-ACT OQ8-K3): the label is a DISPLAY string a user can
+    /// write, so it must never be a lookup key (D-143 — the cheap option was
+    /// unsound). After the migration the name is free to change.
+    #[serde(default)]
+    pub counterpart: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

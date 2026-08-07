@@ -4611,16 +4611,23 @@ pub fn load_keypair(path: &Path) -> Result<ed25519_dalek::SigningKey> {
 }
 
 pub(crate) fn load_client_state(data_dir: &Path) -> Result<ClientState> {
-    let path = data_dir.join("xgen-client_state.json");
-    if !path.exists() {
-        bail!(
-            "state file not found: {}\n  Run 'xgen-client init' and 'xgen-client register' first.",
-            path.display()
-        );
+    // L2 (M-RP-MEMBER-ACT): read/parse/migrate lives in the ONE loader,
+    // `crate::ops::read_and_migrate`, so the K3 counterpart backfill reaches this
+    // READ path (the UI's `get_spaces` → `ops::spaces` → here). The read side has
+    // no identity, so the migration's self arm skips; the peer arm still runs. The
+    // three read outcomes keep this fn's original contract: `None` (file missing) is
+    // the same "run init/register first" bail as before, and the `Err` arm (read-I/O
+    // error or corrupt file) propagates with its context preserved (D-143).
+    match crate::ops::read_and_migrate(data_dir, None)? {
+        Some(state) => Ok(state),
+        None => {
+            let path = data_dir.join("xgen-client_state.json");
+            bail!(
+                "state file not found: {}\n  Run 'xgen-client init' and 'xgen-client register' first.",
+                path.display()
+            )
+        }
     }
-    let json = std::fs::read_to_string(&path)
-        .with_context(|| format!("failed to read state file: {}", path.display()))?;
-    serde_json::from_str(&json).context("state file is corrupt or has an unexpected format")
 }
 
 pub(crate) fn write_client_state(data_dir: &Path, state: &ClientState) -> Result<()> {

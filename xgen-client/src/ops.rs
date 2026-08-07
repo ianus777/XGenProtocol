@@ -50,23 +50,76 @@ fn sync_completion_timeout(data_dir: &Path) -> tokio::time::Duration {
     tokio::time::Duration::from_secs(s.completion_timeout_seconds)
 }
 
+/// L2 (M-RP-MEMBER-ACT) — the ONE state loader that carries the K3 migration.
+/// Reads `xgen-client_state.json`, parses it, and backfills
+/// `KnownSpace.counterpart` from the legacy `name` (OQ8-K3) on the
+/// parse-success path. Both public loaders delegate here so the migration
+/// exists in exactly one place and reaches every consumer — the WRITE path
+/// ([`load_or_default_state`]) and the READ path
+/// ([`crate::app::load_client_state`], which the UI's `get_spaces` uses).
+///
+/// The three read outcomes stay distinct so each wrapper keeps its own contract
+/// (D-143 — no silent behaviour change to the six call sites):
+///   * `Ok(None)`    — the file does not exist
+///   * `Err(_)`      — read-I/O error or corrupt/unparseable file (context kept)
+///   * `Ok(Some(s))` — read, parsed, and migrated
+///
+/// `identity_id` is `Option` because the read path has none. When it is `None`
+/// the self arm cannot run (the peer arm still does); every lookup that needs a
+/// self `counterpart` is a write path that has the identity.
+pub(crate) fn read_and_migrate(
+    data_dir: &Path,
+    identity_id: Option<&str>,
+) -> Result<Option<xgen_common::state::ClientState>> {
+    use xgen_common::state::ClientState;
+    let path = data_dir.join("xgen-client_state.json");
+    if !path.exists() {
+        return Ok(None);
+    }
+    let json = std::fs::read_to_string(&path)
+        .with_context(|| format!("failed to read state file: {}", path.display()))?;
+    let mut state: ClientState = serde_json::from_str(&json)
+        .context("state file is corrupt or has an unexpected format")?;
+
+    // One-time K3 migration (OQ8-K3, L2-b). The parse of the legacy `name` lives
+    // HERE and nowhere else — never in a lookup, never in a render path.
+    // Idempotent and non-destructive: only fills `None`, never rewrites `name` (R-4).
+    for sp in &mut state.spaces {
+        if sp.counterpart.is_none() {
+            sp.counterpart = match identity_id {
+                // F-A: the self thread's name is the bare literal "self" — NO
+                // "DM with " prefix, so the peer arm yields None, the field scan
+                // misses, and create_dm_space (no dedup, :970) mints a SECOND
+                // self thread. Only reachable on a write path (identity present).
+                Some(id) if sp.role == "owner" && sp.name == SELF_THREAD_LABEL => {
+                    Some(id.to_string())
+                }
+                _ => sp.name.strip_prefix("DM with ").map(str::to_string),
+            };
+        }
+    }
+    Ok(Some(state))
+}
+
 /// Ops-internal: load `xgen-client_state.json` if it exists, otherwise
 /// construct a minimal default from the already-cached `identity_id`.
 /// The single source of truth for "read-or-init state file" across
 /// every state-writing `ops::*` function. The pre-M5 keypair-path
 /// variant in `app.rs` was deleted in commit 12 (this verb being
 /// state-write but no other consumers needing a keypair-load).
+///
+/// L2 (M-RP-MEMBER-ACT): the read/parse/migrate body now lives in
+/// [`read_and_migrate`]; this WRITE-path wrapper keeps the pre-unification
+/// behaviour — missing, read-I/O error, and corrupt ALL fall through to a
+/// fresh default (only a successful parse is kept).
 fn load_or_default_state(
     data_dir: &Path,
     identity_id: &str,
     home_node: &str,
 ) -> xgen_common::state::ClientState {
     use xgen_common::{build_info, state::ClientState};
-    let path = data_dir.join("xgen-client_state.json");
-    if let Ok(s) = std::fs::read_to_string(&path) {
-        if let Ok(state) = serde_json::from_str::<ClientState>(&s) {
-            return state;
-        }
+    if let Ok(Some(state)) = read_and_migrate(data_dir, Some(identity_id)) {
+        return state;
     }
     ClientState {
         identity_id: identity_id.to_string(),
@@ -663,6 +716,8 @@ pub async fn create_space(
         node_endpoint: home_node_url.clone(),
         role: "owner".to_string(),
         rooms: vec![],
+        // An ordinary Space has no DM counterpart (M-RP-MEMBER-ACT OQ8-K3).
+        counterpart: None,
     });
     state.updated_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
     crate::app::write_client_state(ctx.data_dir, &state)?;
@@ -977,6 +1032,10 @@ pub async fn create_dm_space(
             name: "dm".to_string(),
             joined: true,
         }],
+        // The counterpart is written at creation (M-RP-MEMBER-ACT OQ8-K3), so a
+        // post-K3 DM never needs the backfill. For the self thread `invitee ==
+        // identity_id`, so this correctly stores the session identity (F-A).
+        counterpart: Some(args.invitee.clone()),
     });
     state.updated_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
     crate::app::write_client_state(ctx.data_dir, &state)?;
@@ -3134,6 +3193,7 @@ mod tests {
                     name: "general".into(),
                     joined: true,
                 }],
+                counterpart: None,
             }],
             last_local_events: Default::default(),
         };
@@ -3150,6 +3210,58 @@ mod tests {
         assert_eq!(r.spaces[0].name, "Test Space");
         assert_eq!(r.spaces[0].rooms.len(), 1);
         assert_eq!(r.spaces[0].rooms[0].name, "general");
+    }
+
+    /// M-RP-MEMBER-ACT OQ8-K3 witness — the one-time backfill in `read_and_migrate`
+    /// fills `counterpart` on all THREE arms. All three fixtures are `role: "owner"`
+    /// so only the NAME distinguishes them: the arms are selected by the legacy label,
+    /// not by role.
+    #[test]
+    fn read_and_migrate_backfills_all_three_arms() {
+        use xgen_common::state::KnownSpace;
+        let dir = tempdir().unwrap();
+        let identity_id = "xgen://pubkey/ed25519:me";
+        let mk = |space_id: &str, name: &str| KnownSpace {
+            space_id: space_id.into(),
+            name: name.into(),
+            node_endpoint: "ws://127.0.0.1:8082/xgen".into(),
+            role: "owner".into(),
+            rooms: vec![],
+            counterpart: None,
+        };
+        let state = ClientState {
+            identity_id: identity_id.into(),
+            display_name: "me".into(),
+            version: "0.10.3".into(),
+            build: "feed".into(),
+            home_node: "ws://127.0.0.1:8082/xgen".into(),
+            updated_at: "2026-08-06T00:00:00.000Z".into(),
+            spaces: vec![
+                mk("xgen://hash/sha256:dm", "DM with xgen://pubkey/ed25519:peer"),
+                mk("xgen://hash/sha256:self", SELF_THREAD_LABEL),
+                mk("xgen://hash/sha256:eng", "Engineering"),
+            ],
+            last_local_events: Default::default(),
+        };
+        write_state(dir.path(), &state);
+
+        // The write path passes the identity, so the self arm can run.
+        let migrated = read_and_migrate(dir.path(), Some(identity_id)).unwrap().unwrap();
+
+        // Peer arm: "DM with <xgid>" → the stripped counterpart XGID.
+        assert_eq!(
+            migrated.spaces[0].counterpart.as_deref(),
+            Some("xgen://pubkey/ed25519:peer"),
+            "peer arm: strip the 'DM with ' prefix"
+        );
+        // Self arm (F-A): bare "self" + owner → the session identity.
+        assert_eq!(
+            migrated.spaces[1].counterpart.as_deref(),
+            Some(identity_id),
+            "self arm: SELF_THREAD_LABEL + owner → session identity"
+        );
+        // Ordinary Space: neither arm matches → None.
+        assert_eq!(migrated.spaces[2].counterpart, None, "ordinary Space → None");
     }
 
     fn state_with_one_space() -> ClientState {
@@ -3178,6 +3290,7 @@ mod tests {
                         joined: false,
                     },
                 ],
+                counterpart: None,
             }],
             last_local_events: Default::default(),
         }

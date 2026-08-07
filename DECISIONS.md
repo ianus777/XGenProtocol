@@ -5474,3 +5474,43 @@ J-682 flagged two sites as *"genuinely arguable and deliberately not declared"*.
 ### Provenance (`D-141`)
 
 🔒 **THE RULING ON THE ONE STRING IS JOE'S, UTTERED** (*"quasi private message, just for user"* — the empty-thread line is client-owned). **The GENERALISATION into a two-class distinction, and the wording, are CHAT'S, adopted by Joe on recommendation** (2026-08-06: *"by your recomm. agree with re-stylising and wording"*). ⚠️ ***A ruling on one string and a rule about a class are different acts; recorded separately so a later revisit reads it correctly.***
+
+---
+
+## D-145 — A superseded factual claim in an ACTIVE record is annotated at the site; a document never locked is repaired instead
+
+**Date:** 2026-08-06 · **Layer:** project-management discipline (canonical records) · **Ref:** `D-131` (**SIBLING, not parent** — the boundary is drawn below), `D-065` (honest over polite), `D-141` (provenance), `D-140` (an undesignated rule gets re-derived), `D-143` (the portmanteau pathology this entry is an instance of) · **Journal:** J-686 · **Code:** none.
+
+### The rule
+
+🔒 **When a factual claim in a record is proven false or superseded — a count, a census, a mechanism, a cost statement, a stated reason for a disposition — the disposition depends on whether the document has a DOWNSTREAM READER:**
+
+| document | disposition |
+|---|---|
+| **ACTIVE / COMPLETED / ARCHIVED** — locked, cited, or relied on by anything outside its author | 📌 **ANNOTATE at the site.** The false text stays; the annotation states what was measured, when, and by whom. **Never silently repaired.** |
+| **PENDING and never locked** — a draft read only by its author and its reviewer, executed by nobody, cited by nothing | 🔧 **REPAIR.** Bump the version, note the change in the version's own record. |
+
+🔑 ***Annotating a draft nobody has relied on is ceremony, not discipline.*** The annotation exists to protect a reader who acted on the false claim. **Where there is no such reader, the annotation only makes the document harder to execute.**
+
+### 🛑 WHY THIS IS NOT `D-131`, AND WHY IT IS NOT A WIDENING OF IT
+
+**`D-131`'s object is a CITATION** — *"a citation to a canonical record (`J-nnn`, `D-nnn`, `N-nnn`) … proven not to resolve."* **A wrong count is not a citation. Neither is a mechanism that does not exist, a false census, or a cost statement that does not hold.**
+
+🔑 **AND THE JUSTIFICATIONS DIFFER, WHICH IS WHY THIS IS A SIBLING RATHER THAN A SUB-CASE.** `D-131` annotates because *"a broken citation is not an edit, it is a question"* and repairing on discovery *"turns a bounded documentation pass into an unbounded archaeology pass"*. ⚠️ **That argument does not apply here:** with a superseded factual claim the truth has usually just been **measured** — there is no archaeology and no guess. **The reason to annotate is different: a disposition's REASONING must stay legible, so a later reader can see what it was decided on and why it moved.** *`D-131` protects against inventing an answer; `D-145` protects against erasing a question that was already answered wrongly.*
+
+### The origin, and it is an instance of its own subject
+
+⚠️ **CHAT CITED `D-131` FIFTEEN TIMES ACROSS TWO DOCUMENTS ON 2026-08-06 FOR CLAIMS THAT WERE NOT CITATIONS** — ten in `M_RP_MEMBER_ACT_PHASE0.md`, five in `RUNBOOK_MEMBER_ACT_LEG_AB.md`: the `onActivate`-only mount (a mechanism that does not exist) · *"two write sites"* (a wrong count) · *"every one reads …"* (a false census) · *"the latch is untouched"* (a false cost) · *"found by Leg B's name scan"* (a contradiction).
+
+🔑 ***THAT IS THE `D-065` PORTMANTEAU PATHOLOGY — an adjacent rule welded onto a designation that does not state it — committed ONE DAY after `D-143` was minted for exactly that shape, by the same author, fifteen times.*** 📌 **The pre-existing citations are NOT swept** (`D-131` itself, and `D-143`'s precedent): a designation minted to stop future conflation does not rewrite the past that lacked it. They are annotated where work reaches them.
+
+### Boundary — what this does NOT cover
+
+- **A broken citation** → `D-131`, unchanged and untouched.
+- **A claim nobody has yet proven false.** This fires on *proven*, not *suspected*; a suspicion is `§8`-shaped, not an annotation.
+- **Deciding WHAT the claim should have said.** Where that needs investigation, `D-131`'s bounded-pass discipline applies by analogy: state what was measured, not a guess.
+- **A status header.** `Status:` and `Version:` are state, not claims, and move normally.
+
+### Provenance (`D-141`)
+
+⚠️ **THE WORDING, THE BOUNDARY AND THE `D-131` DISTINCTION ARE ALL CHAT'S. Joe adopted on *"go"* after the split was put to him — ADOPTED, NOT EXAMINED.** 📌 *He did supply the question that produced it — "what will you do with that error in the documents? i suppose it has to be fixed, isn't it?" — and that instinct is the second row of the table.*

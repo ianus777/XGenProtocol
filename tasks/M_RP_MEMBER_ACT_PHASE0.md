@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — the members panel acts: LMC opens the DM, RMC opens the menu — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.9  
+> Version: 1.10  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-06  
 > Language: EN  
@@ -353,6 +353,23 @@ The third (**cross-node invite discovery**) is a **measurement nobody has taken*
 📌 **COST:** one field · two write sites (`ops.rs:660` normal, `:970` DM) · the TS mirror · ~5 lines of backfill. **Cargo floor. IN LEG B, pulled forward from Leg E.**
 
 🔒 **AMENDED 2026-08-06 — CLAIR'S LEG 0-bis **F-A**: THE BACKFILL GAINS A SELF CASE, AND THE SELF LOOKUP MOVES ONTO THE FIELD WITH EVERY PEER.** The peer arm parses `name.strip_prefix("DM with ")`; **the self thread's stored name is the bare literal `"self"` (`ops.rs:965-966`), which has no prefix and would yield `counterpart = None`** ⇒ the field scan finds nothing ⇒ `create_dm_space` pushes unconditionally (`ops.rs:970`) ⇒ **a second self thread.** ⇒ **backfill rule: `name == SELF_THREAD_LABEL ⇒ counterpart = identity_id`**, feasible because `load_or_default_state` already receives `identity_id` (`ops.rs:59-63`). ⇒ ***after the migration there is ONE lookup rule for every row in the panel, and the name scan at `ops.rs:1042` is off the UI path entirely.*** 📌 **`self_open` itself stays untouched and CLI-tested (`OQ6-E2` point 4).**
+
+🛑 **ANNOTATED 2026-08-06 FROM CLAIR'S RUNBOOK READ — THREE CLAIMS IN THIS DISPOSITION DID NOT SURVIVE MEASUREMENT. ANNOTATED AT THE SITE, NEVER REPAIRED (`D-145`).**
+
+**① *"TWO WRITE SITES"* IS RIGHT FOR PRODUCTION AND UNDERSTATES THE COMPILE SURFACE.** Measured: **five `KnownSpace { … }` literals** — `ops.rs:660` and `:970` (production) plus **three test fixtures**: `desktop.rs:1204`, `ops.rs:3127`, `ops.rs:3164`. 🔑 ***`#[serde(default)]` fixes DESERIALISATION, not struct-literal construction*** — every literal must supply the field or the crate does not compile. *Independently re-censused by Clair across all four crates; no `..Default`-spread or non-inline construction exists.*
+
+**② K3 *CONTAINS* THE NAME-INFERENCE UNSOUNDNESS TO ONE MIGRATION; IT DOES NOT *REMOVE* IT (Clair's F3).** The backfill's self arm still uses the exact free-form predicate K1 was refused for (`role == "owner" && name == SELF_THREAD_LABEL`) and the peer arm infers DM-ness from `strip_prefix("DM with ")` — **both keyed on a field `create_space` lets a user write** (`ops.rs:662`). ⇒ a legacy owner-Space literally named `self`, or `DM with X`, **gets a spurious `counterpart` at migration.** Bounded to constructible-but-unusual legacy data, one-time, and consistent with `D-143`'s own wording (*"the parse exists once, in a migration"*) — but this document's occasional phrasing that K3 makes the lookup **sound** is stronger than the mechanism delivers.
+
+🛑 **③ AND THE ONE THAT MATTERS: K3 WAS ADOPTED OVER K2 TO PREVENT THE DUPLICATE-DM CASE, AND AS SITED IT DOES NOT PREVENT IT.** This disposition's own third ground above reads *"with `counterpart: None` the scan finds nothing ⇒ clicking DAVE creates a SECOND DM Space"*. **Measured: there are TWO loaders and they are disjoint.**
+
+| loader | callers | backfill? |
+|---|---|---|
+| `ops.rs:59 load_or_default_state` | seven **state-WRITE** sites (`:659` `create_space`, `:743`, `:961` `create_dm_space`, `:1038` `self_open`, `:1641`, `:1778`) | the migration was written **here** |
+| `app.rs:4613 load_client_state` | the **READ** path — `ops::whoami :200`, `status :226`, **`spaces :249`**, `rooms :270`, plus `aicontrol.rs:265`, `events_pipe.rs:234` | 🛑 **plain `serde_json::from_str`, NONE** |
+
+⇒ `get_spaces` (`desktop.rs:625`) → `ops::spaces` → `load_client_state` ⇒ **the UI reads the UNMIGRATED path.** First launch after Leg B: `counterpart: null` for `DM with …sno_FWmw` → Leg C's frontend scan over `spacesState.spaces` misses → `create_dm_space` (no dedup, `:970`) → ***the duplicate this disposition exists to prevent.*** And `create_dm_space`'s own backfill runs **after** the scan already missed.
+
+🔒 **JOE RULED L2, 2026-08-06 — THE TWO LOADERS ARE UNIFIED**, so one loader carries one migration. ⚠️ **L1 (backfill both loaders) was refused under `D-143`:** two migrations that must stay identical forever with nothing enforcing it is **a claim that can silently go false** — the unsound cheap option. 📌 **K3 is NOT reversed. Its stated reason simply did not hold until L2 joined it**, and that is recorded rather than smoothed so a later revisit reads the disposition accurately.
 
 ⚠️ **CHAT'S v1.2 RECOMMENDATION WAS *"K1 for Leg B, K2 folded into Leg E"* AND IT IS SUPERSEDED, NOT AMENDED.** Clair's **F1** was right that the scan is buildable today; Chat was right that the relief was borrowed; **the conclusion drawn from both was wrong.** 🔑 ***THIRD RECOMMENDATION-INVERSION OF THIS ARC — SEE §8 ITEM 7 FOR THE MECHANISM THEY SHARE.***
 

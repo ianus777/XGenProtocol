@@ -48,6 +48,14 @@ if ($dirty.Count) {
 
 $rx = '^\s*(pub\s+)?([a-z_]*(_id|_xgid|_node|_identity|_sender|_space|_room|_event|_thread|_author|_owner|_actor|_by)|id|xgid|sender|identity|node|space|room|event|thread|author|owner|actor|home_node|target)\s*:\s*(Option<)?String'
 
+# KNOWN BLIND SPOT, measured 2026-08-06 (M-RP-MEMBER-ACT Leg A/B read, Clair's Finding 2).
+# This regex is NAME-KEYED, so an XGID-bearing String whose identifier matches none of the
+# suffixes above is INVISIBLE to the gate. Concrete live example: `KnownSpace.counterpart`
+# (an identity XGID) does NOT match, while `counterpart_id` WOULD. A PASS therefore means
+# "nothing NAMED like a slot is untyped" - it does NOT mean "no untyped XGID slot exists".
+# Do not read a pass as classification. Whether D-137's mechanism should catch this is
+# open and Joe's; recorded here rather than silently widened (D-145).
+
 # File set comes from the INDEX, not the filesystem: Get-ChildItem would sweep untracked
 # scratch files and count them as production slots (J-661).
 $tracked = @(git ls-files -- 'xgen-common/*.rs' 'xgen-core/*.rs' 'xgen-client/*.rs' 'xgen-node/*.rs' |

@@ -8,6 +8,55 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-686 — the runbook's migration never reached its consumer, and `D-131` had been cited fifteen times for a rule it does not state
+
+**Date:** 2026-08-06 · **Seats:** Clair (adversarial read of the runbook, no authority to code) · Chat Claude (independent cross-check, the L2 design, the records) · Joe (L2, uttered; `D-145`, delegated; the push) · **Code:** `xgid-slot-gate.ps1` comment only — zero `.rs`, zero `ui/**` · `DECISIONS.md` **D-144 → D-145** · `tasks/RUNBOOK_MEMBER_ACT_LEG_AB.md` v1.0 → **v1.1** · `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.9 → **v1.10** · ROADMAP v6.73 → **v6.74**. **ONE new `D`. No new `N`.**
+
+### 🛑 FINDING 1 — THE MIGRATION WAS SITED ON A LOADER THE UI NEVER CALLS
+
+**There are TWO loaders in `xgen-client` and they are disjoint.** Re-measured by Chat, every link:
+
+| loader | callers | migration? |
+|---|---|---|
+| `ops.rs:59 load_or_default_state` | **seven STATE-WRITE sites** — `:659` `create_space`, `:743`, `:961` `create_dm_space`, `:1038` `self_open`, `:1641`, `:1778` | the runbook wrote it **here** |
+| `app.rs:4613 load_client_state` | the **READ** path — `ops::whoami :200`, `status :226`, **`spaces :249`**, `rooms :270`, `aicontrol.rs:265`, `events_pipe.rs:234` | 🛑 plain `serde_json::from_str`, **none** |
+
+⇒ `get_spaces` (`desktop.rs:625`) → `ops::spaces` → `load_client_state`. 🔑 ***THE UI READS THE UNMIGRATED PATH.*** First launch after Leg B: `counterpart: null` for `DM with …sno_FWmw` → Leg C's frontend scan misses → `create_dm_space` (no dedup, `:970`) → **the duplicate DM.** And `create_dm_space`'s own backfill runs **after** the scan already missed.
+
+⚠️ ***K3 WAS ADOPTED OVER K2 SPECIFICALLY TO PREVENT THAT DUPLICATE, AND AS SITED IT DID NOT PREVENT IT.*** **The migration never reached the consumer it exists to serve.** 📌 **And gate 4 was not executable either** — it asked for a proof no exposed command could give, conflating *parses* (all `None`) with *backfilled* (`Some`). **Same species as F-C: a mechanism asserted without being traced to the site that runs it.**
+
+🔒 **JOE RULED L2 — UNIFY THE LOADERS.** L1 (backfill both) was refused under `D-143`: **two migrations that must stay identical forever with nothing enforcing it is a claim that can silently go false.** ⚠️ **The two loaders differ in THREE ways that must all survive** — missing file (`bail!` vs default), corrupt file (`Err` vs default), and required args — so v1.1 keeps both behaviours behind one `read_and_migrate` body rather than collapsing six call sites.
+
+### 🔑 FINDING 2 — THE GATE PREDICTION WAS INVERTED, AND THE TRUE ANSWER IS MORE INTERESTING
+
+The runbook predicted `xgid-slot-gate` would flag `counterpart` and told Clair to escalate. **Tested directly against the regex at `xgid-slot-gate.ps1:49`: `pub counterpart: Option<String>` → NO MATCH.** (`space_id` → match; **`counterpart_id` → match**.) ⇒ the escalation **could never have fired**.
+
+🛑 **The pass is correct in outcome and wrong in reason: `counterpart` is a genuinely XGID-bearing `String` that escapes classification because THE GATE KEYS ON THE NAME.** ***A `D-137` PASS means "nothing NAMED like a slot is untyped" — not "no untyped XGID slot exists".*** Annotated in the script under `D-123`; **whether `D-137`'s mechanism should be widened is Joe's**, filed, gating nothing.
+
+### ⚠️ FINDING 3 + a serialisation note, both accepted
+
+**K3 CONTAINS the name-inference unsoundness to one migration; it does not REMOVE it.** Both arms still key on a field `create_space` lets a user write (`ops.rs:662`), so a legacy owner-Space named `self` — or `DM with X` — gets a spurious `counterpart`. Bounded, one-time, **consistent with `D-143`'s own wording** (*"the parse exists once, in a migration"*) — but the Phase-0's occasional *"removes the unsoundness"* is stronger than the mechanism delivers. 📌 **And `#[serde(default)]` without `skip_serializing_if` means every Space now serialises `"counterpart":null`** — the wire-shape test at `desktop.rs:1203` survives **only because it uses `assert!(json.contains(…))`**.
+
+✅ **AND THE ONE NUMBER THE KICKOFF TOLD HER TO DOUBT HELD.** B9's **five `KnownSpace` literals** survived her independent census across all four crates. *The instruction to distrust it was right to give and the number was right.*
+
+### 🛑 `D-145` — AND THE ENTRY IS AN INSTANCE OF ITS OWN SUBJECT
+
+Joe asked what happens to the errors in the documents. **The answer splits on whether a document has a downstream reader** — the **runbook** (PENDING, never locked, executed by nobody, cited by nothing) is **REPAIRED** to v1.1; the **Phase-0** (ACTIVE, carrying dispositions Joe uttered) is **ANNOTATED**.
+
+🔑 **BUT THE RULE CHAT HAD BEEN CITING FOR THAT ALL SESSION DOES NOT SAY IT.** `D-131`'s object is *"a **citation** to a canonical record … proven not to resolve"*. **Measured: Chat cited `D-131` fifteen times across two documents for things that are not citations** — a mechanism that does not exist, a wrong count, a false census, a false cost statement, a contradiction.
+
+⚠️ ***THAT IS THE `D-065` PORTMANTEAU PATHOLOGY — AN ADJACENT RULE WELDED ONTO A DESIGNATION THAT DOES NOT STATE IT — COMMITTED ONE DAY AFTER `D-143` WAS MINTED FOR EXACTLY THAT SHAPE, BY THE SAME AUTHOR, FIFTEEN TIMES.*** 📌 **The justifications also differ**, which is why `D-145` is a **sibling** and not a widening: `D-131` annotates to avoid **unbounded archaeology and an invented answer**; `D-145` annotates to keep **a disposition's reasoning legible**, and here the truth was just measured, so there is no archaeology. **Existing `D-131` citations are not swept.**
+
+### STATE
+
+✅ **Re-measured at open:** HEAD `99bb266` = `origin/main`, one untracked file (the runbook, deliberately uncommitted). ✅ **Floors untouched and not re-run, stated:** cargo **1596/0/62 × 56** · svelte-check **0/34/15** · catalogue **435**. ✅ **`xgid-slot-gate` re-run after the comment insert: PASS, 74 slots, unmoved** · **`roadmap-format-gate` PASS.**
+
+🟢 **`M-RP-MEMBER-ACT` REMAINS PLAY AND OPEN. STILL NO CODE.** 🔓 `OQ5` unchanged, no Chat recommendation on any of its three items. ⚠️ **The runbook is v1.1 and STILL NOT LOCKED — L2's step is new text nobody outside its author has read** (§8 item 9).
+
+→ J-686 · `D-145` · runbook v1.1 · Phase-0 v1.10 · ROADMAP v6.74.
+
+---
+
 ## Entry J-685 — Leg 0-bis: Clair's second read finds four, Chat confirms four and draws a fifth, and the fourth pricing of OQ1 was Chat's own
 
 **Date:** 2026-08-06 · **Seats:** Clair (adversarial read of v1.8, no authority to code) · Chat Claude (the brief, independent re-measurement of every claim, the fifth finding, the dispositions) · Joe (G1, uttered; the milestone-split call, DELEGATED; the push) · **Code:** NONE — zero `.rs`, zero `ui/**`, nothing launched · `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.8 → **v1.9 ACTIVE**. **No new `D`, no new `N`.**

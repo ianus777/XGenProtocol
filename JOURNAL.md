@@ -8,6 +8,52 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-684 — the roadmap tree regrew for five commits and Joe caught it by looking; the sweep finally leaves a guard behind
+
+**Date:** 2026-08-06 · **Seats:** Joe (found it, twice, by reading the file; the push) · Chat Claude (census, repair, the gate) · **Code:** `roadmap-format-gate.ps1` NEW — tooling, zero `.rs`, zero `ui/**` · `docs/ROADMAP.md` v6.71 → **v6.72**. **No new `D`, no new `N`.**
+
+Joe: *"there are once again lines with improper format"*, then — when the first census answered only the icons — ***"i meant only owes and trigger is allowed after ↳"***. 🔑 **The second sentence is the real finding; the first was the symptom I had already narrowed too far.**
+
+### THE THREE RULES BROKEN, ALL QUOTED FROM THE FILE ITSELF
+
+- **L38** — *"This document carries the six symbols above and nothing else."*
+- **L40** — *"State symbols belong on NODE LINES ONLY … An annotation line (`↳`) carries no state symbol."*
+- **L402** — ***"These two are the only annotations the tree admits"*** (`trigger:` and `Owes:`); anything else is narrative and *"belongs in `JOURNAL.md` behind the node's `J-nnn`."*
+- **R-5** (L411) — node description under ~160 chars, link chain exempt (R-5a).
+
+### MEASURED, AND EVERY VIOLATION WAS MINE
+
+| class | count | commits |
+|---|---|---|
+| illegal icons (`🔒` `🛑` `🔓` `🔑` `⚠️`) | 12 lines | `344fe45` · `84b0101` · `d69c830` · `f7226b4` · `51b784a` |
+| state symbol on a standalone `↳` line | 3 lines | `84b0101` |
+| narrative annotation — neither `trigger:` nor `Owes:` | 12 lines | `344fe45` · `84b0101` · `d69c830` |
+| node description over the R-5 bound (342 and 403 chars) | 2 lines | `3bde951` · `7a27140` |
+
+✅ **Not touched:** `⚫` at the *Near future* head is **J-662's own recorded exception** (documented at L43), and `①②③` are **enumeration marks, explicitly exempt by L42** — my first census over-flagged them.
+
+🔑 **THE SPECIES IS EXACTLY WHAT J-663 DELETED.** That entry removed **168 narrative annotation lines — 61 KB — after the file regrew from 68,890 to 119,889 bytes in eight days.** ⚠️ ***The damage this time is small because Joe read the file, not because I stopped doing it.*** The two nodes he pasted went **16 lines → 5**; everything removed already exists in `JOURNAL.md` behind J-679 through J-683.
+
+### 🛑 THE ROOT CAUSE IS `D-136`, SECOND INSTANCE, ON THIS EXACT FILE
+
+**J-662 and J-663 were SWEEPS. Neither left a GUARD.** `D-136` states it outright — *a completed sweep is not a standing rule; a convention that is not enforced regresses silently* — and nothing checked a `↳` line at write time, so I regrew the tree across **five commits** without once noticing. ⇒ **`roadmap-format-gate.ps1`**, enforcing all four rules over the tree fence only, run before any commit touching the file. 🔑 **It proved it can FAIL before it passed** — its first run caught the two R-5 lines above, which I then fixed rather than baselined around, ***because a gate that ships reporting a known failure trains its reader to ignore it.***
+
+### ⚠️ THREE OF MY OWN CENSUSES LIED, AND THE WORST ONE RETURNED "NOTHING TO FIX"
+
+① The first over-flagged enumeration marks that L42 exempts. ② The position check returned a clean **`0`** — because the comparison set was built with **`[char]0x1F7E2`, and `0x1F7E2` overflows `char`**, silently corrupting it; re-run with surrogate pairs it is **3**. ③ Earlier the same session a byte census issued immediately after a write reported **`len=0`** on a 60,502-byte file. 🔒 ***All three returned complete, plausible, clean-looking answers, and the middle one returned the answer that means "stop looking".*** The gate now builds the six-symbol set via explicit surrogate pairs with that failure written into its comment.
+
+📌 **And the gate itself was nearly mis-sited:** I created a `scripts/` directory before grounding where house tooling lives — `cdp-debug.ps1`, `xgid-slot-gate.ps1` and the three `run-*.ps1` are all at the **repo root**. Moved before commit; `scripts/` removed.
+
+### STATE
+
+✅ Tree fence lines 69–370, **gate PASS**. ✅ **Floors untouched and not re-run, stated rather than skipped:** cargo **1596/0/62 × 56** · svelte-check **0/34/15** · catalogue **435** · zero `.rs`, zero `ui/**`.
+
+🟢 **`M-RP-MEMBER-ACT` remains PLAY and OPEN, no code written.** 🔓 Unchanged: `OQ5`'s three items · **F-C is Joe's and gates the Leg A/B runbook** · Phase-0 v1.9 folds Clair's five Leg 0-bis findings.
+
+→ J-684 · ROADMAP v6.72.
+
+---
+
 ## Entry J-683 — `D-143` and `D-144` minted: the undesignated principle leaves `D-065`'s portmanteau, and the copy trust boundary leaves a Phase-0
 
 **Date:** 2026-08-06 · **Seats:** Joe (both mintings, adopted on recommendation; the push) · Chat Claude (grounding, measurement, wording, records) · Clair **stood down** · **Code:** NONE — zero `.rs`, zero `ui/**`, nothing launched · `DECISIONS.md` **D-142 → D-144** · `docs/ROADMAP.md` v6.70 → **v6.71** · `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.7 → **v1.8 ACTIVE** · `CLAUDE.md` PLAY. **TWO new `D`. No new `N`.**

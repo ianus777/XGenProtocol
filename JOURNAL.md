@@ -8,6 +8,61 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-685 — Leg 0-bis: Clair's second read finds four, Chat confirms four and draws a fifth, and the fourth pricing of OQ1 was Chat's own
+
+**Date:** 2026-08-06 · **Seats:** Clair (adversarial read of v1.8, no authority to code) · Chat Claude (the brief, independent re-measurement of every claim, the fifth finding, the dispositions) · Joe (G1, uttered; the milestone-split call, DELEGATED; the push) · **Code:** NONE — zero `.rs`, zero `ui/**`, nothing launched · `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.8 → **v1.9 ACTIVE**. **No new `D`, no new `N`.**
+
+She certified **v1.1**; the document had reached **v1.8** — `git diff --stat 344fe45..fd827d2` = **208 insertions / 14 deletions** across three commits. Her brief was one question: **do the eight dispositions compose?** 🛑 **THEY DO NOT.**
+
+### FOUR FINDINGS, ELEVEN CLAIMS RE-MEASURED BY CHAT, ELEVEN CONFIRMED
+
+| finding | what it is |
+|---|---|
+| 🛑 **F-A** | **`OQ6-E2` × `OQ8-K3` do not compose for the SELF row.** Leg B keys the scan on the FIELD; `OQ6-E2` point 1 says self is found by the NAME scan — `ops.rs:1042`, keyed on the same free-form user-writable field `create_space` writes at `:662`. ***That is exactly the unsoundness K1 was refused for, and E2 put it on the click path.*** `create_dm_space` pushes with **no dedup** (`:970`) ⇒ a failed lookup mints a second self thread |
+| 🛑 **F-B** | **`OQ7-W4`'s R5 copy has no display path.** `stream-panel.svelte:155-157` branches on `effectiveRoomId == null` alone; its ten imports contain no draft store. Leg C-bis owned the **const** and not the **branch** |
+| 🛑 **F-C** | **OQ1 closed on a mechanism `entity-panel` does not offer** — Chat's error, below |
+| 🛑 **F-D** | **`OQ3-A3`'s filter must be render-only** — three readers of `spacesState.spaces`, one of them `resolveLatched` |
+
+⚠️ **ONE CORRECTION TO HER, MEASURED:** F-A's *"orphaning Joe's live one"* is **not reachable** — his live state holds five Spaces and **no self thread**, and a post-K3 self thread gets `counterpart` at creation. 🔑 **The backfill half shrinks; the LOOKUP CONTRADICTION is the load-bearing half and stands untouched.** *She scoped the finding to exactly that on the hand-back, unprompted, and named it a Rule 5 lapse of her own.*
+
+🛑 **AND F-D IS WORSE THAN SHE STATED. `canSend` DERIVES FROM `resolveLatched`** (`room-latch.svelte.ts:73-75`) ⇒ filtering DMs out of the **store** does not merely blank R5/R6/R7, ***it makes every DM UNSENDABLE via Lock #12.*** **The milestone whose purpose is to start DMs would have shipped DMs you cannot write in.**
+
+### 🔑 F-E — THE FIFTH, WHICH CHAT DREW FROM HER "MINOR"
+
+**`OQ2-S2`'s cost statement is false.** S2 was taken on *"the latch is **untouched**"*, against S1 whose entire objection was blast radius on the shared latch. **`canSend` lives AT `room-latch.svelte.ts:73`. Making it two-armed IS editing the latch.** S2 is still the smaller change — one arm versus a new state kind — but ***the sentence that won it was wrong, and OQ2 is an ARCHITECTURE disposition Joe adopted on "go by your recomms".*** The disposition is not reversed; the record is corrected (`D-131`).
+
+### 🛑 F-C IS CHAT'S, AND IT IS THE FOURTH TIME OQ1'S GUARD MOVED
+
+Chat wrote that the cheapest guard is *"an `onActivate`-only mount, NOT a change to `entity-panel`"* and closed OQ1 **"no longer provisional"** on it. **Measured: `selectAt` writes `selected` (`:105`) and calls `onActivate` (`:106`) in one body, and `interactive` gates BOTH (`:177`). The mount does not exist.** ⚠️ ***The document itself said "to be confirmed against `entity-panel`'s prop surface" and the confirmation was never run — §8 item 7 firing inside the disposition that names it, in the same edit that declared the rule closed.***
+
+🔑 **THE MEASUREMENT FOUND A LARGER SHAPE: `interactive` FUSES THREE CONCERNS** — the ARIA contract, the click wiring, and the `selected` write — **and Leg C needs two of the three.** `M-RP-PANEL-INERT`'s own doc comment diagnosed this and solved it by switching all three off together. 📌 **And `rooms-panel`/`spaces-panel` are only ACCIDENTALLY correct:** their parent always confirms the optimistic write. ***R7's failure path is the first place it isn't confirmed.***
+
+### 🔒 G1, UTTERED BY JOE — AND CHAT REVERSED ITS OWN SITING RECOMMENDATION
+
+**G1: the `core` prop split.** `interactive` keeps ARIA + clicks; a new flag suppresses the write. 🔒 **`D-143` decides it rather than preference** — G2 (R7-side `bind:selected` + reset) creates **two writers with no defined precedence**, a claim that can go false with nothing to decide it ⇒ unsound. ***G2 is not a guard; it is the §4.1 defect plus a correction race.***
+
+⚠️ **CHAT RECOMMENDED OWN-MILESTONE TWICE, THEN REVERSED TO RIDE-LEG-C ON TWO ARGUMENTS IT HAD NOT DRAWN:** ① an own-milestone G1 **ships a prop with zero consumers** — `D-065`'s no-empty-machinery case, and `D-143` hands the floor to `D-065` where the cheap option is sound; ② the attribution argument **dissolves at commit granularity**, since `D-074` atomic commits already separate a `core` change from its consumer. 📌 **`M-RP-PANEL-INERT` is not the precedent claimed — it got a milestone for CHANGING SHIPPED BEHAVIOUR.** ⇒ **G1 is Leg C's first commit, measured alone; the runbook MEASURES whether catalogue 435 moves rather than predicting it.**
+
+🔓 **SEAT, CHECKED RATHER THAN ASSUMED.** Joe: *"i think this is your."* **`D-123`:4610 says otherwise** — he owns *"what gets built and in what order"*, and `xgen-dock-engine-phase0.md:19` grants Chat milestone split **for that arc only**, an exception that proves the default. ⇒ **recorded as DELEGATED (`D-141`), not as Chat's by right.**
+
+### ⚠️ AND THE BRIEF CHAT HANDED HER WAS ITSELF DEFECTIVE
+
+The kickoff listed four interactions as *"verify, do NOT re-derive"*. **`OQ6-E2 × OQ8` was on that list and is settled for PEERS ONLY.** 🔑 ***Had she trusted it, F-A would have shipped.*** 🔒 **FORWARD: a verify-don't-re-derive list is an assertion like any other and gets no exemption from the read it is handed to.**
+
+### DISPOSITIONS, ALL FOLDED INTO v1.9
+
+**F-A** — Chat's under `D-123` + `D-143`: the self lookup keys on `counterpart` like every peer; the backfill gains `name == SELF_THREAD_LABEL ⇒ counterpart = identity_id` (feasible — `load_or_default_state` receives `identity_id`, `ops.rs:59-63`). *Written even though no self thread exists today, because "nobody has one" is not a property code can rely on.* · **F-B** → Leg C-bis gains `stream-panel.svelte`'s draft branch · **F-C** → Leg C's first commit, floor gains catalogue · **F-D** → a written render-only lock on Leg E · **F-E** → `canSend` gains a leg, S2's cost line corrected.
+
+### STATE
+
+✅ **Re-measured at open:** clean tree, HEAD `fd827d2` = `origin/main` by `ls-remote`. ✅ **Floors untouched and not re-run, stated rather than skipped:** cargo **1596/0/62 × 56** · svelte-check **0/34/15** · catalogue **435**. ✅ **`roadmap-format-gate.ps1` PASS.**
+
+🟢 **`M-RP-MEMBER-ACT` REMAINS PLAY AND OPEN. STILL NO CODE.** 🔓 **`OQ5` remains the only open disposition and Chat has made no recommendation on any of its three items.** ⇒ **the Leg A/B runbook is now writable.**
+
+→ J-685 · Phase-0 v1.9.
+
+---
+
 ## Entry J-684 — the roadmap tree regrew for five commits and Joe caught it by looking; the sweep finally leaves a guard behind
 
 **Date:** 2026-08-06 · **Seats:** Joe (found it, twice, by reading the file; the push) · Chat Claude (census, repair, the gate) · **Code:** `roadmap-format-gate.ps1` NEW — tooling, zero `.rs`, zero `ui/**` · `docs/ROADMAP.md` v6.71 → **v6.72**. **No new `D`, no new `N`.**

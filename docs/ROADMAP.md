@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.72  
+> Version: 6.73  
 > Date: May 2026  
 > **Last updated**: 2026-08-06  
 > Language: English  
@@ -306,9 +306,9 @@ XGen Protocol
 │   │   │   ↳ trigger: Legs A–C land
 │   │   └── 🟡 **Leg E records + close**
 │   │       ↳ trigger: Leg D lands
-│   ├── 🟢 **M-RP-MEMBER-ACT** — the members panel acts: LMC opens the DM, RMC opens the menu · Phase-0 `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.8 · audit `tasks/AUDIT_MEMBERS_PANEL.md` · `DECISIONS.md` D-143 + D-144 · J-683 (J-680, J-681, J-682)
+│   ├── 🟢 **M-RP-MEMBER-ACT** — the members panel acts: LMC opens the DM, RMC opens the menu · Phase-0 `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.9 · audit `tasks/AUDIT_MEMBERS_PANEL.md` · `DECISIONS.md` D-143 + D-144 · J-685 (J-680, J-681, J-682, J-683)
 │   │   ↳ Owes: **`OQ5`** — the partial first send · erased members are clickable and a DM to one would go nowhere · cross-node invite discovery. Chat has made no recommendation on any of it
-│   │   ↳ trigger: Joe rules **F-C** — the `entity-panel` guard siting — then Phase-0 v1.9 and the Leg A/B runbook
+│   │   ↳ trigger: none — Leg 0-bis closed, all five findings folded; the Leg A/B runbook is writable
 │   ├── ✅ **M-RP-TAIL8** — the unresolved-row fallback shows a short tail, not the whole key · phase-0 `tasks/M_RP_TAIL8_PHASE0.md` v1.3 · runbook `tasks/RUNBOOK_TAIL8.md` v1.4 · `165b821` · **CLOSED J-679** (J-678) → discharges `M_RP_MEMBERS.md` §6a, open since J-643
 │   │   ↳ Owes: **`N-168`** — the erased row's `line-through` runs through the leading `…`; ship-and-file (Joe, `D-141`) · V4's empty-guard sub-case not driven, unreachable by product action
 │   ├── ✅ **M-RP-IDENTITY-RESOLUTION** — what a member row shows before the client knows who it is · **CLOSED J-675** (J-644)

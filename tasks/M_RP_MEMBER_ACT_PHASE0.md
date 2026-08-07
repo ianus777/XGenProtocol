@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — the members panel acts: LMC opens the DM, RMC opens the menu — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.8  
+> Version: 1.9  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-06  
 > Language: EN  
@@ -107,6 +107,12 @@ Verbatim from J-591:
 
 ⇒ **THE ENTIRE RESIDUE IS AN ERROR PATH.** Not a frame, not a navigation transition. 📌 **And the cheapest guard for it is that the click does not write `selected` at all until the open succeeds** — an `onActivate`-only mount, **not a change to `entity-panel`** ⇒ ***the `ui/core` touch F5 warned about may not be needed at all.*** *To be confirmed against `entity-panel`'s prop surface when Leg C's runbook is written; the direction is established, the confirmation is not.*
 
+🛑 **CONFIRMED 2026-08-06 AND IT RESOLVES AGAINST THE PARAGRAPH ABOVE — ANNOTATED, NOT REPAIRED (`D-131`). CLAIR'S LEG 0-bis **F-C**.** **THE `onActivate`-ONLY MOUNT DOES NOT EXIST.** Measured at `entity-panel.svelte:101-107`: `selectAt` writes `selected = it.descriptor.id` (`:105`) and calls `onActivate?.()` (`:106`) in one body, and **`interactive` gates BOTH together** (`:177`). There is no mount that takes the callback without the write. ⇒ ***the `ui/core` touch F5 warned about IS needed, and OQ1 was closed "no longer provisional" on a mechanism the code does not offer.*** 🔑 **The document itself said *"to be confirmed against `entity-panel`'s prop surface"* and the confirmation was never run before the disposition closed.**
+
+🔑 **AND THE MEASUREMENT FOUND THE REAL SHAPE, WHICH IS LARGER THAN A MISSING GUARD.** `interactive` fuses **three** separable concerns — ① the ARIA contract (`role="listbox"` vs `list`, `:171-177`), ② the click/keyboard wiring, ③ the `selected` write. **Leg C needs ① and ② and must NOT have ③, and a boolean cannot say that.** ⚠️ ***`M-RP-PANEL-INERT`'s own doc comment at `:65-73` diagnosed exactly this and solved it by switching all three OFF at once*** — *"the highlight can never be WRITTEN from inside the component … R7, whose `selected` is a data-driven DM highlight with no feedback loop, so entity-panel's own `selectAt` would drift it."*
+
+📌 **AND THE OTHER TWO CONSUMERS ARE ONLY ACCIDENTALLY CORRECT.** `rooms-panel:65` and `spaces-panel:62` both mount `{selected} {onActivate}` with `interactive` defaulting **true**, so the child writes optimistically **and** the parent sends the same value straight back down. ***The write is a duplicate that is always confirmed — until a consumer has a path where the parent does NOT confirm, which is precisely R7's failure path*** (`counterpart` stays `undefined`, `members-panel.svelte:111-112`).
+
 ⚠️ ***THREE PASSES, THREE CORRECTIONS, ONE QUESTION — §4.1 (Chat), F5 (Clair), this (Chat). EACH WAS RIGHT ABOUT WHAT IT LOOKED AT. NONE OF THE THREE CHECKED THE CLAIM AGAINST A LOCK IN THE SAME DOCUMENT.***
 
 ### 🛑 4.2 — THE DRAFT THREAD AND THE ROOM LATCH DO NOT COMPOSE, AND LOCK #12 FORBIDS THE ACT THAT CREATES THE DM
@@ -150,6 +156,28 @@ The R8 card alone is two lines (`interactive`, `onActivate`) and needs nothing e
 
 ---
 
+### 🔒 LEG 0-bis CLOSED 2026-08-06 — CLAIR'S **SECOND** ADVERSARIAL READ, OF v1.8. **ONE QUESTION: DO THE EIGHT DISPOSITIONS COMPOSE? THEY DO NOT.**
+
+🔑 **WHY IT RAN AT ALL:** she certified **v1.1**; the document had reached **v1.8**. Measured `git diff --stat 344fe45..fd827d2 -- tasks/M_RP_MEMBER_ACT_PHASE0.md` = **208 insertions / 14 deletions** across three commits. ***The document she certified was not the document a runbook would be written from.***
+
+**FOUR FINDINGS, ALL RE-MEASURED BY CHAT AND ALL CONFIRMED, PLUS A FIFTH CHAT DREW FROM HER MINOR.**
+
+🛑 **F-A — `OQ6-E2` × `OQ8-K3` DO NOT COMPOSE FOR THE SELF ROW.** Leg B says *"the scan keys on the FIELD, not the name"*; **`OQ6-E2` point 1 says self is *"found by Leg B's name scan"***. Both are in scope, and they contradict. Grounded: `ops.rs:1042` is `s.role == "owner" && s.name == SELF_THREAD_LABEL` — **a name scan, carrying the exact unsoundness `D-143`/K3 was minted to remove**, and `OQ6-E2` puts it on the click path. `create_dm_space` pushes **unconditionally** (`ops.rs:970`, no dedup), so a failed lookup **mints a second self thread**. ⚠️ **CHAT'S CORRECTION TO THE SECOND HALF:** her *"orphaning Joe's live one"* is **not reachable today** — his live state holds five Spaces (`Engineering`, `Design`, `LegBSpace`, `LegF Verification`, `DM with …sno_FWmw`) and **no self thread**; a self thread created after K3 gets `counterpart` written at creation. **The backfill half shrinks; the lookup contradiction stands untouched and is the load-bearing half.** *Clair scoped it to that herself on the hand-back.*
+
+🛑 **F-B — `OQ7-W4`'s *"R5 gets the empty-thread copy"* IS A DISPLAY PATH NO LEG OWNS.** `stream-panel.svelte:155-157` branches on `effectiveRoomId == null` alone, and its ten imports contain **no draft store**. Leg C-bis names only `composer-panel` + `echo-state` ⇒ **the const is owned, the branch that renders it is not.** 📌 **Second-order: W4's *"adds no third consumer of the draft store"* becomes R5 + R6**, not R6 alone.
+
+🛑 **F-C — OQ1 CLOSED ON A MECHANISM `entity-panel` DOES NOT OFFER.** See §4.1's annotation. **Chat's error; the fourth pricing of OQ1's guard.**
+
+🛑 **F-D — `OQ3-A3`'s DM FILTER MUST BE RENDER-ONLY, OR EVERY DM BECOMES UNREACHABLE.** `spacesState.spaces` has exactly three readers: `spaces-panel:37`, `rooms-panel:32`, **`room-latch.svelte.ts:46` (`resolveLatched`)**. ⚠️ **CHAT'S SHARPENING, AND IT IS WORSE THAN SHE STATED: `canSend` DERIVES FROM `resolveLatched`** (`room-latch.svelte.ts:73-75`) ⇒ filtering DMs out of the **store** does not merely blank R5/R6/R7, ***it makes every DM UNSENDABLE via Lock #12.*** **The panel that exists to start DMs would produce DMs you cannot write in.** ⇒ **the filter lives in `spaces-panel`'s `$derived`, never in the store.**
+
+🛑 **F-E — `OQ2-S2`'s COST STATEMENT IS FALSE (Chat, drawn from Clair's minor note).** S2 was taken on *"the latch is **untouched**; one store gains one field and one predicate gains one arm"*, against S1 whose entire objection was blast radius. **`canSend` lives AT `room-latch.svelte.ts:73`. Making it two-armed IS editing the latch.** ⇒ S2 remains the smaller change, but **the sentence that won it is wrong**, and OQ2 is an **architecture** disposition taken on *"go by your recomms"*. 📌 **`canSend` also belonged to no leg** — now Leg C-bis's.
+
+✅ **THE FOUR "VERIFY, DON'T RE-DERIVE" INTERACTIONS CHAT HANDED HER:** three verified sound; **one was defective** — `OQ6-E2 × OQ8` was listed as settled and is settled **for peers only**. 🔑 ***Had she trusted the list, F-A would have shipped.*** ⚠️ **FORWARD: a "verify, don't re-derive" list is an ASSERTION LIKE ANY OTHER and gets no exemption from the read it is handed to.**
+
+🔑 **AND §8 ITEM 7 FIRED AGAIN, INSIDE THE DISPOSITION THAT NAMES IT.** F-C is Chat closing OQ1 on an unverified mechanism **in the same edit that declared the re-check rule closed.** ***Chat's own re-reads of v1.8 had passed. Seven consecutive arcs: every real defect came from outside the text — Clair executing it, or Joe looking at a screen.***
+
+---
+
 ## §5 — OPEN, AND JOE'S. Each carries `D-121` lenses: ① user-visible impact per option, then ② resource cost.
 
 ---
@@ -185,6 +213,14 @@ The third (**cross-node invite discovery**) is a **measurement nobody has taken*
 
 📌 **P1's COST, THIRD AND CURRENT PRICING:** not *"one prop or one guard, cheapest"* (§4.1 v1.0) and not *"contingent on an unmeasured paint"* (F5). It is **a guard on the FAILURE PATH ONLY**, and its cheapest form is *the click does not write `selected` until the open succeeds* — likely **no `ui/core` touch at all.**
 
+🛑 **SUPERSEDED 2026-08-06 BY CLAIR'S F-C — THE FIFTH PRICING, AND THE FOURTH TIME IT MOVED. ANNOTATED, NOT REPAIRED (`D-131`).** The mechanism named above **does not exist** (§4.1). 🔒 **RULED: G1 — THE `core` PROP SPLIT.** `interactive` keeps the ARIA contract and the click/keyboard wiring; **a new flag suppresses the `selected` write.**
+
+🔒 **AND `D-143` DECIDES IT RATHER THAN PREFERENCE.** The alternative (G2 — R7-side `bind:selected` + local `$state` + reset in `onActivate`) creates **two writers of one piece of state with no defined precedence** ⇒ a claim that can go false with nothing to decide it ⇒ **unsound** ⇒ D-143 fires. ⚠️ ***G2 is not a guard; it is the original §4.1 defect plus a correction race — building the collision this milestone opened by diagnosing.***
+
+🔑 **G1 RIDES LEG C AS ITS FIRST COMMIT. NOT ITS OWN MILESTONE.** ⚠️ ***Chat recommended own-milestone twice and reversed on two arguments it had not drawn:*** ① an own-milestone G1 **ships a prop with ZERO consumers** until Leg C opts in — `D-065`'s no-empty-machinery case, and `D-143` explicitly hands the floor to `D-065` where the cheap option is sound; ② the attribution argument **dissolves at commit granularity** — `D-074` atomic commits already separate a `core` change from its consumer, which is why Leg C-bis exists. 📌 **And `M-RP-PANEL-INERT` is not the precedent claimed: it got a milestone because it CHANGED THE BEHAVIOUR of shipped consumers. G1 changes nobody's behaviour until Leg C opts in.** 🔓 **Seat: milestone split is Joe's by `D-123`:4610 (*"what gets built and in what order"*); the dock-engine arc grant is a scoped exception that proves the default. Joe DELEGATED this one (`D-141`) — adopted, not examined.**
+
+📌 **COST, AND ONE PIECE IS DELIBERATELY UNMEASURED:** one prop on `ui/core/.../entity-panel.svelte` · one guard in `selectAt` · **3 real consumers** (`members-panel:166`, `rooms-panel:65`, `spaces-panel:62`) **+ 8 sampler cells**. ⚠️ **Whether the catalogue floor of 435 moves at all is NOT predicted here — Leg C's runbook MEASURES it.** *The own-milestone case leaned on that floor moving, and it was never checked.*
+
 ⚠️ **WHAT REMAINS GENUINELY UNMEASURED IS NARROWER AND IS NOT A BLOCKER:** how LONG the early highlight shows before the roster catches up — the DM-open round trip. **Bounded, on the success path harmless, and unmeasurable until Leg B exists.**
 
 🔓 **AND OQ7 IS NOT ANSWERED BY THIS.** *Chat asked whether OQ1 should be held until OQ7 settled and recommended it need not be; Joe took the recommendation.* **OQ1 is stable under BOTH R1 and R2** — but **R2 additionally clears the failure case for free**, so OQ7 still has a bearing on how much guard Leg C writes. *Stated so the phrase is not later read as having settled two questions.*
@@ -211,6 +247,8 @@ The third (**cross-node invite discovery**) is a **measurement nobody has taken*
 ① Identical to S1 for the user.
 ② Smaller: the latch is untouched; one store gains one field and one predicate gains one arm. **But it creates a second scope authority** — the `D-067` drift the address-book store centralised its rules to prevent.
 
+🛑 **CORRECTED 2026-08-06 — CLAIR'S LEG 0-bis **F-E**. ANNOTATED, NOT REPAIRED (`D-131`): *"THE LATCH IS UNTOUCHED" IS FALSE.*** `canSend` lives **at `room-latch.svelte.ts:73`** and is read by `composer-panel:56`, gating `sendEnabled` at `:58`, and passed into `app_client:417`. **Making it two-armed IS editing the latch.** ⇒ S2 is **still the smaller change** — one added arm versus S1's new state kind — but ***the sentence that won it over S1 was wrong, and S1's objection (blast radius on the shared latch) applies to S2 in reduced form rather than not at all.*** ⚠️ **OQ2 is an ARCHITECTURE disposition taken on *"go by your recomms"* — Joe adopted a cost statement that did not hold. The disposition is NOT reversed; the record is corrected so a revisit reads it accurately.**
+
 **S3 — first send is not lazy for a never-contacted person: the DM Space is created on OPEN.**
 ① **Reverses `L-4`.** The recipient gets an invitation the moment you click their name. Ten curious clicks = ten Spaces on their node.
 ② Cheapest by far — no draft object at all.
@@ -229,6 +267,10 @@ The third (**cross-node invite discovery**) is a **measurement nobody has taken*
 
 📌 **Chat's recommendation: A3, sequenced last** (§6 Leg E). **And G13 is a prerequisite of A2/A3, not a footnote** — filtering on a flag that lies makes the lie load-bearing in a second place. *Whether `is_dm` means "was born a DM" or "is a DM" is undecided in the code and the field carries no comment either way (`AUDIT_MEMBERS_PANEL.md` §8).*
 
+🔒 **CONSTRAINT ADDED 2026-08-06 — CLAIR'S LEG 0-bis **F-D**, SHARPENED BY CHAT. THE FILTER IS RENDER-ONLY.** `spacesState.spaces` has **exactly three readers**: `spaces-panel:37` (tree render) · `rooms-panel:32` · **`room-latch.svelte.ts:46`, inside `resolveLatched`** — the scope every conversation region resolves through. 🛑 **AND `canSend` DERIVES FROM `resolveLatched` (`:73-75`)** ⇒ removing DMs from the **store** does not merely blank R5/R6/R7: ***it makes every DM UNSENDABLE via Lock #12.*** **The milestone whose purpose is to start DMs would ship DMs you cannot write in.**
+
+⇒ 🔒 **A3's filter lives in `spaces-panel`'s `$derived` ONLY. The store retains every DM so the latch, `canSend`, and the DM home can all still resolve them.** ⚠️ *Written here because `is_dm` naturally lands where the store is built, which is exactly the wrong place, and Leg E is appearance work where a mechanical trap is easy to walk into.*
+
 ### 🔓 OQ4 — may the R8 card ship before the DM opens?
 
 ① **Yes:** the card is useful on its own and lands weeks earlier; the cost is a click that selects but does not navigate, for one milestone's duration. **No:** nothing half-wired ever reaches the user.
@@ -244,6 +286,10 @@ The third (**cross-node invite discovery**) is a **measurement nobody has taken*
 
 🔒 **E2, ON FOUR MEASURED GROUNDS:**
 1. 🔑 **IT COSTS NOTHING NEW AND REMOVES WORK.** Self becomes a draft target like any peer — found by **Leg B's name scan** (`name == "self"` is the same lookup, `ops.rs:1039-1042`), created by **Leg C-bis's create-on-first-send**, which C-bis builds for peers anyway. ⇒ ***E1 needs a Tauri command wrapping `self_open` that exists for no other purpose; E2 needs none.***
+
+🛑 **CORRECTED 2026-08-06 — CLAIR'S LEG 0-bis **F-A**. ANNOTATED, NOT REPAIRED (`D-131`). *"FOUND BY LEG B'S NAME SCAN" CONTRADICTS `OQ8-K3` IN THE SAME DOCUMENT.*** Leg B says the scan keys on **the FIELD, not the name**; this line says self is found by **the NAME**. 🔑 **The name scan is `s.role == "owner" && s.name == SELF_THREAD_LABEL` (`ops.rs:1042`) — keyed on the SAME free-form user-writable field `create_space` writes at `ops.rs:662`. That is EXACTLY the unsoundness K1 was refused for**, and E2 puts it on the click path. ⚠️ **A runbook cannot be written from two contradictory lookup instructions**, and `create_dm_space` **pushes unconditionally with no dedup** (`ops.rs:970`) ⇒ a failed lookup **mints a second self thread**.
+
+🔒 **RESOLVED — CHAT'S, UNDER `D-123` + `D-143`, NOT ROUTED TO JOE.** *The cheap option (keep a name scan for self only) is unsound; `D-143` decides it and the user-visible surface is zero, so routing it would repeat the OQ6 error this arc already paid for.* ⇒ **the SELF lookup keys on `counterpart` like every peer**, and **`OQ8-K3`'s backfill gains a self case**: `name == SELF_THREAD_LABEL ⇒ counterpart = identity_id`. ✅ **Feasible — `load_or_default_state` already receives `identity_id` (`ops.rs:59-63`).** 📌 **Reachability measured, and it is narrower than Clair stated:** Joe's live state holds **no self thread**, and any self thread created after K3 gets `counterpart` written at creation (`ops.rs:970` is where K3 adds it) ⇒ **the backfill self-case covers only a CLI-minted pre-K3 thread. It is written anyway, because "nobody has one today" is not a property the code can rely on.**
 2. **OFFLINE, E1 FAILS AND E2 DOES NOT.** `self_open`'s create arm calls `create_dm_space`, which signs three events and **sends them over a connection with send-confirm** (`ops.rs:907-952`). ⇒ **the first click on your own row errors offline**, while a peer click opens a draft. 📌 *And the self row is always FIRST — the row most likely to be clicked while exploring.*
 3. **ONE RULE FOR EVERY ROW IN THE PANEL** ⇒ **Clair's F3 is CLOSED rather than documented.**
 4. `self_open` **stays untouched and still tested via the CLI.** It simply is not the UI's path.
@@ -305,6 +351,8 @@ The third (**cross-node invite discovery**) is a **measurement nobody has taken*
 🔒 **K3 — `KnownSpace` GAINS `counterpart: Option<String>` + `#[serde(default)]`, PLUS A ONE-TIME BACKFILL AT `load_or_default_state` THAT PARSES THE LEGACY NAME AND WRITES THE FIELD.** ⇒ **the parse exists EXACTLY ONCE, in a migration — never in a lookup and never in a render path.** After one run **the name is free**, so OQ3's DM home may rename DM Spaces to anything, including `D-126`'s word form, and nothing breaks.
 
 📌 **COST:** one field · two write sites (`ops.rs:660` normal, `:970` DM) · the TS mirror · ~5 lines of backfill. **Cargo floor. IN LEG B, pulled forward from Leg E.**
+
+🔒 **AMENDED 2026-08-06 — CLAIR'S LEG 0-bis **F-A**: THE BACKFILL GAINS A SELF CASE, AND THE SELF LOOKUP MOVES ONTO THE FIELD WITH EVERY PEER.** The peer arm parses `name.strip_prefix("DM with ")`; **the self thread's stored name is the bare literal `"self"` (`ops.rs:965-966`), which has no prefix and would yield `counterpart = None`** ⇒ the field scan finds nothing ⇒ `create_dm_space` pushes unconditionally (`ops.rs:970`) ⇒ **a second self thread.** ⇒ **backfill rule: `name == SELF_THREAD_LABEL ⇒ counterpart = identity_id`**, feasible because `load_or_default_state` already receives `identity_id` (`ops.rs:59-63`). ⇒ ***after the migration there is ONE lookup rule for every row in the panel, and the name scan at `ops.rs:1042` is off the UI path entirely.*** 📌 **`self_open` itself stays untouched and CLI-tested (`OQ6-E2` point 4).**
 
 ⚠️ **CHAT'S v1.2 RECOMMENDATION WAS *"K1 for Leg B, K2 folded into Leg E"* AND IT IS SUPERSEDED, NOT AMENDED.** Clair's **F1** was right that the scan is buildable today; Chat was right that the relief was borrowed; **the conclusion drawn from both was wrong.** 🔑 ***THIRD RECOMMENDATION-INVERSION OF THIS ARC — SEE §8 ITEM 7 FOR THE MECHANISM THEY SHARE.***
 
@@ -382,11 +430,11 @@ The find-existing-DM scan works **because** the counterpart XGID sits inside the
 |---|---|---|---|
 | **0** | ✅ **CLOSED 2026-08-06** — Clair's adversarial read. 5 plan-moving findings, 3 wording, all re-measured by Chat | none | — |
 | **A** | 🛑 **`D-131` annotations first, before any code.** `members-panel.svelte:11-14` (J-675's filed overstatement) · `selection.svelte.ts:2` and J-591's *"`entity-context-menu` READS the bus"* — **it takes a prop and does not import `selection`** (G7) · 🆕 **`M_RP_MEMBERS.md:309` and `:406`** — *18 commands* (it is **19**), `self_open :1002` (it is **`:1019`**), `create_dm_space :793` (it is **`:806`**) | none | nothing |
-| **B** | **The command surface** — a Tauri command wrapping `create_dm_space`; the draft object per OQ2. 🔒 **OQ8-K3: `KnownSpace` gains `counterpart: Option<String>` + `#[serde(default)]` + a one-time backfill at `load_or_default_state`** — the scan keys on the FIELD, not the name. 📌 **OQ6-E2: NO `self_open` command** — self is a draft target on the same path | **cargo** + svelte-check | OQ2 ✅, OQ6 ✅, OQ8 ✅ |
-| **C** | **R7 acts** — `interactive`, `onActivate` → open-or-draft **and** `selection.set()`; R8 renders the member card. 📌 **OQ6-E2: the self row takes the SAME path as any peer** · **W4: R7 stays THIN during a draft — self only, no pseudo-scope** · ⚠️ **carries OQ1's failure-path guard, which W4 did NOT clear** | svelte-check | OQ1 ✅, OQ7 ✅, B |
-| **C-bis** | 🆕 🛑 **FIRST SEND PROMOTES THE DRAFT** — `composer-panel.submit()` + `echo-state` gain the draft arm: detect draft → `create_dm_space` → `{space_id, room_id}` → `echo.send` → promote in place. **Added at v1.2 from Clair's F2 — `L-4`'s central behaviour previously had NO OWNER.** 🆕 **AND at v1.4: R5's DRAFT COPY** — the empty-thread line `L-4` was locked on, **as a const per OQ9-C: no control, destination named** | svelte-check | C, OQ9 ✅ |
+| **B** | **The command surface** — a Tauri command wrapping `create_dm_space`; the draft object per OQ2. 🔒 **OQ8-K3: `KnownSpace` gains `counterpart: Option<String>` + `#[serde(default)]` + a one-time backfill at `load_or_default_state`** — the scan keys on the FIELD, not the name. 🆕 🔒 **F-A: the backfill's SELF case (`name == SELF_THREAD_LABEL ⇒ counterpart = identity_id`), and the self lookup keys on `counterpart` like every peer** — the name scan at `ops.rs:1042` leaves the UI path. 📌 **OQ6-E2: NO `self_open` command** | **cargo** + svelte-check | OQ2 ✅, OQ6 ✅, OQ8 ✅ |
+| **C** | **R7 acts** — `interactive`, `onActivate` → open-or-draft **and** `selection.set()`; R8 renders the member card. 🆕 🔒 **F-C / OQ1-G1 IS THIS LEG'S FIRST COMMIT, SEPARATE AND MEASURED ALONE:** `ui/core/.../entity-panel.svelte` gains a flag suppressing `selectAt`'s `selected` write, `interactive` keeps ARIA + click wiring. **3 consumers + 8 sampler cells; the runbook MEASURES whether catalogue 435 moves rather than predicting it.** 📌 **OQ6-E2: the self row takes the SAME path as any peer** · **W4: R7 stays THIN during a draft** | svelte-check **+ catalogue** | OQ1 ✅, OQ7 ✅, B |
+| **C-bis** | 🆕 🛑 **FIRST SEND PROMOTES THE DRAFT** — `composer-panel.submit()` + `echo-state` gain the draft arm: detect draft → `create_dm_space` → `{space_id, room_id}` → `echo.send` → promote in place. **Added at v1.2 from Clair's F2.** 🆕 **at v1.4: R5's DRAFT COPY** as a const per OQ9-C. 🆕 🔒 **at v1.9 from F-B: `stream-panel.svelte` gains the DRAFT BRANCH that renders it** — today R5 branches on `effectiveRoomId == null` alone and imports no draft store, so the const had no display path. 🆕 🔒 **from F-E: `room-latch.svelte.ts`'s two-armed `canSend`**, which belonged to no leg | svelte-check | C, OQ9 ✅ |
 | **D** | **RMC → the menu, no selection** — the first `oncontextmenu` in the codebase (G8); `entity-context-menu` mounted with the row's descriptor as a prop | svelte-check | C |
-| **E** | **DM home + `is_dm`** per OQ3, **including G13's stale-flag question**. 📌 **OQ8-K2 no longer lives here — K3 took the field into Leg B**, so the DM home may rename DM Spaces freely | **cargo** + svelte-check | OQ3, D |
+| **E** | **DM home + `is_dm`** per OQ3, **including G13's stale-flag question**. 📌 **OQ8-K2 no longer lives here — K3 took the field into Leg B**, so the DM home may rename DM Spaces freely. 🆕 🔒 **F-D: THE FILTER IS RENDER-ONLY** — `spaces-panel`'s `$derived`, never the store; `resolveLatched` and `canSend` both read `spacesState.spaces` and a store-side filter makes every DM **unsendable** | **cargo** + svelte-check | OQ3, D |
 | **F** | Records + close (`D-074`) | — | E |
 
 🔑 **WHY B BEFORE C:** §4.3. Under `L-7` the click must do both or neither, so the op has to be reachable before the row is clickable.

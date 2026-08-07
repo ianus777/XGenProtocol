@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-MEMBER-ACT Legs A + B — the annotations, then the command surface
-> **Status**: ACTIVE  
-> Version: 1.2  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-06  
 > Language: EN  
@@ -211,6 +211,8 @@ One test proving the backfill's **three arms**: a peer DM (`"DM with xgen://…"
 **Leg B, on the committed tree:**
 1. `cargo test --workspace` → **≥ 1597** passed (1596 + the witness), **0 failed**, 62 ignored, 56 binaries. **Report the exact triple.**
 2. `cargo clippy --workspace --all-targets -- -D warnings` → clean.
+
+🛑 **FALSE, AND ANNOTATED NOT REPAIRED (`D-145`) — CLIPPY HAS NEVER BEEN CLEAN ON THIS CODEBASE.** Clair found it; Chat confirmed it by an independent method (a detached worktree at the lock commit `5ac91ee`, three commits before hers). **Both trees produce the IDENTICAL four errors:** `desktop.rs:126` (`map_or`) · `desktop.rs:192` (collapsible `if`) · `run_startup` 9/7 args (**`:810` at the lock, `:843` after Leg B — shifted +33 by the inserted command, same function**) · `resident.rs:1018` 8/7 args, **a file Leg B never opened**. ⇒ ***Leg B adds ZERO clippy errors.*** 📌 **Clippy is NOT among the tracked floors** (cargo · svelte-check · catalogue), so it gates nothing — but ***this gate asserted a state it had never measured, which is the third time in this document a gate was written against an unchecked assumption*** (4b twice, gate 2 once). **The four lints are left untouched: all sit in functions outside Legs A/B.**
 3. `npm run check` → **0/34/15 unmoved** (the mirror adds a field, not an error).
 4. 🔑 **THE BACKWARD-COMPAT + MIGRATION PROOF, AND v1.0's VERSION OF THIS GATE WAS NOT EXECUTABLE.** *v1.0 said "load Joe's real state with the built binary and prove `counterpart = Some(…)`" — it conflated **parses** (deserialisation, which yields `None` for every legacy Space) with **backfilled** (`Some`), and named no mechanism. With L2 there IS now one.* **Two distinct proofs, both required:**
    - **4a — deserialisation (a Rust test).** A fixture JSON with **no `counterpart` key** parses into `ClientState` without error. *This is what `#[serde(default)]` buys, and it is the only thing it buys.*
@@ -231,19 +233,37 @@ One test proving the backfill's **three arms**: a peer DM (`"DM with xgen://…"
 
 ---
 
+🔒 **CLOSED 2026-08-06 — LEGS A AND B ARE SHIPPED. THREE COMMITS ON `origin/main`: `ce82ebe` (Leg A) · `8c70d14` (Leg B-i) · `132ce85` (Leg B-ii).** 8 files, **+200/−15**. Implemented by Clair from this runbook at v1.2; **every gate re-driven independently by Chat on the committed tree (Rule 5)** — numbers below are Chat's own, not adopted.
+
+| gate | Chat-measured at `132ce85` |
+|---|---|
+| cargo | **1597 / 0 / 62 × 56** — baseline + exactly one witness, zero non-`ok` result lines |
+| svelte-check | **0 / 34 / 15** — unmoved |
+| `xgid-slot-gate` | **PASS, 74 slots (65/5/3/1)**, no manifest change — as §5.5 predicted |
+| gate 4a | **PROVEN** — the source file holds **zero** `counterpart` keys and parsed anyway |
+| 🔑 gate 4b | **PROVEN ON REAL DATA.** `DM with …sno_FWmw` → `Some("xgen://pubkey/ed25519:L87…sno_FWmw")`; `Engineering`/`Design`/`LegBSpace`/`LegF Verification` → `None`; count 5 |
+| commands | **20 registered**; `self_open` **zero diff lines and unregistered** (R-5 held) |
+| catalogue | **435 unmoved BY SCOPE** — no `ui/core`, no `ui/sampler` touched. ⚠️ *Not re-run; stated as scope, not as a measurement.* |
+
+🔑 ***GATE 4b IS THE ONE THAT MATTERED, AND IT WAS RE-DRIVEN FROM SCRATCH BY CHAT*** — Clair's throwaway was deleted, so the number could not be inherited. **Before L2 that DM would have returned `None`, Leg C's scan would have missed it, and `create_dm_space` (no dedup, `ops.rs:970`) would have minted a duplicate.** ✅ **Joe's live state untouched throughout** (`LastWriteTime` unchanged at `08/05/2026 07:12:25`); both re-drives ran against copies.
+
+📌 **§8 item 3 realised exactly as designed:** gate 4b exercised the **peer arm only** — Joe has no self thread — so **the self arm's sole proof is the witness fixture.**
+
+---
+
 ## §7 — DoD
 
-- [ ] Three annotations written; each names what is false and why, and repairs nothing
-- [ ] `KnownSpace.counterpart` added with `#[serde(default)]`; **all five literals updated**
-- [ ] 🔒 **L2: the two loaders unified behind one body; BOTH error behaviours preserved** (`bail!` on the read path, default on the write path)
-- [ ] Backfill in the **one** loader, parse-success path only, idempotent, **self arm present and `Option`-guarded**
-- [ ] `create_dm_space` command registered; **19 → 20**
-- [ ] Witness test covers **all three** backfill arms
-- [ ] TS mirror carries `counterpart: string | null`
-- [ ] 🔑 **Gate 4b driven as a Rust test on a COPY of Joe's real state through `ops::spaces`, asserting on `SpacesResult.spaces[..].counterpart`** — the proof the migration reaches the read path
-- [ ] All §5 gates driven by Chat on the committed tree, exact numbers recorded
-- [ ] `self_open` untouched and unregistered
-- [ ] JOURNAL + CLAUDE.md PLAY + ROADMAP + this runbook updated in the same commit
+- [x] Three annotations written; each names what is false and why, and repairs nothing
+- [x] `KnownSpace.counterpart` added with `#[serde(default)]`; **all five literals updated**
+- [x] 🔒 **L2: the two loaders unified behind one body; BOTH error behaviours preserved** (`bail!` on the read path, default on the write path) — `read_and_migrate` is `pub(crate)`, `app.rs:4621` delegates, all **three** read-side modes intact
+- [x] Backfill in the **one** loader, parse-success path only, idempotent, **self arm present and `Option`-guarded**
+- [x] `create_dm_space` command registered; **19 → 20**
+- [x] Witness test covers **all three** backfill arms
+- [x] TS mirror carries `counterpart: string | null`
+- [x] 🔑 **Gate 4b driven as a Rust test on a COPY of Joe's real state through `ops::spaces`, asserting on `SpacesResult.spaces[..].counterpart`** — the proof the migration reaches the read path
+- [x] All §5 gates driven by Chat on the committed tree, exact numbers recorded — ⚠️ **gate 2 excepted: its "clean" premise was FALSE and is annotated above**
+- [x] `self_open` untouched and unregistered
+- [x] JOURNAL + CLAUDE.md PLAY + ROADMAP + this runbook updated in the same commit
 
 ---
 

@@ -8,6 +8,72 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-689 — Legs A and B ship: the first code in this milestone, and gate 4b proves L2 on real data
+
+**Date:** 2026-08-06 · **Seats:** Clair (implementation from the locked runbook) · Chat Claude (every gate re-driven independently, records) · Joe (three pushes) · **Code:** 🔑 **YES — 8 files, +200/−15, three commits** `ce82ebe` · `8c70d14` · `132ce85` · `tasks/RUNBOOK_MEMBER_ACT_LEG_AB.md` v1.2 ACTIVE → **v1.3 COMPLETED** · ROADMAP v6.76 → **v6.77**. **No new `D`, no new `N`.**
+
+🔑 **THE MILESTONE HAS BEEN OPEN ACROSS NINE JOURNAL ENTRIES WITH ZERO LINES OF CODE. THIS IS THE ENTRY WHERE THAT ENDS.**
+
+### WHAT SHIPPED
+
+**`ce82ebe` Leg A** — three `D-131`/`D-145` annotations, appended, nothing repaired: `members-panel.svelte` (the `L-7` reversal J-675 filed and nobody wrote) · `selection.svelte.ts` (the false *"`entity-context-menu` READS the bus"*) · `M_RP_MEMBERS.md` (three drifted numbers). **3 files, +20/−0.**
+
+**`8c70d14` Leg B-i** — `KnownSpace.counterpart: Option<String>` with `#[serde(default)]` · **all five literals** · 🔒 **L2's loader unification: `pub(crate) read_and_migrate`, with `load_client_state` (`app.rs:4621`) and `load_or_default_state` both delegating and all THREE read-side failure modes preserved** · the K3 backfill with its self arm · the `create_dm_space` Tauri command (**19 → 20**) · the witness test. **4 Rust files, +177/−15.**
+
+**`132ce85` Leg B-ii** — the TS mirror, `counterpart: string | null`. **1 file, +3/−0.**
+
+### 🔒 GATES — RE-DRIVEN BY CHAT ON THE COMMITTED TREE, NOT ADOPTED (Rule 5)
+
+| gate | Chat-measured at `132ce85` |
+|---|---|
+| cargo | **1597 / 0 / 62 × 56** — baseline + exactly one witness; zero non-`ok` result lines |
+| svelte-check | **0 / 34 / 15** — unmoved |
+| `xgid-slot-gate` | **PASS, 74 slots (65/5/3/1)**, no manifest change |
+| `roadmap-format-gate` | PASS |
+| commands | **20**, `create_dm_space` present; `self_open` **zero diff lines, unregistered** (R-5) |
+| literals | 6 literals + 1 definition, **every one carrying the field** |
+| scope | 8 files; no `ui/core`, no `ui/sampler`, no Legs C–F, nothing in `OQ5` |
+| catalogue | **435 unmoved BY SCOPE** — ⚠️ *not re-run; stated as scope, not as a measurement* |
+
+### 🔑 GATE 4b — THE ONE THAT MATTERED, RE-DRIVEN FROM SCRATCH
+
+Clair's throwaway was deleted after her run, **so the number could not be inherited.** Chat wrote an independent integration test against a **copy** of Joe's live state and ran it:
+
+```
+SPACE_COUNT=5
+Engineering / Design / LegBSpace / LegF Verification  → None
+DM with …sno_FWmw  → Some("xgen://pubkey/ed25519:L87GVLyVH_fvg-5hV0PL1zpf_s4GUPenODusno_FWmw")
+```
+
+✅ **Gate 4a proven with it** — the source file holds **zero** `counterpart` keys and parsed anyway. 🛑 ***BEFORE L2 THAT DM WOULD HAVE RETURNED `None`, LEG C'S SCAN WOULD HAVE MISSED, AND `create_dm_space` (no dedup, `ops.rs:970`) WOULD HAVE MINTED A DUPLICATE.*** **Clair's Finding 1 was the difference between a working migration and a migration that never reached its consumer.** ✅ **Joe's live state untouched throughout** — `LastWriteTime` unchanged at `08/05/2026 07:12:25`; both re-drives ran on copies.
+
+### 🛑 ONE FINDING, AND IT IS CHAT'S: GATE 2 ASSERTED A STATE IT HAD NEVER MEASURED
+
+The runbook's gate 2 predicted `cargo clippy -- -D warnings` would be **clean**. **It has never been clean on this codebase.** Clair found it via `git stash`; **Chat confirmed it by an independent method** — a detached worktree at the **lock commit `5ac91ee`**, three commits before hers.
+
+| site | at `5ac91ee` | at `132ce85` |
+|---|---|---|
+| `desktop.rs:126` `map_or` | error | error |
+| `desktop.rs:192` collapsible `if` | error | error |
+| `run_startup` 9/7 args | **`:810`** | **`:843`** — shifted +33 by the inserted command, **same function** |
+| `resident.rs:1018` 8/7 args | error | error |
+
+⇒ ***Leg B adds ZERO clippy errors.*** 📌 **Clippy is not among the tracked floors, so it gates nothing** — but ⚠️ ***this is the THIRD time in one document that a gate was written against an unchecked assumption*** (4b twice, gate 2 once). **The four lints are left untouched — all in functions outside Legs A/B, and fixing them would be scope Chat did not authorise.**
+
+### 📌 RISK REALISED AS DESIGNED
+
+§8 item 3: **gate 4b exercised the peer arm only** — Joe has no self thread ⇒ ***the self arm, the one Leg 0-bis was needed to find, is proven by the witness fixture and by nothing else.***
+
+### STATE
+
+✅ **Clean tree, HEAD `132ce85` = `origin/main` by `ls-remote`.** 🔒 **NEW FLOOR, MEASURED NOT INHERITED: cargo 1596 → 1597 / 0 / 62 × 56.** svelte-check **0/34/15** · catalogue **435** by scope.
+
+🟢 **`M-RP-MEMBER-ACT` PLAY and OPEN.** 🔓 **`OQ5` remains the only open disposition and Chat has made no recommendation on any of its three items.** ⇒ **next is Leg C — R7 acts, with `OQ1-G1`'s `entity-panel` prop split as its FIRST commit, measured alone.** ⚠️ **Leg C is appearance-adjacent and needs a Phase-0 or a runbook before any code.**
+
+→ J-689 · runbook v1.3 COMPLETED · ROADMAP v6.77.
+
+---
+
 ## Entry J-688 — the Leg A/B runbook is LOCKED at v1.2; three reads, three blockers, no code yet
 
 **Date:** 2026-08-06 · **Seats:** Joe (the lock, uttered; the push) · Chat Claude (records) · **Code:** NONE · `tasks/RUNBOOK_MEMBER_ACT_LEG_AB.md` **PENDING → ACTIVE** · ROADMAP v6.75 → **v6.76**. **No new `D`, no new `N`.**

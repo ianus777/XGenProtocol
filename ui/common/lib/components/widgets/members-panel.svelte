@@ -20,8 +20,19 @@
   // be SILENT; under L-7 it is the point. Wiring lands in Leg C — the rows are still inert
   // here. This comment also overstates its own source (J-675); M-RP-PANEL-INERT recorded
   // inertness as DEFERRED, not rejected, so `interactive` is being USED, not overridden.
+  //
+  // ✅ NOW SHIPPED, ANNOTATED NOT REPAIRED (D-131, M-RP-MEMBER-ACT Leg C-3). The two blocks
+  // above are HISTORY. The panel below is now `interactive={true}` with `selectOnActivate={false}`
+  // and `onActivate={onMemberActivate}`, so the rows are NO LONGER inert and R7 DOES call
+  // `selection.set()` — exactly the reversal L-7 named. The statements "the rows are still inert
+  // here" and "`interactive={false}`" above are FALSE as of C-3; kept, not erased, so the reversal's
+  // reasoning stays legible. `selectOnActivate={false}` is what keeps `counterpart` — the DERIVED DM
+  // highlight (L16) — authoritative: a click writes the bus and latches the DM's room, but the panel
+  // never overwrites `selected`. That is the M-RP-SELECT-ORIENT defect designed out (L-5).
   import { envelope } from '$common/components/base/envelope';
   import { roomLatch } from '$common/stores/room-latch.svelte';
+  import { spacesState } from '$common/stores/spaces-state.svelte';
+  import { selection } from '$common/stores/selection.svelte';
   import { addressBook, type MemberEntry } from '$common/stores/address-book.svelte';
   import { selfState } from '$common/stores/self-state.svelte';
   import type { EntityDescriptor } from '$core/components/data-dependent/types';
@@ -151,6 +162,46 @@
     (selfDescriptor ? [{ descriptor: selfDescriptor }] : []).concat(memberRows),
   );
 
+  // ── Interaction (M-RP-MEMBER-ACT Leg C-3) ──────────────────────────────────────────────────────
+  // R7 is now a selection surface: `interactive={true}`, `selectOnActivate={false}`. Clicking a member
+  // opens that member's EXISTING DM (L-1/L-7) and leaves the IDENTITY on the bus.
+
+  // L-8: the DM lookup — a NAMED LOCAL FUNCTION, deliberately not inlined and not extracted to a shared
+  // helper. Copied-not-shared follows J-508's roving precedent (four independent impls before extraction
+  // earned its own milestone). The anticipated second caller is M-RP-PEOPLE (a people-panel over the
+  // address book); before any lift, settle "is a book entry enough to OFFER a DM?" — a book entry is not
+  // proof a DM exists, and this lookup answers only the latter.
+  function findDmRoom(identityId: string): string | null {
+    // Self is never a DM target. `KnownSpace.counterpart` holds the session identity for the SELF-THREAD
+    // space (spaces-state:32-34), so a bare field match would resolve self's own thread. R7 already never
+    // marks self (L17), but the lookup must NOT rely on that — exclude it explicitly (§4).
+    if (identityId === selfId) return null;
+    // A field match, not a search: `counterpart` names the DM's other party, and `rooms` rides embedded
+    // (G7/G8) — no second fetch. `null` counterparts (real Spaces) never equal a member id.
+    const space = spacesState.spaces.find((s) => s.counterpart === identityId);
+    if (!space) return null; // no existing DM — §5-b: the click is a silent no-op (J-692 unruled).
+    // A DM space carries exactly one room. An empty `rooms` here should not happen; if it does, do nothing
+    // — it is a FINDING, not a case to paper over (§4). No invented fallback.
+    return space.rooms[0]?.room_id ?? null;
+  }
+
+  // On a member click: latch the DM's room AND leave the identity on the bus. TWO INDEPENDENT writes to
+  // TWO INDEPENDENT stores; they are NOT ordering-dependent — do not "fix" them into a coupling. (N2 was
+  // refused precisely because it wrote the SAME store twice, and the two writes coalesced into one $effect
+  // run that never observed the room; these write DIFFERENT stores, so no such coalescing exists.)
+  function onMemberActivate(identityId: string): void {
+    const roomId = findDmRoom(identityId);
+    if (roomId == null) return; // self, no-DM (§5-b), or the empty-rooms finding — all no-ops.
+    // 1. R5 (stream) shows the DM · R6 (composer) targets it. The bus cannot latch the room: it carries the
+    //    clicked IDENTITY (below), and `note()` only latches a `room` selection — which is why `latch()`
+    //    exists (L-1/L-2).
+    roomLatch.latch(roomId);
+    // 2. R8 (inspector) shows the PERSON — the click is the pick made visible (L-1). The clicked id is a
+    //    rendered roster row (self is already excluded), so `m` is present; the guard is defensive.
+    const m = addressBook.roster?.find((x) => x.identity_id === identityId);
+    if (m) selection.set(regionId, toDescriptor(m));
+  }
+
   // Aggregate getter G (W-4). ⚠️ `memberCount` derives from the ROSTER, never from rendered rows (L4) — the
   // self fixture is not a roster entry. Names/ids ride each row's own getter (no republish, N-060).
   const debug = () => ({
@@ -169,9 +220,17 @@
 </script>
 
 <div class="members-panel" data-tier="widget" use:envelope={{ name: 'members-panel', id, debug }}>
-  <!-- Inert (M-RP-PANEL-INERT): render-only, no click/keyboard/bus. `selected` = the DM counterpart, one-way
-    (L16). No `onActivate` → no bus write (L15 — R7 is not a selection surface, Phase-0 line 284). -->
-  <EntityPanel items={rows} selected={counterpart} interactive={false} id={cid('panel')} />
+  <!-- ACTIVE (M-RP-MEMBER-ACT Leg C-3, was Inert): clicking a member opens its existing DM and writes the
+    bus. `selectOnActivate={false}` keeps `selected={counterpart}` — the DERIVED DM highlight (L16) — from
+    being overwritten by a click (L-5); `onActivate` opens the DM + writes the bus (L-1/L-7). -->
+  <EntityPanel
+    items={rows}
+    selected={counterpart}
+    interactive={true}
+    selectOnActivate={false}
+    onActivate={onMemberActivate}
+    id={cid('panel')}
+  />
   {#if message}
     <Paragraph text={message} id={cid('note')} />
   {/if}

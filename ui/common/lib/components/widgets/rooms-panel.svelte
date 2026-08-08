@@ -1,16 +1,19 @@
 <script lang="ts">
-  // rooms-panel — R2 Rooms (M-RP6.2, D8). A `kind: system` region widget; the swap is DERIVED via a
-  // `CLIENT_PLUGINS` descriptor (`surface: 'region'`, `regionId: 'rooms'`), exactly like spaces-panel. It
-  // both READS the bus (to scope which Space's rooms to list) and WRITES it (activating a room = the bus's
-  // THIRD writer). No new store, no new invoke — the rooms ride EMBEDDED in `spacesState` (D1).
+  // rooms-panel — R2 Rooms (M-RP6.2, D8; M-RP-SELECT-ORIENT C-1/C-3). A `kind: system` region widget; the
+  // swap is DERIVED via a `CLIENT_PLUGINS` descriptor (`surface: 'region'`, `regionId: 'rooms'`), exactly like
+  // spaces-panel. No new invoke — the rooms ride EMBEDDED in `spacesState` (D1).
   //
-  // THE ONE NEW MECHANIC (D3, the latch): R2 cannot read its data scope from `selection.current`, because
-  // R2's OWN room-activation moves the bus to a `kind: 'room'`. So it LATCHES the last SPACE selection and
-  // KEEPS it while the bus holds a room. Without the latch, clicking a room would blank R2's own list.
+  // It WRITES the bus on room activation (the bus's THIRD writer) but no longer READS it. Both the data scope
+  // and the highlight come from TWO app-lifetime latches the SHELL drives (one effect, two latches — C-1):
+  // `spaceLatch` scopes which Space's rooms to list, and `roomLatch.effectiveRoomId` lights the current room
+  // so a later identity/member selection KEEPS it lit (D-146) rather than blanking it. Reading a latch instead
+  // of `selection.current` is why R2's own room-activation (moving the bus to `kind: 'room'`) does not blank
+  // R2's own list.
   import { envelope } from '$common/components/base/envelope';
   import { type KnownRoom } from '$common/stores/spaces-state.svelte';
   import { selection } from '$common/stores/selection.svelte';
   import { spaceLatch } from '$common/stores/space-latch.svelte';
+  import { roomLatch } from '$common/stores/room-latch.svelte';
   import type { EntityDescriptor } from '$core/components/data-dependent/types';
   import EntityPanel from '$core/components/data-dependent/entity-panel.svelte';
 
@@ -32,10 +35,11 @@
   // v1: descriptor only; `secondary`/`meta` UNFED (D6/D-065). `kind: 'room'` -> entity-avatar hexagon (J-501).
   const items = $derived(rooms.map((r) => ({ descriptor: toDescriptor(r) })));
 
-  // Read the bus BACK (D5), room facet.
-  const selected = $derived(
-    selection.current?.entity.kind === 'room' ? selection.current.entity.id : undefined,
-  );
+  // `selected` is DERIVED FROM THE ROOM LATCH (`roomLatch.effectiveRoomId`, C-3), NOT the bus. A later identity
+  // selection (a member row, the R3 self card) now KEEPS the room lit (D-146). `effectiveRoomId` — not the raw
+  // `latchedRoomId` — is the room R5 renders and R6 targets, so the highlight can never disagree with them
+  // (Phase-0 §4). It is `string | null`; the prop wants `string | undefined` (entity-panel:63), hence `?? undefined`.
+  const selected = $derived(roomLatch.effectiveRoomId ?? undefined);
 
   function onActivate(roomId: string): void {
     const r = rooms.find((x) => x.room_id === roomId);

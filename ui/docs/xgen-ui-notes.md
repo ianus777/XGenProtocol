@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.12  
+> Version: 1.13  
 > Date: May 2026  
-> **Last updated**: 2026-08-06  
+> **Last updated**: 2026-08-08  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -3465,3 +3465,58 @@ document*.
 🔒 **DISPOSITION (Joe, 2026-08-06, DELEGATED — `D-141`): SHIP, AND FILE.** `M-RP-TAIL8`'s scope was the fallback **string**; how an *erased* **and** *unnamed* row should look is a question `D-142` never claimed to answer, and the unresolved styling predates it. ⚠️ **This note is the file.** Whoever opens the erased-row appearance pass inherits it — the options not taken were *ship as is, unfiled* and *rework before the close*.
 
 ⚠️ **THE FINDING CAME FROM JOE, NOT FROM THE HARNESS — THE FOURTH TIME IN THIS ARC.** Chat's own re-reads passed at every layer it chose to measure. *The layer it did not choose is the one that produced the finding.*
+
+---
+
+### N-169 — `__XGEN_DEBUG__.get(id)` returns `{type, state}`, so reading a field off the result is always `undefined`
+
+**Date:** 2026-08-08 · HEAD `524d4f7` · found by Chat's own first probe during the `M-RP-MEMBER-ACT` Leg C-1 re-drive (J-700).
+
+A fold-state probe was written as `get(i).collapsed` across the whole registry. It returned `[]` — read as *"nothing in this app reports a collapsed field."* **The truth is that every panel reports one**, at `get(i).state.collapsed`. The registry entry is a two-level object:
+
+```js
+{ type: 'menu', state: { label: 'File', open: false, itemCount: 4, activeIndex: -1 } }
+```
+
+🔑 **THIS IS `N-099` IN THE WILD, ON THE PROBE THAT WAS SUPPOSED TO BE VERIFYING SOMETHING ELSE.** A false-negative reads exactly like a genuine absence: `[]` is the same `[]` either way. It was caught only because the next step was a positive control — dump one entry raw and look at its shape — **not** because anything about the empty result looked wrong.
+
+⚠️ **The gate this nearly passed for the wrong reason:** the C-1 gate required every tile *unfolded*, and an empty "nothing is folded" list is exactly what a green run looks like. **A probe whose PASS condition is an empty result must be positively controlled before it is believed**, every time, with no exception for probes that feel obvious.
+
+---
+
+### N-170 — `data-debug-id` carries the FULL `type#id`, not the bare id — and the shorter claim has been repeated in kickoffs
+
+**Date:** 2026-08-08 · HEAD `524d4f7` · found during the same re-drive (J-700).
+
+The registry key and the DOM attribute are the same string, and that string is **`type#id`**:
+
+| what | value |
+|---|---|
+| registry id / `data-debug-id` | `entity-panel#region-spaces__panel` |
+| the `id` prop passed to the widget | `region-spaces__panel` |
+
+⇒ `document.querySelectorAll('[data-debug-id="region-spaces__panel"]')` returns **`[]`**, and so does the unquoted form. The working selector filters `[data-debug-id]` elements and compares `getAttribute('data-debug-id') === 'entity-panel#region-spaces__panel'` — note the `#`, which is why an unquoted CSS attribute value cannot express it either.
+
+🛑 **THE STANDING KICKOFF LINE IS NARROWER THAN THE THING IT DESCRIBES.** Successive kickoffs have carried *"the registry keys on `data-debug-id`, NOT `id`"* — true, and it correctly warns off the `id` prop, but it does **not** say the attribute is prefixed. A reader who follows it exactly still writes the failing selector. **This is the `L-14` defect shape again** (*"a claim narrower than the thing it describes, reused as if complete"*), now in the tooling instructions rather than in a runbook.
+
+📌 **The corrected line, for future kickoffs:** *the registry keys on `data-debug-id`, whose value is `type#id` (`entity-panel#region-spaces__panel`) — never the bare `id` prop, and never without the `type#` prefix.*
+
+---
+
+### N-171 — `latch()` unconditional, `selection.set()` behind a guard: the two writes can half-apply
+
+**Date:** 2026-08-08 · HEAD `6a6c066` · flagged by Clair at the Leg C-3 hand-back, confirmed by Chat reading the diff (J-700). **FILED, NOT FIXED — shipped as written.**
+
+`onMemberActivate` (`members-panel.svelte`) is specified by the Leg C runbook `§4` as two writes *"in that order, and both unconditionally on a hit"*. As shipped, only the first is unconditional:
+
+```js
+roomLatch.latch(roomId);                                  // unconditional on a hit
+const m = addressBook.roster?.find(x => x.identity_id === identityId);
+if (m) selection.set(regionId, toDescriptor(m));          // conditional
+```
+
+⚠️ **The asymmetry has a source.** `findDmRoom` resolves against **`spacesState`** (the Space tree); `m` is resolved against **`addressBook.roster`**. Two different stores answer the two halves, so a disagreement between them is representable even though nothing produces one today: `onActivate` only fires from a rendered roster row, so `m` is present.
+
+🔑 **IF IT EVER FIRED, THE FAILURE IS SPLIT STATE, NOT A CRASH.** R5 would jump to the DM while R8 kept showing the previous card — the room and the person disagreeing on screen, which is precisely what *"both unconditionally on a hit"* was written to prevent. **The guard is defensive and reads as harmless; what it actually does is convert an impossible case into a half-applied one.**
+
+📌 **DISPOSITION (Joe, 2026-08-08, delegated — `D-141`): SHIP, AND FILE.** Cheapest correction whenever this function is next opened: resolve `m` **above** `latch()` and return early when it is absent. That leaves the locked write ORDER untouched — it moves a lookup, not a write. **This note is the file.**

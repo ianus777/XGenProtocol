@@ -8,6 +8,82 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-700 — Leg C SHIPS: R7 acts, and two of its seven live legs turn out to be unreachable
+
+**Date:** 2026-08-08 · **Seats:** Clair (three implementations, three clean hand-backs, two flagged calls) · Chat (independent re-drive of every gate, the live §6 run, records) · Joe (three pushes, one delegated ruling)
+
+✅ **`M-RP-MEMBER-ACT` LEG C IS CLOSED.** Three commits, the locked `L-6` order, one file each:
+**C-1 `524d4f7`** — `entity-panel` gains `selectOnActivate`, default `true` (+15/−3) · **C-2 `b5d0908`** —
+`roomLatch.latch(roomId)` plus the three-writer annotation (+17/−5) · **C-3 `6a6c066`** — R7 acts (+62/−3).
+**Clair's self-run gates and Chat's independent re-drive agreed on every number, in all three legs.**
+
+### 🔑 THE GATE THAT MATTERED PASSED, AND IT IS THE ONE C-1 EXISTED FOR
+
+Clicking a member in a group room left `entity-panel`'s `state.selected` **`null`**, every `aria-selected`
+still `false`, while `tabindex` moved to the clicked row. ***Focus followed activation; selection did
+not.*** That is `selectOnActivate={false}` protecting a **derived** highlight — asserted in the case where
+the clicked id and `counterpart` genuinely differ, not inferred from a green compile. Inside the DM the
+counterpart row clicks through to `kind: 'identity'` on the bus, latch unmoved, **no state created**.
+
+**FLOORS:** svelte-check **0/34/15** three times · catalogue **435 = 435 = 435, zero orphans both
+directions** (a real measurement, not an inheritance) · sampler **154/9** · cargo untouched by scope ·
+registry **164** returned exactly · Joe's state file **byte-identical**.
+
+### 🛑 TWO OF THE SEVEN LIVE LEGS HAVE NO REACHABLE INPUT — AND THE BLOCKER IS THE FIXTURE
+
+Joe's client state carries **exactly one** DM. Its counterpart is **erased**. And an erased
+NON-counterpart member is **hidden** in a group room — `§5a`'s E2 protects it only *inside* the DM, where
+`counterpart` is non-null. ⇒ **zero rendered group-room rows have an existing DM.**
+
+So `§6` **leg 1** could be driven only in its in-DM form, and `§6` **leg 5** — *clicking a member in a
+group room makes R7 replace itself with the DM's two people* — **could not be produced at all.**
+🔒 **It stays UNRULED (`D-146` — nothing has expired) and is recorded as BLOCKED, not as passed.**
+⚠️ ***The one thing Joe explicitly reserved for himself to see before ruling is the one thing the fixture
+cannot show him.*** Filed as `OWED-4` against **both** Leg C-bis and `M-RP-PEOPLE`: whichever lands first
+makes a second non-erased DM reachable, owes the measurement, **and owes showing it.**
+
+### 📌 A DEBT REGISTER WAS CREATED BECAUSE THERE WAS NOWHERE TO PUT THE DEBT
+
+`§5-b` ships a **dead control** — a member with no DM is clickable and does nothing, measured silent and
+complete. `N-109` requires that limit be written into the **DoD of the leg that lifts it** — and **no Leg
+C-bis document existed.** Created `tasks/M_RP_MEMBER_ACT_LEG_C_BIS.md` **PENDING**, carrying four owed
+items: the dead control (blocked on `J-692`, still Joe's), `OQ5` erased-identity DM creation with Joe's
+retention condition carried verbatim, the partial first send, and blocked leg 5. 📌 **It is explicitly a
+debt register, not a design — nothing in it is locked.**
+
+### ⚠️ THE RUNBOOK STALED ITS OWN LINE NUMBERS, HAVING WARNED ABOUT EXACTLY THAT
+
+`§1` opened by noting `RUNBOOK_SELECT_ORIENT.md` staled its citations two commits into its own execution.
+**This runbook did the same.** C-2 grew `room-latch`'s header 3→8 lines; C-3 added ~50 to `members-panel`.
+`G4`/`G5`/`G6` and `G9`'s sites all moved. Corrected in `§8` as a table, superseded and kept (`D-131`).
+📌 **`G9` was right about the thing that mattered:** *"`note()` is THE SINGLE WRITER"* was **already false**
+— `clear()` had always written `_latched`. C-2 corrected a standing inaccuracy rather than breaking one.
+
+### 🔑 AND A PROCESS FAILURE WORTH MORE THAN ANY OF THE CODE
+
+**Joe reported C-3 pushed. It had not been.** `git status` read `M ` — **staged, not committed** — HEAD
+still on C-2. The cause was Chat's: the commit block handed over referenced `_commit_c3.txt`, **a file
+Chat said it would write and never did.** `git add` succeeded, `git commit -F` errored, `git push` sent
+nothing, and the tree sat half-applied looking finished. **The J-697 shape from the opposite direction.**
+Caught only because the close ran `git log` + `rev-parse` + `ls-remote` instead of believing the report.
+⇒ ***Verify the artifact, never the exit code, and never the word "done" — including Chat's own.***
+
+### 📌 THREE NOTES, TWO OF THEM ABOUT CHAT'S OWN INSTRUMENTS
+
+**`N-169`** — `__XGEN_DEBUG__.get(id)` returns `{type, state}`; a field read off it is always `undefined`
+and returns a clean-looking `[]`. **`N-099` in the wild, on Chat's first probe of the arc**, caught only by
+a positive control. **`N-170`** — `data-debug-id` carries the full **`type#id`**; the standing kickoff line
+*"keys on `data-debug-id`, NOT `id`"* is **narrower than the thing it describes**, and a reader following
+it exactly still writes the failing selector — **the `L-14` shape, now in the tooling instructions.**
+**`N-171`** — `latch()` unconditional while `selection.set()` sits behind a roster guard; they resolve
+against **different stores**, so the pair can half-apply into R5-shows-the-DM-while-R8-shows-the-old-card.
+Flagged by Clair, confirmed by Chat, **shipped as written on Joe's delegated ruling (`D-141`)**.
+
+→ J-700 · runbook v1.2 COMPLETED · Phase-0 v1.5 COMPLETED · Leg C-bis v1.0 PENDING · notes v1.13 ·
+ROADMAP v6.88.
+
+---
+
 ## Entry J-699 — Leg C's runbook is LOCKED at v1.1; Clair may write code
 
 **Date:** 2026-08-08 · **Seats:** Joe (three rulings, then all nine locks on one word) · Chat (the grounding, the runbook, the records) · **Code:** NONE · `tasks/RUNBOOK_MEMBER_ACT_LEG_C.md` **NEW, v1.1 ACTIVE** · Leg C Phase-0 v1.4 · ROADMAP v6.86 → **v6.87**. **No new `D`, no new `N`.**

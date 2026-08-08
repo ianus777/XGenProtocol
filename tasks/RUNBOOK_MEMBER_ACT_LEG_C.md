@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT Leg C — R7 acts: the row opens the DM and writes the bus — RUNBOOK
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-08  
 > Language: EN  
@@ -231,3 +231,78 @@ asserted anchor.
 🛑 **Commit messages go through `-F <file>`**, written with `[System.IO.File]::WriteAllText` +
 `UTF8Encoding($false)`. A pasted here-string can silently not run; `Set-Content -Encoding UTF8` writes
 a **BOM** under PS 5.1 and put one in a commit subject at J-697.
+
+---
+
+## §8 — WHAT THE RUN FOUND (written at close, J-700)
+
+✅ **SHIPPED IN THREE COMMITS, IN THE LOCKED ORDER (`L-6`).** C-1 `524d4f7` (`ui/core`, 1 file, +15/−3) ·
+C-2 `b5d0908` (`room-latch`, 1 file, +17/−5) · C-3 `6a6c066` (`members-panel`, 1 file, +62/−3). **Every
+gate re-driven by Chat independently (Rule 5); Clair's self-run numbers and Chat's agreed on every leg.**
+
+**FLOORS AT CLOSE:** svelte-check **0/34/15** (three times, unmoved) · catalogue **ids 435 = unique 435 =
+domCount 435, ZERO orphans both directions** — a **real measurement** after a full `location.reload()`, not
+an inheritance · sampler **154/9**, `FAILED` grepped case-sensitively **0** · cargo **untouched by scope**
+(zero `.rs` across all three commits) · client registry **164 quiescent**, returned exactly · Joe's client
+state file **byte-identical**, 2,856 B @ 2026-08-05 07:12:25, read before and after.
+
+### 🔑 THE GATE THAT MATTERED PASSED, AND IT PASSED ON THE PIXEL-ADJACENT LAYER
+
+`§6` leg 2 — **the highlight stayed DERIVED.** Clicking a member in a group room left `entity-panel`'s
+`state.selected` **`null`** with **every** `aria-selected` still `false`, while `tabindex` moved to the
+clicked row. ***Focus followed activation; selection did not.*** That is `L-3`/`L-5` working, asserted in
+the case where the clicked id and `counterpart` **differ** — not inferred from a green compile.
+
+### 🛑 TWO LEGS WERE NOT DRIVEN, AND THE REASON IS THE FIXTURE
+
+**`§6` leg 5 could not be produced AT ALL, and `§6` leg 1 only in its in-DM form.** Joe's state carries
+**exactly one** DM; its counterpart is **erased**; and an erased NON-counterpart member is **hidden** in a
+group room (`§5a` E2 protects it only inside the DM, where `counterpart` is non-null). ⇒ **zero rendered
+group-room rows have an existing DM**, so nothing can move the latch out of a group room by clicking a
+member.
+
+🔒 **LEG 5 THEREFORE STAYS UNRULED — `D-146`, no stated cost has expired.** ⚠️ **It is recorded as
+BLOCKED, not as PASSED.** The obligation is filed in **both** `M_RP_MEMBER_ACT_LEG_C_BIS.md` (`OWED-4`)
+and `M-RP-PEOPLE`: whichever lands first makes a second non-erased DM reachable, **owes the measurement,
+and owes SHOWING IT TO JOE before anyone rules.**
+
+### ⚠️ THIS RUNBOOK STALED ITS OWN LINE NUMBERS — AGAIN, AND IN THE SAME WAY
+
+`§1` warned that `RUNBOOK_SELECT_ORIENT.md` staled its cited lines two commits into its own execution.
+**This one did it too.** C-2 grew `room-latch`'s header from 3 lines to 8 (**+5** below it); C-3 added ~11
+header lines and ~40 interaction lines to `members-panel`. Superseded, **kept not erased** (`D-131`):
+
+| cited in `§1` / `§3` / `§4` | was | **is, at `6a6c066`** |
+|---|---|---|
+| `room-latch` header "SINGLE WRITER" (`G9`) | `:28-29` | **`:28-35`** |
+| `room-latch` `note()` doc (`G9`) | `:76` | **`:81-86`** |
+| `room-latch` `clear()` (`G9`) | `:82-84` | **`:93-96`** |
+| `room-latch` `latch()` | — | **`:87-92`** (new) |
+| `members-panel` `scope` (`G6`) | `:46` | **~`:57`** |
+| `members-panel` `counterpart` (`G5`) | `:119-123` | **~`:130-134`** |
+| `members-panel` `<EntityPanel>` (`G4`) | `:174` | **~`:228`** |
+
+📌 **`G9` WAS RIGHT ABOUT THE THING THAT MATTERED.** *"`note()` is THE SINGLE WRITER"* was **already
+false** before this milestone — `clear()` had always written `_latched`. C-2 corrected a standing
+inaccuracy rather than breaking a claim, and said so at the site.
+
+### 📌 THREE NOTES AND ONE DEBT REGISTER CAME OUT OF THE RUN
+
+**`N-169`** — `__XGEN_DEBUG__.get(id)` returns `{type, state}`; a field read off the result is always
+`undefined` and yields a clean-looking `[]`. **`N-099` in the wild, on Chat's own first probe of the arc.**
+**`N-170`** — `data-debug-id` carries the full **`type#id`**; the standing kickoff line (*"keys on
+`data-debug-id`, NOT `id`"*) is **narrower than the thing it describes** and a reader following it exactly
+still writes the failing selector — **the `L-14` defect shape, now in the tooling instructions.**
+**`N-171`** — `latch()` ships unconditional while `selection.set()` sits behind a roster guard; the two
+resolve against **different stores**, so the pair can half-apply. **FILED, NOT FIXED**, shipped as written.
+**`M_RP_MEMBER_ACT_LEG_C_BIS.md`** — created **PENDING** at this close so `§5-b`'s dead control had a DoD
+to land in rather than becoming folklore (`N-109`).
+
+### 🔑 AND ONE PROCESS FAILURE WORTH MORE THAN THE CODE
+
+**A reported push had not happened.** `git status` read `M ` — **staged, not committed** — with HEAD still
+on C-2, because the `git commit -F _commit_c3.txt` handed to Joe referenced a file **Chat had never
+written**. `git add` succeeded, `git commit` errored, `git push` sent nothing, and the tree sat
+half-applied looking finished. **Exactly the J-697 shape, from the opposite direction.** Caught only
+because the close verified the **artifact** (`git log`, `rev-parse`, `ls-remote`) instead of the report.
+⇒ ***Verify the artifact, never the exit code, and never the word "done" — including Chat's own.***

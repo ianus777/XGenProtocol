@@ -1,12 +1,27 @@
 # M-RP-MEMBER-ACT Leg C — R7 acts: the row opens the DM and writes the bus — Phase-0
-> **Status**: ACTIVE  
-> Version: 1.4  
+> **Status**: COMPLETED  
+> Version: 1.5  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-08  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+✅ **CLOSED AT J-700 — Leg C SHIPPED IN THREE COMMITS:** C-1 `524d4f7` · C-2 `b5d0908` · C-3 `6a6c066`.
+This Phase-0's findings were carried into `RUNBOOK_MEMBER_ACT_LEG_C.md` (**v1.2 COMPLETED**); what the run
+actually found is in that runbook's **§8**, including the line numbers this document's citations staled
+under (`D-131` — superseded, kept not erased).
+
+📌 **THE CATALOGUE CLAIM AT `§` "Catalogue = 435" HELD.** Re-measured live at C-1 after a full
+`location.reload()`: **ids 435 = unique 435 = domCount 435, zero orphans both directions.**
+
+🛑 **WHAT THIS DOCUMENT COULD NOT HAVE KNOWN:** `§6` leg 5 is **not drivable on Joe's client state** — the
+only DM's counterpart is erased, and an erased non-counterpart member is hidden in a group room, so no
+rendered group-room row has an existing DM. **Leg 5 stays UNRULED and is filed as `OWED-4` in
+`M_RP_MEMBER_ACT_LEG_C_BIS.md`.**
 
 ---
 

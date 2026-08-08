@@ -8,6 +8,66 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-695 — Clair's third read: five findings, five confirmed, and the fold path is a live defect C-1 repairs
+
+**Date:** 2026-08-08 · **Seats:** Clair (adversarial read of the runbook) · Chat (re-drove all five, drove F2 live, the repairs) · Joe (the push) · **Code:** NONE — zero `.rs`, zero `ui/**` · `tasks/RUNBOOK_SELECT_ORIENT.md` v1.0 → **v1.1**, still **PENDING** · ROADMAP v6.82 → **v6.83**. **No new `D`, no new `N`.**
+
+🔑 **FIVE FINDINGS, FIVE CONFIRMED — THREE MOVE THE PLAN.** *And both of §9's self-suspected items were driven to ground: one held, one was a real hole the runbook only half-saw.*
+
+### 🛑 F2 — THE FOLD PATH IS A LIVE DEFECT, AND C-1 REPAIRS IT. **DRIVEN, NOT ARGUED.**
+
+v1.0 claimed C-1 changes **no rendered behaviour**. **False — and the truth is better than the claim.**
+
+**Folding a region tile UNMOUNTS the widget:** `region-node.svelte:225-228` mounts it as `RegionTile`'s children; `region-tile.svelte:173` gates `{@render children?.()}` behind `{#if collapsed === undefined}` ⇒ **the component-local `latchedSpaceId` `$state` is DESTROYED.**
+
+🔒 **DRIVEN ON THE REAL CLIENT (9222):** select Engineering → select a room → fold R2 → unfold.
+
+| | measured |
+|---|---|
+| on fold | `rooms-panel#region-rooms` and its panel **deregister** — catalogue **174 → 167** |
+| after unfold | R2 reads **`count: 0`, `hasEmpty: true`** — *"Select a space"* |
+| meanwhile | `roomLatch.effectiveRoomId` **UNCHANGED** — R5 and the composer still work in that room |
+
+⇒ ***TWO CLICKS EMPTY THE ROOMS PANEL WHILE THE STREAM AND COMPOSER KEEP GOING. SHIPPED TODAY, REACHABLE NOW.*** 🔑 **After C-1 the scope survives, because the store is app-lifetime** — which is `room-latch.svelte.ts:24`'s own *"APP-LIFETIME, NOT WIDGET-LIFETIME"* argument, applied to the Space latch. ⇒ **Gate C-1 now has TWO parts: non-fold path unchanged, AND fold→unfold preserves the scope.**
+
+### 🛑 F3 — THE CLAMP FORM THE RUNBOOK SUGGESTED PASSES ITS OWN GATE AND LEAVES A DEAD KEYPRESS
+
+`activeIndex` has **four** consumers, not one: the `tabindex` render (`:183`), ArrowDown (`:115`) and ArrowUp (`:118`) — **which self-heal via `Math.min`/`Math.max`** — and 🛑 **`:129` `selectAt(activeIndex)` on Enter/Space, which reads the RAW state.**
+
+**Trace after a 2→1 shrink with `activeIndex = 1`:** a `$derived` clamp at the tabindex site alone lights row 0 ⇒ **Gate C-4 passes verbatim** ⇒ user tabs in, lands on row 0, presses Enter ⇒ `selectAt(1)` ⇒ `items[1]` undefined ⇒ `if (!it) return` ⇒ ***silent no-op.*** ⚠️ **Verified: `entity-panel` has NO `onfocus`/`onfocusin` handler syncing `activeIndex`** — it self-heals only on an arrow press.
+
+⇒ ***The panel becomes reachable and its first keyboard activation does nothing — "the panel lies about where you are", this milestone's own theme.*** 🔒 **Gate C-4 gained an ACTIVATION assertion; the fix must route EVERY consumer through the clamp.**
+
+### 🛑 F1 — A SECOND STALE `D4` COMMENT, IN THE FILE C-2 EDITS
+
+`spaces-panel.svelte:42-43` — *"a room selection (R2) leaves this undefined -> R1 un-highlights (D4 opt-1)"* — **sits directly above the lines C-2 changes.** v1.0 named only `:16-18`. 🔑 ***The runbook's own stated principle — "a comment that describes the opposite of the code is the defect this project annotates hardest" — condemned the exact line it left standing.*** ⇒ **C-2 rewrites both.**
+
+### ⚠️ F4 + F5 — RECORDS AND COMPLETENESS
+
+**F4:** §7 said the close annotation *"drops the reader count"*. 🛑 **It does not — the count stays SIX.** R1 and R2 keep `selection.set` in their `onActivate` writers, both in §8 as NOT TOUCHED; **what goes stale is the CONSEQUENCE paragraph** at `selection.svelte.ts:22-30`. ***Decrementing the count would be factually wrong — a fourth error in a comment block already wrong three times.*** · **F5:** §3 enumerated `latchedSpaceId` deletions at `:23-27` and `:31-33` but **missed `:58`, the debug getter** — repoint, do not delete; it is the surface every gate reads.
+
+### ✅ WHAT SURVIVED — INCLUDING THE RUNBOOK'S OWN #1 RISK
+
+🔒 **§9-1's SHELL-DRIVEN DOUBLE-LATCH WRITE IS SOUND.** `app_client:195-198` tracks **only** `selection.current`; both `note()` are **pure writers gated on mutually exclusive `entity.kind`**, neither reads its own state, neither writes the bus ⇒ **no re-entrancy, no ordering dependency**, and no cross-talk with the sibling members effect at `:207-210` (which tracks `effectiveSpaceId`). · ✅ **§9-5 CONFIRMED: the Leg E collision is genuinely unreachable today** — every `selection.set` writer enumerated (`rooms-panel:49` room · `spaces-panel:50` space · `self-panel:77` identity); `members-panel`'s appears **only in comments**, `L-7` is not wired, and a room cannot be selected without a latched Space. · ✅ **All G1–G9 cites re-verified at HEAD `e0fc072`, not merely at `dd7d641`** · **S9's six-importer census verified** · **R2/R6 labels correct throughout — the runbook learned from J-693.**
+
+📌 **AND A SOUND ASYMMETRY CONFIRMED:** C-3 uses `effectiveRoomId` while C-2 uses the RAW `latchedSpaceId` — **justified, not a defect.** R1's own list IS the resolving Space set, so a stale id simply matches no row; there is no wrong highlight to produce.
+
+### 📌 TOOLING NOTE — THE CATALOGUE BREATHES WITH FOLDING
+
+**Measured 174 → 167 on a single fold.** 🔒 ***Any catalogue gate must run with every tile UNFOLDED*** — a folded tile silently removes its widget's whole subtree from the registry.
+
+### STATE
+
+🔒 **FLOORS carried and STATED** (zero `.rs`, zero `ui/**` this arc): cargo **1597/0/62 × 56** · svelte-check **0/34/15** · catalogue **435**. ✅ Client launched, driven, **torn down — 9222 closed**; **Joe's live state 2,856 B, `5.8.2026 7:12:25`, unchanged.**
+
+🔑 **§9 v1.0 WAS RIGHT ABOUT WHAT IT DOUBTED AND BLIND TO ALL THREE PLAN-MOVERS.** ⇒ ***Tenth consecutive arc in which Chat's own re-reads caught nothing that mattered.***
+
+🟢 **`M-RP-SELECT-ORIENT` OPEN.** ⇒ **NEXT: Joe locks the runbook at v1.1, then Clair builds C-1–C-4. 🛑 NO CODE UNTIL THE LOCK.**
+
+→ J-695 · runbook v1.1 PENDING · ROADMAP v6.83.
+
+---
+
 ## Entry J-694 — `OQ-1` closes as A, the runbook lands, and `D-147` records the two ways Chat re-opened a settled question
 
 **Date:** 2026-08-08 · **Seats:** Joe (the requirement, restated twice; the push) · Chat (the close, the runbook, the records) · **Code:** NONE — zero `.rs`, zero `ui/**` · **NEW** `tasks/RUNBOOK_SELECT_ORIENT.md` v1.0 **PENDING** · SELECT-ORIENT Phase-0 v1.1 → **v1.2** · **NEW `D-147`** · ROADMAP v6.81 → **v6.82**.

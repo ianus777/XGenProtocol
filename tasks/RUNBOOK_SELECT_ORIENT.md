@@ -1,6 +1,6 @@
 # M-RP-SELECT-ORIENT — the panels keep saying where you are — RUNBOOK
 > **Status**: PENDING  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-08  
 > Language: EN  
@@ -69,9 +69,29 @@
 
 **Then edit `rooms-panel.svelte`:** delete `:23-27` (the private latch) and `:31-33`'s local resolve; read `scopedSpace` from the store. **Both honest empty states must survive verbatim** — `"Select a space"` when nothing is latched, `"No rooms"` when a Space is latched and empty. *They are different truths (N-091).*
 
+🛑 **AND REPOINT `:58` — THE THIRD `latchedSpaceId` SITE, WHICH v1.0 DID NOT NAME (Clair's F5).** `latchedSpaceId` appears at `:23`, `:26`, `:32` **and `:58`, inside the debug getter**. **Repoint it to `spaceLatch.latchedSpaceId`; do not delete the field** — the getter is the verify surface every gate reads. *svelte-check would catch a dangling reference, but a runbook that enumerates deletions by line owes the complete set.*
+
 ⚠️ **THE COMMENT AT `rooms-panel:19-22` EXPLAINS A MECHANISM THAT IS MOVING.** Rewrite it to point at the store; **keep the N-136 note** (the effect writes but never reads the latch, so there is no self-invalidating read-modify-write).
 
-**Gate C-1:** svelte-check **0/34/15** · catalogue **435** · 🔒 **behaviour UNCHANGED — this is the clean baseline C-2 is measured against.**
+📌 **`app_client` needs the `spaceLatch` import** — stated for completeness; svelte-check catches its absence.
+
+**Gate C-1:** svelte-check **0/34/15** · catalogue **435** · **behaviour unchanged ON THE NON-FOLD PATH — the clean baseline C-2 is measured against.**
+
+🛑 **C-1 IS NOT A NEUTRAL REFACTOR. IT REPAIRS A LIVE DEFECT — MEASURED 2026-08-08 ON THE REAL CLIENT (Clair's F2, driven by Chat).** v1.0 said *"no rendered behaviour change"*. **That is FALSE on the fold path, and the truth is better than the claim.**
+
+**Folding a region tile UNMOUNTS the widget** — `region-node.svelte:225-228` mounts it as `RegionTile`'s children; `region-tile.svelte:173` gates `{@render children?.()}` behind `{#if collapsed === undefined}`. ⇒ **the component-local `latchedSpaceId` `$state` is DESTROYED.**
+
+🔒 **DRIVEN: select Engineering → select a room → fold R2 → unfold.**
+
+| | measured |
+|---|---|
+| on fold | `rooms-panel#region-rooms` and its panel **deregister** — catalogue 174 → **167** |
+| after unfold | R2 reads **`count: 0`, `hasEmpty: true`** — *"Select a space"* |
+| meanwhile | `roomLatch.effectiveRoomId` **UNCHANGED** — R5 and the composer still work in that room |
+
+⇒ ***Two clicks empty the rooms panel while the stream and composer keep going. Shipped today.*** **After C-1 the scope survives, because the store is app-lifetime** — which is `room-latch.svelte.ts:24`'s own *"APP-LIFETIME, NOT WIDGET-LIFETIME"* argument, applied to the Space latch.
+
+🔒 **GATE C-1 THEREFORE HAS TWO PARTS:** ① **non-fold path unchanged** (the C-2 baseline, intact) · ② **fold→unfold now PRESERVES the scope** — R2 lists the same rooms, `count` unchanged, **not `hasEmpty`.**
 
 ---
 
@@ -80,6 +100,12 @@
 `spaces-panel.svelte:44-46` — `selected` derives from **`spaceLatch.latchedSpaceId`**, not the bus.
 
 🛑 **AND G5's COMMENT BLOCK NOW ASSERTS A SUPERSEDED LOCK.** Rewrite `:16-18`: R1 highlights the **latched** Space, cite **`D-146`** and the `D4` opt-1 → opt-2 supersede. *A comment that describes the opposite of the code is the defect this project annotates hardest.*
+
+🛑 **THERE IS A SECOND ONE, AND v1.0 MISSED IT (Clair's F1). `spaces-panel.svelte:42-43` — SITTING DIRECTLY ABOVE THE LINES C-2 CHANGES:**
+
+> *"Read the bus BACK (D5). R1 owns the 'space' facet of the one selection; a room selection (R2) leaves this undefined -> R1 un-highlights (D4 opt-1)."*
+
+⇒ **BOTH comments become false the moment `:44-46` repoints. Rewrite `:42-43` too, or fold it into the `:16-18` rewrite.** 🔑 ***v1.0's own stated principle condemned the exact line it left standing — leaving it would ship this milestone's named defect in the file the commit just edited.***
 
 📌 **`onActivate` is UNCHANGED** — R1 still writes the bus. **The bus stays the single selection; R1 stops READING it for the highlight.**
 
@@ -103,11 +129,26 @@
 
 `entity-panel.svelte` — `activeIndex` must not exceed `items.length - 1`.
 
-🛑 **DO NOT re-seed it on every `items` change.** G8's one-time capture is deliberate — focus is its own concern once the user navigates. **Clamp only.** A `$derived` read used at the `tabindex` site, or a clamp where `items` is consumed; **not a new `$effect` writing `activeIndex`** (that reintroduces the N-136 read-modify-write G1's comment warns about).
+🛑 **DO NOT re-seed it on every `items` change.** G8's one-time capture is deliberate — focus is its own concern once the user navigates. **Clamp only.** 📌 **A form EXISTS — §9-2's fear that none might was unfounded (Clair's F3).** **Not a new `$effect` writing `activeIndex`** (that reintroduces the N-136 read-modify-write G1's comment warns about).
 
-⚠️ **Empty list:** `items.length === 0` renders `emptyText`, no `<li>` — make sure the clamp does not produce `-1` and light up a row that should not exist.
+🛑 **BUT THE FORM v1.0 SUGGESTED IS INCOMPLETE, AND ITS OWN GATE GREENLIGHTS THE HOLE (Clair's F3 — the sharpest finding of the read).** v1.0 offered *"a `$derived` read used at the tabindex site"*. **`activeIndex` has FOUR consumers, not one:**
 
-**Gate C-4:** cargo **untouched** · svelte-check · **catalogue 435 — a clamp registers no id; if it moves, STOP and report** · **live: 2-room Space → click index 1 → 1-room Space ⇒ exactly ONE `li[tabindex="0"]`.** 🔒 *Measured today at **zero**: `focusables` 0, `role="listbox"` intact — a listbox nothing can focus.*
+| site | reads | clamped by the tabindex-only form? |
+|---|---|---|
+| `:183` | the `tabindex` render | ✅ yes |
+| `:115` ArrowDown | `Math.min(n - 1, activeIndex + 1)` | ✅ self-heals internally |
+| `:118` ArrowUp | `Math.max(0, activeIndex - 1)` | ✅ self-heals internally |
+| **`:129` Enter / Space** | **`selectAt(activeIndex)` — the RAW state** | 🛑 **NO** |
+
+🔑 **TRACE, after a 2 → 1 shrink with `activeIndex = 1`:** the clamp lights row 0 ⇒ **Gate C-4 passes verbatim** ⇒ the user tabs in and lands on row 0 ⇒ presses **Enter** ⇒ `selectAt(1)` ⇒ `items[1]` is `undefined` ⇒ `if (!it) return` ⇒ ***silent no-op.*** ⚠️ **And nothing re-syncs on focus** — verified: `entity-panel` has no `onfocus`/`onfocusin` handler touching `activeIndex`. It self-heals only on an arrow press.
+
+⇒ ***The panel becomes reachable and its first keyboard activation does nothing — "the panel lies about where you are", this milestone's own theme.***
+
+🔒 **THE FIX MUST ROUTE EVERY CONSUMER THROUGH THE CLAMP** (or clamp the state at the point `items` is consumed) — **not the render site alone.**
+
+⚠️ **Empty list:** `items.length === 0` renders `emptyText`, no `<li>` — make sure the clamp does not produce `-1`. *(`onKey` already guards with `if (n === 0) return` at `:111`.)*
+
+**Gate C-4:** cargo **untouched** · svelte-check · **catalogue 435 — a clamp registers no id; if it moves, STOP and report** · **live, TWO assertions:** ① 2-room Space → click index 1 → 1-room Space ⇒ exactly ONE `li[tabindex="0"]` · 🔒 ② **ACTIVATION: focus that row, press Enter ⇒ `onActivate` FIRES.** *① alone is satisfied by the incomplete form — that is why ② exists.*
 
 📌 **Blast radius: `spaces-panel`, `rooms-panel`, `members-panel` and seven sampler cells.** *Which is why it is alone.*
 
@@ -117,7 +158,9 @@
 
 JOURNAL + `CLAUDE.md` PLAY + ROADMAP + this runbook `COMPLETED` + the Phase-0, **one commit**.
 
-**Owed, named in the Phase-0:** the **milestone-close annotation** on `selection.svelte.ts` dropping the reader count — R1 and R2 stop reading the bus for their highlight, so *six importers* becomes stale the moment C-3 lands.
+**Owed, named in the Phase-0:** the **milestone-close annotation** on `selection.svelte.ts`.
+
+🛑 **AND v1.0 MIS-DESCRIBED IT (Clair's F4). THE IMPORTER COUNT DOES NOT CHANGE — IT STAYS SIX.** R1 and R2 keep `selection.set` in their `onActivate` writers (`spaces-panel:50`, `rooms-panel:49`), both listed in §8 as NOT TOUCHED. **What goes stale is the CONSEQUENCE paragraph at `selection.svelte.ts:22-30`** — the one asserting the shipped defect — because R1/R2 stop reading `.current` **for the highlight**. ⚠️ ***Decrementing the "SIX IMPORTERS" line would be factually wrong. That comment block has already been wrong three times by its own count; a fourth would be this milestone's.***
 
 ---
 
@@ -129,9 +172,12 @@ JOURNAL + `CLAUDE.md` PLAY + ROADMAP + this runbook `COMPLETED` + the Phase-0, *
 
 ## §9 — WHERE THIS RUNBOOK IS MOST LIKELY WRONG
 
-1. 🛑 **§3's SHELL-DRIVEN WRITE IS THE RISKIEST INSTRUCTION HERE.** Putting `spaceLatch.note()` in `app_client`'s existing effect is asserted from reading `:195-198`, **not driven**. *If the two latches need different tracking, or `untrack` interacts badly, this is where it shows.* **Report rather than improvise.**
-2. 🛑 **§6's CLAMP MECHANISM IS NAMED BY CONSTRAINT, NOT BY CODE.** This document says what it must not be (`$effect`, re-seed) and leaves the form to you. **If no form satisfies all three constraints, that is a finding, not an implementation detail.**
-3. ⚠️ **`rooms-panel:25`'s `$effect` is traced as SCOPE, not highlight** — the basis for C-1 replacing it wholesale while C-3 touches only `:43-45`. **READ, NOT DRIVEN** (Phase-0 §8-3).
-4. ⚠️ **NO CATALOGUE PREDICTION.** A store registers no id, a clamp registers no id ⇒ **435 throughout, expected not proven.**
-5. ⚠️ **THE FUTURE COLLISION IS OUT OF SCOPE AND WILL LOOK LIKE A BUG.** Enter a room whose Space was never clicked — a DM under Leg C — and **R2 lists the previous Space's rooms**. 🔒 **Not reachable today**: the only room-selection writer is `rooms-panel:49`, reachable only after a Space is latched. **Owed to `M-RP-MEMBER-ACT` Leg E.**
-6. 📌 **THIS RUNBOOK HAS NOT BEEN READ BY ANYONE OUTSIDE ITS AUTHOR, AND ITS AUTHOR GOT THIS MILESTONE'S CENTRAL IDENTIFIER WRONG.** *The last three runbooks were each sent back once by a Clair read; the Phase-0 was sent back twice.*
+🔒 **CLAIR'S ADVERSARIAL READ LANDED 2026-08-08 AND RETURNED FIVE FINDINGS. CHAT RE-DROVE ALL FIVE; ALL FIVE CONFIRMED.** *Both of v1.0's self-suspected items were driven to ground: one held, one was a real hole this document only half-saw.*
+
+1. ✅ **DISCHARGED — §3's SHELL-DRIVEN WRITE IS SOUND. v1.0's #1 NAMED RISK HOLDS.** Clair traced it: `app_client.svelte:195-198` tracks **only** `selection.current`; adding `spaceLatch.note(sel)` beside `roomLatch.note(sel)` under the same `untrack` composes, because **both `note()` are pure writers gated on MUTUALLY EXCLUSIVE `entity.kind`** (`room` vs `space`), neither reads its own state, neither writes `selection.current` ⇒ **no re-entrancy, no ordering dependency.** ✅ **And no cross-talk with the sibling members effect at `:207-210`**, which tracks `roomLatch.effectiveSpaceId` — untouched by the Space-latch write. *Superseded text follows.* — 🛑 **§3's SHELL-DRIVEN WRITE IS THE RISKIEST INSTRUCTION HERE.** *Asserted from reading `:195-198`, not driven. Report rather than improvise.*
+2. ✅ **DISCHARGED, AND IT WENT THE OTHER WAY — A FORM EXISTS, BUT THE ONE v1.0 SUGGESTED IS INCOMPLETE (Clair's F3).** §6 now carries the four-consumer table and the Enter-key trace. 🔑 ***The fear was "no form satisfies the constraints"; the truth was "a form does, and this document named a partial one whose own gate passes it."*** ⇒ **Gate C-4 gained an ACTIVATION assertion.** *Superseded text follows.* — 🛑 **§6's CLAMP MECHANISM IS NAMED BY CONSTRAINT, NOT BY CODE.** *If no form satisfies all three constraints, that is a finding.*
+3. ⚠️ **`rooms-panel:25`'s `$effect` is traced as SCOPE, not highlight** — the basis for C-1 replacing it wholesale while C-3 touches only `:43-45`. **READ, NOT DRIVEN** (Phase-0 §8-3). ✅ *Clair confirmed the trace on the same evidence; still not driven.*
+4. ⚠️ **NO CATALOGUE PREDICTION.** A store registers no id, a clamp registers no id ⇒ **435 throughout, expected not proven.** 📌 **Note: the catalogue BREATHES with folding — measured 174 → 167 on a single fold.** *Any catalogue gate must run with every tile unfolded.*
+5. ✅ **DISCHARGED — THE LEG E COLLISION IS GENUINELY UNREACHABLE TODAY.** Clair enumerated every `selection.set` writer: **`rooms-panel:49` (room) · `spaces-panel:50` (space) · `self-panel:77` (identity)** — and `members-panel`'s appears **only in comments** (`:14`, `:17`); `L-7` is not wired. **A room cannot be selected without a latched Space, because rooms only render when `scopedSpace !== null`.** ⇒ **confirmed unreachable; owed to `M-RP-MEMBER-ACT` Leg E.**
+6. 🔑 **v1.0's ITEM 6 SAID ITS AUTHOR GOT THIS MILESTONE'S CENTRAL IDENTIFIER WRONG. IT DID NOT PREDICT THE THREE THINGS CLAIR FOUND** — a second stale comment in the file C-2 edits, a false *"behaviour UNCHANGED"*, and a clamp form its own gate would greenlight. ⇒ ***v1.0's self-suspicion list was RIGHT about what it doubted and BLIND to all three plan-movers. Tenth consecutive arc in which Chat's own re-reads caught nothing that mattered.***
+7. ⚠️ **THE GATE C-2 / C-3 "MEASURED THIS SESSION" BASELINES WERE NOT RE-VERIFIED BY CLAIR** — no client was up on her seat and Joe's state is read-only. **She marked them plausible-not-reproduced, and said so rather than assuming.** 📌 *Chat drove them originally and drove F2 live afterwards; the C-2/C-3 baselines remain single-sourced to Chat.*

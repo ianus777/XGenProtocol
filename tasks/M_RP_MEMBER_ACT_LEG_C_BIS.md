@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT Leg C-bis — the member with no DM: creation, the first send, and the erased identity
 > **Status**: PENDING  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-08  
 > Language: EN  
@@ -24,6 +24,25 @@ a separate exercise and needs its own Phase-0** (`D-071`: subsystem audits prece
 📌 **Leg C closed at `6a6c066`** — C-1 `524d4f7` (`selectOnActivate`), C-2 `b5d0908` (`roomLatch.latch()`),
 C-3 `6a6c066` (R7 acts). All three gates green; see `RUNBOOK_MEMBER_ACT_LEG_C.md` **v1.2 COMPLETED** §8.
 
+⚠️ **v1.1 (J-702) RECORDS `J-692`'s RULING AND NOTHING ELSE.** The file is still a debt register; the
+Phase-0 that turns it into a design is a **separate pass** and is still owed. §0's warning stands: nothing
+below the ruling in §1 is locked.
+
+### 📌 **GROUNDING RE-MEASURED AT `24c3409` (J-702) — THE LEG IS SMALLER THAN THE DEBT REGISTER ASSUMED**
+
+| # | fact | site |
+|---|---|---|
+| **G1** | `create_dm_space(invitee: String) -> CreateDmSpaceResult` is **already a Tauri command** | `xgen-client/src/desktop.rs:796`, registered `:1138` |
+| **G2** | result carries `space_id · room_id · event_id · invitee · owner_identity_id` ⇒ **`roomLatch.latch(room_id)` needs no resolution step and no round trip** | `xgen-client/src/ops.rs:827` |
+| **G3** | three-event causal chain signed and sent in order; *"ordering is the correctness contract"*; all-or-nothing abort is **built and tested** | `xgen-client/src/ops.rs:838-843` |
+| **G4** | 🔑 **`create_dm_space` has ZERO hits anywhere in `ui/`** | repo-wide `ui/**/*.{ts,svelte}` |
+
+🔑 **G4 NAMES THE LEG: this is a FRONTEND leg — no Rust, no protocol, no wire — and it is the FIRST caller
+of a verb exposed since M7C and never once invoked from the webview.**
+
+⚠️ **BUT THE VERB SIGNS AND SENDS ⇒ IT NEEDS A LIVE NODE AND IT CAN FAIL** (unlike the on-disk `get_spaces`).
+**The draft's send path must say so honestly — `D-065`.**
+
 ---
 
 ## §1 — THE FOUR OWED ITEMS
@@ -43,8 +62,23 @@ be that the row no longer lies about being actionable.** ⚠️ **It is legitima
 row stops being clickable"*;** that also discharges the debt. What is NOT legitimate is closing this leg
 with the no-op still in place.
 
-📌 **`J-692` IS THE BLOCKER AND IT IS JOE'S.** *What should a click on a member with no existing DM do?* —
-open, unruled since 2026-08-06. **Chat does not answer it.**
+📌 ~~**`J-692` IS THE BLOCKER AND IT IS JOE'S.** *What should a click on a member with no existing DM do?* —
+open, unruled since 2026-08-06. **Chat does not answer it.**~~
+
+### 🔒 **`J-692` IS RULED — OPTION B, THE DRAFT VIEW (Joe, 2026-08-08, recorded J-702).**
+
+**A click on a member with no existing DM opens a Discord-like DRAFT view:** R5 shows an **empty stream
+carrying a prepared page**, R6's composer is **LIVE**, and the DM Space is **materialised on FIRST SEND**.
+📌 **The affordance is LMC, not the context menu** — Joe refused RMC as the primary route at J-701,
+*"this has to be the most straight path"*.
+
+⇒ **`OWED-1`'s route is now named.** The row stops being a dead control not by ceasing to be clickable but
+by the click **doing the thing it looks like it does.** ⚠️ **THE DEBT IS NOT DISCHARGED BY THE RULING** —
+it is discharged by the implementation, verified on the live client (§4).
+
+🛑 **THE RULING'S SCOPE IS THE CLICK.** It says nothing about what the prepared page contains (appearance,
+**Joe's**, `D-123`), whether a draft survives navigation, or what a failed create does. Those are this
+leg's Phase-0 questions and are **carried to Joe, not assumed** (`D-121`).
 
 ### **OWED-2 — `OQ5`: DM creation to an ERASED identity (re-sited here at J-690)**
 

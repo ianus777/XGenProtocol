@@ -8,6 +8,56 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-702 — `J-692` is ruled: the click opens a draft DM. The record catches up, and a pushed commit subject is annotated rather than pretended away
+
+**Date:** 2026-08-08 · **Seats:** Joe (the ruling) · Chat (recording it, re-grounding the leg, two citation corrections) · **Code: NONE.** `tasks/M_RP_MEMBER_ACT_LEG_C_BIS.md` v1.0 → **v1.1** · ROADMAP v6.89 → **v6.90**. **No new `D`, no new `N`.**
+
+### 🔒 THE RULING
+
+**`J-692` = OPTION B (Joe, 2026-08-08).** A click on a member with **no existing DM** opens a **Discord-like draft view**: R5 shows an empty stream carrying a prepared page, R6's composer is **LIVE**, and the DM Space is **materialised on first send**.
+
+📌 **The affordance is LMC, not the context menu** — consistent with his prior refusal at J-701, *"this has to be the most straight path"*, which was recorded there as a direction and is now subsumed by an actual lock.
+
+⚠️ **THE RULING'S SCOPE IS THE CLICK, AND NOTHING ELSE.** Everything else discussed at J-701 — `M-RP-INTRO`, `M-INTRO-POLICY`, `M-RP-MEDIA`, `M-STREAM-LIVE` — remains **FILED, not designed** (`D-141`: a ruling is attributed to Joe only where he uttered it, and a neighbouring conversation is not an utterance).
+
+### ⚠️ `24c3409`'s SUBJECT LINE IS NOW FALSE, AND IT CANNOT BE EDITED
+
+The J-701 commit's subject says *"J-692 still open"*. **It was true when it was written and it is false now.** A pushed commit message is immutable ⇒ **`D-131` applies: annotate at the site, do not pretend it never said it.** The annotation is this entry, plus the ROADMAP trigger line's replacement below; **no attempt is made to rewrite history, and no record claims the subject was ever correct.**
+
+*(Fifth instance of the arc's own recurring shape — **a heading that outlives the paragraph beneath it**. This one outlived it by a single session, which is the shortest interval yet and the only reason it was caught cheaply.)*
+
+### 🔑 THE RE-GROUNDING THAT SIZES THE LEG — AND TWO CORRECTIONS TO THE CITATIONS IT WAS CARRIED IN ON
+
+Re-measured at `24c3409`, not inherited:
+
+| # | fact | site | status |
+|---|---|---|---|
+| **G1** | `create_dm_space(invitee: String) -> CreateDmSpaceResult` is **already a Tauri command** | `xgen-client/src/desktop.rs:796`, registered `:1138` | ✅ confirmed |
+| **G2** | `CreateDmSpaceResult` carries `space_id · room_id · event_id · invitee · owner_identity_id` | **`xgen-client/src/ops.rs:827`** | ⚠️ **corrected — the crate was cited as `xgen-core`; it is `xgen-client`** |
+| **G3** | the three-event causal chain is signed and sent in order; *"ordering is the correctness contract"* | `xgen-client/src/ops.rs:838-843` | ✅ confirmed verbatim |
+| **G4** | **`create_dm_space` has ZERO hits anywhere in `ui/`** | repo-wide search of `ui/**/*.{ts,svelte}` | 🔑 **new — not in the kickoff** |
+
+🔑 **G4 IS THE ONE THAT NAMES THE SEAM.** The verb is built, tested, exposed and **has never once been called from the frontend.** ⇒ **Leg C-bis is a FRONTEND leg** — no Rust, no protocol, no wire — **and it is the first caller of a verb that has been sitting exposed since M7C.** *That is not a detail of the leg; it is the leg.*
+
+⚠️ **G2 is the recurring species again, one notch down: a citation narrower — or here, simply wrong — about the thing it describes.** `ops.rs` exists in more than one crate, and a bare `ops.rs:827` reads as a measurement. **State the crate, then state the line.**
+
+### 🛑 WHAT IS STILL OPEN AFTER THE RULING
+
+The ruling settles **what the click does**. It settles none of the following, all of which the Leg C-bis Phase-0 must carry to Joe with `D-121` lenses:
+
+- **① does a draft survive navigation** (with typed text) — Chat will recommend **keep it**, keyed by counterpart
+- **② what the prepared page SAYS, and which widget draws it** — 🛑 **appearance is Joe's (`D-123`)**; the socket (`background?: WidgetMount[]`, §9.4) and the never-bare rule already exist, only the words are open
+- **③ does a FAILED create leave the draft open** — the verb aborts and writes nothing, so the client is clean either way
+- **④ `OWED-1`'s discharge criterion**, made concrete and verified on the live client
+
+📌 **`OWED-4` (`§6` leg 5) is untouched by this ruling and stays UNRULED** — `D-146`, nothing has expired. ⚠️ **But the ruling makes it reachable:** a draft that materialises a second, non-erased DM ends the fixture blockade. **The measurement is owed, and owed to Joe's eyes before anyone rules.**
+
+### 📌 THE DEAD CONTROL IS STILL SHIPPED
+
+`OWED-1` is **not discharged by this entry.** The ruling names the route; **the row still clicks and still does nothing in the product at `24c3409`.** The debt moves from *blocked on Joe* to *blocked on implementation*, which is progress and is not a discharge. → J-702 · ROADMAP v6.90.
+
+---
+
 ## Entry J-701 — the DM-entry design conversation: four milestones filed, two notes, and the architecture was already there twice
 
 **Date:** 2026-08-08 · **Seats:** Joe (the questions, one self-correction, one design better than Chat's objection) · Chat (grounding, four measured findings, records) · **Code: NONE.** `M-RP-INTRO` · `M-INTRO-POLICY` · `M-RP-MEDIA` · `M-STREAM-LIVE` filed PENDING · `N-172` + `N-173` · notes v1.13 → **v1.14** · ROADMAP v6.88 → **v6.89**. **No new `D`.**

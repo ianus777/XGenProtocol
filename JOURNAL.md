@@ -8,6 +8,46 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-698 — M-TOOL-CDP-KEY: the harness can press a key
+
+**Date:** 2026-08-08 · **Seats:** Chat (design, implementation, every leg driven) · Joe (the push) · **Code:** one file, `cdp-debug.ps1`, +116/−1 · ROADMAP v6.85 → **v6.86**. **No new `D`, no new `N`.** Zero `ui/**`, zero `.rs` — cargo, svelte-check and the catalogue are untouched **by scope**, stated as scope.
+
+🔑 **THE HARNESS COULD CLICK AND DRAG AND COULD NOT PRESS.** Every keyboard assertion in this project has therefore shipped with a limit — most recently `M-RP-SELECT-ORIENT`'s `L-12`, whose activation gate was driven with a **synthetic** `keydown`: it runs the Svelte listener, but it does not prove the browser routes a physical key there. **Built BEFORE `M-RP-MEMBER-ACT` Leg C, not during it** — Leg C is almost entirely pointer-and-keyboard assertions, and *an instrument whose first trust test is the milestone that depends on it has not been tested.*
+
+### 🔒 `L-12` RE-DRIVEN WITH A TRUSTED KEY — THE LIMIT IS DISCHARGED
+
+The C-4 reproduction, rebuilt: Engineering (2 rooms) → room `random` (index 1) → Design (1 room) ⇒ one row, `tabindex="0"`. Focus placed **without a click**, then `Input.dispatchKeyEvent` Enter. **`aria-selected` flipped `false` → `true` inside the probe itself; bus → `{kind: 'room', name: 'ideas'}`; `roomLatch` followed.** 🔑 ***Reproduces the synthetic result at `62c72f6` exactly — the two instruments agree, which is what makes the earlier measurement retroactively trustworthy rather than merely unfalsified.***
+
+### 🔑 A MEASUREMENT THIS PROJECT HAS NEVER TAKEN: THE TAB ORDER
+
+`-Repeat` prints every intermediate stop, so a Tab walk is a measurement rather than a before/after. Six steps from the rooms panel: `entity-panel#region-rooms__panel` → `region-tile#region-room-header` (seam + two fold buttons) → `region-tile#region-stream` (seam + two buttons). **`Shift+Tab` six steps returns to the identical `ideas` row** — a 6-forward/6-back round-trip, which is the strongest available evidence that the modifier mask is right. `ArrowDown ×3` exercised the `rawKeyDown` (no-`text`) branch and the roving `tabindex` followed focus.
+
+### 🛑 THE HARNESS'S FIRST DEFECT WAS THE HARNESS PASSING FOR THE WRONG REASON
+
+`-At` focuses by **trusted click** — and on `entity-panel`, `menu-item`, `shelf-face`, i.e. most of this UI, **a click IS an activation.** So `-At -Key Enter` **passes because of the click and proves nothing about the key.** Caught while composing the very first gate command, before any number was taken. 🔑 ***This is `L-12`'s own failure mode — an assertion satisfiable without exercising the path it names — reappearing one layer down, inside the instrument built to close it.*** Documented in the header as a hard warning: to test a key path, focus without a click and press with **no** `-At`.
+
+### 🛑 AND THE PROBE COULD NOT NAME WHERE IT WAS (N-110, ON MY OWN INSTRUMENT)
+
+First run returned `id: null` at every stop. **Focusable elements are mostly unregistered leaves** — an `li[role=option]` carries no `data-debug-id`; the `entity-panel` around it does. ***A tab walk whose every stop reads "LI, null" is not a measurement.*** The probe now climbs to the nearest `[data-debug-id]` ancestor and reports **`own` and `owner` separately**, so the two can never be read as one. *N-110 applied to the instrument rather than discovered by it — the first time this session that guard was used in advance instead of after.*
+
+### DESIGN, AND THE ONE PLACE GENERALITY WAS REFUSED
+
+🔒 **A KEY IS FOUR FIELDS, NOT ONE, AND THE MISSING ONES FAIL SILENTLY.** `Input.dispatchKeyEvent` accepts `{type,key}` alone, **ACKs it, and the page does nothing** — Chromium routes on `windowsVirtualKeyCode`, and a text-producing key additionally needs `text` or no `keypress` is generated at all. *The N-139 family again: the instrument reports success and the assertion reads clean against a dead key.* ⇒ **the supported keys are a TABLE, not a parser.** A generic string→key mapper looks general and is wrong at exactly the edges that matter: Space's `text` is `" "` but its `code` is `"Space"`; arrows carry **no** `text`; Enter's text is **CR, not LF**. Ten keys, each measured; the eleventh gets added with its four fields rather than covered by a guessed rule.
+
+📌 **CORRECTION CARRIED HERE, OWED FROM J-697:** the ROADMAP said **two `D`-mints recommended to Joe.** ⚠️ **Chat contradicted itself on the second.** Ruling on the BOM amend, it argued `D-145` **decided** the case (*"a commit message is not a locked document… a document never locked is repaired instead"*) — then three messages later argued `D-145` **gives no answer** and proposed a new `D` to fill the gap. **Both cannot be true, and the first is right:** `D-145`'s real distinction is *repair what nothing has been built on, annotate what has*, and reaching a commit is an extension, not a gap. 🔑 ***Calling a familiar principle a gap is how a `D`-series grows on restatements — the exact test Chat applied to the BOM lesson and failed to apply to its own recommendation in the same message.*** ⇒ **Revised: at most a `D-145a` ADDENDUM (bare number survives, D-134), and DEFERRED** — one instance is thin, and `D-146` would call a rule minted from a single occurrence minted early. **Joe was the one who noticed and asked.**
+
+### STATE
+
+🔒 **Floors untouched BY SCOPE and stated as scope:** cargo **1597/0/62 × 56** · svelte-check **0/34/15** · catalogue **435**. One `.ps1`; the script parses clean (`Parser::ParseFile`, zero errors); LF preserved; **Joe's client state 2,856 B, `LastWriteTime` unchanged.**
+
+📌 **FILED, NOT FIXED — belongs to `M-RP-FOCUS`, not here:** the first `ArrowDown` after a programmatic `.focus()` **skips an item**, because `activeIndex` is not synced on focus and still held its earlier click position. **Exactly `entity-panel`'s documented model** — but now *observable through a trusted key* rather than inferred from source. Not a defect introduced by anything in this arc.
+
+🟢 **⇒ NEXT: `M-RP-MEMBER-ACT` Leg C — making the members panel interactive**, blocked on Joe's three locks: **`OQ-C1`** the latch writer · **`OQ-C2`** the erased row · **`OQ-C4`** the flag's name. Leg C Phase-0 is at v1.4 and ready; a runbook follows the locks. **Option D remains parked against lived use.**
+
+→ J-698 · ROADMAP v6.86.
+
+---
+
 ## Entry J-697 — M-RP-SELECT-ORIENT SHIPS: the panels keep saying where you are
 
 **Date:** 2026-08-08 · **Seats:** Clair (C-1–C-4, four commits) · Chat (every gate re-driven, the records) · Joe (the pushes, the amend call) · **Code:** `517cf94` · `d8edd85` · `cd53c6d` · `62c72f6` · `tasks/RUNBOOK_SELECT_ORIENT.md` v1.3 → **v1.4, ACTIVE → COMPLETED** · Phase-0 v1.2 → **v1.3, COMPLETED** · ROADMAP v6.84 → **v6.85**. **No new `D` minted by Chat; two recommended to Joe.**

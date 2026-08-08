@@ -18,6 +18,27 @@
 #   .\cdp-debug.ps1 -App client -Mode drag  -From "215,400" -To "300,400" ^
 #        -MidExpression "JSON.stringify(__XGEN_LAYOUT__.current)" -Expression "JSON.stringify(__XGEN_LAYOUT__.current)"
 #
+# TRUSTED KEYS (M-TOOL-CDP-KEY). `Input.dispatchKeyEvent` is the keyboard half of the same argument.
+# Until it existed the harness could CLICK but not PRESS, so every keyboard assertion shipped with a
+# stated limit - M-RP-SELECT-ORIENT's L-12 activation gate was driven with a synthetic `keydown`,
+# which runs the Svelte listener but does NOT prove the browser routes a physical key there.
+#   .\cdp-debug.ps1 -App client -Mode key -Key Enter -At "340,114"     # focus that row, then press
+#   .\cdp-debug.ps1 -App client -Mode key -Key Tab -Repeat 12          # WALK the tab order
+#   .\cdp-debug.ps1 -App client -Mode key -Key Tab -Modifier Shift     # and walk it backwards
+#   .\cdp-debug.ps1 -App client -Mode key -Key ArrowDown -Expression "..."
+#
+# ** KEYS GO TO document.activeElement, NOT TO A COORDINATE **, so this mode always prints the focused
+# element BEFORE and AFTER (tag, own + owner data-debug-id, role, tabindex, aria-selected, text).
+# Without that pair, a key hitting a dead handler and a key hitting <body> because nothing was focused
+# look IDENTICAL. -Repeat prints every intermediate stop, which is what makes a Tab walk a measurement
+# rather than a before/after.
+#
+# ** -At FOCUSES BY CLICKING, SO IT CANNOT TEST ACTIVATION. ** On any component where a click is
+# itself an activation (entity-panel, menu-item, shelf-face - i.e. most of this UI), -At -Key Enter
+# passes because of the CLICK and proves nothing about the KEY. Found on this harness's own first
+# gate. To test a key path, put focus there WITHOUT a click (`el.focus()` via -Mode eval, or Tab into
+# it) and press with NO -At. Use -At only when the click is incidental to what you are asserting.
+#
 # ** -MidExpression is evaluated WHILE THE BUTTON IS STILL DOWN.** It is not a convenience: a design that
 # previews live but only writes the descriptor on release is INDISTINGUISHABLE from one that writes on
 # every move, if you can only read after mouseReleased. The mid-drag read IS the proof.
@@ -41,7 +62,10 @@
 param(
     [ValidateSet('client','node','sampler')] [string]$App = 'client',
     [int]$Ordinal = 0,
-    [ValidateSet('console','state','eval','screenshot','click','drag')] [string]$Mode = 'state',
+    [ValidateSet('console','state','eval','screenshot','click','drag','key')] [string]$Mode = 'state',
+    [ValidateSet('Enter','Space','Tab','Escape','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End')] [string]$Key = '',
+    [ValidateSet('None','Shift','Ctrl','Alt')] [string]$Modifier = 'None',
+    [int]$Repeat = 1,
     [string]$Expression = '',
     [string]$MidExpression = '',
     [string]$At = '',
@@ -127,6 +151,73 @@ function Invoke-CdpMethod {
     }
     throw "No CDP reply for $Method (id $id)"
 }
+
+# ** A KEY IS FOUR FIELDS, NOT ONE - AND THE MISSING ONES FAIL SILENTLY. **
+# `Input.dispatchKeyEvent` accepts `{type,key}` alone, ACKs it, and the page does NOTHING: Chromium
+# routes on `windowsVirtualKeyCode`, and a text-producing key additionally needs `text` or no
+# `keypress` is generated at all. An event that is accepted and ignored is the N-139 family again -
+# the instrument reports success and the assertion reads clean against a dead key.
+# ** SO THE SUPPORTED KEYS ARE A TABLE, NOT A PARSER. ** A generic string->key mapper looks general
+# and is wrong at exactly the edges that matter (Space's text is " " but its `code` is "Space";
+# arrows carry NO text at all; Enter's text is CR, not LF). Ten keys, each measured. Add the eleventh
+# when something needs it, with its four fields, rather than guessing a rule that covers it.
+function Get-KeySpec {
+    param([string]$Name)
+    switch ($Name) {
+        'Enter'      { return @{ code = 'Enter';      vk = 13; text = "`r" } }
+        'Space'      { return @{ code = 'Space';      vk = 32; text = ' '   } }
+        'Tab'        { return @{ code = 'Tab';        vk = 9;  text = "`t" } }
+        'Escape'     { return @{ code = 'Escape';     vk = 27; text = ''    } }
+        'ArrowUp'    { return @{ code = 'ArrowUp';    vk = 38; text = ''    } }
+        'ArrowDown'  { return @{ code = 'ArrowDown';  vk = 40; text = ''    } }
+        'ArrowLeft'  { return @{ code = 'ArrowLeft';  vk = 37; text = ''    } }
+        'ArrowRight' { return @{ code = 'ArrowRight'; vk = 39; text = ''    } }
+        'Home'       { return @{ code = 'Home';       vk = 36; text = ''    } }
+        'End'        { return @{ code = 'End';        vk = 35; text = ''    } }
+        default      { throw "Unsupported -Key '$Name'. Add it to Get-KeySpec with its four fields." }
+    }
+}
+
+# CDP modifier bitmask: Alt=1, Ctrl=2, Meta=4, Shift=8. Shift+Tab is the one that earns this param -
+# a tab-order walk that can only go forwards cannot tell a TRAP from a one-way door.
+function Get-ModifierMask {
+    param([string]$Name)
+    switch ($Name) {
+        'Shift' { return 8 } 'Ctrl' { return 2 } 'Alt' { return 1 } default { return 0 }
+    }
+}
+
+# ** KEYS GO TO document.activeElement, NOT TO A COORDINATE. ** That is why this mode reports the
+# focused element BEFORE and AFTER every press: without it, a key delivered to a dead handler and a
+# key delivered to <body> because nothing was focused are INDISTINGUISHABLE - both look like "nothing
+# happened". The before/after pair is the deliverable, not a courtesy.
+function Send-KeyEvent {
+    param($Ws, $Token, [string]$Name, [string]$Modifier = 'None')
+    $spec = Get-KeySpec $Name
+    $mods = Get-ModifierMask $Modifier
+    # A key that produces text uses `keyDown` (which generates keypress); one that does not uses
+    # `rawKeyDown`. Sending `keyDown` WITHOUT text suppresses keypress silently - measured, not assumed.
+    $downType = if ($spec.text -ne '') { 'keyDown' } else { 'rawKeyDown' }
+    $common = '"key":' + (ConvertTo-Json $Name) + ',"code":' + (ConvertTo-Json $spec.code) +
+              ',"windowsVirtualKeyCode":' + $spec.vk + ',"nativeVirtualKeyCode":' + $spec.vk +
+              ',"modifiers":' + $mods
+    $textPart = if ($spec.text -ne '') { ',"text":' + (ConvertTo-Json $spec.text) } else { '' }
+    [void](Invoke-CdpMethod $Ws $Token 'Input.dispatchKeyEvent' ('{"type":"' + $downType + '",' + $common + $textPart + '}'))
+    [void](Invoke-CdpMethod $Ws $Token 'Input.dispatchKeyEvent' ('{"type":"keyUp",' + $common + '}'))
+}
+
+# One expression, JSON.stringify'd - PS 5.1 cannot take a multi-statement eval (N-101).
+# ** THE PROBE CLIMBS TO THE NEAREST data-debug-id ANCESTOR, AND THAT IS THE POINT (N-110). **
+# Focusable elements are mostly UNREGISTERED leaves - an `li[role=option]` inside `entity-panel`
+# carries no id of its own, so a probe reading only the focused node reports `id: null` and tells you
+# the tag but never WHERE you are. A tab walk whose every stop reads "LI, null" is not a measurement.
+# `own` is kept separate from `owner` so the two can never be confused for one another.
+$FocusProbeJs = 'JSON.stringify((function(){var e=document.activeElement;if(!e)return null;' +
+    'var o=e.closest?e.closest("[data-debug-id]"):null;' +
+    'return{tag:e.tagName,own:e.getAttribute("data-debug-id"),' +
+    'owner:o?o.getAttribute("data-debug-id"):null,role:e.getAttribute("role"),' +
+    'tab:e.getAttribute("tabindex"),aria:e.getAttribute("aria-selected"),' +
+    'text:(e.textContent||"").trim().slice(0,28)}})())'
 
 function Send-MouseEvent {
     param($Ws, $Token, [string]$Type, [int]$X, [int]$Y, [int]$Buttons = 0, [int]$ClickCount = 0)
@@ -297,6 +388,30 @@ try {
                     break
                 }
             }
+        }
+        'key' {
+            if ([string]::IsNullOrWhiteSpace($Key)) { throw "-Mode key requires -Key" }
+            # -At is OPTIONAL and focuses by TRUSTED CLICK first, so "focus this row, press Enter" is one
+            # command. Without it the key goes wherever focus already is - which is exactly what a Tab
+            # walk wants, and exactly what makes a stray key look like a dead handler if you forget.
+            if ($At) {
+                $p = ConvertTo-Point $At 'At'
+                if (-not $KeepSelection) { Clear-Selection $ws $cts.Token }
+                Write-Host "focus-click @ $($p[0]),$($p[1])  (trusted, CSS px)"
+                Send-MouseEvent $ws $cts.Token 'mouseMoved'    $p[0] $p[1] 0 0
+                Send-MouseEvent $ws $cts.Token 'mousePressed'  $p[0] $p[1] 1 1
+                Send-MouseEvent $ws $cts.Token 'mouseReleased' $p[0] $p[1] 0 1
+            }
+            Show-Eval $ws $cts.Token 'FOCUS BEFORE:' $FocusProbeJs
+            $label = if ($Modifier -eq 'None') { $Key } else { "$Modifier+$Key" }
+            for ($k = 0; $k -lt $Repeat; $k++) {
+                Write-Host "key $label  (trusted, Input.dispatchKeyEvent)"
+                Send-KeyEvent $ws $cts.Token $Key $Modifier
+                # -Repeat exists for tab-order WALKS, so each step must be readable, not just the last.
+                if ($Repeat -gt 1) { Show-Eval $ws $cts.Token "  FOCUS [$($k+1)/$Repeat]:" $FocusProbeJs }
+            }
+            Show-Eval $ws $cts.Token 'FOCUS AFTER: ' $FocusProbeJs
+            if ($Expression) { Show-Eval $ws $cts.Token 'AFTER:' $Expression }
         }
         'click' {
             $p = ConvertTo-Point $At 'At'

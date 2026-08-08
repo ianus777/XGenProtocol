@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.85  
+> Version: 6.86  
 > Date: May 2026  
 > **Last updated**: 2026-08-08  
 > Language: English  
@@ -307,10 +307,12 @@ XGen Protocol
 │   │   └── 🟡 **Leg E records + close**
 │   │       ↳ trigger: Leg D lands
 │   ├── ✅ **M-RP-SELECT-ORIENT** — the panels keep saying where you are: R1 and R2 highlight from the latch, not the bus · **CLOSED J-697** · Phase-0 `tasks/M_RP_SELECT_ORIENT_PHASE0.md` v1.3 COMPLETED · runbook `tasks/RUNBOOK_SELECT_ORIENT.md` v1.4 COMPLETED · `517cf94` `d8edd85` `cd53c6d` `62c72f6` · `DECISIONS.md` D-146 + D-147 · supersedes `M-RP6.2` D4 opt-1 → opt-2 · discharges **`OQ-C3`** as C-4 and the `selection.svelte.ts` importer annotation · J-697 (J-692, J-693, J-694, J-695, J-696)
-│   │   ↳ Owes: **option D, the two-state highlight — FILED, not refused; its cost is now LARGER, not expired** · two `D`-mints recommended to Joe — the repair-vs-annotate boundary (`D-145` sharpened: built-upon, not locked) and the `cdp-debug.ps1` key mode as Chat's own tooling commit
+│   │   ↳ Owes: **option D, the two-state highlight — FILED, not refused; its cost is now LARGER, not expired** · at most a **`D-145a` addendum, DEFERRED** — `D-145` reaches non-document records and the operative test is whether anything has been BUILT on the artifact; Chat first argued `D-145` decided the case and later that it left a gap, and the first reading is the right one, so this is an extension rather than a new principle
+│   ├── ✅ **M-TOOL-CDP-KEY** — the harness can press a key: `Input.dispatchKeyEvent`, a ten-key table, and a focus probe that names its owner · **CLOSED J-698** · one file `cdp-debug.ps1` · discharges `M-RP-SELECT-ORIENT` `L-12`'s stated limit — the trusted Enter reproduces the synthetic result at `62c72f6` exactly · J-698
+│   │   ↳ Owes: **the first `ArrowDown` after a programmatic `.focus()` skips an item** — `activeIndex` is not synced on focus; `entity-panel`'s documented model, now observable through a trusted key, and it belongs to **M-RP-FOCUS**
 │   ├── 🟢 **M-RP-MEMBER-ACT** — the members panel acts: LMC opens the DM, RMC opens the menu · Phase-0 `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.11 · Leg C Phase-0 `tasks/M_RP_MEMBER_ACT_LEG_C_PHASE0.md` v1.3 · runbook `tasks/RUNBOOK_MEMBER_ACT_LEG_AB.md` v1.3 COMPLETED · `ce82ebe` `8c70d14` `132ce85` `41bf61a` `7305df2` · `DECISIONS.md` D-143 + D-144 + D-145 · J-693 (J-680, J-681, J-682, J-683, J-685, J-686, J-687, J-688, J-689, J-690, J-691, J-692)
 │   │   ↳ Owes: **`OQ5` re-sited J-690, not answered** — the partial first send and DM-creation-to-an-erased-identity are **Leg C-bis's** · **what a never-DM'd click does in Leg C is OPEN, sited to Leg C-bis (J-692)** · **Leg E owes the Space-never-clicked case — a DM entered leaves R2 listing the previous Space's rooms (J-694)** · cross-node invite discovery is a measurement of Chat's · clippy `-D warnings` has four pre-existing errors, not a tracked floor, left untouched
-│   │   ↳ trigger: **`M-RP-SELECT-ORIENT` HAS LANDED (J-697)** — now Joe locks **OQ-C1** the latch writer · **OQ-C2** the erased row · **OQ-C4** the flag's name; then a runbook. NOTE **`OQ-C3` is CLOSED, not open** — it shipped as C-4 in `M-RP-SELECT-ORIENT`; Chat's `cdp-debug.ps1` key mode lands before this milestone, because Leg C is entirely pointer-and-keyboard assertions and the harness cannot press a key
+│   │   ↳ trigger: **`M-RP-SELECT-ORIENT` HAS LANDED (J-697)** and **`M-TOOL-CDP-KEY` HAS LANDED (J-698)**, so the harness can now assert a keyboard path — now Joe locks **OQ-C1** the latch writer · **OQ-C2** the erased row · **OQ-C4** the flag's name; then a runbook. NOTE **`OQ-C3` is CLOSED, not open** — it shipped as C-4 in `M-RP-SELECT-ORIENT`
 │   ├── ✅ **M-RP-TAIL8** — the unresolved-row fallback shows a short tail, not the whole key · phase-0 `tasks/M_RP_TAIL8_PHASE0.md` v1.3 · runbook `tasks/RUNBOOK_TAIL8.md` v1.4 · `165b821` · **CLOSED J-679** (J-678) → discharges `M_RP_MEMBERS.md` §6a, open since J-643
 │   │   ↳ Owes: **`N-168`** — the erased row's `line-through` runs through the leading `…`; ship-and-file (Joe, `D-141`) · V4's empty-guard sub-case not driven, unreachable by product action
 │   ├── ✅ **M-RP-IDENTITY-RESOLUTION** — what a member row shows before the client knows who it is · **CLOSED J-675** (J-644)

@@ -8,6 +8,34 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-696 — the runbook is LOCKED at v1.3; Clair may write code
+
+**Date:** 2026-08-08 · **Seats:** Joe (the lock, the push) · Chat (the lock table, the records) · **Code:** NONE · `tasks/RUNBOOK_SELECT_ORIENT.md` v1.2 → **v1.3, PENDING → ACTIVE** · ROADMAP v6.83 → **v6.84**. **No new `D`, no new `N`.**
+
+🔒 **JOE LOCKED ALL FIFTEEN POINTS ON ONE WORD — *"locked"*** — put to him as an explicit `L-1`–`L-15` table rather than as a document to approve wholesale. ✅ **CLAIR MAY NOW WRITE CODE.**
+
+⚠️ **AND THE LOCK WAS NOT ON DISK WHEN THE KICKOFF WAS ASKED FOR.** Joe said *"locked"* and immediately requested the next session's kickoff; the runbook still read `Status: PENDING`. 🔑 ***A kickoff announcing a lock that the document denies is precisely the state-versus-record split this project's session-open discipline exists to catch — caught here before the kickoff was written, not after.***
+
+### 🔒 THE FIFTEEN
+
+**L-1** select a room ⇒ the Space stays lit (the `D4` opt-2 behaviour) · **L-2** select an identity ⇒ the room stays lit · **L-3** a shorter list no longer strands the panel · **L-4** a NEW `$common` store, **sibling to `roomLatch`, not folded in** · **L-5** write rule **SPACE-SELECTION ONLY** · **L-6** the write is **SHELL-driven — one effect, two latches** · **L-7** **C-1 REPAIRS the fold defect**; Gate C-1 has two parts · **L-8** R1 reads the **RAW** `latchedSpaceId` · **L-9** **BOTH** stale `D4` comments rewritten · **L-10** R2 reads `effectiveRoomId` · **L-11** `activeIndex` **CLAMPED at every consumer**, not re-seeded · **L-12** Gate C-4 asserts **ACTIVATION** · **L-13** four commits in order · **L-14** the close annotation corrects the **CONSEQUENCE paragraph**; the importer count stays six · **L-15** **option D NOT built.**
+
+📌 **THREE WERE FLAGGED TO JOE AS THE ONES WORTH HIS EYE and he took them as written:** **L-7** (a behaviour he may have hit and assumed normal) · **L-8** (R1 raw vs R2 resolved — a deliberate asymmetry that will look like an inconsistency later) · **L-15** (*the last cheap moment to say yes to option D* — after C-2 ships, adding it means touching R1's highlight twice).
+
+### 📌 TWO STALE HEADERS REPAIRED AT v1.2, BEFORE THE LOCK
+
+§3's header still read *"No rendered behaviour change"* — **falsified by Clair's F2 and corrected in the v1.1 BODY while the header kept the old claim.** §2's header cited ground truth *"measured at `dd7d641`"* when Clair had re-verified every G-cite at `e0fc072`. 🔑 ***Both are the same species: a heading that outlives the paragraph beneath it.*** *Repaired, not annotated — the document had never been locked (`D-145`).*
+
+### STATE
+
+🔒 **FLOORS carried and STATED** (zero `.rs`, zero `ui/**`): cargo **1597/0/62 × 56** · svelte-check **0/34/15** · catalogue **435** — ⚠️ **and any catalogue gate must run with EVERY TILE UNFOLDED (J-695: 174 → 167 on one fold).**
+
+🟢 **`M-RP-SELECT-ORIENT` PLAY, runbook ACTIVE.** ⇒ **NEXT: Clair implements C-1 → C-4 from the locked runbook; Chat re-drives every gate (Rule 5). Then `M-RP-MEMBER-ACT` Leg C unblocks with `OQ-C1`, `OQ-C2`, `OQ-C4` already waiting on Joe.**
+
+→ J-696 · runbook v1.3 ACTIVE · ROADMAP v6.84.
+
+---
+
 ## Entry J-695 — Clair's third read: five findings, five confirmed, and the fold path is a live defect C-1 repairs
 
 **Date:** 2026-08-08 · **Seats:** Clair (adversarial read of the runbook) · Chat (re-drove all five, drove F2 live, the repairs) · Joe (the push) · **Code:** NONE — zero `.rs`, zero `ui/**` · `tasks/RUNBOOK_SELECT_ORIENT.md` v1.0 → **v1.1**, still **PENDING** · ROADMAP v6.82 → **v6.83**. **No new `D`, no new `N`.**

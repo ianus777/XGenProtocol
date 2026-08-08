@@ -1,6 +1,6 @@
 # M-RP-SELECT-ORIENT — the panels keep saying where you are — RUNBOOK
-> **Status**: PENDING  
-> Version: 1.2  
+> **Status**: ACTIVE  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-08  
 > Language: EN  
@@ -16,7 +16,7 @@
 
 🔒 **NOTHING HERE IS OPEN. `OQ-1` closed as option A** (`M_RP_SELECT_ORIENT_PHASE0.md` §5). **If you find something that reopens it, STOP and report — do not choose.**
 
-🛑 **THIS DOCUMENT IS `PENDING` UNTIL JOE LOCKS IT. NO CODE BEFORE THE LOCK.**
+🔒 **LOCKED 2026-08-08 (Joe: *"locked"*), ALL FIFTEEN POINTS `L-1`–`L-15` AS PUT TO HIM. ✅ CLAIR MAY NOW WRITE CODE.** The fifteen, in one line each: **L-1** select a room ⇒ the Space stays lit · **L-2** select an identity ⇒ the room stays lit · **L-3** a shorter list no longer strands the panel · **L-4** a NEW `$common` store, sibling to `roomLatch`, not folded in · **L-5** write rule SPACE-SELECTION ONLY · **L-6** the write is SHELL-driven, one effect two latches · **L-7** C-1 REPAIRS the fold defect, Gate C-1 has two parts · **L-8** R1 reads the RAW `latchedSpaceId` · **L-9** BOTH stale `D4` comments rewritten · **L-10** R2 reads `effectiveRoomId` · **L-11** `activeIndex` CLAMPED at every consumer, not re-seeded · **L-12** Gate C-4 asserts ACTIVATION · **L-13** four commits in order · **L-14** the close annotation corrects the CONSEQUENCE paragraph, the count stays six · **L-15** option D NOT built.
 
 ⚠️ **`R2` IS THE ROOMS PANEL. `R6` IS THE COMPOSER** (`ui/client/src/layout-default.ts:27` and `:31`). *The Phase-0's v1.0 got this wrong in nine places; if you see a bare "R6" anywhere meaning a rooms list, it is a residue — report it.*
 

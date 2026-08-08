@@ -1,6 +1,6 @@
 # M-RP-SELECT-ORIENT — the panels keep saying where you are — RUNBOOK
 > **Status**: PENDING  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-08  
 > Language: EN  
@@ -34,7 +34,7 @@
 
 ---
 
-## §2 — GROUND TRUTH (measured at `dd7d641`; re-measure before you edit — the tree has writers who are not you)
+## §2 — GROUND TRUTH (re-verified at `e0fc072`; re-measure before you edit — the tree has writers who are not you)
 
 | # | site | what is there now |
 |---|---|---|
@@ -52,7 +52,7 @@
 
 ---
 
-## §3 — C-1: LIFT THE SPACE LATCH. **No rendered behaviour change.**
+## §3 — C-1: LIFT THE SPACE LATCH. **Unchanged on the non-fold path; REPAIRS the fold path.**
 
 **NEW FILE** `ui/common/lib/stores/space-latch.svelte.ts`.
 

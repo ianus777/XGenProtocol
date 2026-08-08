@@ -8,6 +8,62 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-697 — M-RP-SELECT-ORIENT SHIPS: the panels keep saying where you are
+
+**Date:** 2026-08-08 · **Seats:** Clair (C-1–C-4, four commits) · Chat (every gate re-driven, the records) · Joe (the pushes, the amend call) · **Code:** `517cf94` · `d8edd85` · `cd53c6d` · `62c72f6` · `tasks/RUNBOOK_SELECT_ORIENT.md` v1.3 → **v1.4, ACTIVE → COMPLETED** · Phase-0 v1.2 → **v1.3, COMPLETED** · ROADMAP v6.84 → **v6.85**. **No new `D` minted by Chat; two recommended to Joe.**
+
+🟢 **THE MILESTONE IS DONE AND IT IS VISIBLE.** Select a room ⇒ **the Space stays lit**. Click an identity ⇒ **both stay lit**. A shorter room list **no longer strands the panel out of the tab order**. All three of `L-1`/`L-2`/`L-3` driven on the real client, not argued.
+
+### 🔒 THE FOUR COMMITS
+
+**C-1 `517cf94`** — the Space latch lifted into `$common/stores/space-latch.svelte.ts`, sibling to `roomLatch`, **not folded in** (`L-4`); `note()` gated SPACE-SELECTION ONLY (`L-5`); the write joins the existing shell effect — **one effect, two latches** (`L-6`). **C-2 `d8edd85`** — R1 derives from the **RAW** `latchedSpaceId` (`L-8`), both stale `D4` comments rewritten (`L-9`). **C-3 `cd53c6d`** — R2 derives from `effectiveRoomId` (`L-10`), plus the `:1-9` header sweep sited here by Chat because C-3 is the commit that makes it wholly false. **C-4 `62c72f6`** — `activeClamped = $derived(Math.min(activeIndex, count - 1))` in `ui/core`, **alone**, with all four consumers routed (`L-11`).
+
+### 🔑 C-1 REPAIRED A DEFECT THE MILESTONE DID NOT SET OUT TO FIX
+
+`L-7`'s two-part gate, both parts driven. **Before:** fold R2, unfold it, and the panel reads `count: 0, hasEmpty: true` — *"Select a space"* — **while the stream and composer keep working in that room.** Two clicks emptied it. **After:** `count: 2, hasEmpty: false`, latch and highlight preserved, registry **174 → 167 → 174** exact. *An app-lifetime store survives the unmount that destroyed a widget-lifetime `$state`.*
+
+### 🔑 THE IDENTITY LEG, AND WHY IT IS THE ENTRY'S BEST MEASUREMENT
+
+One extra gesture nobody's gate named: **click R3's self card with a room latched.** At `d8edd85` it returned **R1 lit, R2 `null`** — delivering C-2's proof *and* capturing C-3's before-baseline in the same drive, first-hand rather than cited. At `cd53c6d` the same gesture returns **both lit, `canSend: true`**. 🔑 ***The before and the after of two different commits, taken by one gesture on the same instrument.***
+
+### 🔑 THE DIVERGENCE CASE HANDED C-4 A REAL REPRODUCTION
+
+Browse **Design** (1 room) while latched to **Engineering/`random`** (index 1). Measured at `cd53c6d`: **`rows: 1`, `li[tabindex="0"]: 0`, `role="listbox"` standing** — the panel reachable only with a mouse. 🔑 ***`OQ-C3` is reachable in TWO ORDINARY CLICKS — no contrived list-shrink, and nobody had found that in three sessions of reasoning about it.*** After C-4: exactly one tabbable row, and **Enter on it FIRES `onActivate`** — bus to room `ideas`, `roomLatch` follows, `aria-selected` true. **`L-12` was right to exist:** a tabindex-only clamp passes assertion ① and leaves Enter dead, because the Enter site read the raw state.
+
+### 🛑 N-110 FIRED ON CHAT, AND WAS CAUGHT IN FLIGHT
+
+Chat read `aria-selected` off `entity-item#region-rooms…`, got `null` on every row, and **wrote "no row falsely lit" from it.** The attribute lives on the `<li class="entity-panel-option">` wrapper; `entity-item` is the child. Re-driven on the element that carries it: `general=false / random=true`. **Nothing entered the record from the bad read** — but the guard that made every other leg trustworthy is exactly the one skipped, **one arc after the runbook cites N-110 by name.** ***A selector that cannot see its subject returns a clean-looking nothing.***
+
+### 🛑 AND THE SAME SPECIES, TWICE MORE, IN TOOLING
+
+① **A here-string pasted into a console silently did not run.** `git add` succeeded, `git commit` did not, and the tree sat half-applied looking untouched. The standing no-backticks convention covers line continuation; **it does not cover multi-line here-strings pasted into a console.** `-F <file>` avoids the class entirely. ② **`Set-Content -Encoding UTF8` put a BOM in a commit subject.** Under PS 5.1 that cmdlet writes UTF-8 **with** BOM; `git commit -F` takes the bytes verbatim. `git cat-file commit HEAD` → `EF BB BF` before `fix(`. 🔑 ***The project already had the correct instrument — `[System.IO.File]::WriteAllText` + `UTF8Encoding($false)` — filed as a rule about `CLAUDE.md` and `ROADMAP.md`. It is a property of the CMDLET, not of those two files.*** A rule held at narrower scope than it actually has: **the same error class the milestone spent four commits documenting.** ③ **`[System.IO.File]::ReadAllBytes` with a RELATIVE path** silently returned `len=0` for seven files — .NET's working directory is not PowerShell's. *Three instruments in one session that reported success and did nothing.*
+
+### 🔒 THE AMEND — `D-145`'s BOUNDARY SHARPENED ON A REAL CASE
+
+Chat first offered annotate-vs-amend as a menu. **Joe asked for the ruling instead, and the ruling was amend.** `D-143` decides it: annotation leaves the property *"every commit subject matches its conventional-commit prefix"* **false while every gate passes** — that is unsoundness by the definition, and the thing that breaks is **tooling, which does not read the JOURNAL**. The commit was **HEAD, childless, unreferenced**, so the repair was an `--amend`, not a rebase; one milestone later it would have been a rebase over a records commit. `--force-with-lease`, tree `87ef078` **byte-identical** before and after. 🔑 ***The boundary is not locked-vs-unlocked — it is whether anything has been BUILT on the artifact. `D-145` splits on a property of documents; a commit is not a document.*** ⇒ **RECOMMENDED TO JOE AS A `D`, not minted by Chat.** The BOM lesson is **deliberately NOT a `D`** — it is a fact about a cmdlet, and its transferable half is already named as *a claim narrower than the thing it describes*; a `D`-series that grows on every tooling burn stops being read.
+
+### 📌 `L-14` WAS NARROWER THAN THE THING IT DESCRIBED
+
+The lock said *"the importer count stays six."* It forbade **decrementing** when R1/R2 left the bus — and that held: **neither panel dropped its import, because both still WRITE.** C-1 **incremented** it (`space-latch.svelte.ts:37`, dormant default-arg) for a reason the lock never contemplated. **Seven.** ⚠️ **And the instrument now matches itself:** the naive grep returns **nine** hits, two of which are the annotation block quoting its own search pattern — **a raw count is wrong by two and reads as plausible.** Annotated at the site (`D-145`), with the corpus stated before the claim.
+
+### 📌 A HEADING THAT OUTLIVED THE PARAGRAPH BENEATH IT — AND CHAT OVERSTATED IT FIRST
+
+In `tasks/M_RP_MEMBER_ACT_LEG_C_PHASE0.md`, `OQ-C3`'s **heading** still read **🔓 SEQUENCING** while the **body directly beneath it was already annotated CLOSED.** ⚠️ **Chat's first framing of this — in three separate records — said the document told Leg C the question was live. That was WRONG, and it was written before the section was read past its heading.** Corrected in all three before the commit. The real finding is the smaller and more familiar one: ***a heading that outlives the paragraph beneath it*** — the same species repaired twice at v1.2 of this milestone's own runbook, now at **four instances**. The body is also brought current: it said the fix *"lands before Leg C"*; it has now **shipped**, with a hash. **Repaired, not annotated — that document has never been locked (`D-145`).**
+
+### STATE
+
+🔒 **FLOORS, EVERY ONE RE-DRIVEN BY CHAT (Rule 5), none inherited:** svelte-check **0/34/15** at all four commits · sampler `npm test` **154/9**, `FAILED` grepped case-sensitively · catalogue **435 = unique = domCount, zero orphans both directions** — **a real measurement at C-4, the milestone's only `ui/core` touch**, and all seven `entity-panel` sampler cells verified (one `tabindex=0` each; the empty cell 0/0; both inert cells `listitem`-only, M-RP-PANEL-INERT untouched) · cargo **1597/0/62 × 56 untouched by scope** (zero `.rs`) · client registry **164 quiescent → 174 selected**, taken unfolded after a full `location.reload()` · **Joe's client state 2,856 B, `LastWriteTime` unchanged across every launch.**
+
+⚠️ **ONE CLAIM CARRIED AS REASONED, NOT MEASURED:** Clair routed the **arrow keys** through the clamp as well, on the argument that a raw `ArrowUp` after a multi-position shrink re-writes a stale index. **Sound, cost-free, and unreachable on Joe's data** — the largest Space has 2 rooms, so every shrink here is 2→1, where both arrow expressions self-heal even raw. **The routing stays; the record does not claim it was driven.**
+
+🔓 **OPEN, AND WAITING ON JOE:** **option D** (the two-state highlight) — ⚠️ **its cost is now LARGER, not expired**, which is the opposite of `D-146`'s re-open trigger; **Chat recommends parking it against lived use rather than argument**, since R1 now lights from the latch on screen and *every real defect this project has found came from Clair executing or Joe looking at the screen* · the two `D`-mints above · **`M-RP-MEMBER-ACT` Leg C** with `OQ-C1`/`OQ-C2`/`OQ-C4`.
+
+📌 **CHAT'S OWN NEXT, UNASKED:** a `key` mode for `cdp-debug.ps1`. The harness has `click` and `drag` and **cannot press a key at all** — which is why `L-12`'s assertion shipped with a stated limit (a dispatched `keydown` genuinely runs `onKey → selectAt(activeClamped) → onActivate`, but does not prove the browser routes a physical Enter there). **Leg C is entirely pointer-and-keyboard assertions. Fix the instrument before the milestone that depends on it.** Its own commit, never a rider.
+
+→ J-697 · runbook v1.4 COMPLETED · Phase-0 v1.3 COMPLETED · ROADMAP v6.85.
+
+---
+
 ## Entry J-696 — the runbook is LOCKED at v1.3; Clair may write code
 
 **Date:** 2026-08-08 · **Seats:** Joe (the lock, the push) · Chat (the lock table, the records) · **Code:** NONE · `tasks/RUNBOOK_SELECT_ORIENT.md` v1.2 → **v1.3, PENDING → ACTIVE** · ROADMAP v6.83 → **v6.84**. **No new `D`, no new `N`.**

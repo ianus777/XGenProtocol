@@ -1,6 +1,6 @@
 # M-RP-SELECT-ORIENT — the panels keep saying where you are — RUNBOOK
-> **Status**: ACTIVE  
-> Version: 1.3  
+> **Status**: COMPLETED  
+> Version: 1.4  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-08  
 > Language: EN  
@@ -9,6 +9,18 @@
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 ---
+
+## ✅ CLOSED — J-697, 2026-08-08
+
+**All four commits shipped and every gate re-driven by Chat (Rule 5):** C-1 `517cf94` · C-2 `d8edd85` · C-3 `cd53c6d` · C-4 `62c72f6`. **`L-1` through `L-13` and `L-15` all satisfied and driven on the real client.** Floors at close: svelte-check **0/34/15** · catalogue **435 = unique = domCount, zero orphans** · sampler `npm test` **154/9** · cargo **1597/0/62 × 56** untouched by scope · client registry **164 quiescent → 174 selected**.
+
+📌 **`L-14` IS ANNOTATED, NOT SATISFIED AS WRITTEN.** It said *"the importer count stays six."* Its prohibition — do not **decrement** when R1/R2 leave the bus — **held**: neither panel dropped its import, because both still WRITE. But C-1 **incremented** the count to **seven** (`space-latch.svelte.ts:37`, a dormant default-arg) for a reason the lock never contemplated. 🔑 ***A claim narrower than the thing it describes — this milestone's own named error class, landing on this milestone's own lock.*** Corrected at the site in `selection.svelte.ts` per `D-145`, corpus stated before the claim.
+
+🛑 **AND THIS DOCUMENT'S OWN LINE NUMBERS WENT STALE INSIDE ITS OWN EXECUTION — Clair's finding, reported not fixed.** §5 and §2/G3 cite the `rooms-panel` derive at **`:42-45` / `:42`**; measured at `d8edd85` it was **`:35-38`**. **C-1 shrank the file, so this runbook staled its own citations two commits before they were used.** Clair trusted the code and flagged the divergence. 🔑 ***A runbook that cites line numbers is a runbook that expires against its own commits — cite the SITE, re-measure the LINE.*** Annotated here rather than repaired: the document was **locked** when the drift occurred (`D-145`).
+
+⚠️ **ONE SHIPPED CLAIM IS REASONED, NOT DRIVEN.** Clair routed the **arrow keys** through `activeClamped` as well as the render and Enter sites, on the argument that a raw `ArrowUp` after a multi-position shrink re-writes a stale index. Sound and cost-free — but **unreachable on Joe's data**: the largest Space has 2 rooms, so every shrink here is 2→1, where `Math.max(0, n-1)` and `Math.min(n-1, n+1)` both self-heal even from the raw state. **The routing stays; no gate exercised it.**
+
+⚠️ **`L-12`'s ACTIVATION ASSERTION SHIPPED WITH A STATED LIMIT.** `cdp-debug.ps1` has `click` and `drag` and **cannot press a key**, so the Enter assertion was driven with a **dispatched** `keydown`. That genuinely runs `onKey → selectAt(activeClamped) → onActivate` — the listener is Svelte's, and `isTrusted` gates only native defaults — but it **does not prove the browser routes a physical Enter to that `<li>`**; the roving `tabindex=0` plus an asserted `document.activeElement` is the separate evidence for that. **A harness `key` mode is filed as Chat's own tooling commit, before `M-RP-MEMBER-ACT` Leg C.**
 
 ## §0 — FOR CLAIR: WHAT THIS BUILDS AND WHAT IT MUST NOT
 

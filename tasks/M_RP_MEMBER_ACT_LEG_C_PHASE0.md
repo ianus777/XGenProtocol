@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT Leg C — R7 acts: the row opens the DM and writes the bus — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-08  
 > Language: EN  
@@ -181,9 +181,11 @@ At the failing step **`focusables` inside the panel = 0**, the `<ul>` carries no
 
 📌 **`OQ5`'s remaining halves are RE-SITED, not answered:** *may a DM be **created** to an erased identity* ⇒ **Leg C-bis** (creation lives there) · *the partial first send* ⇒ **Leg C-bis** · *cross-node invite discovery* ⇒ a measurement of Chat's, prerequisite to nothing in A–D.
 
-### 🔓 OQ-C3 — the `activeIndex` staleness (§3.3). **SEQUENCING.**
+### ✅ OQ-C3 — the `activeIndex` staleness (§3.3). **SEQUENCED, SHIPPED, AND FIXED.**
 
-✅ **CLOSED 2026-08-08 — JOE FOLDED IT INTO `M-RP-SELECT-ORIENT`, WHICH LANDS BEFORE LEG C.** Effectively **T-c** (its own milestone) rather than Chat's recommended T-b, and it carries the attribution cost T-b was trying to avoid without polluting Leg C's `core` commit. ⇒ **Leg C inherits a clamped `activeIndex`. The options below stand as history.**
+✅ **SHIPPED 2026-08-08 AS C-4 (`62c72f6`) IN `M-RP-SELECT-ORIENT`, CLOSED AT J-697 — THE DEFECT NO LONGER EXISTS.** `entity-panel.svelte` now clamps on read: `activeClamped = $derived(Math.min(activeIndex, count - 1))`, with **all four** consumers routed (tabindex render, ArrowDown, ArrowUp, Enter/Space → `selectAt`) and the raw `$state` still freely written — **clamp-on-read, never re-seeded**, so N-136's self-invalidating read-modify-write stays foreclosed. 🔑 **AND §3.3's SEVERITY MEASUREMENT WAS UNDERSTATED: the defect is reachable in TWO ORDINARY CLICKS**, not by any contrived list-shrink — select Engineering (2 rooms) → room `random` (index 1) → Design (1 room) leaves `rows: 1`, `li[tabindex="0"]: 0`, `role="listbox"` standing, **escapable only with a mouse**. Driven live at `cd53c6d`; after C-4, exactly one tabbable row and **Enter on it FIRES `onActivate`**. 📌 **Leg C inherits a fixed `entity-panel` and owes this nothing.**
+
+🛑 **THE HEADING ABOVE READ `🔓 … SEQUENCING` UNTIL J-697, WITH THE BODY ALREADY ANNOTATED CLOSED BENEATH IT** — *a heading that outlives the paragraph beneath it*, the species this project has now hit four times. **Repaired, not annotated: this document has never been locked (`D-145`).** ⚠️ **The three options below (T-a / T-b / T-c) and Chat's T-b recommendation are HISTORY — Joe took T-c. They are left standing as the record of the call, not as live options.** Effectively **T-c** (its own milestone) rather than Chat's recommended T-b, and it carries the attribution cost T-b was trying to avoid without polluting Leg C's `core` commit. ⇒ **Leg C inherits a clamped `activeIndex`. The options below stand as history.**
 
 **T-a — file it, name the owner, do not touch it in Leg C.** ① The members panel can drop out of the tab order after a navigation — **a keyboard user loses the panel**, silently. Already true of the sibling panels today. ② Zero now.
 **T-b — fix it in the same `core` commit as `OQ1-G1`.** ① The defect never reaches R7. ② ~2 lines (clamp `activeIndex` against `items.length`), **but it changes the behaviour of `rooms-panel` and `spaces-panel`, which is precisely why `M-RP-PANEL-INERT` got its own milestone.**

@@ -36,6 +36,36 @@
 // grep it cited returns SIX. Both errors are Chat's, both from the same session, and the second
 // annotation in this block has now been corrected by a third.
 //
+// 🛑 CORRECTED A FOURTH TIME, ANNOTATED NOT REPAIRED (D-145, M-RP-SELECT-ORIENT close, J-697).
+// THE COUNT IS NOW SEVEN, AND THE ROW FOR `rooms-panel` ABOVE IS FALSE.
+// Measured 2026-08-08 at HEAD 62c72f6 (grep over ui/**, every hit READ rather than counted):
+// ⚠️ THE INSTRUMENT NOW MATCHES ITSELF. The naive grep returns NINE hits; TWO of them are THIS
+// COMMENT BLOCK quoting its own search pattern (this file, the annotation above and this line).
+// A raw hit count is therefore WRONG BY TWO and reads as plausible. SEVEN is the import count,
+// established by reading each hit for an actual import statement:
+//   space-latch.svelte.ts:37   — NEW at C-1 (517cf94). DORMANT, exactly like room-latch:36:
+//                                `note(sel = selection.current)`'s default arg only; the shell
+//                                (app_client) always passes the argument explicitly.
+//   rooms-panel.svelte:14      — NO LONGER an $effect. C-1 deleted the data-scope $effect and
+//                                C-3 (cd53c6d) moved the highlight onto roomLatch. This import
+//                                is now the `onActivate` WRITE only.
+//   spaces-panel.svelte:23     — likewise WRITE-ONLY since C-2 (d8edd85); R1's highlight reads
+//                                spaceLatch.latchedSpaceId.
+//   app_client.svelte:47 · inspector-panel.svelte:25 · self-panel.svelte:21 — unchanged.
+// 📌 AND THE LINE NUMBERS IN THE SIX-IMPORTER LIST ABOVE HAVE GONE STALE: it cites
+// `rooms-panel.svelte:12`, which C-3 moved to :14. Cite the file, re-measure the line.
+// 🔑 L-14 IS NOT VIOLATED — IT IS NARROWER THAN THE THING IT DESCRIBES. Joe's lock forbade
+// DECREMENTING the count when R1/R2 left the bus, and that prohibition held: neither panel
+// dropped its import, because both still WRITE. C-1 INCREMENTED it for an unrelated reason the
+// lock never contemplated. The milestone's own named error class, landing on the milestone's
+// own record — which is why the corpus is stated here before the claim.
+// ✅ AND THE CONSEQUENCE PARAGRAPH ABOVE IS DISCHARGED, NOT MERELY STALE: the shipped defect it
+// describes is FIXED. Driven on the live client at cd53c6d — select a room, click R3's self card
+// (bus kind: 'identity') ⇒ R1 stays lit on its Space, R2 stays lit on its room, canSend true.
+// Before C-2/C-3 both read null on that gesture, measured at 517cf94 and d8edd85 respectively.
+// ⇒ SEVEN importers; R1 and R2 are WRITE-ONLY consumers of this bus; the identity selection no
+//   longer extinguishes any highlight. The count has now been wrong four times.
+//
 // Shape is EXACTLY as locked (D3) — ONE meaning, do not widen. Joe killed the shelf minus-button precisely
 // so a second widget/leaf-selection bus is never needed (`xgen-widget-surfaces-phase0.md` S-6); this is the
 // single selection primitive.

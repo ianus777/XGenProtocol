@@ -1,6 +1,6 @@
 # M-RP-SELECT-ORIENT — the panels keep saying where you are — Phase-0
-> **Status**: ACTIVE  
-> Version: 1.2  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-08  
 > Language: EN  
@@ -9,6 +9,16 @@
 > License: BSL 1.1 (converts to GPL upon project handover)  
 
 ---
+
+## ✅ CLOSED — J-697, 2026-08-08. THE DESIGN HELD; THREE THINGS THE PHASE-0 DID NOT KNOW
+
+**Option A shipped as specified** — `517cf94` · `d8edd85` · `cd53c6d` · `62c72f6`. §5's refusal of B (`effectiveSpaceId` for R1 — *the Space you are TALKING IN, not the one you are BROWSING*) was never revisited in implementation, and the raw/resolved asymmetry between R1 and R2 that §5 flagged as *"will look like an inconsistency later"* was **driven and vindicated**: browsing Design while latched to an Engineering room leaves R2 holding a room id that **matches no row**, and nothing is falsely lit.
+
+🔑 **WHAT THE PHASE-0 DID NOT KNOW — ① `OQ-C3` IS REACHABLE IN TWO ORDINARY CLICKS.** §3.3 carried it as a third, unrelated defect riding along by Joe's choice (`J-3`), reasoned about across three sessions without a reproduction. It is reached by: select Engineering (2 rooms) → select room `random` (index 1) → select Design (1 room). Measured at `cd53c6d`: **`rows: 1`, `li[tabindex="0"]: 0`, `role="listbox"` standing** — **the panel escapable only with a mouse, on a gesture a user makes browsing between Spaces.** ***Three sessions of reasoning found no reproduction; one live drive found it in two clicks.***
+
+🔑 **② THE IDENTITY GESTURE CARRIES TWO COMMITS' EVIDENCE AT ONCE.** Clicking R3's self card with a room latched returned **R1 lit, R2 `null`** at `d8edd85` — C-2's proof and C-3's before-baseline **in one drive, on one instrument** — and **both lit, `canSend: true`** at `cd53c6d`. No gate in this document named that gesture.
+
+🛑 **③ AND §5's OWN COST ACCOUNTING FOR OPTION D IS NOW INVERTED.** The Phase-0 filed option D (the two-state browsed-vs-talking-in highlight) as open, with `L-15` noting the lock was *"the last cheap moment to say yes."* **C-2 has shipped, so adding it now means touching R1's highlight twice** — the cost **GREW**, which is the opposite of `D-146`'s re-open trigger (a cost that has **expired**). ⇒ **Chat's recommendation at close: park option D against LIVED USE, not further argument.** R1 now lights from the latch on screen; *every real defect this project has found came from Clair executing or Joe looking at the screen*, and option D is exactly the kind of question that should be answered the second way.
 
 ## §0 — THE ONE SENTENCE
 

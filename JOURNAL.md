@@ -8,6 +8,56 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-693 — Clair's second read: eight findings, all confirmed, and the milestone's central identifier was wrong
+
+**Date:** 2026-08-08 · **Seats:** Clair (adversarial read of the SELECT-ORIENT Phase-0) · Chat (re-drove all eight, the repairs) · Joe (the push) · **Code:** **ONE COMMENT BLOCK** in `ui/common/lib/stores/selection.svelte.ts` — correcting the one committed at J-692; no executable line · `M_RP_SELECT_ORIENT_PHASE0.md` v1.0 → **v1.1** · Leg C Phase-0 v1.2 → **v1.3** · `D-146` annotated · ROADMAP v6.80 → **v6.81**. **No new `D`, no new `N`.**
+
+🔑 **EIGHT FINDINGS, EIGHT CONFIRMED. Chat re-drove every one before it entered the record (Rule 5), and NONE was refuted** — unlike the last read, where F3 fell.
+
+### 🛑 F1 — THE MILESTONE'S CENTRAL IDENTIFIER WAS WRONG, AND IT HAD ALREADY SHIPPED
+
+**`R6` IS THE COMPOSER.** `layout-default.ts:31` — `composer: 'R6 · Composer'`; `:27` — `rooms: 'R2 · Rooms'`. **Chat called the rooms panel "R6" in nine places in the SELECT-ORIENT Phase-0 while using R6 CORRECTLY for the composer in `S8` — one file labelled both.**
+
+🔑 **AND THE COMPOSER IS IMMUNE TO THE DEFECT THE MILESTONE EXISTS TO FIX:** it derives no highlight at all and reads `roomLatch.canSend`, which comes from the **latch**, not the bus. ⇒ ***§0's headline causal claim was false as written.***
+
+⚠️ **IT REACHED COMMITTED CODE.** `selection.svelte.ts`'s J-692 annotation said *"R1/R6 derive their highlight"* — **pushed at `d5c87c4`**. Corrected here.
+
+📌 **THE PRE-EXISTING RECORD WAS CORRECT** — `M_RP_MEMBER_ACT_PHASE0.md:246` (*"R5 stream, R6 composer and R7 members"*) and `:320` (*"R6 composer"*), and every R6 in the codebase means the composer. ⇒ ***the mislabel is Chat's and dates entirely from this one session.*** 🔒 **Every mechanism and file cite pointed unambiguously at `rooms-panel.svelte`, so the BUILD was always recoverable — but an implementer taking §6 commit 3's bare "R6" literally would open the composer and find nothing to change.**
+
+### 🛑 F2 + F3 — §8-1 PREDICTED THE TRAP AND CHAT WALKED INTO IT ANYWAY
+
+**F2:** §5 called option B *"unsound ⇒ `D-143` fires"*. **B is sound** — deterministic, verifiable, no collision, no drift, no unverifiable branch. Its only cost is the measured UX divergence, **which is legibility, which is Joe's.** ⚠️ ***Mislabelling it converted a live Joe UX choice into a pseudo-mechanical elimination — INSIDE the option set §8-1 exists to guard — and it is the THIRD time this milestone has reached for `D-143` as the wrong instrument*** (N2 was the second).
+
+**F3:** the hidden fourth option was **named in the very lock being superseded**. `M_RP6_2_SPACES_ROOMS.md:129` rejected opt-2 partly because it *"invents a second 'active vs selected' concept in R1"* — **that invention is option D, a two-state highlight showing browsed and talking-in Spaces differently**, and it is the natural reconciliation of A and B rather than a choice between them. 📌 **Chat takes NO position on D** — pricing it in the same breath as discovering it would repeat the error.
+
+⇒ **§5 now carries FOUR options with only C refused. `OQ-1` is a genuine four-way choice, not a recommendation with three rejects behind it.**
+
+### 🛑 F4 — §8-2, `OQ-1` AND OPTION D ARE ONE DECISION
+
+§8-2 asks whether the lifted store also latches when a **room** resolves to a Space. **If it does, then "while in a room" R1 shows `effectiveSpaceId` — which IS option B's behaviour.** ⇒ answering §8-2 partially adopts the option §5 claimed to refuse. 🔒 **Grounded FUTURE-ONLY: the sole room-selection writer is `rooms-panel.svelte:49`, reachable only after a Space is latched ⇒ space-only is safe TODAY, and breaks the moment Leg C's `L-7` or a DM enters a Space never clicked.**
+
+### ⚠️ F5–F8 — CONFIRMED, SMALLER
+
+**F5** — §6's *"3 is independent because it touches a different panel"* is **false**: commits 1 and 3 both edit `rooms-panel.svelte` (`:23-27` and `:43-45`). **Non-overlapping, so the conclusion holds; the reason did not — and it read as true only under F1's mislabel.** · **F6** — §6's *"commit 1 changes no rendered behaviour"* is **contingent on §8-2**, undecided. · **F7** — S9 said FIVE readers; **the grep it cites returns SIX** (`room-latch.svelte.ts:36`, dormant — `note()`'s default arg, always passed explicitly by `app_client:197`). · **F8** — the reader annotation was listed as pending but **already shipped at `d5c87c4`**; the record work actually owed is the milestone-CLOSE annotation, which §5/§6 did not name.
+
+### ✅ WHAT SURVIVED, VERIFIED BY CLAIR AGAINST SOURCE
+
+**§1 / `J-2` / §3.2 — the `D4` supersede does NOT overread.** She checked `M_RP6_2:128/:131`, the `:204-212` annotation and `D-146`'s provenance: **Joe restated it AFTER disclosure of the July lock ⇒ an utterance, not an inference from silence.** ⚠️ **One loose phrase annotated in `D-146`: *"opt-2 now means R1 READING a latch that already exists"* UNDERSTATES the lift** — the latch is **private** to R2, and making it readable is the new store, which is the milestone's real cost. **Direction sound, phrasing flatters.** · **§2's S1–S11 all accurate** · **§3.3 / `OQ-C3` grounded** · **§4's `effectiveRoomId` choice correct AND correctly Chat's under `D-123`** — no user-visible difference, so technical execution.
+
+### 🔑 THE SCOREBOARD, STATED PLAINLY
+
+§8 v1.0's item 7 said its author had already got the milestone's central fact wrong once. **It was wrong about WHICH fact** — it meant the `D4` mis-call; the central **identifier** was also wrong and item 7 did not see it. ⇒ ***§8 correctly predicted items 1 and 2 and completely missed item 0. NINTH consecutive arc in which Chat's own re-reads caught nothing that mattered; both of tonight's real finds came from Clair reading and the live client.***
+
+### STATE
+
+✅ **`svelte-check` RE-RUN, not stated — `ui/**` was touched: 0 / 34 / 15, byte-identical to the floor.** 🔒 cargo **1597/0/62 × 56** · catalogue **435** carried and stated (zero `.rs`, zero rendered UI). 📌 **No client launched this arc; Joe's live state untouched by construction.**
+
+🟢 **`M-RP-SELECT-ORIENT` OPEN.** 🔓 **`OQ-1` is now a FOUR-way choice and it is Joe's, decided TOGETHER with §8-2.** ⇒ **NEXT: Joe locks; then a runbook. 🛑 NO CODE UNTIL A RUNBOOK IS LOCKED.**
+
+→ J-693 · SELECT-ORIENT Phase-0 v1.1 · Leg C Phase-0 v1.3 · ROADMAP v6.81.
+
+---
+
 ## Entry J-692 — Clair's read lands four findings, one refutes Chat's largest claim; `M-RP-SELECT-ORIENT` opens and `D4` is superseded
 
 **Date:** 2026-08-08 · **Seats:** Clair (adversarial read of the Leg C Phase-0) · Chat (re-drove all four, the live probes, the records) · Joe (the milestone, the supersede, the push) · **Code:** **ONE COMMENT BLOCK** in `ui/common/lib/stores/selection.svelte.ts` — no executable line · **NEW** `tasks/M_RP_SELECT_ORIENT_PHASE0.md` v1.0 ACTIVE · Leg C Phase-0 v1.1 → **v1.2** · `M_RP6_2_SPACES_ROOMS.md` v1.3 → **v1.4** · **NEW `D-146`** · ROADMAP v6.79 → **v6.80**.

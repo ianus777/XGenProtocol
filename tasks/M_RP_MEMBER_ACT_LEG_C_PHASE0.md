@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT Leg C — R7 acts: the row opens the DM and writes the bus — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-08  
 > Language: EN  
@@ -99,7 +99,7 @@ The milestone Phase-0 named three concerns (ARIA · click/keyboard · the `selec
 
 🔑 ***NOBODY HAS RECORDED THIS.*** The milestone Phase-0's §6 reads Leg C as *"`onActivate` -> open-or-draft **and** `selection.set()`"*, as if they were two independent calls. **They are not: the first has no writer that does not destroy the second.**
 
-⚠️ **AND IT IS THE THIRD ITEM LANDING ON `room-latch.svelte.ts`** — `F-E` already put `canSend`'s second arm there for Leg C-bis, and `resolveLatched` is read by R5, R6 and `canSend`. **The shared latch is edited twice across two legs, and the file's own header calls `note()` *"THE SINGLE WRITER"*.** ⇒ **§5-OQ-C1, and it is architecture — Joe's.**
+⚠️ **AND IT IS THE THIRD ITEM LANDING ON `room-latch.svelte.ts`** — `F-E` already put `canSend`'s second arm there for Leg C-bis, and `resolveLatched` is read by R5, R6 and `canSend`. **The shared latch is edited twice across two legs, and the file's own header calls `note()` *"THE SINGLE WRITER"*.** ⇒ **§5-OQ-C1, and it is architecture — Joe's.** 📌 *R5 = stream, R6 = composer — correct here; see §5-OQ-C5's note on the R2/R6 mislabel elsewhere in this document's v1.2.*
 
 ### ⚠️ 3.3 — A PRE-EXISTING `ui/core` DEFECT THAT LEG C MAKES REACHABLE IN R7
 
@@ -195,9 +195,11 @@ At the failing step **`focusables` inside the panel = 0**, the `<ul>` carries no
 
 ### 🔓 OQ-C5 — RE-SITED 2026-08-08, NOT ANSWERED HERE
 
-**When `L-7` puts an identity on the bus, R6's room highlight goes out** (`rooms-panel:44` matches on `kind === 'room'`) **while the latch — and therefore R5's content and the composer's target — keeps the room.** Measured on the live client, and **reachable TODAY via the R3 self card**, so it is not Leg C's to fix.
+**When `L-7` puts an identity on the bus, R2's room highlight goes out** (`rooms-panel:44` matches on `kind === 'room'`) **while the latch — and therefore R5's content and the composer's target — keeps the room.** Measured on the live client, and **reachable TODAY via the R3 self card**, so it is not Leg C's to fix.
 
-🔒 **JOE OPENED `M-RP-SELECT-ORIENT` — the panels keep saying where you are — TO LAND BEFORE LEG C.** ⇒ **`OQ-C5` DISSOLVES: R6 will highlight from `roomLatch.effectiveRoomId`, so an identity selection no longer extinguishes it.** ⇒ **`tasks/M_RP_SELECT_ORIENT_PHASE0.md`.**
+🔒 **JOE OPENED `M-RP-SELECT-ORIENT` — the panels keep saying where you are — TO LAND BEFORE LEG C.** ⇒ **`OQ-C5` DISSOLVES: R2 will highlight from `roomLatch.effectiveRoomId`, so an identity selection no longer extinguishes it.** ⇒ **`tasks/M_RP_SELECT_ORIENT_PHASE0.md`.**
+
+🛑 **LABEL CORRECTED 2026-08-08 (v1.3, Clair's F1): this § said "R6" for the rooms panel in v1.2. `R6` IS THE COMPOSER** (`layout-default.ts:31`); the rooms panel is **`R2`** (`:27`). **The composer derives no highlight and is immune to this defect — it reads `roomLatch.canSend`, which comes from the latch, not the bus.** 📌 *The mislabel was confined to the two lines of this § and to `M_RP_SELECT_ORIENT_PHASE0.md` v1.0; the rest of this document and all pre-existing records use R6 correctly.*
 
 ### 🔓 OQ-C4 — the flag's name and default. **`ui/core` API, screen-reader-visible.**
 

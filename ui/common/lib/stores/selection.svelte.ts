@@ -13,19 +13,28 @@
 // 🛑 CORRECTED AGAIN, ANNOTATED NOT REPAIRED (D-131, M-RP-SELECT-ORIENT, J-692). THE ANNOTATION
 // DIRECTLY ABOVE IS ITSELF FALSE: "R8 (inspector) is the only consumer" is wrong, and it was
 // written one arc earlier while correcting a different false claim in this same comment block.
-// Measured 2026-08-08 (grep "stores/selection" over ui/**) — THERE ARE FIVE READERS:
-//   inspector-panel.svelte:40  — R8, the acknowledged one
-//   self-panel.svelte:55       — its own `selected` highlight
-//   rooms-panel.svelte:25,:44  — an $effect (scope) AND its `selected` highlight
-//   spaces-panel.svelte:45     — its `selected` highlight
-//   app_client.svelte:196      — the bus→latch bridge ($effect → roomLatch.note)
-// 🔑 AND THE CONSEQUENCE IS A SHIPPED DEFECT, not bookkeeping: because R1/R6 derive their
-// highlight by matching `entity.kind`, ANY identity selection (R3's self card today, every
-// member click once M-RP-MEMBER-ACT Leg C lands) extinguishes BOTH panel highlights while the
-// room latch — and therefore R5's content and the composer's target — keeps the room. Driven on
-// the live client: roomsSel room-id → null, latched UNCHANGED.
-// ⇒ M-RP-SELECT-ORIENT moves R1/R6 off the bus and onto the latch. Until it lands, this comment
-//   is the honest record: FIVE readers, and the count has been wrong twice.
+// Measured 2026-08-08 (grep "stores/selection" over ui/**) — THERE ARE SIX IMPORTERS:
+//   inspector-panel.svelte:25  — R8, the acknowledged one
+//   self-panel.svelte:21       — R3's own `selected` highlight
+//   rooms-panel.svelte:12      — R2: an $effect (data scope) AND its `selected` highlight
+//   spaces-panel.svelte:21     — R1's `selected` highlight
+//   app_client.svelte:47       — the bus→latch bridge ($effect → roomLatch.note, :195-198)
+//   room-latch.svelte.ts:36    — DORMANT: `note(sel = selection.current)`'s default arg only;
+//                                app_client always passes the argument explicitly.
+// 🔑 AND THE CONSEQUENCE IS A SHIPPED DEFECT, not bookkeeping: because R1 (spaces) and R2
+// (rooms) derive their highlight by matching `entity.kind`, ANY identity selection (R3's self
+// card today, every member click once M-RP-MEMBER-ACT Leg C lands) extinguishes BOTH panel
+// highlights while the room latch — and therefore R5's content and R6 the composer's target —
+// keeps the room. Driven on the live client: R2's `selected` room-id → null, latched UNCHANGED.
+// ⇒ M-RP-SELECT-ORIENT moves R1/R2 off the bus and onto the latch. Until it lands, this comment
+//   is the honest record: SIX importers, and the count has been wrong three times.
+//
+// 🛑 THE LINE ABOVE WAS ITSELF WRONG WHEN FIRST WRITTEN (J-692) AND IS CORRECTED HERE (J-693,
+// Clair's F1 + F7). It said "R1/R6" — but **R6 IS THE COMPOSER** (`layout-default.ts:31`), which
+// derives no highlight at all and is immune to this defect because it reads `roomLatch.canSend`.
+// The panel that loses its highlight is **R2, the rooms panel**. It also said FIVE readers; the
+// grep it cited returns SIX. Both errors are Chat's, both from the same session, and the second
+// annotation in this block has now been corrected by a third.
 //
 // Shape is EXACTLY as locked (D3) — ONE meaning, do not widen. Joe killed the shelf minus-button precisely
 // so a second widget/leaf-selection bus is never needed (`xgen-widget-surfaces-phase0.md` S-6); this is the

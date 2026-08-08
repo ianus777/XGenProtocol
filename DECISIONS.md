@@ -5531,6 +5531,8 @@ A locked decision may be re-opened when **the specific cost that decided it no l
 
 **At lock time opt-2 meant R1 growing a latch of its own.** By 2026-08-08 it does not: R2's `latchedSpaceId` shipped in that same milestone and `roomLatch` shipped in M-RP6.3 Leg D2 ⇒ **opt-2 now means R1 READING a latch that already exists.** ⇒ ***the cost opt-1 was chosen to avoid is no longer the cost.***
 
+⚠️ **ANNOTATED 2026-08-08 (J-693, Clair's F1): the phrase *"opt-2 now means R1 READING a latch that already exists"* UNDERSTATES the lift.** The latch exists **privately inside R2**; making it readable by R1 is a **new `$common` store**, which is this milestone's real cost. 🔒 **The re-price DIRECTION stands — a non-drift path exists now that did not exist in July — but the phrasing flatters it, and a supersede rationale that flatters itself is the thing this decision was minted to prevent.**
+
 ### What it does NOT license
 
 🛑 **This is not a licence to re-open locks at will.** The trigger is an **expired cost**, tested against the lock's own written rationale — not a general feeling that the old call was wrong. Where the rationale still holds, the lock holds.

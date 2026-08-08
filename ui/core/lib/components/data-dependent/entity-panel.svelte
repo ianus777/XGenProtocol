@@ -92,6 +92,15 @@
     return i >= 0 ? i : 0;
   }
   let activeIndex = $state(initialActive());
+  // `activeIndex` is a one-time-seeded, freely-WRITTEN focus position (set by selectAt and by the
+  // arrow keys). The list it indexes can SHRINK under it — a Space with fewer rooms, selected after
+  // a larger one, strands the stale index past the last row. So every READ of the position goes
+  // through this clamp, never the raw state, and the four consumers (tabindex render, ArrowDown,
+  // ArrowUp, Enter/Space→selectAt) are uniform. CLAMP ONLY, NEVER RE-SEED: an $effect rewriting
+  // `activeIndex` on an `items` change would reintroduce the self-invalidating read-modify-write
+  // N-136 records. When `count === 0` this is -1, and no consumer trusts it — the tabindex render is
+  // gated on `items.length > 0`, `onKey` returns on `n === 0`, and `selectAt` guards `!it`.
+  const activeClamped = $derived(Math.min(activeIndex, count - 1));
   let rowEls: HTMLLIElement[] = [];
 
   function focusRow(i: number) {
@@ -112,10 +121,10 @@
     let next: number | null = null;
     switch (e.key) {
       case 'ArrowDown':
-        next = Math.min(n - 1, activeIndex + 1);
+        next = Math.min(n - 1, activeClamped + 1);
         break;
       case 'ArrowUp':
-        next = Math.max(0, activeIndex - 1);
+        next = Math.max(0, activeClamped - 1);
         break;
       case 'Home':
         next = 0;
@@ -126,7 +135,7 @@
       case 'Enter':
       case ' ':
         e.preventDefault();
-        selectAt(activeIndex);
+        selectAt(activeClamped);
         return;
       default:
         return;
@@ -180,7 +189,7 @@
             role="option"
             class="entity-panel-option"
             aria-selected={item.descriptor.id === selected}
-            tabindex={i === activeIndex ? 0 : -1}
+            tabindex={i === activeClamped ? 0 : -1}
             onclick={() => selectAt(i)}
             onkeydown={onKey}
           >

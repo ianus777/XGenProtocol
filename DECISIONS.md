@@ -5541,3 +5541,32 @@ A locked decision may be re-opened when **the specific cost that decided it no l
 
 ### Provenance (`D-141`)
 The rule is Chat's, minted from the `D4` case. **The `D4` supersede itself is Joe's**, restated in the 2026-08-07/08 session *after* being shown the July lock and told plainly that changing it supersedes `D4`.
+---
+
+## D-147 — A corrected refusal-reason does not restore a refused option; and a question that never reached disk is still a decision surface
+
+**Date:** 2026-08-08 · **Layer:** project-management discipline (option hygiene, search discipline) · **Ref:** `D-121` (the two lenses), `D-123` (seats; under-stepping), `D-139` (a "does not exist" claim states its corpus — the SIBLING this extends), `D-141` (attribution), `D-146` (re-open on expired cost) · **Milestone:** `M-RP-SELECT-ORIENT` — the panels keep saying where you are
+
+### The rule, part one — a corrected reason is not a restored option
+
+When a review shows that the REASON an option was refused is wrong, that does not put the option back on the table. **Re-test it against the REQUIREMENT before re-opening anything.** An option refused for the wrong reason may still be refused for the right one.
+
+### The rule, part two — search the conversation, not only the repo
+
+Before presenting a question as open, search the record for whether it has been asked before. **`D-139` requires a "does not exist" claim to state its corpus; this extends the same duty to "this has not been decided" and "this has not been discussed".** A question put to Joe in an earlier session and never written to disk is invisible to every repo search and is STILL a decision surface. **The corpus for a "never discussed" claim includes prior sessions, and where that cannot be searched, the claim is stated as a limit rather than a fact.**
+
+### The two cases that minted it
+
+**Part one.** `OQ-1` (R1's highlight source) was settled by Chat as option A, in-session, with Chat explicitly naming its own earlier escalation as `D-123` under-stepping. Clair's adversarial read then showed option B had been refused as *"unsound ⇒ `D-143`"* and that this was wrong — B is deterministic and verifiable. **Chat converted "the refusal reason was wrong" into "the option is live again" and re-opened `OQ-1` to Joe.** It was not live: B lights the Space the user is TALKING IN, and Joe's requirement was the Space he is BROWSING. ⇒ **the correct refusal survives the corrected reason. Joe had to point at his own words a second time.**
+
+**Part two.** The same milestone's central question had been put to Joe in an earlier session as **S-1 vs S-2** — and that session had it RIGHT, carrying `D4` as a lock never contemplating the identity case. It never reached disk. This session re-derived it from scratch and **worse**, calling `D4` *"a defect, shipped today"*; Joe scoped a milestone on that sentence before the lock was found. ⇒ **the outcome converged on S-2 anyway, but through a detour built on a false premise.**
+
+### What it does NOT license
+
+🛑 **It is not a bar on re-opening.** `D-146` governs when a lock may be re-opened; this decision governs the weaker case — an option refused inside a live option set. **The test is the requirement, not the prior reasoning.**
+
+🛑 **And it does not make Chat the judge of the requirement.** Where the requirement itself is unclear, that is Joe's to state — but Chat must ASK about the requirement, not re-open the option list.
+
+### Provenance (`D-141`)
+
+**The rule is Chat's**, minted from its own two errors in one session. **Joe supplied both corrections**: *"in this actual session"* (pointing at the settlement Chat had already made and then abandoned) and, earlier, the observation that the S-1/S-2 discussion had already happened. ⚠️ **Recorded as ADOPTED on *"go ahead"*, not examined.**

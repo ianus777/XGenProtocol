@@ -8,6 +8,50 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-694 — `OQ-1` closes as A, the runbook lands, and `D-147` records the two ways Chat re-opened a settled question
+
+**Date:** 2026-08-08 · **Seats:** Joe (the requirement, restated twice; the push) · Chat (the close, the runbook, the records) · **Code:** NONE — zero `.rs`, zero `ui/**` · **NEW** `tasks/RUNBOOK_SELECT_ORIENT.md` v1.0 **PENDING** · SELECT-ORIENT Phase-0 v1.1 → **v1.2** · **NEW `D-147`** · ROADMAP v6.81 → **v6.82**.
+
+### 🔒 `OQ-1` CLOSES AS OPTION A — AND IT WAS NEVER PROPERLY OPEN
+
+**Lift R2's private Space latch into a `$common` store; R1 and R2 read one value.** 🔒 **The requirement is Joe's, in his words:** *"when user select room, space will deselect … i would like to fix it also in the spaces panel"* and *"we will be able to orient ourselves."* ⇒ **R1 lights the Space you are BROWSING.**
+
+🛑 **CHAT SETTLED THIS EARLIER IN THE SAME SESSION AND THEN ABANDONED THE SETTLEMENT.** The words were *"This isn't a design question. It's plumbing… That was mine to settle, and I escalated it to you instead"* — **Chat naming its own `D-123` under-stepping.** Then Clair's F2 showed B's refusal reason (*"unsound ⇒ `D-143`"*) was wrong, **and Chat converted that into "the option is live again" and re-opened `OQ-1` to Joe.**
+
+🔑 ***IT WAS NOT LIVE. B WAS NEVER REFUSED ON SOUNDNESS — B LIGHTS THE SPACE YOU ARE TALKING IN, AND JOE ASKED FOR THE ONE YOU ARE BROWSING.*** **F2 corrected the REASON; it did not revive the option.** ⚠️ **Joe had to point at his own words a second time** (*"in this actual session"*, with the earlier settlement quoted back).
+
+### 🔓 AND THE SAME QUESTION HAD BEEN PUT TO JOE ONCE BEFORE
+
+⚠️ **An earlier session carried it as *the identity case — never contemplated by `D4`*** — i.e. ***it already knew `D4` was a LOCK, not a defect*** — and offered **S-1** (identity case only, `D4` stands) vs **S-2** (S-1 plus overturn `D4` to opt-2). **Chat recommended S-2; Joe's decision was pending at close; nothing reached disk**, which is why every repo search this session came back empty. 🔑 **`J-2` IS S-2, re-derived from scratch and WORSE** — this session called `D4` *"a defect, shipped today"*, and Joe scoped a milestone on that sentence. 📌 **The outcome converged; the path did not.**
+
+### 🔒 `D-147` — TWO PARTS, ONE SESSION, BOTH CHAT'S
+
+**① A corrected refusal-reason does not restore a refused option** — re-test against the **requirement** before re-opening anything. **② A question that never reached disk is still a decision surface** — `D-139` makes a *"does not exist"* claim state its corpus; **this extends the same duty to *"has not been decided"* and *"has not been discussed"*, and where prior sessions cannot be searched the claim is stated as a LIMIT, not a fact.**
+
+### 📌 WHAT ELSE §5 SETTLED, AND WHO TOOK IT
+
+**D — the two-state highlight — FILED, NOT REFUSED.** It is **A plus a second visual state**, not an alternative: it needs a second `selected`-like concept `entity-panel` does not have, plus `skin.css`, which is Joe's. **Chat recommends not now; filed exactly as `D4` opt-2 was filed — and that filing is precisely why D existed to be found.** · **C refused** on `D-067` drift. · 🔒 **The lifted store's write rule: SPACE-SELECTION ONLY** (Chat's, `D-123`) — room-resolves-to-Space would import B's behaviour, which the requirement rejects. ✅ **That discharges Clair's F6:** commit 1 changes no rendered behaviour, so C-1/C-2 keep their clean before/after.
+
+⚠️ **NAMED AND OWED, NOT SOLVED:** under Leg C, entering a DM room whose Space was never clicked leaves R2 listing the previous Space's rooms. **Not reachable today** — the only room-selection writer is `rooms-panel:49`, reachable only after a Space is latched. ⇒ **`M-RP-MEMBER-ACT` Leg E owns it.**
+
+### 📘 THE RUNBOOK — v1.0 PENDING, FOUR COMMITS
+
+**C-1** lift the latch into `space-latch.svelte.ts`, R2 reads it, **no rendered change** · **C-2** R1 highlights from it — the `D4` opt-2 behaviour, **and G5's comment block, which asserts opt-1 by name, is rewritten** · **C-3** R2 highlights from `roomLatch.effectiveRoomId` · **C-4** clamp `activeIndex`, `ui/core`, measured alone · **C-5** records.
+
+🔒 **THE WRITE IS DRIVEN BY THE SHELL, NOT A WIDGET** — `app_client.svelte:195-198` already runs the bus→latch `$effect`; `spaceLatch.note()` joins it under the same `untrack`. **One effect, two latches.** 🛑 **`room-latch`'s header forbids folding the Space latch into it, so this is a SIBLING store, not a field** — and §9 names the shell-driven write as **the riskiest instruction in the document: asserted from reading, not driven.**
+
+⚠️ **C-1 AND C-3 BOTH EDIT `rooms-panel.svelte`** (Clair's F5) — non-overlapping lines, sequenced, not merged. 📌 **C-4's clamp is specified BY CONSTRAINT, not by code** — no `$effect`, no re-seed, no `-1` on an empty list; **if no form satisfies all three, that is a finding.**
+
+### STATE
+
+🔒 **FLOORS carried and STATED, not re-run** (zero `.rs`, zero `ui/**` this arc): cargo **1597/0/62 × 56** · svelte-check **0/34/15** · catalogue **435**. 📌 No client launched; Joe's live state untouched by construction.
+
+🟢 **`M-RP-SELECT-ORIENT` OPEN, nothing blocking on Joe but the runbook lock.** ⇒ **NEXT: Clair's adversarial read of the runbook, then Joe locks, then Clair builds. 🛑 NO CODE UNTIL THE RUNBOOK IS LOCKED.**
+
+→ J-694 · runbook v1.0 PENDING · Phase-0 v1.2 · `D-147` · ROADMAP v6.82.
+
+---
+
 ## Entry J-693 — Clair's second read: eight findings, all confirmed, and the milestone's central identifier was wrong
 
 **Date:** 2026-08-08 · **Seats:** Clair (adversarial read of the SELECT-ORIENT Phase-0) · Chat (re-drove all eight, the repairs) · Joe (the push) · **Code:** **ONE COMMENT BLOCK** in `ui/common/lib/stores/selection.svelte.ts` — correcting the one committed at J-692; no executable line · `M_RP_SELECT_ORIENT_PHASE0.md` v1.0 → **v1.1** · Leg C Phase-0 v1.2 → **v1.3** · `D-146` annotated · ROADMAP v6.80 → **v6.81**. **No new `D`, no new `N`.**

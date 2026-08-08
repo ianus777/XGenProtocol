@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.81  
+> Version: 6.82  
 > Date: May 2026  
 > **Last updated**: 2026-08-08  
 > Language: English  
@@ -306,11 +306,11 @@ XGen Protocol
 │   │   │   ↳ trigger: Legs A–C land
 │   │   └── 🟡 **Leg E records + close**
 │   │       ↳ trigger: Leg D lands
-│   ├── 🟢 **M-RP-SELECT-ORIENT** — the panels keep saying where you are: R1 and R2 highlight from the latch, not the bus · Phase-0 `tasks/M_RP_SELECT_ORIENT_PHASE0.md` v1.1 · `DECISIONS.md` D-146 · supersedes `M-RP6.2` D4 opt-1 → opt-2 · J-693 (J-692)
-│   │   ↳ Owes: **`OQ-C3`** (the `entity-panel` tab-order defect) rides here by Joe's call · the milestone-close annotation dropping `selection`'s reader count once R1/R2 leave the bus
-│   │   ↳ trigger: Joe locks **OQ-1** — R1's highlight source, now FOUR-way after Clair's read (A lift R2's Space latch · B `effectiveSpaceId`, sound not refused · C refused, D-067 drift · D two-state highlight) — decided TOGETHER with the lifted store's write rule; then a runbook
+│   ├── 🟢 **M-RP-SELECT-ORIENT** — the panels keep saying where you are: R1 and R2 highlight from the latch, not the bus · Phase-0 `tasks/M_RP_SELECT_ORIENT_PHASE0.md` v1.2 · runbook `tasks/RUNBOOK_SELECT_ORIENT.md` v1.0 PENDING · `DECISIONS.md` D-146 + D-147 · supersedes `M-RP6.2` D4 opt-1 → opt-2 · J-694 (J-692, J-693)
+│   │   ↳ Owes: **`OQ-C3`** (the `entity-panel` tab-order defect) rides here as C-4 · the milestone-close annotation dropping `selection`'s reader count once R1/R2 leave the bus · **option D, the two-state highlight — FILED, not refused**
+│   │   ↳ trigger: Clair's adversarial read of the runbook, then Joe locks it; **OQ-1 is CLOSED as option A** — lift R2's Space latch into a shared store
 │   ├── 🟢 **M-RP-MEMBER-ACT** — the members panel acts: LMC opens the DM, RMC opens the menu · Phase-0 `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.11 · Leg C Phase-0 `tasks/M_RP_MEMBER_ACT_LEG_C_PHASE0.md` v1.3 · runbook `tasks/RUNBOOK_MEMBER_ACT_LEG_AB.md` v1.3 COMPLETED · `ce82ebe` `8c70d14` `132ce85` `41bf61a` `7305df2` · `DECISIONS.md` D-143 + D-144 + D-145 · J-693 (J-680, J-681, J-682, J-683, J-685, J-686, J-687, J-688, J-689, J-690, J-691, J-692)
-│   │   ↳ Owes: **`OQ5` re-sited J-690, not answered** — the partial first send and DM-creation-to-an-erased-identity are **Leg C-bis's** · **what a never-DM'd click does in Leg C is OPEN, sited to Leg C-bis (J-692)** · cross-node invite discovery is a measurement of Chat's · clippy `-D warnings` has four pre-existing errors, not a tracked floor, left untouched
+│   │   ↳ Owes: **`OQ5` re-sited J-690, not answered** — the partial first send and DM-creation-to-an-erased-identity are **Leg C-bis's** · **what a never-DM'd click does in Leg C is OPEN, sited to Leg C-bis (J-692)** · **Leg E owes the Space-never-clicked case — a DM entered leaves R2 listing the previous Space's rooms (J-694)** · cross-node invite discovery is a measurement of Chat's · clippy `-D warnings` has four pre-existing errors, not a tracked floor, left untouched
 │   │   ↳ trigger: **`M-RP-SELECT-ORIENT` lands first (Joe)**, then Joe locks **OQ-C1** the latch writer · **OQ-C2** the erased row · **OQ-C4** the flag's name; then a runbook
 │   ├── ✅ **M-RP-TAIL8** — the unresolved-row fallback shows a short tail, not the whole key · phase-0 `tasks/M_RP_TAIL8_PHASE0.md` v1.3 · runbook `tasks/RUNBOOK_TAIL8.md` v1.4 · `165b821` · **CLOSED J-679** (J-678) → discharges `M_RP_MEMBERS.md` §6a, open since J-643
 │   │   ↳ Owes: **`N-168`** — the erased row's `line-through` runs through the leading `…`; ship-and-file (Joe, `D-141`) · V4's empty-guard sub-case not driven, unreachable by product action

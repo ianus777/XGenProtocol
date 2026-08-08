@@ -1,6 +1,6 @@
 # M-RP-SELECT-ORIENT — the panels keep saying where you are — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-08  
 > Language: EN  
@@ -105,34 +105,46 @@ Two candidate meanings, and **§2 measured them diverging**:
 
 ---
 
-## §5 — OPEN. `D-121` lenses: ① user-visible impact, then ② resource cost.
+## §5 — 🔒 OQ-1 IS CLOSED AS OPTION A. `D-121` lenses: ① user-visible impact, then ② resource cost.
 
-### 🔓 OQ-1 — R1's highlight source (§4). **ARCHITECTURE — a new shared store.**
+🔒 **CLOSED 2026-08-08 — AND IT WAS NEVER PROPERLY OPEN.** Chat settled it earlier the same session (*"This isn't a design question. It's plumbing… That was mine to settle, and I escalated it to you instead"*), then **re-opened it on Clair's F2 — a non-sequitur.** 🔑 ***B was never refused on soundness. B was refused because it does not do what Joe asked for.*** F2 corrected the REASON; it did not revive the option. ⇒ **`D-147`.**
 
-**A — lift R2's Space latch into a `$common` store; R1 and R2 both read it.**
-① R1 lights the Space you are browsing; R1 and R2 always agree. **The behaviour `J-2` describes.**
+🔒 **THE REQUIREMENT, JOE'S WORDS:** *"when user select room, space will deselect … i would like to fix it also in the spaces panel"* and *"we will be able to orient ourselves."* ⇒ **R1 lights the Space you are BROWSING.**
+
+### 🔓 PRIOR ART — THIS WAS PUT TO JOE ONCE BEFORE AND NEVER REACHED DISK
+
+⚠️ **An earlier session framed it correctly and Chat did not search for it.** That session carried the item as *the identity case — what R1 and the rooms panel do when the bus holds an identity, **never contemplated by `D4`*** — i.e. ***it already knew `D4` was a LOCK, not a defect*** — and offered **S-1** (identity case only, `D4` stands) vs **S-2** (S-1 plus overturn `D4` to opt-2). **Chat recommended S-2; Joe's decision was pending at close; nothing was written to disk.**
+
+🔑 **`J-2` IS S-2, REACHED AGAIN BY A WORSE ROUTE.** This session called `D4` *"a defect, shipped today"* — **strictly worse than the earlier session's grasp of the same ground** — and Joe scoped the milestone on that sentence before the lock was found. 📌 **The outcome converged; the path did not.** ⇒ **`D-147` covers this too: a question that never reached disk is still a decision surface.**
+
+### 🔒 A — LIFT R2's SPACE LATCH INTO A `$common` STORE. **TAKEN.**
+
+① R1 lights the Space you are browsing; **R1 and R2 always agree, because they read one value.** The behaviour `J-2` describes.
 ② A new store (~30 lines), R2 edited to read it instead of its private copy, R1 edited. **Two shipped widgets touched.**
+🔑 **IT IS THE `roomLatch` LIFT REPEATED (S7)** — same problem, same remedy; duplication was rejected there for the same reason.
 
-**B — R1 reads `roomLatch.effectiveSpaceId`.**
-① 🛑 **R1 lights a DIFFERENT Space from the one R2 is listing, whenever you browse without entering a room. Measured, not hypothetical.**
-② One line in R1, no new store. **The cheapest option by a wide margin.**
-🛑 **CORRECTED 2026-08-08 (Clair's F2). B IS NOT UNSOUND AND `D-143` DOES NOT FIRE.** `D-143`'s unsoundness is *a property that can go false without anything failing*. **B is deterministic and verifiable** — no collision, no drift, no unverifiable branch. Its only cost is the divergence in ①, **which is legibility — appearance — and therefore JOE's.** ⚠️ ***Calling it "unsound" converted a live UX choice into a pseudo-mechanical elimination, inside the very option set §8-1 warns about — and it is the THIRD time this milestone has reached for `D-143` as the wrong instrument.*** 🔓 **B is a sound, cheap option with a divergent UX. A-vs-B is Joe's on the two lenses.**
+### 🛑 B — R1 READS `roomLatch.effectiveSpaceId`. REFUSED, AND THE REASON MATTERS.
 
-**C — R1 grows its own private latch, mirroring R2's.**
-① Identical to A while they agree. ② Two copies of one rule — **the `D-067` drift `roomLatch`'s header rejects by name.** Refused, listed for completeness.
+🔒 **REFUSED BECAUSE IT DOES NOT MEET THE REQUIREMENT** — `effectiveSpaceId` is the Space you are **talking in**; Joe asked for the Space you are **browsing**. **Measured diverging: click Design while latched to an Engineering room ⇒ R1 lights ENGINEERING while R2 lists Design's rooms.**
+⚠️ **v1.0 refused it as *"unsound ⇒ `D-143`"*. THAT WAS WRONG (Clair's F2)** — B is deterministic and verifiable; `D-143` does not fire, and it was the **third** `D-143` misapplication this milestone. 📌 ***A corrected refusal-reason is not a restored option.***
 
-**D — 🆕 A TWO-STATE HIGHLIGHT: R1 shows the BROWSED Space one way and the TALKING-IN Space another.** 🔑 **ADDED 2026-08-08 — CLAIR'S F3, AND IT WAS NAMED IN THE VERY LOCK BEING SUPERSEDED.** `M_RP6_2_SPACES_ROOMS.md:129` rejected opt-2 partly because it *"invents a second 'active vs selected' concept in R1"* — **that invention is option D, and it is the natural reconciliation of A and B rather than a choice between them.**
-① R1 tells you **both** things at once: where you are browsing and where you are talking. **The only option that does not force the two meanings to compete.**
-② A and B's plumbing **combined**, plus a second visual state in R1 — **`skin.css`, which is Joe's**, and a second `selected`-like concept in `entity-panel` that **does not exist** (it gates one `selected` per list).
-📌 **Chat takes no position on D.** *It was invisible to Chat and surfaced by an adversarial read; recommending it in the same breath as discovering it would repeat the pricing error §8-1 exists to catch.*
+### 🛑 C — R1 GROWS ITS OWN PRIVATE LATCH. REFUSED.
 
-🛑 **§8-1 PREDICTED A HIDDEN FOURTH OPTION AND THERE WAS ONE. THE A/B/C SET WAS NOT EXHAUSTIVE.**
+Two copies of one rule — **the `D-067` drift `roomLatch`'s header rejects by name.**
 
-📌 **Chat's recommendation: A.** 🔓 **A new `$common` store is architecture and therefore Joe's** — 🛑 **BUT THE ELIMINATION THAT ONCE PROPPED THIS UP IS GONE: B is NOT refused (F2 — it is sound, cheap, and its cost is a UX judgement that is Joe's), and D exists (F3). Only C is refused.** ⇒ ***`OQ-1` is a genuine four-way choice on the two lenses, not a recommendation with three rejects behind it.***
+### 🔓 D — A TWO-STATE HIGHLIGHT. **FILED, NOT REFUSED. AN EXTRA, NOT AN ALTERNATIVE.**
 
-🔑 **AND `OQ-1`, §8-2 AND OPTION D ARE ONE QUESTION, NOT THREE (Clair's F4).** §8-2 asks whether the lifted store also latches when a **room** resolves to a Space — **and if it does, then "while in a room" R1 shows `effectiveSpaceId`, which IS option B's behaviour.** ⇒ **A-with-room-resolution ≈ B in the in-a-room case and A in the browsing case, which is option D expressed as one value instead of two.** ⚠️ ***Answering §8-2 partially adopts an option §5 previously claimed to refuse. They must be decided together.***
+**R1 shows the BROWSED Space one way and the TALKING-IN Space another.** 🔑 **Named in the very lock being superseded** — `M_RP6_2_SPACES_ROOMS.md:129` rejected opt-2 partly because it *"invents a second 'active vs selected' concept in R1"*. **That invention is D.**
 
-🔒 **GROUNDED: THE COLLISION IS FUTURE-ONLY TODAY.** The only room-selection writer is `rooms-panel.svelte:49`, reachable **only after a Space is latched** ⇒ space-only latching is safe now. **It breaks the moment a room is entered whose Space was never clicked — which is exactly what Leg C's `L-7` and the DM home introduce.**
+🔒 **D IS A PLUS A SECOND VISUAL STATE.** ① R1 tells you both things at once. ② A's plumbing **plus** B's, plus a second `selected`-like concept in `entity-panel` that **does not exist** (it gates one `selected` per list), plus `skin.css` — **Joe's**.
+
+📌 **Chat's recommendation: NOT NOW** — it delivers more than Joe asked for at the cost of a concept the panel does not have. 🔒 **FILED exactly as `D4` opt-2 was filed — and that filing is precisely why it existed to be found.**
+
+### 🔒 THE LIFTED STORE'S WRITE RULE — SETTLED, CHAT'S (`D-123`)
+
+**SPACE-SELECTION ONLY**, matching R2's rule at `rooms-panel:24-27`. 🔑 **Room-resolves-to-Space would import B's behaviour, which the requirement rejects** (Clair's F4 traced them as one axis). ✅ **THIS DISCHARGES CLAIR'S F6:** commit 1 changes no rendered behaviour, so commits 1 and 2 keep their clean before/after.
+
+⚠️ **NOT SETTLED, NAMED AND OWED:** under Leg C, clicking a member enters a DM room whose Space was **never clicked** ⇒ R2 would list the previous Space's rooms. **Real; it is the DM home's problem — `M-RP-MEMBER-ACT` Leg E owns it.**
 
 ### 📌 SETTLED WITHOUT ASKING (`D-123`, so the record says who took them)
 
@@ -169,9 +181,9 @@ Two candidate meanings, and **§2 measured them diverging**:
 
 🛑 **CLAIR'S ADVERSARIAL READ LANDED 2026-08-08 AND RETURNED EIGHT FINDINGS. CHAT RE-DROVE ALL EIGHT; ALL EIGHT CONFIRMED. THE HEADLINE ONE WAS NOT ON THIS LIST.**
 
-0. 🛑 **THE MILESTONE'S CENTRAL IDENTIFIER WAS WRONG AND §8 v1.0 DID NOT SUSPECT IT (F1).** **`R6` IS THE COMPOSER** (`layout-default.ts:31`); the rooms panel is **`R2`** (`:27`). v1.0 called the rooms panel R6 in nine places while using R6 correctly for the composer in `S8` — **one file labelled both**. 🔑 **The composer has NO highlight and is IMMUNE to this defect: it reads `roomLatch.canSend`, which derives from the latch, not the bus.** ⚠️ ***And it reached committed code — `selection.svelte.ts`'s J-692 annotation said "R1/R6", pushed at `d5c87c4`, corrected at J-693.*** 📌 **The pre-existing record was CORRECT** (`M_RP_MEMBER_ACT_PHASE0.md:246,:320` both say "R6 composer") ⇒ **the mislabel is Chat's and dates entirely from one session.** 🔒 **Every mechanism and file cite in v1.0 pointed unambiguously at `rooms-panel.svelte`, so the BUILD was always recoverable — but an implementer taking §6 commit 3's bare "R6" literally would open the composer and find nothing to change.**
-1. ✅ **DISCHARGED — §5's OPTION SET REACHED A BY ELIMINATION AND A FOURTH OPTION WAS HIDING, EXACTLY AS FEARED (F2 + F3).** **B was mislabelled unsound** — it is deterministic and verifiable; its cost is a UX judgement that is Joe's ⇒ `D-143` does not fire, and this was the **third** misapplication of `D-143` in this milestone. **And option D — a two-state highlight — was named in the superseded lock itself** (`M_RP6_2:129`). ⇒ **§5 now carries four options with only C refused.**
-2. ✅ **DISCHARGED, AND IT IS NOT INDEPENDENT OF `OQ-1` (F4).** The lifted store's write rule was undesigned; **resolving it toward room-resolves-to-Space ADOPTS option B's behaviour for the in-a-room case**, which is option D expressed as one value. 🔒 **Grounded as FUTURE-ONLY: the sole room-selection writer is `rooms-panel.svelte:49`, reachable only after a Space is latched ⇒ space-only is safe TODAY and breaks when Leg C's `L-7` or a DM enters a Space never clicked.** ⇒ **§8-2, `OQ-1` and option D are ONE decision.**
+0. 🛑 **THE MILESTONE'S CENTRAL IDENTIFIER WAS WRONG AND §8 v1.0 DID NOT SUSPECT IT (F1).** **`R6` IS THE COMPOSER** (`layout-default.ts:31`); the rooms panel is **`R2`** (`:27`). v1.0 called the rooms panel R6 in nine places while using R6 correctly for the composer in `S8` — **one file labelled both**. 🔑 **The composer has NO highlight and is IMMUNE to this defect: it reads `roomLatch.canSend`, which derives from the latch, not the bus.** ⚠️ ***And it reached committed code — `selection.svelte.ts`'s J-692 annotation said "R1/R6", pushed at `d5c87c4`, corrected at J-693.*** 📌 **Every pre-existing REPO record was correct** (`M_RP_MEMBER_ACT_PHASE0.md:246,:320`) ⇒ **no shipped document carried the mislabel before this session.** ⚠️ **QUALIFIED 2026-08-08: J-693 said the mislabel *"dates entirely from one session"* — true of the RECORD, and NOT VERIFIABLE of the CONVERSATION.** *An earlier session's carry-over item is remembered as "R6 + R1 bus behaviour", which would put the mislabel earlier in chat. It never reached disk, so the repo cannot settle it; the narrower claim is the one that stands.* 🔒 **Every mechanism and file cite in v1.0 pointed unambiguously at `rooms-panel.svelte`, so the BUILD was always recoverable — but an implementer taking §6 commit 3's bare "R6" literally would open the composer and find nothing to change.**
+1. ✅ **DISCHARGED — §5's OPTION SET REACHED A BY ELIMINATION AND A FOURTH OPTION WAS HIDING, EXACTLY AS FEARED (F2 + F3).** **B was mislabelled unsound** — it is deterministic and verifiable ⇒ `D-143` does not fire, the **third** misapplication this milestone. **And option D was named in the superseded lock itself** (`M_RP6_2:129`). 🛑 **BUT CHAT THEN COMPOUNDED IT: having learned B's refusal REASON was wrong, Chat re-opened `OQ-1` — although B still fails Joe's stated requirement.** ⇒ **`D-147`, and §5 now closes `OQ-1` as A with B refused on the requirement and D FILED.**
+2. ✅ **DISCHARGED AND NOW DECIDED (F4).** The lifted store's write rule was undesigned; **resolving it toward room-resolves-to-Space ADOPTS option B's behaviour for the in-a-room case.** 🔒 **§5 settles it: SPACE-SELECTION ONLY**, because B fails the requirement. 🔒 **Grounded FUTURE-ONLY: the sole room-selection writer is `rooms-panel.svelte:49`, reachable only after a Space is latched.** ⚠️ **The future case is named and owed to `M-RP-MEMBER-ACT` Leg E** — a DM entered whose Space was never clicked.
 3. ⚠️ **`rooms-panel:25`'s `$effect` READS THE BUS FOR SCOPE, NOT HIGHLIGHT.** Chat traced them as separate concerns and expects commit 1 to replace the effect wholesale while commit 3 touches only `:43-45`. ✅ **Clair confirmed the trace — but see §6: BOTH commits edit the same file, which v1.0 denied.** **Still READ, NOT DRIVEN.**
 4. ⚠️ **NO CATALOGUE PREDICTION IS MADE.** A clamp is not a registration and commits 1–3 add none. **Stated as an expectation; the runbook MEASURES it.**
 5. ⚠️ **THE `L-7` INTERACTION IS ARGUED, NOT DRIVEN.** That fixing R2 makes `OQ-C5` dissolve follows from the identity write no longer being read for the highlight — **but Leg C does not exist, so it cannot be exercised end to end until it does.**

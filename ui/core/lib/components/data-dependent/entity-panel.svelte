@@ -51,6 +51,7 @@
     selected = $bindable(),
     onActivate,
     interactive = true,
+    selectOnActivate = true,
     emptyText = 'No entries',
     id,
   }: {
@@ -72,6 +73,16 @@
      * data-driven DM highlight with no feedback loop, so entity-panel's own selectAt would drift it.
      */
     interactive?: boolean;
+    /**
+     * M-RP-MEMBER-ACT Leg C — whether an activation (click or Enter/Space) also WRITES `selected`.
+     * Default `true` = today's behaviour verbatim (R1/R2 + the seven sampler sites unchanged).
+     * When `false`: `selectAt` still moves focus (`activeIndex`) and still fires `onActivate`, but
+     * does NOT write `selected` — so a consumer whose `selected` is DERIVED (R7 members, where
+     * `selected` is the DM-highlight `counterpart`) can act on a click without `selectAt` overwriting
+     * the derived highlight with a clicked one. The flag governs SELECTION only, never FOCUS and never
+     * the callback; suppressing either of those would be a different, worse feature.
+     */
+    selectOnActivate?: boolean;
     emptyText?: string;
     id?: string;
   } = $props();
@@ -110,9 +121,9 @@
   function selectAt(i: number) {
     const it = items[i];
     if (!it) return;
-    activeIndex = i;
-    selected = it.descriptor.id;
-    onActivate?.(it.descriptor.id);
+    activeIndex = i; // focus follows activation ALWAYS — the flag governs selection, not focus
+    if (selectOnActivate) selected = it.descriptor.id;
+    onActivate?.(it.descriptor.id); // the consumer is told ALWAYS, flag or no flag
   }
 
   function onKey(e: KeyboardEvent) {
@@ -153,6 +164,7 @@
     collapsed,
     hasEmpty: items.length === 0,
     interactive,
+    selectOnActivate,
   });
 </script>
 

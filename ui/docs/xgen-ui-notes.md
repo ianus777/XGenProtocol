@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.13  
+> Version: 1.14  
 > Date: May 2026  
 > **Last updated**: 2026-08-08  
 > Language: English  
@@ -3520,3 +3520,42 @@ if (m) selection.set(regionId, toDescriptor(m));          // conditional
 🔑 **IF IT EVER FIRED, THE FAILURE IS SPLIT STATE, NOT A CRASH.** R5 would jump to the DM while R8 kept showing the previous card — the room and the person disagreeing on screen, which is precisely what *"both unconditionally on a hit"* was written to prevent. **The guard is defensive and reads as harmless; what it actually does is convert an impossible case into a half-applied one.**
 
 📌 **DISPOSITION (Joe, 2026-08-08, delegated — `D-141`): SHIP, AND FILE.** Cheapest correction whenever this function is next opened: resolve `m` **above** `latch()` and return early when it is absent. That leaves the locked write ORDER untouched — it moves a lookup, not a write. **This note is the file.**
+
+---
+
+### N-172 — every `WidgetMount` is named by the RECEIVING client, never by the sender: the socket is a projection, not a carrier
+
+**Date:** 2026-08-08 · HEAD `8eb2e0a` · grounded during the message-family / DM-intro design conversation (J-701). **A property of the shipped build, not a decision.**
+
+`WidgetMount` (`{widgetId, props?}`) is the **containment** model — the half of the slot inventory that is *content anchors inside a host widget*, as distinct from the **placement** model (`surface: none|region|shelf|window`, `D-112`). It has three live sockets and, as of today, three tenants:
+
+| socket | tenant | where the mount is decided |
+|---|---|---|
+| `message-stream.background` | `grid-plate` | `layout-default.ts` — a **local constant** |
+| `message.bodyExtras` | `send-status` | the shell, from **local** send state |
+| `message.details` | — | — |
+
+🔑 **THE PROPERTY, MEASURED: `WidgetMount` HAS ZERO HITS IN ANY `.rs` FILE.** Nothing on the wire carries one. Every mount in the product is chosen by the client doing the rendering, from a widget it already has. **The sender contributes DATA; the receiver decides RENDERING.**
+
+🛑 **THIS IS THE ENTIRE SECURITY STORY OF THE SOCKET, AND IT IS EASY TO SPEND BY ACCIDENT.** A future *"let the message name its own widget"* feature would be one wire field — and it would make `props: Record<string, unknown>` **attacker-controlled**. `W-13`'s unknown-id drop protects a client from a widget it does **not** have; it protects it from **nothing** inside a widget it does. `send-status.svelte:37` already records the adjacent hazard: *nothing type-checks that a mount supplies what it needs.*
+
+⚠️ **AND A LINE THE ARC HAS NOT YET CROSSED.** `grid-plate` and `send-status` both project the reader's **own** state. The first tenant that renders **someone else's** content — a DM welcome intro, a poll result, an AI resident's diagram — is the first one facing content it did not originate. **The rule to carry into that milestone: a canvas is a PROJECTION OF EVENTS, NEVER A CARRIER OF THEM.**
+
+📌 **Convergence rider.** If a canvas is a projection, two clients holding the same events must render the same thing. A canvas whose output depends on local state that is **not in the DAG** is a divergence surface, in a project that spent a whole milestone on wire-order determinism (`D-076`).
+
+---
+
+### N-173 — "Tier-1 / Tier-2" already means two unrelated things in one codebase
+
+**Date:** 2026-08-08 · HEAD `8eb2e0a` · found while grounding an auth-tier-gated render proposal (J-701). **FILED — the rename is Joe's, and no code is broken today.**
+
+Two independent axes share the words, and they have not yet met because one of them has never reached the UI:
+
+| axis | where | meaning |
+|---|---|---|
+| **`AuthTier`** | `xgen-core/src/auth/tiers.rs` | identity verification strength. **Tier 1 = cryptographic identity only; Tiers 2–4 are built in institutional collaboration with qualified organisations** — i.e. Tier 1 is all that exists |
+| **processor provenance tier** | `ui/…/transform.ts`, `processor.ts`, `store.svelte.ts` | code-vs-user trust. *"Tier-1 trusted code bypasses these entirely; Tier-2 user/settings literal pairs enforce caps"* |
+
+🔑 **EVERY `tier` HIT IN `ui/` IS THE SECOND AXIS. `auth_tier` HAS ZERO HITS IN `ui/`.** The collision is therefore **latent, not live** — which is exactly the moment to fix it, because the first feature that surfaces an auth tier in the client makes *"is this row Tier-2?"* an ambiguous question in review, in kickoffs, and in this notes file.
+
+⚠️ **`D-134` governs designation collisions.** The rename belongs to whichever side is cheaper to move — **the processor axis is UI-local and has no wire, spec or protocol footprint**, so it is the obvious candidate (*trusted / untrusted*, or *code-rule / user-rule*). **Chat does not rename anything; the call and the words are Joe's.**

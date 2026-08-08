@@ -8,6 +8,70 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-701 — the DM-entry design conversation: four milestones filed, two notes, and the architecture was already there twice
+
+**Date:** 2026-08-08 · **Seats:** Joe (the questions, one self-correction, one design better than Chat's objection) · Chat (grounding, four measured findings, records) · **Code: NONE.** `M-RP-INTRO` · `M-INTRO-POLICY` · `M-RP-MEDIA` · `M-STREAM-LIVE` filed PENDING · `N-172` + `N-173` · notes v1.13 → **v1.14** · ROADMAP v6.88 → **v6.89**. **No new `D`.**
+
+🛑 **`J-692` IS STILL OPEN AND NOTHING IN THIS ENTRY IS LOCKED.** The arc closed by **banking the design deliberately**: four turns of good architecture had accumulated while a **dead control stayed shipped in the product**, and continuing would have swallowed the leg that removes it.
+
+### 🔑 WHAT JOE SAID, AND WHAT HE DID NOT (`D-141`)
+
+He **refused** the RMC context menu as the primary route — *"i dont want to put the most intuitive action to rmc context menu. this has to be the most straight path"* — and said he is **not afraid of (b)**, the Discord-style draft DM opened by LMC. ⚠️ **That is a direction, not a ruling.** `J-692` — *what a click on a member with no existing DM does* — **has not been uttered as a lock and stays OPEN.**
+
+📌 **And he corrected his own proposal mid-conversation, on the measurement:** having asked whether the intro could be defined Space-side, he reached it himself — *"i realize that in dm is a special space, so it cannot be in some other space definition."*
+
+### 🔑 THE ARCHITECTURE WAS ALREADY THERE, TWICE — AND THE FILE WAS READ BEFORE THE QUESTION WAS ANSWERED
+
+Joe proposed *"a special system html canvas without user input"* for a Discord-like entry draft. ✅ **It exists and has been LOCKED since J-481:** `message-stream`'s `background?: WidgetMount[]` (§9.4) — a persistent fixed layer behind the log, `position:absolute; inset:0`, chat-wallpaper style. **Its empty-state rule was already written:** *`background` unset **and** `count===0` → default composed paragraph. Never bare.* A draft DM is exactly `count===0`.
+
+And *"we will need more than one type of message"* is **already four on the wire** — `message.text` / `message.file` / `message.reaction` / `message.redact` — with `message.file` carrying MIME-typed `attachments`. ⇒ **Audio and video need no new message kind and no new event type.**
+
+🔑 ***THIS IS THE J-699 FAILURE MODE NOT REPEATED.*** At J-699 Chat endorsed as a design something already shipped, having not read the file. This time the grounding ran first, and both times the answer was *"it exists."*
+
+### 🔑 `N-172` — THE PROPERTY THAT DECIDES ALL FOUR FEATURES
+
+**`WidgetMount` has ZERO hits in any `.rs` file.** Nothing on the wire carries one ⇒ **every mount in the product is named by the RECEIVING client**, from a widget it already has. Three live sockets, three tenants: `background`→`grid-plate` (a local constant), `bodyExtras`→`send-status` (local send state), `details`→none.
+
+🛑 **That is the socket's entire security story, and one wire field would spend it** — making `props: Record<string, unknown>` attacker-controlled. `W-13`'s unknown-id drop protects a client from a widget it does **not** have and from **nothing** inside one it does.
+
+⚠️ **A line the arc has not yet crossed:** `grid-plate` and `send-status` both project the reader's **own** state. A welcome intro, a poll, an AI resident's diagram — each is the first tenant rendering **someone else's**. ⇒ ***A canvas is a PROJECTION OF EVENTS, NEVER A CARRIER OF THEM.***
+
+### 🛑 THE SURFACE ARGUMENT, AND WHY PRIVACY DID NOT ANSWER IT
+
+An intro rendered as **system chrome** is stranger-authored content **in the system's voice, on first contact, before the recipient has agreed to anything** — `D-113` S-5's no-trust-chrome rule, and the classic unsolicited-first-contact vector. Joe's reply that a DM is private and seen by two people **does not mitigate it: the threat IS one sender and one target in private**, with no third party to notice and no community to report it.
+
+✅ **Joe's own wording carried the fix** — *"he will **send** his nice draft to start dm."* If it is sent, **it is a message**: attributed, in the DAG, redactable, blockable, reportable — and symmetric for free, because the initiator sees their own intro as message one. `M-RP-INTRO` is filed on that basis.
+
+📌 **A published intro visible BEFORE first contact has no home:** `IdentityRecord` carries `display_name` and `is_ai` and nothing else. That would be a new federated, world-readable field — a different feature, named not folded.
+
+### 🔑 AND JOE'S ANSWER WAS BETTER THAN CHAT'S OBJECTION: FILTER ON THE RECEIVER
+
+*"whatever intro will have sender set, receiver get filtered version"* — the sender sends freely, the recipient's home node decides what renders. **The email model: fail-safe, because a restrictive policy renders nothing regardless of what arrived.** It generalises Chat's narrower *only-a-node-you-trust-writes-to-your-screen* into something that scales, and it makes the sender's intent irrelevant to safety.
+
+🛑 **But it must be enforced in the CLIENT, and that is not a preference.** Today a node can read DM content, so node-side filtering would work; **after PG-05 (MLS/E2E) the node holds ciphertext and cannot inspect, strip or rewrite anything.** A node-side filter therefore ships with a **known expiry date** — `D-143`, the cheap route is unsound. Policy is **authored** at the receiver's home node and **enforced at render** in the receiver's client. `NodePolicy` is the precedent (per-Space, node-held, admin `show`/`set`) but is **admin-side only — no policy surface reaches the client today.**
+
+⚠️ **The auth-tier gate is the right instrument and cannot fire yet.** `AuthTier` is Tier1–Tier4, but *"Tiers 2–4 are built in institutional collaboration with qualified organisations"* and do not exist; `build_dm_space_create_event` hardcodes `auth_tier: 1`; and **`auth_tier` has ZERO hits in `ui/`**, so the recipient's client cannot evaluate the gate even if it were written. ⇒ **a Tier-2+ gate today excludes everyone, including Joe.** 🔒 **It re-opens honestly under `D-146` when a tier actually reaches the client** — a stated cost expiring, not taste changing.
+
+📌 **Three open questions named, none answered:** the default posture for users who are **not** institutionally homed (institutions configure; individuals get the default) · whether a filtered intro is **silent or disclosed** (`D-065` argues disclosed and non-actionable — a blank space is not honest) · and the **compliance gap**, that client-side enforcement cannot guarantee against a patched client without a client-attestation subsystem that does not exist. **Named so nobody promises an institution what the architecture does not deliver.**
+
+### 📌 `N-173` — A LATENT DESIGNATION COLLISION, CAUGHT BEFORE IT WENT LIVE
+
+*"Tier-1 / Tier-2"* already means **two unrelated things**: `AuthTier` (identity verification, Rust) and the processor **provenance** axis (code-vs-user trust — `transform.ts`: *"Tier-1 trusted code bypasses these entirely"*). **Every `tier` hit in `ui/` is the second axis; `auth_tier` appears in none of them.** The collision is **latent precisely because auth tiers have never reached the client**, which is why now is the moment (`D-134`). The processor axis is UI-local with no wire or spec footprint ⇒ the cheaper side to rename. **The call and the words are Joe's; Chat renamed nothing.**
+
+### 📌 ONE CHAT PROPOSAL RAISED AND WITHDRAWN IN THE SAME ARC
+
+A standalone **`M-RP-CANVAS`** to formalise the input-free surface. **Withdrawn** once the socket was found to have two live tenants already — formalising it standalone would build a frame around a shipped thing, and a surface with no tenant is the reserved-unfed shape `D-065` warns about. **Recorded, not erased** (`D-131`).
+
+### 🔒 THE SEQUENCE, ARGUED AND AGREED
+
+**rule `J-692` → Leg C-bis (draft DM + the pending-latch state + a system-owned local canvas) → `M-RP-INTRO` → `M-INTRO-POLICY` / `M-RP-MEDIA` → `M-STREAM-LIVE`.** Each needs the previous: the intro has nothing to attach to until the first-send path exists, and the policy has nothing to filter until the intro does.
+
+⚠️ **`M-STREAM-LIVE` was deliberately NOT folded into `M-RP-MEDIA`.** The DAG is an event log; a stream is a continuous media session. There is no SFU, no WebRTC, no signalling in the build, and it interacts with E2E. **Folding it in with *more message types* would hide a milestone family behind a sentence that sounds like three.**
+
+→ J-701 · notes v1.14 · ROADMAP v6.89. **No code, no `.rs`, no `ui/**` ⇒ floors untouched and deliberately NOT re-measured:** cargo **1597/0/62 × 56** · svelte-check **0/34/15** · catalogue **435**.
+
+---
+
 ## Entry J-700 — Leg C SHIPS: R7 acts, and two of its seven live legs turn out to be unreachable
 
 **Date:** 2026-08-08 · **Seats:** Clair (three implementations, three clean hand-backs, two flagged calls) · Chat (independent re-drive of every gate, the live §6 run, records) · Joe (three pushes, one delegated ruling)

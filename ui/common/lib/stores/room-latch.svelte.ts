@@ -25,9 +25,14 @@
 // folded or unmounted. A latch owned by R5 would vanish the moment R5 was folded, taking the composer's
 // target with it. Same argument as the gaps store (C-10).
 //
-// A PURE `$state` STORE FED BY THE SHELL — no `.svelte.ts` in this codebase runs its own effect. `note()` is
-// the SINGLE WRITER; the shell's `$effect` calls it and the DEV hook exposes THAT SAME function (the J-548
-// `tickNow` lesson: a verify seam that skips the mechanism verifies the wrong thing).
+// A PURE `$state` STORE FED BY THE SHELL — no `.svelte.ts` in this codebase runs its own effect. THREE
+// functions write `_latched`: `note()` (bus-fed — the shell's `$effect` calls it, and the DEV hook exposes
+// THAT SAME function per the J-548 `tickNow` lesson: a verify seam that skips the mechanism verifies the
+// wrong thing), `clear()` (the test/verify reset), and `latch()` (the DIRECT writer, added at Leg C-2 for
+// R7). `latch()` exists because the DM's room must latch while the BUS still carries the clicked IDENTITY
+// (L-1), and no bus-fed writer can do that — `note()` only latches a `room` selection, never an `identity`.
+// 📌 The pre-Leg-C claim that `note()` was "THE SINGLE WRITER" was ALREADY false — `clear()` has always
+// written `_latched` too; Leg C-2 corrects a standing inaccuracy, it does not break a claim.
 //
 // ⚠️ `note()` READS ITS ARGUMENT AND WRITES `_latched`; it never READS `_latched`. That is what keeps it free
 // of the self-invalidating read-modify-write that N-136 records (and it is why the rooms-panel comment says
@@ -73,10 +78,17 @@ export const roomLatch = {
   get canSend(): boolean {
     return resolveLatched() != null;
   },
-  /** THE SINGLE WRITER — same fn the shell's `$effect` calls and the DEV hook exposes. Writes only on a
-   *  `room` selection, so a later Space (or message) selection KEEPS the room, which is the whole point. */
+  /** THE BUS-FED WRITER — same fn the shell's `$effect` calls and the DEV hook exposes (one of THREE writers
+   *  of `_latched`; see the header). Writes only on a `room` selection, so a later Space (or message)
+   *  selection KEEPS the room, which is the whole point. */
   note(sel: Selection | null = selection.current): void {
     if (sel?.entity.kind === 'room') _latched = sel.entity.id;
+  },
+  /** THE DIRECT WRITER — R7 (members panel) calls this to latch the DM's room while the BUS still carries the
+   *  clicked IDENTITY (L-1): the room must follow the click, but `note()` cannot do it (it only latches a
+   *  `room` selection). Like `note()`, it WRITES `_latched` and never READS it — no read-modify-write (N-136). */
+  latch(roomId: string): void {
+    _latched = roomId;
   },
   /** Test/verify affordance — forget the latch (the ingest.clear / gaps.clear precedent). */
   clear(): void {

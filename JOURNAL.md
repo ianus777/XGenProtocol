@@ -8,6 +8,54 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-699 — Leg C's runbook is LOCKED at v1.1; Clair may write code
+
+**Date:** 2026-08-08 · **Seats:** Joe (three rulings, then all nine locks on one word) · Chat (the grounding, the runbook, the records) · **Code:** NONE · `tasks/RUNBOOK_MEMBER_ACT_LEG_C.md` **NEW, v1.1 ACTIVE** · Leg C Phase-0 v1.4 · ROADMAP v6.86 → **v6.87**. **No new `D`, no new `N`.**
+
+🔒 **THE THREE OPEN QUESTIONS CLOSED, THEN ALL NINE LOCK POINTS ON ONE WORD.** `OQ-C1` = **N1** (`roomLatch.latch(roomId)`) · `OQ-C2` = **E-a**, the erased row clickable · `OQ-C4` = **`selectOnActivate`, default `true`**. The `L-1`–`L-9` table format is the J-696 one, used a second time and closing on one word a second time.
+
+### 🔑 JOE'S QUESTION CHANGED THE DESIGN BY REVEALING IT WAS ALREADY BUILT
+
+Asked how the DM's room gets latched, Joe did not answer the question — **he questioned its premise**: *"can message stream with dm content on its appearance select backward the member line in the members panel?"* 🔑 ***It already does.*** `members-panel:174` passes `selected={counterpart}`, derived at `:119-123` from `addressBook.isDm` + the roster — **shipped since M-RP-MEMBERS Leg B (`L16`)**. Enter a DM by any route and the counterpart's row lights, because the highlight is a fact about the room you are in, not a memory of what you clicked.
+
+🛑 **CHAT ANSWERED *"yes, R7 CAN derive backward the way R1 and R2 now do"* — endorsing as a design what was already true, and proposing to record it as a new option `N1+D`. It had not read the file.** *An answer that sounds like agreement while being less informed than the question.* ⇒ **`OQ-C1` reduced to its remaining half** (move the room latch; `N1` uncontested, `N2` refuted by measurement, `N3` refused), **and `OQ-C4` got a better reason than Chat had given it:** `interactive={true}` lets `selectAt` write `selected`, so without the flag **a click would overwrite a DERIVED highlight with a clicked one** — the exact defect `M-RP-SELECT-ORIENT` spent four commits removing from R1 and R2. ***The flag is not a workaround; it is what keeps `counterpart` authoritative.***
+
+### 🔑 GROUND TRUTH FOUND TWO THINGS THE PHASE-0 DID NOT HAVE
+
+**`KnownSpace.counterpart` ALREADY EXISTS** (`spaces-state.svelte.ts:32-34`) — *"DM counterpart XGID, or the session identity for the self thread"* ⇒ **C-3's DM lookup is a field match, not a search**, and it is the same field R7 already derives its highlight from. ⚠️ **And it carries a trap the runbook guards:** a self-thread Space matches the **self** id, so the lookup must exclude self explicitly rather than lean on `L17`.
+
+**`note()`'s "THE SINGLE WRITER" CLAIM IS ALREADY FALSE** (`room-latch.svelte.ts:28-29`, `:76`) — `clear():82-84` writes `_latched = null` today. 🔑 ***C-2's annotation therefore CORRECTS a pre-existing inaccuracy while adding the third writer; it does not create one.*** The Phase-0 predicted exactly this and it held.
+
+### 🛑 ONE THING SHIPS AS A DEAD CONTROL, NAMED RATHER THAN SOFTENED
+
+**A member with no existing DM will be clickable and do nothing** (`§5-b`), because what it *should* do is still open (J-692) and Joe has not ruled. ⚠️ **That is what 6.1j forbade** and what `D-113`'s correction sharpened: *grey because the verb was never built is a DEAD CONTROL.* **Acceptable ONLY because it is named, owned, and written into Leg C-bis's DoD in the same edit that records it here** (N-109 — the removal enters the DoD of the leg that lifts the limit). **Put to Joe explicitly as the one point worth changing, with answering J-692 first as the alternative. He locked it.**
+
+### 📌 WHAT WAS DELIBERATELY NOT PUT TO JOE
+
+**`§6` leg 5** — clicking a member in a group room moves the latch to the DM, `scope` changes, and **R7 re-renders to the DM's two people: the panel you just clicked in replaces itself.** Correct by every rule, possibly surprising in use. Joe asked whether it needed his assertion; **it does not, and it is not in the lock table.** Nothing in C-1–C-4 causes it (R7 has been Space-scoped since Leg B), so **not one line is thrown away if it is judged wrong later** — and `D-146` says nothing is banked by ruling early. 🔑 ***It reaches him at C-4 as something ON SCREEN, not as a paragraph asking him to imagine it — the same reason option D is parked against lived use.***
+
+### 🔓 A PRODUCT IDEA, EVALUATED AND MOSTLY REFUSED — AND THE PART THAT SURVIVED
+
+Joe proposed a Discord-shaped roster: **all known members, presence-tested, shown independent of Space, with a filter mode.** Evaluated against the code, **three of five bullets did not survive:**
+
+① **There is no presence.** Grepped all four crates: **zero per-identity presence.** `last_seen` in the client is the **address book's own observation timestamp** — when *you* refreshed the record, not when that person was active; the `last_seen` in `federation/registry.rs` is **node-to-node** liveness. ② **The architecture already ruled** — `address_book.rs:38-39`: the book is *"**not** presence (ephemeral, **Space-scoped**)"*, a direct collision with "independent of Space." ③ 🛑 **AND THE STRUCTURAL OBJECTION:** `D-111` locked *"XGen publishes your XGID by design; it does NOT publish your network location."* **Online/offline is an activity trace** — when you wake, when you sleep — and cross-Space presence hands it to anyone who ever saw you, with no shared context and no consent. **Discord can do this because it is one central server and friendship is mutual; federated + no-anonymity + global presence is a surveillance surface.** *Space-scoped presence is defensible; global presence is a different object wearing the same word.*
+
+⚠️ **AND CHAT OWED A CONCESSION:** it had called an earlier version of the filter *"a source swap, not a filter."* **With presence as the source that critique does not apply** — one source, genuinely filtered by Space. Joe improved the proposal; the objection that killed it was a different one.
+
+✅ **WHAT SURVIVED, AND IT NEEDS NO PROTOCOL WORK AT ALL: `M-RP-PEOPLE` — the people you know, not the people in this room.** A `people-panel` over `get_address_book`, which is **not Space-scoped** and is fully feedable today; LMC opens the DM through the same `roomLatch.latch()` C-2 builds. **It is the surface that makes R7's narrowing feel like context rather than loss.** 🛑 **Never named `contacts`** — `address_book.rs:38` reserves that for Ch2's private contact record. ⚠️ **And `last_seen` MUST NOT be rendered as the person's activity** — an honest field with a misleading name, which would manufacture a false statement out of nothing. 📌 **FILED, NOT SCHEDULED**, at Joe's word: *return to it after N1 and the prepared milestones.*
+
+📌 **AND ONE THING JOE FOUND BY USING IT:** he believed the active **room** filtered the members list. It does not — `members-panel:46` scopes on `roomLatch.effectiveSpaceId`, the **Space**. The impression comes from `B1`: selecting a Space alone does **not** populate R7; a room must be latched first. **From outside, a gate is indistinguishable from a filter.** *A deliberate cost that produces the wrong mental model in the person using it — reported by the only seat that could report it.*
+
+### STATE
+
+🔒 **FLOORS carried and STATED** (zero `.rs`, zero `ui/**`, zero code of any kind): cargo **1597/0/62 × 56** · svelte-check **0/34/15** · catalogue **435**. HEAD `4bba34f`.
+
+🟢 **`M-RP-MEMBER-ACT` Leg C PLAY, runbook v1.1 ACTIVE.** ⇒ **NEXT: Clair implements C-1 → C-4 from the locked runbook; Chat re-drives every gate (Rule 5), with the keyboard legs now assertable via `M-TOOL-CDP-KEY` — and `-At` FORBIDDEN on them, since it focuses by clicking and would pass for the wrong reason.**
+
+→ J-699 · Leg C runbook v1.1 ACTIVE · ROADMAP v6.87.
+
+---
+
 ## Entry J-698 — M-TOOL-CDP-KEY: the harness can press a key
 
 **Date:** 2026-08-08 · **Seats:** Chat (design, implementation, every leg driven) · Joe (the push) · **Code:** one file, `cdp-debug.ps1`, +116/−1 · ROADMAP v6.85 → **v6.86**. **No new `D`, no new `N`.** Zero `ui/**`, zero `.rs` — cargo, svelte-check and the catalogue are untouched **by scope**, stated as scope.

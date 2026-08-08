@@ -13,12 +13,15 @@
   // PROJECTION IN THE WIDGET (D7): the store carries raw `KnownSpace[]`; the `KnownSpace -> EntityDescriptor`
   // map lives here (the self-panel precedent). `core` imports no protocol type (W-3).
   //
-  // `selected` is DERIVED FROM THE BUS (D5, the self-panel standing rule) and highlights a Space ONLY while
-  // the bus holds THAT space (D4 opt-1, bus-pure). When R2 selects a room the bus becomes a room, so R1
-  // un-highlights while you browse its rooms — one selection, one meaning, no second latch.
+  // `selected` is DERIVED FROM THE LIFTED SPACE LATCH (`spaceLatch.latchedSpaceId`, C-1), NOT the bus, and
+  // highlights the Space you are BROWSING — so selecting a room KEEPS its Space lit (D4 opt-1 -> opt-2, D-146:
+  // the M-RP6.2 bus-pure lock is superseded now the latch exists to read). R1 and R2 read ONE value, so they
+  // always agree; the bus is still WRITTEN on activation (onActivate), it is just no longer READ here for the
+  // highlight.
   import { envelope } from '$common/components/base/envelope';
   import { spacesState, type KnownSpace } from '$common/stores/spaces-state.svelte';
   import { selection } from '$common/stores/selection.svelte';
+  import { spaceLatch } from '$common/stores/space-latch.svelte';
   import type { EntityDescriptor } from '$core/components/data-dependent/types';
   import EntityPanel from '$core/components/data-dependent/entity-panel.svelte';
 
@@ -39,11 +42,10 @@
   // / unread (the read-marker gap has no protocol mechanism yet).
   const items = $derived(spaces.map((s) => ({ descriptor: toDescriptor(s) })));
 
-  // Read the bus BACK (D5). R1 owns the 'space' facet of the one selection; a room selection (R2) leaves
-  // this undefined -> R1 un-highlights (D4 opt-1).
-  const selected = $derived(
-    selection.current?.entity.kind === 'space' ? selection.current.entity.id : undefined,
-  );
+  // Highlight from the LIFTED latch (C-1, D-146), not the bus. The latch holds the last `space` selection, so
+  // a later room/identity selection KEEPS the Space lit (D4 opt-2). `latchedSpaceId` is `string | null`; the
+  // prop wants `string | undefined` (entity-panel:63), hence `?? undefined`.
+  const selected = $derived(spaceLatch.latchedSpaceId ?? undefined);
 
   function onActivate(spaceId: string): void {
     const s = spaces.find((x) => x.space_id === spaceId);

@@ -8,29 +8,22 @@
   // R2's OWN room-activation moves the bus to a `kind: 'room'`. So it LATCHES the last SPACE selection and
   // KEEPS it while the bus holds a room. Without the latch, clicking a room would blank R2's own list.
   import { envelope } from '$common/components/base/envelope';
-  import { spacesState, type KnownRoom } from '$common/stores/spaces-state.svelte';
+  import { type KnownRoom } from '$common/stores/spaces-state.svelte';
   import { selection } from '$common/stores/selection.svelte';
+  import { spaceLatch } from '$common/stores/space-latch.svelte';
   import type { EntityDescriptor } from '$core/components/data-dependent/types';
   import EntityPanel from '$core/components/data-dependent/entity-panel.svelte';
 
   let { regionId, id = `region-${regionId}` }: { regionId: string; id?: string } = $props();
   const cid = (s: string) => (id ? `${id}__${s}` : undefined);
 
-  // The last SPACE selection = R2's data scope. Written ONLY when the bus holds a space; KEPT when R2's own
-  // room-activation moves the bus to a room (D3). The effect reads `selection.current` and writes
-  // `latchedSpaceId` — it never READS `latchedSpaceId`, so there is no self-invalidating read-modify-write
-  // (the N-136 trap avoided).
-  let latchedSpaceId = $state<string | null>(null);
-  $effect(() => {
-    const c = selection.current;
-    if (c?.entity.kind === 'space') latchedSpaceId = c.entity.id;
-  });
-
-  // The scoped Space — null when nothing is latched OR the latched Space is gone between hydrations
-  // (stale-latch guard, N-095 spirit: never throw; fall back to the "Select a space" empty state).
-  const scopedSpace = $derived(
-    spacesState.spaces.find((s) => s.space_id === latchedSpaceId) ?? null,
-  );
+  // R2's data scope = the last SPACE selection, now held in the LIFTED `spaceLatch` `$common` store (C-1). It
+  // was component `$state` here until this milestone; folding R2 unmounts the widget and DESTROYED that state,
+  // so on unfold R2 read "Select a space" while roomLatch still targeted the room (Clair's F2). An
+  // app-lifetime store survives the unmount. The shell drives `spaceLatch.note()` (one effect, two latches);
+  // that writer writes `_latched` and never reads it, so there is no self-invalidating read-modify-write
+  // (the N-136 trap avoided). R1 (`spaces-panel`) reads the SAME latch for its highlight (D4 opt-2, D-146).
+  const scopedSpace = $derived(spaceLatch.scopedSpace);
   const rooms = $derived(scopedSpace?.rooms ?? []);
 
   function toDescriptor(r: KnownRoom): EntityDescriptor {
@@ -55,7 +48,7 @@
 
   const debug = () => ({
     count: rooms.length,
-    latchedSpaceId,
+    latchedSpaceId: spaceLatch.latchedSpaceId,
     selectedId: selected ?? null,
     hasEmpty: rooms.length === 0,
   });

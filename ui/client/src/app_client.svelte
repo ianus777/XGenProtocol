@@ -50,6 +50,7 @@
   // injects the guarded send transport into `echo`. They live in $common because R5 renders echoes and R6
   // creates them, both `$common` region widgets that receive only a `regionId` (W-3/N-096).
   import { roomLatch } from '$common/stores/room-latch.svelte';
+  import { spaceLatch } from '$common/stores/space-latch.svelte';
   import { echo } from '$common/stores/echo-state.svelte';
   // M-RP-MEMBERS Leg B — the R7 members store. A PURE $state store fed by the shell (the roomLatch/gaps
   // feeder shape): the $effect below watches `roomLatch.effectiveSpaceId` and drives the fill
@@ -192,9 +193,18 @@
   // would forget the room the moment R5 was folded, taking the composer's target with it (the C-10 argument
   // exactly). `note` writes `_latched` and never reads it, so there is no self-invalidating read-modify-write
   // (N-136) — untrack is belt-and-braces, matching the gaps feeder above.
+  // ONE effect, TWO latches (M-RP-SELECT-ORIENT C-1, L-6). `spaceLatch.note` joins `roomLatch.note` here
+  // rather than in a second effect: both are pure writers gated on MUTUALLY EXCLUSIVE `entity.kind` (`room`
+  // vs `space`), neither reads its own state, neither writes `selection.current` — so there is no
+  // re-entrancy and no ordering dependency between them (runbook §9-1, driven). The Space latch lives in the
+  // SHELL for the same reason the room latch does: R1/R2 are separate region widgets in separate tiles, and a
+  // latch owned by a widget forgets its scope the moment that widget is folded (Clair's F2).
   $effect(() => {
     const sel = selection.current; // the sole tracked dependency
-    untrack(() => roomLatch.note(sel));
+    untrack(() => {
+      roomLatch.note(sel);
+      spaceLatch.note(sel);
+    });
   });
 
   // M-RP-MEMBERS Leg B (§3) — feed the R7 address-book store from the room latch. The ONE writer path (the

@@ -22,6 +22,16 @@
   // is disabled. Silently accepting a sentence that goes nowhere is the worst of the three options; killing
   // the textarea mid-thought is the second worst (D6: block send, NEVER block typing).
   //
+  // 🔒 THE DM DRAFT IS THE SECOND SEND TARGET (C-bis-3, §5.2/§5.3). A member with no existing DM opens a
+  // draft (dmDraft.active); its room does not exist yet, so `canSend` is false FOR IT and the gate widens to
+  // `canSend || dmDraft.active`. Two things follow. (1) The draft's text routes through `dmDraft` (keyed by
+  // counterpart, survives navigation) via a function binding, so the DM draft and the room never share one
+  // buffer — otherwise a private draft would surface in the room's composer the instant the draft closed.
+  // (2) The submit() draft branch sits ABOVE the early return: opening a draft leaves the latch pointing at
+  // the group room you came from (v1.3), so the normal path would `echo.send` INTO that stale room — the
+  // draft must be intercepted first. This commit routes the draft send to a REPORT-ONLY STUB; the real
+  // create_dm_space sequence lands at C-bis-4.
+  //
   // 🔒 OFFLINE STILL SENDS, AND ON PURPOSE. The shell's lifecycle guard turns a send during an outage into
   // an immediate `failed` — which lock #7 lets the user RETRY FREELY, because `failed` means it never
   // reached the wire. So the sentence is PRESERVED, visible and retryable, instead of sitting in a textarea
@@ -43,19 +53,45 @@
   import Button from '$core/components/data-independent/button.svelte';
   import { roomLatch } from '$common/stores/room-latch.svelte';
   import { echo } from '$common/stores/echo-state.svelte';
+  import { dmDraft } from '$common/stores/dm-draft.svelte';
   import { substitutions } from '$common/components/processor/store.svelte';
   import { processor } from '$common/components/processor/processor';
 
   let { regionId, id = `region-${regionId}` }: { regionId: string; id?: string } = $props();
   const cid = (s: string) => (id ? `${id}__${s}` : undefined);
 
+  // The ROOM composing buffer — a single unkeyed string, the pre-C-bis behaviour unchanged (text persists
+  // across room switches; not keyed by room). It is used ONLY when no DM draft is active.
   let draft = $state('');
 
+  // C-bis-3 STUB SIGNAL (report, not action). The draft submit path has no create yet (C-bis-4 wires
+  // create_dm_space → latch → echo.send → dmDraft.clear). Until then, submitting a draft REPORTS via these
+  // and does nothing else — no create, no echo.send, no fabricated roomId. Observable to the verify pass.
+  let draftSubmits = $state(0);
+  let lastDraftText = $state('');
+
+  // C-bis-3 — THE TEXT ROUTES THROUGH `dmDraft` WHILE A DRAFT IS ACTIVE (§5.3). The composer has ONE editable
+  // buffer; a DM draft and a room share this widget, so without routing the two would collide — a private
+  // draft's text would sit in the room's composer the moment the draft closes, and vice versa. A function
+  // binding (get/set) keeps `bind:value` — and therefore the processor attachment — untouched, and makes the
+  // buffer PULL from the right source instead of syncing two states with a bidirectional effect (N-136 warns
+  // about exactly that read-modify-write shape). Active ⇒ the store's per-counterpart text (survives
+  // navigation, keyed by id, restored on re-open); otherwise ⇒ the local room buffer.
+  const composerText = (): string => (dmDraft.active ? dmDraft.text : draft);
+  const setComposerText = (v: string): void => {
+    if (dmDraft.active) dmDraft.setText(v);
+    else draft = v;
+  };
+
   // Lock #12's ONE predicate, read from the shared latch so R5 and R6 can never disagree about which room
-  // is active (a second copy of this rule is the D-067 drift the lift exists to prevent).
+  // is active (a second copy of this rule is the D-067 drift the lift exists to prevent). C-bis-3 widens the
+  // send gate to `canSend || dmDraft.active`: a draft has no latched room (its room does not exist yet), so
+  // `canSend` is false FOR THE DRAFT'S OWN ROOM — but the draft is a legitimate send target. The latch that
+  // IS still set points at the group room the user came from, which is exactly why the draft must never ride
+  // the normal path (see submit()).
   const canSend = $derived(roomLatch.canSend);
-  const hasText = $derived(draft.trim().length > 0);
-  const sendEnabled = $derived(canSend && hasText);
+  const hasText = $derived(composerText().trim().length > 0);
+  const sendEnabled = $derived((canSend || dmDraft.active) && hasText);
 
   // Functional copy, PROVISIONAL (appearance and final phrasing -> M-RP-SKIN; the stream-panel precedent).
   // The two placeholders say DIFFERENT things because the truths are different (N-091): no room selected is
@@ -64,6 +100,21 @@
   const PLACEHOLDER_NO_ROOM = 'Select a room to send a message.';
 
   function submit(): void {
+    // ⚠️ SAFETY-CRITICAL ORDERING (C-bis-3, §5.2): the draft branch goes ABOVE the early return. During a
+    // draft the latch STAYS SET at the group room the user came from (v1.3 — opening a draft never moves the
+    // latch), so `roomLatch.effective*` are NON-null and the normal path below would `echo.send` the draft's
+    // text INTO that stale room. Intercepting here is the only thing preventing that leak — a disabled button
+    // is a courtesy, never a guarantee, so it cannot be left to `sendEnabled`. No fabricated roomId.
+    if (dmDraft.active) {
+      const draftText = composerText().trim();
+      if (!draftText) return;
+      // C-bis-3 STUB — reports, does nothing. C-bis-4 replaces this with the real sequence:
+      //   create_dm_space(counterpart) → roomLatch.latch(result.room_id) → echo.send(...) → dmDraft.clear().
+      // The text is deliberately NOT cleared: nothing was sent, so the draft keeps its typed words.
+      draftSubmits += 1;
+      lastDraftText = draftText;
+      return;
+    }
     const text = draft.trim();
     const spaceId = roomLatch.effectiveSpaceId;
     const roomId = roomLatch.effectiveRoomId;
@@ -93,7 +144,15 @@
     canSend,
     hasText,
     sendEnabled,
-    draftLength: draft.length,
+    draftActive: dmDraft.active,
+    draftCounterpart: dmDraft.counterpart ?? null,
+    // `textLength` = the buffer CURRENTLY shown (draft text while active, else the room buffer).
+    // `roomBufferLength` = the local room buffer regardless. The two are reported separately so the verify
+    // pass can prove a draft's text never bleeds into the room buffer, nor the reverse (§5.3, the leak).
+    textLength: composerText().length,
+    roomBufferLength: draft.length,
+    draftSubmits,
+    lastDraftLength: lastDraftText.length,
     roomId: roomLatch.effectiveRoomId,
     spaceId: roomLatch.effectiveSpaceId,
     wired: echo.wired,
@@ -112,7 +171,7 @@
     cannot collide with `onkeydown`, which rides the same `rest` under a string key. -->
   <Textarea
     {...processor(substitutions.rules)}
-    bind:value={draft}
+    bind:value={composerText, setComposerText}
     placeholder={canSend ? PLACEHOLDER : PLACEHOLDER_NO_ROOM}
     rows={2}
     id={cid('input')}

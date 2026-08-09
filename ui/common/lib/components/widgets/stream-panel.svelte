@@ -31,6 +31,10 @@
   import { roomLatch } from '$common/stores/room-latch.svelte';
   import { echo, type EchoMessage } from '$common/stores/echo-state.svelte';
   import SendStatus from './send-status.svelte';
+  // Leg C-bis-2 — the DM draft render state (§5.1: R5 mounts the intro while a draft is active) and the
+  // address book (§5.6: the counterpart's display label is resolved from `book`, reactively).
+  import { dmDraft } from '$common/stores/dm-draft.svelte';
+  import { addressBook } from '$common/stores/address-book.svelte';
   // The DM draft "start of conversation" page — a socket tenant (below), Joe's file (skin.css precedent).
   import DmIntro from './dm-intro.svelte';
   // The pure R5 projection (the allowlist + the wire-field finding) — colocated + unit-tested (the
@@ -154,7 +158,29 @@
   // it is a stable const, never mutated in place. Unknown ids are DROPPED (W-13), so `aboveMountCount` is
   // the render truth (a drop-unknown proof), exactly like `backgroundMountCount`.
   const aboveWidgets = { 'dm-intro': DmIntro };
-  const above: WidgetMount[] = []; // Leg C-bis-2 replaces this with a `$derived` off `dmDraft`.
+
+  // Leg C-bis-2: the counterpart's display label, resolved ONCE and REACTIVELY from the address book.
+  // ⚠️ NOT frozen at click time (§5.6 case 1): a live-joined `unresolved` member is cleared by the next
+  // fill, and the header must FOLLOW it — so this is a `$derived` read of `book`, re-evaluating whenever
+  // the book resolves the name. Falls back to `…`+last-8 for a nameless counterpart (§5.6-bis).
+  // ⚠️ `tail8` is the members-panel:51 shape, DUPLICATED here, NOT extracted — a shared helper is a fifth
+  // file and a scope change (reported; Chat files it, the J-508 copied-not-shared precedent).
+  const tail8 = (xgid: string) => (xgid ? `…${xgid.slice(-8)}` : '');
+  const draftLabel = $derived.by(() => {
+    const cp = dmDraft.counterpart;
+    return cp == null ? '' : (addressBook.book[cp]?.display_name ?? tail8(cp));
+  });
+
+  // The `above` socket's tenant: `dm-intro` is mounted ONLY while a draft is active (R-2: active =
+  // counterpart set AND no room resolves). The label rides `props.name` as DATA; `dm-intro` composes
+  // §5.5's sentence from it (R-3 — stream-panel carries NO wording). `mountKey` is a stable const, so a
+  // label change re-props the SAME instance rather than remounting it. Unknown ids DROPPED (W-13), so
+  // `aboveMountCount` stays the render truth.
+  const above: WidgetMount[] = $derived(
+    dmDraft.active
+      ? [{ widgetId: 'dm-intro', mountKey: 'dm-intro', props: { name: draftLabel } }]
+      : [],
+  );
   const resolvedAbove = $derived(resolveMounts(above, aboveWidgets, cid('a-')));
 
   // The head marker anchors at (or before) the first message so it sits first and puts no spurious divider
@@ -194,6 +220,13 @@
   // The connection-gap episodes (C-7/C-10) — pass straight into C1's `status` prop (do NOT re-order/re-map).
   const statusArr = $derived(gaps.episodes);
 
+  // v1.3 — while a draft is active the latch STILL points at the room you came from, so the composed
+  // `messages` above would paint that room's conversation UNDER the intro. Feed `MessageStream` an EMPTY
+  // list instead. 🛑 A PROPS change, never a conditional mount — C-bis-1's unconditional-mount invariant
+  // stands and the 164 registry floor is its proof. `MessageStream` renders its own "No messages yet" for
+  // `[]` (message-stream.svelte:267) — honest, not a false statement; its appearance is Joe's.
+  const streamMessages = $derived<MessageDescriptor[]>(dmDraft.active ? [] : messages);
+
   // Aggregate getter G. `projectedCount` is the REAL message count (synthetic rows excluded) so a verifier
   // never mistakes a composed empty state for phantom messages (§4 measurement precondition, the J-548
   // right-about-the-wrong-quantity family). `streamCount` = what the stream's own `count` reads.
@@ -207,12 +240,19 @@
     inboundCount: inbound.length,
     outboundCount: outbound.length,
     syntheticCount: messages.length - projected.length,
-    streamCount: messages.length,
+    // What `MessageStream` actually receives: 0 while a draft is active (the intro replaces the stream),
+    // else the composed `messages` length. The gate reads `streamCount: 0` under the intro.
+    streamCount: streamMessages.length,
     episodeCount: statusArr.length,
     dropped: ingest.dropped,
-    // The `above` socket render truth (Leg C-bis-1): 0 while the socket has no tenant, and a dropped
-    // unknown id lowers it — so it is the drop-unknown proof, not merely a declared count.
+    // The `above` socket render truth (Leg C-bis-1/2): 0 with no draft, 1 while a draft is active (the
+    // dm-intro tenant), and a dropped unknown id lowers it — the drop-unknown proof, not a declared count.
     aboveMountCount: resolvedAbove.length,
+    // Leg C-bis-2 — the draft render state, exposed so the verify pass can assert the mount reactivity
+    // (active ⇒ aboveMountCount 1, the label resolved) without reaching into __XGEN_DRAFT__ separately.
+    draftActive: dmDraft.active,
+    draftCounterpart: dmDraft.counterpart ?? null,
+    draftLabel,
     emptyState: effectiveRoomId == null ? 'no-room' : projected.length === 0 ? 'no-messages' : null,
   });
 </script>
@@ -232,7 +272,7 @@
   <!-- The stream fills the rest (`flex:1 1 0; min-height:0`) and is ALWAYS mounted (§198: no conditional
     mount → no registry churn; the registry floor is the proof). -->
   <div class="stream-body">
-    <MessageStream messages={messages} status={statusArr} {widgets} id={cid('stream')} />
+    <MessageStream messages={streamMessages} status={statusArr} {widgets} id={cid('stream')} />
   </div>
 </div>
 

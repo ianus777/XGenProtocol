@@ -34,6 +34,7 @@
   import { spacesState } from '$common/stores/spaces-state.svelte';
   import { selection } from '$common/stores/selection.svelte';
   import { addressBook, type MemberEntry } from '$common/stores/address-book.svelte';
+  import { dmDraft } from '$common/stores/dm-draft.svelte';
   import { selfState } from '$common/stores/self-state.svelte';
   import type { EntityDescriptor } from '$core/components/data-dependent/types';
   import EntityPanel from '$core/components/data-dependent/entity-panel.svelte';
@@ -162,9 +163,10 @@
     (selfDescriptor ? [{ descriptor: selfDescriptor }] : []).concat(memberRows),
   );
 
-  // ── Interaction (M-RP-MEMBER-ACT Leg C-3) ──────────────────────────────────────────────────────
-  // R7 is now a selection surface: `interactive={true}`, `selectOnActivate={false}`. Clicking a member
-  // opens that member's EXISTING DM (L-1/L-7) and leaves the IDENTITY on the bus.
+  // ── Interaction (M-RP-MEMBER-ACT Leg C-3 / C-bis-2) ─────────────────────────────────────────────
+  // R7 is a selection surface: `interactive={true}`, `selectOnActivate={false}`. Clicking a member opens
+  // that member's EXISTING DM (L-1/L-7) and leaves the IDENTITY on the bus. As of Leg C-bis-2, a member
+  // with NO existing DM opens a DRAFT instead (J-692 option B) — the row is no longer a dead control.
 
   // L-8: the DM lookup — a NAMED LOCAL FUNCTION, deliberately not inlined and not extracted to a shared
   // helper. Copied-not-shared follows J-508's roving precedent (four independent impls before extraction
@@ -185,21 +187,52 @@
     return space.rooms[0]?.room_id ?? null;
   }
 
-  // On a member click: latch the DM's room AND leave the identity on the bus. TWO INDEPENDENT writes to
-  // TWO INDEPENDENT stores; they are NOT ordering-dependent — do not "fix" them into a coupling. (N2 was
-  // refused precisely because it wrote the SAME store twice, and the two writes coalesced into one $effect
-  // run that never observed the room; these write DIFFERENT stores, so no such coalescing exists.)
+  // On a member click, one of three outcomes: an existing DM latches, a member with no DM opens a draft,
+  // or a no-op (self / the empty-rooms finding). Where writes fire they are to INDEPENDENT stores and are
+  // NOT ordering-dependent — do not "fix" them into a coupling. (N2 was refused precisely because it wrote
+  // the SAME store twice, coalescing into one $effect run that never observed the room; these write
+  // DIFFERENT stores, so no such coalescing exists.)
   function onMemberActivate(identityId: string): void {
-    const roomId = findDmRoom(identityId);
-    if (roomId == null) return; // self, no-DM (§5-b), or the empty-rooms finding — all no-ops.
-    // 1. R5 (stream) shows the DM · R6 (composer) targets it. The bus cannot latch the room: it carries the
-    //    clicked IDENTITY (below), and `note()` only latches a `room` selection — which is why `latch()`
-    //    exists (L-1/L-2).
-    roomLatch.latch(roomId);
-    // 2. R8 (inspector) shows the PERSON — the click is the pick made visible (L-1). The clicked id is a
-    //    rendered roster row (self is already excluded), so `m` is present; the guard is defensive.
+    // Self is never a DM target NOR a draft target. `findDmRoom` already returns null for self, but the
+    // no-DM branch below now OPENS A DRAFT on "no DM" — so without this guard a self-click (the self row is
+    // clickable) would open a self-draft. This preserves Leg C's self-click no-op. Self IS in `_roster`
+    // (memberRows filters it out only for RENDER), so the `!m` guard below does NOT catch it.
+    if (identityId === selfId) return;
+    // N-171 (fixed here because this leg opens this function): the roster lookup goes ABOVE every write.
+    // `latch()`/`clear()` are unconditional while `selection.set()` sat behind an `if (m)` guard, so the
+    // pair could HALF-APPLY (R5 shows the DM while R8 shows the old card). Doing the lookup first means
+    // either BOTH writes fire or NEITHER does. The locked write ORDER is untouched — a LOOKUP moves, not a
+    // WRITE.
     const m = addressBook.roster?.find((x) => x.identity_id === identityId);
-    if (m) selection.set(regionId, toDescriptor(m));
+    if (m == null) return; // not a rendered roster row — nothing to open, nothing to select.
+    const descriptor = toDescriptor(m);
+
+    const roomId = findDmRoom(identityId);
+    if (roomId != null) {
+      // Existing DM (Leg C, UNCHANGED): latch its room — R5 shows it, R6 targets it (L-1/L-2) — and leave
+      // the person on the bus so R8 shows the card (L-7).
+      roomLatch.latch(roomId);
+      selection.set(regionId, descriptor);
+      return;
+    }
+    // `roomId` is null. Self is excluded above, so this is either NO DM space at all (→ open a draft) or a
+    // DM space that exists but has an empty `rooms` (the finding `findDmRoom` guards). The latter is an
+    // EXISTING (malformed) DM: drafting on it would mint a DUPLICATE space on send, which the milestone's
+    // dedup design (K3, gate 4b) exists to prevent — so it stays a no-op, NOT a draft.
+    if (spacesState.spaces.some((s) => s.counterpart === identityId)) return;
+    // No DM space exists — J-692 option B: open a DRAFT.
+    // 🛑 v1.3: NO `roomLatch.clear()`. The kickoff's R-1 (clear the latch on open) was WITHDRAWN after it was
+    // driven: R7's scope IS `roomLatch.effectiveSpaceId` (`:57`), so clearing emptied R7 to `no-scope` and
+    // (app_client.svelte:218) tore down its fill on every open/close. `active` is now STORED
+    // (`counterpart != null`), so opening the draft needs no clear; the draft CLOSES on a room selection via
+    // `dmDraft.note` in the shell effect. The send-to-stale-room defence R-1 duplicated already lives in
+    // C-bis-3 (the draft branch ABOVE the composer's early return). ⇒ the latch STAYS, R7 keeps its group
+    // roster and fill, and `canSend` is true during a draft — harmless, because C-bis-3's draft branch never
+    // consults the latch.
+    dmDraft.open(identityId);
+    // R8 shows the person you are drafting (L-7). An `identity` selection is ignored by BOTH `roomLatch.note`
+    // and `dmDraft.note`, so writing the bus neither moves the latch nor closes the draft it just opened.
+    selection.set(regionId, descriptor);
   }
 
   // Aggregate getter G (W-4). ⚠️ `memberCount` derives from the ROSTER, never from rendered rows (L4) — the

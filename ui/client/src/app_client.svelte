@@ -51,6 +51,7 @@
   // creates them, both `$common` region widgets that receive only a `regionId` (W-3/N-096).
   import { roomLatch } from '$common/stores/room-latch.svelte';
   import { spaceLatch } from '$common/stores/space-latch.svelte';
+  import { dmDraft } from '$common/stores/dm-draft.svelte';
   import { echo } from '$common/stores/echo-state.svelte';
   // M-RP-MEMBERS Leg B — the R7 members store. A PURE $state store fed by the shell (the roomLatch/gaps
   // feeder shape): the $effect below watches `roomLatch.effectiveSpaceId` and drives the fill
@@ -193,17 +194,20 @@
   // would forget the room the moment R5 was folded, taking the composer's target with it (the C-10 argument
   // exactly). `note` writes `_latched` and never reads it, so there is no self-invalidating read-modify-write
   // (N-136) — untrack is belt-and-braces, matching the gaps feeder above.
-  // ONE effect, TWO latches (M-RP-SELECT-ORIENT C-1, L-6). `spaceLatch.note` joins `roomLatch.note` here
-  // rather than in a second effect: both are pure writers gated on MUTUALLY EXCLUSIVE `entity.kind` (`room`
-  // vs `space`), neither reads its own state, neither writes `selection.current` — so there is no
-  // re-entrancy and no ordering dependency between them (runbook §9-1, driven). The Space latch lives in the
-  // SHELL for the same reason the room latch does: R1/R2 are separate region widgets in separate tiles, and a
-  // latch owned by a widget forgets its scope the moment that widget is folded (Clair's F2).
+  // ONE effect, now THREE latches (M-RP-SELECT-ORIENT C-1, L-6; M-RP-MEMBER-ACT Leg C-bis-2 adds the third).
+  // `spaceLatch.note` joined `roomLatch.note` here rather than in a second effect, and `dmDraft.note` joins
+  // them now: all three are pure writers, each reads its argument and never its own state, none writes
+  // `selection.current` — so there is no re-entrancy and no ordering dependency (runbook §9-1, driven; N-136).
+  // Gating is by `entity.kind`: `roomLatch` on `room`, `spaceLatch` on `space`, and `dmDraft.note` CLOSES the
+  // draft on ANY `room` selection (the user navigated to a conversation) while ignoring the `identity`
+  // selection that OPENED it. The latches live in the SHELL because R1/R2/R5 are separate region widgets in
+  // separate tiles, and a latch owned by a widget forgets its scope the moment that widget is folded.
   $effect(() => {
     const sel = selection.current; // the sole tracked dependency
     untrack(() => {
       roomLatch.note(sel);
       spaceLatch.note(sel);
+      dmDraft.note(sel);
     });
   });
 

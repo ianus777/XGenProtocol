@@ -8,6 +8,93 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-708 — Leg C-bis-4: the draft becomes a real DM — the runbook's own sequence could not resolve the latch, and the store said green while the screen did not
+
+**Date:** 2026-08-09 · **Seats:** Clair (`37c09d7`; a Rule 6 deviation found from SOURCE, before driving anything) · Chat (re-drove the chain, both live gates, one probe defect of its own) · Joe (per-leg consent for the irreversible gate; **found both remaining defects in a screenshot**) · **Code: `37c09d7` — 3 files, +143/−23, ZERO `.rs`, ZERO `ui/core`.** runbook → **v1.6** · task doc → **v1.7** · notes → **v1.16** (**+N-177 +N-178 +N-179**) · ROADMAP → **v6.95**. **No new `D`.**
+
+### 🛑 THE HEADLINE: §5.2's SEQUENCE, IMPLEMENTED LITERALLY, LANDS THE USER ON "SELECT A ROOM"
+
+The runbook said `create_dm_space → roomLatch.latch(result.room_id) → echo.send → clear` and asserted **"the latch becomes REAL, first time"**. **It does not.** Clair proved it from source without driving it; **Chat re-drove every link independently rather than accepting the chain:**
+
+- `resolveLatched()` scans `spacesState.spaces` and returns **null** for an id it cannot find (`room-latch.svelte.ts:48-55`).
+- 🔑 **`setSpaces(` has EXACTLY ONE call site in the entire UI tree** — `app_client.svelte:256`, inside `loadSpaces`. *(Stronger than the hand-back's wording, which said "three callers, all loadSpaces" — that is `loadSpaces`'s caller count, not `setSpaces`'s. Corrected at the site so a future reader greping `setSpaces(` does not conclude the note is stale.)*
+- `create_dm_space` pushes the new `KnownSpace` and calls `write_client_state` — **DISK ONLY** (`ops.rs:1025-1041`). The in-memory store is never touched.
+
+⇒ **a bare `latch(result.room_id)` resolves to NULL, `effectiveRoomId` is null, and `echo.forRoom(null)` returns `[]`.** ***The user sends their first message to another person and lands on "Select a room" with the message nowhere on screen.***
+
+🔒 **AMENDED: `create → REFRESH → latch → send → clear`.** `await loadSpaces()` runs **inside the shell's injected transport** — the only site where both halves are in scope, because `loadSpaces` lives in the shell and the widget cannot reach it (W-3). ⚠️ **The cheaper alternative was considered and REFUSED:** synthesising a `KnownSpace` from `result` would invent `name` / `role` / `node_endpoint` (`D-065`) and mint a second shape of a record that already has one (`D-067`). 📌 **Swallowing a `loadSpaces` failure after a successful create is correct** — rejecting would report failure for a DM that WAS created, §5.4's lie inverted.
+
+### ⚠️ THE FILE LIST WAS WRONG IN THE RUNBOOK, AGAIN, AND FOR THE SAME REASON AS C-bis-2
+
+Two files were listed; **neither can call `create_dm_space`**, because `ui/common` has **ZERO `@tauri-apps` imports** (W-3 / `N-096`) and both stores say so in their own headers. A **third file** — `app_client.svelte` — injects the transport on the `echo`/`send_message` seam at `:796`. **Named as a scope change, not smuggled** — the C-bis-2 fifth-file precedent.
+
+### ✅ BOTH LIVE GATES DRIVEN — AND CONSENT WAS ASKED PER GATE, NOT PER LEG
+
+🔑 **The two gates have different costs and were separated for that reason:** gate ② writes nothing; gate ① **mints a permanent Space in Joe's data**. Chat drove ② on its own and **refused to take ① on a one-word "go"** — the `N-175` lesson applied *before* the mistake instead of after it.
+
+**GATE ② — FAILURE PATH (node killed with the draft open).** `draftError` = **the node's own words** (*"failed to connect to Node … os error 10061"*) · draft open (`aboveMountCount 1`) · text kept (`domValue` + store text intact) · **nothing implies the DM exists**: `echoCount 0`, `streamCount 0`, latch unmoved, `spaceCount 5` · **client state SHA-256 IDENTICAL**. 📌 *The error string being the node's, not an invented one, is what will make a future visible surface honest rather than decorative.*
+
+**GATE ① — HAPPY PATH, ONCE, ON `LegF-N5`, WITH JOE'S EXPLICIT CONSENT.** `create` → latch `…88aa8324 → …b9c4c6f4` → **`effectiveRoomId` RESOLVES** → `echoCount 0 → 1`, the row reads the sent text and **`Sent`** → draft cleared → `spaceCount 5 → 6`. Client state `03F4890A… → 4AD3B7B3…`, **2856 → 3629 B**. 🔑 **THE RESOLUTION IS THE AMENDMENT'S PAYOFF AND THE ENTIRE POINT OF THE LEG.**
+
+**FLOORS, RE-DRIVEN:** `cargo` **1597/0/62 × 56** (`FAILED` 0, `error[` 0, `panicked` 0) · `svelte-check` **0 errors / 34 warnings / 15 files** · registry quiescent **164**, `ids===dom` · boot verified live (the new shell injection does not break mount).
+
+### 🛑 THE STORE SAID GREEN. THE SCREEN DID NOT. JOE FOUND BOTH.
+
+Chat wrote **"C-bis-4 is now fully verified"** on the strength of store reads. **Joe's screenshot showed otherwise**, and re-driving confirmed two distinct defects — now **C-bis-6** and **C-bis-7**:
+
+① **ORIENTATION.** After the create the client sits in **TWO Spaces at once**: `spaces-panel.selectedId` and `rooms-panel.latchedSpaceId` are **LegF** (`…b0ffd722`) while `members-panel.scope` and `roomLatch.effective*` are **the new DM** (`…f491c1c2`). ⚠️ **R2 holds a `selectedId` for a room it is not drawing** — a highlight aimed at nothing. **Root cause: `roomLatch.latch()` is called directly, bypassing the selection bus** — the create path is the only place a room is latched that the user never clicked, so the shell's *"ONE effect, THREE latches"* never runs and `spaceLatch` never learns. 🔒 **Joe's rule: R1 UNSELECTS while in a DM rather than jumping to the new one** — forward-compatible with OQ3/A3 removing DMs from R1 entirely.
+
+② **THE DM ROSTER → `N-178`.** R7 reports **`isDm: true` and `counterpart: null` together**, `memberCount 1`, only self. **Not timing** — re-navigation and a fresh fill still give 1. `isDm` comes from the Space record; `counterpart` comes from the roster's non-self member. **The client already knows who it is** — `KnownSpace.counterpart` is set (verified in store AND on disk), written at creation by **OQ8-K3, whose stated purpose was that a post-K3 DM never needs a backfill.** ⇒ **R7 must read the Space record.** Otherwise a DM with someone who never accepts shows an empty room **permanently**.
+
+🔒 **AND THE RULE JOE'S ANSWER PRODUCED → `N-179`:** *R7 shows the participants of the stream you are looking at, whenever they exist.* The arc had built an inconsistency — the same row, clicked in the same room, kept 8 rows if a draft opened and dropped to the DM's roster if a DM existed. **Resolved without an exception clause:** the draft keeps the group roster **because the DM does not exist yet**, and inventing two rows for it would be the `D-065` refusal of C-bis-2 all over again.
+
+### ⚠️ CHAT'S OWN DEFECT THIS LEG → `N-177`
+
+Chat clicked Send at a coordinate **measured in a previous session**, hit empty space, and then watched `draftError: null` for **ninety seconds** reasoning about connect timeouts — on a node it had killed on purpose. **The null meant "never started", not "in flight".** The button had moved 109 px between launches (restored window geometry). ⚠️ **And C-bis-4 had deleted C-bis-3's `draftSubmits` counter — the only "an attempt happened" signal there was.** ⇒ *A verify surface that reports only outcomes cannot distinguish a failure from a click that never landed.* Caught by a positive control, as `N-099` requires.
+
+### 📌 CARRIED, RULED, OR FILED
+
+- ✅ **The mid-create navigation race** (a room selected during the seconds-long create still latches the new DM when it resolves) — **ruled BEHAVIOUR, not defect**: you pressed send to start that DM. **Recorded, not fixed.**
+- ✅ **Two sends into the new DM accumulate correctly** (`outboundCount 2`). ⚠️ **Session-scoped only** — the C-6 head marker says so, and durable history is the EventStore's, not this leg's. **Stated precisely so "history works" does not enter the record over-claimed.**
+- 🔓 **OQ3 may be cheaper than filed:** `KnownSpace.counterpart` **already** distinguishes a DM (all four real Spaces `NULL`, both DMs set) ⇒ **A2/A3 may not need the Rust `is_dm` field** its cost line assumes. ⚠️ **`G13` still bites** and the filter stays **render-only** regardless.
+- 🔓 **Filed, not bundled:** whether the node returns invited-but-not-joined members in a roster at all.
+
+→ J-708 · ROADMAP v6.95.
+
+---
+
+## Entry J-707 — Leg C-bis-3: the composer's draft branch — the leg's real content was a privacy property, and its gate could not fail
+
+**Date:** 2026-08-09 · **Seats:** Clair (`8601e677`, one file) · Chat (grounding that rewrote the gate before she started; the re-drive) · Joe (pushed). **Code: `8601e677` — 1 file, +64/−5, ZERO `.rs`, ZERO `ui/core`.**
+
+### 🔑 THE GATE AS WRITTEN COULD NOT FAIL — CAUGHT BEFORE THE LEG STARTED
+
+The runbook's gate was *"composer LIVE on a draft"*. But `sendEnabled = canSend && hasText`, and **v1.3 keeps the latch set during a draft** ⇒ `canSend` is **already true**. **The gate passes before a line is written.** Replaced at kickoff time with the falsifiable content: **the draft branch is TAKEN** (the stub reports; `echo.send` is not called on the latched room) and **the text routes through `dmDraft`**.
+
+🛑 **AND THE ORDERING STOPPED BEING STYLISTIC.** Under the withdrawn `R-1` a mis-ordered `submit()` would have no-opped. **With the latch alive, a draft send that reaches the normal path sends a private message into the group room the user came from.** The draft branch **above** the early return is the only thing preventing it — *a disabled button is a courtesy, never a guarantee.*
+
+### 🔑 THE LEG'S REAL CONTENT: A PRIVACY PROPERTY NOBODY HAD NAMED
+
+`draft` was **one local unkeyed `$state('')`** — text already survived a room switch, pre-existing and harmless. **It stops being harmless the moment a DM draft shares that buffer:** the private message typed to a counterpart would sit in the **group room's** composer the instant the draft closed. Routing the draft's text through `dmDraft` is what prevents it, which makes it **a gate, not an implementation detail**.
+
+Clair chose a **Svelte-5 function binding** (`bind:value={get, set}`) over a bidirectional `$effect`, citing `N-136`'s warning about exactly that read-modify-write shape — and it keeps `bind:value` and the processor attachment untouched.
+
+### ✅ RE-DRIVEN (Rule 5, fresh client)
+
+Room buffer `ROOMTEXT` typed → **draft opens with `domValue ""`, `textLength 0`, `roomBufferLength 8`** · draft text keyed in the store under the counterpart · **stub: `draftSubmits 0→1`, `echoCount 0`, latch unmoved, text kept** · navigate away → **`domValue "ROOMTEXT"`, the private draft did NOT follow** · return → **`"hello bob draft"` restored** (§5.3 **end-to-end for the first time**) · `cargo` **1597/0/62 × 56** · `svelte-check` **0/34/15** · registry **164** twice · Joe's client state byte-identical.
+
+🔑 **WHAT THE RE-DRIVE FOUND THAT NEITHER REPORT STATED: `sendEnabled` came back FALSE on a freshly-opened draft while `canSend` was TRUE**, because `hasText` reads through the routed buffer. ⇒ **the routing is ALSO what stops a live room latch from arming Send over an empty draft carrying someone else's words.**
+
+### ✅ CLAIR'S CONCERN #1, CONFIRMED AND CORRECTLY REFUSED
+
+`(canSend || dmDraft.active)` is **redundant in every reachable state** — R7 renders rows only when a room is latched, so **a draft cannot exist with `canSend` false.** She **implemented the locked predicate and refused to claim the arm as verified.** 📌 **Recorded as UNREACHABLE, not as tested** — `N-091`'s discipline applied to a guard rather than a feature. ⚠️ A nit carried, not fixed: the file's top comment reads *"`canSend` is false FOR IT"*, precise as written but easily taken as *"canSend is false during a draft"*, which is the opposite of the truth — **one clause, next time that file opens.**
+
+📌 **Probe trap carried forward:** the textarea has **no DOM `id`** — `[data-debug-id="textarea#region-composer__input"]` is the only selector (`N-170`).
+
+→ J-707.
+
+---
+
 ## Entry J-706 — Leg C-bis-2 ships and is re-driven: the click opens the draft, and the two rulings that had to be withdrawn were both found by DRIVING them
 
 **Date:** 2026-08-09 · **Seats:** Clair (the commit `96a935f`; a Rule 6 STOP that was right, and two guards nobody had asked for that were required) · Chat (the withdrawn rulings, the independent re-drive, one false alarm of its own) · Joe (the `dm-intro` content amendment; pushed) · **Code: `96a935f` — 5 files, +224/−46, ZERO `.rs`, ZERO `ui/core`.** `tasks/RUNBOOK_MEMBER_ACT_LEG_C_BIS.md` v1.1 → **v1.4** · `tasks/M_RP_MEMBER_ACT_LEG_C_BIS.md` v1.4 → **v1.6** · `ui/docs/xgen-ui-notes.md` v1.14 → **v1.15** (**+N-174 +N-175 +N-176**) · ROADMAP v6.93 → **v6.94**. **No new `D`.**

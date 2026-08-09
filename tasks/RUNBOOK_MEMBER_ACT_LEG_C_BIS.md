@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-MEMBER-ACT Leg C-bis: the member with no DM opens a draft
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.6  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-09  
 > Language: EN  
@@ -245,7 +245,21 @@ you did not verify, however small the diff looks.*
 
 ---
 
-### C-bis-3 — the composer's draft branch (no create yet)
+### C-bis-3 — the composer's draft branch (no create yet) — ✅ **DONE, `8601e677`, RE-DRIVEN AND PASSED (J-707)**
+
+> 🔑 **THE LEG'S REAL CONTENT WAS A PRIVACY PROPERTY, NOT A SEND GATE.** `draft` was ONE local unkeyed
+> string, so without routing the draft's text through `dmDraft` **the private message typed to a counterpart
+> would sit in the GROUP ROOM's composer the instant the draft closed.** Driven both ways: room buffer 8
+> stays 8 across a draft open/close; the draft's 15 restores on return (§5.3, **end-to-end for the first
+> time**).
+> ⚠️ **AND THE GATE AS WRITTEN COULD NOT FAIL.** *"composer LIVE on a draft"* passes **before any code is
+> written**, because v1.3 keeps the latch set ⇒ `canSend` is already true. `(canSend || dmDraft.active)` is
+> **UNREACHABLE in its right arm** — R7 only renders rows when a room is latched, so a draft cannot exist with
+> `canSend` false. **Clair implemented the locked predicate and REFUSED to claim the arm as verified.**
+> 📌 **Recorded as unreachable, NOT as tested** — `N-091`'s discipline applied to a guard.
+> 🔑 **What the re-drive found that neither report stated: `sendEnabled` came back FALSE on a fresh draft
+> while `canSend` was TRUE**, because `hasText` reads through the routed buffer. ⇒ **the routing is also what
+> stops a live room latch from arming Send over an empty draft with someone else's words in it.**
 
 **File:** `ui/common/lib/components/widgets/composer-panel.svelte`
 
@@ -258,12 +272,35 @@ you did not verify, however small the diff looks.*
 
 ---
 
-### C-bis-4 — the send sequence and the failure surface
+### C-bis-4 — the send sequence and the failure surface — ✅ **DONE, `37c09d7`, BOTH GATES DRIVEN (J-708)**
 
-**Files:** `composer-panel.svelte` · `dm-draft.svelte.ts`
+> ## 🛑 §5.2 IS AMENDED AT v1.6 — THE SEQUENCE AS WRITTEN COULD NOT RESOLVE THE LATCH.
+>
+> **The runbook said `create → latch → send → clear` and asserted *"the latch becomes REAL, first time"*.
+> IT DOES NOT.** Clair found it from source and reported under Rule 6; Chat re-drove every link independently:
+> `resolveLatched()` scans `spacesState.spaces` (`room-latch.svelte.ts:48-55`) · **`setSpaces(` has EXACTLY ONE
+> call site in the whole UI tree** (`app_client.svelte:256`, inside `loadSpaces`) · `create_dm_space` pushes the
+> new `KnownSpace` and calls `write_client_state` — **DISK ONLY** (`ops.rs:1025-1041`).
+> ⇒ a bare `latch(result.room_id)` **resolves to NULL**: the user sends their first message to someone and
+> lands on **"Select a room"** with the message nowhere (`echo.forRoom(null) → []`).
+>
+> 🔒 **THE SEQUENCE IS NOW `create → REFRESH → latch → send → clear`.** The refresh is `await loadSpaces()`
+> **inside the shell's injected transport** — the only place both halves are in scope, since `loadSpaces` lives
+> in the shell and the widget cannot reach it (W-3).
+> ⚠️ **THE CHEAPER ALTERNATIVE WAS CONSIDERED AND REFUSED:** pushing a synthesised `KnownSpace` from
+> `result` would **invent** `name` / `role` / `node_endpoint` (`D-065`) and mint a second shape of the same
+> record (`D-067`). **Re-reading the authority is correct.**
+> 📌 **A `loadSpaces` failure AFTER a successful create is SWALLOWED, and that is right:** rejecting would
+> report failure for a DM that WAS created — §5.4's lie inverted.
+
+**Files (v1.6 — the runbook's two-file list was WRONG):** `composer-panel.svelte` · `dm-draft.svelte.ts` ·
+**`ui/client/src/app_client.svelte`** — ⚠️ **a THIRD file, because `ui/common` has ZERO `@tauri-apps` imports
+(W-3/`N-096`) and NEITHER listed file can call `create_dm_space`.** The shell injects the transport, the
+`echo`/`send_message` seam shape at `:796`.
 
 ```
 create_dm_space(invitee)          → CreateDmSpaceResult   (xgen-client/src/ops.rs:827)
+await loadSpaces()                → 🛑 v1.6 AMENDMENT — without this the latch resolves to NULL
 roomLatch.latch(result.room_id)   → the latch becomes REAL, first time
 echo.send(space_id, room_id, text)
 dmDraft.clear()
@@ -285,6 +322,75 @@ the failure, and let NOTHING on screen imply the DM exists.**
 ---
 
 ### C-bis-5 — verification, the `OWED-4` measurement, and records
+
+✅ **BOTH C-bis-4 GATES ARE ALREADY DRIVEN (J-708) — C-bis-5 DOES NOT RE-OWE THEM.**
+
+**GATE ② — THE FAILURE PATH, DRIVEN WITH THE NODE KILLED MID-DRAFT.** `draftError` carries **the node's own
+words** (*"failed to connect to Node … os error 10061"*), the draft stays open (`aboveMountCount 1`), the text
+is kept (`domValue` intact, store text identical), and **nothing implies the DM exists**: `echoCount 0`,
+`streamCount 0`, latch unmoved, `spaceCount 5`, **client state SHA-256 IDENTICAL**.
+
+**GATE ① — THE HAPPY PATH, DRIVEN ONCE, ON `LegF-N5`, WITH JOE'S PER-LEG CONSENT.** `create` → latch moves
+`…88aa8324 → …b9c4c6f4` → **`effectiveRoomId` RESOLVES** → `echoCount 0 → 1`, the row reads the sent text and
+**`Sent`** → draft cleared → `spaceCount 5 → 6`; client state `03F4890A… → 4AD3B7B3…`, 2856 → 3629 B.
+🔑 **THAT RESOLUTION IS THE AMENDMENT'S PAYOFF AND THE WHOLE POINT OF THE LEG.**
+
+⚠️ **AND THE STORE SAID GREEN WHILE THE SCREEN DID NOT — JOE FOUND BOTH DEFECTS IN A SCREENSHOT.** They are
+**C-bis-6** and **C-bis-7** below. *A string is not a layout is not a picture, and the third layer has no probe
+the human eye does not beat.*
+
+### 🟡 C-bis-6 — after the create, the client ORIENTS (Joe's rule, 2026-08-09)
+
+🛑 **THE DEFECT, MEASURED:** after a successful create the client sits in **TWO Spaces at once** —
+`spaces-panel.selectedId` and `rooms-panel.latchedSpaceId` both `…b0ffd722` (**LegF**), while
+`members-panel.scope` and `roomLatch.effective*` are `…f491c1c2` (**the new DM**). ⚠️ **AND R2 HOLDS A
+`selectedId` FOR A ROOM IT IS NOT DRAWING** — a highlight aimed at nothing, which is why `LegF Room` reads
+unselected on screen.
+
+🔑 **ROOT CAUSE:** `roomLatch.latch()` is called **directly**, bypassing the selection bus. Every other
+navigation goes click → selection → the shell's *"ONE effect, THREE latches"*, which moves **both**. **The
+create path is the only place a room is latched that the user never clicked**, so `spaceLatch` never learns.
+
+🔒 **JOE'S RULE:** *"we will not have there no dm spaces, so i dont state that the new dm space has to be
+selected by logic. rather original space will be unselected in this case."* ⇒ **R1 highlights only non-DM
+Spaces; entering a DM CLEARS the highlight**, and R2 follows rather than listing a Space you are not in.
+🔑 **Forward-compatible by construction: when OQ3/A3 removes DMs from R1, this rule still holds.**
+
+### 🟡 C-bis-7 — R7 reads the counterpart from the SPACE RECORD (the DM roster bug)
+
+🛑 **THE DEFECT, MEASURED AND RE-DRIVEN (not timing — a full re-navigation and fresh fill still gives 1):**
+in the new DM, R7 reports **`isDm: true` AND `counterpart: null` in the same breath**, `memberCount 1`,
+showing **only self**. Clicking the counterpart from `LegF Room` takes 8 rows → **1**.
+
+🔑 **ONE FACT DERIVED FROM TWO SOURCES THAT DISAGREE** (`D-067`'s shape): `isDm` comes from the **Space
+record**; `counterpart` comes from **the roster's non-self member** (`members-panel:129`). The roster holds
+only self, so there is no row and no avatar. ⚠️ **AND THE CLIENT ALREADY KNOWS WHO IT IS** — the Space record
+carries `counterpart` (verified in the store AND on disk: all four real Spaces `NULL`, both DMs set), written
+at creation by **OQ8-K3, whose stated purpose was that a post-K3 DM never needs a backfill.** **R7 is ignoring
+the field that exists for exactly this.**
+
+🔒 **JOE'S RULE (A), 2026-08-09:** *"honestly i prefer only counterpart, but as we have rule that user (joe)
+stays always, so there have to be user and counterpart"* — and *"draft member panel state is correct.
+decision to change members list is executed with existing dm stream."*
+
+🔒 **THE RULE, STATED SO IT IS NOT LATER "FIXED" INTO A LIE: R7 SHOWS THE PARTICIPANTS OF THE STREAM YOU ARE
+LOOKING AT, WHENEVER THEY EXIST.**
+
+| stream | R7 | why |
+|---|---|---|
+| group room | the room's roster | a real fill |
+| **existing DM** | **self + counterpart** | ✅ Joe's ruling; the counterpart is on the Space record |
+| **draft** | the group roster it was opened from | 🛑 **the DM DOES NOT EXIST YET** — there is no membership, and synthesising two rows would invent a roster no fill produced (`D-065`) |
+
+⚠️ **The draft case is NOT an exception to the rule — it is the rule meeting a Space that has not been
+created.** Written this way deliberately: the difference looks arbitrary from either side alone, and a future
+reader who "harmonises" it puts an invented roster on screen.
+📌 The **draft-row highlight** (`selected={counterpart}` is `undefined` in a group room, `L16`, and
+`selectOnActivate={false}` deliberately stops a click from moving it) folds in here — same question: **who is
+this stream about.**
+
+🔓 **FILED, NOT SCHEDULED:** whether the node returns **invited-but-not-joined** members in a roster at all.
+**The client fix stands either way** — it is not bundled with a guess about the node.
 
 - [ ] **`OWED-1` DISCHARGED — verified on the live client**: no member row presents as actionable while doing
       nothing.

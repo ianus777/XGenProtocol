@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT Leg C-bis — the member with no DM: creation, the first send, and the erased identity
 > **Status**: ACTIVE  
-> Version: 1.6  
+> Version: 1.7  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-09  
 > Language: EN  
@@ -443,9 +443,26 @@ they authored**. That is `M-RP-INTRO`, filed and undesigned, **and it must not a
 |---|---|---|
 | **C-bis-1** | `stream-panel` becomes a flex column + the empty `above` socket + the `dm-intro` placeholder | ✅ `e0d4d9a` (J-705) |
 | **C-bis-2** | the `dmDraft` store + R7's click opens a draft + the fed page + the empty-stream swap | ✅ `96a935f` (J-706) |
-| **C-bis-3** | R6 gates on `canSend \|\| dmDraft.active`; the composer's draft branch **above** the early return; **still no create** | 🟡 NEXT |
-| **C-bis-4** | the send sequence (`create_dm_space` → `latch` → `echo.send` → clear) + the failure surface | 🟡 |
-| **C-bis-5** | live CDP verify + `OWED-4` measurement **shown to Joe** + records | 🟡 |
+| **C-bis-3** | R6 gates on `canSend \|\| dmDraft.active`; the composer's draft branch **above** the early return; the text routes through `dmDraft`; **still no create** | ✅ `8601e677` (J-707) |
+| **C-bis-4** | the send sequence (`create_dm_space` → **`loadSpaces`** → `latch` → `echo.send` → clear) + the failure surface | ✅ `37c09d7` (J-708) |
+| **C-bis-5** | live CDP verify + `OWED-4` measurement **shown to Joe** + records | 🟡 NEXT |
+| **C-bis-6** | **after the create the client ORIENTS** — R1 unselects while in a DM, R2 follows (Joe's rule) | 🟡 |
+| **C-bis-7** | **R7 reads `counterpart` from the SPACE RECORD** ⇒ a DM shows **self + counterpart**; the draft-row highlight folds in | 🟡 |
+
+> 🔒 **THE R7 RULE, LOCKED BY JOE 2026-08-09 — R7 SHOWS THE PARTICIPANTS OF THE STREAM YOU ARE LOOKING AT,
+> WHENEVER THEY EXIST.** Group room → the roster. Existing DM → **self + counterpart**. Draft → **the group
+> roster it was opened from**, because 🛑 **the DM does not exist yet and synthesising two rows would invent a
+> roster no fill produced (`D-065`)**. ⚠️ **The draft case is NOT an exception — it is the rule meeting a Space
+> that has not been created.** Joe: *"draft member panel state is correct. decision to change members list is
+> executed with existing dm stream."*
+
+> 🔓 **OQ3 MAY BE CHEAPER THAN FILED — MEASURED 2026-08-09, NOT YET RULED.** A2/A3's cost was written as
+> *"`KnownSpace` gains a field — **Rust** — the cargo floor returns."* **It does not need one:**
+> `KnownSpace.counterpart` **already distinguishes a DM today**, verified across all six Spaces in Joe's live
+> state (Engineering / Design / LegBSpace / LegF Verification → `NULL`; both DM Spaces → set).
+> ⚠️ **`G13` STILL BITES** — `counterpart` would not clear on promotion either, so *"was born a DM"* vs *"is
+> a DM"* remains undecided. **But the Rust half of A3's price tag looks removable.** 🛑 **The filter stays
+> RENDER-ONLY regardless** (the `resolveLatched` / `canSend` trap already recorded above).
 
 🔑 **VISIBLE FIRST** (Joe's standing brief): C-bis-1 puts the page on screen where he can correct it **while
 the milestone is still open**, before any create path exists.

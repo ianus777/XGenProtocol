@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.15  
+> Version: 1.16  
 > Date: May 2026  
 > **Last updated**: 2026-08-09  
 > Language: English  
@@ -3614,3 +3614,54 @@ At J-706 Chat asked *"did you push it?"*, received a one-word `no`, and built a 
 📌 **THE DUPLICATION WAS THE CORRECT CALL FOR THE LEG.** A shared helper is a **new file** and therefore a scope change on a leg that was already carrying an amendment; the `J-508` copied-not-shared precedent applies (`shelf` copied roving rather than extracting it, and `D-069`'s bar is **three** independent implementations, not two).
 
 ⚠️ **WHAT MAKES IT WORTH A NOTE RATHER THAN A SHRUG:** the `members-panel` comment says the ellipsis *"is part of the STRING, not the skin: only this widget knows the name is a fallback"* — **and that sentence is now false, because a second widget knows it too.** ⇒ **When a third caller appears, extract; and whichever milestone extracts it owes the comment a rewrite in the same edit.** ⚠️ `J-618` separately records that the R7 fallback **is not actually a tail-8 in the painted result** — that finding is about `entity-panel`'s clipping, sits on a different surface, and is **not** discharged by this note.
+
+---
+
+### N-177 — a CDP coordinate is session-scoped: re-measure the rect immediately before every click
+
+**Date:** 2026-08-09 · Leg C-bis-4 gate ② · **Chat's own defect, caught only by a positive control.**
+
+The composer's Send button was measured at **`(1076, 998)`** during C-bis-3, at **`(1076, 889)`** an hour later, and at **`(1086, 874)`** in the next launch — **the same widget, three positions, no layout change.** Window geometry is restored per launch (`get_window_geometry` / `apply_window_geometry`), so **every coordinate dies with the session that produced it.**
+
+🛑 **THE FAILURE MODE IS NOT A MISSED CLICK — IT IS A MISSED CLICK THAT LOOKS LIKE A MEASUREMENT.** Chat clicked the stale `(1076, 998)`, hit empty space below the button, and then watched `draftError: null` for **ninety seconds**, reasoning about connect timeouts on a node that had been killed deliberately. `null` meant **"never started"**, not **"in flight"**, and the two are indistinguishable from the outside.
+
+⇒ **RULE: read `getBoundingClientRect()` in the eval immediately before the click, in the same session, and click the centre it returns.** Never a coordinate carried from a previous session, a previous screenshot, or a previous note.
+
+⚠️ **AND THE SECOND HALF, WHICH IS THE ONE THAT COST THE TIME:** C-bis-3's stub carried `draftSubmits` — an **"an attempt happened"** counter — and C-bis-4 removed it when the stub was replaced by the real sequence. **It was the only signal that distinguished failure from non-occurrence.** ⇒ **A verify surface that reports only OUTCOMES cannot tell a failure from a click that never landed.** When a stub's counter is deleted, ask what it was proving before deleting it (`N-099`, positive control).
+
+📌 Harness detail, learned the same hour: `document.elementFromPoint(...)` and `btn.disabled` both threw through the eval path; `document.querySelector('[data-debug-id="…"]')` with escaped quotes works and is the reliable form (`N-170`).
+
+---
+
+### N-178 — one fact, two sources, and they disagree: `isDm` from the Space record vs `counterpart` from the roster
+
+**Date:** 2026-08-09 · found by **Joe, on screen**, after the store reported green (Leg C-bis-4) · re-driven by Chat.
+
+A DM created seconds earlier reports, in the same getter read: **`isDm: true` AND `counterpart: null`**, `memberCount: 1`, R7 showing **only self**. Clicking that counterpart from the group room takes R7 from **8 rows to 1**. 🛑 **Not timing** — a full re-navigation and a fresh `fill_space_records` still returns 1.
+
+🔑 **THE TWO SOURCES:** `isDm` derives from the **Space record**; `counterpart` derives from **the roster's non-self member** (`members-panel:129`, *"the counterpart is the non-self member"*). The roster holds only self, so the panel has no row to mark and no avatar to draw — **while the client already knows exactly who it is.** `KnownSpace.counterpart` is set (verified in the store AND on disk), written at creation by **OQ8-K3, whose stated purpose was that a post-K3 DM never needs a backfill.** *The field that exists for this case is the one the widget does not read.*
+
+⇒ **RULE (`D-067`'s shape, restated for derived UI state): when a widget can derive the same fact from two sources, name the AUTHORITY in the code, or the two will disagree in exactly the state nobody drove.** Here the authority is the **Space record**; the roster is a convenience that lags, and for an invitee who never joins it lags forever.
+
+📌 **The user-visible consequence is the whole point:** a DM with someone who has not accepted shows an empty room with only yourself in it — **permanently**, not until the next fill.
+
+🔓 **Filed, NOT bundled:** whether the node returns **invited-but-not-joined** members in a roster at all. **The client fix stands either way**, and pairing it with a guess about the node would make the guess load-bearing.
+
+---
+
+### N-179 — R7 shows the participants of the stream you are looking at, whenever they exist
+
+**Date:** 2026-08-09 · **Joe's rule, locked** · the resolution of an inconsistency the C-bis arc built itself.
+
+Clicking the same member row in the same group room produced **two different R7 behaviours**, one leg apart, and neither leg saw it because each was read alone:
+
+| the row you click | R7 before this rule |
+|---|---|
+| a member with **no** DM (draft opens) | keeps all the room's rows — §5.1, *"scope never moves"* |
+| a member **with** a DM (it opens) | scope moves ⇒ the DM's roster |
+
+🔒 **THE RULE THAT RESOLVES IT:** *R7 shows the participants of the stream you are looking at.* Group room → the roster. Existing DM → **self + counterpart** (Joe: *"as we have rule that user (joe) stays always, so there have to be user and counterpart"*). Draft → **the group roster it was opened from**.
+
+⚠️ **THE DRAFT CASE IS NOT AN EXCEPTION — IT IS THE RULE MEETING A SPACE THAT DOES NOT EXIST YET.** There is no membership to show, and synthesising two rows would invent a roster no fill produced (`D-065`) — the same option refused at C-bis-2. **Written down explicitly because the difference looks arbitrary from either side alone, and a reader who "harmonises" it puts a fabricated roster on screen.**
+
+📌 Joe: *"draft member panel state is correct. decision to change members list is executed with existing dm stream."*

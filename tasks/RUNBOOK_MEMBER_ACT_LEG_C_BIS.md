@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-MEMBER-ACT Leg C-bis: the member with no DM opens a draft
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-09  
 > Language: EN  
@@ -11,6 +11,9 @@
 ---
 
 ## §0 — WHAT THIS IS, AND THE ONE THING THAT IS NOT IN IT
+
+📌 **v1.1 (J-705) CORRECTS THREE DEFECTS THAT C-bis-1's RE-DRIVE FOUND IN v1.0. ALL THREE WERE CHAT'S,
+NOT CLAIR'S** — annotated below at §1, §2 and §3. **The steps govern; the file headers were approximate.**
 
 **LOCKED runbook for Clair.** Design authority is `tasks/M_RP_MEMBER_ACT_LEG_C_BIS.md` **v1.3** §5;
 nothing here re-opens it. Five commits, each measured alone.
@@ -32,7 +35,7 @@ webview. **`cargo` returning `1597/0/62 × 56` IDENTICAL is this leg's PROOF, no
 | `svelte-check` | **0/34/15** | run from `ui/` |
 | catalogue | **435** | every tile UNFOLDED, after a full `location.reload()` |
 | client registry quiescent | **164** | 🔒 **RE-MEASURED AND CONFIRMED 2026-08-09 at `3f3c3e7`** |
-| client registry, Space + room | **174** | |
+| client registry, Space + room | ⚠️ **NOT A FLOOR — SPACE-DEPENDENT** | 🛑 **v1.0 STATED `174` AS A FLOOR AND IT IS NOT ONE.** Re-driven at `e0d4d9a`: **173**, stable across BOTH rooms of the Space driven. The count varies with the Space's rendered content. **Use the QUIESCENT 164 as the invariant; a selected-room count is only comparable against itself, in the same Space, before and after.** |
 | Joe's client state | **2856 B**, LastWriteTime **2026-08-05 07:12:25** | 🔒 **CONFIRMED UNCHANGED 2026-08-09.** NEVER WRITE |
 
 ⚠️ `cargo clippy … -D warnings` has **four pre-existing errors, never clean.** **Not a floor. Do not fix.**
@@ -65,6 +68,13 @@ annotated at the site by this runbook (`D-131`; `3f3c3e7` is pushed and cannot b
 .region-tile            h=582   display:flex    flex-direction:column
 ```
 
+🛑 **MEASURE THESE BY WALKING THE PARENT CHAIN UP FROM `.message-stream-shell` — NEVER BY A FLAT
+`querySelector` ON THE CLASS.** There are **EIGHT** `.region-tile-body` elements in the client;
+`document.querySelector('.region-tile-body')` returns the **FIRST IN DOCUMENT ORDER, A DIFFERENT REGION**,
+and at J-705 that produced **738/760** — numbers that are real, wrong, and measurement-shaped.
+⚠️ **v1.0 PRESENTED THIS LIST AS A FLAT TABLE, WHICH INVITES EXACTLY THAT READ.** Clair walked the chain
+and was right; the seat that wrote the gate is the one that fell into it.
+
 🔑 **THE STREAM FILLS ITS TILE AND WILL NOT COLLAPSE** — 18px of content inside 544px. ⇒ **a naive sibling
 above it OVERFLOWS rather than shares.** That is why C-bis-1 exists as its own commit.
 📌 **And the rows are already top-anchored in mostly-empty space**, so the intro will not look like an anomaly.
@@ -73,10 +83,14 @@ above it OVERFLOWS rather than shares.** That is why C-bis-1 exists as its own c
 
 ## §3 — THE COMMITS
 
-### C-bis-1 — `stream-panel` becomes a flex column and grows an `above` socket
+### C-bis-1 — `stream-panel` becomes a flex column and grows an `above` socket — ✅ **DONE, `e0d4d9a`, RE-DRIVEN AND PASSED (J-705)**
 
 **Files:** `ui/common/lib/components/widgets/stream-panel.svelte` ·
-`ui/common/lib/components/widgets/dm-intro.svelte` (NEW, placeholder) · `ui/client/src/layout-default.ts`
+`ui/common/lib/components/widgets/dm-intro.svelte` (NEW, placeholder)
+🛑 **v1.0 ALSO LISTED `ui/client/src/layout-default.ts` HERE AND THAT WAS WRONG.** Clair reported it under
+Rule 6 and **the report is correct**: `N-096` means a region widget receives only `regionId`/`id`, so a
+store-mediated socket with a LOCAL registry has **no layout surface at all** — neither the mounts nor the
+registry can arrive as a prop. **Nothing in `layout-default.ts` was needed and nothing was touched.**
 
 1. **`stream-panel`'s root becomes a flex column.** Its `<style>` block only:
    ```css
@@ -97,8 +111,9 @@ above it OVERFLOWS rather than shares.** That is why C-bis-1 exists as its own c
 **GATE C-bis-1**
 - [ ] ⚠️ **THE FLEX CHANGE IS THE RISK.** Read the painted heights of all six elements in §2 **BEFORE and
       AFTER**. `.stream-panel` and `.message-stream-shell` **must still be 544** with no draft.
-- [ ] Client registry **164 quiescent** and **174** with Space + room — **UNCHANGED.** The always-mounted
-      invariant is what this proves.
+- [ ] Client registry **164 quiescent** — **UNCHANGED.** The always-mounted invariant is what this proves.
+      ⚠️ **The selected-room count is NOT a floor** (§1): compare it only against itself, same Space, before
+      and after.
 - [ ] `svelte-check` **0/34/15** · catalogue **435** · **`cargo` IDENTICAL**.
 
 ---
@@ -106,7 +121,11 @@ above it OVERFLOWS rather than shares.** That is why C-bis-1 exists as its own c
 ### C-bis-2 — the `dmDraft` store, and R7's click opens a draft
 
 **Files:** `ui/common/lib/stores/dm-draft.svelte.ts` (NEW) ·
-`ui/common/lib/components/widgets/members-panel.svelte` · `ui/client/src/layout-default.ts`
+`ui/common/lib/components/widgets/members-panel.svelte` ·
+`ui/common/lib/components/widgets/stream-panel.svelte`
+⚠️ **v1.0 LISTED `layout-default.ts` HERE AND OMITTED `stream-panel.svelte`, WHICH IS THE MIRROR IMAGE OF
+C-bis-1's ERROR** — step 3 below plainly edits `stream-panel`. Clair caught both in one read. **Corrected;
+and as §0 now says, THE STEPS GOVERN.**
 
 1. **`dmDraft`** — a sibling store. **NOT a third state inside `roomLatch`**: that store's header declares
    *one predicate, both widgets*, and a state meaning *"no room, but pretend"* would make **`canSend` lie**,
@@ -191,7 +210,9 @@ the failure, and let NOTHING on screen imply the DM exists.**
   and it **threw**. ***It failed loudly, which was luck, not
   method*** — a probe whose pass condition is an empty result would have returned a clean-looking `[]` and a
   **false absence would have entered the record.** **N-099: positively control every such probe.**
-- 🛑 **`get(id)` returns `{type, state}`** — read `get(id).state.<field>` (`N-169`).
+- 🛑 **`get(id)` returns `{type, state}`** — read `get(id).state.<field>` (`N-169`). ⚠️ **AND `get` NEEDS THE
+  FULL `type#id`**: `get('region-stream')` returns **`null`**, while `get('stream-panel#region-stream')`
+  resolves. **Another empty result that means "wrong key", not "absent"** — measured at J-705.
 - 🛑 **`data-debug-id` carries the FULL `type#id`** (`entity-panel#region-spaces__panel`), never the bare
   `id` prop (`N-170`). The `#` means an unquoted CSS attribute value cannot express it — filter
   `[data-debug-id]` and compare with `getAttribute`.

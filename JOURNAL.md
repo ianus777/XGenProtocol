@@ -8,6 +8,49 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-705 — C-bis-1 ships and is re-driven: Clair's numbers all hold, and every defect the re-drive found was in the runbook Chat handed her
+
+**Date:** 2026-08-09 · **Seats:** Clair (the commit `e0d4d9a`, twelve heights, one Rule 6 deviation that was right) · Chat (independent re-drive, three self-caught runbook defects) · Joe (pushed) · **Code: `e0d4d9a` — 2 files, +85/−3, ZERO `.rs`, ZERO `ui/core`.** `tasks/RUNBOOK_MEMBER_ACT_LEG_C_BIS.md` v1.0 → **v1.1** · ROADMAP v6.92 → **v6.93**. **No new `D`, no new `N`.**
+
+### ✅ THE RE-DRIVE — RULE 5, NOTHING TAKEN ON REPORT
+
+| gate | Clair | Chat's independent re-drive |
+|---|---|---|
+| `.stream-panel` · `.message-stream-shell` · `.message-stream` | 544 | **544** ✅ |
+| `.message-stream-rows` quiescent / room | 18 / 36 | **18 / 36** ✅ |
+| `.region-tile-body` · `.region-tile` | 560 / 582 | **560 / 582** ✅ |
+| `.stream-above` · `aboveMountCount` | 0 / 0 | **0 / 0** ✅ |
+| client registry quiescent | 164 | **164** ✅ |
+| `svelte-check` | 0/34/15 | **0/34/15** ✅ |
+| `cargo` | 1597/0/62 × 56 | **1597/0/62 × 56**, 56 terminators, `FAILED` 0, `error[` 0, panics 0 ✅ |
+| Joe's client state | 2856 B / 2026-08-05 07:12:25 | **byte-identical, before AND after** ✅ |
+
+**Code read in full:** flex column correct · `MessageStream` **unconditionally mounted** · `aboveWidgets` a stable const (`D-119`) · W-13 drop-unknown · **no `skin.css` rule** · `dm-intro` a placeholder with escaped text nodes, no copy, no skin, marked JOE'S FILE in-comment. 📌 **`above` lands EMPTY on purpose** — C-bis-1 is the plumbing, not the tenant.
+
+### 🛑 THREE DEFECTS — ALL THREE IN THE RUNBOOK CHAT WROTE, NONE IN THE WORK
+
+**① `layout-default.ts` WAS LISTED IN C-bis-1'S FILE HEADER AND CANNOT BE TOUCHED.** Clair reported it under **Rule 6, deviation not absorbed** — and **the report is correct.** `N-096`: a region widget receives only `regionId`/`id`, so a store-mediated socket with a LOCAL registry has **no layout surface at all**; neither the mounts nor the registry can arrive as a prop. 🔑 **She also caught the mirror image unprompted** — C-bis-2's header lists `layout-default.ts` and **omits `stream-panel.svelte`**, which its own step 3 plainly edits. ⇒ runbook v1.1: both corrected, and **§0 now states that THE STEPS GOVERN.**
+
+**② `174` WAS STATED AS A REGISTRY FLOOR AND IS NOT ONE.** Re-driven at `e0d4d9a`: **173**, stable across **both** rooms of the Space driven. ⚠️ **Not attributable to the commit** — quiescent is **164 exactly**, the added markup carries **no `use:envelope`**, and `dm-intro` never mounts ⇒ **zero registry impact by construction.** ⇒ the selected-room count **varies with the Space's rendered content**; only the **quiescent 164** is an invariant, and a room count is comparable **only against itself, same Space, before and after.**
+
+**③ CHAT'S OWN PROBE FELL INTO THE TRAP CHAT'S GATE SET.** `document.querySelector('.region-tile-body')` returns the **FIRST of EIGHT** — a different region — and produced **738/760**: *real, wrong, and measurement-shaped.* The correct read walks the parent chain up from `.message-stream-shell`, which gives 560/582. 🔑 ***Clair walked the chain and was right; the seat that wrote the gate is the one that fell into it.*** ⇒ v1.1 §2 now forbids the flat selector explicitly.
+
+📌 **A FOURTH, tooling:** `__XGEN_DEBUG__.get` needs the **FULL `type#id`** — `get('region-stream')` returns **`null`**, `get('stream-panel#region-stream')` resolves. **Another empty result that means "wrong key", not "absent"** (`N-099` family, alongside the `list()` finding at J-704).
+
+### 📌 CLAIR'S OWN CAUGHT TRAP, REPORTED RATHER THAN BURIED
+
+She launched `cargo` with `nohup … &`; the tool notification fired on the **launcher shell** (exit 0) while cargo ran on detached, so her first sum read a **partial log — 6 binaries / 229 passed**, a clean-looking measurement-shaped artifact. **She caught it (6 ≠ 56), waited for the log to stabilise, and re-summed to the real 1597/0/62 × 56.** 🔑 **The number on record is the complete run, and it is on record BECAUSE she said so.** ⚠️ *Same species as J-704's `list()` throw and ③ above: three artifacts in two sessions that looked like measurements and were not.*
+
+### 📌 THE "NOT PUSHED" LINE WAS STALE, NOT FALSE
+
+Her hand-back says *"Not pushed"*; `git ls-remote` showed `e0d4d9a` **on origin/main**. Chat flagged it as a possible seat breach **and did not guess.** ✅ **Joe pushed via a git GUI client between the hand-back and the re-drive.** 📌 **No breach. Recorded because the check is the point:** *verify the artifact, never the word* applies to a seat's own report even when the seat is trustworthy, and the cost of asking was one question.
+
+### 📌 STATE
+
+**C-bis-1 CLOSED.** 🛑 **`OWED-1` still undischarged — the row clicks and does nothing at `e0d4d9a`**; C-bis-2 is the first commit that touches it. 📌 **Catalogue 435 NOT re-measured, by scope** — both changed files are `ui/common`, zero `ui/core`, sampler never launched; **Clair flagged this herself so it would not read as a measurement.** → J-705 · ROADMAP v6.93.
+
+---
+
 ## Entry J-704 — the runbook is LOCKED, and the measurement moved the page's mount before Clair could build it on the wrong socket
 
 **Date:** 2026-08-09 · **Seats:** Joe (one delegated call, and four short questions that each found something) · Chat (three greps, one live-client measurement, the runbook, three self-caught defects) · **Code: NONE.** `tasks/RUNBOOK_MEMBER_ACT_LEG_C_BIS.md` **v1.0 ACTIVE (NEW)** · `tasks/M_RP_MEMBER_ACT_LEG_C_BIS.md` v1.3 → **v1.4 ACTIVE** · ROADMAP v6.91 → **v6.92**. **No new `D`, no new `N`.**

@@ -27,11 +27,17 @@
 // A PURE `$state` STORE (the roomLatch / spaces-state idiom): module-level `$state`, an object literal of
 // getters + writers, no self-run effect.
 //
-// ⚠️ LEG SCOPE (C-bis-2, reported): `open` / `note` / `active` / `counterpart` are exercised THIS leg
-// (members-panel opens; the shell effect closes on a room; stream-panel reads active + counterpart to gate
-// the intro and swap the stream to empty). `text` / `setText` / `clear` complete the store shape runbook
-// step 1 declares, and their consumers land later within this milestone — the composer wires `setText`/`text`
-// (C-bis-3), the send sequence calls `clear` (C-bis-4). The C-bis-1 "plumbing before tenant" precedent.
+// ⚠️ LEG SCOPE: `open` / `note` / `active` / `counterpart` / `setText` / `text` are exercised by C-bis-2/3
+// (members-panel opens; the shell effect closes on a room; stream-panel reads active + counterpart; the
+// composer routes its text). C-bis-4 wires the last three — the injected `create` transport, `error` (the
+// failure surface, §5.4), and `clear` (called by the composer after a successful send). The C-bis-1
+// "plumbing before tenant" precedent: the shape landed in step 1, the consumers arrive per-leg.
+//
+// THE CREATE SEAM IS INJECTED (the echo `SendTransport` precedent). `create_dm_space` is a Tauri command and
+// there are ZERO `@tauri-apps` imports under `ui/common` (W-3), so this module never learns Tauri exists —
+// the shell supplies a `create_dm_space`-backed function at boot. The verb SIGNS AND SENDS a three-event
+// chain and needs a LIVE NODE, so unlike the on-disk reads it CAN fail; `create` returns `null` on failure
+// and parks the cause in `error`, leaving the draft open with its text (§5.4, D-065).
 
 import { selection, type Selection } from '$common/stores/selection.svelte';
 
@@ -39,6 +45,26 @@ import { selection, type Selection } from '$common/stores/selection.svelte';
 let _counterpart = $state<string | null>(null);
 /** Typed text, keyed by counterpart id (§5.3) — switching between drafts keeps each one. */
 let _texts = $state<Record<string, string>>({});
+/** The last create failure, or `null` (§5.4). A single readable field — the VISIBLE surface Joe rules on
+ *  later. C-bis-4 SETS it and leaves it UN-RENDERED (behind this one call site); nothing paints it yet. */
+let _error = $state<string | null>(null);
+
+/** The Rust `CreateDmSpaceResult` (`xgen-client/src/ops.rs:827`) carried VERBATIM — the flavour fields are
+ *  `#[serde(transparent)]`, so they cross the Tauri boundary as bare strings and there is no mapping layer
+ *  (the `SendOutcome` / `KnownSpace` precedent; a mapping layer is a D-067 drift surface). */
+export interface CreateDmSpaceResult {
+  space_id: string;
+  room_id: string;
+  event_id: string;
+  invitee: string;
+  owner_identity_id: string;
+}
+
+/** The injected create seam. The shell supplies a `create_dm_space`-backed function (W-3: this module never
+ *  imports Tauri). It REJECTS on a node-side failure — the verb signs and sends and needs a live node. */
+export type CreateDmTransport = (invitee: string) => Promise<CreateDmSpaceResult>;
+
+let _createTransport: CreateDmTransport | null = null;
 
 export const dmDraft = {
   /** 🔒 STORED, not derived (v1.3): a draft is active iff a counterpart is set. Read by R5 (stream-panel) to
@@ -55,9 +81,15 @@ export const dmDraft = {
   get text(): string {
     return _counterpart != null ? (_texts[_counterpart] ?? '') : '';
   },
+  /** The last create failure, or `null` (§5.4). The single call site a future VISIBLE surface reads; C-bis-4
+   *  populates it and renders nothing (the surface is Joe's to rule on). Cleared on `open` and each `create`. */
+  get error(): string | null {
+    return _error;
+  },
   /** Open (or re-open) a draft for `identityId`. Idempotent — reopening restores any text already typed for
-   *  them (§5.3), since `note()` preserved the text map. */
+   *  them (§5.3), since `note()` preserved the text map. Clears any stale create error (fresh context). */
   open(identityId: string): void {
+    _error = null;
     _counterpart = identityId;
   },
   /** THE BUS-FED CLOSER (v1.3) — the shell's bus→latch effect calls this alongside `roomLatch.note` /
@@ -73,6 +105,32 @@ export const dmDraft = {
   setText(text: string): void {
     if (_counterpart == null) return;
     _texts = { ..._texts, [_counterpart]: text };
+  },
+  /** The shell injects the `create_dm_space`-backed transport at boot (W-3: this module imports no Tauri).
+   *  Same seam shape as `echo.setTransport` — the store stays transport-agnostic and unit-testable. */
+  setCreateTransport(t: CreateDmTransport | null): void {
+    _createTransport = t;
+  },
+  /**
+   * Run the create for `invitee` (C-bis-4, §5.2). Returns the result on success, or `null` on failure — in
+   * which case the draft is LEFT OPEN with its text UNTOUCHED (§5.4, D-065) and `error` carries the cause.
+   * The verb signs and sends three events to a live node and CAN fail; the caller latches / sends only on a
+   * non-null result, so a failed create latches nothing and NOTHING on screen implies the DM exists. The
+   * caller passes the counterpart (captured at click time) rather than reading `_counterpart`, so a
+   * navigation mid-create cannot swap the invitee out from under the send.
+   */
+  async create(invitee: string): Promise<CreateDmSpaceResult | null> {
+    _error = null;
+    if (!_createTransport) {
+      _error = 'no create transport';
+      return null;
+    }
+    try {
+      return await _createTransport(invitee);
+    } catch (e) {
+      _error = String(e);
+      return null;
+    }
   },
   /** Close the draft after a successful send (C-bis-4). Drops the counterpart AND its text — the text was
    *  sent, and the real DM now takes over (create → latch → the shipped stream). */

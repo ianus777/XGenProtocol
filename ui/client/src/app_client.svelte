@@ -354,6 +354,38 @@
   }
   echo.setTransport(guardedSend);
 
+  // M-RP-MEMBER-ACT Leg C-bis-4 — inject the create_dm_space transport into the dmDraft store (W-3: `$common`
+  // imports no shell dep; the composer reaches `create_dm_space` ONLY through this seam, the echo/send shape
+  // at :796). `create_dm_space` signs and sends a three-event chain over a live node, so a rejected invoke is
+  // a real failure and propagates — dmDraft.create catches it, leaves the draft open, and parks the cause.
+  //
+  // 🛑 DEVIATION FROM RUNBOOK §5.2, REPORTED NOT ABSORBED (Rule 6 / J-516: ship the correct path, flag it).
+  // The runbook's sequence is `create_dm_space → roomLatch.latch(result.room_id) → echo.send → clear` and
+  // asserts "the latch becomes REAL, first time". IT DOES NOT — measured from source: `effectiveRoomId`
+  // resolves `_latched` against `spacesState.spaces` (room-latch.svelte.ts:48-55), and `spacesState` is fed
+  // ONLY by `loadSpaces()` (setSpaces has three callers, all loadSpaces: startup :705, reconnect :182, def
+  // :256). `create_dm_space` writes the new DM to the client-state FILE on disk (ops.rs:1025-1041) but NEVER
+  // touches the in-memory `spacesState`. So without a refresh, `latch(room_id)` writes an id that resolves to
+  // NULL → R5 shows "Select a room" instead of the new DM with the just-sent echo. The fix reuses the SHIPPED
+  // mechanism — loadSpaces re-reads the disk the create just wrote — bundled here (not in the widget) because
+  // loadSpaces lives in the shell and the widget cannot reach it (W-3). Awaiting it INSIDE the transport
+  // means the store already carries the new DM before the composer latches.
+  //
+  // ⚠️ A loadSpaces failure AFTER a successful create is SWALLOWED: the DM exists (create returned), so a
+  // failed local refresh only delays its display until the next reconnect/startup refresh. Rejecting here
+  // would report failure for a DM that WAS created — the §5.4 lie in reverse. get_spaces is a sync disk read
+  // of the file the create just wrote, so this catch is defensive, not expected.
+  async function createDmSpace(invitee) {
+    const result = await tauriInvoke('create_dm_space', { invitee });
+    try {
+      await loadSpaces();
+    } catch (_) {
+      // create succeeded (result in hand); a failed local spaces refresh only delays the new DM's display.
+    }
+    return result;
+  }
+  dmDraft.setCreateTransport(createDmSpace);
+
   // DEV-only CDP handle (N-024 idiom) so the verify pass can drive the drop / tabs / mismatch paths
   // (§5.3): push a test layout, read region-shell's getter G. Dead-code-eliminated in a release build.
   if (import.meta.env.DEV && typeof window !== 'undefined') {

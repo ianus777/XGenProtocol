@@ -22,15 +22,20 @@
   // is disabled. Silently accepting a sentence that goes nowhere is the worst of the three options; killing
   // the textarea mid-thought is the second worst (D6: block send, NEVER block typing).
   //
-  // 🔒 THE DM DRAFT IS THE SECOND SEND TARGET (C-bis-3, §5.2/§5.3). A member with no existing DM opens a
-  // draft (dmDraft.active); its room does not exist yet, so `canSend` is false FOR IT and the gate widens to
+  // 🔒 THE DM DRAFT IS THE SECOND SEND TARGET (§5.2/§5.3). A member with no existing DM opens a draft
+  // (dmDraft.active); its room does not exist yet, so `canSend` is false FOR IT and the gate widens to
   // `canSend || dmDraft.active`. Two things follow. (1) The draft's text routes through `dmDraft` (keyed by
   // counterpart, survives navigation) via a function binding, so the DM draft and the room never share one
   // buffer — otherwise a private draft would surface in the room's composer the instant the draft closed.
   // (2) The submit() draft branch sits ABOVE the early return: opening a draft leaves the latch pointing at
   // the group room you came from (v1.3), so the normal path would `echo.send` INTO that stale room — the
-  // draft must be intercepted first. This commit routes the draft send to a REPORT-ONLY STUB; the real
-  // create_dm_space sequence lands at C-bis-4.
+  // draft must be intercepted first.
+  //
+  // 🔒 C-bis-4 — THE DRAFT BRANCH NOW CREATES THE DM (§5.2). It runs `create_dm_space` (injected into
+  // `dmDraft` by the shell, W-3), latches the real room the result carries, echoes the sent text into it,
+  // and clears the draft. On FAILURE (`create` returns null) it latches nothing, sends nothing, clears
+  // nothing — so NOTHING implies the DM exists — and the draft stays open with its text (§5.4, D-065), the
+  // cause in `dmDraft.error`.
   //
   // 🔒 OFFLINE STILL SENDS, AND ON PURPOSE. The shell's lifecycle guard turns a send during an outage into
   // an immediate `failed` — which lock #7 lets the user RETRY FREELY, because `failed` means it never
@@ -63,12 +68,6 @@
   // The ROOM composing buffer — a single unkeyed string, the pre-C-bis behaviour unchanged (text persists
   // across room switches; not keyed by room). It is used ONLY when no DM draft is active.
   let draft = $state('');
-
-  // C-bis-3 STUB SIGNAL (report, not action). The draft submit path has no create yet (C-bis-4 wires
-  // create_dm_space → latch → echo.send → dmDraft.clear). Until then, submitting a draft REPORTS via these
-  // and does nothing else — no create, no echo.send, no fabricated roomId. Observable to the verify pass.
-  let draftSubmits = $state(0);
-  let lastDraftText = $state('');
 
   // C-bis-3 — THE TEXT ROUTES THROUGH `dmDraft` WHILE A DRAFT IS ACTIVE (§5.3). The composer has ONE editable
   // buffer; a DM draft and a room share this widget, so without routing the two would collide — a private
@@ -108,11 +107,12 @@
     if (dmDraft.active) {
       const draftText = composerText().trim();
       if (!draftText) return;
-      // C-bis-3 STUB — reports, does nothing. C-bis-4 replaces this with the real sequence:
-      //   create_dm_space(counterpart) → roomLatch.latch(result.room_id) → echo.send(...) → dmDraft.clear().
-      // The text is deliberately NOT cleared: nothing was sent, so the draft keeps its typed words.
-      draftSubmits += 1;
-      lastDraftText = draftText;
+      const counterpart = dmDraft.counterpart;
+      if (counterpart == null) return; // active ⇒ counterpart set; defensive, and it narrows the type
+      // C-bis-4 (§5.2) — the real sequence, in an async helper. Capture the counterpart + text NOW: `create`
+      // is awaited, and a navigation mid-create must not swap either out from under the send. Fire and
+      // return — submit() stays sync so the key/click handler is responsive while the node round-trips.
+      void createDraftDm(counterpart, draftText);
       return;
     }
     const text = draft.trim();
@@ -125,6 +125,35 @@
     // Deliberately NOT awaited: the row is appended synchronously by `echo.send`, so the sentence is on
     // screen before the network is consulted, and every later state change arrives through the store.
     void echo.send(spaceId, roomId, text);
+  }
+
+  // C-bis-4 (§5.2) — turn the draft into a real DM. `create_dm_space` is injected into `dmDraft` by the
+  // shell (W-3: this widget imports no Tauri and cannot receive the transport as a prop — store-mediation is
+  // the only channel, the echo precedent). The verb signs and sends the DM's three-event chain and returns
+  // the new Space/Room ids, after which the SHIPPED machinery takes over: latch the real room, echo the sent
+  // text into it, clear the draft (which drops the counterpart AND its text — it was sent). The order is
+  // §5.2's: create → latch → send → clear.
+  //
+  // ⚠️ FAILURE (§5.4, D-065): `create` returns null → latch nothing, send nothing, clear nothing, so NOTHING
+  // on screen implies the DM exists; the draft stays open with its text (`create` kept both) and the cause
+  // sits in `dmDraft.error` — the single call site a visible failure surface reads once Joe rules on it.
+  //
+  // 🛑 DEVIATION FROM RUNBOOK §5.2, REPORTED NOT ABSORBED (Rule 6 / the J-516 precedent — ship the correct
+  // path, flag it loudly): the runbook's sequence asserts "the latch becomes REAL, first time" but, measured
+  // from source, `roomLatch.effectiveRoomId` resolves `_latched` against `spacesState.spaces`
+  // (room-latch.svelte.ts:48-55), and `create_dm_space` writes the new DM only to the client-state FILE on
+  // disk (ops.rs:1025-1041) — it never touches the in-memory `spacesState`. So a bare `latch(result.room_id)`
+  // resolves to NULL and R5 shows "Select a room" instead of the new DM. The fix lives in the shell's
+  // injected transport (which owns `loadSpaces`, the disk re-read); this widget's sequence is unchanged, and
+  // by the time `create` resolves the store already carries the new DM. See app_client.svelte for the seam.
+  async function createDraftDm(counterpart: string, text: string): Promise<void> {
+    const result = await dmDraft.create(counterpart);
+    if (result == null) return; // create failed — draft stays open (dmDraft.create kept text + set `error`)
+    roomLatch.latch(result.room_id);
+    // Not awaited — the echo row appends synchronously, so the sent message is on screen the instant the
+    // draft clears; every later status change arrives through the echo store (the room-send precedent).
+    void echo.send(result.space_id, result.room_id, text);
+    dmDraft.clear();
   }
 
   // Enter sends, Shift+Enter is a newline — the chat convention. `isComposing` is honoured so an IME
@@ -151,8 +180,9 @@
     // pass can prove a draft's text never bleeds into the room buffer, nor the reverse (§5.3, the leak).
     textLength: composerText().length,
     roomBufferLength: draft.length,
-    draftSubmits,
-    lastDraftLength: lastDraftText.length,
+    // C-bis-4 — the create failure surface (§5.4), read here so the verify pass can assert "failure ⇒ draft
+    // open, text kept, error set" without reaching into __XGEN_DRAFT__ separately.
+    draftError: dmDraft.error,
     roomId: roomLatch.effectiveRoomId,
     spaceId: roomLatch.effectiveSpaceId,
     wired: echo.wired,

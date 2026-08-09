@@ -8,6 +8,71 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-704 — the runbook is LOCKED, and the measurement moved the page's mount before Clair could build it on the wrong socket
+
+**Date:** 2026-08-09 · **Seats:** Joe (one delegated call, and four short questions that each found something) · Chat (three greps, one live-client measurement, the runbook, three self-caught defects) · **Code: NONE.** `tasks/RUNBOOK_MEMBER_ACT_LEG_C_BIS.md` **v1.0 ACTIVE (NEW)** · `tasks/M_RP_MEMBER_ACT_LEG_C_BIS.md` v1.3 → **v1.4 ACTIVE** · ROADMAP v6.91 → **v6.92**. **No new `D`, no new `N`.**
+
+### 🛑 THE `background` SOCKET IS THE WRONG HOME, AND J-703 SAID IT WAS THE RIGHT ONE
+
+J-703's §5.8 asserted *"the prepared page has a home and it is LOCKED"* — the `message-stream` `background` socket. **The claim was carried from the kickoff and never checked against what the socket renders.** Grepped at `3f3c3e7`:
+
+- `message-stream.svelte:255` — `<div class="message-stream-bg" aria-hidden="true">`. **HARDCODED, not a prop, not skinnable.** ⇒ the intro would be **the only content on screen and invisible to assistive tech**, and Joe's *"later elements"* — buttons — would be **unreachable inside an `aria-hidden` container.** 🔑 **The socket is correct for wallpaper and wrong for content**, which is exactly what its own comment says it is.
+- `message-stream.svelte:125` — `showEmpty = count === 0 && !backgroundDeclared` ⇒ declaring a background **suppresses** the empty state.
+- `message.svelte:133-136` — the whole `system` sub-tree is **one `<Paragraph>`**; `:92-98` **FORCES** the text-only fields off (M-RP5.5 C, Option A normalisation). ⇒ **a `system` row cannot host a widget mount.** It can carry Joe's sentence; **it cannot carry his page.**
+
+⚠️ **`3f3c3e7` IS PUSHED AND ITS §5.8 CANNOT BE EDITED** — annotated at the site (`D-131`) in the runbook's §2 and here. 📌 **What survives from J-703 is the conclusion that the page is a COMPONENT, which was never in doubt. What was wrong is the MOUNT POINT.**
+
+### 🔑 THE LIVE MEASUREMENT THAT DECIDED THE SHAPE
+
+Node up, client up, CDP on 9222, painted heights read off the running client:
+
+```
+.message-stream-shell   h=544   display:block   flex:0 1 auto
+.message-stream         h=544   display:block   overflow-y:auto
+.message-stream-rows     h=18
+.stream-panel           h=544   display:block   (height:100%; min-height:0)
+.region-tile-body       h=560   display:block   flex:1 1 0%
+.region-tile            h=582   display:flex    flex-direction:column
+```
+
+🔑 **THE STREAM FILLS ITS TILE AND WILL NOT COLLAPSE — 18px of content inside 544px** ⇒ **a naive sibling above it OVERFLOWS rather than shares.** ✅ **The fix is contained:** `stream-panel`'s root becomes a flex column, the socket takes `flex: 0 0 auto`, the stream `flex: 1 1 0; min-height: 0`. **`MessageStream` STAYS UNCONDITIONALLY MOUNTED**, so `stream-panel.svelte:198`'s invariant (*no conditional mount → no registry churn*) survives and **the registry floor is the proof.** 📌 **And the rows are already top-anchored in mostly-empty space, so the intro will not look like an anomaly.**
+
+📌 **Registry read 164 quiescent — the floor exactly. Joe's client state 2856 B / 2026-08-05 07:12:25 before AND after: byte-identical, never written.**
+
+### 🔑 A SOCKET, NOT A BRANCH — AND WHAT IT DOES *NOT* GUARANTEE
+
+Joe asked whether the canvas could later carry graphs, SVG structures and formatted snippets. **Chat's first answer was a hardcoded `{#if}` — a special case wearing a canvas's clothes.** The general mechanism **already exists twice** (`message-stream.svelte:119`, `region-shell.svelte:90`): `resolveMounts(mounts, widgets, prefix)`, unknown ids **DROPPED** (W-13). ⇒ **the intro becomes the FIRST TENANT of a socket rather than a hardcoded page, at essentially the same cost.**
+
+🛑 **BUT THE SOCKET MAKES THE *PLACE* GENERAL, NOT THE *CONTENT*.** Graphs and SVG structures are components and are covered. **Their DATA is not** — `N-172`: mounts are named by the RECEIVING client and `WidgetMount` has **zero hits in any `.rs`**; every feed is its own milestone. **And "html snippets" — a string turned into markup at runtime — is kind-4 `string → safeHTML`, which does not exist and is `M-RP-PROCESSOR-RENDER`, fifth in Joe's J-564 sequence and a security lock.** ⚠️ ***Conflating the place with the content is how the sanitiser gets built by accident.*** ⇒ **Leg C-bis builds the socket with EXACTLY ONE tenant; the canvas gets its own milestone when a second tenant has a reason to exist.**
+
+### 🔒 THE SEAT CALL JOE PUT BACK, CORRECTLY
+
+Asked *"which option is qualitatively superior"*, Chat answered with a four-option menu and then extended it — **routing its own decision to Joe.** Joe: *"i see i am lost in it then. by d-123 this is mine or yours?"*
+
+🔑 **IT WAS CHAT'S.** `D-121`'s first lens settles it: socket, branch and system row are **visually identical to the person using XGen** ⇒ zero user-facing impact ⇒ **technical execution.** 🛑 **This is UNDER-STEPPING, the kickoff's named seat error** — the rider on `D-123` is that the line is about who **decides**, not who **notices**; Chat noticed correctly and then failed to decide. 📌 **Decided: the socket, one tenant.** ⚠️ **The condition that would have handed it back — the options ceasing to be visually identical — did NOT fire**, because the flex fix preserves the appearance.
+
+### 🛑 THREE DEFECTS, AND NOT ONE WAS CAUGHT BY RE-READING
+
+i. **The `background` socket** — found by a grep Joe's question forced.
+ii. **A GLOBAL BLANK-LINE STRIP ON `CLAUDE.md`** while preparing J-703: a two-line fix generalised into a whole-file transform that **deleted 294 blank lines**. Caught **only by the CRLF byte count** (1135 → 843), reverted from HEAD, rebuilt targeted. **Same species as J-697's global regex.** → runbook §4: ***never run a whole-file transform where a line-indexed edit will do.***
+iii. **A PHANTOM `J-704` CITATION.** Chat wrote *"Chat called `list()` at J-704"* into the runbook **while J-703 was still the highest entry** — a citation pointing at a record that did not exist, which would have read as authoritative back-reference. Caught by Joe asking *"is there j-704? does it exist?"* **`D-139`: a claim must state its corpus; this one stated a corpus that had not been written.**
+
+🔑 ***The kickoff's ① held exactly as written: one defect came from a grep, one from a byte count, one from a four-word question from Joe — and NONE from Chat re-reading its own work.***
+
+📌 **A FOURTH, smaller:** `__XGEN_DEBUG__` exposes **`ids`, `get`, `snapshot` — there is no `list`.** Chat called `list()` and it **threw**. ***It failed loudly, which was luck, not method*** — a probe whose pass condition is an empty result would have returned a clean-looking `[]` and **a false absence would have entered the record** (`N-099`).
+
+### 📌 THE DATE QUESTION, RAISED AND THEN RIGHT-SIZED
+
+Chat flagged that J-702/J-703 are dated **2026-08-08** though written on the **9th**, and proposed `D-131` annotation. **Measured: twelve of the last fourteen entries are dated 2026-08-08** ⇒ the JOURNAL's dates track the **working session**, not the wall clock, and the entries are defensible as written. 🔑 **Chat had inflated a one-day rounding into a discipline failure.** Joe delegated the fix and the style. **Decided: LEAVE THEM.** ⇒ ***annotate when a CLAIM is wrong, because someone will act on it; leave a TIMESTAMP that is imprecise but not misleading.*** `24c3409`'s *"J-692 still open"* had to be annotated because it would have sent a reader hunting a decision that already existed; **a date one day early sends nobody anywhere.**
+
+### 📌 WHAT IS NOW LOCKED FOR CLAIR
+
+**C-bis-1** flex column + the `above` socket + a **structural placeholder** `dm-intro.svelte` · **C-bis-2** the `dmDraft` store (🛑 **not named `draft`** — `composer-panel` already uses it) + R7's click, **`N-171` fixed here** · **C-bis-3** the composer branch **above** the early return · **C-bis-4** the send sequence + the failure surface · **C-bis-5** verification, the **`OWED-4` measurement SHOWN to Joe**, records.
+
+🛑 **`skin.css` AND `dm-intro.svelte` ARE JOE'S FILES** — Clair mounts, never authors; an apparent need to edit either is a **STOP**, not a judgement call. ⚠️ **ZERO RUST — `cargo` returning 1597/0/62 × 56 IDENTICAL is the leg's PROOF, not its assumption.** 🛑 **`OWED-1` still undischarged: the row clicks and does nothing at `3f3c3e7`.** → J-704 · ROADMAP v6.92.
+
+---
+
 ## Entry J-703 — Leg C-bis gets its Phase-0: the draft is a render state, the page is a component, the truncation is the web's own, and three of the sketch's four controls have nothing behind them
 
 **Date:** 2026-08-08 · **Seats:** Joe (eight locks, two delegations, one sample layout, and the question that killed a claim Chat had repeated twice) · Chat (grounding, the Phase-0, one self-caught defect) · **Code: NONE.** `tasks/M_RP_MEMBER_ACT_LEG_C_BIS.md` v1.1 → **v1.3** (§5–§7 new, §4→§8) · ROADMAP v6.90 → **v6.91**. **No new `D`, no new `N`.**

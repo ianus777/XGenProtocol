@@ -1,8 +1,8 @@
 # M-RP-MEMBER-ACT Leg C-bis — the member with no DM: creation, the first send, and the erased identity
-> **Status**: PENDING  
-> Version: 1.3  
+> **Status**: ACTIVE  
+> Version: 1.4  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-08  
+> **Last updated**: 2026-08-09  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -377,6 +377,16 @@ subject and legible to the user**. *"We never built blocking"* is not that reaso
 are all *"who is this stranger and how do I get rid of them"* — the problem an **anonymous** network has.
 **Blocking will become real** (J-701 already leans on *blockable, reportable*); it is not real now.
 → **FILED, NOT BUILT: `M-RP-BLOCK`** (the verb, then the button) inherits those seats.
+
+🛑 **THE PAGE IS A COMPONENT, NOT A PROCESSED STRING — BUT §5.8's MOUNT POINT WAS WRONG AND IS SUPERSEDED
+BY J-704.** The `background` socket is **NOT** this page's home: `message-stream.svelte:255` renders it inside
+`<div class="message-stream-bg" aria-hidden="true">` — **hardcoded** ⇒ the intro would be the **only content
+on screen and invisible to assistive tech**, and *"later elements"* (buttons) would be **unreachable**.
+📌 **The socket is correct for WALLPAPER and wrong for CONTENT.** 📌 `message.svelte:133-136` closes the other
+escape: the whole `system` sub-tree is **one `<Paragraph>`** ⇒ **a system row can carry the SENTENCE but not
+the PAGE.** ✅ **THE HOME IS AN `above` `WidgetMount[]` SOCKET ON `stream-panel`**, resolved through
+`resolveMounts` exactly as `message-stream:119` and `region-shell:90` already do — see
+`tasks/RUNBOOK_MEMBER_ACT_LEG_C_BIS.md` §2 for the live measurement that forced it.
 
 ### §5.8 🔒 THE PAGE IS A COMPONENT, NOT A PROCESSED STRING
 

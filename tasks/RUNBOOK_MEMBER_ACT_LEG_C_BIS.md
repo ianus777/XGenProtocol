@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-MEMBER-ACT Leg C-bis: the member with no DM opens a draft
 > **Status**: ACTIVE  
-> Version: 1.6  
+> Version: 1.7  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-09  
 > Language: EN  
@@ -341,6 +341,34 @@ the human eye does not beat.*
 
 ### 🟡 C-bis-6 — after the create, the client ORIENTS (Joe's rule, 2026-08-09)
 
+🔒 **RULED BY JOE 2026-08-09 — OPTION A, AND IT COSTS NO LOCK.**
+
+🔑 **`D4 opt-2` (*"a later room/identity selection KEEPS the Space lit"*) WAS NEVER RULING ON THIS CASE.** Every
+selection it contemplated was **WITHIN** a Space — a room in R2, a person in R7. **Opening a DM from a member
+row is a CROSS-SPACE navigation, and it did not exist when that decision was made**: member activation is what
+this milestone built. ⇒ **A is a SCOPE CLARIFICATION, not a reversal.** Intra-Space selections keep the Space
+lit; **a DM open is a Space change and moves the Space latch like any other Space change.** ✅ **Joe confirmed
+both the option and this reading.**
+
+**Files:** `members-panel.svelte` · `spaces-panel.svelte`. 🛑 **NO new store, NO shell change, ZERO `.rs`.**
+
+1. **The member-activation path moves the SPACE context, not just the room** — 🛑 **BOTH branches: the existing
+   DM and the post-create path.** ⚠️ **THIS IS NOT CREATE-SPECIFIC** — clicking an existing DM has the same
+   defect today, and Joe saw it; this heading's *"after the create"* was narrower than the defect it names.
+2. **R1 suppresses its highlight when the latched Space is a DM** — the test is `counterpart != null`,
+   **already on the record, NO Rust, NO new field**. 🛑 **In `spaces-panel`'s `$derived` ONLY, NEVER the store**
+   (`F-D`: `resolveLatched` and `canSend` both read `spacesState.spaces`, and a store-side filter makes every
+   DM **unsendable**). 📌 **This is `A3`'s render-only filter in miniature** — building it here proves the seam.
+3. 📌 **The draft case falls out for free and MUST NOT be special-cased:** no DM Space exists yet, so the Space
+   latch does not move and **R1 stays lit on the room you are drafting from** — which is what Joe ruled.
+
+**GATE C-bis-6** — open a DM from a member row (**both** branches, driven separately): R1 **unlit** · R2 lists
+the DM's `dm` room **and highlights it** · 🛑 **R2's `selectedId` matches a row it is actually drawing** (the
+dangling-highlight defect) · R5/R6/R7 unchanged · open a draft: **R1 stays lit** · floors · **`cargo` IDENTICAL**.
+
+⚠️ **VISIBLE DIFFERENCE FROM THE REJECTED OPTION B, NAMED SO IT IS NOT LATER REPORTED AS A DEFECT:** while you
+are in a DM, **R2 is a one-row column showing `dm`.** Under B it would be blank. **A tells you where you are.**
+
 🛑 **THE DEFECT, MEASURED:** after a successful create the client sits in **TWO Spaces at once** —
 `spaces-panel.selectedId` and `rooms-panel.latchedSpaceId` both `…b0ffd722` (**LegF**), while
 `members-panel.scope` and `roomLatch.effective*` are `…f491c1c2` (**the new DM**). ⚠️ **AND R2 HOLDS A
@@ -391,6 +419,50 @@ this stream about.**
 
 🔓 **FILED, NOT SCHEDULED:** whether the node returns **invited-but-not-joined** members in a roster at all.
 **The client fix stands either way** — it is not bundled with a guess about the node.
+
+🔒 **SCOPE ADDED BY JOE 2026-08-09 — THE DRAFT ROW IS HIGHLIGHTED TOO.** ⚠️ **Chat read Joe's earlier *"draft
+member panel state is correct"* as closing this; it closed the ROW LIST only.** Joe: *"i would rather have the
+counterpart be selected while draft to him."* ⇒ **`selected={counterpart ?? dmDraft.counterpart}`** — one
+expression, and it **extends `L16`** (*the only highlight is the DM counterpart*) rather than fighting it:
+during a draft the stream **is** about that person. 🛑 **`selectOnActivate={false}` STAYS** — the highlight
+remains DERIVED, never a click write.
+
+**Files:** `members-panel.svelte`.
+
+**GATE C-bis-7** — in a DM: **self + counterpart**, driven on the `LegF-N5` DM **whose counterpart never
+joined** (the case the roster cannot supply) · in a group room: unchanged roster · **in a draft: the roster is
+unchanged AND the drafted-to row is highlighted** · floors · **`cargo` IDENTICAL**.
+
+---
+
+### 🟡 C-bis-8 — the §5.4 failure surface becomes VISIBLE (Joe's ruling, 2026-08-09)
+
+🔒 **RULED: one line under the composer, rendering `dmDraft.error`.**
+
+🔑 **IT NEEDS NO WORDING DECISION AND AUTHORS NO COPY — IT RENDERS THE NODE'S OWN STRING, VERBATIM.** Driven at
+J-708 that text was *"failed to connect to Node: WebSocket error … (os error 10061)"*. **That is what makes the
+surface honest rather than decorative**, and it is why this is not a copy STOP. ⚠️ **A LABEL in front of it
+WOULD be copy and is JOE'S** — ship without one rather than invent one.
+
+📌 **The call site already exists and is deliberately un-rendered** (C-bis-4): `dmDraft.error` is set, cleared
+on `open` and on each `create`, and read by `composer-panel`'s debug getter as `draftError`.
+
+**GATE C-bis-8** — kill the node, send a draft: **the line appears carrying the node's words** · the draft stays
+open with its text · **nothing implies the DM exists** · restart the node and send: **the line clears** ·
+floors. ⚠️ **`N-177`: re-measure the button rect immediately before the click.**
+
+---
+
+### 🟡 C-bis-5 (continued) — THE VERIFICATION CHECKLIST
+
+⚠️ **THESE ITEMS BELONG TO C-bis-5, NOT TO C-bis-8** — they were separated from their heading when C-bis-6/7/8
+were written above them on 2026-08-09. **The heading is restated rather than the list moved, so no line changes
+owner silently** (`D-131`'s spirit).
+
+🔑 **AND C-bis-5 NOW RUNS LAST, AFTER 6/7/8 — NOT NEXT.** Three of its items (§5.5's header behaviour, §5.6's
+nameless render, `OWED-1`'s discharge) are **changed by the legs above**: the skin is still Joe's, the DM
+roster changes at C-bis-7, and the orientation changes at C-bis-6. **Verifying before them would verify a
+state that is about to be replaced.**
 
 - [ ] **`OWED-1` DISCHARGED — verified on the live client**: no member row presents as actionable while doing
       nothing.

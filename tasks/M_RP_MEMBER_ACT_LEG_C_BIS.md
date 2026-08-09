@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT Leg C-bis — the member with no DM: creation, the first send, and the erased identity
 > **Status**: ACTIVE  
-> Version: 1.7  
+> Version: 1.8  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-09  
 > Language: EN  
@@ -445,9 +445,14 @@ they authored**. That is `M-RP-INTRO`, filed and undesigned, **and it must not a
 | **C-bis-2** | the `dmDraft` store + R7's click opens a draft + the fed page + the empty-stream swap | ✅ `96a935f` (J-706) |
 | **C-bis-3** | R6 gates on `canSend \|\| dmDraft.active`; the composer's draft branch **above** the early return; the text routes through `dmDraft`; **still no create** | ✅ `8601e677` (J-707) |
 | **C-bis-4** | the send sequence (`create_dm_space` → **`loadSpaces`** → `latch` → `echo.send` → clear) + the failure surface | ✅ `37c09d7` (J-708) |
-| **C-bis-5** | live CDP verify + `OWED-4` measurement **shown to Joe** + records | 🟡 NEXT |
-| **C-bis-6** | **after the create the client ORIENTS** — R1 unselects while in a DM, R2 follows (Joe's rule) | 🟡 |
-| **C-bis-7** | **R7 reads `counterpart` from the SPACE RECORD** ⇒ a DM shows **self + counterpart**; the draft-row highlight folds in | 🟡 |
+| **C-bis-5** | live CDP verify + `OWED-4` measurement **shown to Joe** + records | 🟡 **LAST, not next** |
+| **C-bis-6** | **after the create the client ORIENTS** — R1 unselects while in a DM, R2 follows (Joe's rule) | 🟡 **NEXT** · 🔒 **A ruled 2026-08-09** |
+| **C-bis-7** | **R7 reads `counterpart` from the SPACE RECORD** ⇒ a DM shows **self + counterpart**; **the drafted-to row is highlighted** | 🟡 · 🔒 ruled |
+| **C-bis-8** | the **§5.4 failure surface** — one line under the composer rendering `dmDraft.error` verbatim | 🟡 · 🔒 ruled |
+
+> 🔑 **C-bis-5 MOVED TO LAST (2026-08-09).** Three of its checks — §5.5's header behaviour, §5.6's nameless
+> render, `OWED-1`'s discharge — are **changed by 6/7/8**. **Verifying first would verify a state about to be
+> replaced**, which is how a verification leg becomes a second implementation leg.
 
 > 🔒 **THE R7 RULE, LOCKED BY JOE 2026-08-09 — R7 SHOWS THE PARTICIPANTS OF THE STREAM YOU ARE LOOKING AT,
 > WHENEVER THEY EXIST.** Group room → the roster. Existing DM → **self + counterpart**. Draft → **the group
@@ -456,13 +461,36 @@ they authored**. That is `M-RP-INTRO`, filed and undesigned, **and it must not a
 > that has not been created.** Joe: *"draft member panel state is correct. decision to change members list is
 > executed with existing dm stream."*
 
-> 🔓 **OQ3 MAY BE CHEAPER THAN FILED — MEASURED 2026-08-09, NOT YET RULED.** A2/A3's cost was written as
-> *"`KnownSpace` gains a field — **Rust** — the cargo floor returns."* **It does not need one:**
-> `KnownSpace.counterpart` **already distinguishes a DM today**, verified across all six Spaces in Joe's live
-> state (Engineering / Design / LegBSpace / LegF Verification → `NULL`; both DM Spaces → set).
-> ⚠️ **`G13` STILL BITES** — `counterpart` would not clear on promotion either, so *"was born a DM"* vs *"is
-> a DM"* remains undecided. **But the Rust half of A3's price tag looks removable.** 🛑 **The filter stays
-> RENDER-ONLY regardless** (the `resolveLatched` / `canSend` trap already recorded above).
+> 🔒 **OQ3 — RULED BY JOE 2026-08-09: YES, DM SPACES LEAVE R1 (A3).** 🔓 **G13's SEMANTICS REMAINS OPEN** —
+> Joe: *"we mentioned 'is a DM' but i dont know if is it correct."*
+>
+> 🔑 **CHAT'S PROPOSED DISSOLUTION, NOT A RULING:** the field is being asked **two different questions**, which
+> is what `G13` actually is. ***"Is this currently a DM"*** is a **RENDER** question and changes on promotion
+> ⇒ use **`KnownSpace.counterpart != null`**, measured across all six of Joe's Spaces (Engineering / Design /
+> LegBSpace / LegF Verification → `NULL`; both DMs → set). ***"Was this BORN a DM"*** is a **PROVENANCE**
+> question that must never change ⇒ **the Space's root event is `dm_space_create`** (the three-event chain,
+> `ops.rs`), and **`D-048`'s `state.dm_promote` is a separate later event**. **The causal DAG already carries
+> the birth permanently; no mutable flag can be more authoritative than the root event.**
+> ⇒ **A2/A3 may need NO Rust field at all, and the floor drops to svelte-check.**
+>
+> 🔒 **JOE'S TIER-4 CONSTRAINT, 2026-08-09:** *"the dm home has to be where we can save it along t4
+> requirements, archived."* ⚠️ **MEASURED: there is no written T4 archival requirement yet** —
+> `TIER4_TTL_DAYS = 90` is the **attestation's re-verification interval**, not retention, and Appendix D puts
+> retention on the **operator** (*"no built-in automatic deletion in Phase 1"*), with `room.archived` the
+> nearest existing wire concept. ⇒ **two constraints on the DM home that hold whatever T4 later says:**
+> 🛑 **it lists EVERY DM the client knows, not a filtered-to-active subset**, and 🛑 **the R1 filter hides a
+> row, it never removes access.** *A conversation you cannot open but cannot get rid of is the worst of both.*
+>
+> 🛑 **THE FILTER STAYS RENDER-ONLY REGARDLESS** (`F-D`: `resolveLatched` and `canSend` both read
+> `spacesState.spaces`; a store-side filter makes every DM **unsendable**).
+
+> 🔓 **THE `E → D` GATE IS SUSPECT AND CHAT OWES A RE-EXAMINATION (2026-08-09).** §6 of the Phase-0 gates
+> **Leg E (DM home + the filter) on Leg D (the RMC context menu)**. ⚠️ **D has no design and no runbook, and
+> Joe's own question exposes why:** what would honestly go in a member's context menu today? **`Message`
+> duplicates left-click; `Inspect` is what LMC already does; Remove Friend / Block / Mutual Friends were
+> sketched and explicitly DO NOT SHIP** (§5.7 — no control ships whose verb does not exist). ⇒ **there is no
+> honest menu to build yet, so E is waiting on a leg that cannot start.** **Chat re-examines and puts the
+> finding to Joe rather than re-ordering a leg table Joe locked.**
 
 🔑 **VISIBLE FIRST** (Joe's standing brief): C-bis-1 puts the page on screen where he can correct it **while
 the milestone is still open**, before any create path exists.

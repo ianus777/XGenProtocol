@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.16  
+> Version: 1.17  
 > Date: May 2026  
 > **Last updated**: 2026-08-09  
 > Language: English  
@@ -3665,3 +3665,57 @@ Clicking the same member row in the same group room produced **two different R7 
 ⚠️ **THE DRAFT CASE IS NOT AN EXCEPTION — IT IS THE RULE MEETING A SPACE THAT DOES NOT EXIST YET.** There is no membership to show, and synthesising two rows would invent a roster no fill produced (`D-065`) — the same option refused at C-bis-2. **Written down explicitly because the difference looks arbitrary from either side alone, and a reader who "harmonises" it puts a fabricated roster on screen.**
 
 📌 Joe: *"draft member panel state is correct. decision to change members list is executed with existing dm stream."*
+
+---
+
+### N-180 — reading `ui/` and describing the SYSTEM: four wrong architecture claims in one session
+
+**Date:** 2026-08-09 · **Chat's defect, corrected four times by Joe's recall** (J-709).
+
+Asked where the client can reach when a node is down, Chat grepped the **client**, found one connection, and each time described **XGen**. The corrections, in order:
+
+| Chat said | what is actually true |
+|---|---|
+| *"client dials many nodes vs home node federates — an open architecture question for you"* | 🛑 **Not open.** `xgen-node` ships a `FederationRegistry`, `FederationRelationship`, federation senders / queue / policy and a live bootstrap client (`register` / `keepalive`). **The node layer already chose.** |
+| *"a single point of failure for your access, even in a federated network"* | 🛑 **Contradicted by `D-049`**, which exists *"so client lookups can **fall back to replicas when the home Node is unreachable**"* (`REPLICATION_FACTOR = 3`) |
+| *"see them but not reach them — that's the architecture"* | ⚠️ **It is the client's CURRENT WIRING**, not the design: `resolve_node` returns `cfg.client.node`, and `KnownSpace.node_endpoint` is written and printed but **never dialled** |
+| *"the Auth Module's whole surface is attestation; it has no event access"* | 🛑 That describes **`module_registry.rs`, the NODE's registry of modules.** The module itself is **`delivery: service`** — *"its own process, its own XGID, reached at an endpoint, **speaks protocol Events**"* |
+
+🔑 **THE PATTERN IS ONE SENTENCE: the client is the THINNEST layer in this project and the LEAST representative of the design, and it is the layer Chat greps first because it is the layer the current milestone lives in.** ⇒ **RULE: an architecture claim needs a grep of `xgen-core` and `xgen-node`, or the docs, BEFORE it is stated — and a claim sourced only from `ui/` must say so in the same sentence.**
+
+📌 **Every one of the four was caught by Joe's recall, not by Chat re-reading.** *The defect species is the arc's own — a claim narrower than the thing it describes — applied to layers instead of to code.*
+
+---
+
+### N-181 — the client comes up nowhere, and `home_node` cannot fix it
+
+**Date:** 2026-08-09 · Joe's question, grounded and filed as its own milestone (J-709). **NOT built.**
+
+On launch the client selects nothing: R2 empty, R7 `no-scope`, R5 *"select a room"*, composer dead. Joe proposed selecting a **home Space** at startup.
+
+🛑 **`home_node` CANNOT DESIGNATE ONE.** Measured in Joe's live state: `home_node = ws://127.0.0.1:8080/xgen` and **all six Spaces carry that same `node_endpoint`**, all `role: owner`. **It answers *"which server do I connect to"*, not *"which conversation do I open"*** — on a normal account every self-hosted Space ties.
+
+⚠️ **AND SELECTING A SPACE ALONE LEAVES YOU HALF-ENTERED:** rooms listed, but **`L1`'s deliberate B1 cost** means R7 does not populate until a **ROOM** is latched, and the stream and composer stay dead. **It moves the blank panels around rather than removing them.**
+
+⇒ **RECOMMENDED SHAPE (Joe agreed, unscheduled): restore the last-visited ROOM**, which implies its Space and brings R1/R2/R5/R6/R7 up live together. ✅ **`xgen-client_uistate.json` already exists (758 B) with keys `active, named, session, version`** — UI-state persistence has precedent and needs no new file. ⚠️ **Chat has NOT read what `active` currently holds; do not design on it until someone does.** 📌 It stays **UI state, not user data** — a room id, not message content.
+
+🔑 **AND THE FALLBACK RULE JOE SHARPENED: fall back only on ABSENT, never on UNREACHABLE.** *Absent* (left, deleted, fresh install) is a **local fact**, known instantly. *Unreachable* is only known after a timeout ⇒ **falling through would make your startup destination depend on how fast a node replied.** **Restore unconditionally; show the connection state; converge on reconnect** — which is what `app_client:182`'s reconnect path already does.
+
+---
+
+### N-182 — reserve nothing: build the fact, not the machine
+
+**Date:** 2026-08-09 · Joe: *"do have it a sense to create mechanic which response to an other mechanic that we not have yet?"* — **filed as the answer's shape, not as a new principle.**
+
+**No.** A fallback that cannot be exercised cannot be verified, and it sits in the tree **looking like a guarantee**. This arc met the tolerable ceiling exactly once: `(canSend || dmDraft.active)`'s right arm shipped **unreachable**, and it was acceptable only because Clair **refused to claim it as verified**.
+
+⚠️ **THE ONE EXCEPTION CUTS THE OTHER WAY, AND IT MATTERS:**
+
+| | build early? |
+|---|---|
+| **mechanism** — retry paths, fallbacks, connection pools | 🛑 **no.** Cheap later, unverifiable now |
+| **wire / protocol SHAPE** — fields, event types, ordering | ✅ **yes.** Retrofitting a field across deployed nodes is the expensive kind of wrong |
+
+🔑 **`KnownSpace.node_endpoint` IS THE GOOD VERSION AND IT ALREADY SHIPS: the field is RECORDED so the information exists when it is needed, and NOTHING DIALS IT.** *Carry the fact; do not build the machine.*
+
+📌 **And a filed gap needs a TRIGGER, not a wish:** *client-side replica fallback (`D-049`) — specified, not implemented, **build when the test fixture has a second node**.* **"When federation has peers" is a wish; "when the fixture has two nodes" is checkable.**

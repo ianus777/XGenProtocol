@@ -8,6 +8,51 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-709 — a ruling session: eight decisions, three legs specified, and four architecture claims of Chat's corrected by Joe's recall
+
+**Date:** 2026-08-09 · **Seats:** Joe (every ruling here is his) · Chat (grounding, and the four errors). **NO CODE.** runbook → **v1.7** · task doc → **v1.8** · notes → **v1.17** (**+N-180 +N-181 +N-182**) · ROADMAP → **v6.96**. **No new `D`.**
+
+### 🔒 WHAT JOE RULED
+
+| # | ruling |
+|---|---|
+| **C-bis-6** | **Option A** — the member-activation path moves the SPACE context; **R1 suppresses its highlight for DM Spaces**. 🔑 **And the `D4 opt-2` scope reading with it:** that lock said *"a later room/identity selection KEEPS the Space lit"* and **every selection it contemplated was WITHIN a Space.** Opening a DM from a member row is a **cross-Space navigation that did not exist when the decision was made** ⇒ **A is a scope clarification, not a reversal, and costs no lock.** |
+| **§5.4 surface** | **One line under the composer, rendering `dmDraft.error`.** 🔑 **It authors NO copy — it renders the node's own string verbatim**, which is what makes it honest rather than decorative. A label would be copy and stays Joe's. → **C-bis-8** |
+| **OQ3** | **YES — DM Spaces leave R1 (A3).** 🔓 **G13's semantics remains open** (Joe: *"we mentioned 'is a DM' but i dont know if is it correct"*) |
+| **Skin** | headings **clamp, no wrap**; text blocks **wrap**. ✅ Matches §5.5's existing lock. 🛑 **Still owed to Joe — `skin.css` is his file**; a long no-space name is **clipped**, which is the ruled behaviour, not a defect |
+| **Draft highlight** | 🛑 **REVERSES CHAT'S READING.** *"Draft member panel state is correct"* closed the **ROW LIST** only. Joe: *"i would rather have the counterpart be selected while draft to him."* ⇒ back into **C-bis-7** |
+| **RMC** | Joe's own question answered it — see the `E → D` finding below |
+| **N-173** | context supplied; **the rename stays Joe's, no action** |
+| **Fixture** | the `LegF-N5` DM **stays** in Joe's live state |
+
+### 🔑 THE FINDING THAT CAME OUT OF JOE'S OWN QUESTION: `E → D` IS A GATE ON A LEG THAT CANNOT START
+
+§6 gates **Leg E (DM home + the R1 filter)** on **Leg D (the RMC context menu)**. Joe asked what would actually go in a member's context menu. **Nothing honest:** `Message` duplicates left-click, `Inspect` is what LMC already does, and **Remove Friend / Block / Mutual Friends were sketched and explicitly do not ship** (§5.7 — *no control ships whose verb does not exist*). ⇒ **E — the thing Joe wants — is waiting on a leg with no items.** **Chat owes the re-examination and puts the finding to Joe rather than re-ordering a leg table Joe locked.**
+
+### 🔑 AND THE ONE THAT DISSOLVES `G13` RATHER THAN ANSWERING IT
+
+`is_dm` is being asked **two different questions**. ***"Is this currently a DM"*** is a **render** question that changes on promotion ⇒ **`KnownSpace.counterpart != null`**, measured across all six of Joe's Spaces. ***"Was this born a DM"*** is **provenance** and must never change ⇒ **the root event is `dm_space_create`**, with `D-048`'s `state.dm_promote` a separate later event. **The causal DAG already carries the birth permanently.** ⇒ **A2/A3 may need no Rust field and the floor drops to svelte-check.**
+
+🔒 **Joe's Tier-4 constraint** — *"the dm home has to be where we can save it along t4 requirements, archived"* — grounded: **there is no written T4 archival requirement**; `TIER4_TTL_DAYS = 90` is the attestation's re-verification interval, and Appendix D puts retention on the **operator**. ⇒ **two constraints that hold whatever T4 later says: the DM home lists EVERY DM, and the R1 filter hides a row without removing access.**
+
+### 🛑 CHAT'S FOUR ARCHITECTURE ERRORS, ALL CAUGHT BY JOE'S RECALL → `N-180`
+
+Asked where the client can reach with a node down, Chat greped the **client** and each time described **XGen**: claimed the client-vs-node federation split was *"an open question for you"* (**the node layer already chose — federation registry, relationships, queue, bootstrap client all ship**); claimed *"a single point of failure even in a federated network"* (**`D-049` exists precisely so client lookups fall back to replicas when the home node is unreachable**); called the client's single-homing **architecture** when it is **current wiring** (`resolve_node` returns one config value; `node_endpoint` is written and printed, never dialled); and described the Auth Module as attestation-only when the module is **`delivery: service`** — *"its own process, its own XGID … speaks protocol Events."*
+
+🔑 **ONE SENTENCE: the client is the thinnest layer in this project and the least representative of the design — and it is the layer Chat greps first, because it is the layer the current milestone lives in.**
+
+### 🔓 FILED THIS SESSION, NOT SCHEDULED
+
+- **Startup destination → `N-181`.** The client comes up nowhere. **`home_node` cannot designate a Space** — all six of Joe's carry the same endpoint. **Restore the last-visited ROOM** (a Space alone leaves you half-entered under `L1`/B1). 🔑 **Joe's rule: fall back only on ABSENT, never on UNREACHABLE** — otherwise your startup destination depends on how fast a node replied.
+- **Client-side replica fallback (`D-049`)** — specified, not implemented. 📌 **Trigger: when the test fixture has a second node.** *A wish is not a trigger.*
+- **Archival and the Auth Module.** Joe: *"can the archiving dm be under auth module management?"* ⇒ **the module can own the ASSERTION** (a retention policy about a Space, the same shape as a trust assertion about an identity); **the node keeps custody of the bytes.** 🔑 **Revocation is block-only** — revoke a module and you lose its authority, **not your history**; if it held the archive, you could never revoke it. ⚠️ **The `AssuranceClass` / SE-D4 tier→engine gate (`BestEffort` / `Durable`, advertised as `storage_advert`) is the existing hook** and needs no new component.
+- **Reserve nothing → `N-182`.** Build the wire SHAPE early, never the MECHANISM. **`KnownSpace.node_endpoint` is the good version already shipping: recorded, never dialled.**
+- ⚠️ **A ROADMAP node for the startup milestone is OWED** — not added here, because new tree lines risk `roadmap-format-gate.ps1` at the end of a long session. **Chat's, next session, as a separate careful edit.**
+
+→ J-709 · ROADMAP v6.96.
+
+---
+
 ## Entry J-708 — Leg C-bis-4: the draft becomes a real DM — the runbook's own sequence could not resolve the latch, and the store said green while the screen did not
 
 **Date:** 2026-08-09 · **Seats:** Clair (`37c09d7`; a Rule 6 deviation found from SOURCE, before driving anything) · Chat (re-drove the chain, both live gates, one probe defect of its own) · Joe (per-leg consent for the irreversible gate; **found both remaining defects in a screenshot**) · **Code: `37c09d7` — 3 files, +143/−23, ZERO `.rs`, ZERO `ui/core`.** runbook → **v1.6** · task doc → **v1.7** · notes → **v1.16** (**+N-177 +N-178 +N-179**) · ROADMAP → **v6.95**. **No new `D`.**

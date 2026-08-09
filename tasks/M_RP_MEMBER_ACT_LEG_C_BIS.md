@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT Leg C-bis — the member with no DM: creation, the first send, and the erased identity
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.6  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-09  
 > Language: EN  
@@ -233,6 +233,17 @@ the failure is surfaced, the typed text is kept, and nothing on screen implies t
 
 ### §5.5 🔒 ② THE PREPARED PAGE — APPEARANCE, JOE'S (`D-123`), RULED 2026-08-08
 
+> 🔒 **AMENDMENT, JOE, 2026-08-09 (v1.5) — WHERE THE LOCKED COPY LANDS, AND WHEN.** *"make a placeholder, but
+> with content. i will check it independently afterwards and maybe i do some updates manually or leave it as
+> is."* ⇒ **`dm-intro.svelte` is populated at C-bis-2**, not left blank until Joe authors it. 🔑 **Nothing in
+> this § is re-opened: the sentence, the twice-named counterpart and the non-binding canvas are Joe's locks
+> from J-703 and are placed VERBATIM.** 🛑 **THE SKIN IS NOT AMENDED** — `skin.css` stays Joe's and stays a
+> STOP, so **this §'s truncation rules do NOT ship at C-bis-2**: the page renders with the client's default
+> wrapping until Joe skins it. ⚠️ **CONSEQUENCE, NAMED SO IT IS NOT DISCOVERED AS A DEFECT: the 128-byte
+> no-space display name (§5.5) WILL overflow horizontally until `overflow-wrap: anywhere` lands, and the
+> one-line header clamp does not exist yet.** That is a **known unskinned state with a named discharger
+> (Joe)**, not a regression — and it is why C-bis-5's §5.5 gate stays owed rather than being ticked here.
+
 🔒 **THE SENTENCE:** *"This is the start of private direct message stream with {counterpart\_display\_name}."*
 🔑 **AND THE WORD *stream* IS LOAD-BEARING, NOT A PARAPHRASE OF DISCORD'S *history*.** J-598 ③ measured that
 **the client has no message history at all** — `ingest` is in-memory, capped at `INGEST_CAP = 500`, with a
@@ -421,12 +432,20 @@ they authored**. That is `M-RP-INTRO`, filed and undesigned, **and it must not a
 
 ## §6 — PROPOSED LEGS (Chat's; the split is Chat's seat under `D-123`)
 
-| leg | content | floors it moves |
+> 🛑 **SWEPT AT v1.6 (J-706) — THIS TABLE WAS A FOUR-LEG SPLIT AND THE RUNBOOK HAS SHIPPED FIVE SINCE v1.0.**
+> Clair flagged the drift at the C-bis-2 hand-back. **The runbook governs**
+> (`RUNBOOK_MEMBER_ACT_LEG_C_BIS.md` §3); this table was the PROPOSAL that preceded it and had been left
+> standing as if it were current. 📌 *Species: **a superseded record that never announced its own
+> supersession** — harmless while both are read together, and a trap the moment one is read alone.*
+> **The live split is five legs; the statuses below are the record.**
+
+| leg | content | status |
 |---|---|---|
-| **C-bis-1** | the `dmDraft` sibling store + R5 renders the empty stream with the page mounted; **no send** | `svelte-check`, client registry |
-| **C-bis-2** | R6 gates on `canSend \|\| dmDraft.active`; the composer's draft branch above the early return; **still no create** | `svelte-check` |
-| **C-bis-3** | the send sequence (`create_dm_space` → `latch` → `echo.send` → clear) + the failure surface | `svelte-check` |
-| **C-bis-4** | live CDP verify + `OWED-4` measurement **shown to Joe** + records | none |
+| **C-bis-1** | `stream-panel` becomes a flex column + the empty `above` socket + the `dm-intro` placeholder | ✅ `e0d4d9a` (J-705) |
+| **C-bis-2** | the `dmDraft` store + R7's click opens a draft + the fed page + the empty-stream swap | ✅ `96a935f` (J-706) |
+| **C-bis-3** | R6 gates on `canSend \|\| dmDraft.active`; the composer's draft branch **above** the early return; **still no create** | 🟡 NEXT |
+| **C-bis-4** | the send sequence (`create_dm_space` → `latch` → `echo.send` → clear) + the failure surface | 🟡 |
+| **C-bis-5** | live CDP verify + `OWED-4` measurement **shown to Joe** + records | 🟡 |
 
 🔑 **VISIBLE FIRST** (Joe's standing brief): C-bis-1 puts the page on screen where he can correct it **while
 the milestone is still open**, before any create path exists.

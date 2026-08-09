@@ -1,10 +1,89 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-08  
+> **Last updated:** 2026-08-09  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-706 — Leg C-bis-2 ships and is re-driven: the click opens the draft, and the two rulings that had to be withdrawn were both found by DRIVING them
+
+**Date:** 2026-08-09 · **Seats:** Clair (the commit `96a935f`; a Rule 6 STOP that was right, and two guards nobody had asked for that were required) · Chat (the withdrawn rulings, the independent re-drive, one false alarm of its own) · Joe (the `dm-intro` content amendment; pushed) · **Code: `96a935f` — 5 files, +224/−46, ZERO `.rs`, ZERO `ui/core`.** `tasks/RUNBOOK_MEMBER_ACT_LEG_C_BIS.md` v1.1 → **v1.4** · `tasks/M_RP_MEMBER_ACT_LEG_C_BIS.md` v1.4 → **v1.6** · `ui/docs/xgen-ui-notes.md` v1.14 → **v1.15** (**+N-174 +N-175 +N-176**) · ROADMAP v6.93 → **v6.94**. **No new `D`.**
+
+### 🛑 THE LEG'S REAL CONTENT: A RULE 6 STOP THAT KILLED TWO CHAT RULINGS
+
+The C-bis-2 kickoff carried three Chat rulings. **`R-1` — clear the room latch when a draft opens — and `R-2` — `active` derived off that latch — were both WRONG, and neither fell to any re-reading.** Clair implemented them faithfully, **drove them on the live client**, and reported the contradiction rather than working around it.
+
+🔑 **THE MECHANISM:** `members-panel.svelte:57` is `const scope = $derived(roomLatch.effectiveSpaceId)` — *"the widget's authoritative scope"*. `clear()` nulls it ⇒ **R7 empties to `no-scope`**, which is precisely what gate line 1 forbids (*"the intro paints, R7 still shows the group roster"*). Measured on the click: `scope: null`, `rowCount: 1`, `panelState: "no-scope"`, against `rowCount: 2` / `known` before it.
+
+⚠️ **AND A SECOND CONSEQUENCE NOBODY HAD NAMED, found by Chat re-driving from source:** `app_client.svelte:218` drives the members fill off that same getter as *"the sole tracked dependency"* ⇒ clearing **tears down the fill and forces a fresh node round-trip on every draft open and close.**
+
+🔑 **AND `R-1` WAS NEVER NEEDED.** It defended against a send to the stale room. **That defence already existed and was already locked**: `§5.2` and C-bis-3 put *the draft branch **ABOVE** the composer's early return* ⇒ a draft send **never consults `roomLatch` at all.** ***A duplicated guarantee that cost R7 its scope.***
+
+📌 **SPECIES: *a claim narrower than the thing it describes.*** The ruling asserted *"`clear()` is already a declared writer — no store change"* — true, and irrelevant. **Three widgets read that latch; the ruling reasoned about one, in a leg whose own gate named a second.** Chat re-read the ruling twice while writing the kickoff and found nothing; **one click found it.**
+
+### 🔒 THE RESOLUTION — v1.3 OPTION (D), AND WHAT WAS REFUSED
+
+| # | rule |
+|---|---|
+| 1 | **No `roomLatch.clear()`.** The latch never moves when a draft opens ⇒ R7 keeps `scope`, roster and fill; `§5.1`'s *"scope never moves"* holds **literally** |
+| 2 | **`active` is STORED** (`counterpart != null`), not latch-derived |
+| 3 | **The draft closes on a `room` selection via `dmDraft.note(sel)`** — `app_client.svelte:196-206`, *"ONE effect, TWO latches"*, **now three**; the idiom `spaceLatch.note` used when it joined at M-RP-SELECT-ORIENT C-1. **Fifth file, named as a scope change, not smuggled** |
+| 4 | **R5 feeds `MessageStream` an EMPTY list while a draft is active** — 🛑 **a props change, NEVER a conditional mount**; C-bis-1's unconditional-mount invariant stands and the 164 floor is its proof |
+| 5 | **R6 unchanged** — C-bis-3's, ordering already locked |
+
+📌 **`note()` beat a latch-value comparison on a case that comparison would have missed: re-selecting the room you were ALREADY in.** Driven — the draft closes.
+
+🔓 **REFUSED, AND FILED:** giving R7 a scope that survives a room change via `spaceLatch`. ⚠️ **`roomLatch.effectiveSpaceId` was EXPLICITLY REFUSED as its source** (`space-latch.svelte.ts` header: *the Space you are **browsing*** vs *the Space you are **talking in***), and adopting it reverses **`L1`'s deliberate B1 cost**. **Real value, its own milestone, Joe's to schedule.** Also refused: synthesising a draft roster (invents a fill, `D-065`), and accepting R7's collapse (you click a person and the list they were in vanishes — and it amends a Joe lock).
+
+### 🔒 JOE'S AMENDMENT — THE PAGE SHIPS WITH CONTENT
+
+Joe, 2026-08-09: *"make a placeholder, but with content. i will check it independently afterwards and maybe i do some updates manually or leave it as is."* ⇒ **`dm-intro.svelte` is populated at C-bis-2.** 🔑 **Not a copy decision delegated — the copy was ALREADY DECIDED at J-703; C-bis-2 PLACES a locked string, it does not AUTHOR one.** 🛑 **`skin.css` untouched and still a STOP** ⇒ the page ships **UNSKINNED**, and `§5.5`'s truncation rules land when Joe skins it. ⚠️ **Named so it is not later discovered as a defect: the 128-byte no-space display name WILL overflow horizontally until `overflow-wrap: anywhere` lands.** **A known unskinned state with a named discharger, not a regression.**
+
+📌 **`R-3` STOOD:** `stream-panel` resolves the LABEL and passes it as **DATA**; **`dm-intro` composes the SENTENCE** ⇒ the copy lives in the file that owns it, **Joe edits ONE place**, and `stream-panel` carries no wording at all. One interpolation point, a **TEXT NODE**, no `{@html}` (`§5.8`) — the whole reason the page is a component.
+
+### ✅ THE RE-DRIVE — RULE 5, ON A FRESH CLIENT, NOTHING TAKEN ON REPORT
+
+| gate | Clair | Chat's independent re-drive |
+|---|---|---|
+| R7 keeps the group roster | `known` / `rowCount 2` | **`known` / scope `…7b208` / `rowCount 2` — identical before, during AND after** ✅ |
+| latch byte-identical across the open | `…bda3924a` → `…bda3924a` | **`…bda3924a` → `…bda3924a`** ✅ |
+| stream empty under the intro | `streamCount 0` | **`2 → 0`; `aboveMountCount 0 → 1`** ✅ |
+| `MessageStream` never unmounts | present | **`message-stream#region-stream__stream` present DURING the draft** ✅ |
+| name twice, sentence verbatim | ✅ | **heading `BobLegB`; body 64 chars byte-verbatim; `nameCount 2`** ✅ |
+| no xgid, no controls, avatar inert | ✅ | **`ed25519` absent from the intro's HTML · `controls 0` · `aria-hidden="true"`, empty** ✅ |
+| room click closes the draft | ✅ | **same room re-selected → `aboveMountCount 0`, `streamCount 2`, latch unchanged** ✅ |
+| `cargo` | 1597/0/62 × 56 | **1597/0/62 × 56**, 56 terminators, `FAILED` 0, `error[` 0, panics 0 ✅ |
+| `svelte-check` | 0/34/15 | **0 errors / 34 warnings / 15 files** ✅ |
+| registry quiescent | 164 | **164**, `ids===unique===dom`, twice, after full reloads ✅ |
+| Joe's client state | byte-identical | **2856 B / 2026-08-05 07:12:25 before AND after** ✅ |
+
+🔑 **TWO LEGS DRIVEN THAT NO GATE NAMED, AND BOTH NEEDED IT.** ① **The self-click no-op** — Clair's new guard is the only thing standing between a clickable self row and a self-draft; argued at the ruling, **now driven**. ② **The existing-DM branch at `96a935f`** (`…sno_FWmw` → re-latches `…a297bb57`, no draft, counterpart highlight intact). ⚠️ **It was handed back as *"branch untouched in v1.3"* — but the `N-171` restructure moved the lookup above BOTH branches.** ***A branch you did not run is a branch you did not verify, however small the diff looks.***
+
+### ✅ CLAIR'S TWO UNASKED GUARDS, ACCEPTED
+
+`findDmRoom` collapses **self** and **no-DM** into one `null`, and the draft path is **the first caller that must tell them apart** — without a self guard, a self-click opens a **self-draft** (and self IS in `_roster`; `memberRows` filters it only for RENDER, so the `!m` guard does not catch it). The **empty-rooms** case — a malformed existing DM — stays a **no-op and stays a FINDING**; drafting on it would mint a duplicate the `K3`/gate-4b dedup exists to prevent. **Neither is a widening of `N-171`; both are required by the new behaviour.**
+
+### ⚠️ TWO CORRECTIONS TO THE HAND-BACK, AND ONE FALSE ALARM OF CHAT'S
+
+**① THE REGISTRY DELTA WAS EXPLAINED WRONGLY → `N-174`.** The hand-back reported draft-active as **+2** over room-latched, because *"message rows don't register, only `message-stream` does."* **Re-driven: 175 → 173, MINUS two — and message rows DO register.** Emptying the stream unmounts 2 rows + 2 paragraphs (−4) while `dm-intro` + the empty-state paragraph add 2. ✅ **The invariant being defended is true and was verified BY ID, not by count.** ✅ **And the flag itself was right and was Chat's fault: the gate said *"registry still 164"* while describing a draft-active state. 164 is the QUIESCENT floor.** **A fifth registry axis is now on record: what the stream is painting.**
+
+**② THE `§6` LEG TABLE HAD DRIFTED** — a four-leg split against the runbook's five. Swept at v1.6. *A superseded record that never announced its own supersession.*
+
+**③ 🛑 CHAT BUILT A SEAT-BREACH FINDING ON A ONE-WORD ANSWER, AND IT WAS FALSE → `N-175`.** Asked *"did you push it?"*, Chat received `no` and assembled a formal finding — reflog exhibit, a 17-minute-gap timing argument against the prior push's 3-second commit-and-push signature, the absence of hooks and auto-push config, and a `pre-push` guard recommendation. **Joe had pushed.** 🔑 **`reflog` records a ref MOVING and cannot record an ACTOR** — its identity field is the local `user.name` and is identical for every push from the machine. **The defect was the QUESTION: it asked a human to REMEMBER one action among six that day, instead of quoting the ref, both hashes and the timestamp so he could answer from evidence.** ⚠️ **Second false push-alarm in two sessions** (J-705's was the mirror image — a stale *"Not pushed"*). **Cost of asking properly: one question. Cost of not: a false accusation nearly written into a canonical record about an agent who had done nothing wrong.**
+
+### 📌 OWED FORWARD, EXPLICITLY NOT DISCHARGED HERE
+
+- **The nameless counterpart is UNREACHABLE in Joe's fixture** — the only nameless identity is erased, hidden in group rooms, and already has a DM. **Said so rather than asserted from code**; the `tail8` branch is **fed but undriven**. Carries to **C-bis-5**, same fixture blockade as `OWED-4`.
+- **"Type → navigate → return"** needs the composer↔`dmDraft` wiring ⇒ **C-bis-3**. The text map and the `note()`-preserves-text mechanism are present at store level; the end-to-end cannot be driven yet.
+- **`OWED-1` is discharged IN BEHAVIOUR** — the row no longer presents as actionable while doing nothing — **and formally closes at C-bis-5.**
+- **`setText` / `text` / `clear`** ship unfed with a **named discharger** (C-bis-3 / C-bis-4), the C-bis-1 plumbing-before-tenant precedent.
+- **`tail8` duplication → `N-176`**, filed as promised, deliberately not extracted.
+- **A stale comment shipped in `96a935f`** — `stream-panel`'s `above` comment still cited the withdrawn `R-2`. **Repaired in this records commit; the sentence it quoted was Chat's.** *Kickoff defect ④: a heading that outlives the paragraph beneath it.*
+
+→ J-706 · ROADMAP v6.94.
 
 ---
 

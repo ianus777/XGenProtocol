@@ -171,8 +171,11 @@
     return cp == null ? '' : (addressBook.book[cp]?.display_name ?? tail8(cp));
   });
 
-  // The `above` socket's tenant: `dm-intro` is mounted ONLY while a draft is active (R-2: active =
-  // counterpart set AND no room resolves). The label rides `props.name` as DATA; `dm-intro` composes
+  // The `above` socket's tenant: `dm-intro` is mounted ONLY while a draft is active. ⚠️ v1.3 — `active` is
+  // STORED (`counterpart != null`), NOT latch-derived. The kickoff's R-2 (*active = counterpart set AND no
+  // room resolves*) was WITHDRAWN after it was driven: it forced `roomLatch.clear()` on open, which emptied
+  // R7 (`members-panel.svelte:57` reads `roomLatch.effectiveSpaceId` as its scope). The label rides
+  // `props.name` as DATA; `dm-intro` composes
   // §5.5's sentence from it (R-3 — stream-panel carries NO wording). `mountKey` is a stable const, so a
   // label change re-props the SAME instance rather than remounting it. Unknown ids DROPPED (W-13), so
   // `aboveMountCount` stays the render truth.

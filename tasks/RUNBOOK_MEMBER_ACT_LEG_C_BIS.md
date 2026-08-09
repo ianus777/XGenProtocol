@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-MEMBER-ACT Leg C-bis: the member with no DM opens a draft
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.4  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-09  
 > Language: EN  
@@ -21,6 +21,15 @@ nothing here re-opens it. Five commits, each measured alone.
 🛑 **`ui/client/src/skin.css` AND `dm-intro.svelte` ARE JOE'S FILES.** Clair **mounts** the intro widget and
 **never authors or edits its markup or its skin**, on the `skin.css` precedent. **C-bis-1 lands a structural
 placeholder Joe then replaces.** If a gate appears to require editing either, **STOP AND REPORT** (Rule 6).
+
+> 🔒 **AMENDED FOR THIS LEG ONLY — JOE, 2026-08-09 (v1.2):** *"make a placeholder, but with content. i will
+> check it independently afterwards and maybe i do some updates manually or leave it as is."* ⇒ **C-bis-2 MAY
+> EDIT `dm-intro.svelte` to place CONTENT.** 🔑 **This is not a copy decision being delegated — the copy was
+> ALREADY DECIDED:** §5.5's sentence is Joe's, locked at J-703, verbatim. **C-bis-2 PLACES a locked string; it
+> does not AUTHOR one.** 🛑 **THE AMENDMENT IS NARROW: `ui/client/src/skin.css` IS UNTOUCHED AND STILL A STOP.**
+> The page therefore ships **UNSKINNED** — §5.5's truncation rules (`overflow-wrap: anywhere`, one-line header
+> clamp, the header `min-width`) are **skin, and they land when Joe skins it.** ⚠️ **No new wording, no second
+> sentence, no label, no control** may enter the file under this amendment (§5.7's button census is unchanged).
 
 ⚠️ **ZERO RUST.** `create_dm_space` is already a Tauri command and this leg is its first caller from the
 webview. **`cargo` returning `1597/0/62 × 56` IDENTICAL is this leg's PROOF, not its assumption.**
@@ -118,11 +127,41 @@ registry can arrive as a prop. **Nothing in `layout-default.ts` was needed and n
 
 ---
 
-### C-bis-2 — the `dmDraft` store, and R7's click opens a draft
+### C-bis-2 — the `dmDraft` store, and R7's click opens a draft — ✅ **DONE, `96a935f`, RE-DRIVEN AND PASSED (J-706)**
 
 **Files:** `ui/common/lib/stores/dm-draft.svelte.ts` (NEW) ·
 `ui/common/lib/components/widgets/members-panel.svelte` ·
-`ui/common/lib/components/widgets/stream-panel.svelte`
+`ui/common/lib/components/widgets/stream-panel.svelte` ·
+`ui/common/lib/components/widgets/dm-intro.svelte` (⚠️ **FOURTH FILE, added at v1.2 under §0's Joe amendment**
+— content only; **`skin.css` still a STOP**) ·
+`ui/client/src/app_client.svelte` (⚠️ **FIFTH FILE, added at v1.3** — **ONE line + one import**: `dmDraft.note(sel)`
+joins the existing two-latch effect at `:196-206`)
+
+> ## 🛑 v1.3 — THE C-bis-2 RULINGS ARE SUPERSEDED. DRIVEN AND FALSIFIED AT THE HAND-BACK (2026-08-09).
+>
+> **The kickoff's `R-1` (clear the room latch on opening a draft) and `R-2` (`active` derived off the latch)
+> are WITHDRAWN. Both were Chat's. Clair implemented them faithfully, drove them live, and reported the
+> contradiction under Rule 6 rather than absorbing it.**
+>
+> 🔑 **THE MECHANISM, RE-DRIVEN FROM SOURCE:** `members-panel.svelte:57` —
+> `const scope = $derived(roomLatch.effectiveSpaceId)`, *"the widget's authoritative scope"*. `clear()` nulls
+> it ⇒ **R7 empties to `no-scope`**, which is the exact gate line 1 forbids. ⚠️ **AND A SECOND CONSEQUENCE
+> NOBODY HAD NAMED:** `app_client.svelte:218` drives the members fill off that same getter as *"the sole
+> tracked dependency"* ⇒ clearing **tears down the fill and forces a fresh node round-trip on every draft open
+> and close.**
+>
+> 🔑 **AND `R-1` WAS NEVER NEEDED.** It defended against a send to the stale room. **That defence already
+> existed and was already locked** — §5.2 and C-bis-3: *the draft branch goes **ABOVE** the early return* ⇒ a
+> draft send **never consults `roomLatch` at all**. **A duplicated guarantee that cost R7 its scope.**
+>
+> 📌 **Species: *a claim narrower than the thing it describes.* Three widgets read that latch; the ruling
+> reasoned about one, in a leg whose own gate names a second. Caught from OUTSIDE the text, by driving it —
+> never by re-reading it.**
+>
+> 🔓 **FILED, NOT THIS LEG'S:** giving R7 a scope that survives a room change (`spaceLatch` = *the Space you
+> are **browsing***) — ⚠️ **`roomLatch.effectiveSpaceId` was EXPLICITLY REFUSED as its source**
+> (`space-latch.svelte.ts` header), and adopting it reverses **`L1`'s deliberate B1 cost**. **Real value, its
+> own milestone, Joe's to schedule.**
 ⚠️ **v1.0 LISTED `layout-default.ts` HERE AND OMITTED `stream-panel.svelte`, WHICH IS THE MIRROR IMAGE OF
 C-bis-1's ERROR** — step 3 below plainly edits `stream-panel`. Clair caught both in one read. **Corrected;
 and as §0 now says, THE STEPS GOVERN.**
@@ -135,16 +174,74 @@ and as §0 now says, THE STEPS GOVERN.**
    - **survives navigation with its typed text** (Phase-0 §5.3, Joe). **No persistence** — the client holds
      no user data (J-598, Joe's lock); it dies with the session like every other client state.
 2. **`onMemberActivate`** opens a draft when the member has **no existing DM**; unchanged when one exists.
+   🛑 **v1.3: IT DOES *NOT* CALL `roomLatch.clear()`. THE LATCH NEVER MOVES WHEN A DRAFT OPENS** ⇒ R7 keeps
+   its `scope`, its roster and its fill; §5.1's *"scope never moves"* holds **literally**.
    ⚠️ **`N-171` IS FIXED HERE BECAUSE THIS LEG OPENS THAT FUNCTION** — move the lookup **above** `latch()`.
    🛑 **The locked write ORDER is untouched.**
+   ✅ **TWO GUARDS ARE REQUIRED, NOT A WIDENING** (Clair, accepted at v1.3): `findDmRoom` collapses **self**
+   and **no-DM** into one `null`, and the draft path is the first caller that must tell them apart — without a
+   **self guard** a self-click opens a self-draft. The **empty-rooms** case (a malformed existing DM) stays a
+   **no-op and stays a FINDING**; drafting on it would mint a duplicate.
 3. **R5 mounts `dm-intro` in `above`** when `dmDraft.active`. **R7 keeps the group roster — `scope` never
    moves.**
+   🛑 **v1.3 — AND R5 FEEDS `MessageStream` AN EMPTY LIST WHILE A DRAFT IS ACTIVE.** The latch still points
+   at the room you came from, so without this the intro paints **on top of that room's conversation.**
+   🛑 **A PROPS CHANGE, NEVER A CONDITIONAL MOUNT** — C-bis-1's unconditional-mount invariant stands and the
+   **164 floor is its proof.** 📌 It renders `"No messages yet"` (`message-stream.svelte:267`) — honest, not a
+   false statement; **its appearance is Joe's.**
+3b. 🔒 **v1.3 — `active` IS STORED (`counterpart != null`), NOT DERIVED OFF THE LATCH, AND THE DRAFT CLOSES ON
+   A `room` SELECTION VIA `dmDraft.note(sel)`.** 🔑 **This is the SHIPPED idiom, not a new mechanism:**
+   `app_client.svelte:196-206` is *"ONE effect, TWO latches"* — `spaceLatch.note` joined `roomLatch.note`
+   there at M-RP-SELECT-ORIENT C-1, and `dmDraft.note` makes it three. **Single writer, shell-fed, reads its
+   argument and never `_active`** (`N-136`). ⚠️ **This is the FIFTH file and it is named as a scope change,
+   not smuggled.** 📌 **Any `room` selection closes it — including re-selecting the room you were already in**,
+   which a latch-value comparison would have missed. **The text map survives; §5.3 is unaffected.**
+4. **THE PAGE IS FED, NOT LEFT BLANK (v1.2).** 🔑 **The name is resolved ONCE and passed as DATA; the SENTENCE
+   is composed INSIDE `dm-intro`** — the copy lives in the file that owns it, so Joe edits **one** place and
+   `stream-panel` carries **no wording at all.**
+   - `stream-panel` resolves the counterpart's label **reactively** from `addressBook.book[id]?.display_name`,
+     falling back to `…` + last-8 (`members-panel.svelte:51`'s `tail8` shape). ⚠️ **Reactive, not frozen at
+     click time** — §5.6 case 1 (LIVE-JOINED, `unresolved`) is cleared by the next fill and the header must
+     follow it. ⚠️ **`tail8` now exists in two files — REPORT the duplication, do NOT extract it** (a shared
+     helper is a fifth file and a scope change; Chat files it).
+   - `dm-intro` renders the label as the **heading** and, beneath it, §5.5's sentence **verbatim**:
+     *"This is the start of private direct message stream with {counterpart\_display\_name}."* ⇒ **the name
+     appears TWICE** (§5.5's lock, Discord's shape, marked PROVISIONAL by Joe).
+   - 🛑 **ONE interpolation point, and it stays a TEXT NODE** — §5.8: no `{@html}`, no sanitiser surface, wire
+     data escaped by construction.
+   - 🛑 **NO xgid row** (§5.6-bis). 🛑 **NO control ships whose verb does not exist** (§5.7). The avatar stays
+     the `aria-hidden` structural box — **there is no avatar source to wire and none is invented.**
 
 **GATE C-bis-2**
 - [ ] Click a never-DM'd member on the **live client**: the intro paints, R7 **still shows the group roster**.
+- [ ] **The counterpart's name renders TWICE** — heading + sentence — and the sentence is **byte-verbatim §5.5**.
+- [ ] **A NAMELESS counterpart FED, not asserted**: the page reads `…a1b2c3d4` in both places and the sentence
+      still reads. ⚠️ **If no nameless member is reachable, SAY SO — do not assert it from the code.**
 - [ ] Type → navigate to a room → return: **the typed text is still there.**
-- [ ] 🛑 **`roomLatch` reports NOTHING LATCHED throughout.** If `canSend` is true here, the design is violated.
+- [ ] 🛑 **v1.3 REPLACES v1.2's *"`roomLatch` reports NOTHING LATCHED throughout"* — THAT LINE IS NOW FALSE BY
+      DESIGN.** The latch **stays**, so `canSend` **is true during a draft**, and the send-safety guarantee
+      moves to its real home: **C-bis-3's draft branch ABOVE the early return** (§5.2). **What C-bis-2 asserts
+      instead:** `roomLatch.latchedRoomId` is **BYTE-IDENTICAL before and after** the draft opens, and R7's
+      `scope` / `panelState` / `rowCount` are **UNCHANGED**.
+- [ ] **The stream renders EMPTY under the intro** — `streamCount: 0` — while the latch still points at the
+      room you came from. 🛑 **Registry still 164:** `MessageStream` never unmounted.
+- [ ] **Click a room → the draft closes** (`aboveMountCount: 0`) **and the room's stream returns.**
 - [ ] Floors; **`cargo` IDENTICAL**.
+
+✅ **GATE C-bis-2 CLOSED — CHAT RE-DROVE EVERY LINE ON A FRESH CLIENT (J-706).** R7 `known` / scope `…7b208` /
+`rowCount 2` **identical before, during and after** · latch `…bda3924a` → `…bda3924a` · `streamCount 2→0`,
+`aboveMountCount 0→1` · `message-stream#region-stream__stream` **present DURING the draft** · heading
+`BobLegB`, body **64 chars byte-verbatim §5.5**, `nameCount 2` · `ed25519` **absent** from the intro's HTML,
+`controls 0`, avatar `aria-hidden="true"` and empty · **re-selecting the SAME room closes the draft** · cargo
+**1597/0/62 × 56** · svelte-check **0 errors / 34 warnings / 15 files** · registry quiescent **164** twice ·
+Joe's client state **byte-identical**.
+
+🔑 **TWO LEGS DRIVEN THAT NO GATE NAMED, AND BOTH NEEDED IT:** the **self-click no-op** (Clair's new guard is
+the only thing between a self row and a self-draft — argued at the ruling, now **driven**), and the
+**existing-DM branch at `96a935f`** (`…sno_FWmw` → re-latches `…a297bb57`, no draft, counterpart highlight
+intact). ⚠️ **The second one was reported as *"branch untouched in v1.3"* — but the `N-171` restructure moved
+the lookup above BOTH branches, so it was touched and needed driving.** *A branch you did not run is a branch
+you did not verify, however small the diff looks.*
 
 ---
 

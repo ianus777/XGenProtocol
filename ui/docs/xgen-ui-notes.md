@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.14  
+> Version: 1.15  
 > Date: May 2026  
-> **Last updated**: 2026-08-08  
+> **Last updated**: 2026-08-09  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -3559,3 +3559,58 @@ Two independent axes share the words, and they have not yet met because one of t
 🔑 **EVERY `tier` HIT IN `ui/` IS THE SECOND AXIS. `auth_tier` HAS ZERO HITS IN `ui/`.** The collision is therefore **latent, not live** — which is exactly the moment to fix it, because the first feature that surfaces an auth tier in the client makes *"is this row Tier-2?"* an ambiguous question in review, in kickoffs, and in this notes file.
 
 ⚠️ **`D-134` governs designation collisions.** The rename belongs to whichever side is cheaper to move — **the processor axis is UI-local and has no wire, spec or protocol footprint**, so it is the obvious candidate (*trusted / untrusted*, or *code-rule / user-rule*). **Chat does not rename anything; the call and the words are Joe's.**
+
+---
+
+### N-174 — the client registry breathes with STREAM CONTENT too, and message rows DO register (a fifth axis)
+
+**Date:** 2026-08-09 · HEAD `96a935f` · measured by Chat at the Leg C-bis-2 Rule-5 re-drive (J-706). **CORRECTS a mechanism claim made in the hand-back.**
+
+The known axes were **quiescence** (`N-105`), **store contents** (`N-108`), **selection** (`N-112`) and **named-state count** (`N-115`). Leg C-bis-2 adds a fifth: **what the message stream is rendering.**
+
+The hand-back reported the draft-active count as **+2** over the room-latched count, explaining that *"message rows don't register, only `message-stream` does."* **Both halves are wrong.** Re-driven in one Space (LegBSpace / `general`):
+
+| state | registry |
+|---|---|
+| quiescent, no selection | **164** |
+| Space + room selected, 2 synthetic rows painted | **175** |
+| draft open (stream fed `[]`) | **173** |
+| draft closed, same room re-selected | **175** — exact return |
+
+🔑 **THE DIRECTION IS NEGATIVE, NOT POSITIVE, AND THE REASON IS THAT MESSAGE ROWS REGISTER.** `message#…` and `paragraph#…__body` are both in `ids()` — visible in the id dump even in the no-room state (`message#region-stream__stream__m-__noroom__`). Emptying the stream **unmounts 2 rows and their 2 paragraphs (−4)** while `dm-intro` and the empty-state paragraph **add 2** ⇒ **−2**.
+
+📌 **The invariant the claim was defending is nonetheless TRUE and was verified by id, not by count:** `message-stream#region-stream__stream` is **present during the draft** — the unconditional mount holds, which is what C-bis-1 bought and what the props-not-`{#if}` rule protects.
+
+⚠️ **AND THE GATE WORDING WAS CHAT'S, NARROWER THAN THE THING IT DESCRIBED.** The runbook said *"registry still 164"* while describing a **draft-active** state. **164 is the QUIESCENT floor and nothing else.** ⇒ **RULE, restated because five axes now exist: a registry number is unreadable unless it states quiescence, store state, selection, saved-state count AND what the stream is painting — and a room-selected count is comparable ONLY against itself, same Space, same content, before and after.**
+
+*A number that disagrees with the record is a hypothesis (`N-105`) — and so is the EXPLANATION offered for it. This one was tested and failed; the invariant behind it survived.*
+
+---
+
+### N-175 — push attribution has NO local artifact: `reflog` records a ref moving, never an actor
+
+**Date:** 2026-08-09 · HEAD `96a935f` · **the second false push-alarm in two sessions, both Chat's, both resolved identically** (J-705, J-706).
+
+`.git/logs/refs/remotes/origin/main` records `<old> <new> <identity> <epoch> update by push`. ⚠️ **The identity is `user.name`/`user.email` from the LOCAL CONFIG — it is the same string for every push from this machine regardless of who or what invoked the command.** It identifies the repo, not the actor.
+
+At J-706 Chat asked *"did you push it?"*, received a one-word `no`, and built a **formal seat-breach finding** on it — reflog exhibit, timing argument (a 17-minute gap versus the 3-second commit-and-push signature of the prior push), absence of `post-commit` hooks and auto-push config, and a recommendation about a `pre-push` guard. **Joe had pushed. The `no` was a recall answer to a badly-formed question.**
+
+🔑 **THE DEFECT IS IN THE QUESTION, NOT IN THE ANSWER.** *"Did you push it?"* asks a human to **remember** one action among six that day. The checkable form names the artifact:
+
+> *"`origin/main` moved `c86bd9b → 96a935f` at **15:34:34**, 17 minutes after the commit. Was that you?"*
+
+⇒ **RULE: push attribution is settled by ASKING, never inferred from timing — and the question must quote the ref, both hashes and the timestamp, so the person answers from evidence instead of memory.** This is `D-121`'s logic one level down: *state the thing in the terms the person can actually verify.*
+
+⚠️ **Twice now the inference chain was internally consistent and never checked against the thing it claimed about** (`N-118`'s reasoning · J-521's architecture · `N-124`'s justification · `N-116`'s record — and now an **accusation**). **Cost of asking properly: one question. Cost of not: a false seat breach nearly written into a canonical record about an agent who did nothing wrong.**
+
+---
+
+### N-176 — `tail8` is duplicated in two widgets, deliberately not extracted
+
+**Date:** 2026-08-09 · HEAD `96a935f` · reported by Clair under Rule 6 at Leg C-bis-2, **filed by Chat as promised. FILED, NOT FIXED.**
+
+`const tail8 = (xgid) => (xgid ? '…' + xgid.slice(-8) : '')` now exists at **`members-panel.svelte:51`** and in **`stream-panel.svelte`** (the draft label, `§5.6-bis`). Identical bodies, two files.
+
+📌 **THE DUPLICATION WAS THE CORRECT CALL FOR THE LEG.** A shared helper is a **new file** and therefore a scope change on a leg that was already carrying an amendment; the `J-508` copied-not-shared precedent applies (`shelf` copied roving rather than extracting it, and `D-069`'s bar is **three** independent implementations, not two).
+
+⚠️ **WHAT MAKES IT WORTH A NOTE RATHER THAN A SHRUG:** the `members-panel` comment says the ellipsis *"is part of the STRING, not the skin: only this widget knows the name is a fallback"* — **and that sentence is now false, because a second widget knows it too.** ⇒ **When a third caller appears, extract; and whichever milestone extracts it owes the comment a rewrite in the same edit.** ⚠️ `J-618` separately records that the R7 fallback **is not actually a tail-8 in the painted result** — that finding is about `entity-panel`'s clipping, sits on a different surface, and is **not** discharged by this note.

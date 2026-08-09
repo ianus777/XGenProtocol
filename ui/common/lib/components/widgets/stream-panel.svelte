@@ -22,7 +22,8 @@
   // widget-composed as system rows (C-5 amended).
   import { envelope } from '$common/components/base/envelope';
   import MessageStream from '$core/components/data-dependent/message-stream.svelte';
-  import type { MessageDescriptor } from '$core/components/data-dependent/types';
+  import { resolveMounts } from '$core/components/data-dependent/mounts';
+  import type { MessageDescriptor, WidgetMount } from '$core/components/data-dependent/types';
   import { ingest, type IngestEvent } from '$common/stores/ingest.svelte';
   import { selfState } from '$common/stores/self-state.svelte';
   import { gaps } from '$common/stores/gaps.svelte';
@@ -30,6 +31,8 @@
   import { roomLatch } from '$common/stores/room-latch.svelte';
   import { echo, type EchoMessage } from '$common/stores/echo-state.svelte';
   import SendStatus from './send-status.svelte';
+  // The DM draft "start of conversation" page — a socket tenant (below), Joe's file (skin.css precedent).
+  import DmIntro from './dm-intro.svelte';
   // The pure R5 projection (the allowlist + the wire-field finding) — colocated + unit-tested (the
   // stream/grouping.ts precedent), so the map is verified in vitest, not only live (§5).
   import { wireType, projectEvent } from './stream/derive';
@@ -137,6 +140,23 @@
   // future tenant is additive here and a retired one degrades to nothing rather than crashing the row.
   const widgets = { 'send-status': SendStatus };
 
+  // ── The `above` socket (Leg C-bis-1) ─────────────────────────────────────────────────────────────────
+  // A fixed-size layer rendered ABOVE the stream, inside the same flex column (§2 of the runbook). J-704
+  // measured that the stream FILLS its tile (18px of content in 544px) and will not collapse, so a NAIVE
+  // sibling above it would OVERFLOW rather than share — the flex column is what makes them share.
+  //
+  // STORE-MEDIATED, NOT PROP-FED (N-096): a region widget receives only `regionId`/`id`, so there is no
+  // prop channel — Leg C-bis-2 wires `above` to the `dmDraft` store. C-bis-1 lands it EMPTY on purpose:
+  // this is the plumbing, not the tenant, so nothing mounts and the registry floor is unmoved. The
+  // registry is LOCAL (the `widgets`/send-status shape one block up), because a socket registry cannot
+  // arrive as a prop either. `dm-intro` is Joe's file — a structural placeholder here.
+  // ⚠️ Reactivity (D-119 paid for it once): `resolveMounts` re-derives on the `aboveWidgets` REFERENCE, so
+  // it is a stable const, never mutated in place. Unknown ids are DROPPED (W-13), so `aboveMountCount` is
+  // the render truth (a drop-unknown proof), exactly like `backgroundMountCount`.
+  const aboveWidgets = { 'dm-intro': DmIntro };
+  const above: WidgetMount[] = []; // Leg C-bis-2 replaces this with a `$derived` off `dmDraft`.
+  const resolvedAbove = $derived(resolveMounts(above, aboveWidgets, cid('a-')));
+
   // The head marker anchors at (or before) the first message so it sits first and puts no spurious divider
   // between itself and the first message (a session crossing midnight still puts a truthful divider, §3.4).
   function headTimestamp(): string {
@@ -190,6 +210,9 @@
     streamCount: messages.length,
     episodeCount: statusArr.length,
     dropped: ingest.dropped,
+    // The `above` socket render truth (Leg C-bis-1): 0 while the socket has no tenant, and a dropped
+    // unknown id lowers it — so it is the drop-unknown proof, not merely a declared count.
+    aboveMountCount: resolvedAbove.length,
     emptyState: effectiveRoomId == null ? 'no-room' : projected.length === 0 ? 'no-messages' : null,
   });
 </script>
@@ -198,7 +221,19 @@
   is ALWAYS mounted (no conditional mount → no registry churn); every empty state is a composed `system` row,
   so `core`'s own "No messages yet" is never reached. `onSelect` is deliberately NOT wired to the bus (§3.3). -->
 <div class="stream-panel" data-tier="widget" use:envelope={{ name: 'stream-panel', id, debug }}>
-  <MessageStream messages={messages} status={statusArr} {widgets} id={cid('stream')} />
+  <!-- The `above` socket (Leg C-bis-1): fixed-size (`flex:0 0 auto`), rendered BEFORE the stream. Empty in
+    C-bis-1 (0 height); C-bis-2 mounts `dm-intro` here when a draft is active. Unknown ids DROPPED (W-13). -->
+  <div class="stream-above">
+    {#each resolvedAbove as a (a.key)}
+      {@const W = a.component}
+      <W id={a.id} {...a.props} />
+    {/each}
+  </div>
+  <!-- The stream fills the rest (`flex:1 1 0; min-height:0`) and is ALWAYS mounted (§198: no conditional
+    mount → no registry churn; the registry floor is the proof). -->
+  <div class="stream-body">
+    <MessageStream messages={messages} status={statusArr} {widgets} id={cid('stream')} />
+  </div>
 </div>
 
 <style>
@@ -207,9 +242,23 @@
      carries a minimal structural <style> (N-094: a per-component structural block is permitted; the question
      is "could a skinner retune this?" — a fill contract is not a look). `height:100%` resolves against the
      flex `.region-tile-body`; `min-height:0` rides every level so the scrollbar stays inside the leaf, never
-     migrating to the document (the J-499 D5 failure mode). No skin.css rule was added. */
+     migrating to the document (the J-499 D5 failure mode). No skin.css rule was added.
+     Leg C-bis-1 makes the panel a FLEX COLUMN so the `above` socket and the stream SHARE the tile rather
+     than the socket stealing height (J-704: a naive sibling above a fill-its-tile stream overflows). This
+     is still the fill contract, not a look — the socket's fixed sizing and the stream's flex-grow are
+     structural (N-094); the socket's CONTENT (dm-intro) is skinned in skin.css, which is Joe's. */
   .stream-panel {
     height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  /* The socket takes exactly the space its tenant needs (0 when empty); the stream fills the rest. */
+  .stream-above {
+    flex: 0 0 auto;
+  }
+  .stream-body {
+    flex: 1 1 0;
     min-height: 0;
   }
 </style>

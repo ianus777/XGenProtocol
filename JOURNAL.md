@@ -8,6 +8,79 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-703 — Leg C-bis gets its Phase-0: the draft is a render state, the page is a component, the truncation is the web's own, and three of the sketch's four controls have nothing behind them
+
+**Date:** 2026-08-08 · **Seats:** Joe (eight locks, two delegations, one sample layout, and the question that killed a claim Chat had repeated twice) · Chat (grounding, the Phase-0, one self-caught defect) · **Code: NONE.** `tasks/M_RP_MEMBER_ACT_LEG_C_BIS.md` v1.1 → **v1.3** (§5–§7 new, §4→§8) · ROADMAP v6.90 → **v6.91**. **No new `D`, no new `N`.**
+
+### 🔒 WHAT JOE LOCKED
+
+① **the draft is a RENDER state, not a LATCH state** — a sibling store; `roomLatch` stays honest · ② **the draft survives navigation**, keyed by counterpart, with its typed text · ③ **a failed create leaves the draft open** and surfaces the failure · ④ **the sentence**, verbatim: *"This is the start of private direct message stream with {counterpart\_display\_name}."* · ⑤ **the name appears twice**, heading + sentence, **provisional** (*"we will see"*) · ⑥ **the doubled `…` is accepted for now** — *"it looks like it is trimmed from both sides (for information)"* · ⑦ **truncation is the web's default, NOT an ellipsis** — *"all block text will be word-wrapped, except headers, that will not be and line will be cut off (letters will be not cut). not programmed, just css behaviour"* · ⑧ **the canvas text is non-binding, just informative.**
+
+🔑 **AND ④'s WORD *stream* IS LOAD-BEARING, NOT A PARAPHRASE OF DISCORD'S *history*.** J-598 ③ measured that **the client has no message history at all** — `ingest` is in-memory, capped at `INGEST_CAP = 500`, with a `dropped` counter; every start is a cold start. ***"history" would have been a false statement about the product, printed on first contact.*** Joe reached the accurate word by ear, before the measurement was cited.
+
+📌 **⑥ MOVES NO CODE, AND ⑦ THEN MAKES IT MOOT ON THIS PAGE.** `rec?.display_name ?? tail8(…)` is **mutually exclusive**, and with no CSS ellipsis anywhere on the canvas the two marks cannot stack at all. **The disposition bites in R7's tight rows, where it is already the shipped behaviour.** Recorded on `N-168` with a named revisit condition; discharger unchanged.
+
+### 🔑 ⑦ IS ACHIEVABLE IN PURE CSS — BUT `white-space: nowrap` IS NOT THE MECHANISM AND CANNOT BE
+
+`nowrap` + `overflow:hidden` clips at a **PIXEL** boundary and will happily paint half a glyph — exactly the *"letters cut"* Joe ruled out. **Letting the header WRAP NORMALLY and clamping it to one line** (`overflow-wrap: anywhere` · `max-height: 1lh` · `overflow: hidden`) makes the clip land **between lines, not between letters** ⇒ the rule holds **by construction**, with zero JS, zero `text-overflow`, zero `line-clamp` (which would force an ellipsis back in). ✅ `overflow-wrap: anywhere` already has **3 precedents in the skin** (`1107`, `2070`, `2099`); `1lh` is a 2023-era unit, fine on WebView2 but **not measured on Joe's runtime** — the `em` form is equivalent.
+
+⚠️ **AND `overflow-wrap: anywhere` IS REQUIRED, NOT DECORATION:** validation rejects only **empty**, **>128 bytes** and **control characters** (`registration.rs:515-519`) — **there is no whitespace requirement** ⇒ **a 128-byte single word is a VALID display name** and will not wrap. 📌 `MAX_DISPLAY_NAME_LEN` counts **BYTES**, so ~128 ASCII but ~64 Slovak-diacritic and ~42 CJK glyphs. ⚠️ **The cost, recorded with open eyes:** a word-boundary cut **drops a whole word silently** — `Darina Fulopova` renders as `Darina`, which reads as a complete first name rather than a truncation.
+
+### 🔑 ⑧ DISSOLVED THAT COST — AND THE GREP SHOWED IT GENERALISES FURTHER THAN THE RULING CLAIMED
+
+Joe: *"such a canvas text will be non-binding, just informative."* ⇒ the page is **ORIENTATION, NOT ATTESTATION**. **Measured across every `.svelte` in `ui/`: the FULL XGID of another identity is rendered NOWHERE.** `self-panel.svelte:38-42` renders a real full XGID — **only your own**; everything about someone else is `display_name ?? tail8()` (`members-panel:117`) or **two initials** (`entity-avatar:97`, `xgid.slice(-2)`). ⇒ ***Chat had been holding this page to a standard NO SURFACE IN THE PRODUCT MEETS,*** and the truncation objection was never load-bearing. **Joe's call stands on a better reason than the one being argued about.**
+
+**✅ TWO CALLS JOE THEN DELEGATED** (*"it doesn't need to, if is better for its purpose and you think so"*), **taken by Chat and marked cheaply overturnable** — `D-123` is about who **decides**, and these were handed over **explicitly rather than by default**: ① **NO XGID ROW.** 🛑 **`D-065`: it would fake backing** — a 44-char key with **no fingerprint, no known-good, no trust store** invites a check the product cannot perform, so **showing it without the means to verify it is worse than showing neither.** 📌 Discord's second line is a **handle** and **XGen has none** ⇒ the row has nothing to hold; dropping it is the honest match, not a subtraction. · ② **THE NAMELESS SENTENCE IS IDENTICAL**, `…a1b2c3d4` substituted, **no branch** — a special wording would have the page assert something **about them**, a judgment an orientation surface should not make.
+
+🔓 **FILED, NOT DESIGNED, NO NAME MINTED: THE FIRST-CONTACT VERIFICATION GAP.** **There is no surface anywhere in the client that lets a person confirm WHO THEY ARE ABOUT TO DM** — no full XGID, no fingerprint, no comparison target. **In a no-anonymity protocol that is a real gap**, and the no-xgid-row call makes it *more* visible rather than papering it. Recorded against `M-RP-INTRO` / `M-INTRO-POLICY`, both **FILED, NOT SCHEDULED**, only because **this pass is what surfaced it.**
+
+### 🔑 THE PAGE IS A COMPONENT, AND THE TOKEN IS WHAT DECIDED IT
+
+Joe asked for *"just html processor. later elements"*, with a pseudo-script sample: `{avatar} {button-*} <p>…{counterpart_display_name}.</p> {mutual-friends}`.
+
+🛑 **Kind-4 (`string → safeHTML`) DOES NOT EXIST** — grepped: `use:render` has zero implementations, `sanitize|safeHTML` returns nothing outside `node_modules`, `processor/` holds only the **edit-side** kinds 1/2/3. Building it here would ship `M-RP-PROCESSOR-RENDER`'s engine **with none of its threat model**, and `M-RP-INTRO` — the milestone that renders **a stranger's authored card** — would inherit it looking pre-approved. **That milestone is fifth in Joe's own J-564 sequence and carries his note that it must not be scoped in a single sitting.**
+
+🔑 **BUT THE DECIDING FACT WAS THE TOKEN ITSELF: `{counterpart_display_name}` IS WIRE DATA** — authored by a person you have never met, up to **128 characters** (`MAX_DISPLAY_NAME_LEN`), rendered **twice**, on the first screen you ever see of them. **Interpolating it into an `{@html}` string is an injection point at the highest-value spot in the product.** A component makes it a **text node**, escaped by construction, for free — and Joe still gets HTML he writes, in a file that is **his** on the `skin.css` precedent, with *"later elements"* purely additive.
+
+📌 `{@html}` ships in exactly ONE place today — `icon.svelte:25`, *shape geometry only, XSS-free by construction* (`N-032`) — and that precedent covers a **compile-time constant**, which a display name is not.
+
+### 🛑 THE BUTTON CENSUS — THREE OF FOUR CONTROLS HAVE NOTHING BEHIND THEM
+
+| token | measured | verdict |
+|---|---|---|
+| `{button-remove-friend}` | **`friend` = ZERO hits**; the one match is `conn.rs:13` *"log-friendly"* | no friend model exists |
+| `{button-block}` | **240 `block` hits, every one DAG/async plumbing** | no verb, no blocklist, no wire event |
+| `{mutual-friends}` | **18 `mutual` hits, all concurrency prose**; and `KnownSpace` carries **no member list** | not even client-derivable |
+| `{button-wave}` | a wave is a **message**; the composer's send path already does it | real, but **not this leg** |
+
+🔑 **SHIPPING THEM GREYED WOULD REPLACE ONE DEAD CONTROL WITH THREE — IN THE MILESTONE WHOSE PURPOSE IS TO DELETE ONE.** `D-113`'s correction governs: a control is disabled only for a reason **true of that subject and legible to the user**, and *"we never built blocking"* is not that reason. 📌 **And the set is answering a question XGen does not have:** Remove Friend / Block / Mutual Servers are *"who is this stranger and how do I get rid of them"* — the **anonymous** network's problem. → **FILED, NOT BUILT: `M-RP-BLOCK`.**
+
+### 🔑 JOE'S QUESTION FOUND A REAL STATE, AND THE PROTOCOL BACKS IT
+
+He asked whether an identity can lack a display name. **It can, deliberately, and there is a test named for it:** `IdentityRecord.display_name` is **`Option<String>`** (`registry.rs:34`); validation sits **inside `if let Some(name)`** so absent is accepted, while **empty string is REJECTED** (`DisplayNameInvalid`, 3009) along with >128 and control characters (`registration.rs:514-520`); `no_display_name_accepted` asserts `record.display_name.is_none()` (`:1023`), beside `empty_display_name_rejected` (`:1005`).
+
+🔑 **THE PROTOCOL DRAWS A TWO-STATE THE UI MUST RESPECT: *no name* IS LEGAL, *empty name* IS NOT.** A blank label can never arrive ⇒ **`tail8` is sufficient and nothing more elaborate is needed.**
+
+**Two live nameless cases reach the page, and — answering Joe's own hypothesis — NEITHER IS A CONNECTION OUTAGE:** ① **live-joined** (`MemberEntry.unresolved`, stamped by `addMember` when the roster gained a member through a membership delta and the book was never consulted — transient, cleared by the next fill) · ② **never-named** (permanent). 📌 **Outage is not one:** roster and book arrive together from one fill ⇒ no connection, no roster, **you cannot click a member you cannot see.** 📌 **Erased is not one either:** `members-panel.svelte:148` hides erased members unless they are the DM counterpart, and **a draft has no DM** ⇒ the erased row is never a draft target.
+
+### 🛑 CHAT'S DEFECT, AND IT IS THE KICKOFF'S OWN ①
+
+Chat asserted — **twice, in two consecutive messages, and then reasoned on top of it** — that the unresolved-name fallback discards the identifying bytes, citing J-618's *"`tail()` returns the whole `ed25519:<~44>` segment and `skin.css:2452-2458` clips it LEFT-anchored."*
+
+**RE-MEASURED AT `24c3409`, IT IS FALSE AGAINST THE BUILD:** **`tail()` does not exist in `ui/`** — the only helper is `tail8` (`members-panel.svelte:51`) = `` `…${xgid.slice(-8)}` ``; and **nothing is left-anchored** — `.ei-name` (`ui/assets/skin.css:2474-2481`) is stock `overflow:hidden` + `text-overflow: ellipsis` + `white-space: nowrap`, **trailing**, with **zero `direction: rtl` and zero `unicode-bidi` in the entire file**. The cited lines do not hold that rule. ⇒ **the build does what Joe locked at J-588 (`D-142`): the last 8 bytes — the distinguishing ones — survive.**
+
+🔑 ***The grep that killed it was run only because Joe asked a question that required it.*** The kickoff's ① says a seat's own re-reads catch almost nothing and that every real finding comes from Clair, the live client, Joe using the app, or a grep not yet run — **demonstrated inside the session that quotes it.** 📌 **OWED and carried in §7: read J-618 and annotate at the site (`D-131`)**, most likely a gap the M-RP-MEMBERS / M-RP-MEMBER-ACT rewrite closed while the entry stood still.
+
+### 📌 THE LEGS, AND WHAT IS STILL OPEN
+
+**C-bis-1** store + R5 renders the page (**visible first** — Joe corrects it while the milestone is open) · **C-bis-2** R6 gates on `canSend || dmDraft.active`, the composer branch above its early return, **`N-171` fixed here because this leg opens `onMemberActivate`** · **C-bis-3** the send sequence + the failure surface · **C-bis-4** live verify, the `OWED-4` measurement **shown to Joe**, records.
+
+🔑 **THE SEND SEAM WAS MEASURED, NOT DESIGNED:** `composer-panel.svelte:65-76` **returns early on `roomId == null`**, *"because a disabled button is a courtesy, never a guarantee"* ⇒ **a draft cannot ride the shipped path by faking a latch**; it needs its own branch. ⚠️ **And `draft` is already the composer's local text variable** — the store must not take that name.
+
+🔓 **NOTHING IS LEFT OPEN FOR JOE ON THIS DESIGN** — the last two questions were delegated and taken above. **ZERO RUST** — `cargo` must come back **1597/0/62 × 56 IDENTICAL**, which is this leg's proof rather than its assumption. **The runbook is the remaining deliverable.** → J-703 · ROADMAP v6.91.
+
+---
+
 ## Entry J-702 — `J-692` is ruled: the click opens a draft DM. The record catches up, and a pushed commit subject is annotated rather than pretended away
 
 **Date:** 2026-08-08 · **Seats:** Joe (the ruling) · Chat (recording it, re-grounding the leg, two citation corrections) · **Code: NONE.** `tasks/M_RP_MEMBER_ACT_LEG_C_BIS.md` v1.0 → **v1.1** · ROADMAP v6.89 → **v6.90**. **No new `D`, no new `N`.**

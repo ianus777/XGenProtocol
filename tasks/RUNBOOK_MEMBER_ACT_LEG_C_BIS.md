@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-MEMBER-ACT Leg C-bis: the member with no DM opens a draft
 > **Status**: ACTIVE  
-> Version: 1.8  
+> Version: 1.9  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-10  
 > Language: EN  
@@ -477,6 +477,36 @@ during a draft the stream **is** about that person. 🛑 **`selectOnActivate={fa
 remains DERIVED, never a click write.
 
 **Files:** `members-panel.svelte`.
+
+> ✅ **FILE LIST AUDITED AGAINST THE SOURCE BEFORE IT BECAME AN INSTRUCTION — CHAT, J-712.** ⚠️ **C-bis-6''s
+> locked list was wrong and Chat''s kickoff repeated the error, so this one was checked rather than trusted.**
+> **It holds, and here is why, so the next reader does not re-derive it:** `spacesState` is **already imported**
+> by `members-panel`, so re-sourcing `counterpart` from the Space record adds no dependency · `dmDraft.counterpart`
+> exists (`dm-draft.svelte.ts:76`), so the draft highlight is ONE expression plus an import · and the one thing
+> that could have forced a second file does not: 🔑 **`_book` is written WHOLESALE from `get_address_book`
+> (`address-book.svelte.ts:148`), which returns the BARE GLOBAL `identity_id → SeenRecord` map — it is NOT
+> Space-scoped.** ⇒ **a counterpart absent from the roster can still resolve a `display_name`.**
+
+🛑 **THREE THINGS THE IMPLEMENTER MUST NOT GET WRONG, ADDED AT J-712.**
+
+**① `memberCount` WILL STAY `1` WHILE `rowCount` BECOMES `2`, AND THAT IS CORRECT.** `memberCount` reports the
+FILL — what the node actually returned — and the fill genuinely holds one member. The second row comes from the
+**Space record**, not the fill. ⚠️ **Named here so it is not later reported as a defect and "fixed" by inflating
+`memberCount`**, which would make a frontend count masquerade as a wire count. **The debug state must report both
+honestly; a disagreement between them is the TRUTH, not a bug.** *(Same move as C-bis-6''s "R2 becomes a one-row
+`dm` column" — name the visible difference before someone files it.)*
+
+**② THE SYNTHESISED COUNTERPART ROW MUST NEVER BE STAMPED `unresolved`.** That marker means *"reached the roster
+via a LIVE membership delta"* (`M-RP-LIVEFEED-REFRESH` Leg A) and is **never present on a row that came off the
+wire** by any other route. 🛑 **Reusing it would make a frontend fabrication indistinguishable from a wire fact** —
+the precise `D-065` line this leg is otherwise honouring. If the row needs a marker, it needs a NEW one, and that
+is a finding to report under Rule 6, not a field to borrow.
+
+**③ RE-SOURCING `counterpart` SILENTLY RE-AIMS THE FILTER AT `:150`.** `memberRows` keeps a member that would
+otherwise be hidden **iff `m.identity_id === counterpart`** (§5a E2, J-648), and `:144` states outright that
+`counterpart` being `undefined` outside a DM **IS** the DM exception. In a group room the Space record''s
+`counterpart` is `null` ⇒ still `undefined` ⇒ behaviour unchanged. **That is the expected answer and it must be
+DRIVEN, not asserted** — a group room with a not-found member is the case that proves it.
 
 **GATE C-bis-7** — in a DM: **self + counterpart**, driven on the `LegF-N5` DM **whose counterpart never
 joined** (the case the roster cannot supply) · in a group room: unchanged roster · **in a draft: the roster is

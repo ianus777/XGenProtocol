@@ -1,8 +1,8 @@
 # M-RP-MEMBER-ACT Leg C-bis — the member with no DM: creation, the first send, and the erased identity
 > **Status**: ACTIVE  
-> Version: 1.8  
+> Version: 1.9  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-09  
+> **Last updated**: 2026-08-10  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -484,13 +484,22 @@ they authored**. That is `M-RP-INTRO`, filed and undesigned, **and it must not a
 > 🛑 **THE FILTER STAYS RENDER-ONLY REGARDLESS** (`F-D`: `resolveLatched` and `canSend` both read
 > `spacesState.spaces`; a store-side filter makes every DM **unsendable**).
 
-> 🔓 **THE `E → D` GATE IS SUSPECT AND CHAT OWES A RE-EXAMINATION (2026-08-09).** §6 of the Phase-0 gates
-> **Leg E (DM home + the filter) on Leg D (the RMC context menu)**. ⚠️ **D has no design and no runbook, and
-> Joe's own question exposes why:** what would honestly go in a member's context menu today? **`Message`
-> duplicates left-click; `Inspect` is what LMC already does; Remove Friend / Block / Mutual Friends were
-> sketched and explicitly DO NOT SHIP** (§5.7 — no control ships whose verb does not exist). ⇒ **there is no
-> honest menu to build yet, so E is waiting on a leg that cannot start.** **Chat re-examines and puts the
-> finding to Joe rather than re-ordering a leg table Joe locked.**
+> 🔒 **THE `E → D` GATE IS RULED AND RE-POINTED — JOE, 2026-08-10 (J-710), OPTION C.** ⚠️ **This block read
+> *"SUSPECT, and Chat owes a re-examination"* at v1.8; the re-examination ran and Joe ruled. The finding stood:**
+> §6 of the Phase-0 gated **Leg E (the DM home + the R1 filter) on Leg D (the RMC context menu)**, and **Leg D
+> has nothing honest to build** — **`Message` duplicates left-click**, which C-bis-2 shipped · **`Inspect` is
+> what LMC already does** · **Remove Friend / Block / Mutual Friends explicitly DO NOT SHIP** (§5.7's census:
+> `friend` zero hits, all 240 `block` hits DAG or async plumbing, `KnownSpace` carries no member list).
+> 🔑 **And Joe had ALREADY ruled Leg E's content at J-709** (OQ3 = yes, DM Spaces leave R1) ⇒ *the thing he
+> asked for was waiting behind a leg that cannot start.*
+>
+> 🔒 **THE RULING: `E → C-bis-6`, and Leg D is ⏸️ POSTPONED with a CHECKABLE trigger.** E's real prerequisite
+> was already in flight — **C-bis-6 builds `F-D`'s render-only DM filter in `spaces-panel`'s `$derived`**, which
+> this runbook already calls *"`A3`'s render-only filter in miniature"*. Leg D's trigger is **a member-scoped
+> verb that left-click does not already perform — §5.7's census returns non-zero** (`N-182`: a trigger, not a
+> wish); nearest candidate **`M-RP-BLOCK`**, which gained its first ROADMAP node at J-710.
+> ⚠️ **A RE-POINT, NOT A RE-ORDER** — no leg changed position. **The full ruling lives in
+> `tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.12 §6, which owns the leg table; this is the pointer.***
 
 🔑 **VISIBLE FIRST** (Joe's standing brief): C-bis-1 puts the page on screen where he can correct it **while
 the milestone is still open**, before any create path exists.

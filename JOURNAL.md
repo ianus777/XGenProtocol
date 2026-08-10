@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-09  
+> **Last updated:** 2026-08-10  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -8,6 +8,59 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-710 — the E to D gate is ruled and re-pointed, and the trigger it gained had no node to point at
+
+**Date:** 2026-08-10 · **Seats:** Joe (the ruling) · Chat (the finding, the grounding, the records). **NO CODE.** Phase-0 → **v1.12** · Leg C-bis task doc → **v1.9** · ROADMAP → **v6.97 → v6.98**. **No new `D`, no new `N`.**
+
+### 🔒 WHAT JOE RULED
+
+**Option C: `E → C-bis-6`, and Leg D is ⏸️ POSTPONED with a checkable trigger.** Presented with three options under `D-121`'s two lenses; Joe took Chat's recommendation.
+
+### 🔑 THE FINDING — THE GATE WAS NOT WRONG TO EXIST, IT WAS AIMED AT THE WRONG LEG
+
+`tasks/M_RP_MEMBER_ACT_PHASE0.md` §6 gated **Leg E** (the DM home + the R1 filter) on **Leg D** (the RMC context menu). 🛑 **Leg D has nothing honest to build**, grounded against §5.7's own button census rather than recalled:
+
+| sketched item | what the grep says |
+|---|---|
+| `Message` | **duplicates left-click**, which C-bis-2 shipped |
+| `Inspect` | **is what LMC already does** |
+| Remove Friend | `friend` returns **ZERO** hits; the one match is `conn.rs:13`, the word *log-friendly* |
+| Block | **240** `block` hits, **every one** DAG or async plumbing — no verb, no blocklist, no wire event |
+| Mutual Friends | `KnownSpace` carries **no member list** ⇒ **not even client-derivable** |
+
+⇒ **a menu of duplicates plus three controls whose verbs do not exist** — the dead chrome `D-113`'s correction and J-500 both refuse.
+
+🔑 **AND JOE HAD ALREADY RULED LEG E'S CONTENT ONE SESSION EARLIER** — J-709's `OQ3` = yes, DM Spaces leave R1. ***The thing he asked for was waiting behind a leg that cannot start.***
+
+### 🔒 E'S REAL PREREQUISITE WAS ALREADY IN FLIGHT AND NOBODY HAD NOTICED
+
+**C-bis-6 builds `F-D`'s render-only DM filter in `spaces-panel`'s `$derived`** — the C-bis runbook says so in its own words, *"this is `A3`'s render-only filter in miniature; building it here proves the seam."* ⇒ **`E → C-bis-6` is a REAL dependency where `E → D` was a POSITIONAL one.** 📌 *A gate that names a neighbour rather than a prerequisite reads identically until someone asks what the prerequisite actually builds.*
+
+### 🔑 THE SECOND FINDING, AND IT CAME OUT OF WRITING THE FIRST ONE DOWN
+
+Leg D's new trigger names **`M-RP-BLOCK`** as its nearest candidate. ⚠️ **`M-RP-BLOCK` was filed at J-703 and had NO ROADMAP node — zero hits in `docs/ROADMAP.md`.** A trigger pointing at a milestone the navigation map does not carry is a **dangling pointer**, and it would have been written *into a canonical record as if it resolved*.
+
+🔑 **SAME SPECIES AS THE STARTUP NODE, ONE COMMIT APART:** `M-RP-STARTUP` was filed at J-709 and its ROADMAP node deliberately deferred; it landed this session at `19ed840`. **`M-RP-BLOCK` was filed at J-703 and nobody deferred it — it was simply never written.** ⇒ **RULE, cheap and mechanical: a milestone named in a TRIGGER must have a ROADMAP node, and the commit that mints the trigger is the commit that owes the node.** *`N-182` says a filed gap needs a trigger rather than a wish; this is its other half — a trigger needs a destination that exists.*
+
+### 📌 WHAT WAS REJECTED, AND WHY IT IS RECORDED
+
+**Leave the table alone** — Joe's own `OQ3` ruling never ships and the debt compounds. **Drop `D` outright** — a leg disappears with no record of why, which is the countdown discipline failing at leg scale (*a countdown names WHO discharges it, never WHEN*).
+
+⚠️ **THIS IS A RE-POINT, NOT A RE-ORDER.** No leg changed position. **Chat put the finding to Joe rather than touching a leg table Joe locked** — the seat line, held deliberately, because the temptation was to re-sequence a table whose defect Chat itself had surfaced.
+
+### 📌 LEG D'S TRIGGER IS CHECKABLE, NOT A WISH
+
+*A member-scoped verb exists that left-click does not already perform* — i.e. **§5.7's census returns non-zero.** `N-182`'s test applied: *"when federation has peers" is a wish; "when the fixture has two nodes" is checkable.*
+
+### ✅ RECORDS
+
+`tasks/M_RP_MEMBER_ACT_PHASE0.md` v1.11 → **v1.12** — §6's table rows `D` and `E` re-gated **in the table itself**, plus the full ruling below it. `tasks/M_RP_MEMBER_ACT_LEG_C_BIS.md` v1.8 → **v1.9** — the *"SUSPECT, and Chat owes a re-examination"* block **replaced by the ruling and a pointer to the Phase-0, which owns the leg table**; the block states what it used to say rather than pretending it never said it. `docs/ROADMAP.md` v6.97 → **v6.98** — M-RP-MEMBER-ACT's trigger line swept, **`M-RP-BLOCK` filed as a node** with its census carried so nobody re-derives it. `roadmap-format-gate.ps1` returns **0**.
+
+**FLOORS UNTOUCHED AND DELIBERATELY NOT RE-MEASURED — records only, zero `.rs`, zero `ui/**`:** cargo **1597/0/62 × 56** · svelte-check **0/34/15** · catalogue **435** · client registry **164 quiescent**. 📌 **Joe's client state NOT read this session and NEVER written** — it stands at **3629 B**, LastWriteTime **2026-08-09 19:08:26**, as C-bis-4's gate ① left it.
+
+🎯 **NEXT: Clair implements C-bis-6 from the locked runbook v1.7; Chat re-drives every gate (Rule 5).** → J-710 · ROADMAP v6.98.
+
+---
 ## Entry J-709 — a ruling session: eight decisions, three legs specified, and four architecture claims of Chat's corrected by Joe's recall
 
 **Date:** 2026-08-09 · **Seats:** Joe (every ruling here is his) · Chat (grounding, and the four errors). **NO CODE.** runbook → **v1.7** · task doc → **v1.8** · notes → **v1.17** (**+N-180 +N-181 +N-182**) · ROADMAP → **v6.96**. **No new `D`.**

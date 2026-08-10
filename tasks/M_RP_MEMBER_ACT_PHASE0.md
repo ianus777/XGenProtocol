@@ -1,8 +1,8 @@
 # M-RP-MEMBER-ACT — the members panel acts: LMC opens the DM, RMC opens the menu — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.11  
+> Version: 1.12  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-07  
+> **Last updated**: 2026-08-10  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -452,14 +452,26 @@ The find-existing-DM scan works **because** the counterpart XGID sits inside the
 | **B** | **The command surface** — a Tauri command wrapping `create_dm_space`; the draft object per OQ2. 🔒 **OQ8-K3: `KnownSpace` gains `counterpart: Option<String>` + `#[serde(default)]` + a one-time backfill at `load_or_default_state`** — the scan keys on the FIELD, not the name. 🆕 🔒 **F-A: the backfill's SELF case (`name == SELF_THREAD_LABEL ⇒ counterpart = identity_id`), and the self lookup keys on `counterpart` like every peer** — the name scan at `ops.rs:1042` leaves the UI path. 📌 **OQ6-E2: NO `self_open` command** | **cargo** + svelte-check | OQ2 ✅, OQ6 ✅, OQ8 ✅ |
 | **C** | **R7 acts** — `interactive`, `onActivate` → open-or-draft **and** `selection.set()`; R8 renders the member card. 🆕 🔒 **F-C / OQ1-G1 IS THIS LEG'S FIRST COMMIT, SEPARATE AND MEASURED ALONE:** `ui/core/.../entity-panel.svelte` gains a flag suppressing `selectAt`'s `selected` write, `interactive` keeps ARIA + click wiring. **3 consumers + 8 sampler cells; the runbook MEASURES whether catalogue 435 moves rather than predicting it.** 📌 **OQ6-E2: the self row takes the SAME path as any peer** · **W4: R7 stays THIN during a draft** | svelte-check **+ catalogue** | OQ1 ✅, OQ7 ✅, B |
 | **C-bis** | 🆕 🛑 **FIRST SEND PROMOTES THE DRAFT** — `composer-panel.submit()` + `echo-state` gain the draft arm: detect draft → `create_dm_space` → `{space_id, room_id}` → `echo.send` → promote in place. **Added at v1.2 from Clair's F2.** 🆕 **at v1.4: R5's DRAFT COPY** as a const per OQ9-C. 🆕 🔒 **at v1.9 from F-B: `stream-panel.svelte` gains the DRAFT BRANCH that renders it** — today R5 branches on `effectiveRoomId == null` alone and imports no draft store, so the const had no display path. 🆕 🔒 **from F-E: `room-latch.svelte.ts`'s two-armed `canSend`**, which belonged to no leg | svelte-check | C, OQ9 ✅ |
-| **D** | **RMC → the menu, no selection** — the first `oncontextmenu` in the codebase (G8); `entity-context-menu` mounted with the row's descriptor as a prop | svelte-check | C |
-| **E** | **DM home + `is_dm`** per OQ3, **including G13's stale-flag question**. 📌 **OQ8-K2 no longer lives here — K3 took the field into Leg B**, so the DM home may rename DM Spaces freely. 🆕 🔒 **F-D: THE FILTER IS RENDER-ONLY** — `spaces-panel`'s `$derived`, never the store; `resolveLatched` and `canSend` both read `spacesState.spaces` and a store-side filter makes every DM **unsendable** | **cargo** + svelte-check | OQ3, D |
+| **D** | **RMC → the menu, no selection** — the first `oncontextmenu` in the codebase (G8); `entity-context-menu` mounted with the row's descriptor as a prop. ⏸️ **POSTPONED at J-710 — there is no honest item to put in it** | svelte-check | 🔒 **C ✅, AND a member-scoped verb that LMC does not already perform** — §5.7's census, today **ZERO** |
+| **E** | **DM home + `is_dm`** per OQ3, **including G13's stale-flag question**. 📌 **OQ8-K2 no longer lives here — K3 took the field into Leg B**, so the DM home may rename DM Spaces freely. 🆕 🔒 **F-D: THE FILTER IS RENDER-ONLY** — `spaces-panel`'s `$derived`, never the store; `resolveLatched` and `canSend` both read `spacesState.spaces` and a store-side filter makes every DM **unsendable** | **cargo** + svelte-check | 🔒 **OQ3 ✅ (J-709), C-bis-6** — re-pointed from `D` at J-710 |
 | **F** | Records + close (`D-074`) | — | E |
 
 🔑 **WHY B BEFORE C:** §4.3. Under `L-7` the click must do both or neither, so the op has to be reachable before the row is clickable.
 🔑 **WHY E STAYS LAST, AND IT IS NOW MEASURED RATHER THAN ASSUMED:** Clair's **F1** dissolved the doubt that `is_dm` had to move forward — the scan runs against `KnownSpace.name`, which ships today. **E is last because DMs need a home before they lose the tree**, not because of the scan.
 📌 **A is free and unblocks nothing** — it is first because three records currently say the opposite of the code this milestone builds on.
 🛑 **AND C-bis IS THE LEG THIS DOCUMENT DID NOT HAVE.** §4.2 diagnosed the collision correctly and then assigned only its **enable gate** (OQ2-S2) to a leg. *The document that quotes the audit's "which leg builds this?" rule committed the error the rule names, and Clair found it by trying to run the send path.*
+
+🔒 **THE `E → D` GATE IS RE-POINTED — JOE, 2026-08-10 (J-710). OPTION C. THE GATE WAS NOT WRONG TO EXIST; IT WAS AIMED AT THE WRONG LEG.**
+
+**THE FINDING:** §6 gated **Leg E** (the DM home + the R1 filter) on **Leg D** (the RMC menu), and **Leg D has nothing honest to build.** Grounded against §5.7's button census: `Message` **duplicates left-click**, which C-bis-2 shipped · `Inspect` is what LMC already does · **Remove Friend / Block / Mutual Friends explicitly DO NOT SHIP** — `friend` has **zero** hits, all **240** `block` hits are DAG or async plumbing with no verb, no blocklist and no wire event, and `KnownSpace` carries **no member list**, so mutuals are not even client-derivable. ⇒ **a menu of duplicates plus three controls whose verbs do not exist**, which is exactly the dead chrome `D-113`'s correction and J-500 both refuse.
+
+🔑 **AND JOE HAD ALREADY RULED LEG E'S CONTENT** at J-709 — **OQ3 = yes, DM Spaces leave R1.** ⇒ *the thing he asked for was waiting behind a leg that cannot start.*
+
+🔒 **E'S REAL PREREQUISITE WAS ALREADY IN FLIGHT AND NOBODY HAD NOTICED: `C-bis-6`.** It builds `F-D`'s render-only DM filter in `spaces-panel`'s `$derived` — the C-bis runbook says so in its own words, *"this is `A3`'s render-only filter in miniature; building it here proves the seam."* ⇒ **`E → C-bis-6`**, which is a real dependency rather than a positional one.
+
+🔒 **AND LEG D KEEPS A NAMED DISCHARGER RATHER THAN VANISHING** — ⏸️ **POSTPONED**, with a trigger that is **checkable, not a wish** (`N-182`): *a member-scoped verb exists that left-click does not already perform*, i.e. **§5.7's census returns non-zero.** The nearest candidate is **`M-RP-BLOCK`**, filed at J-703 — ⚠️ **and it had NO ROADMAP node until J-710 wrote one. A trigger pointing at a milestone the navigation map does not carry is a dangling pointer, and it is the same species as the startup node J-709 deferred.**
+
+📌 **REJECTED:** *leave the table alone* (Joe's own OQ3 ruling never ships, and the debt compounds) · *drop `D` outright* (a leg disappears with no record of why). ⚠️ **THIS IS A RE-POINT, NOT A RE-ORDER — no leg changed position, and Chat put the finding to Joe rather than touching a leg table he locked.**
 
 🔒 **AND ONE LEG SITS BEFORE ALL OF THEM, ADOPTED 2026-08-06: LEG 0 — CLAIR'S ADVERSARIAL READ OF THIS DOCUMENT.** No authority to code. Her brief is §8 plus the two places it does not yet suspect itself: **§6's leg ORDER** (see §8 item 2 — the find-existing-DM scan may pull `is_dm` forward into Leg B) and **§5's four DELEGATED dispositions**, which were adopted rather than examined and are the class `AUDIT_MEMBERS_PANEL.md` §8 warns about. ⚠️ ***Clair caught four defects in `RUNBOOK_TAIL8.md` by trying to RUN it; Chat's own re-reads passed every time. This document has had none.***
 

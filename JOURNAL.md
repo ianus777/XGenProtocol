@@ -8,6 +8,53 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-711 — C-bis-6 ships in four files instead of two, and the only number called an invariant turns out to have been drifting for months
+
+**Date:** 2026-08-10 · **Seats:** Clair (implementation, and the Rule 6 report that saved the leg) · Chat (grounding, all gates, records) · Joe (the scope ruling, the send consent, and the screenshots). runbook → **v1.8** · Leg C-bis task doc → **v1.10** · Phase-0 → v1.12 · notes → **v1.18** (**+N-183 +N-184**) · ROADMAP → **v6.99**. **No new `D`.**
+
+### ✅ C-bis-6 IS DRIVEN GREEN — ALL THREE BRANCHES, RULE 5, FROM A FRESH CLIENT
+
+Fixture `LegF Verification`, 9 members / 8 rows. **Nothing below was reported by Clair; every figure is Chat's own.**
+
+| branch | driven | result |
+|---|---|---|
+| **① existing DM** | `LegF-N5` (`czSW35b…`, live counterpart of an existing DM Space) | R1 `selectedId: null` and **zero highlighted rows** · R2 `count: 1`, row is `dm` · **R2 `selectedId` = the DRAWN row's id** · R5 `effectiveRoomId` = the dm room · R6 `canSend: true` |
+| **② post-create** | typed into `LegF-N2`'s draft, clicked **Send** | Spaces **6 → 7** · **R2 `latchedSpaceId` = a Space that did not exist ten seconds earlier** · R5 `draftActive: false`, `outboundCount: 1` — promoted in place · R6 cleared, `echoCount: 1`, `draftError: null` · R1 unlit |
+| **③ draft** | `LegF-Bob` (no DM) | `draftActive: true`, `draftLabel: "LegF-Bob"` · **R1 STAYS LIT, exactly one row** |
+
+🔑 **② IS THE PROOF.** Before C-bis-6 the rooms column stayed on the Space you drafted FROM; it now follows a Space minted mid-gesture. 🛑 **The "R1 unlit" pass is an EMPTY RESULT and was positively controlled (`N-099`)** — the probe reads every R1 row's COMPUTED background, and clicking a normal Space makes exactly one go `rgb(42, 47, 56)`. *Without that control the line reads identically if the selector is simply broken.*
+
+### 🔑 THE LEG TOOK FOUR FILES, AND THE FAULT WAS UPSTREAM OF THE SEAT THAT REPORTED IT
+
+The locked runbook named **two** files. It needed **four**: `space-latch.svelte.ts` · `members-panel` · `composer-panel` · `spaces-panel`. **Clair reported it under Rule 6 instead of absorbing it; Joe accepted the scope (option A).** Chat re-drove every quote she gave — `room-latch:20-22`, `space-latch:20-23`, `room-latch:29-34`/`:88-90`, `spaces-panel:47`, `app_client:208-210` — **all verbatim.**
+
+🛑 **AND CHAT'S OWN KICKOFF DIAGNOSED IT WRONG, IN THE DIRECTION THAT MADE THE PLAN LOOK SMALL.** It claimed `roomLatch.latch()` *"bypasses the selection bus, so `spaceLatch` never learns."* **The bus IS written** — with an **identity** descriptor — and `note()` gates on `kind === 'space'` **BY DESIGN** (`D4 opt-2`, the entire reason the latch was lifted). ⇒ ***no bus routing could ever have moved the Space latch.*** An architecture claim made from memory rather than from `app_client:208-210` under-scoped a runbook Joe had locked. **`N-180`, committed by the seat that wrote the warning against it.** ✅ `spaceLatch.latch()` is **not** a new store — it is the literal twin of `roomLatch.latch()`, shipped at **Leg C-2** for the identical reason, down to the same *"SINGLE WRITER was already false"* header correction.
+
+### 🛑 THE D-067 DRIFT SURFACE CHAT CAUGHT IN HER DIFF
+
+Her first pass re-found the DM Space with a second `counterpart` match three lines after `findDmRoom` had already done it — **without `findDmRoom`'s explicit self-exclusion.** Unreachable today, *and that is what made it dangerous*: correct only by the caller's accident, when `findDmRoom`'s own comment says the lookup **must not rely on** the caller. ⚠️ **`room-latch:20-22` rejects that shape BY NAME.** ⇒ `findDmRoom` → **`findDm`**, returning `{ space_id, room_id }` from the one self-excluded match. **One lookup, two writes to independent stores.**
+
+📌 **AND HER SURVIVOR COUNT WAS NARROWER THAN THE TRUTH:** she reported **one** stale `findDmRoom` reference; there were **three** — `xgen-ui-notes.md:3518`, the task doc `:144`, the runbook `:181`. **She grepped `ui/` only and reported the result as the whole.** All three are pushed records ⇒ **`D-131` annotated at the site, none silently repaired.** ***The recurring defect class, twice in one leg, from both seats.***
+
+### 🛑 `164` WAS NEVER AN INVARIANT — SEE `N-184`
+
+A fresh client read **166** quiescent. Quiescence was verified before the number was doubted: both latches `null`, `selectedId: null`, `emptyState: "no-room"`. **Cause measured: R1 now draws six Spaces where the floor was set at five, and one row registers TWO entities — `entity-item` + `entity-avatar`.** `164 + 2 = 166`. 🔑 **Every kickoff for months called `164` "the ONLY registry invariant" while it drifted underneath, because the thing it counts is USER DATA.** 🔒 **Rule: a registry count compares only against itself, same client, same Space tree, before and after — record the tree or record no number.**
+
+### 🔑 WHAT JOE'S SCREENSHOTS FOUND THAT NO STORE READ COULD
+
+⚠️ **Chat cannot load PNGs into its own context, so the painted layer was judged by Joe alone — and it earned its keep on the first frame.** His photograph settled that the drafted-to member row highlight is **absent** (C-bis-7's unbuilt work, **not** a C-bis-6 defect), and surfaced **`N-183`**: in a fresh DM the echo row prints the session's **RAW xgid** as the author and derives its avatar initials `GC` from the key's last two characters — on a screen where the self-panel, R7 and R8 all resolve that same key as **`Joe` / `JO`**. 🛑 **Not this leg's and it cannot be** — the whole diff is two imports, two `latch()` calls and one `$derived`. **Pre-existing, newly REACHABLE.** 📌 **Joe's disposition: FILE ONLY, no ROADMAP node** — `M-RP-IDENTITY-RESOLUTION` is closed, so this is a gap it left, and minting a node per gap is how a roadmap stops meaning anything.
+
+### 🔒 CONSENT, BECAUSE IT SPENT SOMETHING OF JOE'S
+
+Gate ② mints a **permanent DM Space in Joe's live client**. Chat stopped and asked rather than spending it. 🔑 **And stopped a SECOND time:** between consent and the click, `draftCounterpart` had moved from `LegF-Bob` to `LegF-N2` — **Joe was using the window.** *A send fired on the stale target would have minted a DM with the wrong person and been indistinguishable from a pass.* Joe confirmed hands-off; his last action set the target and was respected rather than overridden. **Client state `3629 B` → `4204 B`, 21:08:23.**
+
+### ✅ FLOORS
+
+**svelte-check 0 errors / 34 warnings / 15 files — RE-RUN by Chat, at the floor.** 📌 **`cargo` IDENTICAL is a SCOPE argument, labelled as one:** four files, **zero `.rs`**, **zero `ui/core`** — the Rust inputs are byte-identical, so a 56-terminator rebuild proves nothing the diff does not. **Catalogue 435 by scope.** **Registry: 164 → 166, see above.**
+
+🎯 **NEXT: Leg E's re-pointed gate (J-710) is DISCHARGED — the DM home is unblocked. Then C-bis-7 → C-bis-8 → C-bis-5 LAST**, where OWED-4 is measured and shown to Joe **unruled** (`D-146`). → J-711 · ROADMAP v6.99.
+
+---
 ## Entry J-710 — the E to D gate is ruled and re-pointed, and the trigger it gained had no node to point at
 
 **Date:** 2026-08-10 · **Seats:** Joe (the ruling) · Chat (the finding, the grounding, the records). **NO CODE.** Phase-0 → **v1.12** · Leg C-bis task doc → **v1.9** · ROADMAP → **v6.97 → v6.98**. **No new `D`, no new `N`.**

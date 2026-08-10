@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT Leg C-bis — the member with no DM: creation, the first send, and the erased identity
 > **Status**: ACTIVE  
-> Version: 1.9  
+> Version: 1.10  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-10  
 > Language: EN  
@@ -141,7 +141,7 @@ point.**
 
 | # | fact | site |
 |---|---|---|
-| **B1** | `findDmRoom` — the named local lookup, field match on `counterpart`, self excluded explicitly | `members-panel.svelte` |
+| **B1** | `findDmRoom` *(`D-131` — **renamed `findDm` at C-bis-6, J-711**, returns `{ space_id, room_id }` from the ONE self-excluded match so the caller latches ROOM and SPACE without a second lookup; the description below is unchanged and still true)* — the named local lookup, field match on `counterpart`, self excluded explicitly | `members-panel.svelte` |
 | **B2** | `onMemberActivate` — `latch()` then `selection.set()`, two independent stores, NOT ordering-dependent | `members-panel.svelte` |
 | **B3** | `KnownSpace.counterpart` — *"DM counterpart XGID, or the session identity for the self thread. `null` for a Space."* | `spaces-state.svelte.ts:32-34` |
 | **B4** | `roomLatch.latch(roomId)` — the direct writer; **three** writers total (`note`, `clear`, `latch`) | `room-latch.svelte.ts` |

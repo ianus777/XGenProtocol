@@ -31,6 +31,7 @@
   // never overwrites `selected`. That is the M-RP-SELECT-ORIENT defect designed out (L-5).
   import { envelope } from '$common/components/base/envelope';
   import { roomLatch } from '$common/stores/room-latch.svelte';
+  import { spaceLatch } from '$common/stores/space-latch.svelte';
   import { spacesState } from '$common/stores/spaces-state.svelte';
   import { selection } from '$common/stores/selection.svelte';
   import { addressBook, type MemberEntry } from '$common/stores/address-book.svelte';
@@ -173,7 +174,7 @@
   // earned its own milestone). The anticipated second caller is M-RP-PEOPLE (a people-panel over the
   // address book); before any lift, settle "is a book entry enough to OFFER a DM?" — a book entry is not
   // proof a DM exists, and this lookup answers only the latter.
-  function findDmRoom(identityId: string): string | null {
+  function findDm(identityId: string): { space_id: string; room_id: string } | null {
     // Self is never a DM target. `KnownSpace.counterpart` holds the session identity for the SELF-THREAD
     // space (spaces-state:32-34), so a bare field match would resolve self's own thread. R7 already never
     // marks self (L17), but the lookup must NOT rely on that — exclude it explicitly (§4).
@@ -184,7 +185,12 @@
     if (!space) return null; // no existing DM — §5-b: the click is a silent no-op (J-692 unruled).
     // A DM space carries exactly one room. An empty `rooms` here should not happen; if it does, do nothing
     // — it is a FINDING, not a case to paper over (§4). No invented fallback.
-    return space.rooms[0]?.room_id ?? null;
+    // Return BOTH ids from the space already in hand (C-bis-6): the caller latches the ROOM and moves the
+    // browsing SPACE latch, and both come from THIS self-excluded match — no second finder to drift from it
+    // (room-latch:20-22 rejects that D-067 shape by name).
+    const room_id = space.rooms[0]?.room_id;
+    if (room_id == null) return null;
+    return { space_id: space.space_id, room_id };
   }
 
   // On a member click, one of three outcomes: an existing DM latches, a member with no DM opens a draft,
@@ -193,7 +199,7 @@
   // the SAME store twice, coalescing into one $effect run that never observed the room; these write
   // DIFFERENT stores, so no such coalescing exists.)
   function onMemberActivate(identityId: string): void {
-    // Self is never a DM target NOR a draft target. `findDmRoom` already returns null for self, but the
+    // Self is never a DM target NOR a draft target. `findDm` already returns null for self, but the
     // no-DM branch below now OPENS A DRAFT on "no DM" — so without this guard a self-click (the self row is
     // clickable) would open a self-draft. This preserves Leg C's self-click no-op. Self IS in `_roster`
     // (memberRows filters it out only for RENDER), so the `!m` guard below does NOT catch it.
@@ -207,16 +213,22 @@
     if (m == null) return; // not a rendered roster row — nothing to open, nothing to select.
     const descriptor = toDescriptor(m);
 
-    const roomId = findDmRoom(identityId);
-    if (roomId != null) {
-      // Existing DM (Leg C, UNCHANGED): latch its room — R5 shows it, R6 targets it (L-1/L-2) — and leave
-      // the person on the bus so R8 shows the card (L-7).
-      roomLatch.latch(roomId);
+    const dm = findDm(identityId);
+    if (dm != null) {
+      // Existing DM (Leg C): latch its ROOM — R5 shows it, R6 targets it (L-1/L-2). C-bis-6 (Joe's rule):
+      // ALSO move the BROWSING Space latch to the DM's Space, so R2 lists the DM's one room and R1 (which
+      // suppresses DM highlights) goes unlit — `roomLatch.latch()` alone left `spaceLatch` on the previous
+      // Space, so R2 drew that Space's rooms while highlighting the DM's room, a dangling highlight (J-708 ①).
+      // Both ids come from `findDm`'s single self-excluded match — one lookup, two writes to INDEPENDENT
+      // stores (the shell's one-effect-both-note()s shape), NOT a coupling.
+      roomLatch.latch(dm.room_id);
+      spaceLatch.latch(dm.space_id);
+      // Leave the person on the bus so R8 shows the card (L-7).
       selection.set(regionId, descriptor);
       return;
     }
-    // `roomId` is null. Self is excluded above, so this is either NO DM space at all (→ open a draft) or a
-    // DM space that exists but has an empty `rooms` (the finding `findDmRoom` guards). The latter is an
+    // `dm` is null. Self is excluded above, so this is either NO DM space at all (→ open a draft) or a
+    // DM space that exists but has an empty `rooms` (the finding `findDm` guards). The latter is an
     // EXISTING (malformed) DM: drafting on it would mint a DUPLICATE space on send, which the milestone's
     // dedup design (K3, gate 4b) exists to prevent — so it stays a no-op, NOT a draft.
     if (spacesState.spaces.some((s) => s.counterpart === identityId)) return;

@@ -1,8 +1,8 @@
 # RUNBOOK — M-RP-MEMBER-ACT Leg C-bis: the member with no DM opens a draft
 > **Status**: ACTIVE  
-> Version: 1.7  
+> Version: 1.8  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-09  
+> **Last updated**: 2026-08-10  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -178,7 +178,7 @@ and as §0 now says, THE STEPS GOVERN.**
    its `scope`, its roster and its fill; §5.1's *"scope never moves"* holds **literally**.
    ⚠️ **`N-171` IS FIXED HERE BECAUSE THIS LEG OPENS THAT FUNCTION** — move the lookup **above** `latch()`.
    🛑 **The locked write ORDER is untouched.**
-   ✅ **TWO GUARDS ARE REQUIRED, NOT A WIDENING** (Clair, accepted at v1.3): `findDmRoom` collapses **self**
+   ✅ **TWO GUARDS ARE REQUIRED, NOT A WIDENING** (Clair, accepted at v1.3): `findDmRoom` *(`D-131` — renamed `findDm` at C-bis-6, J-711; returns `{ space_id, room_id }`, and the self-collapse below is UNCHANGED)* collapses **self**
    and **no-DM** into one `null`, and the draft path is the first caller that must tell them apart — without a
    **self guard** a self-click opens a self-draft. The **empty-rooms** case (a malformed existing DM) stays a
    **no-op and stays a FINDING**; drafting on it would mint a duplicate.
@@ -339,7 +339,7 @@ is kept (`domValue` intact, store text identical), and **nothing implies the DM 
 **C-bis-6** and **C-bis-7** below. *A string is not a layout is not a picture, and the third layer has no probe
 the human eye does not beat.*
 
-### 🟡 C-bis-6 — after the create, the client ORIENTS (Joe's rule, 2026-08-09)
+### ✅ C-bis-6 — after the create, the client ORIENTS (Joe's rule, 2026-08-09)
 
 🔒 **RULED BY JOE 2026-08-09 — OPTION A, AND IT COSTS NO LOCK.**
 
@@ -351,6 +351,23 @@ lit; **a DM open is a Space change and moves the Space latch like any other Spac
 both the option and this reading.**
 
 **Files:** `members-panel.svelte` · `spaces-panel.svelte`. 🛑 **NO new store, NO shell change, ZERO `.rs`.**
+
+> 🛑 **`D-131` — THIS FILE LIST WAS WRONG, AND IT SHIPPED LOCKED. ANNOTATED, NOT REPAIRED (J-711).** The leg
+> took **FOUR** files: `space-latch.svelte.ts` · `members-panel.svelte` · `composer-panel.svelte` ·
+> `spaces-panel.svelte`. **Clair reported it under Rule 6 rather than absorbing it, and Joe accepted the scope.**
+> ⚠️ **WHY IT WAS WRONG, because the reason is worth more than the correction:** step 1 requires the SPACE
+> context to move on **both** branches, and the two `roomLatch.latch()` sites are `members-panel` **and
+> `composer-panel`** — the post-create latch does not live in members-panel at all. The store shortcut (having
+> `roomLatch.latch()` move `spaceLatch`) is forbidden by BOTH latch headers, so the move must happen at the
+> CALLERS. 🔑 **AND CHAT'S KICKOFF DIAGNOSED IT WRONG IN THE EASY DIRECTION:** it claimed the room latch
+> *"bypasses the selection bus, so `spaceLatch` never learns."* **The bus IS written** — with an **identity**
+> descriptor — and `note()` gates on `kind === 'space'` **BY DESIGN** (`D4 opt-2`, the reason the latch was
+> lifted at all). ⇒ ***no bus routing could ever have moved the Space latch***, and an architecture claim made
+> from memory instead of from `app_client:208-210` under-scoped a runbook Joe had locked (`N-180` again).
+> ✅ **`spaceLatch.latch()` is NOT a new store** — it is the literal twin of `roomLatch.latch()`, shipped at
+> **Leg C-2** for the identical reason, down to the same header correction (*"SINGLE WRITER" was already false;
+> `clear()` has always written too*). **"NO new store" was honoured. "NO shell change" was honoured** —
+> `app_client.svelte`, `skin.css` and `dm-intro.svelte` are untouched.
 
 1. **The member-activation path moves the SPACE context, not just the room** — 🛑 **BOTH branches: the existing
    DM and the post-create path.** ⚠️ **THIS IS NOT CREATE-SPECIFIC** — clicking an existing DM has the same
@@ -365,6 +382,38 @@ both the option and this reading.**
 **GATE C-bis-6** — open a DM from a member row (**both** branches, driven separately): R1 **unlit** · R2 lists
 the DM's `dm` room **and highlights it** · 🛑 **R2's `selectedId` matches a row it is actually drawing** (the
 dangling-highlight defect) · R5/R6/R7 unchanged · open a draft: **R1 stays lit** · floors · **`cargo` IDENTICAL**.
+
+✅ **GATE C-bis-6 DRIVEN GREEN — CHAT, 2026-08-10 (J-711), RULE 5: every line re-driven from a FRESH client with
+the node up. No figure below was reported by Clair.** Fixture: `LegF Verification`, 9 members / 8 rows.
+
+| branch | driven | result |
+|---|---|---|
+| **① existing DM** | clicked `LegF-N5` (`czSW35b…`, the live counterpart of an existing DM Space) | R1 `selectedId: null` **and zero rows carrying a highlight background** · R2 `count: 1`, the one row is `dm` · **R2 `selectedId` = `c85d56…` = THE DRAWN ROW'S ID** · R5 `effectiveRoomId` = the dm room · R6 `canSend: true`, `spaceId` = the DM Space |
+| **② post-create** | typed into `LegF-N2`'s draft and clicked **Send** | Spaces **6 → 7** · **R2 `latchedSpaceId` = `19948c30…`, A SPACE THAT DID NOT EXIST TEN SECONDS EARLIER** · R2 one `dm` row, `selectedId` = the drawn row · R5 `draftActive: false`, `outboundCount: 1` — promoted IN PLACE · R6 text cleared, `echoCount: 1`, `draftError: null` · R1 unlit |
+| **③ draft** | clicked `LegF-Bob` (no DM) | `draftActive: true`, `draftLabel: "LegF-Bob"` · **R1 STAYS LIT on `LegF Verification`, exactly one row** |
+
+🔑 **② IS THE PROOF OF THE LEG.** Before C-bis-6, R2 stayed on the Space you drafted FROM. It now follows a Space
+that was minted mid-gesture.
+
+🛑 **THE "R1 UNLIT" PASS IS AN EMPTY RESULT, SO IT WAS POSITIVELY CONTROLLED (`N-099`).** The probe reads the
+COMPUTED background of every R1 row, not `aria-selected`. Control: clicking a normal Space makes **exactly one**
+row go `rgb(42, 47, 56)`. **The probe can see a highlight; in a DM it saw none.** *Without the control this line
+would read identically if the selector were simply broken.*
+
+⚠️ **HONEST LIMIT, STATED RATHER THAN PAPERED OVER:** Chat **cannot load PNGs into its own context**, so the
+painted layer was judged by **Joe alone**, from three screenshots. **It immediately earned its keep** — his
+photograph settled that the drafted-to row highlight is ABSENT (C-bis-7's unbuilt work, not a defect here) and
+surfaced `N-183`, neither of which any store read would have shown. ***The third layer still has no probe the
+human eye does not beat.***
+
+📌 **`cargo` IDENTICAL is a SCOPE argument here, not a measurement, and it is labelled as one:** `git diff
+--name-only` returns four files, **zero `.rs`**, **zero `ui/core`**. The Rust inputs are byte-identical, so a
+56-terminator rebuild would prove nothing a one-line diff does not. **svelte-check WAS re-run by Chat: 0 errors /
+34 warnings / 15 files, the floor.**
+
+🛑 **THE REGISTRY FLOOR MOVED AND IT IS NOT A REGRESSION — `164` → `166` quiescent, cause measured, see `N-184`.**
+R1 now draws six Spaces where the floor was set at five; one row = `entity-item` + `entity-avatar` = **`+2`**.
+**Joe's client state: `3629 B` → `4204 B`, 21:08:23**, moved by gate ② with his explicit consent.
 
 ⚠️ **VISIBLE DIFFERENCE FROM THE REJECTED OPTION B, NAMED SO IT IS NOT LATER REPORTED AS A DEFECT:** while you
 are in a DM, **R2 is a one-row column showing `dm`.** Under B it would be blank. **A tells you where you are.**

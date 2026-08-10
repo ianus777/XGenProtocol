@@ -18,6 +18,13 @@
   // the M-RP6.2 bus-pure lock is superseded now the latch exists to read). R1 and R2 read ONE value, so they
   // always agree; the bus is still WRITTEN on activation (onActivate), it is just no longer READ here for the
   // highlight.
+  //
+  // C-bis-6 (Joe's rule): R1 highlights only NON-DM Spaces. When the browsing latch resolves to a DM
+  // (`KnownSpace.counterpart != null`), the highlight is SUPPRESSED — entering a DM UNSELECTS the tree rather
+  // than lighting a DM row. It is A3's render-only DM filter in miniature (F-D): the SUPPRESSION lives in the
+  // `selected` $derived, NEVER the store — a store-side DM filter would make every DM unsendable, since
+  // `resolveLatched`/`canSend` both read `spacesState`. R2 still lists the DM's rooms (its scope is the same
+  // latch), so a DM shows a one-row `dm` column with R1 dark — "A tells you where you are".
   import { envelope } from '$common/components/base/envelope';
   import { spacesState, type KnownSpace } from '$common/stores/spaces-state.svelte';
   import { selection } from '$common/stores/selection.svelte';
@@ -44,8 +51,16 @@
 
   // Highlight from the LIFTED latch (C-1, D-146), not the bus. The latch holds the last `space` selection, so
   // a later room/identity selection KEEPS the Space lit (D4 opt-2). `latchedSpaceId` is `string | null`; the
-  // prop wants `string | undefined` (entity-panel:63), hence `?? undefined`.
-  const selected = $derived(spaceLatch.latchedSpaceId ?? undefined);
+  // prop wants `string | undefined` (entity-panel:63), hence `undefined` for "no highlight".
+  // C-bis-6: SUPPRESS the highlight when the latched Space is a DM (`counterpart != null`) — R1 lights only
+  // non-DM Spaces (Joe's rule). A stale id that no longer resolves in `spaces` keeps highlighting the raw id,
+  // exactly as before (undefined `s` → not suppressed).
+  const selected = $derived.by(() => {
+    const id = spaceLatch.latchedSpaceId;
+    if (id == null) return undefined;
+    const s = spaces.find((x) => x.space_id === id);
+    return s?.counterpart != null ? undefined : id;
+  });
 
   function onActivate(spaceId: string): void {
     const s = spaces.find((x) => x.space_id === spaceId);

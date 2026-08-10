@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.17  
+> Version: 1.18  
 > Date: May 2026  
-> **Last updated**: 2026-08-09  
+> **Last updated**: 2026-08-10  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -3515,7 +3515,7 @@ const m = addressBook.roster?.find(x => x.identity_id === identityId);
 if (m) selection.set(regionId, toDescriptor(m));          // conditional
 ```
 
-⚠️ **The asymmetry has a source.** `findDmRoom` resolves against **`spacesState`** (the Space tree); `m` is resolved against **`addressBook.roster`**. Two different stores answer the two halves, so a disagreement between them is representable even though nothing produces one today: `onActivate` only fires from a rendered roster row, so `m` is present.
+⚠️ **The asymmetry has a source.** `findDmRoom` *(⚠️ **`D-131` — renamed `findDm` at C-bis-6, J-711; it now returns `{ space_id, room_id }` so the caller latches ROOM and SPACE from ONE self-excluded match. The note below is unchanged and still true — only the name moved.**)* resolves against **`spacesState`** (the Space tree); `m` is resolved against **`addressBook.roster`**. Two different stores answer the two halves, so a disagreement between them is representable even though nothing produces one today: `onActivate` only fires from a rendered roster row, so `m` is present.
 
 🔑 **IF IT EVER FIRED, THE FAILURE IS SPLIT STATE, NOT A CRASH.** R5 would jump to the DM while R8 kept showing the previous card — the room and the person disagreeing on screen, which is precisely what *"both unconditionally on a hit"* was written to prevent. **The guard is defensive and reads as harmless; what it actually does is convert an impossible case into a half-applied one.**
 
@@ -3719,3 +3719,31 @@ On launch the client selects nothing: R2 empty, R7 `no-scope`, R5 *"select a roo
 🔑 **`KnownSpace.node_endpoint` IS THE GOOD VERSION AND IT ALREADY SHIPS: the field is RECORDED so the information exists when it is needed, and NOTHING DIALS IT.** *Carry the fact; do not build the machine.*
 
 📌 **And a filed gap needs a TRIGGER, not a wish:** *client-side replica fallback (`D-049`) — specified, not implemented, **build when the test fixture has a second node**.* **"When federation has peers" is a wish; "when the fixture has two nodes" is checkable.**
+
+---
+
+## N-183 — the echo row prints your public key at you, on a screen that resolves your name three times over (2026-08-10)
+
+**MEASURED at J-711, not read off a screenshot** — Joe photographed it, Chat confirmed it at the DOM. In a freshly created DM, the outbound echo row renders `avatarText: "GC"`, `aria-label: "identity"`, and an author line carrying the RAW xgid `xgen://pubkey/ed25519:VtLICfGHMuoIngbJw0rV8gMkF2OAFivaQnbvXwpKHGc`.
+
+🔑 **`GC` IS THE LAST TWO CHARACTERS OF THAT XGID** (`…XwpKHGc`) — a tail-derived fallback, which means the row never had a resolved identity to fall back FROM. ⚠️ **And it is the SESSION'S OWN identity** — the self-panel, R7 and R8 all render the same key as **`Joe` / `JO`** on the same screen at the same moment. *A surface that already knows who you are is printing your public key at you.*
+
+🛑 **NOT C-bis-6'S, AND IT CANNOT BE.** The leg's whole diff is four files: two imports, two `latch()` calls and one `$derived`. Nothing touches message rendering or identity resolution. **Pre-existing, newly VISIBLE** — C-bis-6 is simply the first thing that puts you in a fresh DM with a message in it. 📌 *A defect can be shipped long before anything makes it reachable; the leg that reveals one does not own it.*
+
+📌 **DISPOSITION — JOE, 2026-08-10: FILE ONLY, NO ROADMAP NODE, NO SCHEDULE.** `M-RP-IDENTITY-RESOLUTION` is CLOSED, so this is a gap that milestone LEFT rather than a milestone of its own, and it waits for the identity-surface work already queued. ⚠️ **Minting a node for every filed gap is how a roadmap stops meaning anything** — but per J-710's rule, the day anything TRIGGERS on this, the commit that mints the trigger owes it a node.
+
+🎯 **WHERE TO LOOK when it is picked up:** the echo path builds its row LOCALLY, before any server confirmation, and the suspicion is that it carries the author id straight through without the resolver every other surface uses. **Suspicion, not a finding — nobody has read `echo-state` for this.** Do not design on this paragraph.
+
+---
+
+## N-184 — the registry floor did not break, its BASELINE AGED (2026-08-10)
+
+**`164` → `166` quiescent, and the cause is measured.** J-711 opened a fresh client and read **166** where every prior record says the quiescent invariant is **164**. Quiescence was verified first, not assumed: `spaceLatch` and `roomLatch` both `null`, `spaces-panel.selectedId: null`, `stream-panel.emptyState: "no-room"`.
+
+🔑 **THE CAUSE: R1 NOW DRAWS SIX SPACES, TWO OF THEM DMs.** The `164` floor was set when the client had FIVE. One row registers **TWO** entities — an `entity-item` AND its `entity-avatar` — so one new DM Space is exactly **`+2`**. **`164 + 2 = 166`.** *(By the end of J-711 it is seven Spaces, because the post-create gate minted a third DM.)*
+
+🛑 **SO THE INVARIANT IS INTACT AND THE NUMBER IS DEAD.** `N-174` already said a room-selected count is Space- AND content-dependent; what J-711 adds is that **the QUIESCENT count is Space-dependent too** — the empty-app baseline moves whenever the Space TREE changes, without anyone touching a line of UI code.
+
+⚠️ **THE TRAP THIS SETS, NAMED SO NOBODY WALKS INTO IT:** every kickoff for months has called `164` *"the ONLY registry invariant"*. A number described as invariant, carried forward in kickoff after kickoff, drifting silently underneath because the thing it counts is USER DATA. ***It is the recurring defect class wearing its best disguise — a claim narrower than the thing it describes, reused as if complete.***
+
+🔒 **THE RULE THAT REPLACES THE NUMBER: a registry count compares ONLY against itself, in the same client, with the same Space tree, before and after.** A count carried across sessions proves nothing. **Do not re-baseline `166` and repeat the error** — record the tree it was measured against, or record no number.

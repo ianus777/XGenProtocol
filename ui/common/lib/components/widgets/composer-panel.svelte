@@ -57,6 +57,7 @@
   import Textarea from '$core/components/data-independent/textarea.svelte';
   import Button from '$core/components/data-independent/button.svelte';
   import { roomLatch } from '$common/stores/room-latch.svelte';
+  import { spaceLatch } from '$common/stores/space-latch.svelte';
   import { echo } from '$common/stores/echo-state.svelte';
   import { dmDraft } from '$common/stores/dm-draft.svelte';
   import { substitutions } from '$common/components/processor/store.svelte';
@@ -150,6 +151,17 @@
     const result = await dmDraft.create(counterpart);
     if (result == null) return; // create failed — draft stays open (dmDraft.create kept text + set `error`)
     roomLatch.latch(result.room_id);
+    // 🛑 C-bis-6 — POST-CREATE ORIENTATION, and a REPORTED file-list DEVIATION (Rule 6, the C-bis-4 model).
+    // The runbook §3 C-bis-6 lists ONLY members-panel + spaces-panel, but its step 1 requires the SPACE context
+    // to move for BOTH branches — "the existing DM and the post-create path". The post-create `latch()` lives
+    // HERE, not in members-panel, so this file is a forced third edit (exactly as C-bis-4 forced app_client).
+    // `roomLatch.latch()` alone leaves `spaceLatch` on the Space you drafted from → after the create R2 draws
+    // that Space's rooms while R5/R6 target the new DM's room, and R1 highlights the wrong Space (J-708 ①).
+    // Moving the browsing latch to the new DM's Space makes R2 list the DM's room and R1 go unlit (Joe's rule).
+    // The result already carries the new Space id — no lookup, no round trip. The store shortcut (roomLatch
+    // moving spaceLatch) is forbidden by both latch headers, so the move is done at the caller, exactly as the
+    // shell's one effect drives both `note()`s.
+    spaceLatch.latch(result.space_id);
     // Not awaited — the echo row appends synchronously, so the sent message is on screen the instant the
     // draft clears; every later status change arrives through the echo store (the room-send precedent).
     void echo.send(result.space_id, result.room_id, text);

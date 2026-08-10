@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-MEMBER-ACT Leg C-bis: the member with no DM opens a draft
 > **Status**: ACTIVE  
-> Version: 1.9  
+> Version: 1.10  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-10  
 > Language: EN  
@@ -508,9 +508,54 @@ otherwise be hidden **iff `m.identity_id === counterpart`** (§5a E2, J-648), an
 `counterpart` is `null` ⇒ still `undefined` ⇒ behaviour unchanged. **That is the expected answer and it must be
 DRIVEN, not asserted** — a group room with a not-found member is the case that proves it.
 
+🛑 **SCOPE ADDED MID-LEG — JOE, 2026-08-10 (J-713), OPTION A-CLOSE. FOUND BY JOE IN A SCREENSHOT, REPRODUCED BY
+CHAT IN ONE GESTURE.** ⚠️ **THE FILE LIST ABOVE BECOMES `dm-draft.svelte.ts` + `members-panel.svelte`.**
+
+**THE DEFECT, MEASURED:** open a draft to `LegF-Bob`, then click `LegF-N5` (an existing DM). Result — `roomLatch`
+= N5''s dm room ✅ · `spaceLatch` = N5''s DM Space ✅ · R7 = `Joe` + `LegF-N5`, `counterpart czSW35b…` ✅ · **R5 =
+`draftActive: true`, `draftLabel: "LegF-Bob"`** ❌. **Three stores say N5. One says Bob.**
+
+🛑 **AND IT IS NOT A MISLABEL — THE INTRO SUPPRESSES THE STREAM.** `stream-panel:231` forces
+`streamMessages = []` whenever `dmDraft.active`, and `:183` mounts `dm-intro` on the same condition. ⇒ **N5''s
+conversation was not merely mis-captioned, it was NOT RENDERED.**
+
+🔑 **ROOT CAUSE, AND IT BELONGS TO NEITHER C-bis-6 NOR C-bis-7.** `dm-draft.svelte.ts:100` closes the draft on a
+**`room`** selection only. Member activation **never writes one** — it calls `roomLatch.latch()` directly and puts
+an **IDENTITY** on the bus (`L-7`, so R8 shows the card), which `note()` correctly ignores. **The draft''s only
+close trigger is a path this navigation deliberately bypasses.** That shape shipped at **C-bis-2**. ⚠️ **What
+C-bis-6 and C-bis-7 changed is that the disagreement became LEGIBLE** — R2 and R7 got confident about the DM, so
+R5''s stale draft finally had something to contradict. 📌 ***Joe''s "N5 has two results" was never
+nondeterminism; it was a hidden second input.***
+
+🔒 **THE FIX — CLOSE, NOT PARK, AND IT IS THE SHIPPED RULE REACHING A PATH THAT DODGED IT.** `note()`''s own doc
+already states the principle: *"A `room` selection CLOSES the draft (the user navigated to a conversation); the
+text map is untouched, so re-opening the draft restores its text."* **Opening N5''s DM IS navigating to a
+conversation.** Park was considered and rejected: it would need R5 to render a DM''s stream while a draft is
+parked, which contradicts `:231`.
+
+🛑 **THE TRAP, AND IT IS THE WHOLE REASON THIS PARAGRAPH IS LONG: `clear()` IS THE WRONG METHOD AND IT SITS
+THIRTY LINES FROM THE RIGHT ONE.** `clear():137` is the POST-SEND close — it drops the counterpart **AND deletes
+that counterpart''s text**, because the text was sent. `note():100` drops the counterpart and **leaves the text
+map intact**. ⇒ **calling `clear()` here would silently eat what the user typed to Bob.** *Two methods, twenty
+lines apart, names that do not advertise the difference.*
+
+⇒ 🔒 **`dm-draft.svelte.ts` GAINS `close()`** — drops `_counterpart`, **never touches `_texts`** — and **`note()`
+DELEGATES to it**, so the close rule exists in ONE place. 🛑 **DO NOT synthesise a fake `room` Selection to
+trigger `note()`**: inventing a selection the user never made to reach a side effect is the `D-065` line, and it
+would put a fabricated entity on a bus-shaped call. **`members-panel`''s EXISTING-DM branch calls
+`dmDraft.close()` alongside the two latches it already moves** — the same shape as C-bis-6, the caller doing what
+the bus effect would have done.
+
+⚠️ **THE DRAFT BRANCH IS UNTOUCHED.** Clicking a member with NO DM still OPENS a draft; only the existing-DM
+branch closes one. `open()` already replaces the open counterpart, so switching drafts is unaffected.
+
 **GATE C-bis-7** — in a DM: **self + counterpart**, driven on the `LegF-N5` DM **whose counterpart never
 joined** (the case the roster cannot supply) · in a group room: unchanged roster · **in a draft: the roster is
-unchanged AND the drafted-to row is highlighted** · floors · **`cargo` IDENTICAL**.
+unchanged AND the drafted-to row is highlighted** · 🆕 **the STALE-DRAFT case (J-713): open a draft to `LegF-Bob`,
+then click `LegF-N5` — `draftActive` MUST go `false`, `dm-intro` MUST unmount (`aboveMountCount 0`), and N5's own
+stream MUST render** · 🆕 **and the TEXT MUST SURVIVE: type into Bob's draft, navigate to the N5 DM, click Bob
+again — the typed text is STILL THERE.** ⚠️ **That second one is the `clear()`-vs-`close()` trap made into a
+gate; without it, eating the user's text passes.** · floors · **`cargo` IDENTICAL**.
 
 ---
 

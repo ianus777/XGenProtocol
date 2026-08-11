@@ -1,8 +1,8 @@
 # RUNBOOK — M-RP-MEMBER-ACT Leg C-bis: the member with no DM opens a draft
 > **Status**: ACTIVE  
-> Version: 1.10  
+> Version: 1.11  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-10  
+> **Last updated**: 2026-08-11  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -569,11 +569,49 @@ surface honest rather than decorative**, and it is why this is not a copy STOP. 
 WOULD be copy and is JOE'S** — ship without one rather than invent one.
 
 📌 **The call site already exists and is deliberately un-rendered** (C-bis-4): `dmDraft.error` is set, cleared
-on `open` and on each `create`, and read by `composer-panel`'s debug getter as `draftError`.
+on `open` and on each `create`, and read by `composer-panel`''s debug getter as `draftError`.
+
+> ✅ **FILE LIST AUDITED AGAINST THE SOURCE BEFORE IT BECAME AN INSTRUCTION — CHAT, J-714.** **`composer-panel.svelte`
+> ALONE, and it holds:** `dmDraft` is already imported (`:62`) · `dmDraft.error` is already read (`:197`) · the
+> root `.composer-panel` is a **flex column**, so a line under `.composer-actions` is structurally trivial.
+> ✅ **THE LIFECYCLE IS CONFIRMED AT THE SOURCE, NOT ASSUMED:** `_error` is cleared on `open` (`:92`) **AND at
+> the top of EVERY `create` (`:134`)**, set on no-transport (`:136`) and on a thrown create (`:142`).
+> ⇒ 🔑 **the line SELF-CLEARS on retry with no extra wiring** — which is why the *"restart the node and send:
+> the line clears"* gate line is true for a REASON rather than by hope.
+> ✅ **AND THE GATE IS ALREADY PROVEN DRIVABLE:** J-708''s C-bis-4 gate ② produced the real string *"failed to
+> connect to Node … (os error 10061)"* with the node killed mid-draft. **C-bis-8 adds only *"and it appears on
+> screen."***
+
+🛑 **THE THING THIS SECTION DID NOT SAY, AND IT LANDS IN JOE''S RESERVED AREA — ADDED J-714.**
+**THE NEW ELEMENT WILL RENDER UNSTYLED.** `skin.css` knows exactly ONE composer selector — `.composer-panel
+.textarea` (`skin.css:3137`). A new line has **no skin rule**, so it arrives at browser default: default colour,
+default size, no spacing. 🛑 **`skin.css` IS JOE''S FILE AND NO LEG MAY TOUCH IT.**
+
+📌 **That is not a blocker — it is the same shape as `composer-panel`''s own `<style>` block, which says of
+itself *"structural only … PROVISIONAL, discharged at `M-RP-SKIN`."*** 🔒 **STRUCTURE IS THE LEG''S; COLOUR IS
+JOE''S.** ⇒ **ship structural CSS ONLY** — it wraps, it carries `min-width: 0`, it does not overflow the tile
+and it does not migrate a scrollbar. **NO colour, NO font-size, NO weight.**
+
+🔒 **CLASS NAME RULED BY JOE 2026-08-11: `.composer-error`.** *Named because JOE writes the skin rule that will
+target it, so the selector is his to know in advance.* Family precedent in `skin.css`: `.send-status`,
+`.subs-status`, `.subs-note`, `.uistate-note`, `.ei-status`. **`.composer-error` names the THING rather than its
+position, and `error` is the only word in that family that says *something went wrong* rather than *here is some
+state*.**
+
+⚠️ **C-bis-8 THEREFORE MINTS A ROW IN `docs/ROADMAP.md` §"On screen now, and NOT a bug"** — *"the DM failure line
+looks unstyled" · owner **Joe / `M-RP-SKIN`** · **it IS a bug if** it overflows the tile or fails to wrap.*
+🛑 **The row is written by the commit that CLOSES C-bis-8, and deleted by the commit that closes its owner.**
 
 **GATE C-bis-8** — kill the node, send a draft: **the line appears carrying the node's words** · the draft stays
 open with its text · **nothing implies the DM exists** · restart the node and send: **the line clears** ·
 floors. ⚠️ **`N-177`: re-measure the button rect immediately before the click.**
+🆕 **ADDED J-714 — TWO LINES, BOTH BECAUSE A PASS HERE IS OTHERWISE INDISTINGUISHABLE FROM A DIFFERENT PASS.**
+🛑 **① THE TEXT MUST BE THE NODE'S, NOT AUTHORED — assert the rendered string CONTAINS the node's own words
+(`os error 10061` at J-708), not merely that SOME line appeared.** *A hard-coded "Could not create DM" would
+satisfy every other line of this gate, and it would be exactly the invented copy this leg refuses.*
+🛑 **② "THE LINE CLEARS" IS AN EMPTY RESULT ⇒ POSITIVELY CONTROL IT (`N-099`).** Prove the probe can SEE the
+line first — read it non-empty with the node down — then restart and read it empty. *Without the control, a
+selector that never matched anything passes the clear check perfectly.*
 
 ---
 

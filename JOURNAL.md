@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-10  
+> **Last updated:** 2026-08-11  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -8,6 +8,51 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-713 — C-bis-7 ships; a draft outlives the room it left; and the roadmap gains a second index because Joe asked the same question three times
+
+**Date:** 2026-08-10 → 2026-08-11 · **Seats:** Clair (implementation, two Rule 6 reports, both correct) · Chat (the C-bis-7 file-list audit, every gate, all records) · Joe (four rulings, and the screenshot that found the defect). runbook → **v1.10** · task doc → **v1.11** · notes → **v1.19** (**+N-185 +N-186**) · ROADMAP → **v7.00**. **No new `D`.** *(Absorbs J-712, the C-bis-7 file-list audit, which was committed as a runbook change and never owed a state-change entry of its own.)*
+
+### ✅ C-bis-7 DRIVEN GREEN — FIVE GATE LINES, RULE 5, FRESH BUNDLE
+
+Chat forced `location.reload()` before driving, so these are Clair's files and not HMR residue. Quiescent baseline **168 / 7 Spaces** before and after — every line comparable.
+
+| gate | measured |
+|---|---|
+| **DM, counterpart never joined** (`LegF-N5`) | `memberCount 1` · **`rowCount 2`** · `counterpart czSW35b…` where it read **`null`** before · `Joe` + **`LegF-N5` lit, name-RESOLVED** |
+| **group room, trap ③** | `9 / 8 / erasedHidden 1`, `counterpart null`, **nothing lit** — identical to the pre-change measurement on the same fixture |
+| **draft** | roster unchanged at **8**, exactly one row lit, and it is `LegF-Bob` |
+| **stale draft** 🆕 | `draftActive false` · `draftCounterpart null` · **`aboveMountCount 1 → 0`** · **`streamCount 0 → 2`** |
+| **text survival** 🆕 | **`"half-written to Bob"`, 19 characters, verbatim** |
+
+### 🔑 THE FILE-LIST AUDIT PAID FOR ITSELF, AND SO DID THE ONE IT WAS A REACTION TO
+
+C-bis-6's locked list was wrong and Chat's kickoff repeated the error, so **C-bis-7's list was checked against the source before it became an instruction (J-712).** It held — `members-panel` alone — and the reason was written down rather than left to be re-derived: 🔑 **`_book` is written WHOLESALE from `get_address_book` (`address-book:148`), which returns the BARE GLOBAL map and is NOT Space-scoped**, so a counterpart absent from the roster can still resolve a name. ✅ **Driven: the row rendered `LegF-N5`, not a tail8 fallback.** *The one claim that could have forced a second file was right, for the reason given.*
+
+### 🛑 THE DEFECT JOE FOUND — AND IT WAS NOT A MISLABEL, SEE `N-186`
+
+Open a draft to `LegF-Bob`, click `LegF-N5`: three stores moved to N5, `stream-panel` stayed on Bob. ⚠️ **`stream-panel:231` forces `streamMessages = []` whenever `dmDraft.active`** ⇒ **N5's conversation was NOT RENDERED.** 🔑 **Root cause belonged to neither leg that exposed it** — `dm-draft:100` closes only on a **`room`** selection, and member activation writes an **IDENTITY** (`L-7`) and latches directly. **That shape shipped at C-bis-2**; C-bis-6 and C-bis-7 merely made the disagreement legible. 📌 ***Joe reported it as "N5 has two results" — never nondeterminism, a HIDDEN SECOND INPUT.***
+
+🔒 **Fix: `dm-draft` gains `close()`, `note()` DELEGATES to it** — one close rule, no second copy. 🛑 **`clear()` would have eaten the user's text and every store read would still have been green**, so the gate was written to catch exactly that, and it drove.
+
+### 🔑 CLAIR'S TWO RULE 6 REPORTS, BOTH CORRECT, AND ONE THING SHE GOT WRONG
+
+**①** `selected={counterpart ?? dmDraft.counterpart}` — the runbook's own literal — **does not typecheck**: `string | null` into `selected?: string`, and `entity-panel:63` says *"Undefined = no selection."* Shipped as `?? undefined`. **`D-131` annotated at the site; the runbook shipped LOCKED with an expression that could not compile.** **②** The C-bis-6 scope report, four files not two, accepted by Joe. ⚠️ **What she got wrong was small and worth correcting anyway:** she explained the CRLF warning as *"working-copy LF → index LF"*. `git ls-files --eol` says her working copy is **`w/crlf`** for `members-panel`. **Nothing is broken — both files are `i/lf` and the index ships** — but *a confident wrong explanation of a line-ending warning is exactly the kind of thing that gets believed and reused.*
+
+### 📌 `N-185` — TWO BUILDERS, ONE QUESTION, DISAGREEING ON DAY ONE
+
+`toDescriptor` gives `{ isAi: false }` for a missing book record; `descriptorFromId` gives `{}`. 🔑 **And the comment above the older one argues for the newer one's answer.** **Joe: file only, ship as-is** — user-visible impact today is **zero** (only `true` renders a badge), and unifying would change a shipped branch this leg's gate never covered. Trigger recorded and checkable.
+
+### 🔑 THE ROADMAP GAINS A SECOND INDEX, KEYED BY THE SCREEN
+
+Joe raised *"DM Spaces are still in the Spaces list"* **three times across three sessions** — and said plainly why: *"I don't remember when it comes to execution… I want to be sure that if I see it, it is not a bug but work ahead."* 🛑 **THAT IS A RECORDS FAILURE, NOT A MEMORY ONE.** The tree answers *what are we building*; nothing answered *I am looking at this right now — is it broken?* ⇒ **`docs/ROADMAP.md` §"On screen now, and NOT a bug"** — eight rows: what you see · why · **owner leg** · 🔒 **"It IS a bug if…"**. ⚠️ **That last column is what keeps it from becoming a blanket excuse**; a row that cannot state its own falsification does not belong in it. 📌 **Maintenance: a row is DELETED by the commit that closes its owner** — a stale row teaches distrust of the whole table.
+
+### ✅ FLOORS
+
+**svelte-check 0 / 34 / 15 — RE-RUN by Chat.** Two files, `68/14` and `13/2`. 📌 **`cargo` IDENTICAL is a SCOPE argument, labelled as one** — **zero `.rs`, zero `ui/core`**. **Catalogue 435 by scope.** **Registry 168 quiescent at 7 Spaces — `N-184` predicted it exactly** (`+1 Space = +2 registrations`, from 166 at 6), *the note earning its keep one session after being written.* 📌 **Joe's client state UNTOUCHED at `4204 B`, 21:08:23 — this leg read nothing and wrote nothing of his.**
+
+🎯 **NEXT: C-bis-8** (the failure surface) **→ C-bis-5 LAST** (`OWED-4` measured and shown UNRULED, `D-146`) **→ Leg E**, whose gate is discharged. **Joe confirmed the order stands.** → J-713 · ROADMAP v7.00.
+
+---
 ## Entry J-711 — C-bis-6 ships in four files instead of two, and the only number called an invariant turns out to have been drifting for months
 
 **Date:** 2026-08-10 · **Seats:** Clair (implementation, and the Rule 6 report that saved the leg) · Chat (grounding, all gates, records) · Joe (the scope ruling, the send consent, and the screenshots). runbook → **v1.8** · Leg C-bis task doc → **v1.10** · Phase-0 → v1.12 · notes → **v1.18** (**+N-183 +N-184**) · ROADMAP → **v6.99**. **No new `D`.**

@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.18  
+> Version: 1.19  
 > Date: May 2026  
-> **Last updated**: 2026-08-10  
+> **Last updated**: 2026-08-11  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -3747,3 +3747,38 @@ On launch the client selects nothing: R2 empty, R7 `no-scope`, R5 *"select a roo
 ⚠️ **THE TRAP THIS SETS, NAMED SO NOBODY WALKS INTO IT:** every kickoff for months has called `164` *"the ONLY registry invariant"*. A number described as invariant, carried forward in kickoff after kickoff, drifting silently underneath because the thing it counts is USER DATA. ***It is the recurring defect class wearing its best disguise — a claim narrower than the thing it describes, reused as if complete.***
 
 🔒 **THE RULE THAT REPLACES THE NUMBER: a registry count compares ONLY against itself, in the same client, with the same Space tree, before and after.** A count carried across sessions proves nothing. **Do not re-baseline `166` and repeat the error** — record the tree it was measured against, or record no number.
+
+---
+
+## N-185 — two builders, one question, twenty-five lines apart, disagreeing on their first day (2026-08-10)
+
+**C-bis-7 added `descriptorFromId` to `members-panel` beside the existing `toDescriptor`. They answer "is this an AI?" differently for identical input.**
+
+| builder | rule | no book record ⇒ |
+|---|---|---|
+| `toDescriptor` (fill rows) | `m.unresolved ? {} : { isAi: rec?.is_ai ?? false }` | **`{ isAi: false }`** — definitely-not-an-AI |
+| `descriptorFromId` (Space-record row) | `rec ? { isAi: rec.is_ai } : {}` | **`{}`** — unknown |
+
+🔑 **AND THE COMMENT ABOVE THE OLDER ONE ARGUES FOR THE NEWER ONE''S ANSWER.** `toDescriptor` states that an absent book record *"must render UNKNOWN, never DEFINITELY-NOT-AN-AI — defaulting `false` from a missing record is the `N-097` trap"* — and then its fill branch does exactly that, preserved deliberately as byte-for-byte unchanged when the `unresolved` branch was added. ⚠️ **`is_ai` is `boolean`, NOT optional (`address-book.svelte.ts:76`), so the divergence is ONLY the no-record case** — which is precisely the case the new row exists to serve.
+
+📌 **THE NEW RULE IS THE MORE DEFENSIBLE ONE.** Asserting *not an AI* about an identity the client has never seen is the inversion the comment warns against, and the synthesised row comes from the **Space record**, not a fill.
+
+📌 **DISPOSITION — JOE, 2026-08-10: FILE ONLY, SHIP AS-IS.** **User-visible impact today is ZERO** — `{ isAi: false }` and `{}` both render no badge; only `true` shows one, confirmed on `LegF-Bob` in a live frame. Unifying would change a SHIPPED branch that C-bis-7''s gate was never designed to cover, and folding a behaviour change into a leg mid-flight is how a gate ends up not covering what shipped.
+
+🔒 **TRIGGER, checkable rather than a wish (`N-182`): when `is_ai` gains a SECOND consumer, or when the avatar renders `{}` differently from `{ isAi: false }`.** Either makes the divergence user-visible; until then it is latent and named.
+
+---
+
+## N-186 — the draft that survived the room it was no longer in, and why R5 was not merely mis-captioned (2026-08-10)
+
+**FOUND BY JOE IN A SCREENSHOT. REPRODUCED BY CHAT IN ONE GESTURE.** Open a draft to `LegF-Bob`, then click `LegF-N5` — an existing DM. Measured: `roomLatch` = N5''s dm room ✅ · `spaceLatch` = N5''s DM Space ✅ · R7 = `Joe` + `LegF-N5` ✅ · **R5 = `draftActive: true`, `draftLabel: "LegF-Bob"`** ❌. ***Three stores said N5. One said Bob.***
+
+🛑 **IT WAS NOT A MISLABEL — THE INTRO SUPPRESSES THE STREAM.** `stream-panel:231` forces `streamMessages = []` whenever `dmDraft.active`, and `:183` mounts `dm-intro` on the same condition. ⇒ **N5''s conversation was NOT RENDERED.** *Measured as `aboveMountCount 1 / streamCount 0` before, `0 / 2` after.* 🔑 ***Those two counts are what separate "the caption changed" from "the conversation is actually rendering", and only one of them is a bug worth the name.***
+
+🔑 **ROOT CAUSE, AND IT BELONGED TO NEITHER LEG THAT EXPOSED IT.** `dm-draft:100` closes on a **`room`** selection only. Member activation never writes one — it latches directly and puts an **IDENTITY** on the bus (`L-7`, so R8 shows the card), which `note()` correctly ignores. **The draft''s only close trigger is a path this navigation deliberately bypasses**, and that shape shipped at **C-bis-2**. ⚠️ **C-bis-6 and C-bis-7 merely made the disagreement LEGIBLE** — R2 and R7 became confident about the DM, so the stale draft finally had something to contradict.
+
+📌 ***Joe''s report was "N5 has two results". It was never nondeterminism — it was a HIDDEN SECOND INPUT.*** **A defect that reads as flakiness is usually a state nobody listed.**
+
+🔒 **FIX: `dm-draft` gains `close()` (drop the counterpart, KEEP the text map) and `note()` DELEGATES to it**, so one rule serves both the bus-fed close and the caller-driven one. `members-panel`''s existing-DM branch calls it — the C-bis-6 shape, the caller doing what the bus effect would have.
+
+🛑 **THE TRAP THAT MADE THIS WORTH A NOTE: `clear()` IS THE WRONG METHOD AND SITS THIRTY LINES AWAY.** `clear()` is the POST-SEND close — it drops the counterpart **and deletes that counterpart''s text**. **Calling it here would silently eat what the user typed**, and every store read would still be green. ⇒ **the gate was written to catch it: type to Bob, visit the N5 DM, click Bob — the text must return.** *(Driven: `"half-written to Bob"`, 19 characters, verbatim.)* 🔑 ***A gate that only checks the state you meant to change cannot see the state you destroyed on the way.***

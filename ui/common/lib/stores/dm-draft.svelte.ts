@@ -96,9 +96,20 @@ export const dmDraft = {
    *  `spaceLatch.note`. A `room` selection CLOSES the draft (the user navigated to a conversation); the text
    *  map is untouched, so re-opening the draft restores its text. An `identity` selection — including the
    *  click that OPENED the draft and wrote the person to the bus (L-7 → R8) — is IGNORED, so opening a draft
-   *  and lighting R8 do not fight. Reads its argument, never `_counterpart` (N-136). */
+   *  and lighting R8 do not fight. Reads its argument, never `_counterpart` (N-136). DELEGATES to `close()`
+   *  so the close rule (drop the counterpart, KEEP the text) lives in ONE place — this bus-fed close and the
+   *  caller-driven close in members-panel's existing-DM branch (C-bis-7 / J-713) share it, never a second copy. */
   note(sel: Selection | null = selection.current): void {
-    if (sel?.entity.kind === 'room') _counterpart = null;
+    if (sel?.entity.kind === 'room') dmDraft.close();
+  },
+  /** Close the draft WITHOUT sending: drop the open counterpart, LEAVE the text map intact so re-opening
+   *  restores it (§5.3). ⚠️ CONTRAST `clear()` (below), which ALSO deletes that counterpart's text because it
+   *  was sent — calling the wrong one silently eats what the user typed. Called by `note()` (a `room`
+   *  selection) and DIRECTLY by members-panel's existing-DM branch (C-bis-7 / J-713): opening another DM is
+   *  navigating to a conversation, but that path writes an IDENTITY (L-7) and latches directly, so `note()`
+   *  never sees it — the caller does what the bus effect would have. Writes `_counterpart`, never reads it (N-136). */
+  close(): void {
+    _counterpart = null;
   },
   /** Update the typed text for the currently-open draft (C-bis-3, the composer). No-op with no draft open.
    *  Reassigns a fresh object (Svelte 5 `$state` tracks the reference). */

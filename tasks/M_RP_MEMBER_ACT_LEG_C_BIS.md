@@ -1,8 +1,8 @@
 # M-RP-MEMBER-ACT Leg C-bis — the member with no DM: creation, the first send, and the erased identity
 > **Status**: ACTIVE  
-> Version: 1.10  
+> Version: 1.11  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-10  
+> **Last updated**: 2026-08-11  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -438,6 +438,22 @@ they authored**. That is `M-RP-INTRO`, filed and undesigned, **and it must not a
 > standing as if it were current. 📌 *Species: **a superseded record that never announced its own
 > supersession** — harmless while both are read together, and a trap the moment one is read alone.*
 > **The live split is five legs; the statuses below are the record.**
+
+> ✅ **C-bis-6 CLOSED J-711 · C-bis-7 CLOSED J-713 — BOTH DRIVEN GREEN BY CHAT UNDER RULE 5, FRESH CLIENT.**
+> **C-bis-6:** the member-activation path moves the SPACE context on both branches; R1 suppresses its
+> highlight for DM Spaces. Shipped in **FOUR** files, not the two the locked runbook named — Clair reported
+> the scope under Rule 6, Joe accepted. **C-bis-7:** `counterpart` re-sourced from the **Space record**, the
+> counterpart row synthesised when the roster cannot supply it, and the drafted-to row highlighted — shipped
+> in `members-panel` alone, **the file list having been audited against the source BEFORE it became an
+> instruction (J-712)**, precisely because C-bis-6's had not been. 🆕 **Plus a defect Joe found in a
+> screenshot and Chat reproduced in one gesture: a draft SURVIVED navigation into a DM and SUPPRESSED that
+> DM's stream** (`dm-intro` mounted ⇒ `streamMessages = []`) — fixed by `dm-draft.close()`, `note()`
+> delegating to it, see `N-186`.
+> 🎯 **REMAINING: C-bis-8** (the failure surface) **→ C-bis-5 LAST** (verification, `OWED-4` measured and
+> shown to Joe **UNRULED** per `D-146`). **Then Leg E** — its gate was re-pointed onto C-bis-6 at J-710 and
+> is **DISCHARGED**; the DM home is unblocked, and Joe confirmed the order stands (2026-08-11).
+> 📌 **`N-185`** files the `descriptorFromId` / `toDescriptor` flags divergence — **file-only at Joe's word**,
+> zero user-visible impact today, with a checkable trigger.
 
 | leg | content | status |
 |---|---|---|

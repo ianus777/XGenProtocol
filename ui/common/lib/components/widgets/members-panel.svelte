@@ -125,15 +125,37 @@
     };
   }
 
-  // ── The DM counterpart highlight (L16) ────────────────────────────────────────────────────────
-  // The counterpart's id iff this is a DM, else `undefined` (NO highlight in a group room). The counterpart
-  // is the non-self member; `selected` flows one-way to the inert row's highlight (M-RP-PANEL-INERT). Self is
-  // never the counterpart (L17 — self stays unmarked).
-  const counterpart = $derived(
-    panelState === 'known' && addressBook.isDm && addressBook.roster
-      ? addressBook.roster.find((m) => m.identity_id !== selfId)?.identity_id
-      : undefined,
-  );
+  // A descriptor from a BARE identity id (no MemberEntry) — used for the C-bis-7 synthesised DM counterpart
+  // row, which comes from the Space record, not the fill. `_book` is the GLOBAL address book
+  // (`get_address_book` returns the bare `identity_id → SeenRecord` map, NOT Space-scoped —
+  // address-book.svelte.ts:148), so a counterpart absent from the roster can still resolve a `display_name`;
+  // otherwise the D-142 `…` + last-8 fallback. No book record ⇒ `flags {}` (UNKNOWN), NEVER `{ isAi: false }`:
+  // defaulting from a missing record is the N-097 trap (an AI would render as human). This row is NEVER
+  // stamped `unresolved` — that marker means "reached the roster via a live delta" and a Space-record
+  // fabrication must not masquerade as one (§5a / M-RP-LIVEFEED-REFRESH Leg A).
+  function descriptorFromId(idOf: string): EntityDescriptor {
+    const rec = addressBook.book[idOf];
+    return {
+      kind: 'identity',
+      id: idOf,
+      name: rec?.display_name ?? tail8(idOf),
+      flags: rec ? { isAi: rec.is_ai } : {},
+    };
+  }
+
+  // ── The DM counterpart (L16 highlight + C-bis-7 row) ────────────────────────────────────────────
+  // The counterpart's id comes from the SPACE RECORD (`KnownSpace.counterpart`), NOT the roster's non-self
+  // member. OQ8-K3 writes it at DM creation, so a DM whose counterpart never joined the room still knows who
+  // it is with — the fill's roster would hold only self, but the Space record names them (J-711). `null` for
+  // a group Space ⇒ `undefined` here (no highlight, no synthesised row). ⚠️ `KnownSpace.counterpart` is the
+  // SESSION identity for the self thread (spaces-state:32-34); self is NEVER the counterpart (L17 — self
+  // stays unmarked), so exclude it explicitly — a bare field match would mark self's own thread.
+  // `scope` non-null ⇒ its Space is in `spacesState.spaces` by construction (roomLatch resolves scope FROM
+  // that list), so the `.find` cannot miss when scoped.
+  const counterpart = $derived.by(() => {
+    const cp = spacesState.spaces.find((s) => s.space_id === scope)?.counterpart;
+    return cp != null && cp !== selfId ? cp : undefined;
+  });
 
   // §5/§5a — the ③ set for the current roster. `notFoundIds` is a small array; a Set keeps the
   // per-row test O(1) and reads as the membership question it is.
@@ -159,9 +181,30 @@
       : [],
   );
 
-  // The rendered rows: self FIRST (present in all five states, L2), then the other members (state ② only).
+  // C-bis-7 — the DM counterpart may be a participant of the stream you are looking at WITHOUT being in the
+  // fill's roster: a DM whose counterpart never joined the room returns a roster of self only (J-711), but the
+  // Space record still names them (`counterpart` above). Joe's rule — R7 shows the participants of the stream
+  // you are looking at, WHENEVER THEY EXIST — so synthesise the counterpart row from the Space record when the
+  // roster did not already supply it. In an existing DM whose counterpart DID join, `memberRows` already
+  // carries them ⇒ no synthesis (never duplicate). In a DRAFT `counterpart` is `undefined` (the scope is the
+  // group Space, whose `counterpart` is `null`) ⇒ no synthesis: the DM does not exist yet, and inventing two
+  // rows would be a roster no fill produced (D-065). `memberCount` (the fill count) stays as-is while `rowCount`
+  // gains this row — that disagreement is the TRUTH, not a defect (trap ①): the second row is from the Space
+  // record, not the fill, and inflating `memberCount` would make a frontend count masquerade as a wire count.
+  const counterpartRow = $derived(
+    panelState === 'known' &&
+      counterpart != null &&
+      !memberRows.some((r) => r.descriptor.id === counterpart)
+      ? { descriptor: descriptorFromId(counterpart) }
+      : null,
+  );
+
+  // The rendered rows: self FIRST (present in all five states, L2), then the other members (state ② only),
+  // then the synthesised DM counterpart if the roster did not carry it (C-bis-7).
   const rows = $derived(
-    (selfDescriptor ? [{ descriptor: selfDescriptor }] : []).concat(memberRows),
+    (selfDescriptor ? [{ descriptor: selfDescriptor }] : [])
+      .concat(memberRows)
+      .concat(counterpartRow ? [counterpartRow] : []),
   );
 
   // ── Interaction (M-RP-MEMBER-ACT Leg C-3 / C-bis-2) ─────────────────────────────────────────────
@@ -223,6 +266,14 @@
       // stores (the shell's one-effect-both-note()s shape), NOT a coupling.
       roomLatch.latch(dm.room_id);
       spaceLatch.latch(dm.space_id);
+      // C-bis-7 / J-713: opening an existing DM is navigating to a conversation, so CLOSE any open draft —
+      // otherwise `stream-panel:231` keeps suppressing this DM's stream (`streamMessages = []` while
+      // `dmDraft.active`) and R5 stays captioned for the OLD draft while R7/R2 have already moved. The draft's
+      // shipped close trigger is a `room` selection (`dm-draft:note`), but this path writes an IDENTITY (L-7)
+      // and latches directly, which `note()` correctly ignores — so the caller does what the bus effect would
+      // have (the C-bis-6 shape). 🛑 `close()`, NOT `clear()`: `clear()` DELETES the draft's text (post-send);
+      // `close()` KEEPS it, so a half-typed message to someone else survives the visit (§5.3).
+      dmDraft.close();
       // Leave the person on the bus so R8 shows the card (L-7).
       selection.set(regionId, descriptor);
       return;
@@ -266,11 +317,14 @@
 
 <div class="members-panel" data-tier="widget" use:envelope={{ name: 'members-panel', id, debug }}>
   <!-- ACTIVE (M-RP-MEMBER-ACT Leg C-3, was Inert): clicking a member opens its existing DM and writes the
-    bus. `selectOnActivate={false}` keeps `selected={counterpart}` — the DERIVED DM highlight (L16) — from
-    being overwritten by a click (L-5); `onActivate` opens the DM + writes the bus (L-1/L-7). -->
+    bus. `selectOnActivate={false}` keeps the highlight DERIVED (L16) — never a click write (L-5); `onActivate`
+    opens the DM + writes the bus (L-1/L-7). C-bis-7 EXTENDS L16 to the DRAFT: `dmDraft.counterpart` highlights
+    the drafted-to row (during a draft the stream IS about that person), still derived, still one-way. `??
+    undefined` coerces the store's `string | null` to the prop's `string | undefined` (null and undefined both
+    mean "no selection"). In a DM `counterpart` wins; in a draft it is `undefined` and the draft target shows. -->
   <EntityPanel
     items={rows}
-    selected={counterpart}
+    selected={counterpart ?? dmDraft.counterpart ?? undefined}
     interactive={true}
     selectOnActivate={false}
     onActivate={onMemberActivate}

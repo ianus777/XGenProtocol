@@ -471,7 +471,7 @@ this stream about.**
 
 🔒 **SCOPE ADDED BY JOE 2026-08-09 — THE DRAFT ROW IS HIGHLIGHTED TOO.** ⚠️ **Chat read Joe's earlier *"draft
 member panel state is correct"* as closing this; it closed the ROW LIST only.** Joe: *"i would rather have the
-counterpart be selected while draft to him."* ⇒ **`selected={counterpart ?? dmDraft.counterpart}`** — one
+counterpart be selected while draft to him."* ⇒ **`selected={counterpart ?? dmDraft.counterpart}`** *(⚠️ **`D-131`: THIS LITERAL DOES NOT TYPECHECK AND IT SHIPPED LOCKED.** `dmDraft.counterpart` is `string | null`, the prop is `selected?: string`, and `entity-panel:63` states outright *"Undefined = no selection."* **Clair reported it under Rule 6 rather than absorbing it.** Shipped form: **`counterpart ?? dmDraft.counterpart ?? undefined`** — null and undefined mean the same thing to this prop, so no behaviour hides in the coercion. **Annotated, not repaired — J-713.**)* — one
 expression, and it **extends `L16`** (*the only highlight is the DM counterpart*) rather than fighting it:
 during a draft the stream **is** about that person. 🛑 **`selectOnActivate={false}` STAYS** — the highlight
 remains DERIVED, never a click write.

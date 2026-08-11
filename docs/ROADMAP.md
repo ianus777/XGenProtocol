@@ -1,8 +1,8 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 6.99  
+> Version: 7.00  
 > Date: May 2026  
-> **Last updated**: 2026-08-10  
+> **Last updated**: 2026-08-11  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -435,6 +435,25 @@ The tree above is the **state board**. It is the authoritative current state of 
 | UI component and substrate notes | `ui/docs/xgen-ui-notes.md` — N-numbered, append-only |
 
 **Maintenance.** Same-commit discipline applies to this tree, no exceptions — D-074: a state change moves `docs/ROADMAP.md`, `CLAUDE.md`'s PLAY head, `JOURNAL.md` and the task doc in one commit. When a node closes, the closer writes its `· J-nnn` and its `→ successor` in the same edit. **A trigger that has fired is a defect: the node it guards is stale by definition.**
+
+## On screen now, and NOT a bug — what you are looking at, and which leg owns it
+
+**Why this section exists.** Joe raised "DM Spaces are still in the Spaces list" three times across three sessions — not because he forgot the ruling, but because **nothing in the records answered it at a glance from what he could SEE.** A roadmap organised by milestone answers *"what are we building?"*; it does not answer *"I am looking at this right now — is it broken?"* This section is the second index, keyed by the screen.
+
+🛑 **THIS LIST IS NOT A BLANKET EXCUSE, AND THE LAST COLUMN IS WHY.** Every row carries the condition under which the same thing on screen WOULD be a defect. **A row with no such condition does not belong here** — it would be an invitation to wave away real breakage, which is worse than having no list at all.
+
+| What you see | Why it is expected | Owner | It IS a bug if… |
+|---|---|---|---|
+| **DM Spaces listed in R1** | `OQ3` ruled they leave R1 (J-709); the gate was re-pointed onto C-bis-6 at J-710 and is **discharged**. Unblocked, unbuilt. | **Leg E** | a DM row is **highlighted** — C-bis-6 shipped the suppression, so a lit DM row is a regression |
+| **R1's DM rows read `DM with xgen://pubkey/e…`** | the rename is filed as `N-173` and is **Joe's**, not a leg's | Joe / `N-173` | a **group** Space renders a raw xgid — that would be identity resolution failing, not naming |
+| **Your own message shows your raw xgid and a `GC` avatar** | `N-183`. The echo row never resolves its author; `GC` is the key's last two characters. **Pre-existing, newly reachable.** Filed only, at Joe's word. | filed, no node | R7, R8 or the self-panel **also** stop resolving that same identity — then it is resolution, not just the echo path |
+| **Messages gone after a restart, with a banner saying so** | **§5's R4, sync-from-cursor replay, is OPEN and in no leg.** The node HAS them — it replayed 9 Space event stores at last launch. The client simply never fetches history, and the banner says so honestly. | `M-RP-LIVEFEED-REFRESH` Owes | messages vanish **within** one session — that is the live stream, not the missing backfill |
+| **A DM's member list shows two rows while the debug count says one** | C-bis-7. `memberCount` reports the **fill**; the counterpart row comes from the **Space record**. The disagreement is the TRUTH. | shipped, J-713 | `rowCount` is not **2** in a DM, or `memberCount` has been "fixed" upward — inflating it makes a frontend count masquerade as a wire count |
+| **R2 collapses to a single `dm` row inside a DM** | C-bis-6 option A, named in advance so it would not be reported as a defect | shipped, J-711 | R2 shows the **previous** Space's rooms — that is the dangling highlight C-bis-6 closed |
+| **No error appears if a DM fails to create** | the failure surface is one line under the composer rendering `dmDraft.error` verbatim | **C-bis-8** | a failure is swallowed **silently after C-bis-8 ships** |
+| **`dm-intro` and the composer look unstyled** | `skin.css` and `dm-intro`'s wording are **Joe's files**; no leg may touch them | Joe | — *(appearance only; a layout collapse is a different question and belongs in a leg)* |
+
+📌 **MAINTENANCE, or this decays into folklore:** a row is **added** when a leg ships something visibly incomplete on purpose, and **deleted** by the commit that closes its owner. ⚠️ **A row whose owner has shipped is worse than no row** — it teaches the reader to distrust the whole table.
 
 ## Near future — designed or scoped, awaiting work
 

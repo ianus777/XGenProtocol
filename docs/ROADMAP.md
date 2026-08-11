@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 7.01  
+> Version: 7.02  
 > Date: May 2026  
 > **Last updated**: 2026-08-11  
 > Language: English  
@@ -62,6 +62,10 @@ The update happens **in the same commit** as the work that produced the state ch
 **This document and `CLAUDE.md` are updated together.** Two anchor points for the same reality. If one moves, the other moves. The same commit touches both. Drift between them is a discipline failure that must be corrected immediately.
 
 Detail-level varies by state: settled work gets one line referencing JOURNAL/tag; active work gets a paragraph; near future gets a paragraph if soon, one line if not yet; far future stays brief. Detail accumulates as a track approaches and is reduced when the track settles (active paragraph → done one-liner).
+
+⚠️ **THAT REDUCTION HALF HAS NOT BEEN HAPPENING, AND IT WAS MEASURED (2026-08-11, J-715).** The tree carries **12 `↳ Owes:` lines totalling 8,395 characters — mean 700, longest 1,417** — and **five of the six longest are the most recently touched nodes**, two of them written by Chat at J-709 and J-710. 🔑 **They grew for a GOOD reason and in the WRONG place:** each long line exists because a fact was *measured* (`home_node` cannot designate a Space · `friend` returns zero hits · all 240 `block` hits are plumbing) and nobody wanted it re-derived — the *"claim narrower than the thing it describes"* defect class, correctly feared. 🛑 **But a NAVIGATION MAP IS NOT A KNOWLEDGE STORE**, and a 1,400-character line is unreadable exactly when it is needed: while scanning.
+
+🔒 **THE MECHANISM, ruled by Joe 2026-08-11 — REDUCE ON COMPLETION, NOT ON A CALENDAR.** *A live node keeps its full `Owes`; the length is what stops the next person re-deriving the finding.* **When the node COMPLETES, the reasoning has already done its work** — it is in the JOURNAL and the notes by then — so **the closing commit cuts `Owes` to what is still owed, and points at the `N-nnn` / `J-nnn` that holds the reasoning.** ⚠️ **`M-RP-INTRO`'s own line already shows the target shape** — it cites `N-172` for the widget-on-the-wire finding in a handful of words. 📌 **Deleting the overflow instead of relocating it is NOT the rule** — that is the loss the length was protecting against.
 
 ---
 

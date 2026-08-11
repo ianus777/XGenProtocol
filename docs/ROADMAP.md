@@ -1,6 +1,6 @@
 # XGen Protocol — Project Roadmap
 > **Status**: ACTIVE  
-> Version: 7.00  
+> Version: 7.01  
 > Date: May 2026  
 > **Last updated**: 2026-08-11  
 > Language: English  
@@ -451,6 +451,8 @@ The tree above is the **state board**. It is the authoritative current state of 
 | **A DM's member list shows two rows while the debug count says one** | C-bis-7. `memberCount` reports the **fill**; the counterpart row comes from the **Space record**. The disagreement is the TRUTH. | shipped, J-713 | `rowCount` is not **2** in a DM, or `memberCount` has been "fixed" upward — inflating it makes a frontend count masquerade as a wire count |
 | **R2 collapses to a single `dm` row inside a DM** | C-bis-6 option A, named in advance so it would not be reported as a defect | shipped, J-711 | R2 shows the **previous** Space's rooms — that is the dangling highlight C-bis-6 closed |
 | **No error appears if a DM fails to create** | the failure surface is one line under the composer rendering `dmDraft.error` verbatim | **C-bis-8** | a failure is swallowed **silently after C-bis-8 ships** |
+| **The DM failure line looks unstyled** | C-bis-8 ships it **structural only** — `min-width: 0`, `overflow-wrap: anywhere`, no colour, no size, no weight. `.composer-error` is a **`skin.css` selector and `skin.css` is Joe's file**; no leg may touch it. **`N-188`: the node's string repeats itself three times, so the rule must survive a long unbreakable one.** | Joe / `M-RP-SKIN` | it **overflows the tile**, fails to wrap, or migrates a scrollbar — that is structure, and structure is the leg's |
+| **A DM failure line still showing beside a healthy node** | **`N-187`.** `_error` clears on `open` or on the next `create` — **a node coming back is neither.** The line reports **your last attempt**, not the node's health. | shipped, J-715 | it survives an `open` or a fresh `create` — **or** if someone wires it to connection state, which would clear a real unretried failure the moment a socket reconnects |
 | **`dm-intro` and the composer look unstyled** | `skin.css` and `dm-intro`'s wording are **Joe's files**; no leg may touch them | Joe | — *(appearance only; a layout collapse is a different question and belongs in a leg)* |
 
 📌 **MAINTENANCE, or this decays into folklore:** a row is **added** when a leg ships something visibly incomplete on purpose, and **deleted** by the commit that closes its owner. ⚠️ **A row whose owner has shipped is worse than no row** — it teaches the reader to distrust the whole table.

@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.19  
+> Version: 1.20  
 > Date: May 2026  
 > **Last updated**: 2026-08-11  
 > Language: English  
@@ -3782,3 +3782,31 @@ On launch the client selects nothing: R2 empty, R7 `no-scope`, R5 *"select a roo
 🔒 **FIX: `dm-draft` gains `close()` (drop the counterpart, KEEP the text map) and `note()` DELEGATES to it**, so one rule serves both the bus-fed close and the caller-driven one. `members-panel`''s existing-DM branch calls it — the C-bis-6 shape, the caller doing what the bus effect would have.
 
 🛑 **THE TRAP THAT MADE THIS WORTH A NOTE: `clear()` IS THE WRONG METHOD AND SITS THIRTY LINES AWAY.** `clear()` is the POST-SEND close — it drops the counterpart **and deletes that counterpart''s text**. **Calling it here would silently eat what the user typed**, and every store read would still be green. ⇒ **the gate was written to catch it: type to Bob, visit the N5 DM, click Bob — the text must return.** *(Driven: `"half-written to Bob"`, 19 characters, verbatim.)* 🔑 ***A gate that only checks the state you meant to change cannot see the state you destroyed on the way.***
+
+---
+
+## N-187 — the failure line reports YOUR LAST ATTEMPT, not the node''s health (2026-08-11)
+
+**MEASURED at C-bis-8''s gate, and neither Chat nor Clair predicted it.** With the node killed mid-draft, `.composer-error` appears carrying the node''s words. **Then the node was restarted — and the line STAYED**: `errElCount: 1`, `draftError: SET`, node up and healthy.
+
+🔑 **THAT IS CORRECT, AND THE REASON IS THE WHOLE NOTE.** `_error` is nulled in exactly two places — `open()` (`dm-draft:92`) and the top of `create()` (`:134`). **A node coming back is neither.** ⇒ **the surface is a record of YOUR LAST ATTEMPT, not a liveness indicator for the node.**
+
+🛑 **WRITTEN DOWN SO NOBODY "FIXES" IT INTO ONE.** A future reader sees a stale-looking error beside a healthy node and reaches for a subscription to connection state. ⚠️ **That would make the line lie in the other direction** — clearing a real, unretried failure the moment a socket reconnects, so the user never learns their DM was not created. 📌 ***The honest surface answers "did what I asked succeed?", and the answer does not change until you ask again.***
+
+📌 **R6 already HAS a liveness surface elsewhere** (the self-panel''s connection state) — *two questions, two surfaces, and merging them loses one of the answers.*
+
+---
+
+## N-188 — what `String(e)` actually looks like on screen, seen for the first time (2026-08-11)
+
+**C-bis-8 renders `dmDraft.error` VERBATIM by ruling — no label, no authored copy — so the gate is the first time the node''s raw error string has been READ off the screen rather than out of a debug getter.** It arrives as:
+
+*"failed to connect to Node: WebSocket error: IO error: No connection could be made because the target machine actively refused it. (os error 10061): IO error: No connection … (os error 10061): No connection … (os error 10061)"*
+
+🔑 **THE SAME SENTENCE THREE TIMES.** Error-chain wrapping on the node side, each layer re-appending the cause it already carries, surfaced faithfully because faithful is the ruling. 📌 **NOT a client defect and NOT C-bis-8''s** — the leg''s job was to stop swallowing it, and a truthful surface showing an ugly truth is the surface working.
+
+⚠️ **TWO CONSEQUENCES, BOTH FILED, NEITHER SCHEDULED:**
+**①** **The node''s error chain is worth flattening at its source** — the client cannot fix this without authoring copy, which is exactly what the ruling forbids. **Node-side, not UI.**
+**②** 🔒 **ANY SKIN RULE FOR `.composer-error` MUST SURVIVE A LONG, REPETITIVE, UNBREAKABLE STRING.** The structural CSS shipped at C-bis-8 (`min-width: 0`, `overflow-wrap: anywhere`) already keeps it inside the tile — **the appearance rule must not undo that**, e.g. by setting a `white-space` that forbids wrapping. *A colour choice cannot break this; a layout choice can.*
+
+📌 ***A verbatim surface is a contract with the SOURCE, not with the reader. It obliges whoever owns the source to be worth quoting.***

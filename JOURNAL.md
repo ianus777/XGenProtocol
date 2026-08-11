@@ -8,6 +8,49 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-715 — C-bis-8 ships the failure surface, and the first look at a verbatim error teaches two things nobody expected
+
+**Date:** 2026-08-11 · **Seats:** Clair (implementation, and a discretionary flag that saved the probe) · Chat (the J-714 audit, the gate, the records) · Joe (the class name, and the ruling that kept a DM from being minted). runbook → **v1.12** · notes → **v1.20** (**+N-187 +N-188**) · ROADMAP → **v7.01**. **No new `D`.** *(Absorbs J-714, the C-bis-8 file-list audit.)*
+
+### ✅ GATE C-bis-8 DRIVEN GREEN — AND NOTHING OF JOE'S WAS SPENT
+
+Fresh client, quiescent **168 / 7 Spaces**. Draft to **`LegF-CAROL`** (no existing DM), 23 characters typed, **node KILLED mid-draft.**
+
+| clause | measured |
+|---|---|
+| the line appears | `.composer-error` **0 → 1** |
+| **it carries the NODE'S words** | **`containsOsError: true`** — *"failed to connect to Node: WebSocket error … (os error 10061)"*, **verbatim, no label** |
+| draft stays open with its text | `draftActive true`, `textLength 23` |
+| **nothing implies the DM exists** | `spaces 7` · `echoCount 0` · `outboundCount 0` · **client state `4204 B`, UNMOVED** |
+| the line clears | `errElCount` **1 → 0**, `draftError null` |
+
+🔑 **THE `N-099` CONTROL WAS STRUCTURAL, NOT A SEPARATE STEP: absent → present-WITH-THE-RIGHT-STRING → absent.** ⚠️ **And clause ① is what gives the middle read meaning** — *a hard-coded "Could not create DM" would have satisfied every other row of that table.*
+
+### 🔑 CLAIR'S DISCRETIONARY FLAG SAVED THE PROBE, AND IT WAS NOT EVEN A DEVIATION
+
+She wrapped the line in `{#if dmDraft.error}` — the runbook left that open — and **reported the consequence unprompted**: on clear the element is **ABSENT**, not present-but-empty. 🛑 **Chat had intended to assert `textContent === ''`, which reads `''` for an element that never existed.** ⇒ *the probe was rewritten to count elements.* 📌 ***"Read it empty" and "read it absent" are two different selectors, and only one of them can fail honestly.*** **This is Rule 6 used for something that was not a defect at all — a downstream consequence of a free choice, surfaced because it changed someone else's work.**
+
+### 🔒 THE CLEAR WAS DRIVEN THROUGH `open()`, NOT A SUCCESSFUL `create()` — SAID PLAINLY
+
+The runbook's literal clause is *"restart the node and send"*, and **a successful send MINTS A PERMANENT DM in Joe's live client.** ⚠️ **Chat had told Joe earlier that this leg spent nothing — TRUE of the failure half, WRONG about this half — and corrected it rather than quietly spending it.** **Joe ruled: drive it via `open()`.** ⇒ `_error` is nulled in exactly two places, `open():92` and the top of `create():134` — **the same field, two lines apart** — so **the create-side clear is INFERRED FROM A SHARED ASSIGNMENT, NOT MEASURED.** 📌 *The alternative was a permanent DM minted to prove a `null` assignment a free gesture already proves. **The inference is cheap and NAMED; an unnamed inference would not be.***
+
+### 🔑 TWO FINDINGS NEITHER SEAT PREDICTED
+
+**`N-187` — THE LINE SURVIVES A NODE RESTART.** With the node back up and healthy, `errElCount` was still `1`. **Correct: a node returning is neither an `open` nor a `create`.** ⇒ **the surface reports YOUR LAST ATTEMPT, not the node's health.** 🛑 **Filed so nobody "fixes" it into a liveness indicator** — that would clear a real, unretried failure the moment a socket reconnects, and the user would never learn their DM was not created. *Two questions, two surfaces; merging them loses one of the answers.*
+
+**`N-188` — WHAT `String(e)` ACTUALLY LOOKS LIKE.** The rendered string **repeats the same sentence THREE TIMES** — error-chain wrapping on the node side, each layer re-appending the cause it already carries. **Surfaced faithfully because faithful is the ruling.** 📌 **Not a client defect and not this leg's** — the leg's job was to stop swallowing it. ⇒ **the node's chain is worth flattening AT ITS SOURCE** (the client cannot fix it without authoring copy, which the ruling forbids), and 🔒 **any future skin rule must not undo `overflow-wrap: anywhere`.** ***A verbatim surface is a contract with the SOURCE, not the reader — it obliges whoever owns the source to be worth quoting.***
+
+### ✅ THE THIRD AUDIT-BEFORE-INSTRUCTION HELD (J-714)
+
+`composer-panel.svelte` **alone** — `dmDraft` already imported (`:62`), `error` already read (`:197`), root is a flex column. **And the lifecycle was confirmed at the source rather than assumed**, which is why *"it self-clears on retry"* was true for a reason. 🔑 **The audit also caught what the section did NOT say: the new element renders UNSTYLED**, because `skin.css` knows one composer selector and **`skin.css` is Joe's file.** ⇒ **structure is the leg's, colour is Joe's**; class **`.composer-error`** ruled by Joe *because he writes the rule that targets it*. 📌 **Three audits now: one caught a wrong list (C-bis-6's, retroactively), two confirmed correct ones — and this one caught a boundary rather than a file.**
+
+### ✅ FLOORS
+
+**svelte-check 0 / 34 / 15 — RE-RUN by Chat.** One file, **`20 / 0`**. 📌 **`cargo` IDENTICAL is a SCOPE argument, labelled** — zero `.rs`, zero `ui/core`, **`skin.css` untouched**. **Catalogue 435 by scope; no `use:envelope` on the new line, so the registry is unmoved by construction — `168` before and `168` at quiescence.** 📌 **Joe's client state `4204 B` → `4204 B`.** ⚠️ **`docs/ROADMAP.md` briefly went CR 544 / LF 546** when inserted rows carried LF into a CRLF file — **caught by the byte count, not by reading**, and repaired to **546 / 546** before the commit. *The check that catches this is the only one that ever has.*
+
+🎯 **NEXT: C-bis-5 LAST — verification, `OWED-1`'s discharge, J-618 annotated at the site, and `OWED-4` MEASURED AND SHOWN TO JOE UNRULED (`D-146`). Then Leg E**, gate discharged since J-711. → J-715 · ROADMAP v7.01.
+
+---
 ## Entry J-713 — C-bis-7 ships; a draft outlives the room it left; and the roadmap gains a second index because Joe asked the same question three times
 
 **Date:** 2026-08-10 → 2026-08-11 · **Seats:** Clair (implementation, two Rule 6 reports, both correct) · Chat (the C-bis-7 file-list audit, every gate, all records) · Joe (four rulings, and the screenshot that found the defect). runbook → **v1.10** · task doc → **v1.11** · notes → **v1.19** (**+N-185 +N-186**) · ROADMAP → **v7.00**. **No new `D`.** *(Absorbs J-712, the C-bis-7 file-list audit, which was committed as a runbook change and never owed a state-change entry of its own.)*

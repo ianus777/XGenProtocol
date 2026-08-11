@@ -1,6 +1,6 @@
 # RUNBOOK — M-RP-MEMBER-ACT Leg C-bis: the member with no DM opens a draft
 > **Status**: ACTIVE  
-> Version: 1.11  
+> Version: 1.12  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-11  
 > Language: EN  
@@ -559,7 +559,7 @@ gate; without it, eating the user's text passes.** · floors · **`cargo` IDENTI
 
 ---
 
-### 🟡 C-bis-8 — the §5.4 failure surface becomes VISIBLE (Joe's ruling, 2026-08-09)
+### ✅ C-bis-8 — the §5.4 failure surface becomes VISIBLE (Joe's ruling, 2026-08-09)
 
 🔒 **RULED: one line under the composer, rendering `dmDraft.error`.**
 
@@ -612,6 +612,35 @@ satisfy every other line of this gate, and it would be exactly the invented copy
 🛑 **② "THE LINE CLEARS" IS AN EMPTY RESULT ⇒ POSITIVELY CONTROL IT (`N-099`).** Prove the probe can SEE the
 line first — read it non-empty with the node down — then restart and read it empty. *Without the control, a
 selector that never matched anything passes the clear check perfectly.*
+
+✅ **GATE C-bis-8 DRIVEN GREEN — CHAT, 2026-08-11 (J-715), RULE 5.** Fresh client, quiescent **168 / 7 Spaces**.
+Draft opened to **`LegF-CAROL`** (no existing DM), 23 characters typed, **then the node was KILLED mid-draft.**
+
+| clause | measured |
+|---|---|
+| the line appears | `.composer-error` count **0 → 1** |
+| **it carries the NODE''S words** | **`containsOsError: true`** — *"failed to connect to Node: WebSocket error … (os error 10061)"*, **verbatim, no label** |
+| the draft stays open with its text | `draftActive true`, `textLength 23` |
+| **nothing implies the DM exists** | `spaces 7` unchanged · `echoCount 0` · `outboundCount 0` · **client state `4204 B`, UNMOVED** |
+| the line clears | `errElCount` **1 → 0**, `draftError null` |
+
+🔑 **THE `N-099` CONTROL IS STRUCTURAL HERE, NOT A SEPARATE STEP: absent → present-WITH-THE-RIGHT-STRING →
+absent.** *A selector that never matched anything fails the middle read.* ⚠️ **And clause ① is what makes the
+middle read mean something** — a hard-coded *"Could not create DM"* would satisfy every other row of this table.
+
+🛑 **RECORDED HONESTLY — THE CLEAR WAS DRIVEN THROUGH `open()`, NOT THROUGH A SUCCESSFUL `create()`.** The
+runbook''s literal clause reads *"restart the node and send"*, and **a successful send MINTS A PERMANENT DM in
+Joe''s live client.** Chat put the cost to Joe rather than spending it; **Joe ruled: drive it via `open()`.**
+⇒ **`_error` is nulled in exactly two places, `open():92` and the top of `create():134`** — the same field, two
+lines apart — so **the create-side clear is INFERRED FROM A SHARED ASSIGNMENT, NOT MEASURED.** 📌 *Written this
+way deliberately: the alternative was a permanent DM minted to prove a `null` assignment that a free gesture
+already proves. The inference is cheap and named; an unnamed inference would not be.*
+
+📌 **TWO FINDINGS NEITHER SEAT PREDICTED, both filed:** **`N-187`** — the line **SURVIVES a node restart**,
+because a node returning is neither an `open` nor a `create`; ⇒ **the surface reports YOUR LAST ATTEMPT, not the
+node''s health**, and must not be "fixed" into a liveness indicator. **`N-188`** — the node''s string **repeats
+itself THREE TIMES** (error-chain wrapping, surfaced faithfully because faithful is the ruling); ⇒ **any future
+skin rule for `.composer-error` must not undo `overflow-wrap: anywhere`.**
 
 ---
 

@@ -222,6 +222,16 @@
   <div class="composer-actions">
     <Button label="Send" disabled={!sendEnabled} onclick={submit} id={cid('send')} />
   </div>
+  <!-- C-bis-8 (§5.4) — THE CREATE-FAILURE SURFACE. One line under the actions rendering `dmDraft.error`
+    VERBATIM: the node's own words at the throw path (`String(e)`, dm-draft.svelte.ts:142 — e.g. "failed to
+    connect to Node … (os error 10061)"). NO label, NO prefix, NO wrapping sentence — a label would be
+    authored copy, and copy is Joe's. `#if` so the line exists ONLY while an error is set; `create()` clears
+    `_error` at its top (dm-draft.svelte.ts:134), so a successful retry SELF-CLEARS the line with no extra
+    wiring. NO `use:envelope` — this registers nothing, so the client registry floor is unmoved. Appearance
+    (`.composer-error`) is `skin.css`'s and currently unstyled — this leg ships structure only (M-RP-SKIN). -->
+  {#if dmDraft.error}
+    <div class="composer-error">{dmDraft.error}</div>
+  {/if}
 </div>
 
 <style>
@@ -242,5 +252,15 @@
     display: flex;
     justify-content: flex-end;
     flex: 0 0 auto;
+  }
+  /* C-bis-8 (§5.4) — STRUCTURAL ONLY (the block above is PROVISIONAL, discharged at M-RP-SKIN). The failure
+     line must stay inside the tile: `min-width: 0` lets the flex item shrink below its content, and
+     `overflow-wrap: anywhere` breaks a long unbreakable token (a URL, an os-error tail) so it wraps rather
+     than pushing the composer wider than R6 or migrating a horizontal scrollbar. NO colour, NO font-size, NO
+     weight — `.composer-error` is Joe's to skin (skin.css). */
+  .composer-error {
+    flex: 0 0 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 </style>

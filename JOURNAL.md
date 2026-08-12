@@ -8,6 +8,54 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-719 — the E-1 runbook, and three milestones filed after a live drive proved a capability exists with no way for a user to reach it
+**Date:** 2026-08-12 · **Seats:** Chat (the read re-drive, the runbook, the live drive, the records) · Clair (the adversarial read) · Joe (six rulings, and the client). Phase-0 v1.2 → **v1.3** · **NEW** `tasks/RUNBOOK_MEMBER_ACT_LEG_E1.md` **v1.0 PENDING** · notes v1.22 → **v1.23** (**+N-193**) · ROADMAP v7.05 → **v7.06**. **NO CODE — zero `.rs`, zero `ui/**`. No new `D`.**
+
+### ✅ CLAIR'S READ RAN — THREE PLAN-MOVING, ONE WORDING, ALL RE-DRIVEN BY CHAT (Rule 5)
+Her verdict: **the design is sound.** `F5`, `F4`, `F6` and the `E-1`/`E-3` ordering lock survived; she could not break `T2`. Recorded as `F11`.
+
+- **`P1`** — `E-0` was **already discharged on disk** while §5 listed it as a future leg. Confirmed. 📌 ***The very shape `F1` flags against the ROADMAP, committed by this document in the same commit.***
+- **`P2`** — the re-inject hook was unspecified, and the obvious placement re-strands the home. **Confirmed: two `loadLayout()` callers — boot `app_client.svelte:709`, `handleRevertUi` `:586` — and NEITHER persists.** An `onMount`-only re-inject leaves the disk autosave pre-`DM Spaces`, so **File ▸ Revert drops the home**, and `layout.revert` is a **live** command ⇒ reachable, not theoretical. ⇒ the hook lives **inside `loadLayout()`**.
+- **`P3`** — two placement sites could drift. **Resolved by Joe's `①`-B: the home is left out of `DEFAULT_LAYOUT` entirely**, so re-inject is the only path — drift structurally impossible, and no future system region needs `DEFAULT_LAYOUT` edited.
+- **`W1`** — **seven `file:line` pointers wrong by 3–8 lines.** All seven confirmed. No code moved `73b5302..HEAD` ⇒ **they were wrong when written: estimated from a whole-file read instead of measured.** 🔒 **RULE: a `file:line` enters a record only from a tool that printed it.** *`N-180` at citation scale — and a runbook lifting one sends the implementer to the wrong line.*
+
+🔑 **She also dissolved §8 item 2's own fear:** the "large migrate" does not exist (`resolve.ts:161` short-circuits; `insertLeaf` is idempotent by construction at `mutate.ts:266`). ***So the item was right that the pricing was wrong and wrong about the direction*** — it predicted *larger*; the migrate half was smaller and the wiring half larger.
+
+### 🔒 WHAT JOE RULED
+| item | ruling |
+| --- | --- |
+| **name** | **`DM Spaces`** — and the reason is recorded because it is load-bearing: *"direct messages we will have in the messages panel"*. **The widget lists Spaces, not streams.** |
+| **position** | `target: spaces`, `edge: bottom` — **verified in BOTH trees**: a sibling insert in his live tree (parent runs `col`) → `[spaces, dm-spaces, self]`; a wrap under `DEFAULT_LAYOUT` (parent runs `row`). **One pair, right answer in both** |
+| **self thread** | pinned top, above the sorted list |
+| **draft row** | none — a draft is not a Space (`N-091`) |
+| **label** | resolved display name, `tail8` fallback, no discriminator — matching R7 so two surfaces cannot disagree about one identity |
+| **`disableable`** | **`!isCustom` STANDS.** The `D-113` derive-from-descriptor drift is **accepted knowingly, not filed** — the on/off need is met by suspension instead |
+
+### 🛑 DRIVEN LIVE ON JOE'S CLIENT — AND IT FOUND A CAPABILITY NO USER CAN REACH
+Joe offered his running client to turn on the statistics widget. **Measured on the painted DOM, not read:** Settings ▸ Plugins renders **10 rows, every one `system`**, each `disable`/`uninstall` carrying `aria-disabled="true"` with *"Built-in — cannot be disabled"* / *"cannot be removed"*; **`Connection Stats` is absent**; and across **76 registered elements there is ZERO matching install/available/add.**
+
+🔑 **The whole custom-plugin lifecycle SHIPPED at `M-RP-CONNSTATS` — install, uninstall, disable, leaf injection, persistence — reachable only from `window.__XGEN_PLUGINS__`**, which `app_client.svelte:406-408` states outright: *"No install UI exists yet … this drives the mechanism for verify. Dead-code-eliminated in a release build."* ⇒ ***`import.meta.env.DEV` only: unreachable by any user, by any route.*** → **`M-RP-PLUGIN-INSTALL-UI` filed.**
+
+🛑 **AND CHAT'S RECOMMENDATION TO "RE-OPEN `M-RP6.1m`" WAS WRONG, FROM THE HEAD BLOCK ITSELF.** `M-RP6.1m` was **absorbed and shipped** as `M-RP-SETTINGS` Leg B (`tasks/M_RP_SETTINGS_B_ACTION_ROW.md`, **COMPLETED**, 2026-07-17) — which is why it never had a node. ***Joe would have approved a milestone that closed a month ago.*** Annotated at the live site; **twelve further references checked and deliberately NOT annotated** — three COMPLETED task docs and the journal, all true when written.
+
+✅ **Joe's client was driven READ-ONLY and returned to baseline, shown:** registry **168** before and after · no modal · `installed: []` · nothing sent, nothing installed, nothing written. 📌 **The dialog Chat opened was closed in the same pass** — `N-123`: *a probe that persists a mutation owes a cleanup call, and the cleanup is part of the probe.*
+
+### 🔑 `N-193` — W-5 BINDS THE WIDGET; NOTHING BINDS THE FEED THAT EXISTS ONLY FOR IT
+Joe: *"widget-visibility is false == widget is stopped (or suspended), this have to be **universal widget mechanic element**"*, motivated by *"in one moment we will have too many system widgets"*. **Grounded: the rule already exists and does not reach far enough.** `W-5` contracts the widget to tear down on unmount — but **only 4 widgets own any `$effect` (3 are dialogs)** while **`app_client.svelte` owns 8 effects, 3 listens, 21 invokes**, and `loadMembers` (`:223`) is bound to a **latch**, not to Members being alive. ⇒ ***unmounting stops the render and not the drain.*** 🔒 **`W-3` forecloses the easy fix** — a `$common` widget may not import `invoke`, so the feed cannot follow the widget's lifecycle and the stop must be a **shell-side demand guard**. → **`M-RP-WIDGET-SUSPEND` filed, landing as `W-14`.**
+
+🛑 **AND IT COLLIDES WITH LEG E-2, WHICH IS WHY IT IS WRITTEN NOW:** E-2's re-inject reads absence as *saved before the region existed* — suspension makes absence ALSO mean *the user turned it off*. **One observable, two meanings: the `G13` shape, seen before it ships rather than three weeks after.** ✅ Not live today, so **E-2 ships unconditional and the guard is DoD-bound on the suspend milestone** (`N-182`). ✅ **And `D-107` already paid for the safety rule** — the control that hides a region must not live in a region, and File ▸ Exit can never be hidden because the menu-bar is frame chrome **outside** the layout tree.
+
+### 🔍 `M-RP-SKIN` GETS ITS NODE, AND J-710's RULE IS EXTENDED
+The J-717 sweep's **one hit**. Named as discharger inside a `trigger:` line and owning an on-screen table row, **with no node** — Leg E's exact shape. 🔓 **`J-710`'s rule is extended from *trigger condition* to *named discharger*** (Chat's reading, Joe's to overturn): a reader following the pointer finds nothing either way.
+
+⚠️ **THE FORMAT GATE EARNED ITS KEEP, AGAINST CHAT.** The first node insert **FAILED with 7 `R-ICON` violations** — state symbols on annotation lines, which the kickoff names explicitly and Chat broke anyway. Rewritten as words; **PASS, exit 0**, tree lines 73..411 clean. ***A gate that only ever passes is a gate nobody is testing.***
+
+### ✅ FLOORS AND DISCIPLINE
+cargo **1597/0/62 × 56** · svelte-check **0/34/15** · catalogue **435** — **stated, not re-run**: zero `.rs`, zero `ui/**`. 📌 **Live baseline recorded as a SCREEN** (`N-184`/`N-190`): registry **168**, **7 Spaces of which 3 are DMs**, no latch, `installed: []`. 🔑 **That 3-of-7 is itself a Leg E number** — the filter takes R1 from 7 rows to 4, which E-3 will **measure** rather than assume. **CRLF verified on both CRLF files after every write:** `CLAUDE.md` 1212 CR=LF with a 1-line diff, ROADMAP 552→561 CR=LF with an 11-line diff — no wholesale re-termination (`N-191`).
+
+🎯 **NEXT: Joe locks `RUNBOOK_MEMBER_ACT_LEG_E1.md`, then Clair implements E-1.** ⚠️ The runbook has had **no adversarial read** — and Clair's findings historically come from trying to **run** one. → J-719 · ROADMAP v7.06.
+
+---
 ## Entry J-718 — Leg E's Phase-0, and four of its ten findings came from Joe's recall against records that read as self-consistent
 **Date:** 2026-08-12 · **Seats:** Chat (audit, findings, the Phase-0, the annotations) · Joe (three rulings, and four corrections none of which came from re-reading). Phase-0 `tasks/M_RP_MEMBER_ACT_LEG_E_PHASE0.md` **v1.1 ACTIVE** · notes v1.21 → **v1.22** (**+N-192**) · ROADMAP v7.04 → **v7.05**. **NO CODE — zero `.rs`, zero `ui/**`. No new `D`.**
 

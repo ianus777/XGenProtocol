@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.22  
+> Version: 1.23  
 > Date: May 2026  
 > **Last updated**: 2026-08-12  
 > Language: English  
@@ -3882,3 +3882,29 @@ On launch the client selects nothing: R2 empty, R7 `no-scope`, R5 *"select a roo
 🔓 **STILL JOE'S, AND DELIBERATELY NOT SETTLED BY THE RULING: the fallback WORDING, and whether a row shows the resolved name alone or the name plus a discriminator.** *A ruling on the mechanism is not a ruling on the copy.*
 
 📌 **THE STANDING LESSON, which is `D-139` from the other side: a real question with NO designation is invisible to every future search — so it gets given the nearest number that sounds right.** ***Filing it is what stops the borrowing.***
+---
+
+## N-193 — W-5 binds the widget; nothing binds the feed that exists only for it (2026-08-12)
+
+**Joe, ruling the widget on/off question:** *"widget-visibility is false == widget is stopped (or suspended), this have to be universal widget mechanic element"* — and *"in one moment we will have too many system widgets and they need to be turn off to save a space in app."*
+
+🔑 **THE RULE ALREADY EXISTS AND DOES NOT REACH FAR ENOUGH.** `ui/docs/xgen-widget-tier.md` **W-5 — Clean mount/unmount** already contracts a widget as *"a droppable unit: wires listeners / observers / store subscriptions on mount and tears them down on unmount."* The widget side is honoured. 🛑 **The COST is not on the widget side.**
+
+**MEASURED, not argued:**
+
+| where | own effects | own listens | own invokes |
+| --- | --- | --- | --- |
+| all region widgets | **1** (`members-panel`) | 0 | 0 |
+| the shell (`app_client.svelte`) | **8** | **3** | **21** |
+
+⇒ removing a leaf DOES unmount the component (Svelte destroys it, the envelope deregisters, the registry drops) — **but `loadMembers` runs from a shell `$effect` on `roomLatch.effectiveSpaceId` (`app_client.svelte:223`), bound to a LATCH and not to Members being alive.** Turn Members off and `fill_space_records` keeps firing on every Space change: a real Tauri command, a DAG drain, an address-book disk write. ***Unmounting stops the render and not the drain.***
+
+🔒 **AND `W-3` FORECLOSES THE EASY FIX.** A `$common` widget may not import `invoke` (`app_client.svelte:58`) — which is *why* the fills are shell-side to begin with. **So the feed cannot follow the widget's lifecycle, and "off means not running" must be a SHELL-SIDE DEMAND GUARD**, not a consequence of unmount. The shell already holds `layout`, so the query costs no new state (`D-116`: *a region is docked iff it appears in the layout tree — a query, not a flag*).
+
+📌 **THE DESIGN CONTENT IS JOE'S "or at minimum if they REALLY need":** the classification is **per-feed and declared**, never global — **demand-driven** (runs only while its consumer region is present; `loadMembers` is the clear first case) or **app-level** (runs regardless, and **owes a reason**, because *"it might be needed"* is how everything becomes app-level and the toggle saves nothing).
+
+🛑 **AND IT COLLIDES WITH `M-RP-MEMBER-ACT` LEG E-2, WHICH IS WHY IT IS WRITTEN NOW RATHER THAN WHEN IT IS BUILT.** E-2's re-inject reads *a system `regionId` absent from a loaded layout ⇒ saved before that region existed*, justified **precisely** on the ground that a user cannot remove a system region. This milestone makes absence ALSO mean *the user turned it off* — **one observable, two meanings, the `G13` shape.** ✅ **Not live today** (nothing can remove a system leaf: no UI, and `removeRegion` is reached only from the custom disable/uninstall paths) ⇒ **E-2 ships unconditional and the guard is DoD-BOUND on `M-RP-WIDGET-SUSPEND`** — reserve nothing (`N-182`), name the discharger.
+
+✅ **ONE SAFETY RULE FALLS OUT, AND `D-107` ALREADY PAID FOR IT:** the control that hides a region must **not itself live in a region**, or you can hide the thing that un-hides. And File ▸ Exit can never be hidden **by construction** — the menu-bar is frame chrome **outside the layout tree**, which is exactly why the frame was kept out of the descriptor. *A decision taken for one reason covering a case nobody had thought of yet.*
+
+🔓 **Lands as `W-14` in the widget-tier spec** — a universal contract, not a shell feature, because Joe's word was *"universal widget mechanic element"*.

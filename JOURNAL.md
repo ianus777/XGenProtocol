@@ -8,7 +8,48 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-717 — the closure that was not one: J-716 marked a milestone DONE with its last leg unbuilt, and the leg it forgot had no node either
+
+**Date:** 2026-08-12 · **Seats:** Chat (the error and the correction) · Joe (asked for the fix). ROADMAP → **v7.04**. **Records only. No new `D`, no code.** 📌 **Corrects J-716, which is ANNOTATED AT ITS SITE AND NOT REWRITTEN (`D-131`).**
+
+### 🛑 THE ERROR
+
+**J-716 marked `M-RP-MEMBER-ACT` ✅ DONE and wrote its trigger as *"ALL LEGS DRIVEN"*. Both were false.** §6 of `tasks/M_RP_MEMBER_ACT_PHASE0.md` makes **Leg E — the DM home + the R1 filter — the milestone's LAST LEG**, in its own words: *"E is last because DMs need a home before they lose the tree"*, with the dependency stated as **`E → C-bis-6`**. ⚠️ **Leg E is unbuilt. The milestone is PLAY, not DONE.**
+
+🔑 **HOW IT HAPPENED, AND IT IS NOT AN EXOTIC FAILURE:** the session kickoff read *"C-bis-5 closes ⇒ M-RP-MEMBER-ACT closes. Then LEG E."* **That sentence was inherited and never checked against §6's leg table.** 📌 ***This is kickoff item ① — an architecture claim needs the SOURCE, not memory — and the habit that caught three other things in the SAME session (the wrong file list, the already-written annotation, the §5.5 gate) was not applied to the milestone's own closure, because a closure does not look like an instruction.***
+
+⚠️ **AND IT IS THE ARC'S RECURRING SPECIES ONE MORE TIME, AUTHORED BY THIS SEAT IN THE COMMIT THAT DOCUMENTS THE SPECIES:** *a claim wider than the thing it describes, reused as if complete.* **Sixth instance.**
+
+### 🔍 THE SECOND DEFECT, FOUND WHILE FIXING THE FIRST — LEG E HAD NO NODE
+
+**Leg E has been referenced by §6, by the `E → D` gate re-point at J-710, and by Joe's OQ3 ruling at J-709 — and it has OWNED A ROW in ROADMAP's *"On screen now, and NOT a bug"* table since J-713 — while carrying NO ROADMAP NODE.**
+
+🔑 **THAT IS EXACTLY THE DANGLING POINTER J-710 WROTE THE RULE ABOUT** — *a milestone named in a trigger must have a ROADMAP node, and the commit that mints the trigger owes the node* — **committed against the very milestone whose Phase-0 records the rule.** ✅ **Node minted here, with its own `Owes:` and `trigger:`.** *The rule was written for `M-RP-BLOCK` and nobody checked whether the document that wrote it obeyed it.*
+
+### ✅ WHAT THE CORRECTION DOES, AND WHAT IT DELIBERATELY DOES NOT
+
+| site | J-716 said | J-717 says |
+| --- | --- | --- |
+| ROADMAP node | ✅ **DONE**, closed J-716 | 🟢 **PLAY** — Leg C-bis closed; **Leg E unbuilt** |
+| ROADMAP `Owes:` | cut as discharged | **RESTORED VERBATIM**, with what J-716 genuinely discharged annotated at the end |
+| ROADMAP `trigger:` | *"ALL LEGS DRIVEN"* | *"Leg C-bis IS CLOSED; THE MILESTONE IS NOT"*, with the correction named |
+| Leg E | no node at all | **node minted**, `Owes:` + `trigger:` (discharged since J-711) |
+
+🔒 **THE `Owes:` RESTORATION IS THE LOAD-BEARING PART.** Joe's J-715 reduction rule ties the cut to **the commit that COMPLETES the node** — and that commit is still ahead. ⚠️ **J-716 cut a 1417-char line on a closure that had not happened, so the first exercise of the reduction rule was also its first violation.** **Restored verbatim rather than re-summarised**, because a re-summary would have silently become the new record.
+
+✅ **WHAT STANDS UNCHANGED: Leg C-bis IS legitimately COMPLETED.** All eight C-bis-5 items were driven, every DoD line discharged, and `N-189`/`N-190`/`N-191` are sound. **The leg doc and runbook are leg-scoped and correct and are NOT touched.** 📌 ***Only the milestone-level claim was wrong, and only it is corrected — a correction that reached further than the error would be its own defect.***
+
+✅ **AND `M-RP-INTRO`'S TRIGGER STILL FIRES CORRECTLY.** It reads *"Leg C-bis lands"*, and Leg C-bis genuinely landed. **It remains fired and Phase-0-less** — unaffected by this correction, which is worth stating because the obvious guess is that it unfires.
+
+### 🎯 WHAT IS ACTUALLY NEXT
+
+🎯 **Leg E — the DM home + the R1 filter, `M-RP-MEMBER-ACT`'s last leg.** Gate discharged since J-711. **It is the answer to the R1 question Joe has now raised three times**, and it needs a Phase-0 and Joe's rulings on `G13`'s semantics and `N-173`'s rename before it can be runbooked. → J-717 · ROADMAP v7.04.
+
+---
+
 ## Entry J-716 — C-bis-5 closes the leg and the milestone: a gate that could not pass, a census that stayed at zero, and an owed annotation that turned on the entry doing the owing
+
+🛑 **ANNOTATION AT THE SITE (`D-131`, J-717, 2026-08-12): THIS ENTRY'S TITLE AND ITS CLOSING SECTION ARE WRONG ON ONE POINT — THE MILESTONE DID NOT CLOSE.** `M-RP-MEMBER-ACT`'s last leg is **Leg E**, unbuilt; §6's leg table says so and the kickoff sentence that said otherwise was inherited without checking. **Everything about LEG C-bis in this entry stands** — the leg did close, the eight items were driven, `N-189`/`N-190`/`N-191` hold. **Only the milestone-level claim is retracted.** → J-717
 
 **Date:** 2026-08-12 · **Seats:** Chat (the whole pass — grounding, probes, measurement, records) · Joe (two screen rulings, the §5.5 fork, the fixture route). leg doc → **v1.12** · runbook → **v1.13** · notes → **v1.21** (**+N-189 +N-190 +N-191**) · ROADMAP → **v7.03**. **No new `D`.**
 
@@ -72,6 +113,8 @@ The draft highlight was first read as **absent** — every `<li>` returned `back
 ### 🎯 WHAT CLOSES, AND WHAT FIRES
 
 ✅ **C-bis-5 CLOSES ⇒ Leg C-bis CLOSES ⇒ `M-RP-MEMBER-ACT` CLOSES.** ⏸ **Leg D stays POSTPONED and now has a MEASURED reason**: the §5.7 census returned **zero**, so its trigger never fired.
+
+🛑 **RETRACTED AT J-717 (`D-131`, annotated not deleted): `M-RP-MEMBER-ACT` DOES NOT CLOSE HERE.** **Leg E — the DM home — is the milestone's last leg and is unbuilt.** Leg C-bis's closure stands; the milestone's does not. → J-717
 
 ⚠️ **`M-RP-INTRO`'s trigger is *"Leg C-bis lands"* — IT FIRES NOW, AND IT HAS NO PHASE-0.** Flagged to Joe, not started. 🎯 **Next in front: Leg E — the DM home**, gate discharged since J-711, and the answer to Joe's thrice-asked R1 question. → J-716 · ROADMAP v7.03.
 

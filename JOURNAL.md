@@ -8,6 +8,66 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-718 — Leg E's Phase-0, and four of its ten findings came from Joe's recall against records that read as self-consistent
+**Date:** 2026-08-12 · **Seats:** Chat (audit, findings, the Phase-0, the annotations) · Joe (three rulings, and four corrections none of which came from re-reading). Phase-0 `tasks/M_RP_MEMBER_ACT_LEG_E_PHASE0.md` **v1.1 ACTIVE** · notes v1.21 → **v1.22** (**+N-192**) · ROADMAP v7.04 → **v7.05**. **NO CODE — zero `.rs`, zero `ui/**`. No new `D`.**
+
+🎯 **Leg E is `M-RP-MEMBER-ACT`'s LAST leg. This is its Phase-0 (D-071), written to disk with §4's items open and carrying recommendations — not gated on a Joe decision first (`D-123`, the under-stepping failure).**
+
+### ✅ STATE RE-MEASURED AT OPEN, NOT INHERITED
+Clean tree · `HEAD 73b5302` = `origin/main` **by `git ls-remote`**, not the tracking ref. **Floors stated rather than re-run, because this session is reads and records only:** cargo **1597/0/62 × 56** · svelte-check **0/34/15** · catalogue **435**. 🛑 **NO REGISTRY NUMBER CARRIED** — `N-184` (Space-dependent) and `N-190` (draft-dependent) together mean a count is meaningful only against the same client, tree and draft state. *Record the screen, or record no number.*
+
+### 🛑 THE FOUR THAT CAME FROM JOE, AND THE ONE MECHANISM UNDER ALL OF THEM
+Every one was a **stale or welded record that read as internally consistent**, and **not one would have fallen to a re-read** — the arc's recurring species, now on its seventh and eighth instance.
+
+| # | Joe's prompt | what it turned out to be |
+| --- | --- | --- |
+| 1 | *"you wrote me this in the past session"* | **the `N-173` miscitation is CHAT'S**, and the kickoff inherited **this seat**, not the ROADMAP |
+| 2 | *"relates to auth tiers?"* | **J-709's T4 lock on the DM home**, which §4① had omitted entirely |
+| 3 | the same question, followed through | **`D-121` has had THREE lenses since 2026-07-26** and `CLAUDE.md`'s signpost still says two |
+| 4 | (J-717, same day) | the milestone had been marked DONE with its last leg unbuilt |
+
+### 🛑 F2 — `N-173`: PROVENANCE ESTABLISHED BY `git log -S`, NOT ASSUMED
+**ONE line, ONE commit: `8daf712` (2026-08-11, J-713)** — *"the rename is filed as `N-173` and is Joe's, not a leg's"*, added to ROADMAP's on-screen table. It spread to `ROADMAP.md:321` when J-717 minted the Leg E node, and into the **session handoff prose**, and so into this session's kickoff. 🔑 **THE MECHANISM IS `J-676`'s, RE-COMMITTED BY THE SAME SEAT WITH THE CORRECTION ARC ALREADY IN THE RECORD: two senses of one token, welded by a citation.** There `T3` → `D-126`; here ***"the rename is Joe's"*** meaning **two different renames four entries apart**. ⚠️ **The weld was TOPICAL, not random** — `N-173` was born at J-701 *while grounding an auth-tier-gated render proposal*, inside the same DM-entry conversation that produced the T4 constraint. *That is precisely why it survived every re-read, and why Joe's recall found it when re-reading could not.* ⇒ **`N-192` minted**, so the annotations RE-POINT rather than merely delete.
+
+### 🛑 F10 — `D-121` HAS THREE LENSES; THE HEAD EVERY SESSION READS FIRST SAYS TWO
+`DECISIONS.md:4504`: *"three named lenses … user-visible impact, then **tier consequence**, then resource cost"*, **amended 2026-07-26** on J-591's evidence (Joe: *"assertion against t4 is fundamental … among user view and resource drain"*). **`CLAUDE.md:11` still reads *"TWO NAMED LENSES (Joe, locked 2026-07-19)"*.** ⇒ **the kickoff said two and the Phase-0 as first written said two.** 🔑 ***`N-109`'s shape at CONVENTION scale: an earlier state's truth left standing after a later state killed it — in the one document whose whole job is to be read first.*** ✅ **Lens ② applied to §4 gives *NO TIER CONSEQUENCE*, which `D-121` names as a legal answer** — but **it was not idle: question 4 is what forbids a home-local persisted list**, and that became ①'s constraint 4.
+
+### 🛑 F5 — THE FILTER STRANDS THE SELF THREAD, AND EVERY OTHER DOOR IS ALREADY SHUT
+`counterpart` holds the **session identity** for the self thread ⇒ A3's filter hides it from R1. And nothing else reaches it: `members-panel.svelte:246` refuses a self-click outright (*"self is never a DM target NOR a draft target"*), and **`OQ6-E2` deleted the `self_open` command** — it survives only at `app.rs:2835` / `batch.rs:445` / `aicontrol.rs:451`, **CLI only, no desktop verb.** ⇒ **as specified, Leg E would leave the self thread with NO entry point in the product.** 📌 **And `OQ6-E2` is UNBUILT** — adopted as *"the self row takes the same path as any peer"*; the shipped code deliberately refuses it and says so in a comment.
+
+### 🛑 F4 — CHAT'S OWN `G13` DISSOLUTION DOES NOT HOLD
+`SpaceState.is_dm` is set at construction and **never reassigned** (`is_dm =` → **zero** hits repo-wide) ✅ provenance, correctly. But **`apply_dm_promote` sets `name` and `dm_constraints_active = false` and never touches `is_dm`**, and 🛑 **nothing anywhere ever clears `counterpart`** ⇒ *the J-709 proposal renamed the field the staleness lives in.* 🔑 **The mutable fact already exists in Rust and is called `dm_constraints_active`; it is simply not in `KnownSpace`.** ⚠️ Unreachable today — no promotion reaches the client at all — **stated with a trigger attached, because *"unreachable today"* has been the wrong argument five times here.**
+
+### ✅ F1 / F3 / F7 / F8 — FOUR THINGS THE RECORDS HAD WRONG IN THE CHEAP DIRECTION
+- **`K2` is already discharged** — `KnownSpace.counterpart` shipped in Leg B (OQ8-K3). §6's own Leg E row says so; **`ROADMAP.md:321` contradicts its own Phase-0** ⇒ open item ④ was closed before it was asked.
+- **J-694's Space-never-clicked case is already taken by C-bis-6** — `members-panel:267-268` latches room **and** space; J-711's gate ① measured it.
+- **The home is cheaper than A3 priced it** — `buildWidgetRegistry` accepts an unknown `regionId`, `insertLeaf`/`removeRegion` are live, `connection-stats` is a working runtime region-plugin precedent, and `EntityDescriptor.flags.isDm` already draws a circle in `entity-avatar:59`.
+- 🔒 **§6 LISTS LEG E'S FLOOR WRONG.** It says **cargo + svelte-check** because K2 was expected here. K2 landed in Leg B ⇒ **Leg E touches zero `.rs`; the cargo floor does not return**, and a `cargo` re-run would be a scope argument, not a measurement.
+
+### 📌 F6 — WHAT C-bis-6's `F-D` MINIATURE ACTUALLY SHIPPED, READ RATHER THAN QUOTED
+A **highlight suppression** inside `spaces-panel`'s `selected` `$derived` — **the row still renders.** A3 changes **`items`**, removing rows, which moves the entity-panel count and therefore the registry. ⇒ the miniature proves **the seam** and **nothing about the row-removal path or its registry delta.**
+
+### 🔍 THE J-717 SWEEP, RUN — AND ITS FIRST RESULT WAS AN ARTIFACT
+A naive pass over every `M-…` token returned **51 apparent misses**. **Both causes measured, not guessed:** ROADMAP is **reduced on close** (J-715), so closed milestones are legitimately absent; and the box-drawing characters read back as mojibake under the default encoding, **which silently broke the node test itself**. Re-run against J-710's actual rule — *a milestone named in a `trigger:` line must have a node* — reading UTF-8: **`M-RP-INTRO` 1 · `M-RP-THREAD-XGID` 2 · `M-RP-VIEW-MENU` 1 · `M-RP-WIDGET-SETTINGS` 1 · `M-RP-SKIN` 0.**
+
+🛑 **ONE HIT, AND IT IS LEG E'S EXACT SHAPE: `M-RP-SKIN`** — named as discharger in a `trigger:` line, owning a row in the on-screen table, the named discharger for **every `PROVISIONAL` marker in the grid arc**, and **carrying no node.** 🔓 **Whether J-710's rule extends from *trigger condition* to *named discharger* is Joe's**; Chat reads it as yes. **Not fixed here** — a new tree line risks `roadmap-format-gate.ps1`, the same reason J-709 deferred the startup node. 📌 ***A measurement-shaped artifact is the failure mode this project already named; the sweep produced one and it was tested before it was reported.***
+
+### 🔒 WHAT JOE RULED (all three, *"all by your recomms"* — recorded as DELEGATION under `D-141`, not as his derivation)
+| item | ruling |
+| --- | --- |
+| **① the home** | **H1** — a ninth region, `Direct messages`, **with the `v3 → v4` leaf-injecting migrate as a named part of the leg.** 🔓 Tile position, size, row form and the self thread's place in the list stay **Joe's** |
+| **② `G13`** | **G-c** — filter on `counterpart != null`; the promotion gap recorded with a **checkable** trigger (`N-182`): *a promote path writes to the client's `KnownSpace` tree*, and `dm_constraints_active` named as the answer then |
+| **③ the label** | **L2** — resolve at render time, `descriptorFromId` **copied not lifted** (second impl; `J-508`'s bar is four). `L3` refused on `D-143`. 🔓 The fallback **wording** stays Joe's |
+| **④ `K2`** | **closed before asking** — already shipped in Leg B |
+
+🔒 **AND THE SEQUENCING LOCK: `E-1` (the home) PRECEDES `E-3` (the filter), IN THE SAME LEG.** Without the home, every DM is unreachable the moment the filter lands — and the self thread **permanently**. ⇒ **no commit Joe pushes ever contains the filter without the home.**
+
+### 📌 `D-131` ANNOTATIONS — FIVE SITES, EACH NAMING ITS ORIGIN, NONE SILENTLY REPAIRED
+`ROADMAP.md:318` (stale `K2` in `Owes:`) · `:321` (`K2` + the `N-173` weld + J-694 discharged) · `:455` (the `N-173` weld) · **`JOURNAL.md` J-709** (the too-wide T4 grounding) · **`CLAUDE.md`'s `D-121` signpost** (two lenses, three weeks stale) · and at **`N-173`'s own site** in the notes. 🔑 **Annotated, never search-and-replaced** — `J-676`'s arithmetic stands: a blind replace would have corrupted sound citations to fix false ones.
+
+🎯 **NEXT: `E-1` — the DM home widget, fed and mounted, listing every DM including the self thread. It needs a runbook, locked before Clair touches code.** ⚠️ **Still open and NOT Leg E's:** `M-RP-INTRO` (trigger fired J-716, no Phase-0) · `M-RP-SKIN`'s missing node · the Round-2 whole-codebase audit that gates UI completion. → J-718 · ROADMAP v7.05.
+
+---
 ## Entry J-717 — the closure that was not one: J-716 marked a milestone DONE with its last leg unbuilt, and the leg it forgot had no node either
 
 **Date:** 2026-08-12 · **Seats:** Chat (the error and the correction) · Joe (asked for the fix). ROADMAP → **v7.04**. **Records only. No new `D`, no code.** 📌 **Corrects J-716, which is ANNOTATED AT ITS SITE AND NOT REWRITTEN (`D-131`).**
@@ -309,6 +369,7 @@ Leg D's new trigger names **`M-RP-BLOCK`** as its nearest candidate. ⚠️ **`M
 
 ---
 ## Entry J-709 — a ruling session: eight decisions, three legs specified, and four architecture claims of Chat's corrected by Joe's recall
+⚠️ **ANNOTATION AT THE SITE (`D-131`, J-718, 2026-08-12): THE T4 GROUNDING IN THIS ENTRY IS WIDER THAN ITS SOURCE.** This entry states *"there is no written T4 archival requirement."* **There IS a written per-tier retention table** — `docs/xgen_appendix_d_en.md` §6.2: **Tier 4 = 10 years minimum for healthcare (HDS, SGB V), government jurisdiction-defined**; Tier 3 = 7 years (SOX §802). ✅ **But it governs the NODE's protocol audit log (§6.1) and the Auth Module's own log (§6.3) — NOT DM content**; message retention is §:217, *no built-in automatic deletion in Phase 1, operator's responsibility*. ✅ **`TIER4_TTL_DAYS = 90` is right as recorded** (`xgen-core/src/auth/tiers.rs:24`, `AuthTier::ttl_days()`) — the attestation re-verification interval, not a retention floor. ⇒ **corrected: no written T4 retention requirement for DM CONTENT; the T4 minimums exist and govern AUDIT LOGS.** 🔒 **The two constraints this entry derived are UNAFFECTED and still hold** — the DM home lists every DM, and the R1 filter hides a row without removing access. 📌 *The arc's recurring species once more: a claim wider than the thing it describes.* → J-718
 
 **Date:** 2026-08-09 · **Seats:** Joe (every ruling here is his) · Chat (grounding, and the four errors). **NO CODE.** runbook → **v1.7** · task doc → **v1.8** · notes → **v1.17** (**+N-180 +N-181 +N-182**) · ROADMAP → **v6.96**. **No new `D`.**
 

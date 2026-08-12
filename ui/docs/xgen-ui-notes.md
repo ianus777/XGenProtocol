@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.21  
+> Version: 1.22  
 > Date: May 2026  
 > **Last updated**: 2026-08-12  
 > Language: English  
@@ -3546,6 +3546,7 @@ if (m) selection.set(regionId, toDescriptor(m));          // conditional
 ---
 
 ### N-173 — "Tier-1 / Tier-2" already means two unrelated things in one codebase
+⚠️ **ANNOTATION AT THE SITE (`D-131`, 2026-08-12, Leg E Phase-0 `F2`): THIS NOTE HAS BEEN MISCITED SINCE `8daf712` (J-713) AS THE FILING FOR THE *DM-ROW LABEL* RENAME. IT IS NOT.** `N-173` is the **auth-tier versus processor-provenance** collision and says nothing about DM rows. The DM-row label is now **`N-192`**, filed 2026-08-12. **This note itself is unchanged and still open** — the tier rename remains Joe's, no action. 📌 *The weld was topical rather than random: `N-173` was born at J-701 while grounding an auth-tier-gated render proposal, inside the same DM-entry design conversation.* → `N-192`
 
 **Date:** 2026-08-08 · HEAD `8eb2e0a` · found while grounding an auth-tier-gated render proposal (J-701). **FILED — the rename is Joe's, and no code is broken today.**
 
@@ -3863,3 +3864,21 @@ On launch the client selects nothing: R2 empty, R7 `no-scope`, R5 *"select a roo
 - ✅ **Verification that the repair was EXACT: `git diff --stat` must show only the intended line count.** After repair `CLAUDE.md` read `18 +++++` — had the repair been imperfect, git would have reported all 1155 lines changed.
 
 📌 **AND THE HABIT THAT CAUGHT IT IS THE ONE THAT CAUGHT J-715: the byte count is run because it is run, not because anything looked wrong.** *Nothing looked wrong. Nothing ever does.*
+
+---
+
+## N-192 — the DM row label: the question was real, the designation was borrowed (2026-08-12)
+
+**R1's DM rows render `DM with xgen://pubkey/ed25519:<~44 chars>` — a raw key where a name belongs.** The string is `KnownSpace.name`, written at DM creation (`xgen-client/src/ops.rs:1019-1021`) and used as the row label by `spaces-panel.toDescriptor`. **It is a real open question and it is Joe's.**
+
+🛑 **IT HAD NO DESIGNATION, AND FOR THREE WEEKS IT WORE SOMEONE ELSE'S.** `ROADMAP.md` said *"the rename is filed as `N-173`"*. `N-173` is the **Tier-1 / Tier-2 designation collision** (`AuthTier` versus the processor provenance axis) and says nothing about DM rows. 🔑 **Provenance established by `git log -S`, not by memory: ONE line, ONE commit — `8daf712` (2026-08-11, J-713)**, in ROADMAP's on-screen table. From there it reached `ROADMAP.md:321` when J-717 minted the Leg E node, and the session handoff prose, and so the next session's kickoff.
+
+🔑 **THE MECHANISM IS `J-676`'s, RE-COMMITTED BY THE SAME SEAT WITH THE CORRECTION ARC ALREADY IN THE RECORD: TWO SENSES OF ONE TOKEN, WELDED BY A CITATION.** There it was `T3` → `D-126`, where *"no word"* meant two different things. Here ***"the rename is Joe's"*** meant **two different renames, four journal entries apart** — J-709 ruled on the TIER rename, J-713 attached the phrase to the DM-row label.
+
+⚠️ **AND THE WELD WAS TOPICAL, NOT RANDOM, WHICH IS WHY IT SURVIVED EVERY RE-READ.** `N-173` was born at **J-701** *"while grounding an auth-tier-gated render proposal"* — **the same DM-entry design conversation** that produced Joe's T4 constraint on the DM home. *The two threads were genuinely in the room together; the citation merely joined them at the wrong seam.* 📌 **Joe located it from recall, three weeks later, with the words *"i have feeling that this was debated and relates to auth tiers"*. Chat's own re-reads had passed.**
+
+🔒 **THE RULING (Leg E ③, 2026-08-12, provenance delegated under `D-141`): L2 — RESOLVE AT RENDER TIME.** The counterpart's display name comes from the address book at render, falling back to `tail8`; the stored `name` is never rewritten. ⚠️ **`L3` — renaming `KnownSpace.name` at creation — was REFUSED on `D-143`:** the label is a display string a user can write, so it must never be a lookup key, which is the whole reason `OQ8-K3` put `counterpart` in the struct. 📌 **`descriptorFromId` (`members-panel.svelte:128`) is COPIED, not lifted** — this is the second independent impl and `J-508`'s bar is four.
+
+🔓 **STILL JOE'S, AND DELIBERATELY NOT SETTLED BY THE RULING: the fallback WORDING, and whether a row shows the resolved name alone or the name plus a discriminator.** *A ruling on the mechanism is not a ruling on the copy.*
+
+📌 **THE STANDING LESSON, which is `D-139` from the other side: a real question with NO designation is invisible to every future search — so it gets given the nearest number that sounds right.** ***Filing it is what stops the borrowing.***

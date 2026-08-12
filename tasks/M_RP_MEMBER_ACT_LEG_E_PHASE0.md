@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E: the DM home + the R1 filter — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-12  
 > Language: English  
@@ -42,21 +42,39 @@ Leg E is **`M-RP-MEMBER-ACT`'s last leg**. Closing it closes the milestone. It i
 
 | surface | file | what it actually does |
 |---|---|---|
-| **R1 render** | `spaces-panel.svelte:57` | `items = spaces.map(toDescriptor)` — **every** Space, unfiltered |
-| **R1 highlight** | `spaces-panel.svelte:66-71` | `selected` `$derived.by` — resolves the latch, returns `undefined` when `s?.counterpart != null` |
-| **R2 scope** | `rooms-panel.svelte:33` | `spaceLatch.scopedSpace?.rooms` |
-| **R2 highlight** | `rooms-panel.svelte:43` | `roomLatch.effectiveRoomId` |
-| **the space latch** | `space-latch.svelte.ts` | **three** writers: `note()` (bus-fed, `kind==='space'` only), `clear()`, and **`latch()` — added at C-bis-6** |
-| **the store** | `spaces-state.svelte.ts:28-36` | `KnownSpace` carries `counterpart: string \| null` — **it already ships** |
-| **member activation** | `members-panel.svelte:242-300` | `findDm` → latch room **and** space, `dmDraft.close()`, bus write; **`if (identityId === selfId) return;` at the top** |
-| **region machinery** | `layout-default.ts:60-72` | `buildWidgetRegistry` accepts a `regionId` **outside `REGION_IDS`** |
-| **install/leaf** | `app_client.svelte:516-527` | `insertLeaf` at a defined target — the `connection-stats` precedent, live |
+| **R1 render** | `spaces-panel.svelte:50` | `items = spaces.map(toDescriptor)` — **every** Space, unfiltered |
+| **R1 highlight** | `spaces-panel.svelte:58-63` | `selected` `$derived.by` — resolves the latch, returns `undefined` when `s?.counterpart != null` |
+| **R2 scope** | `rooms-panel.svelte:30` | `spaceLatch.scopedSpace?.rooms` |
+| **R2 highlight** | `rooms-panel.svelte:42` | `roomLatch.effectiveRoomId` |
+| **the space latch** | `space-latch.svelte.ts:76` | **three** writers: `note()` (bus-fed, `kind==='space'` only), `clear()`, and **`latch()` — added at C-bis-6** |
+| **the store** | `spaces-state.svelte.ts:34` | `KnownSpace` carries `counterpart: string \| null` — **it already ships** |
+| **member activation** | `members-panel.svelte:244-300` | `findDm` (`:220`) → latch room **and** space (`:267-268`), `dmDraft.close()`, bus write; **`if (identityId === selfId) return;` at `:249`** |
+| **region machinery** | `layout-default.ts:64` | `buildWidgetRegistry` accepts a `regionId` **outside `REGION_IDS`** |
+| **install/leaf** | `app_client.svelte:516-527` · `mutate.ts:266` | `insertLeaf` at a defined target — the `connection-stats` precedent, live |
 
-**Three readers of `spacesState.spaces`, re-confirmed** (F-D's premise holds): `spaces-panel:57` · `rooms-panel:33` · `room-latch.svelte.ts` `resolveLatched`, from which `canSend` derives. 🔒 **A3's filter lives in `spaces-panel`'s `$derived` and nowhere else.**
+⚠️ **EVERY POINTER IN THIS TABLE WAS RE-MEASURED 2026-08-12 AFTER CLAIR'S `W1`** — v1.0's were **estimated from a whole-file read rather than measured**, and seven were wrong by 3–8 lines. *A file:line asserted without being measured is the `N-180` species at citation scale; a runbook lifting it sends the implementer to the wrong line.* 🔒 **RULE FROM HERE: a `file:line` enters a record only from a tool that printed it.**
+
+**Three readers of `spacesState.spaces`, re-confirmed** (F-D's premise holds): `spaces-panel:50` · `rooms-panel:30` · `room-latch.svelte.ts` `resolveLatched`, from which `canSend` derives. 🔒 **A3's filter lives in `spaces-panel`'s `$derived` and nowhere else.**
 
 ---
 
 ## §3 — FINDINGS THAT MOVE THE PLAN
+
+### ✅ F11 — CLAIR'S ADVERSARIAL READ RAN (2026-08-12). THREE PLAN-MOVING, ONE WORDING. **ALL RE-DRIVEN BY CHAT, NONE ADOPTED ON REPORT (Rule 5).**
+Brief: `tasks/CLAIR_LEG_E_PHASE0_READ.md` v1.0. Her verdict: **the design is sound** — `F5`, `F4`, `F6` and the `E-1`/`E-3` ordering lock all survived, and she could not break `T2`.
+
+| # | finding | Chat's re-drive |
+| --- | --- | --- |
+| **P1** | **`E-0` was already discharged on disk** while §5 listed it as a future leg | ✅ confirmed — all six annotations + `N-192` present. 📌 ***And it is the shape `F1` flags against the ROADMAP, committed by this document in the same commit*** |
+| **P2** | **the re-inject hook is unspecified, and `onMount` placement re-strands the home via File ▸ Revert** | ✅ confirmed — two `loadLayout()` callers (`app_client.svelte:709` boot, `:586` `handleRevertUi`), **neither persists**; `layout.revert` is a LIVE command ⇒ **reachable, not theoretical.** ⇒ the hook lives **inside `loadLayout()`** |
+| **P3** | **the default position lands in two code sites that can drift** | ✅ confirmed, and **resolved by `①`-B (Joe)**: the home is **left out of `DEFAULT_LAYOUT` entirely**, so re-inject is the ONLY placement path — drift structurally impossible, and no future system region needs `DEFAULT_LAYOUT` edited |
+| **W1** | **seven `file:line` pointers wrong by 3–8 lines** | ✅ **all seven confirmed wrong.** No code moved `73b5302..HEAD`, so they were wrong when written — **estimated from a whole-file read instead of measured.** Swept at v1.3 |
+
+🔑 **AND SHE DISSOLVED §8 ITEM 2's OWN FEAR (`C3`):** the "large migrate" does not exist — `migrateLayout` short-circuits (`resolve.ts:161`), and `insertLeaf` is **idempotent by construction** (`mutate.ts:266` — *"already docked → no-op (guards double-install)"*, plus a target-missing no-op that cannot bite on a non-removable system target). **Only the hook survives.** ⚠️ *So §8 item 2 was right that the pricing was wrong, and wrong about the direction — it predicted "larger", and the migrate half was smaller while the wiring half was larger.*
+
+🛑 **THE STANDING LESSON, AND IT IS CHAT'S: `W1` IS NOT A TYPO CLASS.** A `file:line` asserted from reading rather than from a tool that printed it is the `N-180` species at citation scale — and a runbook lifting it verbatim sends the implementer to the wrong line. 🔒 **RULE: a `file:line` enters a record only from a tool that printed it.**
+
+⚠️ **AND THE PATTERN HOLDS FOR THE NINTH TIME THIS ARC: every defect in this document came from OUTSIDE it** — four from Joe's recall, four from Clair executing it. **Chat's own re-reads passed every time.**
 
 ### 🛑 F10 — `D-121` HAS HAD **THREE** LENSES SINCE 2026-07-26, AND THE MIDDLE ONE IS AUTH TIERS. `CLAUDE.md`'s SIGNPOST STILL SAYS TWO.
 `DECISIONS.md:4504` — *"Every question and recommendation is examined through **three** named lenses first: user-visible impact, then **tier consequence**, then resource cost"*, **Amended: 2026-07-26 (lens 3 added)**, minted on J-591's evidence: Joe asked for the four DM-hosting options to be asserted **against T4**, and *"assertion against t4 is fundamental … among user view and resource drain"*.
@@ -96,8 +114,8 @@ J-709 carries, under a 🔒: *"the dm home has to be where we can save it along 
 ### 🛑 F4 — CHAT'S `G13` DISSOLUTION IS HALF WRONG, AND THE FAILING HALF IS THE ONE LEG E RESTS ON
 The J-709 proposal: *`counterpart != null` answers the render question; the `dm_space_create` root event answers provenance.* Measured:
 
-- `SpaceState.is_dm` (`xgen-core/src/space/state.rs:193`) is set at construction and **never reassigned** — `is_dm =` returns **zero** hits repo-wide. ✅ The provenance half is right.
-- `apply_dm_promote` (`xgen-core/src/space/state.rs:659-665`) sets `self.name` and `self.dm_constraints_active = false` — **it does not touch `is_dm`.** The mutable *"is currently a DM"* fact **already exists in Rust and is named `dm_constraints_active`** (`state.rs:238`). It is **not** in `KnownSpace`.
+- `SpaceState.is_dm` (`xgen-core/src/space/state.rs:194`) is set at construction and **never reassigned** — `is_dm =` returns **zero** hits repo-wide. ✅ The provenance half is right.
+- `apply_dm_promote` (`xgen-core/src/space/state.rs:659-665`) sets `self.name` and `self.dm_constraints_active = false` — **it does not touch `is_dm`.** The mutable *"is currently a DM"* fact **already exists in Rust and is named `dm_constraints_active`** (`state.rs:239`). It is **not** in `KnownSpace`.
 - 🛑 **Nothing anywhere ever clears `counterpart`.** No client promote path exists. ⇒ `counterpart != null` inherits **exactly** the staleness A2 was rejected for — *"a DM promoted to a real Space stays hidden from the tree forever."*
 
 🔑 **The dissolution did not escape G13; it renamed the field the staleness lives in.** ⚠️ **Unreachable today, and honestly so:** the client's `KnownSpace` tree is written locally at create/join and no promotion reaches it at all — the *name* would be stale too. This is a gap Leg E must not make load-bearing, not a defect Leg E creates. *"Unreachable today" has been the wrong argument five times in this project; it is offered here with its own trigger attached (§4②), not as a dismissal.*
@@ -105,7 +123,7 @@ The J-709 proposal: *`counterpart != null` answers the render question; the `dm_
 ### 🛑 F5 — THE FILTER STRANDS THE SELF THREAD, AND EVERY OTHER DOOR IS ALREADY SHUT
 `KnownSpace.counterpart` holds the **session identity** for the self thread (`state.rs:192`, `spaces-state.svelte.ts:32-34`) ⇒ **A3's filter hides the self thread from R1.** And nothing else reaches it:
 
-- `members-panel.svelte:246` — `if (identityId === selfId) return;`, *"self is never a DM target NOR a draft target"*. **A hard no-op.**
+- `members-panel.svelte:249` — `if (identityId === selfId) return;`, *"self is never a DM target NOR a draft target"*. **A hard no-op.**
 - `OQ6-E2` deleted the `self_open` Tauri command. `self_open` is reachable from `app.rs:2835` · `batch.rs:445` · `aicontrol.rs:451` — **CLI only. There is no desktop command.**
 
 ⇒ **after Leg E lands as specified, the self thread has no entry point in the product.** 📌 **And `OQ6-E2` is UNBUILT:** E2 was adopted as *"the self row takes the same path as any peer"*; the shipped code deliberately refuses it, with a comment saying so. **Either the DM home lists the self thread, or A3 strands it.** No record carries this.
@@ -152,7 +170,7 @@ A3 called it *"a new region/surface — the largest piece in this milestone by a
 ② Smallest by a wide margin: one widget edited, no layout work, no migrate.
 
 **H3 — the home is `M-RP-PEOPLE`** (a people panel over the address book).
-① The best long-term shape — everyone you know, DM or not. ② Different feeder (`get_address_book`), filed and unscheduled, **and it does not answer this question**: `members-panel.svelte:217` already records that *a book entry is not proof a DM exists*. ⇒ **rejected as Leg E's answer**, and named so E's home does not pre-empt it.
+① The best long-term shape — everyone you know, DM or not. ② Different feeder (`get_address_book`), filed and unscheduled, **and it does not answer this question**: `members-panel.svelte:219` already records that *a book entry is not proof a DM exists*. ⇒ **rejected as Leg E's answer**, and named so E's home does not pre-empt it.
 
 📌 **Chat's recommendation: H1, with the leaf-injecting mechanism as a named part of the leg, not a footnote** — 🛑 **and that mechanism is `D-114` §9's RE-INJECT rule, NOT the `v3 → v4` migrate written here before `resolve.ts` was read (see ①'s annotation).** It is the only option that honours the ruling, the machinery is precedented, and the migrate is the one piece that would otherwise ship the home to a user who never sees it. **H2 is the honest cheap fallback and its conflict with the ruling is stated rather than smoothed.** 🔓 **Appearance — the tile's default position, its size, its row form, the self thread's place in the list — is Joe's and is not proposed here.**
 
@@ -173,7 +191,7 @@ A3 called it *"a new region/surface — the largest piece in this milestone by a
 R1's DM rows read `DM with xgen://pubkey/ed25519:…` today — a raw key where a name belongs, and the DM home would inherit it on **every** row.
 
 **L1 — leave it.** ① The home's whole content is raw keys. ② Zero.
-**L2 — resolve at render time** from the address book, falling back to `tail8`. ① The home reads like a contact list. ② The resolver exists — `descriptorFromId` (`members-panel.svelte:128`) — but it is **members-panel-local**; a second caller is either a copy or the lift `M-RP-PEOPLE` was named for. 📌 J-508's four-independent-impls bar applies: **this would be the second, so copy is legal and lift is premature.**
+**L2 — resolve at render time** from the address book, falling back to `tail8`. ① The home reads like a contact list. ② The resolver exists — `descriptorFromId` (`members-panel.svelte:136`) — but it is **members-panel-local**; a second caller is either a copy or the lift `M-RP-PEOPLE` was named for. 📌 J-508's four-independent-impls bar applies: **this would be the second, so copy is legal and lift is premature.**
 **L3 — rename the stored `KnownSpace.name` at creation.** ① Same visible result. 🛑 ② Writes a display string that goes stale the day the person changes their name — and **K3 exists precisely because a label must never be a lookup key (`D-143`)**. Cheap and wrong.
 
 📌 **Chat's recommendation: L2, render-time, copied not lifted.** 🔓 **The wording of the fallback, and whether a DM row shows the name alone or the name plus a discriminator, is Joe's.**
@@ -188,9 +206,9 @@ R1's DM rows read `DM with xgen://pubkey/ed25519:…` today — a raw key where 
 
 | leg | what | floor | gated on |
 |---|---|---|---|
-| **E-0** | `D-131` annotations — `ROADMAP.md:318` (`Owes:` K2 stale) · `:321` (K2 + `N-173` miscitation + J-694 discharged) · `:455` (`N-173` miscitation), each naming `8daf712` as origin · **`JOURNAL.md` J-709** (the too-wide T4 grounding, `F9`) · **`CLAUDE.md:11`** (the two-lens `D-121` signpost, `F10`) · **plus `N-192` minted** so the DM-row label has a home to re-point to. **Records only, no code** | none | nothing |
-| **E-1** | 🔒 **THE HOME, FED AND MOUNTED** — the widget lists every `counterpart != null` Space **including the self thread**, from `spacesState`; activation reuses the C-bis-6 pair (`roomLatch.latch` + `spaceLatch.latch`) | svelte-check | ① ruled |
-| **E-2** | 🛑 **RE-FRAMED (annotation at ①): build `D-114` §9's RE-INJECT rule** — a system `regionId` absent from a loaded layout is re-injected at a default dock. **NOT** a `v3 → v4` migrate: no version bump, no schema change, idempotent, and every future system region inherits it | svelte-check | E-1 |
+| **E-0** | ✅ **DONE 2026-08-12, commit `6268fba` (J-718)** — the six `D-131` annotations (`ROADMAP.md:318/:321/:455` · `JOURNAL.md` J-709 · `CLAUDE.md`'s `D-121` signpost · `N-173`'s own site) and **`N-192` minted**. 🛑 **Clair must NOT re-annotate.** 📌 *This row said "future leg" while the work shipped in the same commit as this document — `P1`, and the very shape `F1` flags against the ROADMAP* | none | — |
+| **E-1** | 🔒 **THE HOME, FED AND MOUNTED** — **`DM Spaces`** (Joe, 2026-08-12: *"direct messages we will have in the messages panel"* — the widget lists **Spaces, not streams**). Lists every `counterpart != null` Space **including the self thread, pinned top**; sorted by resolved display name (`tail8` fallback, no discriminator); **no draft row** (`N-091` — a draft is not a Space). Activation reuses the C-bis-6 pair (`roomLatch.latch` + `spaceLatch.latch`) | svelte-check | ① ruled |
+| **E-2** | 🔒 **`D-114` §9's RE-INJECT RULE, AND IT LIVES INSIDE `loadLayout()`** — **not at `onMount`** (`P2`). Two callers exist — boot (`app_client.svelte:709`) and `handleRevertUi` (`:586`) — **and NEITHER persists the result**, so an `onMount`-only re-inject would leave the disk autosave pre-`DM Spaces` and **File ▸ Revert would drop the home**, which is the exact stranding H1 exists to prevent. `layout.revert` is a LIVE command (M-RP7.5 Leg D), so that path is reachable, not theoretical. ⚠️ `loadLayout` takes no plugin set today and gains one. 📌 **Target `spaces`, edge `bottom`** — verified to give `[spaces, dm-spaces, self]` in Joe's live tree (sibling: the parent already runs `col`) **and** `[spaces, dm-spaces]` under `DEFAULT_LAYOUT` (wrap: parent runs `row`). **One pair, right answer in both trees** | svelte-check | E-1 |
 | **E-3** | 🔒 **THE R1 FILTER** — `spaces-panel`'s `items` `$derived` drops `counterpart != null`. **NEVER the store** | svelte-check | ② ruled, **E-1 + E-2 green** |
 | **E-4** | the row label (③) | svelte-check | ③ ruled |
 | **E-5** | verify + records + close (`D-074`) | — | E-4 |

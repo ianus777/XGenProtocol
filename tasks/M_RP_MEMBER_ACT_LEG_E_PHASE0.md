@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E: the DM home + the R1 filter — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-12  
 > Language: English  
@@ -125,7 +125,9 @@ A3 called it *"a new region/surface — the largest piece in this milestone by a
 
 📌 **Lens ② for every item below is *NO TIER CONSEQUENCE*, stated once here rather than manufactured three times** — all four items are render surfaces and records; none moves a byte, creates a copy or decides whose tier governs. **Its one live output is `①`'s constraint 4.**
 
-### 🔒 ① — **CLOSED 2026-08-12: H1, THE NINTH REGION, WITH THE `v3 → v4` MIGRATE AS PART OF THE LEG. PROVENANCE DELEGATED** (*"all by your recomms"*, `D-141`).
+### 🔒 ① — **CLOSED 2026-08-12: H1, THE NINTH REGION. PROVENANCE DELEGATED** (*"all by your recomms"*, `D-141`).
+
+🛑 **ANNOTATION AT THE SITE (`D-131`, 2026-08-12, post-ruling grounding): THE *"`v3 → v4` MIGRATE"* HALF OF THIS RULING IS SUPERSEDED. THE RULING ON H1 STANDS; ONLY ITS MECHANISM CHANGES.** It was recommended **without reading `resolve.ts` or `mutate.ts`** — the pricing-before-measuring species §8 item 2 predicted about this very item. Measured since: `migrateLayout` short-circuits at **`if (l.version >= 3) return raw as Layout;`** (`resolve.ts:161`), so a bump is **a one-off that solves this widget only and mints another bump for every future system region**. 🔑 **AND THE GENERAL RULE ALREADY EXISTS IN WRITING AND NOT IN CODE:** `D-114`'s layout rules read *"widgetId durable · drop unknown · **re-inject `system`** · version + migrate"* — **drop unknown is BUILT** (`resolve.ts:11`, reported in `dropped`), **re-inject `system` is NOT** (the only `re-inject` in the tree is `app_client.svelte:548` / `installed.svelte.ts:99`, both the enable-a-disabled-CUSTOM-plugin path). ⇒ ***`M-RP7.1b`'s `migrate` finding again — a path described in the records and implemented nowhere is not a path, it is a plan.*** ✅ **AND THE AMBIGUITY THAT WOULD MAKE RE-INJECTION DANGEROUS DOES NOT EXIST:** a user cannot remove a system region (`app_client.svelte:554` guards `desc.kind !== 'custom'`; W-13 makes system widgets non-removable) ⇒ **a system `regionId` absent from a saved layout can ONLY mean "saved before that region existed"**, so re-inject is unambiguous rather than a guess about intent. ⇒ **`E-2` BECOMES: BUILD `D-114` §9's RE-INJECT RULE** — no version bump, no schema change, idempotent, and every future system region gets it free.
 
 📌 **Recorded as a DELEGATION, not as Joe deriving H1.** `D-141` exists because a one-word approval is easy to over-extend into a ruling its author never made. 🔓 **What stays Joe's and is NOT settled by this: the tile's default position, its size, its row form, and where the self thread sits in the list** — appearance, untouched.
 
@@ -143,7 +145,7 @@ A3 called it *"a new region/surface — the largest piece in this milestone by a
 
 **H1 — a ninth region: a `Direct messages` tile, a system region plugin.**
 ① The full Discord shape: a permanent surface listing every DM plus the self thread, dockable, foldable, drag-placeable like any tile. ⚠️ **The cost is not the tile, it is the persisted layouts:** a saved v3 layout has eight leaves and no slot for a ninth, so **anyone with a saved workspace would not see the home at all** — the exact stranding A3 exists to prevent.
-② One widget + one `CLIENT_PLUGINS` row + `REGION_IDS`/`REGION_NAMES` + a `DEFAULT_LAYOUT` leaf + **a `v3 → v4` migrate that injects the leaf into persisted layouts**. Zero Rust. 📌 The migrate is not new machinery — `migrateLayout` was built and **exercised live** at M-RP7.1b, read-path, idempotent, non-destructive.
+② One widget + one `CLIENT_PLUGINS` row + `REGION_IDS`/`REGION_NAMES` + a `DEFAULT_LAYOUT` leaf + ~~a `v3 → v4` migrate that injects the leaf into persisted layouts~~ — 🛑 **SUPERSEDED, see ①'s annotation: it is `D-114` §9's RE-INJECT rule, not a version bump.** Zero Rust either way. 📌 The migrate is not new machinery — `migrateLayout` was built and **exercised live** at M-RP7.1b, read-path, idempotent, non-destructive.
 
 **H2 — a second section inside R1: the Space tree above, a `Direct messages` group below.**
 ① Visible immediately to every existing layout, no migration, no stranding. 🛑 **But it does not honour the ruling as worded.** OQ3 asked *"do DM Spaces leave the **Spaces panel**?"* and Joe answered yes; H2 keeps them in that panel and merely regroups them. It also gives R1's suppression rule a second meaning, in the one `$derived` this leg is supposed to keep simple.
@@ -152,7 +154,7 @@ A3 called it *"a new region/surface — the largest piece in this milestone by a
 **H3 — the home is `M-RP-PEOPLE`** (a people panel over the address book).
 ① The best long-term shape — everyone you know, DM or not. ② Different feeder (`get_address_book`), filed and unscheduled, **and it does not answer this question**: `members-panel.svelte:217` already records that *a book entry is not proof a DM exists*. ⇒ **rejected as Leg E's answer**, and named so E's home does not pre-empt it.
 
-📌 **Chat's recommendation: H1, with the `v3 → v4` leaf-injecting migrate as a named part of the leg, not a footnote.** It is the only option that honours the ruling, the machinery is precedented, and the migrate is the one piece that would otherwise ship the home to a user who never sees it. **H2 is the honest cheap fallback and its conflict with the ruling is stated rather than smoothed.** 🔓 **Appearance — the tile's default position, its size, its row form, the self thread's place in the list — is Joe's and is not proposed here.**
+📌 **Chat's recommendation: H1, with the leaf-injecting mechanism as a named part of the leg, not a footnote** — 🛑 **and that mechanism is `D-114` §9's RE-INJECT rule, NOT the `v3 → v4` migrate written here before `resolve.ts` was read (see ①'s annotation).** It is the only option that honours the ruling, the machinery is precedented, and the migrate is the one piece that would otherwise ship the home to a user who never sees it. **H2 is the honest cheap fallback and its conflict with the ruling is stated rather than smoothed.** 🔓 **Appearance — the tile's default position, its size, its row form, the self thread's place in the list — is Joe's and is not proposed here.**
 
 ### 🔒 ② — **CLOSED 2026-08-12: G-c. PROVENANCE DELEGATED** (`D-141`). Filter on `counterpart != null`; the promotion gap recorded with a checkable trigger — *a promote path writes to the client's `KnownSpace` tree* — and `dm_constraints_active` named as the answer then.
 
@@ -188,7 +190,7 @@ R1's DM rows read `DM with xgen://pubkey/ed25519:…` today — a raw key where 
 |---|---|---|---|
 | **E-0** | `D-131` annotations — `ROADMAP.md:318` (`Owes:` K2 stale) · `:321` (K2 + `N-173` miscitation + J-694 discharged) · `:455` (`N-173` miscitation), each naming `8daf712` as origin · **`JOURNAL.md` J-709** (the too-wide T4 grounding, `F9`) · **`CLAUDE.md:11`** (the two-lens `D-121` signpost, `F10`) · **plus `N-192` minted** so the DM-row label has a home to re-point to. **Records only, no code** | none | nothing |
 | **E-1** | 🔒 **THE HOME, FED AND MOUNTED** — the widget lists every `counterpart != null` Space **including the self thread**, from `spacesState`; activation reuses the C-bis-6 pair (`roomLatch.latch` + `spaceLatch.latch`) | svelte-check | ① ruled |
-| **E-2** | the `v3 → v4` layout migrate injecting the home's leaf (H1 only) | svelte-check | E-1 |
+| **E-2** | 🛑 **RE-FRAMED (annotation at ①): build `D-114` §9's RE-INJECT rule** — a system `regionId` absent from a loaded layout is re-injected at a default dock. **NOT** a `v3 → v4` migrate: no version bump, no schema change, idempotent, and every future system region inherits it | svelte-check | E-1 |
 | **E-3** | 🔒 **THE R1 FILTER** — `spaces-panel`'s `items` `$derived` drops `counterpart != null`. **NEVER the store** | svelte-check | ② ruled, **E-1 + E-2 green** |
 | **E-4** | the row label (③) | svelte-check | ③ ruled |
 | **E-5** | verify + records + close (`D-074`) | — | E-4 |

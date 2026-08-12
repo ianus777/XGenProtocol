@@ -1,8 +1,8 @@
 # RUNBOOK — M-RP-MEMBER-ACT Leg C-bis: the member with no DM opens a draft
-> **Status**: ACTIVE  
-> Version: 1.12  
+> **Status**: COMPLETED  
+> Version: 1.13  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-11  
+> **Last updated**: 2026-08-12  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -644,7 +644,24 @@ skin rule for `.composer-error` must not undo `overflow-wrap: anywhere`.**
 
 ---
 
-### 🟡 C-bis-5 (continued) — THE VERIFICATION CHECKLIST
+### ✅ C-bis-5 (continued) — THE VERIFICATION CHECKLIST — **DRIVEN GREEN 2026-08-12 (J-716)**
+
+🔑 **RESULTS ARE RECORDED ONCE, IN `tasks/M_RP_MEMBER_ACT_LEG_C_BIS.md` §8, NOT DUPLICATED HERE.** Two copies
+of the same measurements is how the arc's recurring defect — *a claim narrower than the thing it describes,
+reused as if complete* — gets its second copy. **The checklist below is the INSTRUCTION; §8 is the RESULT.**
+
+🛑 **ONE ITEM BELOW COULD NOT BE DRIVEN AS WRITTEN AND WAS RE-WORDED BEFORE IT WAS RUN (Joe, option A,
+2026-08-12):** §5.5's *"neither overflows nor blanks"* asserted a property **the shipped build deliberately
+does not have** — §5.5's own v1.5 amendment predicts the overflow, and the clamp is `skin.css`, **Joe's, not
+landed.** ⇒ re-worded to **FEED, MEASURE, and leave the clamp owed to `M-RP-SKIN`**. *A gate that cannot pass
+is a STOP, not something to absorb (Rule 6).*
+
+📌 **TWO ITEMS WERE DISCHARGED BY CITATION RATHER THAN RE-DRIVEN, AND BOTH ARE LABELLED IN §8:** §5.4 (driven
+at J-715 by this seat, node killed mid-draft) and `N-171` (done at C-bis-2). ⚠️ **§5.3 was driven through the
+composer's own `setText` seam, NOT through keystrokes** — `cdp-debug.ps1` has no text key.
+
+🔓 **AND THE §7 DISCHARGE FOUND §7 ITSELF TOO NARROW** — see §7-bis of the leg doc.
+
 
 ⚠️ **THESE ITEMS BELONG TO C-bis-5, NOT TO C-bis-8** — they were separated from their heading when C-bis-6/7/8
 were written above them on 2026-08-09. **The heading is restated rather than the list moved, so no line changes

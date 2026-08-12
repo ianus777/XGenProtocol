@@ -1,8 +1,8 @@
 # M-RP-MEMBER-ACT Leg C-bis — the member with no DM: creation, the first send, and the erased identity
-> **Status**: ACTIVE  
-> Version: 1.11  
+> **Status**: COMPLETED  
+> Version: 1.12  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-11  
+> **Last updated**: 2026-08-12  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -551,38 +551,102 @@ claim TWICE in one session without re-measuring it and reasoned on top of it; th
 only because Joe asked a question that required it.** *The kickoff's own ① — your re-reads catch almost
 nothing — demonstrated inside the session that quotes it.*
 
+### 🔑 §7-bis — ANNOTATION, C-bis-5, DISCHARGING THE OWED — AND §7 ABOVE IS ITSELF TOO NARROW
+
+**The owed annotation could not be written as filed, because the record held TWO entries quoting the SAME CSS
+and reaching OPPOSITE conclusions:** §7 above (*"nothing is left-anchored… trailing"* ⇒ the bytes survive) and
+the earlier inverted-paraphrase correction (*"`.ei-name` is **LEFT-ANCHORED, clipping the RIGHT**, which is why
+the constant `ed25519:` head survives and the distinguishing bytes are discarded"*). One of them had to be
+annotated too, and **it is this one.**
+
+🛑 **SETTLED BY MEASUREMENT ON THE LIVE CLIENT (C-bis-5, `2a3716f`), NOT BY RE-READING:**
+
+| measured | value |
+| --- | --- |
+| `.ei-name` computed | `direction: ltr` · `white-space: nowrap` · `text-overflow: ellipsis` |
+| R1's DM rows (73 chars) | `scrollWidth 513` vs `clientWidth 236` ⇒ **CLIPPED**, and the surviving text is the **HEAD** (`DM with xgen://pubkey/ed…`) |
+| the `tail8` string (9 chars), rendered at the row's own font | **74 px** against a **228 px** box ⇒ `tail8WouldClip: false`, ~154 px headroom |
+
+🔑 **BOTH ENTRIES ARE RIGHT ABOUT DIFFERENT THINGS, AND THE RECONCILIATION IS WHAT NEITHER WROTE: THE CSS NEVER
+CHANGED — THE STRING DID.** The clip **is** left-anchored and **does** take the right end — that is *precisely
+why* J-618's premise (a `tail()` returning the full `ed25519:<~44>` segment) lost its distinguishing bytes.
+`tail8` returns **nine characters**, which fit with 154 px to spare, so **the clip never engages.**
+
+⚠️ **⇒ §7's own *"nothing is left-anchored"* is FALSE as written.** It is left-anchored; it simply stops
+mattering at 9 chars. §7 reached the right conclusion (**the bytes survive**) through a wrong reason, and a
+wrong reason in a canonical record is what the next arc will quote. **Corrected here, not deleted (`D-131`);
+J-618 and the inverted-paraphrase entry both stand, annotated at their sites.**
+
+📌 **AND IT IS THE FIFTH INSTANCE OF THIS ARC'S SPECIES:** *a claim narrower than the thing it describes,
+reused as if complete.* ✅ **It was caught only because the annotation was written by MEASURING the site rather
+than by transcribing the entry** — the D-131 discipline paid for itself on its own discharge.
+
 ---
 
 ## §8 — DoD
 
-- [ ] **`OWED-1` discharged** — a member row with no existing DM **no longer presents as actionable while
+- [x] **`OWED-1` discharged** — a member row with no existing DM **no longer presents as actionable while
       doing nothing**, by whichever route `J-692` is ruled. **Verified on the live client, not inferred.**
-- [ ] **`OWED-2` addressed or explicitly re-sited** to the retention milestone, named in that milestone's DoD.
-- [ ] **`OWED-3`** designed or explicitly deferred with an owner named.
-- [ ] **`OWED-4` measured and SHOWN to Joe** if this leg makes a second non-erased DM reachable — **shown
-      before any ruling**, per `D-146`.
-- [ ] `N-171`'s half-apply corrected **if** `onMemberActivate` is opened by this leg (move the lookup above
-      `latch()`; the locked write ORDER is untouched).
-- [ ] Floors held: cargo · svelte-check · catalogue · client registry quiescent baseline — **re-measured,
-      never inherited.**
-- [ ] Joe's client state file **byte-identical**, read before and after.
-- [ ] **§5.5 realised:** the sentence verbatim, the name **twice**, **no ellipsis anywhere** — header wraps
-      and is clamped to line 1, **no glyph is cut**, paragraphs wrap normally. Confirmed on the **PAINTED
-      DOM**, not on the source. ⚠️ **A 128-byte NO-SPACE name is fed** and neither overflows nor blanks the
-      header (`overflow-wrap: anywhere` + `min-width`).
-- [ ] **§5.6-bis held: NO xgid row, and no full XGID of another identity anywhere on the page.**
-- [ ] **§5.6 exercised:** the **nameless counterpart** path driven — the page renders `…a1b2c3d4` and the
+      ✅ **C-bis-5:** the rows *do* present as actionable (`role="option"`, `cursor: pointer`, roving tabindex)
+      **and now perform a verb** — `LegF-Bob` clicked: `draftActive false→true`, `aboveMountCount 0→1`,
+      `streamCount 2→0`, `dm-intro` mounted with the sentence verbatim.
+- [x] **`OWED-2` addressed or explicitly re-sited** to the retention milestone, named in that milestone's DoD.
+- [x] **`OWED-3`** designed or explicitly deferred with an owner named.
+- [x] **`OWED-4` measured and SHOWN to Joe** if this leg makes a second non-erased DM reachable — **shown
+      before any ruling**, per `D-146`. ✅ **C-bis-5: measured, screenshotted, shown UNRULED — and Joe then
+      ruled it "correct behaviour" (2026-08-12) of his own motion.** From `LegF Room` (8 rows), clicking
+      `LegF-N5`: **R7 replaces itself 8→2 rows**, R2 replaces itself (`LegF Room` → a single lit `dm` row),
+      **R1 goes fully unlit** (`selectedId: null`), registry `188→177`.
+- [x] `N-171`'s half-apply corrected **if** `onMemberActivate` is opened by this leg (move the lookup above
+      `latch()`; the locked write ORDER is untouched). ✅ **Done at C-bis-2, which is the leg that opened
+      `onMemberActivate`** — cited, not re-driven.
+- [x] Floors held: cargo · svelte-check · catalogue · client registry quiescent baseline — **re-measured,
+      never inherited.** ✅ **C-bis-5: registry `168` at a SEVEN-Space tree, recorded as the tree (`N-184`),
+      measured at open AND again after every probe — exact return, zero leak.**
+- [x] Joe's client state file **byte-identical**, read before and after. ✅ **`4204 B`, `2026-08-10 21:08:23`
+      — UNMOVED across the whole pass. Nothing sent, nothing minted, nothing written.**
+- [x] 🔒 **§5.5 RE-WORDED BEFORE IT WAS DRIVEN — Joe ruled option (A), 2026-08-12.** The clause as written
+      (*"neither overflows nor blanks"*) **asserted a property the shipped build deliberately does not have**:
+      §5.5's own v1.5 amendment says the 128-byte name **WILL** overflow until `overflow-wrap: anywhere`
+      lands, and that rule is **`skin.css`, Joe's, and has not landed.** ⚠️ **A gate that cannot pass is a
+      STOP, not something to absorb (Rule 6).** ⇒ **re-worded to: FEED the name, MEASURE what it does, and
+      leave the clamp owed to `M-RP-SKIN`.** ✅ **DRIVEN AND MEASURED (C-bis-5, fed through the real seam):**
+      heading `scrollWidth 1107` vs `clientWidth 664` ⇒ **overflows by 443 px** · **never blank**
+      (`textBlank: false`) · the **body paragraph overflows too** (`1111` vs `664`) · computed
+      `overflow-wrap: normal` · `overflow: visible` · `max-height: none` ⇒ **none of the three rules exist**
+      · **no bleed into R7** — `region-tile-body` is `overflow: auto` and clips at the tile edge, at the cost
+      of making the stream tile horizontally scrollable (`scrollWidth 1119` vs `clientWidth 680`).
+      🔓 **Joe reviewed the screenshot and ruled it OK (2026-08-12); discharger `M-RP-SKIN`.**
+- [x] **§5.6-bis held: NO xgid row, and no full XGID of another identity anywhere on the page.** ✅ whole-`ui/`
+      grep returns **two** xgid interpolations, **both the `tail8` helper** (`members-panel:53`,
+      `stream-panel:168`); confirmed again on the painted page.
+- [x] **§5.6 exercised:** the **nameless counterpart** path driven — the page renders `…a1b2c3d4` and the
       sentence still reads. ⚠️ **Fed, not asserted (`N-091`)** — a branch nobody has run is a branch nobody
-      has tested.
-- [ ] **§5.4 exercised: the create is made to FAIL** (node down) — the draft stays open, the typed text
+      has tested. ✅ **FED** `display_name: null` through the real seam
+      (`draftLabel = book[cp]?.display_name ?? tail8(cp)`) ⇒ heading `…a1b2c3d4`, body *"… with
+      …a1b2c3d4."* 📌 **CLIENT-BOUNDARY FED, NOT WIRE-FED — named, not hidden (Joe ruled route 2).**
+- [x] **§5.4 exercised: the create is made to FAIL** (node down) — the draft stays open, the typed text
       survives, the failure is on screen, and **nothing implies the DM exists**. `D-065`.
-- [ ] **§5.3 exercised:** type into a draft → navigate to a room → return → **the text is still there.**
-- [ ] **§5.7 held: NO control ships whose verb does not exist.** `btns` on the painted page counted, and the
-      count is **justified row by row**, not merely reported.
-- [ ] **`cargo` 1597/0/62 × 56 IDENTICAL** — the proof of `G4`'s zero-Rust claim, summed programmatically.
-- [ ] **§7 discharged:** J-618 read and **annotated at the site** (`D-131`), or explicitly re-sited with an
-      owner named.
-- [ ] `dm-intro.svelte` (or its final name) **named as JOE'S FILE in the runbook** — never folded into an
+      📌 **DISCHARGED AT J-715 BY THIS SEAT, CITED AND NOT RE-DRIVEN — labelled so the citation is visible:**
+      `LegF-CAROL`, 23 chars, node killed mid-draft; `.composer-error` `0→1` carrying the node's words
+      verbatim (`os error 10061`), `spaces 7`, `echoCount 0`, client state `4204 B` unmoved.
+- [x] **§5.3 exercised:** type into a draft → navigate to a room → return → **the text is still there.**
+      ✅ **DRIVEN (C-bis-5):** 25 chars set → room clicked (`draftActive false`, textarea emptied,
+      `aboveMountCount 0`) → `LegF-Bob` re-activated ⇒ **text restored in BOTH the store and the painted
+      textarea**, `sendEnabled true`. ⚠️ **DRIVEN THROUGH THE COMPOSER'S OWN STORE SEAM (`setText`), NOT
+      THROUGH KEYSTROKES — named, because `cdp-debug.ps1` has no text key** (`-Key` accepts navigation keys
+      only). The preservation logic is what §5.3 is about; the keystroke path is C-bis-2/3's.
+- [x] **§5.7 held: NO control ships whose verb does not exist.** `btns` on the painted page counted, and the
+      count is **justified row by row**, not merely reported. ✅ **SIX controls, each justified:** move grip
+      (`onMoveStart` → `region-shell:111`, fully threaded, M-RP7.4) · fold-left · fold-top (M-RP7.1b) ·
+      textarea · `Send`, `disabled` **for a reason true of the subject** (`textLength 0`) · and **`dm-intro`
+      contributes ZERO controls.** 🔑 **The census returns zero dead controls ⇒ Leg D's trigger stays
+      UNDISCHARGED and Leg D stays honestly ⏸ POSTPONED.**
+- [x] **`cargo` 1597/0/62 × 56 IDENTICAL** — the proof of `G4`'s zero-Rust claim, summed programmatically.
+      📌 **SCOPE ARGUMENT, LABELLED: zero `.rs` touched by this leg** — not re-summed.
+- [x] **§7 discharged:** J-618 read and **annotated at the site** (`D-131`), or explicitly re-sited with an
+      owner named. ✅ **§7-bis above — and the discharge found that §7 ITSELF was too narrow.**
+- [x] `dm-intro.svelte` (or its final name) **named as JOE'S FILE in the runbook** — never folded into an
       implementation commit, on the `skin.css` precedent.
 
 ⚠️ **THE PROBE DISCIPLINE APPLIES TO EVERY ITEM ABOVE WHOSE PASS CONDITION IS AN EMPTY RESULT** — `N-099`,

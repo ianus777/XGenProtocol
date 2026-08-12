@@ -8,6 +8,75 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-716 — C-bis-5 closes the leg and the milestone: a gate that could not pass, a census that stayed at zero, and an owed annotation that turned on the entry doing the owing
+
+**Date:** 2026-08-12 · **Seats:** Chat (the whole pass — grounding, probes, measurement, records) · Joe (two screen rulings, the §5.5 fork, the fixture route). leg doc → **v1.12** · runbook → **v1.13** · notes → **v1.21** (**+N-189 +N-190 +N-191**) · ROADMAP → **v7.03**. **No new `D`.**
+
+🎯 **C-bis-5 WROTE NO FEATURE CODE. It is the leg that checks what the other legs shipped, which is why it ran last** — and three of its eight items only became answerable after C-bis-6/7/8.
+
+### 🛑 THE FINDING THAT CAME BEFORE ANY PROBE: A GATE THAT COULD NOT PASS AS WRITTEN
+
+§5.5's clause reads *"a 128-byte no-space name is fed and the header **neither overflows nor blanks**."* ⚠️ **§5.5's OWN v1.5 amendment predicts the opposite, in advance:** the name *"WILL overflow horizontally until `overflow-wrap: anywhere` lands"* — and that rule is **`skin.css`, Joe's, not landed.** Grep confirmed it: **zero `.dm-intro` rules, zero `.composer-error` rules.**
+
+🔑 **A GATE THAT ASSERTS A PROPERTY THE BUILD DELIBERATELY DOES NOT HAVE IS A STOP, NOT SOMETHING TO ABSORB (Rule 6)** — and this seat was the one about to absorb it. **Put to Joe as two options with the recommendation named; he ruled (A):** re-word to *feed, measure, leave the clamp owed to `M-RP-SKIN`*. 📌 ***The rule Clair has followed all arc, applied by Chat to a runbook Chat wrote.***
+
+### ✅ THE EIGHT ITEMS — AND WHAT EACH ACTUALLY COST
+
+**Quiescent baseline asserted BEFORE counting:** both latches `null`, `emptyState: "no-room"`, members `no-scope`, no draft ⇒ **registry `168` at a SEVEN-Space tree, recorded AS THE TREE (`N-184`).**
+
+| item | result |
+| --- | --- |
+| **`OWED-1`** | ✅ rows *do* present as actionable (`role="option"`, `cursor: pointer`, roving tabindex) **and now perform a verb**: `LegF-Bob` ⇒ `draftActive false→true`, `aboveMountCount 0→1`, `streamCount 2→0`, sentence verbatim |
+| **§5.7 census** | ✅ **six controls, each justified**; **`dm-intro` contributes ZERO** ⇒ **zero dead controls** |
+| **§5.6** | ✅ `display_name: null` FED ⇒ `…a1b2c3d4` in heading **and** sentence |
+| **§5.5** | ✅ FED and MEASURED: heading overflows **443 px**, **never blank**, body overflows too, **no bleed into R7** (`region-tile-body` is `overflow:auto`) |
+| **§5.6-bis** | ✅ whole-`ui/` grep: **two** xgid interpolations, **both `tail8`** |
+| **§5.3** | ✅ driven — text survived draft → room → back, in store **and** painted textarea |
+| **`OWED-4`** | 🔓 measured, screenshotted, **shown UNRULED** (`D-146`) |
+| **§7** | ✅ discharged — **and it turned on §7 itself** |
+
+### 🔑 THE OWED ANNOTATION TURNED ON THE ENTRY DOING THE OWING — `N-189`
+
+**§7 owed a `D-131` annotation on J-618. It could not be written as filed, because the record held TWO entries quoting the SAME CSS and reaching OPPOSITE conclusions** — one *"left-anchored, clipping the right"* (bytes discarded), §7 itself *"nothing is left-anchored … trailing"* (bytes survive).
+
+🛑 **SETTLED BY MEASUREMENT:** `.ei-name` is `direction: ltr` + `nowrap` + `ellipsis`; R1's 73-char DM rows **DO** clip (`513` vs `236`) and what survives is the **HEAD**; the **`tail8` string is 9 chars — 74 px into a 228 px box, ~154 px spare, so the clip NEVER ENGAGES.**
+
+🔑 **THE RECONCILIATION NEITHER ENTRY WROTE: THE CSS NEVER CHANGED — THE STRING DID.** The clip **is** left-anchored, and that is *precisely why* J-618's `tail()` premise lost its bytes. ⚠️ **⇒ §7 reached the RIGHT CONCLUSION THROUGH A WRONG REASON**, and a wrong reason in a canonical record is what the next arc quotes. **Both annotated, neither deleted.**
+
+📌 ***It was invisible to every re-read and became visible only because the annotation was written by MEASURING the site instead of transcribing the entry — `D-131` paid for itself on its own discharge.*** 🔑 **Fifth instance of this arc's species: a claim narrower than the thing it describes, reused as if complete.**
+
+### 🔓 `OWED-4`, MEASURED AND SHOWN — THEN RULED BY JOE OF HIS OWN MOTION
+
+From `LegF Room` (8 rows), clicking **`LegF-N5`** (who has a DM): **R7 replaces itself 8→2 rows** · **R2 replaces itself** (`LegF Room` → a single lit `dm` row) · **R1 goes fully unlit** (`selectedId: null`) · registry `188→177`. 📌 **Shown unruled per `D-146`; Joe looked and ruled *"correct behaviour"*.** He also reviewed the 128-byte page and ruled it **OK** ⇒ the overflow stays a **named unskinned state with `M-RP-SKIN` as discharger**, not a defect.
+
+### ✅ TWO THINGS THIS PASS DID **NOT** SPEND, AND ONE FILE IT DID NOT TOUCH
+
+**🔒 NO DM WAS MINTED.** `OWED-4` rode an **`open()`**, not a `create()`; the two hostile-name fixtures were **CLIENT-BOUNDARY FED** through the real seam (`draftLabel = book[cp]?.display_name ?? tail8(cp)`) — **Joe ruled route 2, and the record says *fed at the client boundary*, not *fed on the wire*.** 📌 **Joe's client state `4204 B / 2026-08-10 21:08:23` — UNMOVED, verified after.** Probe mutations deleted and the client reloaded: **`168` at 7 Spaces, book empty, no draft — exact return, zero leak.**
+
+✅ **AND THE `ui/**` TOUCH WAS AVOIDED BY CHECKING FIRST.** Phase-0 §2.2 files an owed annotation on `members-panel.svelte:11-14` as *"cheap, and it rides this milestone"*. **Read at the site: it is ALREADY THERE** (line 21, inside the J-675 block). 🔑 **⇒ no code change, and no svelte-check re-run** — the audit-before-instruction habit paying out a fourth time, this time by preventing work rather than correcting it.
+
+### ⚠️ THREE HONEST LABELS, WRITTEN RATHER THAN GLOSSED
+
+**① §5.4 and `N-171` were DISCHARGED BY CITATION, NOT RE-DRIVEN** — §5.4 at J-715 by this seat (node killed mid-draft, `os error 10061` verbatim), `N-171` at C-bis-2. **Cited *and labelled as cited*.**
+**② §5.3 was driven through the composer's own `setText` seam, NOT through keystrokes** — `cdp-debug.ps1`'s `-Key` accepts navigation keys only. *The preservation logic is what §5.3 is about; the keystroke path is C-bis-2/3's.*
+**③ `cargo` IDENTICAL is a SCOPE ARGUMENT** — zero `.rs`, and now zero `ui/**` too. **Not re-summed, and said so.**
+
+### ⚠️ AND A PROBE THAT READ CLEAN AND WAS WRONG
+
+The draft highlight was first read as **absent** — every `<li>` returned `background: rgba(0,0,0,0)`. 🛑 **The positive control killed it: R1's OWN selected row read transparent too.** The lit element is the inner `entity-item`, and `LegF-Bob` was at **`rgb(42, 47, 56)` — exactly one row, identical to R1's colour.** 📌 ***`N-110`'s shape again: the selector could not see its subject and returned a clean-looking nothing.*** *Had the control been skipped, this entry would record a defect that does not exist.*
+
+### 🔧 AND A TOOLING HAZARD FOUND BY THE HABIT THAT ALWAYS FINDS THEM — `N-191`
+
+🛑 **`Filesystem:edit_file` SILENTLY REWROTE `CLAUDE.md` FROM CRLF TO LF, WHOLESALE.** In at **CR 1155 / LF 1155**, out at **CR 0 / LF 1173**. **The tool reported success and its returned diff showed only the eighteen intended lines.** ⚠️ **Worse than J-715's version of this, which was partial and therefore showed up as an INEQUALITY.** 🔑 ***Here CR and LF stayed consistent with each other — a corruption that leaves the file internally consistent cannot be caught by an internal-consistency check, only by comparing against what the file WAS.*** ✅ **Repaired to `1173/1173`, and the repair PROVED EXACT by `git diff --stat` reading `18 +++++`** — an imperfect repair would have reported all 1155 lines changed. 🔒 **Rule now mechanical: `edit_file` is unsafe on the project's two CRLF files, and every edit to either is byte-counted in the same turn.** 📌 *Nothing looked wrong. Nothing ever does.*
+
+### 🎯 WHAT CLOSES, AND WHAT FIRES
+
+✅ **C-bis-5 CLOSES ⇒ Leg C-bis CLOSES ⇒ `M-RP-MEMBER-ACT` CLOSES.** ⏸ **Leg D stays POSTPONED and now has a MEASURED reason**: the §5.7 census returned **zero**, so its trigger never fired.
+
+⚠️ **`M-RP-INTRO`'s trigger is *"Leg C-bis lands"* — IT FIRES NOW, AND IT HAS NO PHASE-0.** Flagged to Joe, not started. 🎯 **Next in front: Leg E — the DM home**, gate discharged since J-711, and the answer to Joe's thrice-asked R1 question. → J-716 · ROADMAP v7.03.
+
+---
+
 ## Entry J-715 — C-bis-8 ships the failure surface, and the first look at a verbatim error teaches two things nobody expected
 
 **Date:** 2026-08-11 · **Seats:** Clair (implementation, and a discretionary flag that saved the probe) · Chat (the J-714 audit, the gate, the records) · Joe (the class name, and the ruling that kept a DM from being minted). runbook → **v1.12** · notes → **v1.20** (**+N-187 +N-188**) · ROADMAP → **v7.01**. **No new `D`.** *(Absorbs J-714, the C-bis-8 file-list audit.)*

@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.20  
+> Version: 1.21  
 > Date: May 2026  
-> **Last updated**: 2026-08-11  
+> **Last updated**: 2026-08-12  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -3810,3 +3810,56 @@ On launch the client selects nothing: R2 empty, R7 `no-scope`, R5 *"select a roo
 **②** 🔒 **ANY SKIN RULE FOR `.composer-error` MUST SURVIVE A LONG, REPETITIVE, UNBREAKABLE STRING.** The structural CSS shipped at C-bis-8 (`min-width: 0`, `overflow-wrap: anywhere`) already keeps it inside the tile — **the appearance rule must not undo that**, e.g. by setting a `white-space` that forbids wrapping. *A colour choice cannot break this; a layout choice can.*
 
 📌 ***A verbatim surface is a contract with the SOURCE, not with the reader. It obliges whoever owns the source to be worth quoting.***
+
+---
+
+## N-189 — the `tail8` clip: two entries, the same CSS, opposite conclusions, and neither wrote the reconciliation (2026-08-12)
+
+**C-bis-5 owed a `D-131` annotation on J-618's claim that the unresolved-name fallback discards the identifying bytes. The annotation could not be written as filed, because the record already held TWO entries quoting the SAME rule and reaching OPPOSITE conclusions** — one saying `.ei-name` is *left-anchored, clipping the right* (⇒ bytes discarded), the other saying *nothing is left-anchored … trailing* (⇒ bytes survive).
+
+🛑 **SETTLED BY MEASUREMENT ON THE LIVE CLIENT, NOT BY RE-READING EITHER ENTRY:**
+
+| measured | value |
+| --- | --- |
+| `.ei-name` computed | `direction: ltr` · `white-space: nowrap` · `text-overflow: ellipsis` |
+| R1's DM rows (73 chars) | `scrollWidth 513` vs `clientWidth 236` ⇒ **clipped**, surviving text is the **HEAD** |
+| the `tail8` string (9 chars) at the row's own font | **74 px** into a **228 px** box ⇒ **never clips**, ~154 px spare |
+
+🔑 **THE RECONCILIATION NEITHER ENTRY WROTE: THE CSS NEVER CHANGED — THE STRING DID.** The clip **is** left-anchored and **does** take the right end; that is *precisely why* J-618's premise (a `tail()` returning the full `ed25519:<~44>` segment) lost its distinguishing bytes. `tail8` returns **nine characters**, so **the clip never engages.**
+
+⚠️ **⇒ the newer entry reached the RIGHT CONCLUSION THROUGH A WRONG REASON, and a wrong reason in a canonical record is what the next arc quotes.** Both entries stand, both annotated at their sites.
+
+📌 **AND THE LESSON IS ABOUT THE DISCIPLINE, NOT THE CSS:** the contradiction was invisible to every re-read and became visible **only because the annotation was written by MEASURING the site instead of transcribing the entry.** *`D-131` paid for itself on its own discharge.* 🔑 **Fifth instance of this arc's species — a claim narrower than the thing it describes, reused as if complete.**
+
+---
+
+## N-190 — the debug registry breathes with DRAFT state, not just with the Space tree (2026-08-12)
+
+**`N-184` established that the quiescent registry count is SPACE-DEPENDENT and compares only against itself. C-bis-5 adds a second axis inside a single room: the DRAFT.** Measured on one client, one Space tree, in one sitting:
+
+| screen | registry |
+| --- | --- |
+| quiescent, nothing latched, 7 Spaces | **168** |
+| latched into `LegF Room` (8 member rows) | **189** |
+| **same room, draft open to a member** | **188** |
+| latched into a 2-row DM | **177** |
+
+🔑 **THE DRAFT LOWERS THE COUNT BY ONE, AND THAT IS CORRECT:** the draft view feeds `MessageStream` an EMPTY list (two synthetic messages leave: −2) and mounts `dm-intro` in the `above` socket (+1). **A view that shows MORE to the user registers LESS.**
+
+⚠️ **⇒ "registry unchanged" is only meaningful with the SPACE TREE *and* THE DRAFT STATE both named.** A probe that reloads to quiescence and compares `168` to `168` proves nothing about a draft it never opened. 📌 **Record the screen, or record no number.**
+
+---
+
+## N-191 — `Filesystem:edit_file` SILENTLY REWRITES A CRLF FILE TO LF, WHOLESALE (2026-08-12)
+
+🛑 **MEASURED, NOT SUSPECTED.** `CLAUDE.md` went into a J-716 edit at **CR 1155 / LF 1155** and came out at **CR 0 / LF 1173.** The tool reported success, the returned diff showed **only the eighteen intended lines**, and every subsequent read looked correct. **The entire file had been re-terminated.**
+
+⚠️ **THIS IS WORSE THAN THE J-715 CASE, WHICH IT RESEMBLES.** At J-715 the damage was *partial* — LF-terminated lines inserted into a CRLF file — and showed up as an inequality (`CR 544 / LF 546`). **Here CR and LF are still consistent with each other; the file is simply, uniformly, the wrong kind.** 🔑 ***A corruption that leaves the file internally consistent cannot be caught by an internal-consistency check — only by comparing against what the file WAS.***
+
+🔒 **THE RULE, and it is mechanical:**
+- **`Filesystem:edit_file` is UNSAFE on `CLAUDE.md` and `docs/ROADMAP.md`** — the project's only two CRLF files.
+- **Every edit to either is followed by a CR/LF byte count in the SAME turn**, and the count is compared to the value *before* the edit, not merely checked for `CR == LF`.
+- **Repair, when needed, is `ReadAllText` → guard that no `CR` is present → `-replace "\n","\r\n"` → `WriteAllText` with `UTF8Encoding($false)`.** The guard is load-bearing: run on a file that still holds CRLF it would produce `CR CR LF` and double the damage.
+- ✅ **Verification that the repair was EXACT: `git diff --stat` must show only the intended line count.** After repair `CLAUDE.md` read `18 +++++` — had the repair been imperfect, git would have reported all 1155 lines changed.
+
+📌 **AND THE HABIT THAT CAUGHT IT IS THE ONE THAT CAUGHT J-715: the byte count is run because it is run, not because anything looked wrong.** *Nothing looked wrong. Nothing ever does.*

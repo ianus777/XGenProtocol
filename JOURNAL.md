@@ -8,6 +8,42 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-724 — the apps were up, the tree was measured, and the re-inject turns out to halve R1
+**Date:** 2026-08-13 · **Seats:** Chat (live CDP reads, records) · Clair (a targeted second pass on runbook §5.1, running) · Joe. Phase-0 **v1.2 → v1.3** · ROADMAP v7.10 → **v7.11**. **NO CODE. ALL READS — nothing mutated, nothing persisted, no cleanup owed (`N-123` satisfied by construction).**
+
+📌 **THE SESSION KICKOFF SAID *"APPS ARE DOWN"*. THEY WERE UP** — `xgen-client` (PID 23960) and `xgen-node` (PID 12280), CDP live on 9222. *State re-measured rather than inherited, which is the rule the kickoff itself opens with.*
+
+⚠️ **AND THE FIRST PROBE NEARLY MISREAD ITS OWN SUBJECT.** A `*xgen*` process filter returned nothing while 9222 was listening, which reads exactly like *a foreign process owns the client's debug port*. **`/json/version` was queried BEFORE attaching:** the owner is `msedgewebview2.exe`, **Tauri's WebView2 host**, serving target `page` / *XGen Client* / `localhost:5173`. 🔑 ***The filter was wrong, not the port*** — the J-509 wrong-target lesson applied forward instead of relearned.
+
+### ✅ `F8` — THE ONE GATE WHOSE EXPECTED VALUE THE RUNBOOK ADMITTED IT DID NOT KNOW
+§7 item 4 named `V2` as exactly that. **Driven:**
+
+```
+root  row  [267,131,589,213]
+ ├─ col [1579,421]  → [spaces, self]      ← R1's parent
+ ├─ leaf rooms
+ ├─ col [154,668,278] → [room-header, stream, composer]
+ └─ col [1,1] → [members, inspector]
+```
+
+✅ **`spaces`'s parent runs `col`; `bottom` is axis `col` ⇒ the SIBLING branch ⇒ `[spaces, dm-spaces, self]`.** E-1's live claim **confirmed by re-driving, not carried**. ⇒ **`V2` now has a stated expectation to measure against instead of an outcome to discover.** ✅ **On disk** (757 B): `named` = **0 states**, `session.layout` = **8 leaves** ⇒ **§5.1's step-3 precondition and `N-115`'s +4 both hold as written.**
+
+### 🛑 `F8-a` — AND THE MEASUREMENT CARRIED A CONSEQUENCE NOBODY HAD PRICED
+`insertBeside`'s sibling branch **doubles the split and BISECTS the target's slot**. Against the measured weights: `spaces` `1579` → `1579`, `dm-spaces` `1579`, `self` `842`. ⇒ **R1 SPACES HALVES ON THE FIRST BOOT AFTER `E-2a` — 760 px → ~380 px, with seven Spaces in it**, and the DM home arrives the same height as the panel it docked under. `self`'s 21 % is preserved exactly (`L2`'s pair-total invariant working correctly).
+
+🔑 **IT IS NOT COVERED BY THE APPEARANCE RESERVATION, AND THAT IS THE FINDING.** The `spaces`/`bottom` pair is Joe's ruling and is right **as an ADDRESS**; **the 50/50 weight is `insertLeaf`'s built-in bisect, which nobody chose.** ***A mechanic that forces a default nobody selected is a mechanism question wearing an appearance question's clothes.*** → filed as Phase-0 **§4 ⑤** with three options (**B-a** ship the bisect · **B-b** re-weight in the helper · **B-c** a different address) and 📌 **NO CHAT RECOMMENDATION, deliberately** — the discriminator is how prominent the home should be on a screen Joe looks at, the axis `D-121` says he is the better judge of. **A manufactured UX rationale would be worse than none.**
+
+🔑 **WHAT CHAT DOES ASSERT: RULE IT BEFORE THE LOCK.** Under **B-a** the 50/50 tree is **persisted by the first grid gesture**, so *"change it later"* means editing a tree already on Joe's disk, **not editing a default.** ✅ It does **not** block `E-2a`'s shape — B-a and B-c are zero code (B-c is one table value); only B-b touches the helper.
+
+### 🔒 THE RUNBOOK WAS DELIBERATELY NOT EDITED
+**Clair is mid-read on §5.1.** Editing a document while its reader is attacking it makes her report against a moving target. **The finding went into the Phase-0 only; the runbook sweep happens after her hand-back.** *A discipline about not moving the ground under a reviewer, stated because the temptation was to fix it immediately.*
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (reads only): `svelte-check` **0/34/15** · catalogue **435**. 🛑 **`cargo` is NOT a floor for Leg E.** 🛑 **No registry number taken** — the client was read for its layout tree, not counted (`N-184`/`N-190`/`N-194`). **No new `D`, no new `N`.**
+
+🎯 **NEXT: Clair's §5.1 pass lands → Joe rules §4 ⑤ → Joe locks the runbook → `E-2a`.** → J-724 · ROADMAP v7.11.
+
+---
+
 ## Entry J-723 — the adversarial read ran, the BUILD survived, and the defect was in the PROOF: V4 would have passed vacuously
 **Date:** 2026-08-13 · **Seats:** Clair (adversarial read) · Chat (Rule-5 re-drive, the sweep, records) · Joe (the go). Brief `tasks/CLAIR_LEG_E2_RUNBOOK_READ.md` v1.0 · runbook **v1.0 → v1.1** · Phase-0 **v1.1 → v1.2** · ROADMAP v7.09 → **v7.10**. **NO CODE.**
 

@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E-2: the system-region re-inject — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.4  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-13  
 > Language: English  
@@ -100,9 +100,54 @@ The kickoff cites `app_client.svelte:554` guarding `desc.kind !== 'custom'`. **T
 ### ✅ F6 — THE MECHANISM IS ALREADY TOTAL AND IDEMPOTENT; E-2 ADDS NO ALGEBRA
 `insertLeaf` (`mutate.ts:266`) no-ops **by reference** on an already-docked id and on a missing target, and never throws. ⇒ running the re-inject on **every** load is free and cannot double-place, cannot blank the centre (`N-095`), and cannot fight a user who has moved the home elsewhere. **No new `core` code is required** — E-2 is composition in the shell.
 
-### 📌 F7 — THE `spaces`/`bottom` PAIR: ONE HALF VERIFIED FROM SOURCE, ONE HALF NOT
+### ✅ F8 — DRIVEN LIVE 2026-08-13: THE JOE-TREE HALF OF `F7` IS NO LONGER A GUESS, AND IT CARRIES A CONSEQUENCE NOBODY PRICED
+
+📌 **The session kickoff said *"Apps are DOWN"*. THEY WERE UP** — `xgen-client` (PID 23960) + `xgen-node` (PID 12280), CDP live on 9222, target `page` / *XGen Client* / `localhost:5173`. *Inherited state, corrected by measuring it.* ⚠️ **A first process filter on `*xgen*` missed the WebView2 host and made 9222 look like a foreign listener** — checked `/json/version` before attaching rather than assuming, which is the J-509 wrong-target lesson applied forward.
+
+🔒 **ALL READS. NOTHING MUTATED** — no `set()`, no inline style, no persisted change (`N-123` satisfied by construction).
+
+**Joe's live tree, printed:**
+
+```
+root  row  [267,131,589,213]
+ ├─ col [1579,421]  → [spaces, self]      ← R1's parent
+ ├─ leaf rooms
+ ├─ col [154,668,278] → [room-header, stream, composer]
+ └─ col [1,1] → [members, inspector]
+```
+
+✅ **`spaces`'s parent runs `col`; edge `bottom` is axis `col` ⇒ `insertBeside` takes the SIBLING branch** → `[spaces, dm-spaces, self]`. **E-1's live claim is confirmed, and `V2` now has a STATED EXPECTATION to measure against rather than an outcome to discover.**
+
+✅ **On disk** (`C:\Users\Joe\AppData\Local\XGenProtocol\xgen-client_uistate.json`, **757 B**): keys `active`/`named`/`session`/`version` · **`named` = 0 states** · `session.layout` = **8 leaves**, matching memory. ⇒ **§5.1's step-3 precondition and `N-115`'s +4 both hold as written.**
+
+### 🛑 F8-a — THE SIBLING INSERT HALVES R1, AND THAT IS MECHANISM, NOT APPEARANCE
+
+`insertBeside`'s sibling branch **doubles the split and BISECTS the target's slot** (`mutate.ts`, §3.5's *"the moved region takes HALF the target's space"*). Applied to the measured weights:
+
+| | `spaces` | `dm-spaces` | `self` |
+|---|---|---|---|
+| now | `1579` — **79 %**, **760 px** | — | `421` — 21 %, 203 px |
+| after E-2a | `1579` — **39.5 %, ~380 px** | `1579` — **39.5 %, ~380 px** | `842` — 21 %, 203 px |
+
+⇒ **R1 Spaces halves on the first boot after E-2a** — 760 px → ~380 px, with seven Spaces in it — and the DM home arrives at the same height as the panel it docked under. `self` is untouched (its 21 % is preserved exactly, which is `L2`'s pair-total invariant working correctly).
+
+🔑 **THIS IS NOT COVERED BY §3.5's *"appearance is Joe's"*.** The `spaces`/`bottom` pair is Joe's ruling and is correct **as an ADDRESS**; **the 50/50 weight is `insertLeaf`'s BUILT-IN BISECT, which nobody chose.** *A mechanic that forces a default nobody selected is not an appearance question — it is a mechanism question wearing an appearance question's clothes.* → **§4 ⑤.**
+
+### ✅ F8-b — THE STAGING CONTROL SHOULD BE READ, NOT RECONSTRUCTED (raised by Clair's connection, 2026-08-13)
+
+Clair noted that **`insertBeside`'s doubling-then-bisecting is ONE mechanic at TWO sites**: the real boot (`F8-a`) and §5.1's staging control. **Correct, and it has a consequence she did not draw:** a hand-splice **removes the leaf but not the doubling**, so the staged tree comes back `[1579, 842]` — 8 leaves and no `dm-spaces`, so the control is **valid**, but **it is not Joe's tree.**
+
+🔑 **THE BETTER STEP 1: DO NOT RECONSTRUCT THE PRE-HOME TREE — READ THE AUTHENTIC ONE OFF DISK.** `session.layout` holds the real 8-leaf tree **today** (`F8`, measured), and under **`P-1` the re-inject never writes**, so it **stays authentic straight through `E-2a`**. `set(<disk tree>)` gives a control that **IS** the pre-`E-2a` tree instead of an approximation — **no arithmetic, no weight drift, and the cleanup returns to something byte-exact.**
+
+⚠️ **ONE LIVE PRECONDITION, AND IT CAN EXPIRE BETWEEN LEGS:** a single fold / resize / move after `E-2a` lands and before `E-2b` runs **persists the home** (`:485`/`:496`/`:507`) and the disk tree stops being pre-home. ⇒ **the runbook keeps the hand-splice as a FALLBACK, gated on an ON-DISK ASSERTION** (`session.layout` has 8 leaves and no `dm-spaces`), never on an assumption that it does.
+
+🛑 **AND THE HAZARD THE STAGED TREE CREATES EITHER WAY (`N-123`):** `set()` does not persist, so the staging is clean **only while nothing else persists.** **Any grid gesture during §5.1's steps 2–7 writes the staged tree to `session.layout`.** ⇒ **§5.1 owes a no-gesture instruction and a final on-disk comparison**, not just a visual return to baseline. *A cleanup that is correct only if the operator happens not to touch anything is not a cleanup.*
+
+📌 **Owed to the runbook sweep (v1.2), NOT written into it here** — Clair is mid-read on §5.1 and the sweep is gated on §4 ⑤.
+
+### 🔒 F7 — THE `spaces`/`bottom` PAIR: ONE HALF VERIFIED FROM SOURCE, ONE HALF NOT
 ✅ **Under `DEFAULT_LAYOUT`, verified from source:** `spaces` is a direct child of the **root `row`** split. `edge: 'bottom'` → axis `col` ≠ `row` ⇒ `insertBeside` takes the **WRAP** branch ⇒ `[spaces, dm-spaces]` in a new `col` split occupying the old `spaces` slot. **Matches the runbook's claim.**
-⚠️ **In Joe's live tree the SIBLING claim (`spaces`'s parent already runs `col` ⇒ `[spaces, dm-spaces, self]`) rests on a live read taken at E-1 verify and is NOT re-derivable from source** — his arranged tree is on disk, and the apps are down. **It is a measurement to repeat, not a fact to inherit.**
+⚠️ **In Joe's live tree the SIBLING claim (`spaces`'s parent already runs `col` ⇒ `[spaces, dm-spaces, self]`) rested on a live read taken at E-1 verify and is NOT re-derivable from source** — his arranged tree is on disk. ✅ **DISCHARGED BY `F8`, 2026-08-13: RE-DRIVEN ON THE LIVE CLIENT AND CONFIRMED.** *It was a measurement to repeat, and it was repeated rather than inherited.*
 
 ---
 
@@ -150,6 +195,24 @@ Proving `F1`'s path requires **saving a named UI state on Joe's client** (a real
 **V-b — skip it and record the path as reasoned-but-undriven.** ③ Zero. 🛑 **The leg's headline finding would ship unexercised** — and *"unreachable today"* has been the wrong argument five times in this project (`N-091` · `N-097` · `N-099` · `N-109` · `N-116`).
 
 📌 **Chat's recommendation: V-a, with Joe's consent asked before the session that runs it.** ⚠️ **A probe must be able to demonstrate SUCCESS, not merely the absence of failure (`N-194`)** — so the pass condition is *the named state loads AND `dm-spaces` is in the resolved tree*, positively controlled by reading the eight-leaf tree **out of the saved state file first**.
+
+---
+
+### 🔓 ⑤ — THE 50/50 BISECT: R1 HALVES ON FIRST BOOT (`F8-a`). **NEW 2026-08-13, MEASURED NOT PREDICTED. JOE'S, AND IT TOUCHES THE BUILD.**
+
+🛑 **This is the ONE item in this document with a MEASURED user-visible impact rather than an inferred one.** `D-121`'s lens ① requires the consequence to be **grounded, not reasoned** — and it now is: **R1 goes 760 px → ~380 px**, seven Spaces in it, on the first boot after `E-2a`.
+
+**B-a — SHIP THE BISECT.** ① R1 halves; the DM home is prominent from day one; Joe drags the seam once and `M-RP7.5`'s feeder persists it. ③ **Zero** — it is what `insertLeaf` already does. ✅ Keeps the helper **pure composition**, which is `F6`'s whole point.
+**B-b — RE-WEIGHT AFTER THE INSERT** inside `reinjectSystemRegions` (say, the home takes a third). ① A gentler first boot. 🛑 ③ **The helper stops being composition and starts encoding a SIZE OPINION** — the first place in the codebase where a placement rule also decides a proportion, and **every future table row then inherits the question *"what weight?"***
+**B-c — A DIFFERENT ADDRESS**: dock under `self` instead of `spaces`, bisecting the 21 % strip. ① R1 untouched; the home arrives small (~100 px) and `self` halves. ③ Zero code — **one value in the §3.1 table** — 🛑 but **it revises Joe's own ①-B placement ruling**, the one `E-1`'s verify was built around.
+
+📌 **NO CHAT RECOMMENDATION, DELIBERATELY.** All three are honest, and the discriminator is *how prominent the DM home should be on a screen Joe looks at* — precisely the axis `D-121` says **Joe is the better judge of**, because *Claude never observes a user*. **A manufactured UX rationale here would be worse than none.**
+
+🔑 **WHAT CHAT DOES ASSERT: RULE IT BEFORE THE LOCK, BECAUSE IT IS NOT REVERSIBLE FOR FREE.** Under **B-a** the 50/50 tree is **persisted by the first grid gesture** (`:485`/`:496`/`:507`), so *"change it later"* means editing a tree already on Joe's disk — **not editing a default.**
+
+✅ **IT DOES NOT BLOCK `E-2a`'s SHAPE:** B-a and B-c are **zero code** (B-c is one table value); only **B-b** touches the helper.
+
+⚠️ **Lens ②: NO TIER CONSEQUENCE**, same as ①–④ — a split weight moves no byte and creates no copy.
 
 ---
 

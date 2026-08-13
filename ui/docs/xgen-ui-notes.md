@@ -1,6 +1,6 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.23  
+> Version: 1.24  
 > Date: May 2026  
 > **Last updated**: 2026-08-12  
 > Language: English  
@@ -3908,3 +3908,36 @@ On launch the client selects nothing: R2 empty, R7 `no-scope`, R5 *"select a roo
 ✅ **ONE SAFETY RULE FALLS OUT, AND `D-107` ALREADY PAID FOR IT:** the control that hides a region must **not itself live in a region**, or you can hide the thing that un-hides. And File ▸ Exit can never be hidden **by construction** — the menu-bar is frame chrome **outside the layout tree**, which is exactly why the frame was kept out of the descriptor. *A decision taken for one reason covering a case nobody had thought of yet.*
 
 🔓 **Lands as `W-14` in the widget-tier spec** — a universal contract, not a shell feature, because Joe's word was *"universal widget mechanic element"*.
+---
+
+## N-194 — three measurement traps in one leg, and two of them fail toward a false FAILURE (2026-08-12)
+
+**Leg E-1's live verify (J-721) sprang three separate measurement traps in a single sitting.** All three were the probe's fault, not the code's. Recorded together because they are one family: ***a number or a reading that looks like an answer to the question you asked, and is an answer to a different one.***
+
+### 1. The registry number matched the prediction FOR THE WRONG REASON
+
+Baseline that morning was **168**. After Clair's four files landed, the same client on an **identical screen** (7 Spaces, 3 DMs, no latch, R2 empty) read **174** — and the `dm-spaces` panel **was not even mounted**.
+
+Chat's Phase-0 had predicted the R1 filter would move the registry by **−6** (3 DM rows × 2 entities, `N-184`). The observed delta was **+6**. 🛑 **Enumerated rather than derived, the cause is entirely different: adding one `CLIENT_PLUGINS` row grew Settings ▸ Plugins from 10 rows to 11, and the `dm-spaces` row contributes EXACTLY 6 elements.** Nothing to do with DM rows at all.
+
+🔑 ***A predicted number and an observed number agreed, and the mechanisms had nothing in common.*** Had the check been "does the delta match the prediction", it would have PASSED and confirmed a false model. The runbook's §7.3 rule — *a number derived by arithmetic does not enter the record until it has been seen* — is what caught it, and it earned its keep the first time it was used.
+
+### 2. Reading the wrong ELEMENT: a correct circle that measures as a square
+
+V3 asked for *"every row's avatar is a circle"* and Chat read computed `border-radius`. It returned **`0px` on all three rows** — an apparent hard failure of the `flags.isDm` branch on its very first feed.
+
+✅ **The code was right.** The shape is `data-shape="circle"` on the `<figure>` (DM rows) versus `data-shape="square"` (R1's Space rows, same read). **The `border-radius` is UNSKINNED — Joe's, not written yet** — so `0px` is the correct reading of a correctly-shaped element.
+
+### 3. Reading the wrong GETTER: preserved text that reads as empty
+
+V6 asked whether a half-typed draft survives activation. Chat opened a draft, set text, activated a DM row, and read `__XGEN_DRAFT__.text` → **`""`**, `counterpart: null`. Apparent failure of the `close()`-not-`clear()` guarantee.
+
+✅ **The code was right, and deliberately so.** `close()` (`dm-draft.svelte.ts:111-113`) nulls `_counterpart` and **leaves `_texts` untouched** — its own comment says *"the text map is untouched, so re-opening the draft restores its text"*. `clear()` (`:148`) is the one that deletes. **The `.text` getter reads the map through `_counterpart`, so with nothing open it returns `""` whether or not the text survives.** Re-opening the same counterpart returned the string intact.
+
+⇒ **the pass condition was never "read `.text` after closing"; it was "close, RE-OPEN, and read".**
+
+### 🔒 THE RULE
+
+**A probe must be able to demonstrate SUCCESS, not merely the absence of failure.** `N-099` says an empty-result probe needs a positive control. **Traps 2 and 3 are the same rule from the other side: a probe whose reading is `0px` / `""` under BOTH the passing and the failing case is not a probe at all** — it cannot distinguish the outcomes, so its "failure" carries no information.
+
+📌 **And the practical form:** before reporting a gate as FAILED, ask *what would this read return if the code were correct?* If the answer is "the same thing", the probe is wrong. ⚠️ **Chat came within one message of filing two false defects against correct code, in the same session that had already spent four findings on records being wrong against the thing they described.**

@@ -8,6 +8,42 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-721 — E-1 ships, and the live drive sprang three measurement traps in one sitting — two of which nearly filed false defects against correct code
+**Date:** 2026-08-12 · **Seats:** Clair (implementation) · Chat (Rule-5 re-drive, the live verify, records) · Joe (the go). Runbook v1.1 → **v1.2 COMPLETED** · Phase-0 v1.4 → **v1.5** · notes v1.23 → **v1.24** (**+N-194**) · ROADMAP v7.07 → **v7.08**. **CODE: 4 files, zero `.rs`.**
+
+✅ **`E-1` IS DONE. `DM Spaces` mounts, lists, activates, and V1–V8 ARE DRIVEN GREEN on Joe's live client.**
+
+### ✅ WHAT SHIPPED
+**NEW `ui/common/lib/components/widgets/dm-spaces.svelte`** — the fourth `entity-panel` over the `N-013` container umbrella. R1 lists NON-DM containers; this lists DM containers. Self thread pinned first, rest sorted by resolved label; **no draft row, no controls, no store, no `<style>`**. Plus `isDmSpace` exported from `spaces-state` (the argued 4th file), one `CLIENT_PLUGINS` row, and `REGION_IDS`/`REGION_NAMES`. 🔒 **`DEFAULT_LAYOUT` untouched** — Joe's ①-B: re-inject is the ONLY placement path, so a fresh tree and a re-injected tree cannot drift.
+
+### ✅ RULE 5 — EVERY CLAIM RE-DRIVEN, NONE ADOPTED ON REPORT
+`svelte-check` **re-run by Chat: 0 errors / 34 warnings / 15 files**, the floor exactly. `mergeClasses` confirmed non-deduping at `logic.ts:19`. The highlight confirmed as R1's exact complement (both read `spaceLatch.latchedSpaceId`, predicate inverted). **Her `file:line` pointers were exact everywhere checked** — worth stating in the session that produced `W1`.
+
+📌 **ONE OVER-CLAIM, AND HER CHOICE WAS RIGHT FOR A BETTER REASON THAN SHE GAVE.** She justified `selectOnActivate={false}` as *"R1 uses this pattern"*; **R1 does not** — `entity-panel:54` defaults it `true` and `spaces-panel:79` passes no override. 🔑 But R1's `onActivate` only writes the BUS, so R1 needs the optimistic click-selection for immediate feedback, while `dm-spaces` **latches directly** and its derived value updates synchronously. ***The panels differ because their activation paths differ*** — correct, under-argued.
+
+### 🛑 THE THREE TRAPS (`N-194`)
+**① THE REGISTRY NUMBER MATCHED THE PREDICTION FOR THE WRONG REASON.** Baseline **168** → **174** on an **identical screen**, with the panel **not mounted**. Chat had predicted ±6 from *3 DM rows × 2 entities*. **Enumerated, the cause is entirely different: `CLIENT_PLUGINS` gained a row, so Settings ▸ Plugins went 10 rows → 11, and the `dm-spaces` row contributes EXACTLY 6.** ***A predicted number and an observed number agreed with no mechanism in common.*** §7.3's rule — *a number derived by arithmetic does not enter the record until it has been seen* — caught it the first time it was used.
+
+**② V3 READ THE WRONG ELEMENT.** Computed `border-radius` returned **`0px`** on all three DM rows — an apparent hard failure of `flags.isDm` on its first ever feed. ✅ The shape is **`data-shape="circle"`** (vs `"square"` on R1's rows); the radius is **unskinned, Joe's**. `0px` is the correct reading of a correct element.
+
+**③ V6 READ THE WRONG GETTER.** `.text` returned `""` after activation — apparent failure of the `close()`-not-`clear()` guarantee. ✅ `close()` (`dm-draft.svelte.ts:111-113`) nulls `_counterpart` and **deliberately keeps `_texts`**; `clear()` (`:148`) is what deletes. The getter reads the map THROUGH `_counterpart`, so it returns `""` whether or not the text survives. **Re-opening returned the string intact.**
+
+🔒 **THE RULE: a probe must be able to demonstrate SUCCESS, not merely the absence of failure.** `N-099` from the other side — **a probe whose reading is identical under the passing and the failing case cannot distinguish them, so its "failure" carries no information.** ⚠️ ***Chat came within one message of filing two false defects against correct code.***
+
+### 🛑 A DEFECT IN CHAT'S OWN RUNBOOK, FOUND BY RUNNING IT
+§4's verify command calls `insertLeaf(...)` — **`insertLeaf` is NOT exposed on `window`** (the bridge is `current`·`set`·`move`·`fold`·`background`·`setBackground`). Chat spliced the tree by hand. ***Exactly the class Chat argued an adversarial read would catch, sitting in the document the implementer was told to follow — and the leg Joe locked without that read.*** ✅ **Pre-flight before launching: `set(l) { layout = l; }` is a bare in-memory reassignment; `move`/`fold` DO persist.** Only `set` was used.
+
+### ✅ THE GATES, DRIVEN
+**V1** mounts, `count: 3` · **V2** 3 rows, `selfFirst: false` — **correct, Joe has no self thread (J-689), §7.2's predicted case** · **V3** circle vs square · **V4** DM panel lit, **R1 unlit**, R2 `count: 1`, both latches moved, R7 scoped with the counterpart resolved · **V5** positive control — clicking Engineering lights R1 and darkens the DM panel, so **the complement is proven in BOTH directions and V4's empty result is real** · **V6** text intact · **V7** panel = **+10**, enumerated · **V8** floors.
+
+### 📌 A USER-VISIBLE CONSEQUENCE, NAMED NOT SMUGGLED
+On a fresh client all three DM rows read **`…5HPPRfXo` / `…noYiFeHE` / `…sno_FWmw`** — pure `tail8`. **After one DM was opened, that row became `LegF-N2`.** The address book fills **per-Space on latch**, so until Spaces are visited the DM home shows raw key tails. **Not a defect** — `L2` was implemented exactly — but it is the `M-RP-PEOPLE` finding demonstrated live, and it is the first thing seen at startup. Discharger: `M-RP-STARTUP` or an eager book fill.
+
+✅ **Joe's client returned to baseline and SHOWN:** reload → registry **174**, 7 Spaces / 3 DMs, no latch, panel unmounted, draft empty, **8-leaf tree unchanged**. Nothing persisted, nothing sent, nothing installed. The test draft was cleared in the same pass (`N-123`).
+
+🎯 **NEXT: `E-2` — `D-114` §9's re-inject, INSIDE `loadLayout()`.** → J-721 · ROADMAP v7.08.
+
+---
 ## Entry J-720 — E-1 locked, and the leg table caught a third empty leg the moment it was read instead of recalled
 **Date:** 2026-08-12 · **Seats:** Joe (the lock) · Chat (the records). Runbook v1.0 → **v1.1 ACTIVE** · Phase-0 v1.3 → **v1.4** · ROADMAP v7.06 → **v7.07**. **NO CODE.**
 

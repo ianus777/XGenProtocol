@@ -23,6 +23,7 @@ import RoomsPanel from '$common/components/widgets/rooms-panel.svelte';
 import StreamPanel from '$common/components/widgets/stream-panel.svelte';
 import ComposerPanel from '$common/components/widgets/composer-panel.svelte';
 import MembersPanel from '$common/components/widgets/members-panel.svelte';
+import DmSpaces from '$common/components/widgets/dm-spaces.svelte';
 import GridPlate from '$common/components/widgets/grid-plate.svelte';
 import GridPlateSettings from '$common/components/widgets/grid-plate-settings.svelte';
 import ConnectionStats from '$common/components/widgets/connection-stats.svelte';
@@ -208,6 +209,25 @@ export const CLIENT_PLUGINS: PluginDescriptor[] = [
     // from memory (Rule 5 / D-108). plugin-list falls back to its documented placeholder; the real glyph is
     // deferred to M-RP-ICON-ADOPT / M-RP-SKIN.
     component: MembersPanel,
+  },
+  {
+    id: 'dm-spaces',
+    // BARE name (Joe, load-bearing): "direct messages we will have in the messages panel" — the widget
+    // lists SPACES (DM containers), not streams. Matches Spaces/Rooms/Members, its container siblings.
+    name: 'DM Spaces',
+    description: 'Your direct-message conversations.',
+    version: '1.0.0',
+    kind: 'system',
+    host: 'client',
+    delivery: 'compiled',
+    surface: 'region',
+    regionId: 'dm-spaces',
+    // icon UNSET (M-RP6.2 D8): there is no verified DM glyph in-repo, and a Material `d` path is not
+    // fabricated from memory (Rule 5 / D-108). plugin-list falls back to its documented placeholder; the
+    // real glyph is deferred to M-RP-ICON-ADOPT / M-RP-SKIN.
+    // No settingsComponent — nothing to configure yet, and `hasSettings` stays descriptor-true so the row
+    // is greyed for the plugin-true reason "no settings", never a missing verb (D-113's correction).
+    component: DmSpaces,
   },
   {
     id: 'plugin-list',

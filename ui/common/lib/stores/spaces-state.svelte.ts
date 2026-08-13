@@ -34,6 +34,14 @@ export interface KnownSpace {
   counterpart: string | null;
 }
 
+/** Is this Space a direct-message container? ONE exported predicate, TWO readers (M-RP-MEMBER-ACT Leg E):
+ *  the `dm-spaces` widget (E-1) lists the Spaces this is TRUE for; `spaces-panel` (E-3) filters them OUT of
+ *  R1 with the complement. A single source so the two panels can never disagree about one Space — two inline
+ *  `counterpart != null` copies would be a D-067 drift surface (flip one, forget the other, and a Space shows
+ *  in both panels or neither). A DM's `counterpart` is the peer's XGID; the self thread's is the session
+ *  identity — both non-null, so both are DM containers here. */
+export const isDmSpace = (s: KnownSpace): boolean => s.counterpart != null;
+
 let _spaces = $state<KnownSpace[]>([]);
 
 export const spacesState = {

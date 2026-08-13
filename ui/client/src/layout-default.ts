@@ -13,9 +13,13 @@ import { migrateLayout } from '$core/components/layout/resolve';
 import RegionPlaceholder from './region-placeholder.svelte';
 import type { PluginDescriptor } from '$common/plugins/registry';
 
-// All 8 D-103 region ids (region-dock §2), in the default row order.
+// The D-103 region ids (region-dock §2), in the default row order. The first 8 are the canonical R1–R8
+// regions; `dm-spaces` is the NINTH region (M-RP-MEMBER-ACT Leg E-1, the DM home). It is NOT in
+// DEFAULT_LAYOUT — the home is placed by the E-2 re-inject only (Joe's ①-B), so it never drifts between a
+// fresh and a re-injected tree. Its presence here seeds a placeholder + lets `buildWidgetRegistry` /
+// `buildTitles` resolve the leaf when the re-inject (or the DEV bridge at verify) mounts it.
 export const REGION_IDS = [
-  'spaces', 'rooms', 'self', 'room-header', 'stream', 'composer', 'members', 'inspector',
+  'spaces', 'rooms', 'self', 'room-header', 'stream', 'composer', 'members', 'inspector', 'dm-spaces',
 ] as const;
 
 // Region display names (region-dock §2) — MOVED here from region-placeholder.svelte (M-RP7.1, D2). A
@@ -31,6 +35,10 @@ export const REGION_NAMES: Record<string, string> = {
   composer: 'R6 · Composer',
   members: 'R7 · Members',
   inspector: 'R8 · Selection info',
+  // Ninth region (M-RP-MEMBER-ACT Leg E-1). No R-number — it is not one of the canonical R1–R8. This
+  // fallback is only ever shown if the `dm-spaces` plugin does not claim the leaf; the plugin `name`
+  // ('DM Spaces') wins in `buildTitles`, so it is a safety net, never the rendered title.
+  'dm-spaces': 'DM Spaces',
 };
 
 // The registry maps are DERIVED from the ACTIVE plugin list (M-RP6.1l, D2 → M-RP-CONNSTATS, D1): a widget is

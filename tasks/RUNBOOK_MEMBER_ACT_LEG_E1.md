@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E-1 Runbook: the `DM Spaces` widget (Clair)
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-12  
 > Language: English  
@@ -11,6 +11,10 @@
 ---
 
 ## §0 — SEAT, AND WHAT THIS LEG IS
+
+✅ **COMPLETED 2026-08-12 (J-721). V1–V8 DRIVEN GREEN ON JOE'S LIVE CLIENT.** Implemented by Clair; every gate and every claim re-driven by Chat under Rule 5, none adopted on report.
+
+🛑 **ANNOTATION AT THE SITE (`D-131`, J-721): §4's VERIFY COMMAND CANNOT RUN AS WRITTEN.** It calls `insertLeaf(...)`, and **`insertLeaf` IS NOT EXPOSED ON `window`** — the DEV bridge is `current` · `set` · `move` · `fold` · `background` · `setBackground` (`app_client.svelte:392-402`). Chat spliced the tree by hand instead. 🔑 ***A defect in the runbook, found by RUNNING it — exactly the class the author argued an adversarial read would catch, sitting in the document the implementer was told to follow.*** ⚠️ **`move` and `fold` DELEGATE to the shipped handlers and DO persist; `set(l) { layout = l; }` is a bare in-memory reassignment and does not.** Verified BEFORE the client was launched — the pre-flight §5 implied but did not name.
 
 🔒 **LOCKED BY JOE 2026-08-12 (*"e-1) locked"*). CLAIR MAY IMPLEMENT.**
 
@@ -153,6 +157,8 @@ __XGEN_LAYOUT__.set(insertLeaf(__XGEN_LAYOUT__.current, 'dm-spaces', 'spaces', '
 | **V6** | a half-typed draft **survives** activation | type into a draft, activate a DM row, read `__XGEN_DRAFT__` — text intact (`close()` not `clear()`) |
 | **V7** | registry transition | before → after, **enumerated not derived**; **state the screen** |
 | **V8** | floors | `svelte-check` at **0/34/15** · catalogue **435 BY SCOPE** (zero `ui/core`) |
+
+🛑 **ANNOTATION (`D-131`, J-721): V3 AND V6 AS WRITTEN BOTH READ THE WRONG THING, AND BOTH FAIL TOWARD A FALSE NEGATIVE.** ① **V3** — the DM shape is `data-shape="circle"` on the `<figure>`, **not** a `border-radius`; the radius is unskinned (Joe's), so reading computed `border-radius` returns `0px` for a **correct** circle. ② **V6** — `dmDraft.close()` nulls `_counterpart` and **deliberately keeps `_texts`** (`dm-draft.svelte.ts:111-113`; `clear()` at `:148` is what deletes), so the `.text` getter reads `""` while closed **even though the text is preserved**. The pass condition is **re-open and read**, not read-while-closed. 🔑 ***Both probes would have filed a false failure against correct code. A probe must be able to show SUCCESS, which is `N-099` from the other side.***
 
 🛑 **`cargo` IS NOT A FLOOR FOR THIS LEG AND MUST NOT BE CITED AS ONE.** Leg E touches zero `.rs` — `K2` shipped in Leg B — so an identical `cargo` result is a **scope argument, not a measurement**. Phase-0 §6's *"cargo + svelte-check"* is stale (`F8`).
 

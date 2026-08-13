@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E: the DM home + the R1 filter — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-12  
 > Language: English  
@@ -207,7 +207,7 @@ R1's DM rows read `DM with xgen://pubkey/ed25519:…` today — a raw key where 
 | leg | what | floor | gated on |
 |---|---|---|---|
 | **E-0** | ✅ **DONE 2026-08-12, commit `6268fba` (J-718)** — the six `D-131` annotations (`ROADMAP.md:318/:321/:455` · `JOURNAL.md` J-709 · `CLAUDE.md`'s `D-121` signpost · `N-173`'s own site) and **`N-192` minted**. 🛑 **Clair must NOT re-annotate.** 📌 *This row said "future leg" while the work shipped in the same commit as this document — `P1`, and the very shape `F1` flags against the ROADMAP* | none | — |
-| **E-1** | 🔒 **THE HOME, FED AND MOUNTED** — **`DM Spaces`** (Joe, 2026-08-12: *"direct messages we will have in the messages panel"* — the widget lists **Spaces, not streams**). Lists every `counterpart != null` Space **including the self thread, pinned top**; sorted by resolved display name (`tail8` fallback, no discriminator); **no draft row** (`N-091` — a draft is not a Space). Activation reuses the C-bis-6 pair (`roomLatch.latch` + `spaceLatch.latch`) | svelte-check | ① ruled |
+| **E-1** | ✅ **DONE 2026-08-12 (J-721) — V1–V8 DRIVEN GREEN.** **`DM Spaces`** (Joe: *"direct messages we will have in the messages panel"* — it lists **Spaces, not streams**). 4 files: NEW `dm-spaces.svelte` · `isDmSpace` exported from `spaces-state` (the argued 4th, `§7.1`) · one `CLIENT_PLUGINS` row · `REGION_IDS`/`REGION_NAMES`. `DEFAULT_LAYOUT` untouched (①-B). Self thread pinned first — **`selfFirst: false` measured, CORRECT: Joe has no self thread (J-689), §7.2's predicted case** | svelte-check **0/34/15** re-run by Chat | ① ruled |
 | **E-2** | 🔒 **`D-114` §9's RE-INJECT RULE, AND IT LIVES INSIDE `loadLayout()`** — **not at `onMount`** (`P2`). Two callers exist — boot (`app_client.svelte:709`) and `handleRevertUi` (`:586`) — **and NEITHER persists the result**, so an `onMount`-only re-inject would leave the disk autosave pre-`DM Spaces` and **File ▸ Revert would drop the home**, which is the exact stranding H1 exists to prevent. `layout.revert` is a LIVE command (M-RP7.5 Leg D), so that path is reachable, not theoretical. ⚠️ `loadLayout` takes no plugin set today and gains one. 📌 **Target `spaces`, edge `bottom`** — verified to give `[spaces, dm-spaces, self]` in Joe's live tree (sibling: the parent already runs `col`) **and** `[spaces, dm-spaces]` under `DEFAULT_LAYOUT` (wrap: parent runs `row`). **One pair, right answer in both trees** | svelte-check | E-1 |
 | **E-3** | 🔒 **THE R1 FILTER** — `spaces-panel`'s `items` `$derived` drops `counterpart != null`. **NEVER the store** | svelte-check | ② ruled, **E-1 + E-2 green** |
 | **E-4** | 🛑 **ABSORBED INTO `E-1` — THIS LEG HAS NO CONTENT.** `L2` (resolve the label at render, `tail8` fallback) is built in `E-1` §3.2, and `E-3` removes DM rows from R1 entirely, so no label work remains anywhere. **ID kept, never renumbered** — `E-4` is referenced by the runbook, J-718 and the ROADMAP node. 📌 *`P1`'s shape for the THIRD time — a leg describing work that is not its own — and committed by Chat AFTER Clair flagged the identical defect at `E-0`* | — | — |

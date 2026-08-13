@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E-2 Runbook: the system-region re-inject (Clair)
-> **Status**: PENDING  
-> Version: 1.2  
+> **Status**: ACTIVE  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-13  
 > Language: English  
@@ -12,15 +12,15 @@
 
 ## §0 — SEAT, AND WHAT THIS LEG IS
 
-🛑 **NOT LOCKED. DO NOT IMPLEMENT YET.** ✅ **CLAIR'S ADVERSARIAL READ RAN 2026-08-13** — brief `tasks/CLAIR_LEG_E2_RUNBOOK_READ.md`, verdict **LOCKABLE WITH ONE NAMED CHANGE + wording**; `PM-1` and `W-1`–`W-3` swept at v1.1, every correction re-measured by Chat (Rule 5). ✅ **v1.2 SWEEPS THE LIVE MEASUREMENT (J-724) — `F8` · `F8-a` · `F8-b` — AND JOE'S `§4 ⑤` RULING (`B-a`).** One thing still owed before Joe locks:
+🔒 **LOCKED BY JOE 2026-08-13 (*"locked"*). CLAIR MAY IMPLEMENT.** ✅ **CLAIR'S ADVERSARIAL READ RAN 2026-08-13** — brief `tasks/CLAIR_LEG_E2_RUNBOOK_READ.md`, verdict **LOCKABLE WITH ONE NAMED CHANGE + wording**; `PM-1` and `W-1`–`W-3` swept at v1.1, every correction re-measured by Chat (Rule 5). ✅ **v1.2 swept the live measurement (J-724) — `F8` · `F8-a` · `F8-b` — and Joe's `§4 ⑤` ruling (`B-a`).** 📌 **Locked WITH an adversarial read behind it, unlike E-1** — and its `§5.1` was rebuilt afterwards around her `Q2`.
 
-🔓 **JOE'S CONSENT FOR THE `V4` SIDE EFFECT** (§5.1) — that leg writes a named UI state to his disk. Ruled `V-a` under `D-141`, **but a delegation rules the DESIGN, not the SIDE EFFECT.**
+🔓 **STILL OWED, AND IT IS NOT A BLOCKER FOR `E-2a`: JOE'S CONSENT FOR THE `§5.1` SIDE EFFECT** — that leg writes a named UI state to his disk. Ruled `V-a` under `D-141`, **but a delegation rules the DESIGN, not the SIDE EFFECT.** **Ask at `E-2b`, before step 2. `E-2a` needs no consent.**
 
-**You are CLAIR — Code Claude.** You implement from this runbook **once Joe locks it**. **You never push.** Deviations are **reported under Rule 6, never absorbed** — *an implementer who silently absorbs a bad instruction ships the architect's mistake* (M-RP7.1b: your `migrateLayout(raw, fallback)` deviation stopped `core` importing a shell constant — **the same seam this leg edits**).
+**You are CLAIR — Code Claude.** **Joe has LOCKED this runbook; you may implement `E-2a`.** **You never push.** Deviations are **reported under Rule 6, never absorbed** — *an implementer who silently absorbs a bad instruction ships the architect's mistake* (M-RP7.1b: your `migrateLayout(raw, fallback)` deviation stopped `core` importing a shell constant — **the same seam this leg edits**).
 
 **E-2 places the `dm-spaces` leaf. It does NOT build the R1 filter** — that is **E-3** and must not appear in this diff. Until E-3 lands a DM Space renders in **both** R1 and the DM panel. That is expected, temporary, and not a defect.
 
-**Read first:** `tasks/M_RP_MEMBER_ACT_LEG_E2_PHASE0.md` **v1.4** (§2 audit · §3 `F1`–`F8-b` · §4 the FIVE rulings) · `tasks/M_RP_MEMBER_ACT_LEG_E_PHASE0.md` v1.5 §4① · `CLAUDE.md` PLAY head · `JOURNAL.md` **J-724** · J-723 · J-722.
+**Read first:** `tasks/M_RP_MEMBER_ACT_LEG_E2_PHASE0.md` **v1.5** (§2 audit · §3 `F1`–`F8-b` · §4 the FIVE rulings, all CLOSED) · `tasks/M_RP_MEMBER_ACT_LEG_E_PHASE0.md` v1.5 §4① · `CLAUDE.md` PLAY head · `JOURNAL.md` **J-725** · J-724 · J-723 · J-722.
 
 ---
 

@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.24  
+> Version: 1.25  
 > Date: May 2026  
-> **Last updated**: 2026-08-12  
+> **Last updated**: 2026-08-13  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -3941,3 +3941,34 @@ V6 asked whether a half-typed draft survives activation. Chat opened a draft, se
 **A probe must be able to demonstrate SUCCESS, not merely the absence of failure.** `N-099` says an empty-result probe needs a positive control. **Traps 2 and 3 are the same rule from the other side: a probe whose reading is `0px` / `""` under BOTH the passing and the failing case is not a probe at all** — it cannot distinguish the outcomes, so its "failure" carries no information.
 
 📌 **And the practical form:** before reporting a gate as FAILED, ask *what would this read return if the code were correct?* If the answer is "the same thing", the probe is wrong. ⚠️ **Chat came within one message of filing two false defects against correct code, in the same session that had already spent four findings on records being wrong against the thing they described.**
+
+---
+
+## N-195 — a byte count proves CRLF integrity and nothing else: the PLAY head that never landed (2026-08-13)
+
+**Context:** J-722's `CLAUDE.md` PLAY head was inserted by PowerShell, verified, reported as written, journalled, committed and pushed. **It was not there.** Found a day later while writing the next head, by searching `CLAUDE.md` for a phrase that should have been in it.
+
+### WHAT HAPPENED
+
+The block was built line-by-line into an array, with emoji composed as `[char]0x1F6D1`, `[char]0x1F511`, `[char]0x1F3AF` and so on. 🛑 **`[char]` CANNOT CAST A CODE POINT ABOVE `U+FFFF` IN POWERSHELL 5.1** — `System.Char` is 16-bit, so every astral-plane emoji raises *"Value was either too large or too small for a character"*. Each such statement threw, **the script continued to the next line**, and that `$blk +=` never executed.
+
+**8 of 13 content lines were dropped.** What landed was a **headless orphan**: seven bare `>` lines and one surviving paragraph, sitting directly above the previous PLAY block, with no header and no attribution.
+
+### 🔑 WHY THE CHECK DID NOT SEE IT
+
+The verification was the project's standing CRLF check (`N-191`): `len`, `CR` count, `LF` count, before and after. **All three moved exactly as a successful insert would** — the file grew by 1,405 bytes and `CR` = `LF` = 1269, up 9 from 1260. **Nine lines were added. Nine lines were what the surviving fragment contained.**
+
+🔑 ***A partial write is byte-consistent. Byte parity proves the file's LINE ENDINGS are intact; it says NOTHING about whether the CONTENT arrived.*** The two questions had been quietly collapsed into one check because one check had always answered both — until a write failed in a way that preserved parity.
+
+⚠️ **This is the `M-RP7.1` killed-`cargo`-run species: *a MEASUREMENT-SHAPED ARTIFACT*.** There, a truncated log read `1195/0/60` — plausible, complete-looking and wrong, betrayed only by a missing final line. Here the artifact was a byte count that grew by the right kind of amount. **Both look exactly like a result.**
+
+⚠️ **And the cost compounded:** the false success was written into the JOURNAL entry, into the commit message, and pushed — so the record asserted a head that did not exist, in the one file every session reads first.
+
+### 🔒 THE RULES
+
+1. **NEVER `[char]0xNNNNN` for an astral code point.** Use `[char]::ConvertFromUtf32(0x1F6D1)` — or better, **author the block in a FILE** (`Filesystem:write_file` handles UTF-8 correctly) and splice the file in. The file route has no cast to get wrong.
+2. **READ BACK BY MARKER AFTER EVERY WRITE.** Pick several distinctive phrases spread across the inserted text and assert each is present. **A count of markers found versus markers expected is a read; a byte count is not.**
+3. **Byte parity keeps its job and only its job** — it is `N-191`'s CRLF guard. **Run both checks; neither substitutes for the other.**
+4. **A PowerShell script does not stop on a statement error.** A block assembled across many statements can lose an arbitrary subset of itself and still complete with exit 0. **Exit 0 means "the shell finished", not "the work happened".**
+
+🔑 **The general form, which is the whole reason this note exists:** ***a verification that has always answered two questions at once will keep appearing to answer both long after it has stopped answering one of them.*** Ask which question each check actually answers, and check that every question has an owner.

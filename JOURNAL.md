@@ -8,6 +8,41 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-723 — the adversarial read ran, the BUILD survived, and the defect was in the PROOF: V4 would have passed vacuously
+**Date:** 2026-08-13 · **Seats:** Clair (adversarial read) · Chat (Rule-5 re-drive, the sweep, records) · Joe (the go). Brief `tasks/CLAIR_LEG_E2_RUNBOOK_READ.md` v1.0 · runbook **v1.0 → v1.1** · Phase-0 **v1.1 → v1.2** · ROADMAP v7.09 → **v7.10**. **NO CODE.**
+
+✅ **VERDICT: LOCKABLE WITH ONE NAMED CHANGE + wording.** The `E-2a` BUILD survived the read intact — every design claim she tested from source held. **The mover was on the VERIFY side.**
+
+### 🛑 `PM-1` — V4 HAD NO ROUTE TO ITS OWN PRECONDITION, AND THE CONSEQUENCE IS WORSE THAN CLAIR STATED
+Joe has **zero** saved UI states, so the only way to get one is to save. `handleUistateSave` (`app_client.svelte:880`; `uiStateStore.save` at `:887`) snapshots the **live `layout`** — which after boot **always contains the re-injected home**. ⇒ a state saved the ordinary way holds **nine** leaves.
+
+🔑 **CLAIR FRAMED IT AS *"V4 cannot reach its precondition and silently degrades to the rejected `V-b`"*. RE-DRIVEN, IT IS SHARPER: V4 AS WRITTEN WOULD HAVE PASSED VACUOUSLY.** Loading a nine-leaf state shows the home **whether or not the `:895` call site exists at all** ⇒ **a probe that cannot fail, certifying the leg's entire reason for existing without testing it.** ***`N-194`'s rule from the other side — in the document that quotes `N-194`.***
+
+✅ **SWEPT INTO runbook §5.1: a seven-step staging route.** Hand-splice `dm-spaces` out of `__XGEN_LAYOUT__.current` → `set()` (bare reassignment, `:394` — no persist, no re-inject) → the real Save dialog → 🔑 **READ THE FILE FROM DISK AND SHOW 8 LEAVES, WHICH IS THE POSITIVE CONTROL** → the real Load dialog (`:895`) → home present → two-step Delete → baseline shown (`N-123`).
+
+🛑 **AND CLAIR'S PROPOSED FIX REPRODUCED THE DEFECT THE READ EXISTS TO CATCH.** She offered `__XGEN_LAYOUT__.set(DEFAULT_LAYOUT)`; **`DEFAULT_LAYOUT` is a module import at `app_client.svelte:12` and is NOT on `window`** — the bridge exposes only `current`·`set`·`move`·`fold`·`background`·`setBackground` (`:392-404`). ***Exactly the E-1 `§4` shape — a verify command naming something the eval cannot reach — committed inside the read that caught `PM-1`.*** The `set()` half was right and is kept; the staging is a hand-splice, which is what E-1 actually used. 🔒 **Runbook §4 now names all THREE unreachable symbols (`insertLeaf` · `removeRegion` · `DEFAULT_LAYOUT`), not just the one that already bit.**
+
+### 📌 `W-1`–`W-3`, ALL RE-MEASURED BY CHAT AND ALL CORRECT
+**`W-1`** — §7's *"`mountedPlugins` may read empty at boot"* was **OVERSTATED: the case is FORECLOSED BY CONSTRUCTION.** `installed.mounted` (`installed.svelte.ts:63-68`) spreads `[...CLIENT_PLUGINS]` **unconditionally**; `dm-spaces` is a `kind: 'system'` row in it; hydrate touches **only the custom sets.** 🔑 ***A runbook that flags a foreclosed risk as open trains its reader to skim the ones that are real — `D-111`'s retract-don't-hedge lesson at §7 scale.*** V1 still drives it.
+**`W-2`** — §3.3's code block **had already dropped the inline `N-095`/`D-115` comment at `layout-default.ts:144-146` while its own prose said to preserve it.** Restored. *A rewrite that deletes the reasoning for a guard is how the next reader deletes the guard.*
+**`W-3`** — **FOUR `file:line` pointers wrong, and they are CHAT'S**: `DEFAULT_LAYOUT` `:105-125` → **`:103-123`** (also in Phase-0 §2) · the hydrate seeds `:696`/`:700` → **`:695`/`:699`** · the DEV bridge `:392-402` → **`:392-404`** (truncating `setBackground`) · `dm-spaces.svelte` implied under `ui/client/src/` → **`ui/common/lib/components/widgets/`**.
+
+🔑 **AND THE PROVENANCE IS ESTABLISHED, NOT ASSUMED: `git diff dccc9b1..HEAD` OVER ALL SIX SOURCE FILES IS EMPTY** (both later commits are docs-only) ⇒ **the pointers were wrong AT THE GROUNDING COMMIT — a mis-measure, not drift.** ✅ **Every EDIT-TARGET pointer in both documents was exact.** ⚠️ ***The two documents that quote the `W1` rule carried four instances of it between them.*** *That is the argument for the read, not against the rule.*
+
+### ✅ WHAT SURVIVED, VERIFIED FROM SOURCE — DO NOT RELITIGATE
+`insertLeaf`'s WRAP branch yields `[spaces, dm-spaces]` as §3.1 states · §3.2's DEV-warn omission is **correct** (both no-op cases `return layout` by reference at `mutate.ts:268`/`:269`, and `findLeaf` is unexported) · **three-site completeness** — no fourth persisted-layout reader exists, so the two-file scope is sufficient · `P-1` holds by construction (`handleRevertUi` does not persist; no auto-persist `$effect`) · the `svelte-check` floor holds · the mounted-set guard is the right strict test **but its negative branch is UNEXERCISED and must be recorded as such** · `D-c`'s one-row table is **fed, not over-shaped**.
+
+### 🔑 THE STANDING LESSON
+**The runbook was read by its author repeatedly and by one adversarial seat, and its verify half was still wrong.** `PM-1` sat where **neither pass tends to look — both were checking whether the BUILD was right.** 🔒 ***THE BUILD SURVIVED; THE PROOF OF THE BUILD DID NOT.*** ⇒ **RULE: an adversarial read must be pointed at the DoD and the probes explicitly, not only at the design** — written into runbook §7 item 6.
+
+🔓 **STILL OWED BEFORE JOE LOCKS: nothing but the lock.** 🔓 **AND §5.1 STEP 2 ONWARD WRITES A FILE TO JOE'S DISK — his consent is asked at `E-2b`, not covered by `D-141`.**
+
+**FLOORS UNTOUCHED AND DELIBERATELY NOT RE-MEASURED** (reads only): `svelte-check` **0/34/15** · catalogue **435**. 🛑 **`cargo` is NOT a floor for Leg E.** 🛑 **No registry number carried.** **No new `D`, no new `N`.**
+
+🎯 **NEXT: Joe locks `RUNBOOK_MEMBER_ACT_LEG_E2.md` v1.1, then Clair implements `E-2a`.** → J-723 · ROADMAP v7.10.
+
+---
+
 ## Entry J-722 — Leg E-2's Phase-0 lands, and the claim it was built on was one entry point short
 **Date:** 2026-08-13 · **Seats:** Chat (audit, Phase-0, runbook, records) · Joe (four rulings, delegated). Phase-0 `tasks/M_RP_MEMBER_ACT_LEG_E2_PHASE0.md` **v1.1 ACTIVE** · runbook `tasks/RUNBOOK_MEMBER_ACT_LEG_E2.md` **v1.0 PENDING, deliberately NOT LOCKED** · ROADMAP v7.08 → **v7.09**. **NO CODE. Commits `5eb698d` + this one.**
 

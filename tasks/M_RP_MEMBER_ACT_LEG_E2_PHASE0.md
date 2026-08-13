@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E-2: the system-region re-inject — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-13  
 > Language: English  
@@ -37,6 +37,8 @@ E-2 builds **`D-114` §9's re-inject rule**: a system `regionId` absent from a l
 
 📌 **Apps are DOWN.** Nothing here was measured live. Every pointer below came from a tool that printed it (`Select-String` / a ranged file read) — **`W1`'s rule, applied at authoring time rather than repaired afterwards.**
 
+🛑 **ANNOTATION AT THE SITE (`D-131`, 2026-08-13): AND IT WAS STILL BREACHED ONCE IN §2.** `DEFAULT_LAYOUT` was cited `:105-125` and is **`:103-123`** — found by **Clair's E-2 runbook read (`W-3`)** and re-measured by Chat. **Corrected above, not silently.** 🔑 *Same-file pointers `:14` and `:137` were exact, and `git diff dccc9b1..HEAD` over the six source files is **EMPTY** (both later commits are docs-only) ⇒ this was a **MIS-MEASURE at the grounding commit, not drift.*** ⚠️ **Three more sat in the runbook's own §1** (the hydrate seeds · the DEV-bridge bounds · `dm-spaces.svelte`'s directory), all non-edit-target, all corrected at runbook v1.1. **Every EDIT-TARGET pointer in both documents was exact.** *The two documents that quote the `W1` rule carried four instances of it between them — which is the argument for the read, not against the rule.*
+
 ---
 
 ## §2 — THE AUDIT (grounded at `dccc9b1`)
@@ -54,7 +56,7 @@ E-2 builds **`D-114` §9's re-inject rule**: a system `regionId` absent from a l
 | `installed.mounted` | `installed.svelte.ts` `get mounted()` | `[...CLIENT_PLUGINS, ...AVAILABLE_CUSTOM.filter(installed && !disabled)]` |
 | the `dm-spaces` row | `registry.ts:214-224` | `kind: 'system'` · `surface: 'region'` · `regionId: 'dm-spaces'` |
 | the id lists | `layout-default.ts:20-22` · `:29-43` | `REGION_IDS` = **9** ids (incl. `dm-spaces`) · `REGION_NAMES` fallback title present |
-| `DEFAULT_LAYOUT` | `layout-default.ts:105-125` | **8 leaves**, root `dir: 'row'`, `sizes: [1,2,7,2]`; `spaces` is a direct child of the ROOT `row` split |
+| `DEFAULT_LAYOUT` | `layout-default.ts:103-123` | **8 leaves**, root `dir: 'row'`, `sizes: [1,2,7,2]`; `spaces` is a direct child of the ROOT `row` split |
 | the widget | `dm-spaces.svelte:33` | props `{ regionId }` only; envelope id `region-${regionId}` ⇒ `dm-spaces#region-dm-spaces` |
 
 ---

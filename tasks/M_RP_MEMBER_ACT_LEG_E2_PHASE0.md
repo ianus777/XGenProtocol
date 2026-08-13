@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E-2: the system-region re-inject — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-13  
 > Language: English  
@@ -198,6 +198,8 @@ Proving `F1`'s path requires **saving a named UI state on Joe's client** (a real
 
 ---
 
+### 🔒 ⑤ — **CLOSED 2026-08-13: `B-a`, SHIP THE BISECT. JOE'S OWN RULING, NOT A DELEGATION** (*"b-a) for now. after shipment i will assert the visual and edit height if necessery."*). ✅ **AND THE PLAN IS DURABLE BY CONSTRUCTION, GROUNDED NOT ASSUMED:** once Joe drags the seam, `M-RP7.5`'s feeder persists the 9-leaf tree (`:485`/`:496`/`:507`), and every later boot hits `insertLeaf`'s **already-docked no-op by reference** (`mutate.ts:269`) ⇒ ***the re-inject can never fight his height***, on boot or on `File ▸ Revert` alike. **The 50/50 only ever appears on a tree that has never been gestured.** 📌 `B-b` and `B-c` recorded as considered and NOT taken — `B-b` would have made the helper encode a size opinion, which is what keeps it pure composition (`F6`).
+
 ### 🔓 ⑤ — THE 50/50 BISECT: R1 HALVES ON FIRST BOOT (`F8-a`). **NEW 2026-08-13, MEASURED NOT PREDICTED. JOE'S, AND IT TOUCHES THE BUILD.**
 
 🛑 **This is the ONE item in this document with a MEASURED user-visible impact rather than an inferred one.** `D-121`'s lens ① requires the consequence to be **grounded, not reasoned** — and it now is: **R1 goes 760 px → ~380 px**, seven Spaces in it, on the first boot after `E-2a`.
@@ -220,7 +222,7 @@ Proving `F1`'s path requires **saving a named UI state on Joe's client** (a real
 
 | leg | what | floor | gated on |
 |---|---|---|---|
-| **E-2a** | the placement table + the helper + `loadLayout`'s single exit + the `:895` call site (§4 ①②③ as ruled) | `svelte-check` **0/34/15** | ① ② ③ ruled |
+| **E-2a** | the placement table + the helper + `loadLayout`'s single exit + the `:895` call site (§ ①②③⑤ as ruled) | `svelte-check` **0/34/15** | ① ② ③ ⑤ ruled · **runbook v1.2 locked** |
 | **E-2b** | drive it: boot · `layout.revert` · named-state load (§4④) · idempotency (load twice, one leaf) · the mounted-set skip | `svelte-check` | E-2a |
 | **E-2c** | records — this Phase-0 → COMPLETED, runbook → COMPLETED, JOURNAL, `CLAUDE.md` PLAY, ROADMAP (`D-074` atomic) | — | E-2b |
 

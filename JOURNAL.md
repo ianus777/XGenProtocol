@@ -8,6 +8,36 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-725 — Joe rules the bisect, the runbook sweeps to v1.2, and V4's control stops asserting absence from a value it never printed
+**Date:** 2026-08-13 · **Seats:** Joe (the `§4 ⑤` ruling) · Chat (the sweep, records) · Clair (holding at the read seat, correctly). Phase-0 **v1.4 → v1.5** · runbook **v1.1 → v1.2** · ROADMAP v7.11 → **v7.12**. **NO CODE.**
+
+🔒 **JOE RULED `§4 ⑤` = `B-a`, SHIP THE BISECT** — *"b-a) for now. after shipment i will assert the visual and edit height if necessery."* **His own ruling, not a `D-141` delegation**, and recorded as such.
+
+✅ **AND THE PLAN IS DURABLE BY CONSTRUCTION — GROUNDED BEFORE IT WAS AGREED WITH, NOT AFTER.** Once he drags the seam, `M-RP7.5`'s feeder persists the 9-leaf tree (`:485`/`:496`/`:507`); every later boot then hits `insertLeaf`'s **already-docked no-op BY REFERENCE** (`mutate.ts:269`) ⇒ ***the re-inject can never fight his height***, on boot or on `File ▸ Revert` alike. **The 50/50 only ever appears on a tree that has never been gestured.** 📌 `B-b` and `B-c` are recorded as **considered and NOT taken** — `B-b` would have made the helper encode a size opinion, which is precisely what keeps it pure composition (`F6`).
+
+### ✅ THE SWEEP — RUNBOOK v1.2
+**§3.1** now carries the **measured** tree and the **expected** weights: `[spaces, dm-spaces, self]` at **`[1579, 1579, 842]`**, with `B-a` named and `B-b`/`B-c` explicitly closed so nobody reaches for them mid-build. **§3.5** stops calling the split weights open. **`V2` flips from *discover* to *ASSERT*** — a different shape is now a **Rule 6 report, not a re-baseline**. **§7 item 4 is struck as DISCHARGED** (J-724) and **item 7 is new: `F8-a`'s halving is EXPECTED and must NOT be re-litigated as a defect at verify.**
+
+### 🔑 §5.1 REBUILT AROUND CLAIR'S `Q2` — THE CONTROL MUST PRINT, NOT ASSERT
+Her standing question was whether step 4 *"actually inspects the persisted `session.layout` leaf set, or asserts absence from a value it never printed"*. **It did the latter.** 🔑 ***A read that returns nothing because it hit the WRONG KEY is indistinguishable from one that correctly found no `dm-spaces`*** — `N-099`/`N-194` turned on the **control itself**, which is the one artefact whose whole job is to make the rest of V4 mean something. **Now: PRINT every `widgetId` in the saved layout; the 8 ids it DID find are the proof it reached the right object.**
+
+✅ **AND STEP 0 IS NEW (`F8-b`): READ THE AUTHENTIC PRE-HOME TREE OFF DISK RATHER THAN RECONSTRUCTING IT.** `session.layout` holds the real 8-leaf tree and under `P-1` the re-inject never writes, so it stays authentic through `E-2a`. ⚠️ **Its precondition can expire between legs** — one fold/resize/move after `E-2a` persists the home ⇒ **`1-alt` keeps the hand-splice as a FALLBACK, gated on an on-disk assertion**, and *finding 9 leaves is the fallback firing, not a failure*. 📌 The splice returns `[1579, 842]`, **not** `[1579, 421]` — it removes the leaf but not `insertBeside`'s doubling, so it is a **valid control that is not byte-identical to Joe's tree**, and the hand-back must say so.
+
+🛑 **AND THE HAZARD THE STAGED TREE CREATES EITHER WAY: NO GRID GESTURE ANYWHERE IN STEPS 1–6.** `set()` does not persist, but the fold/resize/move handlers do, and one of them fired while the staged tree is live **writes it into `session.layout`**. ⇒ **step 6 is now a byte comparison against the step-0 read, not a glance at the screen.** ***A cleanup that is correct only if the operator happens not to touch anything is not a cleanup.***
+
+### 📌 CLAIR HELD, AND THE SEAT REASONING WAS RIGHT
+She declined to spend the §5.1 pass on Chat's recommendation without Joe's authorisation — *"the same 'delegation rules the design, not the side effect' line the consent question sits behind"*. ✅ **Her `Q1` was closed by J-724's drive rather than by her**, and **`Q2` is what this sweep answers.** 📌 **Two corrections she made to her own brief:** ground at HEAD, not `3091f12`; read **v1.2**, not v1.1.
+
+⚠️ **AND A CHAT NEAR-MISS WORTH THE LINE:** the first sweep attempt failed because the `oldText` was transcribed *"and it is verified in BOTH trees"* against a file that reads *"and verified in BOTH trees"*. **`Filesystem:edit_file` is all-or-nothing PER CALL (J-521), so nothing partial applied** — the exact-match requirement caught a mis-transcription that a looser tool would have half-applied. ***The same lesson as `N-195` from the other side: verify against the real bytes, not against what you remember writing.***
+
+🔓 **STILL OWED BEFORE `E-2a`: Joe locks runbook v1.2** (and, if he spends it, Clair's §5.1 pass against **v1.2**). 🔓 **Consent for the §5.1 disk write stays his, asked at `E-2b`.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (documents only): `svelte-check` **0/34/15** · catalogue **435**. 🛑 **`cargo` is NOT a floor for Leg E.** 🛑 **No registry number carried.** **No new `D`, no new `N`.**
+
+🎯 **NEXT: Joe locks `RUNBOOK_MEMBER_ACT_LEG_E2.md` v1.2 → `E-2a`.** → J-725 · ROADMAP v7.12.
+
+---
+
 ## Entry J-724 — the apps were up, the tree was measured, and the re-inject turns out to halve R1
 **Date:** 2026-08-13 · **Seats:** Chat (live CDP reads, records) · Clair (a targeted second pass on runbook §5.1, running) · Joe. Phase-0 **v1.2 → v1.3** · ROADMAP v7.10 → **v7.11**. **NO CODE. ALL READS — nothing mutated, nothing persisted, no cleanup owed (`N-123` satisfied by construction).**
 

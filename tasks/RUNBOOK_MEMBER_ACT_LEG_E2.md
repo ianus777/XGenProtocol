@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E-2 Runbook: the system-region re-inject (Clair)
 > **Status**: PENDING  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-13  
 > Language: English  
@@ -12,15 +12,15 @@
 
 ## §0 — SEAT, AND WHAT THIS LEG IS
 
-🛑 **NOT LOCKED. DO NOT IMPLEMENT YET.** ✅ **CLAIR'S ADVERSARIAL READ RAN 2026-08-13** — brief `tasks/CLAIR_LEG_E2_RUNBOOK_READ.md`, verdict **LOCKABLE WITH ONE NAMED CHANGE + wording**; **`PM-1` and `W-1`–`W-3` are swept into this v1.1 and every one of her corrections was re-measured by Chat (Rule 5).** One thing still owed before Joe locks:
+🛑 **NOT LOCKED. DO NOT IMPLEMENT YET.** ✅ **CLAIR'S ADVERSARIAL READ RAN 2026-08-13** — brief `tasks/CLAIR_LEG_E2_RUNBOOK_READ.md`, verdict **LOCKABLE WITH ONE NAMED CHANGE + wording**; `PM-1` and `W-1`–`W-3` swept at v1.1, every correction re-measured by Chat (Rule 5). ✅ **v1.2 SWEEPS THE LIVE MEASUREMENT (J-724) — `F8` · `F8-a` · `F8-b` — AND JOE'S `§4 ⑤` RULING (`B-a`).** One thing still owed before Joe locks:
 
-🔓 **JOE'S CONSENT FOR THE `V4` SIDE EFFECT** (§5) — that leg writes a named UI state to his disk. Ruled `V-a` under `D-141`, **but a delegation rules the DESIGN, not the SIDE EFFECT.**
+🔓 **JOE'S CONSENT FOR THE `V4` SIDE EFFECT** (§5.1) — that leg writes a named UI state to his disk. Ruled `V-a` under `D-141`, **but a delegation rules the DESIGN, not the SIDE EFFECT.**
 
 **You are CLAIR — Code Claude.** You implement from this runbook **once Joe locks it**. **You never push.** Deviations are **reported under Rule 6, never absorbed** — *an implementer who silently absorbs a bad instruction ships the architect's mistake* (M-RP7.1b: your `migrateLayout(raw, fallback)` deviation stopped `core` importing a shell constant — **the same seam this leg edits**).
 
 **E-2 places the `dm-spaces` leaf. It does NOT build the R1 filter** — that is **E-3** and must not appear in this diff. Until E-3 lands a DM Space renders in **both** R1 and the DM panel. That is expected, temporary, and not a defect.
 
-**Read first:** `tasks/M_RP_MEMBER_ACT_LEG_E2_PHASE0.md` **v1.1** (§2 audit · §3 F1–F7 · §4 the four rulings) · `tasks/M_RP_MEMBER_ACT_LEG_E_PHASE0.md` v1.5 §4① · `CLAUDE.md` PLAY head · `JOURNAL.md` J-721.
+**Read first:** `tasks/M_RP_MEMBER_ACT_LEG_E2_PHASE0.md` **v1.4** (§2 audit · §3 `F1`–`F8-b` · §4 the FIVE rulings) · `tasks/M_RP_MEMBER_ACT_LEG_E_PHASE0.md` v1.5 §4① · `CLAUDE.md` PLAY head · `JOURNAL.md` **J-724** · J-723 · J-722.
 
 ---
 
@@ -77,7 +77,9 @@ export const SYSTEM_REGION_PLACEMENT: Record<RegionId, RegionPlacement> = {
 };
 ```
 
-🔒 **`target: 'spaces'`, `edge: 'bottom'` — Joe's, and verified in BOTH trees.** Under `DEFAULT_LAYOUT` `spaces` is a direct child of the **root `row`** split, so `bottom` (axis `col`) takes `insertBeside`'s **WRAP** branch → `[spaces, dm-spaces]`. In Joe's arranged tree `spaces`'s parent already runs `col`, so it is a **SIBLING** insert → `[spaces, dm-spaces, self]`. ⚠️ **The second half is a LIVE measurement from E-1's verify, not derivable from source — `V2` re-measures it; do not assert it.**
+🔒 **`target: 'spaces'`, `edge: 'bottom'` — Joe's, and NOW VERIFIED IN BOTH TREES BY MEASUREMENT.** Under `DEFAULT_LAYOUT` `spaces` is a direct child of the **root `row`** split, so `bottom` (axis `col`) takes `insertBeside`'s **WRAP** branch → `[spaces, dm-spaces]`. ✅ **In Joe's live tree, DRIVEN at J-724 (`F8`) rather than carried:** `root row [267,131,589,213]` with **`col [1579,421] = [spaces, self]`** ⇒ `spaces`'s parent already runs `col` ⇒ **SIBLING** insert → **`[spaces, dm-spaces, self]`**. **One pair, right answer in both trees.**
+
+🛑 **AND THE WEIGHTS ARE A RULED CONSEQUENCE, NOT AN ACCIDENT — `F8-a` / Phase-0 §4 ⑤; JOE RULED `B-a` (SHIP THE BISECT) 2026-08-13.** `insertBeside`'s sibling branch **doubles the split then bisects the target's slot**, so `[1579, 421]` becomes **`[1579, 1579, 842]`**: **R1 Spaces halves on the first boot after this leg — ~760 px → ~380 px.** ✅ **EXPECTED, NOT A DEFECT — `V2` ASSERTS IT rather than discovering it.** 🔑 **And it is self-correcting by construction:** once Joe drags the seam, `M-RP7.5`'s feeder persists the 9-leaf tree and every later boot hits `insertLeaf`'s **already-docked no-op** (`mutate.ts:269`) ⇒ ***the re-inject can never fight his height.*** Joe: *"after shipment i will assert the visual and edit height if necessery."* 📌 **`B-b` (re-weight inside the helper) and `B-c` (dock under `self`) were considered and NOT taken** — do not reach for either; **`B-b` would make the helper encode a SIZE OPINION**, which is exactly what keeps it pure composition today (`F6`).
 
 New imports required: `insertLeaf` and the `Edge` type from `$core/components/layout/mutate`, `RegionId` from `$core/components/layout/types`.
 
@@ -149,7 +151,7 @@ export async function loadLayout(plugins: PluginDescriptor[]): Promise<Layout> {
 
 ### 3.5 Appearance
 
-🔓 **Joe's, entirely.** **No `skin.css` edit, no component `<style>` block** (`N-090`/`N-025`). The tile's default position, size and the split weights the wrap produces are his. If the result wants a rule that does not exist, **name it in the hand-back**.
+🔓 **Joe's, entirely.** **No `skin.css` edit, no component `<style>` block** (`N-090`/`N-025`). If the result wants a rule that does not exist, **name it in the hand-back**. 📌 **The split WEIGHTS are NO LONGER OPEN** — `§4 ⑤` ruled `B-a`; Joe adjusts the height himself after shipment, and §3.1 records why that adjustment is durable.
 
 ---
 
@@ -167,7 +169,7 @@ export async function loadLayout(plugins: PluginDescriptor[]): Promise<Layout> {
 | # | check | how |
 |---|---|---|
 | **V1** | **boot** places the home | fresh launch → `__XGEN_LAYOUT__.current` contains a `dm-spaces` leaf **and** `dm-spaces#region-dm-spaces` is registered |
-| **V2** | the **shape** of the insert in Joe's real tree | print the parent split's `dir` and `children` order — **measure sibling-vs-wrap, do not assert `F7`'s live half** |
+| **V2** | the **shape AND the weights** of the insert in Joe's real tree | 🔒 **EXPECTED, from `F8`/`F8-a` — ASSERT IT, do not discover it:** `spaces`'s parent is a `col` split ⇒ **SIBLING** ⇒ `children` = `[spaces, dm-spaces, self]`, `sizes` = **`[1579, 1579, 842]`**. A different shape is a **Rule 6 report**, not a re-baseline |
 | **V3** | **`layout.revert`** keeps it | `__XGEN_DEBUG__`/command → `layout.revert` → home still present |
 | **V4** | 🛑 **the `:895` path — SEE §5.1, IT NEEDS STAGING** | §5.1 |
 | **V5** | **idempotency** | run the load path **twice**; exactly **one** `dm-spaces` leaf, and `leafCount` identical |
@@ -188,17 +190,20 @@ export async function loadLayout(plugins: PluginDescriptor[]): Promise<Layout> {
 
 | step | do | assert |
 |---|---|---|
-| **1** | read `__XGEN_LAYOUT__.current` and **hand-splice the `dm-spaces` leaf out** — replace the wrap split that holds `[spaces, dm-spaces]` with the bare `spaces` leaf (a sibling insert instead drops one entry from `children` **and** its `sizes` entry, same index) | the spliced object has **8 leaves, no `dm-spaces`** |
-| **2** | `__XGEN_LAYOUT__.set(<spliced>)` | the grid repaints **without** the DM home; **nothing persisted** (`set` is a bare reassignment, `:394`) |
-| **3** | drive the **real Save dialog** (diskette face → name it `e2-control` → Save) | — |
-| **4** | 🔑 **READ `xgen-client_uistate.json` FROM DISK** | `named.<id>.layout` has **8 leaves and NO `dm-spaces`** — **THIS IS THE POSITIVE CONTROL, and it is what makes the rest of V4 mean anything** |
-| **5** | drive the **real Load dialog** (load face → pick `e2-control` → Load) — this is the `:895` call site | the home is **present** in `__XGEN_LAYOUT__.current` **and** `dm-spaces#region-dm-spaces` is registered |
-| **6** | **DELETE `e2-control`** (two-step: the button re-labels to *Confirm delete*) | on-disk `named` returns to **`{}`**; registry returns to the step-1 screen, **enumerated** (`N-115`: one saved state = **+4**) |
-| **7** | reload the client | back at the boot baseline, **shown** (`N-123` — the cleanup is part of the probe) |
+| **0** | 🔑 **READ `session.layout` OFF DISK FIRST** (`%LOCALAPPDATA%\XGenProtocol\xgen-client_uistate.json`) and count its leaves | **8 leaves, no `dm-spaces`** ⇒ **THIS IS THE AUTHENTIC PRE-HOME TREE and it is the control** (`F8-b`). If it already has 9, the disk is no longer pre-home — **fall through to step 1-alt** |
+| **1** | `__XGEN_LAYOUT__.set(<the disk tree from step 0>)` | the grid repaints **without** the DM home; **nothing persisted** (`set` is a bare reassignment, `:394`) |
+| **1-alt** | **FALLBACK ONLY** — read `__XGEN_LAYOUT__.current` and **hand-splice the `dm-spaces` leaf out**: drop `children[i]` **and** `sizes[i]` at the same index (sibling removal — **shape-independent, it does NOT assume `DEFAULT_LAYOUT`'s shape**) | 8 leaves, no `dm-spaces`. ⚠️ **The weights come back `[1579, 842]`, NOT `[1579, 421]`** — the splice removes the leaf but **not `insertBeside`'s doubling** (`F8-b`). Valid as a control; **say in the hand-back that it is not byte-identical to Joe's tree** |
+| **2** | drive the **real Save dialog** (diskette face → name it `e2-control` → Save) | — |
+| **3** | 🔑 **READ `xgen-client_uistate.json` FROM DISK AND PRINT THE LEAF SET** | `named.<id>.layout` — **print every `widgetId` it contains** and show the list has **8 entries and no `dm-spaces`**. 🛑 **PRINT THE VALUE; DO NOT ASSERT ABSENCE FROM SOMETHING NEVER SHOWN.** A read that returns nothing because it hit the **wrong key** is indistinguishable from one that found no `dm-spaces` — **`N-099`/`N-194` turned on the CONTROL ITSELF.** The read must independently prove it reached the right object: **the 8 ids it DID find are that proof** |
+| **4** | drive the **real Load dialog** (load face → pick `e2-control` → Load) — this is the `:895` call site | the home is **present** in `__XGEN_LAYOUT__.current` **and** `dm-spaces#region-dm-spaces` is registered |
+| **5** | **DELETE `e2-control`** (two-step: the button re-labels to *Confirm delete*) | on-disk `named` returns to **`{}`**; registry returns to the step-0 screen, **enumerated** (`N-115`: one saved state = **+4**) |
+| **6** | reload the client, then **compare `session.layout` ON DISK against the step-0 read** | **byte-identical** — the staged tree never reached the file (`N-123`) |
 
-🛑 **`DEFAULT_LAYOUT` IS NOT A SHORTCUT FOR STEP 1.** It is a module import at `app_client.svelte:12`, **not on `window`** — `__XGEN_LAYOUT__.set(DEFAULT_LAYOUT)` cannot run in a CDP eval. *This is the E-1 `§4` shape exactly, and it was proposed once in the read that caught `PM-1`; a hand-splice of `current` is what E-1 actually used.*
+🛑 **NO GRID GESTURE ANYWHERE IN STEPS 1–6. NOT ONE.** `set()` does not persist — but **`handleFold`/`handleResize`/`handleMove` (`:485`/`:496`/`:507`) DO**, and any of them fired while the staged tree is live **writes the staged tree into `session.layout`**. ⚠️ ***A cleanup that is correct only if the operator happens not to touch anything is not a cleanup*** — hence step 6 is a **comparison against a recorded value**, not a glance at the screen.
 
-⚠️ **If step 1 or 3 cannot be driven, STOP AND REPORT.** **Do NOT let V4 degrade into `V-b`** — that option was considered and rejected, and shipping `F1` undriven while the DoD says otherwise is the failure this whole section exists to prevent.
+🛑 **`DEFAULT_LAYOUT` IS NOT A SHORTCUT FOR STEP 1.** It is a module import at `app_client.svelte:12`, **not on `window`** — `__XGEN_LAYOUT__.set(DEFAULT_LAYOUT)` cannot run in a CDP eval. *This is the E-1 `§4` shape exactly, and it was proposed once in the read that caught `PM-1`.*
+
+⚠️ **If step 0/1 or step 2 cannot be driven, STOP AND REPORT.** **Do NOT let V4 degrade into `V-b`** — that option was considered and rejected, and shipping `F1` undriven while the DoD says otherwise is the failure this whole section exists to prevent.
 
 🛑 **`cargo` IS NOT A FLOOR AND MUST NOT BE CITED AS ONE.** Zero `.rs` in scope; an identical `cargo` result is a **scope argument, not a measurement** (`F8`).
 🛑 **DO NOT SEND A MESSAGE.** A send mints a **permanent DM** in Joe's live client. Nothing in E-2 requires one.
@@ -215,8 +220,8 @@ export async function loadLayout(plugins: PluginDescriptor[]): Promise<Layout> {
 - [ ] all **THREE** call sites updated — `:709` · `:586` · **`:895`**
 - [ ] **`DEFAULT_LAYOUT` untouched at eight leaves**; **zero `ui/core`**; **zero `.rs`**; **zero `skin.css`**; no component `<style>`
 - [ ] **no persist added** to any load path (`P-1`)
-- [ ] **V1–V8 driven and recorded, each with its screen stated**
-- [ ] **§5.1's SEVEN STEPS driven in order**, with **step 4's on-disk 8-leaf read shown** — without it V4 passes vacuously and proves nothing; the named state **deleted**, baseline shown
+- [ ] **V1–V8 driven and recorded, each with its screen stated**; **`V2` asserts `[spaces, dm-spaces, self]` / `[1579, 1579, 842]`** — a different result is a Rule 6 report, not a re-baseline
+- [ ] **§5.1's steps 0–6 driven in order**, with **step 3's on-disk LEAF SET PRINTED** (not merely asserted absent) — without it V4 passes vacuously; **NO grid gesture anywhere in steps 1–6**; the named state **deleted**; **step 6 compares `session.layout` byte-for-byte against the step-0 read**
 - [ ] `svelte-check` 0/34/15 · catalogue 435 by scope · **no `cargo` claim made**
 - [ ] deviations reported (Rule 6)
 - [ ] 🔓 hand-back names any skin rule the wrapped split wants, and the measured V2 tree shape
@@ -230,6 +235,7 @@ export async function loadLayout(plugins: PluginDescriptor[]): Promise<Layout> {
 1. ~~**The `mountedPlugins` read at `:709` is reasoned, not driven.**~~ 🛑 **OVERSTATED, AND `W-1` CORRECTS IT: THE EMPTY-SET CASE IS FORECLOSED BY CONSTRUCTION** — `installed.mounted` spreads `[...CLIENT_PLUGINS]` unconditionally (`installed.svelte.ts:63-68`) and hydrate touches only the custom sets. **Still drive `V1`**, but do not carry this as a live risk. *A runbook that flags a foreclosed risk as open trains its reader to skim the ones that are real — D-111's lesson at §7 scale.*
 2. **The mounted-set guard's NEGATIVE branch is UNEXERCISED and will stay so.** `dm-spaces` is `kind: 'system'`, always in `CLIENT_PLUGINS`, never disableable ⇒ **the guard can only ever pass today.** It is defensive for future rows. **Say UNEXERCISED; do not claim it verified.**
 3. ~~**§3.3 rewrites a function whose JSDoc carries N-095/D-115 reasoning.**~~ ✅ **`W-2` FOUND THE CODE BLOCK HAD ALREADY DROPPED THE INLINE COMMENT AT `:144-146` WHILE THE PROSE SAID TO KEEP IT.** Restored in v1.1. **Both layers are now in the block; preserve both.**
-4. **V2 is the one gate whose expected value this document does not know.** The Joe-tree sibling outcome came from E-1's live verify. **Measure it; a number derived by arithmetic does not enter the record until it has been seen** (`N-194` ③).
-5. 🛑 **§5.1's STAGING ROUTE IS ITSELF REASONED, NOT DRIVEN** — the hand-splice, `set()`'s non-persistence and the Save dialog's snapshot behaviour are read from source. **It is the newest text in this document and therefore the least tested.** If step 1 or 3 behaves differently, that is a Rule 6 report and V4 does **not** silently degrade.
-6. **This runbook has now been read by TWO seats and its verify half was still wrong.** ⚠️ *`PM-1` sat on the verify side, which is where neither the author's re-read nor the first pass of an adversarial read tends to look — both were checking whether the BUILD was right. **The build survived; the proof of the build did not.***
+4. ~~**V2 is the one gate whose expected value this document does not know.**~~ ✅ **DISCHARGED AT J-724** — driven on the live client: `spaces`'s parent is a `col` split ⇒ SIBLING ⇒ `[spaces, dm-spaces, self]` at `[1579, 1579, 842]`. **`V2` now ASSERTS a value instead of discovering one**, and §3.1 carries it.
+5. 🛑 **§5.1's ROUTE IS STILL LESS TESTED THAN THE BUILD, EVEN AT v1.2.** Step 0's disk-read staging (`F8-b`) is **reasoned from `P-1`, not driven**; its precondition — that `session.layout` is still pre-home when `E-2b` runs — **can expire between legs on a single fold/resize/move**, which is exactly why `1-alt` exists. **If step 0 finds 9 leaves, that is not a failure; it is the fallback firing.** Report which branch ran.
+6. **This runbook has now been read by TWO seats and its verify half was still wrong.** ⚠️ *`PM-1` sat on the verify side, which is where neither the author's re-read nor the first pass of an adversarial read tends to look — both were checking whether the BUILD was right. **The build survived; the proof of the build did not.*** 🔒 **Hence the standing rule: an adversarial read must be pointed at the DoD AND THE PROBES explicitly, not only at the design.**
+7. 📌 **`F8-a`'s halving is now EXPECTED and RULED (`B-a`), so it must not be re-litigated as a defect at verify.** If R1 looks wrong on screen, that is Joe's post-shipment height edit — **not a Rule 6 report and not a runbook change.**

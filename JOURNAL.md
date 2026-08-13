@@ -8,6 +8,44 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-727 — Leg E-3's Phase-0 and runbook land, and the "three readers" census turns out to be nine
+**Date:** 2026-08-13 · **Seats:** Chat (audit, Phase-0, runbook, records) · Joe (both rulings, delegated). Phase-0 `tasks/M_RP_MEMBER_ACT_LEG_E3_PHASE0.md` **v1.1 ACTIVE** · runbook `tasks/RUNBOOK_MEMBER_ACT_LEG_E3.md` **v1.0 PENDING, deliberately NOT LOCKED** · ROADMAP v7.13 → **v7.14**. **NO CODE. Commits `f684242` + this one.**
+
+🟢 **`M-RP-MEMBER-ACT` Leg E-3 — the R1 filter. Phase 0 of `D-071`.** *`E-1` gave DMs a home; `E-2` guarantees that home is placed; **E-3 is the removal the other two exist to make safe**. Then `E-5` closes the milestone.*
+
+### 🛑 F1 — THE FILTER GOES ON `items`, NOT ON THE LOCAL HANDLE, AND GETTING IT BACKWARDS INVERTS A GUARD WHILE LOOKING UNTOUCHED
+`spaces-panel:58-63` resolves the latched id against `spaces` **in order to RECOGNISE a DM and suppress R1's highlight** (C-bis-6). Filter the handle at `:47` instead of the render list at `:50`, and a latched DM **stops resolving** ⇒ `s` is `undefined` ⇒ `s?.counterpart != null` is **false** ⇒ **the suppression stops suppressing.**
+
+🔑 ***The filter and the suppression read the same list for OPPOSITE purposes — one wants DMs gone, the other needs them present to recognise them.*** ⇒ 🔒 **`items` reads the filtered set; `selected` and `onActivate` keep the unfiltered one.** 📌 After E-3 the suppression is **doubly guarded** and is KEPT — removing it would leave R1 handing `entity-panel` an id it does not render.
+
+### 🛑 F2 — IF THE AGGREGATE GETTER IS NOT FILTERED IT LIES, AND THE GETTER IS WHAT VERIFY READS
+`debug()` publishes `count: spaces.length`. Filter only `items` and the panel renders **4 rows while reporting 7**; `hasEmpty` has the same defect at the empty end. 🔑 **A probe reading `count: 7` after a CORRECT filter would file FAILURE against correct code** — `N-194`'s exact shape, and **the third time this arc a getter has nearly produced a false verdict.** ⇒ `count` and `hasEmpty` derive from the filtered set (`W-4`: the getter reports what the panel OWNS).
+
+### 🛑 F3 — THE "THREE READERS" CENSUS IS STALE: THERE ARE **NINE READ SITES ACROSS FIVE FILES**
+`M_RP_MEMBER_ACT_LEG_E_PHASE0.md` §2 records *"Three readers of `spacesState.spaces`, re-confirmed"*. **Measured:** `spaces-panel:47` · `dm-spaces:69/:92/:103` · `members-panel:156/:227/:285` · `room-latch:51` · `space-latch:59`. 📌 And `rooms-panel` does **not** read the store directly — it reads `spaceLatch.scopedSpace?.rooms`, i.e. **indirectly**.
+
+⚠️ **The old census was TRUE WHEN WRITTEN; `E-1` and `C-bis` widened it.** 🔑 ***The arc's recurring species — a claim narrower than the thing it describes, reused as if complete — caught this time BEFORE it became an instruction*** rather than after, which is the first time in this arc that has happened. ✅ **It does not change the design; it HARDENS the lock: EIGHT of the nine sites need DMs PRESENT** (the home lists them, both latches resolve them, `canSend` depends on that resolution, `members-panel` finds a DM by counterpart) ⇒ 🔒 **the filter lives in ONE `$derived` in ONE file; touching the store would break the home, both latches, `canSend` and member activation in a single edit.**
+
+### ✅ F4/F5 — THE REGISTRY COST IS A HYPOTHESIS, NOT A NUMBER
+`N-184` gives **two** entities per Space row, and **14 are measured for 7 Spaces** — exactly two each. Removing 3 DM rows predicts **−6**. 🛑 **Written as a hypothesis to TEST:** at `E-1` a predicted delta matched an observed one **with no mechanism in common** (`N-194`). `core` stays shut ⇒ catalogue **435**; zero `.rs`; `skin.css` untouched.
+
+### 🔒 TWO RULINGS, DELEGATED (`D-141`, *"the booth by your recomms"*)
+**① `R-a` — fold the `revert()` DEV-bridge line into E-3, and state the TWO-FILE scope UP FRONT rather than discovering it.** It discharges `E-2`'s undriven `V3` (`layout.revert` is a live command that is deliberately element-absent per J-500, so **no eval could reach it**), and it hands E-3's own verify a **second reachable load path**. 🔒 It **delegates to `handleRevertUi`**, the shipped handler — *bridge and command are ONE path, never two.* **② `S-a` — ship silent.** No empty-state hint: ***an explanation for a change only the developer has ever seen is a disclosure written for nobody***, and `S-b` would have been a `W-8` phase-limit note with no removal trigger (`N-109`). 🔓 Wording stays Joe's; `N-192` is already his.
+
+### 🟡 THE RUNBOOK IS AUTHORED AND DELIBERATELY NOT LOCKED
+Two files, zero store, zero `core`, zero `.rs`, zero `skin.css`. 🔒 **THE ADVERSARIAL READ IS RECOMMENDED AND POINTED AT §5 BEFORE §3** — *at `E-2` the BUILD survived both reads and the VERIFY half was still wrong twice (`PM-1`, a probe that could not fail; `Q2`, a control asserting absence from a value it never printed). **Both were gate defects, not code defects.*** 🛑 **§5's pass condition is a TRANSITION, not a state:** *"the DM rows are gone"* is an EMPTY RESULT that reads identically if the probe is looking at the wrong panel ⇒ **`V0` runs FIRST on the pre-E-3a build and PRINTS the ids of the DM rows rendered in R1.**
+
+⚠️ **§7 names its own weakest point and it is load-bearing: `F1` is REASONED FROM SOURCE, NEVER OBSERVED — and `V6` CANNOT catch it if it is wrong**, because once both guards hold they are indistinguishable. **That is the one place in this leg where a wrong premise would ship invisibly.**
+
+### 🛑 CHAT'S OWN SLIP, THE SECOND TIME, AND THE SECOND TIME IS WORSE
+**`f684242` was a documents-only commit with NO records** — no JOURNAL, no PLAY head, no ROADMAP. **The identical `D-074` shape named at J-722**, where the entry itself said this is *"precisely what `D-074` exists to prevent."* 📌 **The honest distinction:** J-724's split was Joe's explicit request to see the grid first; **this one had no such reason.** ⚠️ ***A discipline breached, named, and then breached again is not a lapse in the discipline — it is evidence the naming did no work.*** Repaired here at Joe's *"a) pls"*.
+
+**FLOORS UNTOUCHED AND DELIBERATELY NOT RE-MEASURED** (reads only): `svelte-check` **0/34/15** · catalogue **435**. 🛑 **`cargo` is NOT a floor for Leg E.** 🛑 **The live screen (7 Spaces / 3 DMs · R1 `count: 7` · 14 row entities · registry 184) is recorded AS A SCREEN and explicitly NOT as a floor** (`N-184`/`N-190`/`N-194`). **No new `D`, no new `N`.**
+
+🎯 **NEXT: Clair's adversarial read of the E-3 runbook (§5 first), then Joe locks, then `E-3a`.** → J-727 · ROADMAP v7.14.
+
+---
+
 ## Entry J-726 — E-2 ships, and the control caught a defect in the instruction that produced it
 **Date:** 2026-08-13 · **Seats:** Clair (`E-2a` build) · Chat (Rule-5 re-drive, `E-2b` live verify, records) · Joe (the lock, the `B-a` ruling, consent for the disk write). Runbook **v1.3 → v1.4 COMPLETED** · Phase-0 **v1.5 → v1.6 COMPLETED** · ROADMAP v7.12 → **v7.13**. **CODE: 2 files, +55/−10, zero `.rs`.**
 

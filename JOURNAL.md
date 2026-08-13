@@ -8,6 +8,28 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-720 — E-1 locked, and the leg table caught a third empty leg the moment it was read instead of recalled
+**Date:** 2026-08-12 · **Seats:** Joe (the lock) · Chat (the records). Runbook v1.0 → **v1.1 ACTIVE** · Phase-0 v1.3 → **v1.4** · ROADMAP v7.06 → **v7.07**. **NO CODE.**
+
+🔒 **Joe: *"e-1) locked"*.** `tasks/RUNBOOK_MEMBER_ACT_LEG_E1.md` is ACTIVE and Clair may implement.
+
+📌 **LOCKED WITHOUT AN ADVERSARIAL READ OF THE RUNBOOK.** Chat recommended one on the grounds that Clair's findings historically come from trying to **run** a document rather than from reading a design; Joe locked directly. **Recorded as provenance, not as an objection** — if `E-1` surfaces a defect, the record should show the read was **offered and declined**, not never considered. ⚠️ **Rule 6 carries more weight than usual on this leg:** the runbook has been read by its author and by nobody else, and its own §7 names the likeliest fault (the `spaces-state.svelte.ts` predicate makes the three-file scope four — *scope written in files, requirements in behaviours*, which is what blocked Leg C).
+
+### 🛑 `E-4` IS EMPTY, AND IT IS `P1`'s SHAPE FOR THE THIRD TIME
+Asked *"what is next"*, Chat read the leg table rather than recalling it — and §5 still listed **`E-4` — the row label (③)** as a leg. **It has no content:** `L2` is built inside `E-1` (§3.2, resolve at render with a `tail8` fallback), and `E-3` removes DM rows from R1 entirely, so **no label work remains anywhere.** `E-5`'s gate re-points to `E-3`.
+
+🔑 ***Chat committed this AFTER Clair flagged the identical defect at `E-0` in the same document*** — a leg describing work that is not its own. **Third instance, and the only reason it surfaced is that a routine question was answered from the source instead of from memory.** 📌 **The ID is KEPT and never renumbered** — the runbook, J-718 and the ROADMAP node all reference `E-4`, and renumbering would break every one of them to save a row. *Annotate, never renumber; the same arithmetic as `J-676`.*
+
+### ✅ THE LEG ORDER, AND WHY IT IS NOT NEGOTIABLE
+**`E-1` widget → `E-2` re-inject inside `loadLayout()` → `E-3` the R1 filter → `E-5` close** — and closing `E-5` **closes `M-RP-MEMBER-ACT`**. 🔒 `E-1` precedes `E-3` because without the home **every DM is unreachable the moment the filter lands**, and the **self thread permanently** (`F5`) ⇒ no commit Joe pushes ever contains the filter without the home.
+
+🛑 **`cargo` IS NOT A FLOOR FOR THIS LEG.** `K2` shipped in Leg B, so Leg E touches zero `.rs`; an identical `cargo` result would be a **scope argument, not a measurement** (`F8`). Phase-0 §6 remains stale on this and is annotated rather than rewritten.
+
+✅ **Format gate PASS exit 0.** CRLF verified after every write: `CLAUDE.md` 1230 → 1244 CR=LF, ROADMAP **561 CR=LF unchanged** — no wholesale re-termination (`N-191`).
+
+🎯 **NEXT: Clair implements `E-1` from the locked runbook.** → J-720 · ROADMAP v7.07.
+
+---
 ## Entry J-719 — the E-1 runbook, and three milestones filed after a live drive proved a capability exists with no way for a user to reach it
 **Date:** 2026-08-12 · **Seats:** Chat (the read re-drive, the runbook, the live drive, the records) · Clair (the adversarial read) · Joe (six rulings, and the client). Phase-0 v1.2 → **v1.3** · **NEW** `tasks/RUNBOOK_MEMBER_ACT_LEG_E1.md` **v1.0 PENDING** · notes v1.22 → **v1.23** (**+N-193**) · ROADMAP v7.05 → **v7.06**. **NO CODE — zero `.rs`, zero `ui/**`. No new `D`.**
 

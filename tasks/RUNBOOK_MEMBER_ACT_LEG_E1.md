@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E-1 Runbook: the `DM Spaces` widget (Clair)
-> **Status**: PENDING  
-> Version: 1.0  
+> **Status**: ACTIVE  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-12  
 > Language: English  
@@ -11,6 +11,10 @@
 ---
 
 ## §0 — SEAT, AND WHAT THIS LEG IS
+
+🔒 **LOCKED BY JOE 2026-08-12 (*"e-1) locked"*). CLAIR MAY IMPLEMENT.**
+
+📌 **Locked WITHOUT an adversarial read of this runbook** — Chat recommended one, Joe chose to lock directly. **Recorded as provenance, not as an objection:** if E-1 surfaces a defect, the record should show the read was offered and declined rather than never considered. ⚠️ **Rule 6 therefore carries more weight than usual here** — this document has been read by its author and by nobody else.
 
 **You are CLAIR — Code Claude.** You implement from this runbook once Joe locks it. **You never push.** Deviations are **reported under Rule 6, never absorbed** — *an implementer who silently absorbs a bad instruction ships the architect's mistake* (M-RP7.1b is the evidence: your `migrateLayout(raw, fallback)` deviation stopped `core` importing a shell constant).
 

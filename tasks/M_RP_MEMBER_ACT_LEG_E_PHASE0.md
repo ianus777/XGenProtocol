@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E: the DM home + the R1 filter — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-12  
 > Language: English  
@@ -210,8 +210,8 @@ R1's DM rows read `DM with xgen://pubkey/ed25519:…` today — a raw key where 
 | **E-1** | 🔒 **THE HOME, FED AND MOUNTED** — **`DM Spaces`** (Joe, 2026-08-12: *"direct messages we will have in the messages panel"* — the widget lists **Spaces, not streams**). Lists every `counterpart != null` Space **including the self thread, pinned top**; sorted by resolved display name (`tail8` fallback, no discriminator); **no draft row** (`N-091` — a draft is not a Space). Activation reuses the C-bis-6 pair (`roomLatch.latch` + `spaceLatch.latch`) | svelte-check | ① ruled |
 | **E-2** | 🔒 **`D-114` §9's RE-INJECT RULE, AND IT LIVES INSIDE `loadLayout()`** — **not at `onMount`** (`P2`). Two callers exist — boot (`app_client.svelte:709`) and `handleRevertUi` (`:586`) — **and NEITHER persists the result**, so an `onMount`-only re-inject would leave the disk autosave pre-`DM Spaces` and **File ▸ Revert would drop the home**, which is the exact stranding H1 exists to prevent. `layout.revert` is a LIVE command (M-RP7.5 Leg D), so that path is reachable, not theoretical. ⚠️ `loadLayout` takes no plugin set today and gains one. 📌 **Target `spaces`, edge `bottom`** — verified to give `[spaces, dm-spaces, self]` in Joe's live tree (sibling: the parent already runs `col`) **and** `[spaces, dm-spaces]` under `DEFAULT_LAYOUT` (wrap: parent runs `row`). **One pair, right answer in both trees** | svelte-check | E-1 |
 | **E-3** | 🔒 **THE R1 FILTER** — `spaces-panel`'s `items` `$derived` drops `counterpart != null`. **NEVER the store** | svelte-check | ② ruled, **E-1 + E-2 green** |
-| **E-4** | the row label (③) | svelte-check | ③ ruled |
-| **E-5** | verify + records + close (`D-074`) | — | E-4 |
+| **E-4** | 🛑 **ABSORBED INTO `E-1` — THIS LEG HAS NO CONTENT.** `L2` (resolve the label at render, `tail8` fallback) is built in `E-1` §3.2, and `E-3` removes DM rows from R1 entirely, so no label work remains anywhere. **ID kept, never renumbered** — `E-4` is referenced by the runbook, J-718 and the ROADMAP node. 📌 *`P1`'s shape for the THIRD time — a leg describing work that is not its own — and committed by Chat AFTER Clair flagged the identical defect at `E-0`* | — | — |
+| **E-5** | verify + records + close (`D-074`) | — | **E-3** |
 
 🔑 **WHY E-1 PRECEDES E-3, AND IT IS NOT TIDINESS.** A3 removes DMs from the tree; without the home, **every DM is unreachable the moment the filter lands** — and per F5 the self thread is unreachable *permanently*, because no other surface can open it. The home and the filter **ship in the same leg and in that order**, so no commit Joe pushes ever contains the filter without the home.
 

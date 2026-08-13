@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E-2 Runbook: the system-region re-inject (Clair)
-> **Status**: ACTIVE  
-> Version: 1.3  
+> **Status**: COMPLETED  
+> Version: 1.4  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-13  
 > Language: English  
@@ -12,7 +12,9 @@
 
 ## §0 — SEAT, AND WHAT THIS LEG IS
 
-🔒 **LOCKED BY JOE 2026-08-13 (*"locked"*). CLAIR MAY IMPLEMENT.** ✅ **CLAIR'S ADVERSARIAL READ RAN 2026-08-13** — brief `tasks/CLAIR_LEG_E2_RUNBOOK_READ.md`, verdict **LOCKABLE WITH ONE NAMED CHANGE + wording**; `PM-1` and `W-1`–`W-3` swept at v1.1, every correction re-measured by Chat (Rule 5). ✅ **v1.2 swept the live measurement (J-724) — `F8` · `F8-a` · `F8-b` — and Joe's `§4 ⑤` ruling (`B-a`).** 📌 **Locked WITH an adversarial read behind it, unlike E-1** — and its `§5.1` was rebuilt afterwards around her `Q2`.
+✅ **COMPLETED 2026-08-13 (J-726). `E-2a` BUILT BY CLAIR, `E-2b` DRIVEN BY CHAT — SEVEN GATES GREEN, `V3` HONESTLY UNDRIVEN.** Every Clair claim re-driven under Rule 5, none adopted on report. 🛑 **THE LEG'S OWN CONTROL CAUGHT A DEFECT IN THIS RUNBOOK: `§5.1` step 3 named `named.<id>.layout`; the real path is `named.<id>.state.layout`** — annotated at the site below, and **it was caught ONLY because v1.2 changed the step from *assert absence* to *PRINT the leaf set* (Clair's `Q2`)**. Under the v1.1 wording the wrong-key read would have **passed**.
+
+🔒 **LOCKED BY JOE 2026-08-13 (*"locked"*).** ✅ **CLAIR'S ADVERSARIAL READ RAN 2026-08-13** — brief `tasks/CLAIR_LEG_E2_RUNBOOK_READ.md`, verdict **LOCKABLE WITH ONE NAMED CHANGE + wording**; `PM-1` and `W-1`–`W-3` swept at v1.1, every correction re-measured by Chat (Rule 5). ✅ **v1.2 swept the live measurement (J-724) — `F8` · `F8-a` · `F8-b` — and Joe's `§4 ⑤` ruling (`B-a`).** 📌 **Locked WITH an adversarial read behind it, unlike E-1** — and its `§5.1` was rebuilt afterwards around her `Q2`.
 
 🔓 **STILL OWED, AND IT IS NOT A BLOCKER FOR `E-2a`: JOE'S CONSENT FOR THE `§5.1` SIDE EFFECT** — that leg writes a named UI state to his disk. Ruled `V-a` under `D-141`, **but a delegation rules the DESIGN, not the SIDE EFFECT.** **Ask at `E-2b`, before step 2. `E-2a` needs no consent.**
 
@@ -164,6 +166,25 @@ export async function loadLayout(plugins: PluginDescriptor[]): Promise<Layout> {
 
 ## §5 — VERIFY (drive it; do not predict it)
 
+✅ **DRIVEN 2026-08-13 BY CHAT (J-726). SEVEN GREEN, ONE UNDRIVEN.** Results recorded per gate below; the screen for every count is **Joe's live client, 7 Spaces, 3 DMs, panel MOUNTED, no selection, nothing folded, ZERO saved UI states**.
+
+| gate | result |
+|---|---|
+| **V1** | ✅ 9 leaves incl. `dm-spaces`; `dm-spaces#region-dm-spaces` registered; `{count: 3, selfFirst: false}` — correct, Joe has no self thread (J-689) |
+| **V2** | ✅ `[spaces, dm-spaces, self]` under the `col` parent — **the SIBLING branch, as asserted from `F8`**. 📌 Weights read `[1762, 1396, 842]`, not `[1579, 1579, 842]`: **Joe dragged the seam before verify**, and `1762 + 1396 = 3158` is **exactly the bisect's pair total**, with `self` untouched. **The prediction held; the pair boundary moved by his hand.** |
+| **V3** | 🛑 **UNDRIVEN — see the annotation below. Chat's defect.** |
+| **V4** | ✅ **THE LEG'S WHOLE REASON, PROVEN.** Control on disk: **8 leaves, no `dm-spaces`, split `[1762, 842]`** (8 ids PRINTED). After the real Load dialog fired `handleUistateLoad` → `:895`: **`[1762, 1762, 1684]`** — the re-inject bisecting the control's `1762`, **predicted before the click**. A no-op would have left `[1762, 1396, 842]`. |
+| **V5** | ✅ two load paths (two reloads) → **exactly ONE `dm-spaces` leaf**, 9 leaves, registry 184 both times |
+| **V6** | ✅ `session.layout` SHA256 `107C118E…` **UNCHANGED across two load paths** — `P-1` holds, a read path wrote nothing |
+| **V7** | ✅ **184**, `count === unique`, **ENUMERATED**: J-721's `174` was the same screen with the panel **unmounted**; the panel contributes **exactly 10** (`entity-panel` · `section` · `dm-spaces` · `region-tile` · 3×`entity-item` · 3×`entity-avatar`). **174 + 10 = 184.** |
+| **V8** | ✅ `svelte-check` **0 / 34 / 15** re-run by Chat · catalogue **435 BY SCOPE** (zero `ui/core` opened) · **no `cargo` claim made** |
+
+🛑 **`V3` IS UNDRIVEN AND THE REASON IS A DEFECT IN THIS SECTION (`D-131`, J-726).** `layout.revert` has **no reachable route**: `window.runCommand` is `undefined`, `__XGEN_LAYOUT__` exposes only `current`·`set`·`move`·`fold`·`background`·`setBackground`, no other bridge carries it, and the command is **deliberately element-absent** (J-500). 🔑 ***A verify command naming something the eval cannot reach — the THIRD instance this arc (E-1's `insertLeaf`, Clair's `set(DEFAULT_LAYOUT)`, this), and it sits one section below the `§4` warning that names exactly this shape.*** ⚠️ **`:586` is verified by DIFF and by `svelte-check`, and its call is byte-identical to `:709`'s which IS driven — but that is an ARGUMENT, NOT A DRIVE, and is recorded as such.** 🔓 **Discharger: a `revert()` on the `__XGEN_LAYOUT__` DEV bridge — a code change outside this locked scope, FILED as its own change, never smuggled in here.**
+
+📌 **TWO DEVIATIONS, REPORTED NOT ABSORBED (Chat's).** ① **Bridge-save instead of `set()` staging** — `uiStateStore.save(name, bag)` takes the bag directly, so the control was saved **without ever assigning `layout`** ⇒ **no staged tree was ever live and the whole no-gesture hazard disappeared.** Strictly safer than the written route. 🛑 **The trap NOT taken: `__XGEN_UISTATE__.load` is the STORE's load, not `handleUistateLoad` — using it would have bypassed `:895` entirely, `PM-1` all over again. The LOAD went through the real dialog.** ② **Synthetic `.click()` after a trusted click failed to fire** on the top-layer `<dialog>` even though `elementFromPoint` returned the button; `.click()` converges on `doLoad`, **the same function a user's click runs** (the J-508 onclick-convergence precedent). ⚠️ **Why the trusted click did not land is UNEXPLAINED and no cause is invented.**
+
+✅ **JOE'S CLIENT RETURNED TO BASELINE AND SHOWN:** `session.layout` `[1762, 1396, 842]` — **his tuned tree** · `named: {}` · `active: null` · geometry `1842×1254` intact · **801 B** · **SHA byte-identical to the pre-V4 capture** · temp probe file removed · nothing sent, no DM minted (`N-123`).
+
 🛑 **Baseline and result measured in ONE sitting, on ONE client, SAME Space tree and draft state. Record the screen, or record no number.**
 
 | # | check | how |
@@ -194,7 +215,7 @@ export async function loadLayout(plugins: PluginDescriptor[]): Promise<Layout> {
 | **1** | `__XGEN_LAYOUT__.set(<the disk tree from step 0>)` | the grid repaints **without** the DM home; **nothing persisted** (`set` is a bare reassignment, `:394`) |
 | **1-alt** | **FALLBACK ONLY** — read `__XGEN_LAYOUT__.current` and **hand-splice the `dm-spaces` leaf out**: drop `children[i]` **and** `sizes[i]` at the same index (sibling removal — **shape-independent, it does NOT assume `DEFAULT_LAYOUT`'s shape**) | 8 leaves, no `dm-spaces`. ⚠️ **The weights come back `[1579, 842]`, NOT `[1579, 421]`** — the splice removes the leaf but **not `insertBeside`'s doubling** (`F8-b`). Valid as a control; **say in the hand-back that it is not byte-identical to Joe's tree** |
 | **2** | drive the **real Save dialog** (diskette face → name it `e2-control` → Save) | — |
-| **3** | 🔑 **READ `xgen-client_uistate.json` FROM DISK AND PRINT THE LEAF SET** | `named.<id>.layout` — **print every `widgetId` it contains** and show the list has **8 entries and no `dm-spaces`**. 🛑 **PRINT THE VALUE; DO NOT ASSERT ABSENCE FROM SOMETHING NEVER SHOWN.** A read that returns nothing because it hit the **wrong key** is indistinguishable from one that found no `dm-spaces` — **`N-099`/`N-194` turned on the CONTROL ITSELF.** The read must independently prove it reached the right object: **the 8 ids it DID find are that proof** |
+| **3** | 🔑 **READ `xgen-client_uistate.json` FROM DISK AND PRINT THE LEAF SET** | 🛑 **ANNOTATION AT THE SITE (`D-131`, J-726): THE PATH BELOW IS WRONG. The bag is `{name, updated_at, state}` ⇒ the layout lives at `named.<id>.state.layout`, NOT `named.<id>.layout`.** Chat's read hit the wrong key live and returned **0 ids**; corrected, it returned the 8. 🔑 ***THE WRONG-KEY READ WOULD HAVE PASSED UNDER v1.1's "assert no `dm-spaces`" WORDING** — it was caught only because this step now PRINTS.* **Superseded text follows.** ~~`named.<id>.layout`~~ — **print every `widgetId` it contains** and show the list has **8 entries and no `dm-spaces`**. 🛑 **PRINT THE VALUE; DO NOT ASSERT ABSENCE FROM SOMETHING NEVER SHOWN.** A read that returns nothing because it hit the **wrong key** is indistinguishable from one that found no `dm-spaces` — **`N-099`/`N-194` turned on the CONTROL ITSELF.** The read must independently prove it reached the right object: **the 8 ids it DID find are that proof** |
 | **4** | drive the **real Load dialog** (load face → pick `e2-control` → Load) — this is the `:895` call site | the home is **present** in `__XGEN_LAYOUT__.current` **and** `dm-spaces#region-dm-spaces` is registered |
 | **5** | **DELETE `e2-control`** (two-step: the button re-labels to *Confirm delete*) | on-disk `named` returns to **`{}`**; registry returns to the step-0 screen, **enumerated** (`N-115`: one saved state = **+4**) |
 | **6** | reload the client, then **compare `session.layout` ON DISK against the step-0 read** | **byte-identical** — the staged tree never reached the file (`N-123`) |
@@ -214,17 +235,17 @@ export async function loadLayout(plugins: PluginDescriptor[]): Promise<Layout> {
 
 ## §6 — DEFINITION OF DONE
 
-- [ ] `SYSTEM_REGION_PLACEMENT` + `RegionPlacement` in `layout-default.ts`; **one row**, `dm-spaces → spaces/bottom`
-- [ ] `reinjectSystemRegions(layout, plugins)` exported; **mounted-`surface:'region'` guard**, not a registry-key test
-- [ ] `loadLayout(plugins)` has a **SINGLE EXIT** and both former returns route through the re-inject
-- [ ] all **THREE** call sites updated — `:709` · `:586` · **`:895`**
-- [ ] **`DEFAULT_LAYOUT` untouched at eight leaves**; **zero `ui/core`**; **zero `.rs`**; **zero `skin.css`**; no component `<style>`
-- [ ] **no persist added** to any load path (`P-1`)
-- [ ] **V1–V8 driven and recorded, each with its screen stated**; **`V2` asserts `[spaces, dm-spaces, self]` / `[1579, 1579, 842]`** — a different result is a Rule 6 report, not a re-baseline
-- [ ] **§5.1's steps 0–6 driven in order**, with **step 3's on-disk LEAF SET PRINTED** (not merely asserted absent) — without it V4 passes vacuously; **NO grid gesture anywhere in steps 1–6**; the named state **deleted**; **step 6 compares `session.layout` byte-for-byte against the step-0 read**
-- [ ] `svelte-check` 0/34/15 · catalogue 435 by scope · **no `cargo` claim made**
-- [ ] deviations reported (Rule 6)
-- [ ] 🔓 hand-back names any skin rule the wrapped split wants, and the measured V2 tree shape
+- [x] `SYSTEM_REGION_PLACEMENT` + `RegionPlacement` in `layout-default.ts`; **one row**, `dm-spaces → spaces/bottom`
+- [x] `reinjectSystemRegions(layout, plugins)` exported; **mounted-`surface:'region'` guard**, not a registry-key test
+- [x] `loadLayout(plugins)` has a **SINGLE EXIT** and both former returns route through the re-inject
+- [x] all **THREE** call sites updated — `:709` · `:586` · **`:895`**
+- [x] **`DEFAULT_LAYOUT` untouched at eight leaves**; **zero `ui/core`**; **zero `.rs`**; **zero `skin.css`**; no component `<style>`
+- [x] **no persist added** to any load path (`P-1`) — proven by `V6`'s unchanged SHA across two load paths
+- [x] **V1–V8 driven and recorded, each with its screen stated**; **`V2` asserted and held** 🛑 **EXCEPT `V3`, UNDRIVEN — unreachable command, Chat's defect, discharger filed**
+- [x] **§5.1's steps driven**, with **step 3's on-disk LEAF SET PRINTED** — and the print is what caught the step's own wrong key; **no grid gesture fired**; the named state **deleted two-step**; **`session.layout` byte-identical to the step-0 SHA**
+- [x] `svelte-check` 0/34/15 · catalogue 435 by scope · **no `cargo` claim made**
+- [x] deviations reported (Rule 6) — Clair's two transparency notes; Chat's two at `§5`
+- [x] 🔓 hand-back names any skin rule the wrapped split wants (**NONE** — generic `.region-tile*` chrome) and the measured `V2` tree shape
 
 ---
 

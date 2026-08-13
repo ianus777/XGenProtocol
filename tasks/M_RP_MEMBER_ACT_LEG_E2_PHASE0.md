@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E-2: the system-region re-inject — Phase-0
-> **Status**: ACTIVE  
-> Version: 1.5  
+> **Status**: COMPLETED  
+> Version: 1.6  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-13  
 > Language: English  
@@ -11,6 +11,8 @@
 ---
 
 ## §0 — WHAT E-2 IS
+
+✅ **CLOSED 2026-08-13 (J-726). E-2 SHIPS: the DM home is placed on every path that produces a layout.** `E-2a` built by Clair, `E-2b` driven by Chat (seven gates green, `V3` undriven with its reason), `E-2c` records. 🎯 **NEXT: `E-3`, the R1 filter — then `E-5` closes the MILESTONE.**
 
 **One sentence:** *`DEFAULT_LAYOUT` stays at eight leaves (Joe's ①-B), so re-injection is the ONLY path that ever places `dm-spaces` — and it must therefore run on **every** path that produces a layout from persisted data or from the default.*
 
@@ -54,7 +56,7 @@ E-2 builds **`D-114` §9's re-inject rule**: a system `regionId` absent from a l
 | drop-unknown | `resolve.ts` rule 2 (walk at `:63`) | BUILT and reported in `dropped` |
 | the mounted set | `app_client.svelte:102` | `const mountedPlugins = $derived(installed.mounted)` |
 | `installed.mounted` | `installed.svelte.ts` `get mounted()` | `[...CLIENT_PLUGINS, ...AVAILABLE_CUSTOM.filter(installed && !disabled)]` |
-| the `dm-spaces` row | `registry.ts:214-224` | `kind: 'system'` · `surface: 'region'` · `regionId: 'dm-spaces'` |
+| the `dm-spaces` row | `registry.ts:213-231` | `kind: 'system'` (`:220`) · `surface: 'region'` (`:223`) · `regionId: 'dm-spaces'` (`:224`). 📌 **`D-131`, J-726: v1.0–v1.5 cited `:214-224`, which names the FIELD lines, not the object** — flagged by Clair, corrected here; all load-bearing fields fell inside the old range, so nothing misled |
 | the id lists | `layout-default.ts:20-22` · `:29-43` | `REGION_IDS` = **9** ids (incl. `dm-spaces`) · `REGION_NAMES` fallback title present |
 | `DEFAULT_LAYOUT` | `layout-default.ts:103-123` | **8 leaves**, root `dir: 'row'`, `sizes: [1,2,7,2]`; `spaces` is a direct child of the ROOT `row` split |
 | the widget | `dm-spaces.svelte:33` | props `{ regionId }` only; envelope id `region-${regionId}` ⇒ `dm-spaces#region-dm-spaces` |
@@ -222,9 +224,9 @@ Proving `F1`'s path requires **saving a named UI state on Joe's client** (a real
 
 | leg | what | floor | gated on |
 |---|---|---|---|
-| **E-2a** | the placement table + the helper + `loadLayout`'s single exit + the `:895` call site (§ ①②③⑤ as ruled) | `svelte-check` **0/34/15** | ① ② ③ ⑤ ruled · **runbook v1.2 locked** |
-| **E-2b** | drive it: boot · `layout.revert` · named-state load (§4④) · idempotency (load twice, one leaf) · the mounted-set skip | `svelte-check` | E-2a |
-| **E-2c** | records — this Phase-0 → COMPLETED, runbook → COMPLETED, JOURNAL, `CLAUDE.md` PLAY, ROADMAP (`D-074` atomic) | — | E-2b |
+| **E-2a** | ✅ **DONE 2026-08-13 (Clair).** the placement table + the helper + `loadLayout`'s single exit + the `:895` call site (§ ①②③⑤ as ruled). 2 files, **+55/−10**, zero `core`/`.rs`/`skin.css`, `DEFAULT_LAYOUT` at eight leaves | `svelte-check` **0/34/15** re-run by Chat | ① ② ③ ⑤ ruled · runbook v1.3 locked |
+| **E-2b** | ✅ **DONE 2026-08-13 (Chat).** **SEVEN GATES GREEN, `V3` UNDRIVEN.** `V4` proved the `:895` path: an 8-leaf control on disk loaded to **`[1762, 1762, 1684]`**, the re-inject bisecting the control — predicted before the click. Joe's client returned to baseline, SHA byte-identical | `svelte-check` | E-2a |
+| **E-2c** | ✅ **DONE 2026-08-13.** records — this Phase-0 → COMPLETED, runbook → COMPLETED, JOURNAL, `CLAUDE.md` PLAY, ROADMAP | — | E-2b |
 
 🔒 **E-2's runbook GETS A CLAIR ADVERSARIAL READ BEFORE JOE LOCKS IT.** E-1 was locked without one and shipped a `§4` command that could not run (`insertLeaf` is not on `window`). **Recorded as a recommendation, not a demand — it is Joe's to decline again, and the record will show it was offered.**
 

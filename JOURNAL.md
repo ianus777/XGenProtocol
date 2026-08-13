@@ -8,6 +8,44 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-726 — E-2 ships, and the control caught a defect in the instruction that produced it
+**Date:** 2026-08-13 · **Seats:** Clair (`E-2a` build) · Chat (Rule-5 re-drive, `E-2b` live verify, records) · Joe (the lock, the `B-a` ruling, consent for the disk write). Runbook **v1.3 → v1.4 COMPLETED** · Phase-0 **v1.5 → v1.6 COMPLETED** · ROADMAP v7.12 → **v7.13**. **CODE: 2 files, +55/−10, zero `.rs`.**
+
+✅ **`M-RP-MEMBER-ACT` LEG E-2 IS DONE. The DM home is now placed on EVERY path that produces a layout — boot, `File ▸ Revert`, and a named UI state load.**
+
+### ✅ WHAT SHIPPED
+`SYSTEM_REGION_PLACEMENT` (one row: `dm-spaces → { spaces, bottom }`) as **the rule's domain**, `reinjectSystemRegions(layout, plugins)` guarding on a **mounted `surface: 'region'` plugin** rather than mere registry membership, and `loadLayout(plugins)` rebuilt to a **SINGLE EXIT** so both former returns — including the `DEFAULT_LAYOUT` fallback — route through the re-inject. Three call sites: `:709` boot, `:586` revert, **`:895` `handleUistateLoad`**. `DEFAULT_LAYOUT` untouched at eight leaves; **no new algebra** — `insertLeaf` already did the work.
+
+### 🔑 THE FINDING: THE POSITIVE CONTROL CAUGHT A DEFECT IN THE STEP THAT DEFINED IT
+`§5.1` step 3 said to read the saved control at **`named.<id>.layout`**. The real path is **`named.<id>.state.layout`** — the bag is `{name, updated_at, state}`. Chat's read hit the wrong key live and returned **0 ids**.
+
+🔑 **AND THE WORDING IS WHAT CAUGHT IT.** Under v1.1's *"assert the saved tree has no `dm-spaces`"*, a wrong-key read returns nothing and **PASSES** — certifying a control that never reached its object. Under **v1.2's *"PRINT the leaf set; the ids it DID find are the proof"*** it returned **0, not 8**, and failed instantly. ✅ ***Clair's `Q2` — asked one turn earlier, about exactly this — paid for itself against the very step it rewrote.*** *`N-099`/`N-194` turned on the control itself, and the control turned on its own instruction.*
+
+### ✅ `V4` — THE LEG'S WHOLE REASON, PROVEN
+Control on disk: **8 leaves, no `dm-spaces`, split `[1762, 842]`**, all 8 ids printed. The **real Load dialog** fired `handleUistateLoad` → `:895` → **`[1762, 1762, 1684]`** — the re-inject bisecting the control's `1762`, **predicted before the click**. A no-op would have left `[1762, 1396, 842]` untouched. 🔑 **`F1` is discharged: the entry point that bypasses `loadLayout` re-injects the home**, and with it the self thread's only GUI door (`F5`).
+
+🛑 **THE TRAP DELIBERATELY NOT TAKEN:** `__XGEN_UISTATE__.load` is the **STORE's** load, not `handleUistateLoad`. Driving V4 through it would have bypassed `:895` entirely — ***`PM-1` all over again, a probe that cannot fail***. The load went through the dialog.
+
+### 🛑 `V3` IS UNDRIVEN, AND IT IS CHAT'S DEFECT — THIRD INSTANCE OF ONE SHAPE
+`layout.revert` has **no reachable route**: `window.runCommand` undefined, no bridge carries `revert`, and the command is **deliberately element-absent** (J-500). 🔑 ***A verify command naming something the eval cannot reach*** — E-1's `insertLeaf`, Clair's `set(DEFAULT_LAYOUT)`, and now this, **written one section below the `§4` warning that names exactly this shape.** ⚠️ **`:586` is verified by diff and `svelte-check`, and its call is byte-identical to `:709`'s which IS driven — but that is an ARGUMENT, NOT A DRIVE**, and the DoD says so rather than quietly passing. 🔓 **Discharger FILED: a `revert()` on `__XGEN_LAYOUT__` — outside this locked scope, its own change.**
+
+### ✅ THE OTHER GATES, ALL WITH THEIR SCREEN STATED
+**V1** 9 leaves, widget registered, `{count: 3, selfFirst: false}` (correct — J-689) · **V2** `[spaces, dm-spaces, self]`, the SIBLING branch **as asserted from `F8`**; weights `[1762, 1396, 842]` because **Joe dragged the seam before verify**, and `1762 + 1396 = 3158` is **exactly the bisect's pair total** with `self` untouched ⇒ *the prediction held and the boundary moved by his hand* · **V5** two load paths → **exactly one** `dm-spaces` leaf · **V6** `session.layout` SHA `107C118E…` **unchanged across both** ⇒ `P-1` holds · **V7** registry **184**, `count === unique`, **enumerated**: J-721's `174` was the same screen with the panel unmounted, and the panel contributes **exactly 10** ⇒ `174 + 10 = 184` · **V8** `svelte-check` **0/34/15** re-run by Chat, catalogue **435 by scope**, **no `cargo` claim**.
+
+### 📌 DEVIATIONS, ALL REPORTED NOT ABSORBED
+**Clair's two, both accepted:** idiomatic import folding; and **comment prose elaborated beyond the runbook's literal blocks**, folding in the `F8-a`/`B-a` and strict-guard rationale. Executable code verified byte-identical by diff. 🔒 **STANDING FORM: a runbook's code block is a FLOOR for comments, not a ceiling** — the implementer owns comment prose; what may not move is the executable text. *`W-2` exists because a rewrite once DROPPED the `N-095`/`D-115` comment, so comments that carry WHY are the fix, not the risk.*
+
+**Chat's two:** ① **bridge-save instead of `set()` staging** — `uiStateStore.save(name, bag)` takes the bag directly, so the control was saved **without ever assigning `layout`** ⇒ **no staged tree was ever live and the entire no-gesture hazard disappeared**; strictly safer than the written route. ② **synthetic `.click()`** after a trusted click failed to fire on the top-layer `<dialog>` though `elementFromPoint` returned the button — `.click()` converges on `doLoad`, the same function a user's click runs (J-508's onclick-convergence precedent). ⚠️ **Why the trusted click did not land is UNEXPLAINED; no cause is invented.**
+
+### ✅ JOE'S CLIENT RETURNED TO BASELINE AND SHOWN
+`session.layout` **`[1762, 1396, 842]` — his tuned tree** · `named: {}` · `active: null` · geometry `1842×1254` intact · **801 B** · **SHA byte-identical to the pre-V4 capture** · temp probe file removed · nothing sent, no DM minted (`N-123`).
+
+📌 **AND A `W1` CORRECTION AT ITS SITE:** Phase-0 §2 cited the `dm-spaces` descriptor at `registry.ts:214-224`, which names the **field lines, not the object** (`:213-231`). Flagged by Clair as *"minor, not a discrepancy"* — **corrected anyway**, because a range that names a thing it does not bound is the `W1` species even when nothing misleads.
+
+🎯 **NEXT: `E-3` — the R1 filter (`spaces-panel`'s `items` `$derived` drops `counterpart != null`, NEVER the store). Then `E-5` CLOSES THE MILESTONE.** → J-726 · ROADMAP v7.13.
+
+---
+
 ## Entry J-725 — Joe rules the bisect, the runbook sweeps to v1.2, and V4's control stops asserting absence from a value it never printed
 **Date:** 2026-08-13 · **Seats:** Joe (the `§4 ⑤` ruling) · Chat (the sweep, records) · Clair (holding at the read seat, correctly). Phase-0 **v1.4 → v1.5** · runbook **v1.1 → v1.2** · ROADMAP v7.11 → **v7.12**. **NO CODE.**
 

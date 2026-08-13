@@ -7,9 +7,10 @@
 // Today it just returns DEFAULT_LAYOUT.
 
 import type { Component } from 'svelte';
-import type { Layout } from '$core/components/layout/types';
+import type { Layout, RegionId } from '$core/components/layout/types';
 import type { WidgetMount } from '$core/components/data-dependent/types';
 import { migrateLayout } from '$core/components/layout/resolve';
+import { insertLeaf, type Edge } from '$core/components/layout/mutate';
 import RegionPlaceholder from './region-placeholder.svelte';
 import type { PluginDescriptor } from '$common/plugins/registry';
 
@@ -122,6 +123,38 @@ export const DEFAULT_LAYOUT: Layout = {
   },
 };
 
+/** A system region's default dock: where it lands when a loaded layout does not contain it. */
+export interface RegionPlacement { target: RegionId; edge: Edge }
+
+/** D-114 §9's re-inject rule — where a system region docks when a loaded layout does not contain it.
+ *  THE TABLE IS THE DOMAIN (D-c): a system region is re-injectable iff it has a row here — because neither
+ *  `REGION_IDS` nor the plugin list carries a target or an edge (N-091, an unfed branch). Every future system
+ *  region gets the rule free by adding one row. `target: 'spaces'`, `edge: 'bottom'` is Joe's ①-B placement:
+ *  the DM home docks under R1 Spaces. `insertBeside` sibling-bisects the target's slot (mutate.ts sibling
+ *  branch) so R1 halves on first boot — EXPECTED, Joe rules B-a (SHIP THE BISECT); once he drags the seam
+ *  M-RP7.5's feeder persists the 9-leaf tree and the re-inject no-ops by reference forever after (F8-a). */
+export const SYSTEM_REGION_PLACEMENT: Record<RegionId, RegionPlacement> = {
+  'dm-spaces': { target: 'spaces', edge: 'bottom' },
+};
+
+/** Re-inject every placement-declaring system region the layout is missing (D-114 §9). Pure, TOTAL,
+ *  IDEMPOTENT: `insertLeaf` no-ops by reference on an already-docked id AND on a missing target (mutate.ts:266),
+ *  so this is free to run on EVERY load and can never double-place, blank the centre (N-095), or fight a user
+ *  who moved the region elsewhere. The guard requires a MOUNTED `surface: 'region'` plugin for the id, NOT
+ *  mere registry membership — `buildWidgetRegistry` maps every `REGION_IDS` entry to `RegionPlaceholder`, so a
+ *  registry test would inject a leaf that paints a placeholder. The stricter test guarantees a real widget. */
+export function reinjectSystemRegions(layout: Layout, plugins: PluginDescriptor[]): Layout {
+  const mountedRegionIds = new Set(
+    plugins.filter((p) => p.surface === 'region' && p.regionId).map((p) => p.regionId as string),
+  );
+  let out = layout;
+  for (const [regionId, place] of Object.entries(SYSTEM_REGION_PLACEMENT)) {
+    if (!mountedRegionIds.has(regionId)) continue; // no mounted widget → no leaf (never inject a W-13 drop)
+    out = insertLeaf(out, regionId, place.target, place.edge);
+  }
+  return out;
+}
+
 /**
  * Load the active layout (M-RP6.1k, Leg B — the D2 seam BODY swap, J-499). Reads the persisted
  * UI-state store via `get_ui_state`, pulls the SESSION arrangement's `layout` key, and falls back to
@@ -133,21 +166,29 @@ export const DEFAULT_LAYOUT: Layout = {
  * (The session layout is written on every mutation now (M-RP7.5 feeder, Leg B) and read back here — but the SEAM now
  * parses a real file, which is what makes N-095's guard reachable here rather than an unreachable
  * branch at M-RP7.3.)
+ *
+ * M-RP-MEMBER-ACT Leg E-2 (D-114 §9): takes the mounted `plugins` and routes BOTH former returns through
+ * `reinjectSystemRegions` (a SINGLE EXIT, F2). A system region (today: the DM home) absent from a loaded OR
+ * default tree is re-injected. `DEFAULT_LAYOUT` stays at eight leaves (Joe's ①-B), so re-injection is the
+ * ONLY path that ever places `dm-spaces` — which is exactly why it must wrap the DEFAULT return too, not just
+ * the persisted one (a re-inject on one of two returns is a home that appears only if a file exists). The
+ * re-inject is idempotent + TOTAL, so `loadLayout` still cannot return null and the centre still cannot blank.
  */
-export async function loadLayout(): Promise<Layout> {
+export async function loadLayout(plugins: PluginDescriptor[]): Promise<Layout> {
+  let loaded: Layout = DEFAULT_LAYOUT;
   try {
     const { invoke } = await import('@tauri-apps/api/core');
     const raw = await invoke<string>('get_ui_state');
     if (raw && raw.trim()) {
-      const store = JSON.parse(raw);
-      const layout = store?.session?.layout;
+      const persisted = JSON.parse(raw)?.session?.layout;
       // `migrateLayout` subsumes the old `isValidLayout` guard AND upgrades a v1/v2 boolean-`collapsed` tree
       // to v3 (M-RP7.1b). It NEVER returns null (N-095 — a malformed/older layout falls back to DEFAULT, so
       // the centre never blanks; D-115). DEFAULT_LAYOUT is injected because `core` must not own a default.
-      if (layout) return migrateLayout(layout, DEFAULT_LAYOUT);
+      if (persisted) loaded = migrateLayout(persisted, DEFAULT_LAYOUT);
     }
   } catch (_) {
     // no-Tauri OR corrupt store → DEFAULT (N-095). A read/parse error must never blank the centre.
   }
-  return DEFAULT_LAYOUT;
+  // D-114 §9 — the re-inject wraps BOTH former returns (F2). Idempotent + TOTAL, so it cannot blank or double-place.
+  return reinjectSystemRegions(loaded, plugins);
 }

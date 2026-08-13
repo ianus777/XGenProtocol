@@ -9,7 +9,7 @@
   import UistateLoadDialog from './uistate-load-dialog.svelte';
   import SettingsDialog from './settings-dialog.svelte';
   import { uiStateStore } from './uistate.svelte';
-  import { loadLayout, buildWidgetRegistry, buildBgWidgets, buildTitles, DEFAULT_LAYOUT, DEFAULT_BACKGROUND } from './layout-default';
+  import { loadLayout, reinjectSystemRegions, buildWidgetRegistry, buildBgWidgets, buildTitles, DEFAULT_LAYOUT, DEFAULT_BACKGROUND } from './layout-default';
   import { migrateLayout } from '$core/components/layout/resolve';
   import { resizeSplit, foldLeaf, move, insertLeaf, removeRegion } from '$core/components/layout/mutate';
   // The runtime custom-plugin lifecycle (M-RP-CONNSTATS). `installed` (a $common store) owns the installed
@@ -583,7 +583,7 @@
   // so "last autosave" ≈ the live grid — this is "renew UI from disk". Zero Rust. No setSessionLayout
   // after: reloading and re-writing the same disk state is a no-op (runbook §6 D1).
   async function handleRevertUi() {
-    layout = await loadLayout();
+    layout = await loadLayout(mountedPlugins);
   }
 
   // ── Keymap wiring (M-RP6.1d — the 6.1c-deferred shell half) ──────────────────────────────
@@ -706,7 +706,7 @@
 
     // Seed the centre layout (D2). Not Tauri, never throws, so it runs OUTSIDE the try that swallows the
     // no-Tauri (browser dev preview) case — the grid must render even without a backend.
-    layout = await loadLayout();
+    layout = await loadLayout(mountedPlugins);
 
     try {
       const { listen } = await import('@tauri-apps/api/event');
@@ -892,7 +892,11 @@
     // blank centre, the J-499/N-095 failure). A state saved without a layout key is left as-is.
     // A named state saved before M-RP7.1b carries v1/v2 boolean `collapsed`; migrate it (never null;
     // malformed → DEFAULT, D-115) so an older workspace loads with the correct explicit fold directions.
-    if (s?.layout) layout = migrateLayout(s.layout, DEFAULT_LAYOUT);
+    // M-RP-MEMBER-ACT Leg E-2 (D-114 §9, F1): this path assigns a persisted layout WITHOUT calling
+    // loadLayout, so a named state saved before dm-spaces existed would strand the DM home (and the self
+    // thread's only GUI door, F5). Route it through the same re-inject — idempotent, so a state that already
+    // has the home is unchanged.
+    if (s?.layout) layout = reinjectSystemRegions(migrateLayout(s.layout, DEFAULT_LAYOUT), mountedPlugins);
     // Restore the named state's window rect through the same clamp (Rust owns geometry's meaning).
     if (s?.geometry) {
       try {

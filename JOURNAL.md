@@ -1,10 +1,52 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-11  
+> **Last updated:** 2026-08-13  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-722 — Leg E-2's Phase-0 lands, and the claim it was built on was one entry point short
+**Date:** 2026-08-13 · **Seats:** Chat (audit, Phase-0, runbook, records) · Joe (four rulings, delegated). Phase-0 `tasks/M_RP_MEMBER_ACT_LEG_E2_PHASE0.md` **v1.1 ACTIVE** · runbook `tasks/RUNBOOK_MEMBER_ACT_LEG_E2.md` **v1.0 PENDING, deliberately NOT LOCKED** · ROADMAP v7.08 → **v7.09**. **NO CODE. Commits `5eb698d` + this one.**
+
+🟢 **`M-RP-MEMBER-ACT` Leg E-2 — the system-region re-inject. Phase 0 of `D-071`.**
+
+### 🛑 THE FINDING: `P2` ESTABLISHED TWO `loadLayout()` CALLERS AND THE LEG NEEDED THREE ENTRY POINTS
+Leg E's Phase-0 `P2` (Clair's adversarial read, J-718) found two callers — boot `app_client.svelte:709` and `handleRevertUi:586` — and concluded *"the hook lives inside `loadLayout()`"*. **That conclusion is correct about those two callers and does not cover the surface.**
+
+🔑 **`app_client.svelte:895` (`handleUistateLoad`, fn `:889`) assigns `layout` from a persisted named UI state via `migrateLayout(s.layout, DEFAULT_LAYOUT)` — it never calls `loadLayout()`.** A named state saved before `dm-spaces` existed carries an eight-leaf tree ⇒ **loading it removes the DM home from the running app**, and per `F5` the self thread's only GUI door with it. **An inside-`loadLayout`-only hook ships the exact stranding `H1` exists to prevent.**
+
+🔑 **THE SPECIES IS THE ARC'S RECURRING ONE — A CLAIM NARROWER THAN THE THING IT DESCRIBES, REUSED AS IF COMPLETE.** *"Two callers of `loadLayout`"* is true. *"Two paths that produce a layout from persisted data"* is false. The kickoff, the parent Phase-0's `P2`, and the E-1 runbook all carry the narrow form. ⚠️ **It survived the adversarial read, because the read was checking the claim that was written, not the claim that was needed.** *An adversarial read inherits the frame of the document it attacks.*
+
+✅ **REACHABLE, NOT THEORETICAL, BY `P2`'S OWN ARGUMENT:** M-RP7.1b drove `handleUistateLoad` **live through the real Load dialog** to exercise the migrate. **Three clicks.** 📌 Joe has **zero** saved UI states today, and `N-115` records that one diskette click ends that permanently.
+
+### ✅ FIVE MORE FINDINGS, ALL FROM SOURCE
+**`F2` — the `DEFAULT_LAYOUT` return needs the re-inject too.** `loadLayout` returns `DEFAULT_LAYOUT` on no-Tauri / absent / corrupt store, and that tree has **eight leaves and no `dm-spaces`** (Joe's ①-B) ⇒ **a fresh client with no store would show no DM home at all.** ⇒ **`loadLayout` gains a SINGLE EXIT.** *A re-inject on one of two returns is a home that appears or not depending on whether a file exists.*
+
+**`F3` — the kickoff put `loadLayout` in `core`; it is SHELL-local** (`ui/client/src/layout-default.ts:137`; `migrateLayout` is the one in `core`). 🔑 **Load-bearing, not pedantic:** M-RP7.1b's Rule-6 deviation exists because a runbook nearly made `core` import the shell's `DEFAULT_LAYOUT`, and a placement table names shell ids. *Kickoff item ④ applied to the kickoff.*
+
+**`F4` — neither id list carries a placement.** `insertLeaf` needs `(target, edge)`; `REGION_IDS` (**9**) and the `kind: 'system' && surface: 'region'` plugin rows (**8** — `room-header` has no descriptor) carry neither. **The two sets are not interchangeable.**
+
+**`F5` — the unambiguity premise HOLDS, and its real guard is not `:554`.** That line is the disable/enable guard. **The load-bearing guard is that every lifecycle verb gates on `AVAILABLE_CUSTOM` and a system plugin is never in it** ⇒ absence can today only mean *"saved before that region existed"*. 🛑 **The countdown is already DoD-bound at `M-RP-WIDGET-SUSPEND` (`ROADMAP.md:333`); E-2 ships UNCONDITIONAL and reserves nothing (`N-182`).**
+
+**`F6` — `insertLeaf` (`mutate.ts:266`) is already TOTAL and IDEMPOTENT** (no-op by reference on an already-docked id and on a missing target) ⇒ **E-2 adds no algebra; it is composition in the shell.** **`F7`** — the `DEFAULT_LAYOUT` WRAP outcome is verified from source; **the Joe-tree SIBLING outcome is a live measurement to repeat, not a fact to inherit.**
+
+### 🔒 FOUR RULINGS, DELEGATED (`D-141`, *"go by your recommendations"*)
+**① `D-c`** — a `SYSTEM_REGION_PLACEMENT` table **is** the rule's domain (one row: `dm-spaces → { spaces, bottom }`), because the table carries the one thing the rule needs and neither id list has. **② `S-3`** — ONE exported helper, called from `loadLayout`'s single exit **and** from `:895`. 🛑 **`S-4`, an `applyLayout` funnel every assignment routes through, is NAMED AND NOT TAKEN** — structurally safer, touches nine sites, and is **architecture: Joe's, its own milestone, never a rider.** **③ `P-1`** — no persist; a read path stays a reader (`N-107`), and the first fold/resize/move persists the tree with the home in it anyway. **④ `V-a`** — drive the `:895` path.
+
+🛑 **AND THE ONE THING THE DELEGATION DOES NOT COVER, RECORDED RATHER THAN ASSUMED: `V-a` NEEDS A NAMED UI STATE WRITTEN TO JOE'S DISK.** The ruling picks the option; **the consent for the permanent side effect is STILL OWED and is asked at `E-2b`.** *A delegation rules the design, not the side effect.*
+
+### 🟡 THE RUNBOOK IS AUTHORED AND DELIBERATELY NOT LOCKED
+Two files in scope (`layout-default.ts`, `app_client.svelte`); zero `core`, zero `.rs`, zero `skin.css`, `DEFAULT_LAYOUT` untouched at eight leaves. 🔒 **A CLAIR ADVERSARIAL READ IS RECOMMENDED BEFORE JOE LOCKS IT** — E-1 was locked without one and shipped a `§4` command that could not run. §7 names its own most-likely-wrong item: **`mountedPlugins` is read inside `onMount`, and if it read empty the guard would skip and the home would silently never appear** — a failure that looks like *"the feature does not work"* rather than an error.
+
+### 🛑 CHAT'S OWN SLIP, NAMED NOT REPAIRED QUIETLY
+**The Phase-0 and runbook were pushed at `5eb698d` as a TWO-FILE commit with NO records.** J-718, J-719 and J-720 each landed their document **with** a JOURNAL entry, a `CLAUDE.md` PLAY head and a ROADMAP bump in ONE commit — that is `D-074`. This entry is a **follow-up**, which is precisely what `D-074` exists to prevent. *Recorded because a discipline that is only ever described is not a discipline.*
+
+**FLOORS UNTOUCHED AND DELIBERATELY NOT RE-MEASURED** (reads only; zero `.rs`, zero `ui/**`): `svelte-check` **0/34/15** · catalogue **435**. 🛑 **`cargo` is NOT a floor for Leg E** — `K2` shipped in Leg B, so an identical result would be a scope argument, not a measurement (`F8`). 🛑 **No registry number carried** (`N-184` · `N-190` · `N-194`). **No new `D`, no new `N`.**
+
+🎯 **NEXT: Clair's adversarial read of `RUNBOOK_MEMBER_ACT_LEG_E2.md`, then Joe locks it, then `E-2a`.** → J-722 · ROADMAP v7.09.
 
 ---
 

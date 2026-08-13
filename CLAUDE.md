@@ -2,7 +2,7 @@
 > For: Claude Code (claude.ai/code)  
 > Date: May 2026  
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-12  
+> **Last updated:** 2026-08-13  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -134,6 +134,15 @@
 > 
 > 🔓 **`OQ5` REMAINS THE ONLY OPEN DISPOSITION and Chat has made NO recommendation on any of its three items.** ⇒ **NEXT: Leg C — R7 acts, with `OQ1-G1`'s `entity-panel` prop split as its FIRST commit, measured alone.** ⚠️ **Leg C is appearance-adjacent and needs a Phase-0 before any code.** → J-689 · ROADMAP v6.77.
 > 
+>
+>
+> ✅ **FIVE MORE, ALL FROM SOURCE.** **`F2`** the `DEFAULT_LAYOUT` return needs the re-inject too (eight leaves, no `dm-spaces` - Joe's ①-B) so **a fresh client with no store would show NO DM home at all**; `loadLayout` gains a **SINGLE EXIT** - *a re-inject on one of two returns is a home that appears or not depending on whether a file exists.* **`F3`** the kickoff put `loadLayout` in `core`; it is **SHELL-local** (`ui/client/src/layout-default.ts:137`) and that is load-bearing - M-RP7.1b's Rule-6 deviation exists because a runbook nearly made `core` import the shell's `DEFAULT_LAYOUT`. **`F4`** neither id list carries a placement, and they are not the same set: `REGION_IDS` = **9**, system region plugin rows = **8** (`room-header` has no descriptor). **`F5`** the unambiguity premise holds, but its real guard is that **every lifecycle verb gates on `AVAILABLE_CUSTOM` and a system plugin is never in it** - `:554` is the disable/enable guard, the third of three; the countdown stays DoD-bound at `M-RP-WIDGET-SUSPEND` (`ROADMAP.md:333`) and **E-2 ships UNCONDITIONAL** (`N-182`). **`F6`** `insertLeaf` (`mutate.ts:266`) is already TOTAL and IDEMPOTENT, so **E-2 adds NO algebra** - composition in the shell. **`F7`** the `DEFAULT_LAYOUT` WRAP outcome is verified from source; **the Joe-tree SIBLING outcome is a live measurement to repeat, not a fact to inherit.**
+>
+>
+>
+>
+>
+
 > ### ✅ **E-1 SHIPS — `DM Spaces` IS LIVE, AND THE DRIVE SPRANG THREE MEASUREMENT TRAPS (2026-08-12; J-721). `M-RP-MEMBER-ACT` 🟢 PLAY · runbook v1.2 COMPLETED · Phase-0 v1.5 · notes v1.24 (+N-194) · ROADMAP v7.08. CODE: 4 files, zero `.rs`.**
 >
 > ✅ **V1–V8 DRIVEN GREEN on Joe's live client.** V1 mounts `count: 3` · V2 3 rows, **`selfFirst: false` — CORRECT, Joe has no self thread (J-689), §7.2's predicted case** · V3 `data-shape="circle"` vs R1's `"square"` (**`flags.isDm` fed for the first time**) · V4 DM panel lit, **R1 unlit**, R2 `count: 1`, **both** latches moved, R7 scoped with the counterpart resolved · **V5 positive control** — clicking a non-DM Space lights R1 and darkens the DM panel, so **the complement is proven in BOTH directions and V4's empty result is real** · V6 draft text intact (`close()` not `clear()`) · V7 panel = **+10, enumerated** · V8 `svelte-check` **0/34/15 re-run by Chat**. 🛑 **NO `cargo` CLAIM MADE** — zero `.rs`.

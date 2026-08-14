@@ -1,12 +1,45 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-13  
+> **Last updated:** 2026-08-14  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
 
 ---
+
+## Entry J-730 — E-5's Phase-0 lands, and the row it was written from claims a close that another row already owns
+**Date:** 2026-08-14 · **Seats:** Chat (grounding, audit, Phase-0 to disk) · Joe (three rulings owed). Phase-0 `tasks/M_RP_MEMBER_ACT_LEG_E5_PHASE0.md` **v1.0 ACTIVE** · ROADMAP v7.16 → **v7.17**. **NO CODE. Zero `.rs`, zero `ui/**`.**
+
+🎯 **`E-5` IS PHASE 0 (`D-071`), NOT AN EXECUTION.** Its own row in `M_RP_MEMBER_ACT_LEG_E_PHASE0.md` §5 reads *"verify + records + close"*, and **two of those three words did not survive the audit.**
+
+### 🛑 F2 — LEG `F` EXISTS, AND TWO DOCUMENTS EACH CLAIM THE MILESTONE CLOSE
+`M_RP_MEMBER_ACT_PHASE0.md` §6 carries a row **`F` — "Records + close (`D-074`)", gated on E.** `M_RP_MEMBER_ACT_LEG_E_PHASE0.md` §0 says *"Leg E is the milestone's last leg. Closing it closes the milestone"*, and its `E-5` row says *"verify + records + close"*. 🔑 **The two are the same work written twice, and neither document cites the other** — Leg E's Phase-0 was written against §6's *Leg E row* and never read §6's *next row*. 🛑 **`P1`'s species at MILESTONE scale, the FOURTH instance in this arc** after `E-0` (a row describing shipped work), `E-4` (a row with no content) and `F1` (a ROADMAP `Owes:` contradicting its own Phase-0). ⚠️ **And the session kickoff inherited the wrong one** — its *"after E-5 the milestone CLOSES"* is true only once `F` is disposed of; **the kickoff's own instruction to audit its own claims fired on the kickoff.** ⇒ routed to Joe as `§4 ①` with a recommendation (absorb `F` into `E-5`, ID kept, the `E-4` precedent), **not taken**, because J-710 already established that a locked leg table goes to Joe rather than being edited.
+
+### 🛑 F1 — THE MILESTONE HAS NO DEFINITION-OF-DONE SECTION, AND ITS LEG TABLE IS NOT A STATE BOARD
+Measured across `M_RP_MEMBER_ACT_PHASE0.md` v1.12 in full: no `DoD`, no acceptance section — §6's leg table is the only candidate. 🛑 **Of its eight rows exactly TWO carry a state** (leg `0` ✅, leg `D` ⏸️); `A` · `B` · `C` · `C-bis` · `E` · `F` carry none, **while `A` through `C-bis` have all shipped and closed.** ⇒ ***the document that owns this milestone's acceptance cannot be read to tell you whether it is accepted.*** **No DoD was invented**; `E-5` reconciles §6 in place and that reconciliation IS the acceptance record.
+
+### 🛑 F4 — THE ONE THING NO LEG TESTED: THE `DEFAULT_LAYOUT` PATH HAS NEVER RUN
+Every live measurement in the arc — `E-1`, `E-2b`, `E-3b` — ran on **Joe's arranged 9-leaf tree**, where `spaces`' parent split runs `col` and `insertBeside` takes the **SIBLING** branch. **The other branch has never executed.** 🔑 **And the certifying sentence hides it:** `M_RP_MEMBER_ACT_LEG_E2_PHASE0.md:151` says *"under `DEFAULT_LAYOUT`, **verified from source**"* — a READ — while `RUNBOOK_MEMBER_ACT_LEG_E2.md:82` compresses both halves into *"NOW VERIFIED IN BOTH TREES BY MEASUREMENT"*, **which is true of Joe's tree (driven at J-724) and false of `DEFAULT_LAYOUT`.** ***A claim narrower than the thing it describes, reused as if complete — the arc's own species, found inside the sentence that certifies the leg.*** **The unrun path end to end:** no `session.layout` ⇒ `loadLayout` returns `DEFAULT_LAYOUT` (8 leaves, no home) ⇒ the single-exit re-inject fires on the **WRAP** branch ⇒ `[spaces, dm-spaces]` in a new `col` split ⇒ **and `E-3`'s R1 filter then runs against a `spaces` tile of a shape nothing has ever painted.** 📌 **Three cheaper routes checked and all three fail** — `DEFAULT_LAYOUT` is a module import and not on `window`; `revert()` returns the persisted tree, not the default; `:895` is a different call site with its own `migrateLayout`. ⇒ **driving it needs a client with no `xgen-client_uistate.json`, which is JOE'S DISK** — consent his, cleanup owed, and the cleanup is part of the probe (`N-123`). Routed as `§4 ②`, **recommendation M1: drive it, with a COPY rather than a move**, because this path is what every new user sees on first launch.
+
+### 🛑 F5 — LEG `D`'s ⏸️ MAKES `R-2` UNSATISFIABLE, AND THAT BLOCKS THE CLOSE
+ROADMAP's own rule `R-2`: *"a container's status is derived from its children … **a milestone with unfinished children is not done**."* Leg `D` is ⏸️ POSTPONED since J-710 behind a **checkable** trigger whose nearest candidate is `M-RP-BLOCK` — itself *"trigger: none — filed, not scheduled."* ⇒ 🛑 **as structured today `M-RP-MEMBER-ACT` cannot go ✅ at all**, indefinitely. Routed as `§4 ③`, **recommendation N2: re-home Leg `D` to `M-RP-BLOCK` as that milestone's child**, since J-710 already established it has nothing honest to build here and its content only becomes buildable inside the milestone that mints the verb.
+
+### 🛑 F6 — A DISCHARGER WRITTEN ON ONE SIDE ONLY, AND IT IS AN "OR"
+`ROADMAP.md:320` records `E-1`'s carry-out — the DM rows show pure `tail8` on a cold client until a Space is latched — with *"discharger `M-RP-STARTUP` **or** an eager book fill."* **Measured at `ROADMAP.md:326`: `M-RP-STARTUP`'s own `Owes:` carries five items and NONE of them is this one.** ⇒ ROADMAP's own rule is breached — *a cross-milestone gate is written on both sides or it goes stale invisibly on one* — **and an "or" names two candidates while committing to neither.** `E-5.4` writes the second side, or the carry-out dies with this milestone.
+
+### 🛑 F7 — `M-RP-INTRO`'s TRIGGER FIRED AT J-716 AND IT STILL HAS NO PHASE-0
+Its node is 🟡 with `↳ trigger: Leg C-bis lands`, and Leg C-bis closed at J-716. ROADMAP: *"a trigger that has fired is a defect: the node it guards is stale by definition."* **By a wide margin the oldest outstanding item in the arc, and it has now survived an entire milestone.** ⚠️ **Not `E-5`'s to build** — `E-5`'s obligation is that it does not survive the close *unnoticed*, because the close is the last moment anyone is looking at this milestone.
+
+### 📌 ALSO IN THE PHASE-0
+**`F3`** — `E-5` is **not** a fourth verify pass: `E-1` (V1–V8), `E-2` (seven gates, `V3` honestly undriven) and `E-3` (ten gates, zero undriven) each verified themselves under Rule 5, and `E-3`'s `V7` discharged `E-2`'s `V3`; the word *verify* is legitimate only for `F4`. **`F8`** — the carry-out ledger, nine rows, each needing a named home before J-715's `Owes:` reduction. **`F9`** — J-729's missing pass (*can each gate be RUN, in the order written, from the seat that owns it?*) is made binding on `E-5`'s runbook if it has gates, with Clair's read pointed at the gates first and cold. **`F10`** — the pre-change-control rule is inert for a records-only leg **and stops being inert the moment `F4`'s probe is taken.**
+
+### ✅ STATE, MEASURED AT OPEN RATHER THAN INHERITED
+Tree **CLEAN**, `HEAD` `0860097` **= `origin/main` by `ls-remote`**, not the tracking ref. 🛑 **The kickoff did not say whether the apps were up: measured, CLIENT 9222 is UP, node 9322 and sampler 9422 are DOWN.** Floors stated, not re-run (reads only): `svelte-check` **0/34/15** · catalogue **435**. 🛑 **`cargo` is NOT a floor for Leg E** — zero `.rs` in the arc, so an identical result is a scope argument. 🛑 **No registry number carried**: the last measured **178** belongs to a stated screen (7 Spaces / 3 DMs / home mounted / 0 saved UI states / nothing folded / no selection) and `N-184`, `N-190` and `N-194` between them make it unusable as a floor.
+
+🔒 **`D-074` HONOURED HERE DELIBERATELY.** This arc breached it twice — documents-only commits at J-722 and again at J-727, the second time in the shape the first entry had already named. **The Phase-0, this entry, the PLAY head and the ROADMAP node travel in ONE commit.**
+
+🎯 **NEXT: Clair's adversarial read of this Phase-0 (`§2` and `§4` first), then Joe rules `§4` ① ② ③.** → J-730 · ROADMAP v7.17. **No new `D`, no new `N`.**
 
 ## Entry J-729 — E-3 ships; the read caught the gates that could not fail, and verify caught the gates that could not be run
 **Date:** 2026-08-13 · **Seats:** Clair (`E-3a` build) · Chat (Rule-5 re-drive, `E-3b` live verify, records) · Joe (the lock). Runbook **v1.2 → v1.3 COMPLETED** · Phase-0 **v1.2 → v1.3 COMPLETED** · ROADMAP v7.15 → **v7.16**. **CODE: 2 files, +21/−4, zero `.rs` (`01eacf5`).**

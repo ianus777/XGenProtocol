@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E-3 Runbook: the R1 filter (Clair)
-> **Status**: PENDING  
-> Version: 1.1  
+> **Status**: ACTIVE  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-13  
 > Language: English  
@@ -12,9 +12,9 @@
 
 ## §0 — SEAT, AND WHAT THIS LEG IS
 
-🛑 **NOT LOCKED. DO NOT IMPLEMENT YET.** ✅ **CLAIR'S ADVERSARIAL READ RAN 2026-08-13 — brief `tasks/CLAIR_LEG_E3_RUNBOOK_READ.md`, verdict LOCKABLE WITH TWO NAMED VERIFY CHANGES + wording; swept into this v1.1, every claim re-driven by Chat (Rule 5).** 🔑 **THE BUILD SURVIVED AND BOTH PLAN-MOVERS WERE GATE DEFECTS — AGAIN, AND THEY WERE FOUND BECAUSE THE READ HIT `§5` FIRST.** *`PM-1`: `V7` could not fail. `PM-2`: `§7.1` claimed `F1` was ungated and it is not — `V6` IS the discriminator.* **Nothing further is owed before Joe locks.**
+🔒 **LOCKED BY JOE 2026-08-13 (*"locked"*). CLAIR MAY IMPLEMENT `E-3a`.** ✅ **CLAIR'S ADVERSARIAL READ RAN 2026-08-13 — brief `tasks/CLAIR_LEG_E3_RUNBOOK_READ.md`, verdict LOCKABLE WITH TWO NAMED VERIFY CHANGES + wording; swept at v1.1, every claim re-driven by Chat (Rule 5).** 🔑 **THE BUILD SURVIVED AND BOTH PLAN-MOVERS WERE GATE DEFECTS — FOUND BECAUSE THE READ HIT `§5` FIRST.** *`PM-1`: `V7` could not fail. `PM-2`: `§7.1` claimed `F1` was ungated and it is not — `V6` IS the discriminator.* 📌 **Locked WITH an adversarial read behind it, and its `§5` rebuilt afterwards.**
 
-**You are CLAIR — Code Claude.** You implement **once Joe locks it**. **You never push.** Deviations are **reported under Rule 6, never absorbed** — *an implementer who silently absorbs a bad instruction ships the architect's mistake.*
+**You are CLAIR — Code Claude.** **Joe has LOCKED this runbook; you may implement `E-3a`.** **You never push.** Deviations are **reported under Rule 6, never absorbed** — *an implementer who silently absorbs a bad instruction ships the architect's mistake.*
 
 **E-3 removes DM Spaces from R1's RENDER. It does NOT touch the store** — and `F3` is why that is a lock, not a preference. It does not build anything new; `E-1` gave DMs a home and `E-2` guarantees that home is placed.
 

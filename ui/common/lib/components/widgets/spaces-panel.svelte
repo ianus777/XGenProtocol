@@ -26,7 +26,7 @@
   // `resolveLatched`/`canSend` both read `spacesState`. R2 still lists the DM's rooms (its scope is the same
   // latch), so a DM shows a one-row `dm` column with R1 dark — "A tells you where you are".
   import { envelope } from '$common/components/base/envelope';
-  import { spacesState, type KnownSpace } from '$common/stores/spaces-state.svelte';
+  import { spacesState, isDmSpace, type KnownSpace } from '$common/stores/spaces-state.svelte';
   import { selection } from '$common/stores/selection.svelte';
   import { spaceLatch } from '$common/stores/space-latch.svelte';
   import type { EntityDescriptor } from '$core/components/data-dependent/types';
@@ -45,9 +45,19 @@
   }
 
   const spaces = $derived(spacesState.spaces);
+
+  // E-3 (OQ3 = A3, Joe J-709): DM Spaces leave R1's RENDER — but ONLY the render. `visible` is the rendered set
+  // (non-DM Spaces); `spaces` stays the FULL set. Both are used deliberately: `visible` feeds `items` and the
+  // aggregate getter (LOCK 2/F2); `spaces` still feeds `selected` (C-bis-6 needs a DM PRESENT to recognise and
+  // suppress it — filtering here would invert the guard, LOCK 1/F1) and `onActivate`. The store itself is NEVER
+  // filtered (F3) — a store-side filter would break the DM home, both latches, `canSend` and member activation.
+  // Complement of `dm-spaces` via the shared `isDmSpace` export, so R1 and the DM home can never disagree about
+  // one Space (D-067).
+  const visible = $derived(spaces.filter((s) => !isDmSpace(s)));
+
   // v1: only the descriptor is fed. `secondary`/`meta` ship UNFED (D6/D-065) — no faked topic / last-message
   // / unread (the read-marker gap has no protocol mechanism yet).
-  const items = $derived(spaces.map((s) => ({ descriptor: toDescriptor(s) })));
+  const items = $derived(visible.map((s) => ({ descriptor: toDescriptor(s) })));
 
   // Highlight from the LIFTED latch (C-1, D-146), not the bus. The latch holds the last `space` selection, so
   // a later room/identity selection KEEPS the Space lit (D4 opt-2). `latchedSpaceId` is `string | null`; the
@@ -68,10 +78,12 @@
   }
 
   // Aggregate getter G (W-4): what the panel owns. Names/ids ride each row's own getter (no republish, N-060).
+  // `count`/`hasEmpty` follow the RENDER (`visible`), not the store — after E-3 the panel owns the visible rows,
+  // so an unfiltered getter would report 7 while 4 render (F2 — the primary verify surface must not lie).
   const debug = () => ({
-    count: spaces.length,
+    count: visible.length,
     selectedId: selected ?? null,
-    hasEmpty: spaces.length === 0,
+    hasEmpty: visible.length === 0,
   });
 </script>
 

@@ -397,6 +397,11 @@
       // the reactive reassignment fires. Dead-code-eliminated in a release build, as `set` already is.
       move(sourceId, targetId, edge) { handleMove(sourceId, targetId, edge); },
       fold(regionId, collapsed) { handleFold(regionId, collapsed); },
+      // M-RP-MEMBER-ACT E-3 (J-726 discharger) — `layout.revert` is a LIVE command with no interactive element
+      // (J-500), so File▸Revert had no reachable route and E-2's V3 went undriven. Delegate to the SHIPPED
+      // handler (the same function `commandTable['layout.revert']` resolves to), so the bridge and the command
+      // are ONE path, never two. `handleRevertUi` is async — return its promise so a driver can await it.
+      revert() { return handleRevertUi(); },
       // M-RP-PLATE (V5) — feed the background socket a bad/empty mount list to exercise the W-13 drop
       // (an unknown widgetId lowers `backgroundMountCount` to 0, no crash); restore to bring the plate back.
       get background() { return background; },

@@ -8,6 +8,43 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-728 — the read runs §5 first and finds two gate defects; one of them says the central lock IS testable
+**Date:** 2026-08-13 · **Seats:** Clair (adversarial read) · Chat (Rule-5 re-drive, the sweep, records) · Joe. Brief `tasks/CLAIR_LEG_E3_RUNBOOK_READ.md` v1.0 · runbook **v1.0 → v1.1** · Phase-0 **v1.1 → v1.2** · ROADMAP v7.14 → **v7.15**. **NO CODE.**
+
+✅ **VERDICT: LOCKABLE WITH TWO NAMED VERIFY CHANGES + wording.** The `E-3a` build survived intact — every `§1` pointer exact at `6d9ed5d`, `F1`/`F2`/`F3` all hold against source, the `visible`/`spaces` split **justified, not over-shaped**. 🔑 **BOTH PLAN-MOVERS WERE GATE DEFECTS. THE THIRD CONSECUTIVE LEG WHERE THAT IS TRUE, AND ALL OF THEM WERE CHAT'S.**
+
+### 🛑 `PM-1` — `V7` COULD NOT FAIL, AND IT WAS THE ONLY REASON THE SECOND FILE IS OPEN
+`V7` asserted *"`dm-spaces` present after `revert()`"*. But **`loadLayout` re-injects UNCONDITIONALLY at its single exit (`layout-default.ts:193`)** and `P-1` never persists ⇒ **the home is present whether `revert()` ran or not.**
+
+🔑 ***E-2's `PM-1` shape, one leg later, written by the same seat*** — and worse than a wasted gate: **`V7`'s entire job was to discharge `E-2`'s undriven `V3`, which is the whole justification for `§3.3` opening `app_client.svelte` at all.** A gate that cannot fail would have **retired a debt it never paid**, and the record would have said `V3` was closed.
+
+✅ **SWEPT: `V7` is now a TRANSITION.** ① record the on-disk `session.layout` SHA · ② `set(<a visibly different tree>)` — bare reassignment at `:394`, **does not persist** · ③ **CONFIRM the grid actually changed** — *the control; without it ④ proves nothing* · ④ `await revert()` · ⑤ live tree restored, on-disk SHA unchanged.
+
+📌 **Clair's one open caveat — *"I did not exhaustively prove no `$effect` persists on a bare `set`"* — CLOSED BY MEASUREMENT, not by assumption:** `app_client.svelte` has **five** `$effect`s (`:128` backdrop · `:145` gaps · `:172` ready · `:205` selection · `:221` members) and **none touches `layout`**; all seven `setSessionLayout` calls are gesture handlers. ⇒ `set` is safe as the staging vehicle.
+
+### ✅ `PM-2` — THE RUNBOOK SAID THE CENTRAL LOCK WAS UNGATED. IT IS NOT, AND `V6` IS THE GATE
+`§7.1` claimed: *"`V6` cannot distinguish the two guards once both hold, so if `F1` is wrong, no gate here would catch it."* 🛑 **FALSE — and it was the most load-bearing sentence in the document.**
+
+**Traced against `:58-63` and `:73`, re-driven by Chat:** `selected` depends **only** on `spaceLatch` and `spaces` — **never on rendering** ⇒ with a DM latched, `debug().selectedId` is **`null` iff `F1` is honoured** (the DM resolves, `counterpart != null`, suppressed) and **the DM's raw id iff `:47` was naively filtered** (the DM does not resolve, `s?.counterpart != null` is **false**, raw id returned). **`V6` reads `selectedId`. It IS the `F1` discriminator.**
+
+🔑 ***The author conflated the doubly-caused PAINT with the singly-caused GETTER VALUE.*** ⚠️ **And the mechanism was written in a comment TWO LINES ABOVE the code he reasoned about** — `:56-57`: *"A stale id that no longer resolves in `spaces` keeps highlighting the raw id, exactly as before (undefined `s` → not suppressed)."* **`N-180` at arm's length: the source was read; the comment ON it was not.** ✅ **`§7.1` RETRACTED, NOT HEDGED (`D-111`). `F1` is GATED, and `V6` now names BOTH expected outcomes in advance so a third is a Rule 6 report.**
+
+### 📌 THE FIVE WORDING SHARPENINGS, ALL LANDED
+**① `V0`/`V1` must anchor on the RENDER, not the store** — 🔑 *`F3` keeps DMs in `spacesState` BY DESIGN, so a store-anchored probe reads them present after the filter too and looks like **failure against correct code***. **② `V8`'s "enumerated" = NAMING THE SIX REMOVED IDS**, not watching a total fall by six — **if the six named are not the six that left, the gate FAILS even at −6.** **③ `V4` must confirm the latched Space is a REAL DM** before asserting anything about it. **④ `§3.1`'s code block showed ONLY the `visible` line** — an implementer could have added it and left `items` and the getter on `spaces`, **which is exactly `F2`'s failure**; all three edits are now shown together, with `selected`/`onActivate` deliberately absent. **⑤ `spaceLatch` has no direct bridge** — read it through a consumer or drop the clause; ***do not name a reading you cannot take.*** ✅ Her brief item ⑥ came back clean: **no fourth `insertLeaf`-class unreachable command ships.**
+
+### 🔑 THE STANDING LESSON, NOW THREE LEGS DEEP
+**`E-2`: `PM-1` (a probe that could not fail) + `Q2` (a control asserting absence from a value it never printed). `E-3`: `V7` (a probe that could not fail) + `§7.1` (a false claim that the central lock was ungated).** 🔑 ***Four gate defects, zero build defects, across two legs — and all four were the author's.*** ✅ **Reading `§5` FIRST, cold, before `§3` can frame it, is what surfaced both this time** — the inverted reading order was deliberate and it worked. 🔒 **KEEP IT: an adversarial read starts at the gates.**
+
+⚠️ **AND THE NEW SOFT SPOT IS NAMED: `V7`'s replacement route was written AFTER the read that fixed it, so NOBODY HAS ATTACKED IT.** Its `set`-safety rests on a **measured absence**, and *an absence is evidence, not proof*. **If step ③ shows no visible change, STOP AND REPORT** — do not proceed to ④ and call the restoration a pass.
+
+🔓 **STILL OWED BEFORE `E-3a`: nothing but Joe's lock.**
+
+**FLOORS UNTOUCHED, NOT RE-MEASURED** (documents only): `svelte-check` **0/34/15** · catalogue **435**. 🛑 **`cargo` is NOT a floor.** 🛑 **No registry number carried.** **No new `D`, no new `N`.**
+
+🎯 **NEXT: Joe locks `RUNBOOK_MEMBER_ACT_LEG_E3.md` v1.1 → `E-3a`.** → J-728 · ROADMAP v7.15.
+
+---
+
 ## Entry J-727 — Leg E-3's Phase-0 and runbook land, and the "three readers" census turns out to be nine
 **Date:** 2026-08-13 · **Seats:** Chat (audit, Phase-0, runbook, records) · Joe (both rulings, delegated). Phase-0 `tasks/M_RP_MEMBER_ACT_LEG_E3_PHASE0.md` **v1.1 ACTIVE** · runbook `tasks/RUNBOOK_MEMBER_ACT_LEG_E3.md` **v1.0 PENDING, deliberately NOT LOCKED** · ROADMAP v7.13 → **v7.14**. **NO CODE. Commits `f684242` + this one.**
 

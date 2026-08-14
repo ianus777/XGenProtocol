@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E-3 Runbook: the R1 filter (Clair)
 > **Status**: PENDING  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-13  
 > Language: English  
@@ -12,7 +12,7 @@
 
 ## §0 — SEAT, AND WHAT THIS LEG IS
 
-🛑 **NOT LOCKED. DO NOT IMPLEMENT YET.** Owed before Joe locks: **an adversarial read by Clair, pointed at `§5` FIRST.** 🔑 *At `E-2` the BUILD survived both reads and the VERIFY half was still wrong twice — `PM-1` (a probe that could not fail) and `Q2` (a control that asserted absence from a value it never printed). **Attack the gates before the code.***
+🛑 **NOT LOCKED. DO NOT IMPLEMENT YET.** ✅ **CLAIR'S ADVERSARIAL READ RAN 2026-08-13 — brief `tasks/CLAIR_LEG_E3_RUNBOOK_READ.md`, verdict LOCKABLE WITH TWO NAMED VERIFY CHANGES + wording; swept into this v1.1, every claim re-driven by Chat (Rule 5).** 🔑 **THE BUILD SURVIVED AND BOTH PLAN-MOVERS WERE GATE DEFECTS — AGAIN, AND THEY WERE FOUND BECAUSE THE READ HIT `§5` FIRST.** *`PM-1`: `V7` could not fail. `PM-2`: `§7.1` claimed `F1` was ungated and it is not — `V6` IS the discriminator.* **Nothing further is owed before Joe locks.**
 
 **You are CLAIR — Code Claude.** You implement **once Joe locks it**. **You never push.** Deviations are **reported under Rule 6, never absorbed** — *an implementer who silently absorbs a bad instruction ships the architect's mistake.*
 
@@ -72,7 +72,19 @@ Add ONE derived beside `:47`, and feed it to the render list and the getter ONLY
 // E-3 (OQ3 = A3, Joe J-709): DM Spaces leave R1's RENDER. `visible` is the rendered set; `spaces` stays the
 // FULL set and both are used deliberately — see the two locks below. The store is never filtered (F3).
 const visible = $derived(spaces.filter((s) => !isDmSpace(s)));
+
+// :50 — the render list is the ONLY consumer that switches
+const items = $derived(visible.map((s) => ({ descriptor: toDescriptor(s) })));
+
+// :71-75 — the aggregate getter follows the RENDER, not the store (LOCK 2)
+const debug = () => ({
+  count: visible.length,
+  selectedId: selected ?? null,
+  hasEmpty: visible.length === 0,
+});
 ```
+
+📌 **All three edits are shown together deliberately** — v1.0 showed only the `visible` line, and an implementer could have added it while leaving `items` and the getter on `spaces`, which is exactly `F2`'s failure. **`selected` and `onActivate` are ABSENT from this block because they must NOT change.**
 
 🔒 **LOCK 1 — `items` FILTERS; `selected` AND `onActivate` DO NOT (`F1`).**
 
@@ -128,15 +140,15 @@ revert() { return handleRevertUi(); },
 
 | # | check | how |
 |---|---|---|
-| **V0** | 🔒 **THE POSITIVE CONTROL, RUN FIRST, ON THE PRE-E-3a BUILD** | **PRINT the id of a DM row rendered IN R1.** ⚠️ **Without this, every later "absent" reading is worthless.** Record the ids of all three. |
-| **V1** | R1 drops the DM rows | R1 getter `count` **7 → 4**; the three V0 ids are **absent** from R1's rendered rows — **matched against the ids V0 printed**, not against a fresh guess |
+| **V0** | 🔒 **THE POSITIVE CONTROL, RUN FIRST, ON THE PRE-E-3a BUILD** | **PRINT the ids of the DM rows RENDERED IN R1** — read them from R1's **rendered rows**, never from `spacesState`. 🛑 **`F3` KEEPS DMs IN THE STORE, so a store-anchored probe reads them present AFTER the filter too and looks like failure against correct code.** ⚠️ **Without V0, every later "absent" reading is worthless.** Record all three ids. |
+| **V1** | R1 drops the DM rows | R1 getter `count` **7 → 4**; the three V0 ids are **absent from R1's RENDERED ROWS** — **matched against the ids V0 printed**, not a fresh guess. 🛑 **ANCHOR ON THE RENDER, NOT THE STORE** — the DMs are still in `spacesState` and must be (`F3`) |
 | **V2** | the getter does not lie (`F2`) | `count` **equals the painted row count**; read BOTH the getter and the DOM |
 | **V3** | the DM home is unaffected | DM home getter still `{count: 3}`; the three DMs still listed and still openable |
-| **V4** | 🔒 **the store was NOT filtered (`F3`)** | latch a DM from the home → `roomLatch.effectiveRoomId` resolves · `spaceLatch` resolves · **`canSend` true**. *This is what proves the filter is a render filter.* |
+| **V4** | 🔒 **the store was NOT filtered (`F3`)** | latch a **REAL DM — confirm `counterpart != null` on the latched Space before asserting anything** → `roomLatch.effectiveRoomId` resolves · **`canSend` true**. 📌 **`spaceLatch` has NO direct bridge** — read it through a consumer (R2's rooms populate) or drop the clause; **do not name a reading you cannot take.** *This is what proves the filter is a RENDER filter.* |
 | **V5** | the complement, BOTH directions (the E-1 `V5` precedent) | click a non-DM Space → **R1 lights exactly one row**; open a DM from the home → **R1 unlit**, DM home lit |
-| **V6** | C-bis-6's suppression still holds (`F1`) | with a DM latched, R1's `selectedId` is **null** — and say plainly that it is now **doubly guarded**, so this gate cannot distinguish the two guards |
-| **V7** | `revert()` works — **discharges E-2's `V3`** | `__XGEN_LAYOUT__.revert()` → the grid re-reads disk, **`dm-spaces` still present**, `session.layout` on disk **unchanged** (`P-1`) |
-| **V8** | registry transition | before → after, **ENUMERATED, not derived**. `F4` predicts **−6** (3 rows × `N-184`'s two entities) — **a hypothesis to TEST; a number derived by arithmetic does not enter the record until it has been seen** |
+| **V6** | 🔒 **THE `F1` DISCRIMINATOR — THIS IS THE GATE THAT PROVES LOCK 1 (`PM-2`, Clair)** | Latch a **REAL DM**, then read `spaces-panel#region-spaces`'s **`selectedId`**. 🔑 **`selected` (`:58-63`) has NO dependency on rendering — only on `spaceLatch` and `spaces` — so the GETTER VALUE is SINGLY caused even though the PAINT is doubly caused.** ⇒ **`selectedId: null` iff `F1` is honoured** (the DM resolves, `counterpart != null`, suppressed) · **`selectedId: <the DM's id>` iff `:47` was naively filtered** (the DM does not resolve, `s?.counterpart != null` is **false**, the raw id is returned). **Both outcomes are named in advance; a third is a Rule 6 report.** |
+| **V7** | 🔒 **`revert()` — A TRANSITION, NOT A STATE. DISCHARGES E-2's `V3` (`PM-1`, Clair)** | 🛑 **DO NOT ASSERT "`dm-spaces` present after revert" — THAT CANNOT FAIL.** `loadLayout` re-injects unconditionally at its single exit (`layout-default.ts:193`) and `P-1` never persists, so the home is present **whether `revert()` ran or not**. 🔒 **Drive a transition instead:** ① read `session.layout` off disk and record its SHA · ② `__XGEN_LAYOUT__.set(<a visibly different tree — e.g. one leaf folded or an edge weight moved>)` — `set` is a bare reassignment (`:394`), **it does NOT persist** · ③ **CONFIRM the live grid actually changed** (this is the control — without it ④ proves nothing) · ④ `await __XGEN_LAYOUT__.revert()` · ⑤ the live tree is **restored to the disk tree**, and the on-disk SHA is **unchanged**. 📌 **No `$effect` persists `layout`** — measured: all five effects (`:128`/`:145`/`:172`/`:205`/`:221`) and all seven `setSessionLayout` calls are **gesture handlers** ⇒ `set` is safe as the staging vehicle. **NO grid gesture during ②–⑤.** |
+| **V8** | registry transition | before → after, **ENUMERATED, not derived** — **"enumerated" means NAMING THE SIX REMOVED IDS**, not observing that a total fell by six. `F4` predicts **−6** (3 rows × `N-184`'s two entities) — 🛑 **a hypothesis to TEST. A coincidental match must not pass: if the six ids you name are not the six that left, the gate FAILS even at −6** (`N-194` — a prediction and an observation once agreed with no mechanism in common) |
 | **V9** | floors | `svelte-check` **0/34/15** · catalogue **435 BY SCOPE** (zero `ui/core`) · **no `cargo` claim** |
 
 🔑 **`N-194`, BINDING ON EVERY GATE: A PROBE MUST BE ABLE TO DEMONSTRATE SUCCESS, NOT MERELY THE ABSENCE OF FAILURE.** Before reporting any gate FAILED, ask **what this read would return if the code were RIGHT.** Same answer ⇒ **the probe is wrong.** ⚠️ *At E-2, a control read the wrong KEY and returned nothing — and only survived as a finding because the step printed its values instead of asserting absence.* **Print what you find; do not assert what you don't.**
@@ -153,8 +165,8 @@ revert() { return handleRevertUi(); },
 - [ ] 🔒 `debug().count` **and** `hasEmpty` read `visible` (`F2`)
 - [ ] `revert()` on `__XGEN_LAYOUT__`, **delegating to `handleRevertUi`**, returning its promise
 - [ ] **zero store change · zero `ui/core` · zero `.rs` · zero `skin.css` · no component `<style>`**
-- [ ] **V0 run FIRST and its ids recorded** — an empty result with no control is not a pass
-- [ ] **V1–V9 driven, each with its screen stated**; V8 **enumerated**, the −6 tested not assumed
+- [ ] **V0 run FIRST, ANCHORED ON R1's RENDERED ROWS (never the store), and its three ids recorded** — an empty result with no control is not a pass
+- [ ] **V1–V9 driven, each with its screen stated**; **`V6` reports which of its two named `selectedId` outcomes it saw**; **`V7` shows the transition, not the state**; **V8 NAMES THE SIX REMOVED IDS**
 - [ ] `svelte-check` 0/34/15 · catalogue 435 by scope · **no `cargo` claim made**
 - [ ] deviations reported (Rule 6)
 - [ ] 🔓 hand-back names anything the filter makes visually odd — **Joe's, `S-a` ships silent, no hint text**
@@ -163,8 +175,9 @@ revert() { return handleRevertUi(); },
 
 ## §7 — WHERE THIS RUNBOOK IS MOST LIKELY WRONG
 
-1. 🛑 **`F1` IS REASONED FROM SOURCE, NOT DRIVEN.** That filtering at `:47` would invert C-bis-6's suppression follows from reading `:58-63`; **it has not been observed.** The entire two-name design rests on it. **Attack it first** — and note `V6` **cannot** distinguish the two guards once both hold, so if `F1` is wrong, no gate here would catch it.
+1. ✅ ~~**`F1` IS REASONED FROM SOURCE, NOT DRIVEN — and `V6` cannot distinguish the two guards, so if `F1` is wrong no gate here would catch it.**~~ 🛑 **RETRACTED, NOT HEDGED (`D-111`), BY CLAIR'S `PM-2` — THE CLAIM WAS FALSE AND IT WAS THE MOST LOAD-BEARING SENTENCE IN THE DOCUMENT.** `V6` **IS** the `F1` discriminator: `selected` (`:58-63`) depends only on `spaceLatch` and `spaces`, **never on rendering**, so `debug().selectedId` (`:73`) is **singly caused** — `null` iff `F1` is honoured, **the DM's raw id** iff `:47` was naively filtered. 🔑 ***The author conflated the doubly-caused PAINT with the singly-caused GETTER VALUE*** — and the mechanism was written in a comment **two lines above** the code he reasoned about (`:56-57`: *"A stale id that no longer resolves in `spaces` keeps highlighting the raw id… (undefined `s` → not suppressed)"*). **`N-180` at arm's length: the source was read, the comment ON it was not.** ✅ **`F1` is now GATED. `V6` is the gate.**
 2. **`F4`'s −6 is arithmetic.** `N-194`: a predicted number and an observed number once agreed with **no mechanism in common**.
 3. **`visible` vs `spaces` may read as over-shaped in a 40-line component.** The honest counter is `F1`: they serve **opposite purposes**. If it feels wrong while implementing, that is a Rule 6 report.
 4. **§3.3 widens the leg to two files for one line.** Ruled `R-a` deliberately — but a rider is a rider, and if it grows past one line **STOP AND REPORT** rather than absorbing it.
-5. **This runbook has not been read by anyone but its author.** ⚠️ *`E-2`'s two real defects were both in the VERIFY half and both were found by a reader, not by re-reading. **Point the read at §5 before §3.***
+5. ✅ ~~**This runbook has not been read by anyone but its author.**~~ **READ 2026-08-13 (Clair).** 🔑 **THE BUILD SURVIVED AND BOTH PLAN-MOVERS WERE GATE DEFECTS — THE THIRD CONSECUTIVE LEG WHERE THAT IS TRUE, AND ALL OF THEM WERE THE AUTHOR'S.** *`E-2`: `PM-1` a probe that could not fail, `Q2` a control asserting absence from a value it never printed. `E-3`: `V7` a probe that could not fail, `§7.1` a false claim that the central lock was ungated.* ✅ **Reading `§5` FIRST, cold, is what surfaced both** — the inversion was deliberate and it worked.
+6. 🛑 **AND THE REMAINING SOFT SPOT IS `V7`'s NEW ROUTE.** `§5`'s `V7` is now the newest text in the document and was written **after** the read that fixed it, so **nobody has attacked it.** Its `set`-safety rests on a measured absence (no `$effect` persists `layout`) — **an absence is evidence, not proof.** If step ③ shows no visible change, **STOP AND REPORT**; do not proceed to ④ and call the restoration a pass.

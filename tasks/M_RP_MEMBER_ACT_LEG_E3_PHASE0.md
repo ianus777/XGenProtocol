@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E-3: the R1 filter — Phase-0
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-13  
 > Language: English  
@@ -166,7 +166,7 @@ The wire · any protocol event · `xgen-core` · `xgen-node` · `xgen-common` ·
 
 ## §7 — WHERE THIS DOCUMENT IS MOST LIKELY WRONG
 
-1. 🛑 **`F1` is reasoned from source, not driven.** That filtering at `:47` inverts C-bis-6's suppression follows from reading `:58-63` — **it has not been observed**, and it is the finding the whole design rests on. **Attack it.**
+1. ✅ ~~**`F1` is reasoned from source, not driven.**~~ 🛑 **SUPERSEDED BY CLAIR'S `PM-2` (2026-08-13): the claim that `F1` was UNGATED was FALSE, and it was the most load-bearing sentence in the runbook.** `V6` **IS** the discriminator — `selected` (`:58-63`) depends only on `spaceLatch` and `spaces`, **never on rendering**, so `debug().selectedId` is **singly caused**: `null` iff `F1` is honoured, **the DM's raw id** iff `:47` was naively filtered. 🔑 ***The doubly-caused PAINT was conflated with the singly-caused GETTER VALUE*** — and the mechanism sat in a comment **two lines above** the code being reasoned about (`:56-57`). **`N-180` at arm's length.** ✅ **`F1` is GATED.**
 2. **`F4`'s −6 is arithmetic.** `N-194` says a predicted number and an observed number once agreed with **no mechanism in common**. It is written as a hypothesis and must stay one until seen.
 3. **The `visible`/`spaces` split is two names for one list in a 40-line component** — it may read as over-shaped. The honest counter is `F1`: they are used for **opposite purposes**, and a single filtered handle silently breaks one of them.
 4. **§4 ① may be the wrong instinct.** Folding a bridge line into a filter leg widens a scope for tidiness, and this project has refused riders repeatedly. **It is offered as a recommendation precisely because it is arguable.**

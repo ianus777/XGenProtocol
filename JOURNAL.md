@@ -8,6 +8,39 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-729 — E-3 ships; the read caught the gates that could not fail, and verify caught the gates that could not be run
+**Date:** 2026-08-13 · **Seats:** Clair (`E-3a` build) · Chat (Rule-5 re-drive, `E-3b` live verify, records) · Joe (the lock). Runbook **v1.2 → v1.3 COMPLETED** · Phase-0 **v1.2 → v1.3 COMPLETED** · ROADMAP v7.15 → **v7.16**. **CODE: 2 files, +21/−4, zero `.rs` (`01eacf5`).**
+
+✅ **`M-RP-MEMBER-ACT` LEG E-3 IS DONE. DM Spaces are gone from R1's RENDER and present everywhere the store is read.** 🎯 **Only `E-5` remains, and it CLOSES THE MILESTONE.**
+
+### ✅ ALL TEN GATES GREEN, ZERO UNDRIVEN — AND TWO OF THEM MATTER MORE THAN THE REST
+**`V6` — the `F1` DISCRIMINATOR that Clair's `PM-2` created — FIRED THE RIGHT WAY.** With a real DM latched, R1's `selectedId` read **`null`**, the `F1`-honoured outcome of **two named in advance**; a naively-filtered `:47` would have returned the DM's raw id. 🔑 ***`LOCK 1` is now PROVEN, not reasoned*** — and one leg ago the runbook claimed no gate could test it.
+
+**`V7` — the transition Clair's `PM-1` forced — DISCHARGED `E-2`'s UNDRIVEN `V3`.** On-disk SHA recorded → `set` moved `[1762,1396,842]` → `[500,500,3000]` → **the control fired: R1's tile went 760 px → 110 px** → `revert()` → **restored, 9 leaves, on-disk SHA unchanged**. 📌 *The old `V7` would have passed without `revert()` existing at all.*
+
+**The rest:** `V0` printed **3 DM row ids from R1's RENDERED DOM** · `V1` **7 → 4** with all three V0 ids absent, **matched against what V0 printed** · `V2` getter `4` **equals** painted `4` · `V3` DM home unchanged at 3 · `V4` real DM confirmed first, `roomLatch` resolves, R2 scoped, **`canSend: true`**, store still **7/3** · `V5` complement **both directions** · `V8` registry **184 → 178** with **the SIX NAMED ids gone** · `V9` `svelte-check` **0/34/15** re-run by Chat, catalogue **435 by scope**, no `cargo` claim.
+
+### 🔑 THE STANDING LESSON, AND IT IS NEW
+`§7` predicted its weak points and **named neither of the two defects verify actually found.** Both were `§5` defects, both Chat's, and **both survived an adversarial read that was explicitly pointed at `§5`:**
+
+**🛑 `V0`'s CAPTURE WINDOW.** `V0` must run on the **pre-E-3a build**, but it lives in the **verifier's** runbook — and `E-3a` was implemented, committed **and pushed** before verify began. Recovered by checking out `7f6ca4f` over the two files, capturing `V0`, then restoring `01eacf5` and confirming the tree clean. ⚠️ ***The recovery worked only because the tree happened to be clean and the commit was already pushed — neither is guaranteed.*** 📌 **Chat flagged the closing window one message earlier and did not insist; that sequencing is Chat's.** 🔒 **RULE: a control captured on a PRE-CHANGE build is a gate on the CHANGE, not on the verify — it belongs in the IMPLEMENTER'S kickoff.**
+
+**📌 `V4`'s UNLOCATED READING.** The gate named **`canSend`** without saying where to read it. It is **not** on `__XGEN_SEND__` (`send`·`ingest`·`clear`) — it is on `composer-panel#region-composer` → `state.canSend`. ⚠️ ***The SAME SPECIES as Clair's wording item ⑤ about `spaceLatch`, in the SAME GATE, and neither seat caught it.*** 🔑 **And the failure was silent: `JSON.stringify` DROPS an undefined key, so the first read came back with `canSend` simply ABSENT — an omission that reads like a value nobody asked for, not like a failed reading.**
+
+🔑 ***THE READ CAUGHT THE GATES THAT COULD NOT FAIL; VERIFY CAUGHT THE GATES THAT COULD NOT BE RUN.*** **Those are different failure modes, and only the second shows up when someone tries to EXECUTE the document.** ⇒ an adversarial read pointed at `§5` is necessary and **not sufficient**; the missing pass is *"can each gate be run, in the order written, from the seat that owns it?"*
+
+### ✅ CLAIR'S BUILD, RE-DRIVEN UNDER RULE 5 — EVERY CLAIM HELD
+Scope exactly two files · diffstat **+21/−4** · `spaces.find` at **`:71`/`:76`** ⇒ `selected` and `onActivate` **still unfiltered** (`LOCK 1`) · `count`/`hasEmpty` on `visible.length` at **`:84`/`:86`** (`LOCK 2`) · `items` on `visible.map` at `:60` · `revert()` delegating to `handleRevertUi` and **returning** its promise · `svelte-check` **0/34/15** re-run by Chat. 📌 **Her comment prose again runs well beyond the runbook's literal text, and that is CORRECT** — J-726's standing form: *a runbook's code block is a FLOOR for comments, not a ceiling.* Executable text verified byte-identical by diff.
+
+### ✅ JOE'S CLIENT RETURNED TO BASELINE AND SHOWN
+`session.layout` **`[1762,1396,842]`** · 9 leaves · `named: {}` · **SHA `107C118E…` byte-identical to the pre-V7 capture** · temp probe file removed · tree clean at `01eacf5` · **nothing sent, no DM minted** (`N-123`).
+
+**FLOORS:** `svelte-check` **0/34/15** · catalogue **435 BY SCOPE** (zero `ui/core`). 🛑 **`cargo` is NOT a floor for Leg E** — zero `.rs`. 🛑 **Registry 184 → 178 is ENUMERATED, not derived** — the six named ids, on a stated screen (`N-184`/`N-190`/`N-194`). **No new `D`, no new `N`.**
+
+🎯 **NEXT: `E-5` — the milestone close.** → J-729 · ROADMAP v7.16.
+
+---
+
 ## Entry J-728 — the read runs §5 first and finds two gate defects; one of them says the central lock IS testable
 **Date:** 2026-08-13 · **Seats:** Clair (adversarial read) · Chat (Rule-5 re-drive, the sweep, records) · Joe. Brief `tasks/CLAIR_LEG_E3_RUNBOOK_READ.md` v1.0 · runbook **v1.0 → v1.1** · Phase-0 **v1.1 → v1.2** · ROADMAP v7.14 → **v7.15**. **NO CODE.**
 

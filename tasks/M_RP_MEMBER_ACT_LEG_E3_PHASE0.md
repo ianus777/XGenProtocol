@@ -1,6 +1,6 @@
 # M-RP-MEMBER-ACT — Leg E-3: the R1 filter — Phase-0
-> **Status**: ACTIVE  
-> Version: 1.2  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-13  
 > Language: English  
@@ -11,6 +11,8 @@
 ---
 
 ## §0 — WHAT E-3 IS
+
+✅ **CLOSED 2026-08-13 (J-729). E-3 SHIPS: DM Spaces are gone from R1's RENDER and present everywhere the store is read.** `E-3a` built by Clair, `E-3b` driven by Chat (**all ten gates green, zero undriven**), `E-3c` records. 🔑 **`V7` also discharged `E-2`'s undriven `V3`.** 🎯 **NEXT: `E-5` — CLOSES THE MILESTONE.**
 
 **One sentence:** *DM Spaces leave R1 (OQ3 = A3, Joe's ruling at J-709) — and they leave the RENDER only, never the store.*
 
@@ -137,9 +139,9 @@ After E-3, R1 shows 4 Spaces and the DM home shows 3. A user who knew their DMs 
 
 | leg | what | floor | gated on |
 |---|---|---|---|
-| **E-3a** | the filter: `visible = spaces.filter((s) => !isDmSpace(s))` feeding **`items` + `debug().count` + `hasEmpty`**; `selected`/`onActivate` stay on the unfiltered list (`F1`/`F2`). **PLUS `revert()` on the `__XGEN_LAYOUT__` DEV bridge (① = `R-a`) ⇒ TWO FILES** | `svelte-check` **0/34/15** | ① ② ruled |
-| **E-3b** | drive it — **the positive control first** (§5.1) | `svelte-check` | E-3a |
-| **E-3c** | records (`D-074`) | — | E-3b |
+| **E-3a** | ✅ **DONE (Clair).** the filter: `visible = spaces.filter((s) => !isDmSpace(s))` feeding **`items` + `debug().count` + `hasEmpty`**; `selected`/`onActivate` stay on the unfiltered list (`F1`/`F2`). **PLUS `revert()` on the `__XGEN_LAYOUT__` DEV bridge (① = `R-a`) ⇒ TWO FILES.** 2 files, **+21/−4** | `svelte-check` **0/34/15** re-run by Chat | ① ② ruled |
+| **E-3b** | ✅ **DONE (Chat). ALL TEN GATES GREEN.** `V6` proved `LOCK 1` live (`selectedId: null`); `V7` drove the transition and **discharged `E-2`'s `V3`**; `V8` **named the six removed ids**; store untouched at 7/3 | `svelte-check` | E-3a |
+| **E-3c** | ✅ **DONE.** records — this Phase-0 → COMPLETED, runbook → COMPLETED, JOURNAL, `CLAUDE.md` PLAY, ROADMAP | — | E-3b |
 
 ### 5.1 — THE VERIFY'S ONE HARD REQUIREMENT
 

@@ -1,6 +1,6 @@
 # M-RP-INTRO Phase-0 — the DM welcome intro: the surface was ruled, the payload never was
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-15  
 > Language: EN  
@@ -77,6 +77,8 @@ taste**, and `I1`/`I2` survive the audit intact. 🛑 **WHAT J-701 NEVER DID WAS
 | **G-4c** | 🔑 **BOTH `content` AND `meta_atts` ARE INSIDE `EVENT_FIELD_ORDER` ⇒ BOTH ARE CANONICALISED, SIGNED, AND CONTRIBUTE TO `event_id`** | `xgen-common/src/canonical.rs:26-36`; nested objects sorted lexicographically and recursively, `:13` | ✅ **There is NO integrity gap on either surface.** An additive key is covered by the signature wherever it lands — which is why the choice between them is a *semantic* question, not a security one |
 | **G-4d** | 🔑 **`meta_atts` ALREADY HAS A NAMESPACE SPEC AND `content` HAS NONE** — `xgen.*` reserved for protocol, third-party keys reverse-domain, lowercase snake_case, max 128 chars, **and "values are strings; structured values are JSON-encoded strings, NOT nested objects"** | spec 3.1.3, `CLAUDE.md:1241-1249`; live precedent `xgen.room_temperature` / `xgen.member_temperature` at `xgen-common/src/wire.rs:617`, `:621`, asserted by `meta_atts_keys_are_reserved_xgen_namespace` (`types.rs:1766`) | 🛑 **THE ROW THAT OPENS §3.1.** `meta_atts` is a *governed* surface; `content` is a *free* one |
 | **G-4e** | ⚠️ **`meta_atts` IS `None` AT EVERY PRODUCER SITE MEASURED** — 26 hits repo-wide, and every construction site writes `None` or `"{}"` | `state_machine.rs:271`, `events_pipe.rs:276`/`:369`, `fanout.rs:2047`, `wire.rs:522`, `admin_ops.rs:626`/`:4141`/`:4634`, `audit.rs` (a SQLite column, a different object) | ⇒ **the reserved temperature keys are DECLARED and, at these sites, never written.** An intro would be **the first thing the client ever puts in `meta_atts`** — an unfed branch becoming fed (`N-091`), which is a cost to name, not a blocker |
+| **G-4f** | ✅ **THE PARTITION IS CLOSED BY PREDICATE, NOT BY SUSPECT LIST: `Event` HAS EXACTLY TWO FREE-FORM `Value` FIELDS AND NO THIRD.** Walked all ten fields: eight are `String` / `Vec` / flavour-typed XGID / `EventType`; only `content` and `meta_atts` are `Value` | `xgen-common/src/wire.rs:475-493` | 🔑 **§3.1's d1-vs-d2 IS A PARTITION AND NOT A CENSUS.** *Checked because §9 named a missing option as this file's likeliest defect and §3.1 had just proved that concern correct one level down — not because a third surface was suspected.* 🛑 `event_id` and `signature` are excluded from `EVENT_FIELD_ORDER` **by design** (they are derived FROM the canonical bytes) and are not additive surfaces |
+| **G-4g** | 🔑 **AN UNKNOWN KEY INSIDE `content` IS CANONICALISED AND SIGNED — PROVEN AT THE FUNCTION, NOT ASSUMED FROM `G-4c`.** `canonical_event_json` walks `EVENT_FIELD_ORDER` **at the top level only**, then hands each field to `canonical_value`, which **recurses and sorts EVERY object key lexicographically** — it has no allowlist and cannot skip a key it does not recognise | `xgen-common/src/canonical.rs:62-77` (`canonical_event_json`) → `:80-95` (`canonical_value`); consumed by `canonical_event_bytes` `:40`, which `verify_event_signature` uses (`xgen-core/src/space/state.rs:1316`, `:1338`) | ✅ **THE PROPERTY (d1) RESTS ON, AND IT IS STRONGER THAN "IT SURVIVES": AN INTERMEDIARY THAT STRIPPED THE INTRO KEY WOULD BREAK THE SIGNATURE.** The additive key is not merely tolerated in transit — **removing it is DETECTABLE TAMPERING.** ⚠️ *`G-4c` established that `content` is signed; it did NOT establish that an unrecognised key inside it is. That is a different claim and it needed its own read* |
 | **G-5** | 🔑 **`EventType::Unknown(String)` EXISTS, AND AN UNRECOGNISED TYPE IS ACCEPTED-AS-OPAQUE** — structurally valid, **stored and relayed byte-identically** (FC-D3) — **and NEVER APPLIED** | enum `wire.rs:158`; validation step 6 `xgen-core/src/wire/validation.rs:109-115`; the apply chokepoint `xgen-core/src/space/state.rs:650-654`, arm `EventType::Unknown(_) => Ok(())` at `:654` (FC-D6) | 🛑 **THE FACT THAT DECIDES §3, AND THE KICKOFF DID NOT HAVE IT.** A new event type is **not rejected** by an older peer. It is **carried and silently ignored** — which is a *worse* user-visible outcome than rejection, because nothing anywhere reports a failure |
 
 🔑 **THE SPECIES, AGAIN, AND IT BIT THE DOCUMENT THAT WARNED ABOUT IT: A CLAIM NARROWER THAN THE THING IT
@@ -283,6 +285,75 @@ a separate one.**
 🛑 **PROPOSAL, NOT DECISION.** ⚠️ **AND THE KEY'S NAME IS NOT DECIDED BY EITHER OPTION** — naming is Joe's
 outright (`D-123`), and this file proposes none.
 
+### 🔒 **§3.1 RULED — (d1). JOE, 2026-08-15, *"as you recommend"*.**
+
+**The additive key lives in `content`, alongside `text`.** `meta_atts` is **not** the carrier. 🔒 **And the
+recommendation was taken WHOLE, so its rider is part of the lock: the new content-key convention BORROWS
+`meta_atts`' grammar rather than inventing a second one** — `xgen.*` reserved for protocol, reverse-domain
+for third parties, lowercase snake_case segments, dots as separators. 🔑 **It borrows the GRAMMAR and NOT the
+value rule:** spec 3.1.3's *"values are strings, structured values are JSON-encoded strings"* is the
+constraint that disqualified (d2) and it **does not travel** — in `content`, **nested objects are native.**
+*Carrying it across would import the defect while leaving the benefit behind.*
+
+✅ **THE PARTITION WAS CLOSED BEFORE THE LOCK WAS RECORDED, NOT AFTER — `G-4f`.** §9 named a missing option
+as this file's likeliest defect; §3.1 proved that concern correct one level down. So the same question was
+asked again **by predicate over all ten `Event` fields rather than against a suspect list**: **exactly two are
+free-form `Value`, and there is no third.** *A census is not a partition — twice in this arc — and this one
+was made a partition on purpose.*
+
+✅ **AND (d1) GAINED A PROPERTY IT WAS NOT ARGUED ON — `G-4g`.** `canonical_value` **recurses into `content`
+and sorts every key with no allowlist**, so an unrecognised key is **inside the signed bytes**. ⇒ **an
+intermediary that stripped the intro key would BREAK THE SIGNATURE.** The additive key is not merely
+tolerated in transit — **removing it is detectable tampering.** ⚠️ *`G-4c` said `content` is signed; it did
+not say an unknown key inside it is. Different claim, own read — and it landed in (d1)'s favour, which is
+exactly when a claim most needs checking rather than least.*
+
+🔓 **STILL OPEN AND STILL JOE'S: THE KEY'S NAME.** `D-123` puts naming on Joe's side outright and this file
+proposes none. **Candidates are scaffolded below rather than left blank (`D-138`) — they are shapes to react
+to, not a recommendation**, and Joe's own reason for the chosen name is recorded beside it when he gives one.
+
+| candidate | shape | note |
+|---|---|---|
+| `xgen.intro` | flat, matches `xgen.room_temperature`'s form | shortest; says what it is |
+| `xgen.card` | names the artefact, not the occasion | survives if intros are ever sent outside first contact |
+| `xgen.intro.v1` | version in the key | ⚠️ **Chat's note, not a preference: a version in the KEY means v2 is a NEW key that old readers drop entirely**, where a version INSIDE the value degrades. The choice is Joe's; the consequence is stated so it is not discovered later |
+
+🛑 **NO LEG OPENS AND NO RUNBOOK IS AUTHORED UNTIL THE NAME IS GIVEN** — leg 2 writes it onto the wire, and
+**a name placed by Chat and later changed is a wire change, not a rename.**
+
+### 🔒 **THE KEY IS NAMED — `xgen.intro.v1`. JOE, 2026-08-15.**
+
+🔑 **JOE'S REASON, RECORDED WITH THE NAME BECAUSE IT IS LOAD-BEARING:** *"could we have one time in the
+future another intro? maybe yes. so this `.v1` suffix is ok, mainly for future `.v2` or `.v3` case."* ⇒ **the
+suffix is bought DELIBERATELY, for a successor that is expected rather than merely possible.**
+
+✅ **GRAMMAR FIT, CHECKED AGAINST THE BORROWED RULE RATHER THAN EYEBALLED:** three lowercase segments, dots
+as separators, no hyphens, 13 chars against a 128 limit, `xgen.` reserved prefix. **Conforms.**
+
+🛑 **AND THIS CORRECTS CHAT'S OWN WARNING, WHICH WAS NARROWER THAN THE THING IT DESCRIBED — THE ARC'S SPECIES,
+IN THE NOTE WRITTEN TO PREVENT A LATER DISCOVERY.** The candidate table above says a version in the key means
+*"v2 is a NEW key that old readers drop entirely"*. **True of the KEY. FALSE of what the user sees** — and the
+sentence reads as though the intro vanishes. ✅ **Under (d), `text` is always present and load-bearing**
+(`G-4b`), so a v1-only client meeting a **v2** intro drops the unknown key and **still renders the plain
+sentence.** ⇒ **the degradation is rich → plain, NEVER rich → nothing.** *The warning was written before the
+candidate list was reconciled against the ruling two sections above it — and the row is kept unedited, with
+this correction beneath it, because rewriting it would hide that Joe chose under a bleaker description than
+the truth.* 🔑 **Joe's choice is SAFER than Chat's own note implied.**
+
+🔒 **THE CONSEQUENCE THAT IS NOW BINDING, AND IT IS THE PRICE OF KEY-VERSIONING:** ***`text` MUST REMAIN
+LOAD-BEARING FOR EVERY FUTURE VERSION OF THIS KEY, FOREVER.*** It is the ONLY thing that makes a versioned
+key degrade instead of disappear. 🛑 **A future `xgen.intro.v2` that moves the human-readable sentence OUT of
+`text` and into the key silently converts every older reader's experience from "plainer" to "empty"** — and
+nothing anywhere would report it (`G-5`'s shape, arrived at from the opposite direction). **Written into this
+file now so that the milestone which mints `v2` inherits it as a constraint rather than rediscovering it as a
+defect** (`N-109`: the leg that lifts a limit owns the sweep).
+
+🔓 **NOT DECIDED HERE, AND NAMED SO IT IS NOT ASSUMED:** whether a future `v2` sender ALSO writes `v1`
+alongside it. That is the successor milestone's question, it costs nothing to leave open, and the `text`
+fallback means it is an optimisation rather than a correctness gate.
+
+✅ **LEG 0-ter DISCHARGED. EVERY GATE IN §3 / §3.1 IS NOW RULED.**
+
 ---
 
 ## §4 — 🔓 ROUTED TO JOE, AND DELIBERATELY **OUT OF SCOPE**: the published intro
@@ -314,17 +385,18 @@ milestone's first commit under `D-074` — **JOURNAL + CLAUDE.md + ROADMAP + thi
 
 ## §6 — PROPOSED LEGS (Chat's seat under `D-123`; the split is Chat's, the CONTENT of Leg 1 is Joe's)
 
-⚠️ **NO LEG IS OPENED AND NO RUNBOOK IS AUTHORED UNTIL §3.1 IS RULED.** §3 is ruled **(d)**; the leg split
-below was written conditional on (d) or (a) and **survives the ruling**. 🛑 **BUT §3.1 IS STILL OPEN, AND IT
-DECIDES WHAT LEG 2 WRITES ONTO THE WIRE** — so the gate has moved down one level, it has not lifted.
+✅ **EVERY GATE IS RULED — §3 (d) · §3.1 (d1) · the key `xgen.intro.v1`.** The leg split below **survives all
+three rulings unchanged**. 🛑 **A RUNBOOK MAY NOW BE AUTHORED**, and §9's cold read is recommended against it
+before any code (`F9`: *can each gate be RUN, in the order written, from the seat that owns it?*).
 
 | leg | what it does | state |
 |---|---|---|
 | **0** | 🔓 **Joe rules §3.** No code. **This leg is the gate** | ✅ **DONE 2026-08-15 — (d)** |
-| **0-bis** | 🔓 **Joe rules §3.1 (d1 vs d2) and NAMES the key.** No code | 🟡 **PENDING — THE LIVE GATE** |
-| **1** | the intro's **wording and appearance** — Joe's (`D-123`, `D-138`: mechanism Chat's, **values Joe's**, **the scaffold ships with plausible values and never blanks**) | 🟡 PENDING, gated on 0-bis |
-| **2** | 🛑 **the WIRE seam — REAL RUST, and it was invisible while the milestone was filed as UI.** Widen `send_message` (`G-7a`), the resident outbound path and `build_message_text_event`, plus the ch3 convention if (d1) | 🟡 PENDING, gated on 0-bis |
-| **3** | the render path: the `bodyExtras` (or `details`) tenant, receiver-chosen (`G-9`, `I3`) | 🟡 PENDING, gated on 0-bis |
+| **0-bis** | 🔓 **Joe rules §3.1 (d1 vs d2)** | ✅ **DONE 2026-08-15 — (d1), with `meta_atts`' grammar borrowed and its value rule NOT** |
+| **0-ter** | 🔓 **Joe NAMES the key** | ✅ **DONE 2026-08-15 — `xgen.intro.v1`, versioned deliberately for an expected successor** |
+| **1** | the intro's **wording and appearance** — Joe's (`D-123`, `D-138`: mechanism Chat's, **values Joe's**, **the scaffold ships with plausible values and never blanks**) | 🟡 PENDING — **runbook authorable** |
+| **2** | 🛑 **the WIRE seam — REAL RUST, and it was invisible while the milestone was filed as UI.** Widen `send_message` (`G-7a`), the resident outbound path and `build_message_text_event`, **plus the ch3 content-key convention** (d1) | 🟡 PENDING — **runbook authorable** |
+| **3** | the render path: the `bodyExtras` (or `details`) tenant, receiver-chosen (`G-9`, `I3`) | 🟡 PENDING — **runbook authorable** |
 | **4** | live verify, two identities, Chat re-drives every gate (Rule 5) | 🟡 PENDING |
 | **5** | records + close (`D-074`) | 🟡 PENDING |
 
@@ -422,10 +494,14 @@ text — Joe's recall, Clair reading, or the live client. None came from a re-re
 
 **`M-RP-INTRO` is DONE when, and only when:**
 
-1. §3 is **Joe-ruled** — ✅ **(d), 2026-08-15** — **and §3.1 is Joe-ruled with the key NAMED.** The ruling is
-   recorded in `DECISIONS.md` **if it is a `D`** (Joe mints the number and the wording), or in this file with
-   a 🔒 if it is not. 🔓 **Chat's reading is that (d) EARNS a `D`** — it sets a precedent for every future
-   additive payload, not just this one.
+1. §3 is **Joe-ruled** — ✅ **(d), 2026-08-15** — **§3.1 is Joe-ruled** — ✅ **(d1), 2026-08-15** — **and the key
+   is NAMED** — ✅ **`xgen.intro.v1`, 2026-08-15.** The ruling is recorded in `DECISIONS.md` **if it is a `D`**
+   (Joe mints the number and the wording), or in this file with a 🔒 if it is not. 🔓 **Chat's reading is that
+   (d)+(d1) EARNS a `D`** — it establishes **the project's first content-key namespace convention**, binding
+   on every future additive payload and not on this milestone alone.
+1-bis. 🔒 **`text` REMAINS LOAD-BEARING** — no leg, and no future version of `xgen.intro.*`, moves the
+   human-readable sentence out of `content.text`. **This is what makes the versioned key degrade rather than
+   disappear**, and it is a DoD item because it is invisible until the moment it is violated.
 2. Legs per §6, each verified by **Chat re-driving every gate independently** (Rule 5) — **numbers Chat did
    not personally measure do not enter this record.**
 3. Every verification gate **names its surface in scope before the leg opens** — the `§8b` rule from

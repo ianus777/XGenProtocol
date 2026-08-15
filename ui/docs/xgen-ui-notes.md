@@ -3972,3 +3972,18 @@ The verification was the project's standing CRLF check (`N-191`): `len`, `CR` co
 4. **A PowerShell script does not stop on a statement error.** A block assembled across many statements can lose an arbitrary subset of itself and still complete with exit 0. **Exit 0 means "the shell finished", not "the work happened".**
 
 🔑 **The general form, which is the whole reason this note exists:** ***a verification that has always answered two questions at once will keep appearing to answer both long after it has stopped answering one of them.*** Ask which question each check actually answers, and check that every question has an owner.
+## N-196 — a port check is bound to an ADDRESS FAMILY, and 9222 and 5173 do not share one (2026-08-14)
+
+**`Test-NetConnection -ComputerName 127.0.0.1 -Port 5173` returns `False` on a perfectly healthy dev server.** Measured: `netstat -ano` gives `TCP [::1]:5173 [::]:0 LISTENING 53256` — **Vite binds IPv6-only**. `localhost:5173` returns HTTP 200; `::1:5173` is up; `127.0.0.1:5173` is down and always will be.
+
+🛑 **CDP 9222 DOES ANSWER ON `127.0.0.1`.** So one habitual probe form gives a **split reading across the two ports of the same app** — and the split tells a *plausible* story: *"CDP shell up, Vite dead."* ⇒ ***the reading was not merely wrong, it was wrong in the shape of a diagnosis***, which is why it survived being acted on.
+
+**What it cost, at `E-5.2` (J-731).** Chat declared the client unusable, **released a `D-132` custody window it had just requested**, told Joe his environment was broken, and reported two `node` processes as suspect orphans. 📌 **Those two processes were the Filesystem MCP server** — Chat's own file access to `E:\Projects`. **Killing them would have severed Chat's own hands**, and only measuring `CommandLine` before acting caught it. **The client had been healthy the entire time**; a working relaunch was abandoned.
+
+🔑 **THIS IS `N-194`'s FAMILY MOVED INTO THE TOOLING.** `N-194` asks of a probe: *what would this read return if the code were RIGHT?* Here the answer was **`False`** — the probe could not pass. **The same session had already filed one false absence** (`dmPath: null`, searching leaves for `regionId` when the field is `widgetId`) ⇒ **two false absences in one session, both from Chat's own probes, in the session whose Phase-0 §F9 told Clair to hunt exactly this.**
+
+🔒 **THE RULE.** **Probe a dev port on `localhost`, never on a literal `127.0.0.1`** — `localhost` resolves both families. When a port check disagrees with an application log, **`netstat -ano | Select-String ":<port>"` is the authority**: it prints the bind address, and a bind address is the thing the probe was guessing at. 📌 **And `run-client.ps1`'s own log had said `Vite ready on 5173 (PID 53256, ours)` before Chat overrode it** — *the log was right and the probe was believed instead.*
+
+⚠️ **THE STANDING KICKOFF NOTE IS NARROWER THAN THE FAILURE.** *"`run-client.ps1` needs `-Debug` or 9222 never opens"* is true and insufficient: `-Debug` was passed, **9222 opened, and that says nothing whatsoever about Vite.** A green check on the wrong port is a probe that cannot fail.
+
+---

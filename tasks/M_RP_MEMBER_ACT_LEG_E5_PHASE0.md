@@ -1,12 +1,42 @@
 # M-RP-MEMBER-ACT — Leg E-5: the milestone close — Phase-0
-> **Status**: ACTIVE  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-14  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 > License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+## §0a — WHAT v1.1 CHANGED, AND WHY THE CHANGES ARE NOT EDITS TO A DRAFT
+
+🔑 **THREE OF THIS DOCUMENT'S OWN FINDINGS WERE DEFECTIVE, AND ALL THREE WERE CAUGHT FROM OUTSIDE THE TEXT** — by Clair's adversarial read (`tasks/CLAIR_LEG_E5_PHASE0_READ.md` v1.0) and by driving the client. **Chat's own re-reads passed every time**, which is this arc's standing pattern and the reason §7.6 was written before any of them were found.
+
+| | v1.0 said | v1.1, re-driven by Chat under Rule 5 |
+|---|---|---|
+| **`F5`** | ROADMAP `R-2` makes the milestone **unclosable indefinitely** | 🛑 **FALSE.** `R-2` derives status from **ROADMAP tree children** and **Leg `D` is not a ROADMAP node** — every `Leg D` hit in the file belongs to another milestone; the milestone node's one child is Leg E. **Closing Leg E derives the milestone to ✅.** Clair `PM-1` |
+| **`F4`** | the wrap branch **must** be driven from disk ⇒ **Joe's consent required** | 🔑 **A FOURTH ROUTE EXISTS AND IT WORKS.** `reinjectSystemRegions` is importable from the Vite dev server and pure; the algebra and the render were both driven **with no disk touched**. Clair `PM-2`, measured by Chat at `E-5.2` |
+| **`F8`** | the carry-out ledger | ⚠️ **a census, not a partition** — `OWED-2` (`M_RP_MEMBER_ACT_LEG_C_BIS.md:89`) and `OWED-3` (`:104`) were missing. §7.4 self-flagged the risk and the risk was real. Clair `PM-3` |
+
+🛑 **TWO OF THE THREE WERE ROUTED TO JOE ON URGENCY — A DISK RISK AND AN INDEFINITE BLOCKER — AND BOTH URGENCIES WERE THIS SEAT'S OWN ERRORS.** ⇒ ***a false alarm does not merely waste a reading; it makes the routing look justified.*** All three of §4's items were **taken by Chat** once re-measured, under `D-123`, whose named failure mode is **UNDER-stepping**. 📌The governing precedent was measured, not recalled: **`E-4`'s absorption was Chat's** (`M_RP_MEMBER_ACT_LEG_E_PHASE0.md:213`, J-731's predecessor entry) — same milestone, same species, one leg earlier. J-710, cited in v1.0 to justify routing, was a **gate re-point between legs**, which is not the same act.
+
+### §0b — `E-5.2`: THE PATH NO LEG COULD TEST, DRIVEN AND **PASSED** (2026-08-14)
+
+**Client 9222 under a `D-132` custody window, requested and released.** `DEFAULT_LAYOUT` → `reinjectSystemRegions` → `__XGEN_LAYOUT__.set()` → read → `revert()`.
+
+✅ **THE WRAP BRANCH RENDERS:** root `row [1,2,7,2]`, first child a **NEW `col [1,1]` holding `[spaces, dm-spaces]`** — the bisect of `B-a`, on the branch that had never executed. 9 leaves mounted, no crash, both tiles framed (`Spaces`, `DM Spaces`, axis `col`).
+✅ **`E-3`'s R1 FILTER HOLDS ON IT:** `spaces-panel#region-spaces` → `count: 4`, rows Engineering · Design · LegBSpace · LegF Verification, **zero `isDm`**. `dm-spaces#region-dm-spaces` → `count: 4`, **all four `flags.isDm: true`**.
+✅ **RESTORE VERIFIED:** `revert()` ⇒ `restoredIdentical: true`, 609 chars = 609 chars, leaves and root sizes `[267,185,535,213]` exact. **Nothing persisted, nothing sent, no DM minted, no disk touched.**
+
+⚠️ **BOTH PANELS RETURNED `count: 4`.** A probe that read one and reported the other would have looked correct. Luck of the data — recorded so the next gate does not rely on it.
+
+🔑 **`F6`'s CARRY-OUT IS NOW OBSERVED RATHER THAN REASONED:** every DM row read pure `tail8` — `…5HPPRfXo` · `…IOd_baqk` · `…noYiFeHE` · `…sno_FWmw` — because no Space was latched. Exactly what `E-1` predicted. **This strengthens the case for writing `M-RP-STARTUP`'s side of the gate, which `E-5.4` does.**
+
+### §0c — 🛑 §1'S STATED SCREEN WAS STALE, SO ITS NUMBER IS VOID
+
+§1 records the last registry measurement as **178** on a screen of *"7 Spaces of which 3 are DMs."* **Measured at `E-5.2`: 4 non-DM + 4 DM = 8 Spaces, 4 DMs, registry 180.** The screen moved under the number. ⇒ ***this is precisely why §1 says RECORD THE SCREEN OR RECORD NO NUMBER — and the rule earned its keep against the document that wrote it.*** **Neither 178 nor 180 is a floor.**
 
 ---
 

@@ -1,6 +1,6 @@
 # M-RP-INTRO Phase-0 — the DM welcome intro: the surface was ruled, the payload never was
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-15  
 > Language: EN  
@@ -108,6 +108,7 @@ new resident path, a new builder, and a spec chapter.**
 |---|---|---|
 | **G-9** | ✅ **`bodyExtras` needs NO NEW MECHANISM.** It is a client-side `WidgetMount[]` resolved at render, built from **LOCAL** state, and `W-13` **DROPS** an id the host cannot resolve | `message.svelte:85` (`resolveMounts`), `stream-panel.svelte:129`, `:143` |
 | **G-9a** | ⚠️ **`N-172`'s SOCKET CENSUS IS STALE — IT IS FOUR SOCKETS, NOT THREE.** The note's table lists `message-stream.background`, `message.bodyExtras`, `message.details`; **`stream-panel`'s `above` socket, tenanted by `dm-intro`, is missing** | `stream-panel.svelte:153-160`, `:182`; note at `ui/docs/xgen-ui-notes.md:3526` |
+| **G-9b-corr** | 🛑 **ANNOTATION AT THE SITE (`D-131`, 2026-08-15, from Clair's runbook read) — `G-9`'s REGISTRY LINE NUMBER WAS WRONG HERE AND WRONG AGAIN IN THE RUNBOOK.** This file cited the `bodyExtras` registry at **`:143`**; runbook v1.0 then cited **`:135`**. **MEASURED: `const widgets = { 'send-status': SendStatus };` is at `:145`.** 🔑 **THREE DISTINCT WRONG NUMBERS FOR ONE LINE ACROSS TWO DOCUMENTS** — the line was never re-opened; each document re-typed it from the previous one. ***A pointer copied forward is not a pointer measured**, and this is the arc's species reduced to its smallest possible form: a single integer.* ✅ The surrounding CLAIM (one object literal, one tenant, `W-13` drops unknown ids) is CONFIRMED and unaffected | `stream-panel.svelte:145` |
 | **G-9b** | 🔑 **`N-172`'s WARNING NAMES THIS MILESTONE BY NAME:** *"the first tenant that renders SOMEONE ELSE'S content — a DM welcome intro, a poll result, an AI resident's diagram — is the first one facing content it did not originate"* | `xgen-ui-notes.md:3526` |
 
 🔒 **THE RENDER HALF IS SOLVED AND THE MILESTONE IS NOT ABOUT IT.** The socket exists, is correct, and drops

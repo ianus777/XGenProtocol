@@ -1,6 +1,6 @@
 # M-RP-INTRO Runbook — the DM welcome intro: one additive key, two seams, and a fallback that must be tested rather than assumed
 > **Status**: PENDING  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-15  
 > Language: EN  
@@ -36,6 +36,33 @@ empty or decorative is a DEVIATION and gets reported, not absorbed.**
 📌 **State this runbook was authored against:** `HEAD` `c3aa044` **= `origin/main` by `git ls-remote`**,
 clean tree. Every `G-` reference resolves to `tasks/M_RP_INTRO_PHASE0.md` §2.
 
+### 🛑 v1.1 — WHAT CLAIR'S COLD READ FOUND, AND WHY v1.0 WAS NOT IMPLEMENTABLE
+
+**`tasks/CLAIR_M_RP_INTRO_RUNBOOK_READ.md` returned GO-WITH-FINDINGS: seven findings, five pointer defects.
+Chat re-drove every one against source (Rule 5). ALL CONFIRMED.** *Chat's own re-read of v1.0 before
+shipping it caught none of them — the fifth consecutive time in this arc that every real defect came from
+outside the text.*
+
+| # | finding | v1.1 response |
+|---|---|---|
+| **F-1** | 🛑 **THE INTRO PAYLOAD HAS NO AUTHOR.** §4.4 said the send path *"passes the intro alongside the text"* and **nothing anywhere produces `headline`/`blurb`** — `dm-draft.svelte.ts:45,47` holds `_counterpart` + `_texts` only; `createDraftDm(counterpart, text)` takes two params; `echo.send(spaceId, roomId, text, at)` has no intro. **Zero occurrences of `headline`/`blurb` as data in all of `ui/`** (the 5 grep hits are unrelated prose). And **all three closures available to Clair are forbidden by this runbook**: derive from `text` (§2.1), ship unfed (§7.6), invent the mechanism (§2.3) | 🛑 **NEW LEG 2a — §3.0.** *The Phase-0 said the render half needs no new mechanism and "the whole question is the payload"; v1.0 then specified the wire seam and the render seam and NOT the payload's producer. "Passes" presumes something authored it* |
+| **F-2** | 🔑 **NO VITEST GATE, while Leg 3 edits a unit-tested pure function.** `derive.test.ts` and `mounts.test.ts` cover exactly `projectEvent` and `resolveMounts` | 🔒 **V-8 ADDED, AND CHAT DROVE IT: `npx vitest run` → 9 files / 154 tests / 154 passed, 830 ms**, measured at `f9557ef`, clean tree. 🛑 **A 154-test floor existed for this whole arc and appeared in NO floor statement.** ⚠️ `ui/package.json` has **vitest ^3 and NO test script** — only `check`; the harness is invoked directly |
+| **F-3** | the `extras`-overwrites-`text` branch has **no gate** — §3.1 defers the mechanism to Clair, and V-5's two arms both miss it | 🔒 **V-9 ADDED** |
+| **F-4/F-5** | **V-0 contradicts §5's header and §8.2** ("Chat drives all of §5" vs "belongs in the implementer's window"), and its **subject set is undefined** — a pre-edit `cargo`/svelte-check cannot "fail", V-2 is impossible before the param exists. V-1 has no stated baseline and *unchanged may be the correct result* | 🔒 **§5.0 REWRITTEN** — V-0's subject set named, ownership resolved, V-1 given a baseline and an expected direction |
+| **F-6** | 🛑 **THE SENDER NEVER SEES THEIR OWN INTRO** — own rows come from `echoToDescriptor`, not `projectEvent`, and nothing said so | 🛑 **FIXED, NOT FILED — §4.5.** `I2` argued *"symmetry is free"*; it is free only because own rows are `MessageDescriptor`s too. **Joe's call, scaffolded as fixed** |
+| **F-7** | §4.3 never says whether the widget takes `id`/registers, and no registry gate exists either way | ✅ **§4.3 amended + V-10** |
+| **census** | **the gate list was a CENSUS, not a partition** — four failure modes unlisted, and V-5's second arm named no surface | 🔒 **§5 rebuilt** |
+
+**Pointer defects — all five confirmed and corrected:**
+
+1. 🛑 **`stream-panel.svelte:135` → `:145`.** ⚠️ *The Phase-0's `G-9a`/`B-7` said `:143`. **Chat produced THREE distinct wrong numbers for one line across two documents.** The line was never re-opened; it was re-typed from the previous document each time.*
+2. **`docs/ch3_*` matched nothing → `docs/xgen_ch3_specification.md`, §3.1.3 at `:332`** (and §3.0.3 wire-format invariance at `:108`).
+3. **`exchange.rs:983-989` is the SIGNATURE, not the doc comment** it was cited for — the comment is `:975-982`.
+4. 🛑 **B-2 was FALSE. Production call sites are EIGHTEEN, not three** — `xgen-client/src/app.rs` carries **15 above its `#[cfg(test)]` at `:6350`** (plus the import at `:40`), all shipped CLI subcommands. ⚠️ **The delegating-overload plan survives untouched** (the existing signature never changes) — **but the blast-radius sentence used to justify it was wrong by 6×.**
+5. **Test-count metrics do not interchange:** Clair counted `projectEvent(`/`resolveMounts(` CALL SITES (17/28 by her instrument, 15/21 by Chat's); the **TEST counts are 21 and 18**. 🛑 **Neither number may be quoted as the other. The floor is 154/154 across 9 files** — the only figure Chat drove.
+
+📌 **AND ONE INSTRUMENT NOTE, RECORDED AS CLAIR'S:** her `grep -c $'\r'` reported CR=302 on an LF file — **the pattern expanded to empty and matched every line, so the count equalled the LINE count**, and a genuine CRLF file shows equal counts too, which is exactly why it read as correct. She caught it on the byte total not moving after `tr -d '\r'`, re-measured with .NET at an absolute path (CR=0 / LF=302), **and did not claim a fix she had not made** (`D-065`). ⇒ **owed as an `N` note; `N-197` is the next free number.**
+
 ---
 
 ## §1 — 🔑 THE GROUNDING THIS RUNBOOK ADDS, BEYOND THE PHASE-0
@@ -45,14 +72,17 @@ The Phase-0 grounded the *decision*. These were measured for the *implementation
 | # | fact | site | why it changes the plan |
 |---|---|---|---|
 | **B-1** | 🛑 **`build_message_text_event` HAS ~60 CALL SITES** across `exchange.rs`, `runtime.rs`, `app.rs`, `fanout.rs`, `ops.rs`, `derive.rs`, `connection.rs`, `ai_service.rs`, `resident.rs` | grep, `xgen-core` + `xgen-client` + `xgen-node` | ⇒ **WIDENING ITS SIGNATURE CHURNS ~60 SITES, almost all tests.** §3.1 takes the delegating-overload route instead: **zero call-site churn** |
-| **B-2** | ✅ **only THREE call sites are production**: `resident.rs:451` (the client send path), `ai_service.rs:489` (AI reply), `ops.rs:1996` (CLI send) | same | ⇒ **the blast radius of a behaviour change is three sites, not sixty.** The other ~57 are fixtures |
+| **B-2** | 🛑 **CORRECTED v1.1 — EIGHTEEN call sites are production, not three.** `resident.rs:451` (client send path) · `ai_service.rs:489` (AI reply) · `ops.rs:1996` (CLI send) · **and FIFTEEN in `xgen-client/src/app.rs`, all above its `#[cfg(test)]` at `:6350`** (shipped CLI subcommands) | `app.rs:1762`–`:5970`, boundary `app.rs:6350` | ⚠️ **The plan is unaffected — §3.1's delegating overload leaves the existing signature untouched, so none of the eighteen is edited.** 🛑 **But the justification was wrong by 6×, and it mattered: had §3.1 chosen to CHANGE behaviour in the shared function, the claimed blast radius would have understated it by fifteen shipped paths** |
 | **B-3** | 🔑 **THE TWIN PATTERN EXISTS AND IS DOCUMENTED IN-FILE** — `build_message_file_event` and `build_message_redact_event` are each *"Twin of…"* with a doc comment naming the reuse | `exchange.rs:944-950`, `:983-989` | ⚠️ **BUT BOTH TWINS CARRY A DIFFERENT `EventType`. Ours reuses `EventType::MessageText` and widens CONTENT.** ⇒ **this is a NEW sub-pattern, not the existing one**, and §3.1's doc comment must say so rather than claim a precedent it does not have |
 | **B-4** | 🔑 **`OutboundRequest` IS `{ space_id, room_id, text, reply }` and has exactly THREE construction sites** — `desktop.rs:355` (production), `resident.rs:711` (the definition), `resident.rs:1565` (a test) | `resident.rs:711-728` | ⇒ **adding a field is a three-site change.** Its doc comment states the design reason: *"the caller hands over intent, not an event"* (`D-067`) — **an intro payload IS intent, so it belongs here** |
 | **B-5** | 🔑 **`projectEvent` IS A PURE FUNCTION IN ITS OWN UNIT-TESTED MODULE**, and it is the SINGLE site where an inbound `message.text` becomes a `MessageDescriptor` | `ui/common/lib/components/widgets/stream/derive.ts:69-97`; tests `derive.test.ts` | ⇒ **the whole read half is ONE pure function + ONE registry line.** \|\| 🔑 **AND IT IS M1′-DRIVABLE** — a Vite eval can `await import('/@fs/E:/…/stream/derive.ts')` and execute it for real, with **no disk write and no consent**. §5 uses this |
 | **B-6** | ✅ **`projectEvent` READS `e.content?.text` DEFENSIVELY ALREADY** — `typeof e.content?.text === 'string' ? … : ''` | `derive.ts:81` | ⇒ **the `text` fallback is already correct and needs no change.** The intro key is purely additive here |
-| **B-7** | 🔑 **THE `bodyExtras` REGISTRY IS ONE OBJECT LITERAL WITH ONE TENANT** — `const widgets = { 'send-status': SendStatus }` — and **W-13 DROPS an id it cannot resolve** | `stream-panel.svelte:135`, `mounts.ts:51` | ⇒ **registering the intro widget is one line**, and **the drop-unknown path IS the degradation path**. §5 tests it rather than trusting it |
+| **B-7** | 🔑 **THE `bodyExtras` REGISTRY IS ONE OBJECT LITERAL WITH ONE TENANT** — `const widgets = { 'send-status': SendStatus }` — and **W-13 DROPS an id it cannot resolve** | 🛑 **`stream-panel.svelte:145`** (v1.0 said `:135`, the Phase-0 said `:143` — **both wrong, re-typed rather than re-opened**), `mounts.ts:51` | ⇒ **registering the intro widget is one line**, and **the drop-unknown path IS the degradation path**. §5 tests it rather than trusting it |
 | **B-8** | ✅ **`WidgetMount` is `{ widgetId, props?, mountKey? }`**, and `props` is `Record<string, unknown>` — 🛑 **NOTHING TYPE-CHECKS THAT A MOUNT SUPPLIES WHAT ITS WIDGET NEEDS** | `types.ts:53-71`; the warning is `send-status.svelte:37`'s own | ⇒ **the intro widget must tolerate a malformed/absent prop bag at runtime**, because the type system will not catch it |
 | **B-9** | ⚠️ **`send_message` REJECTS AN EMPTY `text` BEFORE QUEUEING** — `if text.trim().is_empty() { return SendOutcome::failed("empty message") }` | `desktop.rs:313` | 🔑 **THIS GUARD IS WHAT MAKES 1-bis ENFORCEABLE AT THE SEAM**: an intro with no sentence cannot be sent at all. **Do not weaken it to let a text-less intro through** — that is exactly the failure 1-bis forbids |
+| **B-10** | 🔑 **NEW v1.1 — THERE IS A PASSING VITEST FLOOR AND THIS ARC NEVER STATED IT: 9 files / 154 tests / 154 passed / 830 ms**, driven by Chat at `f9557ef` on a clean tree. ⚠️ **`ui/package.json` declares `vitest ^3` but has NO test script** — only `check` — so the harness is invoked directly (`npx vitest run`) | `ui/package.json`; 9 `*.test.ts` under `ui/` | ⇒ **V-8.** 🛑 *A floor that exists, passes, and is never stated is indistinguishable from a floor that does not exist — and Leg 3 edits two of the nine files* |
+| **B-11** | 🔑 **NEW v1.1 — OWN ROWS DO NOT PASS THROUGH `projectEvent` AT ALL.** `outbound = echo.forRoom(…).map(echoToDescriptor)`, and `echoToDescriptor` hardcodes `bodyExtras: [{ widgetId: 'send-status', … }]` | `stream-panel.svelte:118-133` | ⇒ **§4.1 alone would leave the SENDER blind to their own intro**, contradicting `I2`'s *"symmetry is free"*. **§4.5 is the fix** |
+| **B-12** | 🔑 **NEW v1.1 — `EchoMessage` IS `{ localId, spaceId, roomId, text, sentAt, status, eventId?, code?, cause? }`** | `echo-state.svelte.ts:73-85` | ⇒ **the echo record is where an own-row intro must ride** (§4.5), and its `absent-not-empty-string` discipline (`:80-82`) is the shape to copy |
 
 ---
 
@@ -103,7 +133,38 @@ Joe's file and are **not** in Clair's commit.
 
 ---
 
-## §3 — LEG 2: THE WIRE SEAM (RUST). CLAIR IMPLEMENTS.
+## §3 — LEG 2: THE WIRE SEAM (RUST) + LEG 2a: THE AUTHORING PATH. CLAIR IMPLEMENTS.
+
+### §3.0 — 🛑 LEG 2a: THE PAYLOAD'S PRODUCER — **NEW IN v1.1, AND IT IS THE MILESTONE'S CONTENT**
+
+🛑 **v1.0 SPECIFIED HOW AN INTRO TRAVELS AND HOW IT RENDERS, AND NOT HOW ONE COMES TO EXIST.** F-1.
+**Nothing in `ui/` produces `headline` or `blurb`.** This leg is that producer, and it lands **BEFORE** §3.2,
+because §3.2's `intro` parameter has nothing to carry until it exists.
+
+**Files:** `ui/common/lib/stores/dm-draft.svelte.ts` · `ui/common/lib/components/widgets/composer-panel.svelte`
+· `ui/common/lib/stores/echo-state.svelte.ts`
+
+1. **`dmDraft` gains intro state beside `_texts`.** `_texts` is `Record<string, string>` keyed by counterpart
+   (`:47`); the intro is **keyed the same way** so switching counterpart preserves each draft independently —
+   *the existing `_texts` behaviour is the specification here, not a new decision.*
+2. **The composer gains an opt-in intro affordance.** 🛑 **OPT-IN, NEVER AUTOMATIC** (§2.2): the default DM
+   send is **byte-identical to today's** — no key at all, **not an empty one** (`N-182`, §7.6).
+3. **`createDraftDm(counterpart, text)` (`composer-panel.svelte:150`) widens** to carry the intro, and
+   **`echo.send` (`echo-state.svelte.ts:162`) widens** to pass it to `invoke('send_message', …)`.
+4. 🛑 **`text` IS AUTHORED INDEPENDENTLY AND STAYS REQUIRED.** Composing an intro **does not** populate,
+   replace or derive `text`. **A user who writes an intro and no sentence cannot send** — `desktop.rs:313`
+   enforces it at the seam (`B-9`) and the composer should say so rather than let the seam refuse silently.
+
+🔓 **VALUES ARE JOE'S, MECHANISM IS CHAT'S (`D-138`) — AND THE SCAFFOLD SHIPS PLAUSIBLE AND NEVER BLANK.**
+The affordance's *shape* (a disclosure below the composer, two fields, collapsed by default) is scaffolded;
+its **wording, placement and appearance are Joe's**. 🛑 **Do NOT file this to `M-RP-SKIN` and wait** — that
+inversion has happened twice and the scaffold-not-blank rule is the correction.
+
+⚠️ **THIS LEG IS A SCOPE INCREASE ON v1.0 AND IT IS CHAT'S, NOT A DISCOVERY OF CLAIR'S.** *Recorded here
+rather than absorbed silently: the E-4 lesson is that an absorption presented as a discovery is the routing
+that should not have happened.*
+
+### §3.1-pre — LEG 2: THE WIRE SEAM (RUST)
 
 🛑 **THIS IS THE LEG THE MILESTONE WAS NOT FILED WITH.** `M-RP-INTRO` sits in the RP (UI) track; **(d) made
 this leg real Rust in three crates.** `cargo` is a **real floor from this leg onward** — it was refused entry
@@ -123,7 +184,9 @@ forward.
    ~60 call sites keep their exact current signature and are not touched.**
 3. **Doc comment must be honest (`B-3`):** it is **NOT** the `build_message_file_event` twin pattern — those
    twins carry a **different `EventType`**; this one **reuses `EventType::MessageText` and widens content**.
-   🛑 **Do not write *"Twin of …"* and inherit a precedent this does not have.**
+   🛑 **Do not write *"Twin of …"* and inherit a precedent this does not have.** 📌 *The twin doc comments are
+   at `exchange.rs:944-950` and `:975-982`; v1.0 cited `:983-989`, which is the redact **signature**, not its
+   comment.*
 
 🛑 **REJECT AN `extras` THAT WOULD OVERWRITE `text`.** If a caller passes a key literally named `text`, that
 is 1-bis violated at the lowest level. **Clair's choice of mechanism is hers** (debug-assert, silent skip
@@ -152,7 +215,9 @@ picks she states in the deviation report so Chat can gate on it.
 
 ### §3.3 — The ch3 convention (documentation, and it is a deliverable)
 
-**File:** `docs/ch3_*` — the content-key namespace convention, borrowed grammar per the §3.1 lock.
+**File:** 🛑 **`docs/xgen_ch3_specification.md`** — v1.0 said `docs/ch3_*`, which **matches nothing**.
+**§3.1.3 Field Naming Conventions is at `:332`; §3.0.3 Wire-format invariance at `:108`.** The content-key
+namespace convention, borrowed grammar per the §3.1 lock.
 🛑 **IN A PROTOCOL PROJECT THE SPEC IS THE DELIVERABLE, NOT A CHORE.** State: `xgen.` reserved for protocol ·
 reverse-domain for third parties · lowercase snake_case segments · **values may be nested objects (this is
 where the convention DIVERGES from `meta_atts`' spec 3.1.3, and the divergence must be written down, not
@@ -194,12 +259,41 @@ them.**
 ### §4.3 — The widget: `message-intro.svelte`
 
 **New file:** `ui/common/lib/components/widgets/message-intro.svelte`
-Renders `headline` / `blurb` from `props.intro`. 🛑 **TEXT NODES ONLY — NO `{@html}`, NO SANITISER, NO
+Renders `headline` / `blurb` from `props.intro`.
+⚠️ **STATE THE REGISTRY CONTRACT EXPLICITLY (F-7):** whether this widget takes an `id`/`regionId` prop, and
+whether anything registers it beyond §4.2's one line. **`B-8` is why it matters — `props` is
+`Record<string, unknown>` and NOTHING type-checks that a mount supplies what its widget needs**, so a widget
+that silently depends on a field no mount passes fails at runtime, on a stranger's first message. **V-10
+gates it either way.** 🛑 **TEXT NODES ONLY — NO `{@html}`, NO SANITISER, NO
 MARKUP PATH** (Phase-0 §7.3). This is a **component, not a processed string**, for exactly the reason
 `dm-intro` is: the payload is authored by a person the recipient has never met. **Markup belongs to
 `M-RP-PROCESSOR-RENDER`**, which is a separate milestone that *"must not be scoped in a single sitting."*
 ⚠️ **Bound the rendered length.** An unbounded stranger-authored blurb is a layout weapon on first contact.
 **The bound's VALUE is Joe's** (`D-138`); ship a plausible one.
+
+### §4.5 — 🛑 THE OWN-ROW PATH — **NEW IN v1.1 (F-6 / `B-11`)**
+
+**File:** `ui/common/lib/components/widgets/stream-panel.svelte:118-133` (`echoToDescriptor`)
+
+🛑 **§4.1 ALONE FIXES THE RECEIVER AND LEAVES THE SENDER BLIND.** Own rows never reach `projectEvent`: they
+come from `echo.forRoom(…).map(echoToDescriptor)`, and that function **hardcodes** `bodyExtras` to the
+send-status mount. ⇒ **without this step, the person who sends an intro never sees it.**
+
+🔑 **`I2` IS THE REASON THIS IS FIXED RATHER THAN FILED.** J-701's argument was that as the opening message
+the intro is *"attributed, in the DAG, redactable, blockable and reportable, **and symmetry is free** because
+the initiator sees their own intro as message one."* **Symmetry is free only because own rows are
+`MessageDescriptor`s too — it is not free by accident, and it is not free if nobody writes this step.**
+
+1. `EchoMessage` (`echo-state.svelte.ts:73-85`) gains the intro, following the file's own
+   **absent-not-empty-string** discipline (`:80-82`).
+2. `echoToDescriptor` **appends** the intro mount to `bodyExtras` **alongside** `send-status`. 🛑 **Appends —
+   does not replace.** *A send-status LED lost on exactly the rows carrying a first contact would be the
+   M-RP6.9 D-5 mistake made backwards.*
+3. ⚠️ **Two mounts on one row means `mountKey` uniqueness now matters where it did not before** — V-12 ③.
+
+🔓 **JOE'S CALL, SCAFFOLDED AS FIXED.** The alternative is to file the asymmetry as a stated limit. **Chat
+scaffolds the fix because `I2` was ARGUED rather than assumed**, and a milestone that quietly drops one half
+of a ruled argument has changed the ruling without saying so.
 
 ### §4.4 — Write the key: the composer
 
@@ -219,16 +313,48 @@ fed with nothing.*
 🔒 **Numbers Chat did not personally measure do not enter the record.** Clair's numbers are cross-checked,
 never adopted. **Listed here so Clair can see the target — not for her to run.**
 
+### §5.0 — 🛑 V-0's OWNERSHIP AND SUBJECT SET — **REWRITTEN IN v1.1 (F-4/F-5)**
+
+**v1.0 said both *"CHAT DRIVES ALL OF IT"* (§5 header, §8.2) and *"belongs in the IMPLEMENTER's window"*
+(V-0). Flat contradiction, and it made the sequencing unexecutable.** Resolved:
+
+🔒 **CHAT DRIVES V-0, and drives it BEFORE handing the runbook to Clair.** The `F9` principle stands — a
+pre-change control is a gate on the change — **but the seat that owns it is the seat that owns every gate
+here.** *What E-3b actually got wrong was TIMING, not ownership: the control was captured after the edit. The
+fix is to run it first, not to move it to another seat.*
+
+🛑 **V-0's SUBJECT SET IS V-3, V-4, V-5 AND V-9 — AND NOTHING ELSE.** *A pre-edit `cargo` (V-1), svelte-check
+(V-6) or vitest (V-8) **cannot fail**: they are FLOORS and they pass today by definition. V-2 is **impossible**
+before the parameter exists. Asking a floor to serve as a positive control is a category error that would
+have produced a "control" nobody could interpret.*
+
+🛑 **V-1's BASELINE, WHICH v1.0 OMITTED: `cargo` IS UNMEASURED IN THIS MILESTONE.** It was refused entry
+during Phase-0 because that pass touched zero `.rs`, so **there is no inherited number to compare against and
+none may be quoted from memory.** ⇒ **Chat measures the baseline as part of V-0's window, at the pre-edit
+commit, and records it with its commit hash.** ⚠️ **And `unchanged` may be the CORRECT result** — new tests
+add, existing counts hold; **a moved number is not automatically progress and an unmoved one is not
+automatically a miss.**
+
 | gate | what it proves | how |
 |---|---|---|
-| **V-0** | **PRE-EDIT POSITIVE CONTROL** — the gates below fail on today's tree | driven **BEFORE** Clair's first edit. 🛑 **A control captured on a pre-change build is a gate on the CHANGE, so it belongs in the IMPLEMENTER's window, not the verifier's afterthought** (`F9`) — *the E-3b sequencing error, not repeated* |
-| **V-1** | `cargo` floor moves in the expected direction and nothing else regresses | `cargo test --workspace` **detached** via `Start-Process`, output to a log, poll for terminator lines (it exceeds the MCP timeout) |
+| **V-0** | **PRE-EDIT POSITIVE CONTROL for V-3 / V-4 / V-5 / V-9 ONLY**, plus the `cargo` baseline capture | driven **by Chat, BEFORE Clair's first edit**, at a named commit |
+| **V-1** | `cargo` moves in the expected direction against **V-0's captured baseline** and nothing else regresses. ⚠️ **unchanged may be correct** | `cargo test --workspace` **detached** via `Start-Process`, output to a log, poll for terminator lines (it exceeds the MCP timeout) |
 | **V-2** | ⚠️ **an added optional Tauri param does not break a webview caller that omits it** | drive `send_message` from the live client with the old argument set. **Assumed by nobody; measured** |
 | **V-3** | 🔑 **THE DEGRADATION PATH — the one that must be TESTED, NOT ASSUMED.** An event carrying `xgen.intro.v1` whose widget is **NOT registered** renders **the plain `text`** and drops the mount (W-13) | **M1′ (`B-5`)**: Vite eval `await import('/@fs/…/stream/derive.ts')`, run `projectEvent` on a synthetic event, read back through a window global. **Real execution, no disk, no consent** |
 | **V-4** | malformed payloads produce **no mount and no crash** — string, array, `null`, missing members, oversized blurb | same M1′ harness, table-driven |
 | **V-5** | 🛑 **1-bis HELD: an event with the key and NO `text` never leaves the client**, and one with `text` and no key is **byte-identical to today's send** | `desktop.rs:313` guard exercised live; canonical bytes compared |
 | **V-6** | svelte-check floor **0/34/15** unmoved or improved | `cd ui; npm run check`, launched detached, poll the output file |
 | **V-7** | the intro renders in message chrome on the live client, two identities | CDP 9222, `cdp-debug.ps1`. 🛑 **Chat cannot see PNGs — screenshot, name it, ASK JOE TO LOOK** |
+| **V-8** | 🔒 **NEW (F-2) — the vitest floor holds: 9 files / 154 tests / 154 passed.** Leg 3 edits **two of those nine** (`derive.test.ts`, `mounts.test.ts`), and Leg 3's new branch must arrive **covered** | `npx vitest run` from `ui/`, detached, poll the log. 🛑 **No npm script exists — invoke it directly** (`B-10`) |
+| **V-9** | 🔒 **NEW (F-3) — an `extras` map containing a key literally named `text` DOES NOT overwrite the sentence.** §3.1 leaves the mechanism to Clair, so the gate tests the OUTCOME and not her choice of mechanism | a `xgen-core` unit test on `build_message_text_event_with_extras` |
+| **V-10** | 🔒 **NEW (F-7) — the registry contract, either way.** If `message-intro` takes an `id`, it is fed; if not, that is stated. **A widget mounted with a prop bag nothing type-checks (`B-8`) must not depend on a field no mount supplies** | vitest against `resolveMounts` + the live row |
+| **V-11** | 🔒 **NEW (F-6 / `B-11`) — THE SENDER SEES THEIR OWN INTRO.** `I2` claimed symmetry is free; own rows bypass `projectEvent` entirely, so it is free only once §4.5 exists | live client, own row after send |
+| **V-12** | 🔒 **NEW (census→partition) — the four unlisted failure modes:** ① `xgen.intro.v1` present on a **non-DM room** message · ② the key present on a **redacted/tombstoned** row · ③ **two** intro mounts on one row (duplicate-key crash shape, M-RP6.9) · ④ an intro on a **grouped continuation** row, where the header guard is suppressed | vitest + M1′ where pure, live where not |
+
+🛑 **THE LIST ABOVE IS NOW ASSERTED AS A PARTITION, NOT A CENSUS — AND THAT ASSERTION IS ITSELF A CLAIM.**
+*v1.0's list looked complete and was not; four failure modes were missing and V-5's second arm named no
+surface. **Twice in this arc a set that looked complete was not, and once it was inside the very option Chat
+recommended.** V-12 closes the four Clair found. **It does not prove there is no fifth.***
 
 🛑 **NO NUMBER ENTERS THE RECORD WITHOUT THE SCREEN IT WAS MEASURED ON.** J-731 measured a previous arc's
 stated screen to be stale (recorded *"7 Spaces, 3 DMs"*, actually 8 and 4). **Record the screen or record no

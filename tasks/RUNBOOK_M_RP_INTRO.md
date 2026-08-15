@@ -1,6 +1,6 @@
 # M-RP-INTRO Runbook — the DM welcome intro: one additive key, two seams, and a fallback that must be tested rather than assumed
 > **Status**: PENDING  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-15  
 > Language: EN  
@@ -210,8 +210,9 @@ picks she states in the deviation report so Chat can gate on it.
    ⚠️ **VERIFY, DO NOT ASSUME: that a Tauri command tolerates an added optional param without breaking
    existing webview callers that omit it.** Chat drives this as gate **V-2**; Clair does not need to prove
    it, but **must not design around an assumption about it either way.**
-4. 🛑 **`desktop.rs:313`'s empty-text guard STAYS EXACTLY AS IT IS** (`B-9`). **An intro with no sentence is
-   not sendable, and that is the point.**
+4. 🛑 **`desktop.rs`'s empty-text guard STAYS EXACTLY AS IT IS** (`B-9`). **An intro with no sentence is
+   not sendable, and that is the point.** 📌 *Cited by symbol: `if text.trim().is_empty()` — it was `:313`
+   pre-edit and is **`:325`** now, because Leg 2 inserted the `intro` parameter above it.*
 
 ### §3.3 — The ch3 convention (documentation, and it is a deliverable)
 
@@ -250,7 +251,11 @@ mount** rather than a broken one. **The row still renders `text`.**
 
 ### §4.2 — Register the widget: `stream-panel.svelte`
 
-**File:** `ui/common/lib/components/widgets/stream-panel.svelte:135`
+**File:** `ui/common/lib/components/widgets/stream-panel.svelte` — the `const widgets = {…}` object literal
+🛑 **CITED BY SYMBOL, NOT BY LINE.** *v1.0 said `:135`, the Phase-0 said `:143`, the truth was `:145`, and
+after Leg 3 it is `:169`. **Four wrong pointings for one line** — and v1.1 corrected the grounding row and
+the correction list while leaving THIS row, the one an implementer actually follows. **A correction applied
+to the cited instance rather than to the class is not a correction.***
 `const widgets = { 'send-status': SendStatus }` **gains `'message-intro': MessageIntro`.** One line (`B-7`).
 🔑 **The `above` socket and `dm-intro` are NOT touched** — that is the **pre-send** draft page and this
 milestone is the **post-send** artefact (`G-8a`). **Two different things wearing one word; do not merge
@@ -273,7 +278,7 @@ MARKUP PATH** (Phase-0 §7.3). This is a **component, not a processed string**, 
 
 ### §4.5 — 🛑 THE OWN-ROW PATH — **NEW IN v1.1 (F-6 / `B-11`)**
 
-**File:** `ui/common/lib/components/widgets/stream-panel.svelte:118-133` (`echoToDescriptor`)
+**File:** `ui/common/lib/components/widgets/stream-panel.svelte` — the `echoToDescriptor` function (`:118-133` pre-edit, **`:121` now** — cite the symbol)
 
 🛑 **§4.1 ALONE FIXES THE RECEIVER AND LEAVES THE SENDER BLIND.** Own rows never reach `projectEvent`: they
 come from `echo.forRoom(…).map(echoToDescriptor)`, and that function **hardcodes** `bodyExtras` to the
@@ -382,7 +387,7 @@ progress and an unmoved one is not automatically a miss.*
 | **V-2** | ⚠️ **an added optional Tauri param does not break a webview caller that omits it** | drive `send_message` from the live client with the old argument set. **Assumed by nobody; measured** |
 | **V-3** | 🔑 **THE DEGRADATION PATH — the one that must be TESTED, NOT ASSUMED.** An event carrying `xgen.intro.v1` whose widget is **NOT registered** renders **the plain `text`** and drops the mount (W-13). 🔒 **V-0b A/B: run registered AND unregistered in the SAME post-edit build and show the mount counts DIFFER.** 🛑 *Pre-edit this passes VACUOUSLY — `projectEvent` reads no key but `text`, so there is no mount to drop* | **M1′ (`B-5`)**: Vite eval `await import('/@fs/…/stream/derive.ts')`, run `projectEvent` on a synthetic event, read back through a window global. **Real execution, no disk, no consent** |
 | **V-4** | malformed payloads produce **no mount and no crash** — string, array, `null`, missing members, oversized blurb. 🔒 **V-0b A/B: well-formed vs malformed in the same build.** 🛑 *Pre-edit: VACUOUS — no mount is ever produced* | same M1′ harness, table-driven |
-| **V-5** | 🛑 **1-bis HELD: an event with the key and NO `text` never leaves the client**, and one with `text` and no key is **byte-identical to today's send**. 🛑 *Pre-edit: VACUOUS — the key cannot be attached at all* | `desktop.rs:313` guard exercised live; canonical bytes compared against **V-0a's captured pre-edit send** |
+| **V-5** | 🛑 **1-bis HELD — TWO ARMS, AND THEY ARE DISCHARGED BY DIFFERENT MEANS.** **ARM 1:** an event with the key and NO `text` never leaves the client. **ARM 2:** a send with no key is byte-identical to an ordinary send | 🛑 **v1.3 CORRECTION — v1.2's ARM 2 WAS UNEXECUTABLE AS WRITTEN.** It said *"compare against V-0a's captured pre-edit send"*; **V-0a captured FLOORS, NOT A SEND**, and the pre-edit tree is gone. ✅ **Arm 2 is discharged by `no_extras_leaves_content_byte_identical_to_a_plain_text_event` (`m_rp_intro_extras_tests`), which compares CANONICAL BYTES — STRICTLY STRONGER than the live comparison v1.2 asked for.** *A gate that cannot be run is worse than one left open: it reads as satisfiable.* **ARM 1:** live, `desktop.rs:325`'s guard |
 | **V-6** | svelte-check floor **0/34/15** unmoved or improved | `cd ui; npm run check`, launched detached, poll the output file |
 | **V-7** | the intro renders in message chrome on the live client, two identities | CDP 9222, `cdp-debug.ps1`. 🛑 **Chat cannot see PNGs — screenshot, name it, ASK JOE TO LOOK** |
 | **V-8** | 🔒 **NEW (F-2) — the vitest floor holds: 9 files / 154 tests / 154 passed.** Leg 3 edits **two of those nine** (`derive.test.ts`, `mounts.test.ts`), and Leg 3's new branch must arrive **covered** | `npx vitest run` from `ui/`, detached, poll the log. 🛑 **No npm script exists — invoke it directly** (`B-10`) |
@@ -395,6 +400,69 @@ progress and an unmoved one is not automatically a miss.*
 *v1.0's list looked complete and was not; four failure modes were missing and V-5's second arm named no
 surface. **Twice in this arc a set that looked complete was not, and once it was inside the very option Chat
 recommended.** V-12 closes the four Clair found. **It does not prove there is no fifth.***
+
+🛑 **NO NUMBER ENTERS THE RECORD WITHOUT THE SCREEN IT WAS MEASURED ON.**
+
+### ✅ §5.1 — RE-DRIVE RESULTS (CHAT, Rule 5) — **AT `e76bac8`, CLEAN TREE, 2026-08-15**
+
+🔒 **Every figure below was driven by Chat. Clair's report agreed throughout; her numbers were cross-checked,
+not adopted.**
+
+| gate | measured | verdict |
+|---|---|---|
+| **V-1** `cargo test --workspace` | **1602 / 0 / 62 × 56 suites**, `CARGO_EXIT=0`, anchored `^test result: FAILED` = **0** | ✅ **+5 vs the `84285c2` baseline of 1597**, and the five are named `m_rp_intro_extras_tests::*` |
+| **V-8** `npx vitest run` | **9 files / 172 tests / 172 passed**, `VITEST_EXIT=0` | ✅ **+18 vs 154**, all in `derive.test.ts` |
+| **V-6** `npm run check` | **0 errors / 34 warnings / 15 files** | ✅ **floor exactly** |
+| **V-2** | 🔑 **MEASURED, NOT ASSUMED, AND NOT SIDESTEPPED.** Live `invoke('send_message', …)` **omitting `intro` entirely** and **passing `intro: null`** both returned the same structured rejection (`code 4000, space not found`) — **not a deserialisation error** | ✅ **Tauri maps a MISSING argument for `Option<T>` to `None`.** Clair's explicit `null` is belt-and-braces, **not** a load-bearing workaround |
+| **V-3** | declared mounts **1** · registered registry → **1 resolved** · unregistered → **0 resolved** · `AB_differ: true` · **`body: "hello"` in BOTH** | ✅ **THE DEGRADATION PATH IS REAL AND THE A/B DISCRIMINATES** — the property the entire (d) ruling was chosen for, tested rather than argued |
+| **V-4** | malformed intro (`'not-an-object'`) → **0 mounts**, `body: "hello"` | ✅ no mount, no crash, **sentence survives** |
+| **V-5 arm 1** | 🔑 **`text: ''` + intro → `event_id: NULL`, `"empty message"`** · `text: '   '` + intro → **same** · `text: 'hello'` + intro → **got an `event_id`, reached the node** | ✅ **`event_id: null` PROVES NOTHING WAS EVER BUILT OR SIGNED** — the send died at the guard, not downstream. **An intro with no sentence cannot leave the client; one with a sentence can.** Also confirms Clair's deliberate split: **whitespace-only is stored in the buffer and refused at the wire** |
+| **V-5 arm 2** | `no_extras_leaves_content_byte_identical_to_a_plain_text_event` passing | ✅ canonical-byte equality — **stronger than the live comparison v1.2 asked for** |
+| **V-9** | `an_extras_key_named_text_never_displaces_the_message_body` passing | ✅ |
+| **V-10** | resolved mount id = **`host-message-intro`** | ✅ the registry contract is **fed**, as Clair's report stated |
+| **V-12 ①②④** | key on a **non-`message.text`** event → **0 mounts** · a **future `xgen.intro.v2`** → **0 mounts**, body intact · redaction covered in `derive.test.ts` | ✅ **the versioning premise holds: a v1 reader ignores a v2 key and still renders the sentence** |
+| **N-182** | no intro → **the `bodyExtras` KEY IS ABSENT ENTIRELY**, not an empty array | ✅ |
+
+🛑 **NOT DRIVEN, AND NOT CLAIMED — THREE GATES REMAIN OPEN:**
+
+| gate | why | needs |
+|---|---|---|
+| **V-7** | the intro renders in message chrome, live, two identities | 🛑 **Chat cannot see PNGs.** Screenshot → **Joe looks** |
+| **V-11** | 🛑 **THE SENDER SEES THEIR OWN INTRO** — `§4.5`'s own-row path | a real DM between two identities. *The bogus-space probe exercised the COMMAND, not a SUCCESSFUL SEND* |
+| **V-12 ③** | two mounts on one row (`mountKey` uniqueness) | a real own-row send, so it rides with V-11 |
+
+⚠️ **V-11 IS THE ONE THAT MATTERS MOST OF THE THREE.** It is **the exact half `F-6` was about** — surfaced by
+Clair's cold read and fixed by scaffold. ***Fixing something a cold read surfaced and then not proving it is
+the shape this arc keeps failing at.*** If `§4.5` is subtly wrong, **the sender of a first-contact message
+sees nothing and nothing anywhere reports it.**
+
+🛑 **AND EVERY LINE NUMBER IN THIS RUNBOOK IS NOW STALE BY ITS OWN CHANGES.** `desktop.rs:313` was the
+empty-text guard; **it is now `intro: Option<serde_json::Value>` and the guard moved to `:325`.** The
+registry went **`:145` → `:169`**; `echoToDescriptor` **`:118-133` → `:121`**. ⚠️ **And §4.2's INSTRUCTION
+line still read `:135` throughout Leg 3** — v1.1 corrected the grounding row and the correction list **and
+left the row an implementer actually follows**, which is a **fourth** wrong pointing for one line and the
+first one in an instruction rather than a reference. 🔑 ***A CORRECTION APPLIED TO THE CITED INSTANCE RATHER
+THAN TO THE CLASS IS NOT A CORRECTION.*** ⇒ **cite SYMBOLS, not lines.**
+
+### 🛑 §5.2 — FOUR INSTRUMENT FAILURES IN ONE SESSION, ALL CHAT'S — owed to `N-197`
+
+🔑 **THREE SEATS HIT THE SAME SPECIES IN ONE SESSION**, and `N-197` is therefore much larger than the
+line-ending note it started as.
+
+1. `Select-String "FAILED"` over the cargo log — **case-insensitive by default**, so it matched `0 failed`
+   inside **every PASSING** `test result: ok` line. **59 false hits, read as alarming.**
+2. The bridge-up poll printed `EVAL RESULT: object` **six times** while Chat's own `-match` reported *"not
+   yet"* — **`cdp-debug.ps1` writes via `Write-Host`, so `2>&1 | Out-String` captures NOTHING.**
+3. The first M1′ probe returned **blank, with no error at all**; the cause was invisible until a `catch` was
+   added.
+4. 🛑 **Then it threw — because Chat called `projectEvent(ev)` with ONE argument when it takes THREE**
+   (`e, selfId, redactedIds`). ***N-194's question was never asked of Chat's own probe: what would this
+   return if the code were RIGHT? It would still throw.***
+
+⇒ **THE GENERALISATION, EARNED FROM BOTH DIRECTIONS IN ONE SESSION: a check whose failure mode produces the
+same reading as success is not a check** — Clair's `grep -c $'\r'` produced a false NEGATIVE about line
+endings; Chat's `FAILED` grep a false POSITIVE about failures; **and both returned a PLAUSIBLE number rather
+than an obvious error.**
 
 🛑 **NO NUMBER ENTERS THE RECORD WITHOUT THE SCREEN IT WAS MEASURED ON.** J-731 measured a previous arc's
 stated screen to be stale (recorded *"7 Spaces, 3 DMs"*, actually 8 and 4). **Record the screen or record no

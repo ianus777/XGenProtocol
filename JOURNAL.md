@@ -8,6 +8,52 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-736 — a throwaway comparison message executed the one gate that had been recorded as unexecutable, and the canvas gets its placement proposal
+**Date:** 2026-08-15 · **Seats:** Joe (the comparison message, the placement verdict, the question that forced the answer) · Chat (measurement, records). **No milestone state moved.** `docs/ROADMAP.md` **v7.23 → v7.24**. **NO CODE.** ✅ `M-RP-INTRO` stays CLOSED at `3e1014d`, confirmed on the remote by `ls-remote`, tree clean.
+
+### 🔑 V-5 ARM 2 WAS RECORDED AS UNEXECUTABLE. JOE EXECUTED IT BY ACCIDENT.
+Runbook v1.3 flagged arm 2 as **unrunnable as written** — it asked to compare against *"V-0a's captured pre-edit send"*, and **V-0a captured FLOORS, NOT A SEND**; it was discharged instead by canonical-byte equality inside `cargo`. ⚠️ ***A gate that cannot be run is worse than one left open: it reads as satisfiable.***
+
+🔑 **Joe sent an ordinary message into the same DM purely to compare appearances — and in doing so built the exact control the gate wanted: an ordinary send and an intro send, SAME sender, SAME room, SAME session.** Measured on the echo rows:
+
+| row | `intro` key | `ownKeys` | status |
+|---|---|---|---|
+| the intro send | value is an **OBJECT** | includes `intro` | `accepted`, real `eventId` |
+| Joe's ordinary send | **ABSENT** | **no `intro` at all** | `accepted`, real `eventId` |
+
+🔒 **`N-182`'s absent-not-empty discipline is now proven on a REAL ORDINARY SEND, not by canonical-byte equality alone.** Not `null`, not an empty object — **the key does not exist on the row.** 📌 Joe's `🙂` also round-tripped intact through the substitution processor.
+
+### 🛑 JOE'S VERDICT ON THE SHIPPED PLACEMENT, AND HE DECLINED THE FIX ON THE RIGHT GROUND
+*"it is better … by this `Hi Carol, Joe here` is still not in the correct place, as the main text. but after that i recalled that this intro message have to have another shape as an canvas. so i left it as is, because it will be changed anyway."*
+
+**He is right and the measurement says why:** `.message-intro-headline` sits at **12px/600 directly under a 14px/400 body** with **no rule, no indent, no background and no gap token** — smaller and bolder, but **still in the same vertical flow**, so it reads as a bolded continuation of the sentence. 🔑 ***SIZE ALONE IS NOT AN EDGE; A CANVAS NEEDS A BOUNDARY.*** ✅ **And declining to tune it is `M-RP-SKIN`'s own rule applied correctly — *you cannot tune an appearance whose mechanics are still moving underneath it*. The canvas REPLACES the object; it does not restyle it.**
+
+### 🔓 THE PLACEMENT PROPOSAL — CHAT'S, AND EXPLICITLY NOT A LOCK (`D-071`)
+Joe asked directly: *"where you intend to place the canvas? in the main text or in the blurb block?"* **Neither — both are foreclosed by locks already standing.**
+
+- 🛑 **NOT the main text.** `message.svelte` makes `body` **ALWAYS a text node via `paragraph`, NEVER `{@html}`**. A canvas there either opens the sanitiser surface on stranger-authored content or displaces the sentence — **both barred by 1-bis.**
+- 🛑 **NOT the `bodyExtras` lane.** `M-RP6.9` built it for **recurring chips** and promises *"adding the 4th tag does not move the row."* A one-time canvas is the wrong shape — **Joe's own finding.**
+- 🛑 **NOT `details`.** It is a `<span>` in the header line beside the author name, suppressed on grouped rows. **Header-adjacent is chrome-adjacent, which brushes against `I1`.**
+- 🔓 **PROPOSED: a THIRD socket in `message.svelte`** — block-level, inside `msg-content`. It satisfies every standing lock at once: message chrome (`I1`) · attributed + redactable (`I2`) · the body keeps its own untouched text-node line (**1-bis**) · the chip lane keeps its promise (`M-RP6.9`) · a `WidgetMount[]` the RECEIVER resolves with drop-unknown (`N-172` + `W-13`).
+
+### 🔑 JOE REFINED THE POSITION AND HIS IS BETTER — **BETWEEN THE HEADER AND THE PARAGRAPH**
+Chat proposed the socket **below** the body. Joe: *"put that block between header and paragraph … theoretically we could still use the main message for text that want to add something to the canvas."* **Grounded: the insertion point is `message.svelte` line 171** — after the header guard closes at `:170`, before the `{#if deleted}` branch.
+
+🔑 **THE CONSEQUENCE JOE DID NOT HAVE TO COMPUTE, AND IT IS THE CLINCHER: HIS ORDER RETIRES THE `order: -1` SKIN RULE SHIPPED HOURS EARLIER AT J-735.** Today the DOM runs body → canvas → LED, and the ONLY thing putting `Sent` back under the text is a CSS `order` reorder **fighting the DOM**. Canvas-above-body makes it **canvas → body → extras naturally**, so send-status sits directly under the text it reports on ⇒ Joe's own J-735 complaint (*"send label down, under whole text block, as it used to be"*) becomes **STRUCTURALLY TRUE INSTEAD OF CSS-CORRECTED**, and the rule is deleted rather than inherited. ***A placement that removes a workaround is better than one that keeps it working.***
+
+✅ **Three further arguments, all favouring Joe:** **attribution proximity** — the header states WHO, the canvas elaborates WHO, the body says WHAT, so header → canvas → body is semantically ordered and the canvas neighbours the identity claim it expands · **his own reason holds** — the sentence becomes a comment ON the card, which is how a visit card actually works · **it generalises better** — a block socket ABOVE the body serves any *context-for-this-message* tenant (a quoted reply, a poll header, a resident's diagram preamble), while below the body only ever serves annotations.
+
+🔓 **TWO GUARD QUESTIONS THE POSITION OPENS, NAMED NOW RATHER THAN DISCOVERED IN IMPLEMENTATION:** ① **line 171 is OUTSIDE `{#if !grouped}`** (which closes at `:170`), so a tenant there **SURVIVES a continuation row** — like `bodyExtras`, unlike `details`. Harmless for the intro (always message #1, never grouped), **a real decision for a GENERAL socket.** ② it needs its own **`!deleted` guard** to match the ONE conservative tombstone rule `details` and `bodyExtras` already share (`M-RP6.9` D-4) — *otherwise a canvas survives a redaction that removed the body.*
+
+⚠️ **AND ONE THING THAT IS NOT THIS MILESTONE'S TO SETTLE:** canvas-first means **the first thing a recipient sees from a stranger is the stranger's composed canvas.** `I1` still holds — it is message chrome with attribution directly above it — but **PROMINENCE on unsolicited first contact is `M-INTRO-POLICY`'s question**, and it is named here rather than answered.
+
+🛑 **THE PRICE, NAMED RATHER THAN BURIED: `message.svelte` IS `core` — the GPL reference library.** This is a **real core change** and belongs to `M-RP-INTRO-CANVAS` alone, **never as a rider**; a `core` change inside a shell milestone is what makes a registry delta unreadable. 📌 **`D-071` governs: the Phase-0 audit precedes the design lock, and the lock is Joe's.**
+
+### 📌 UNCHANGED AND STILL OWED
+`N-197`'s wording (Joe's; six instrument failures, three seats) · **`M-INTRO-POLICY`'s Phase-0 — its trigger fired with the `3e1014d` push** · the `blurb` → `about` rename (sequences into the canvas) · `HEADLINE_MAX` / `BLURB_MAX` under `D-138` · `trust_assertion` · Round-2 audit still gates UI completion. 🔒 **Floors untouched — NO CODE this entry:** cargo **1602/0/62 × 56** · vitest **172/172 × 9 FILES** · svelte-check **0/34/15**, carried and deliberately not re-run. 🛑 Catalogue still **UNMEASURED**.
+
+---
+
 ## Entry J-735 — the three open gates driven on a real DM between two identities; the milestone closes, and Joe's recall reopens what the intro IS
 **Date:** 2026-08-15 · **Seats:** Chat (all verification, the live drive, the skin fix, records) · Joe (V-7's eyes, two appearance findings, the recall that reframed the milestone, the name `M-RP-INTRO-CANVAS`). ✅ **`M-RP-INTRO` CLOSES.** Runbook **v1.3 → v1.4 COMPLETED** · Phase-0 **v1.4 → v1.5 COMPLETED** · ROADMAP **v7.22 → v7.23**. ***Every figure below was driven by Chat (Rule 5).***
 

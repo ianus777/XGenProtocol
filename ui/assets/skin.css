@@ -2073,6 +2073,51 @@ html, body {
   font-size: var(--fs-0);
 }
 
+/* ── dm-spaces (.dm-spaces) — R1-bis DM home, the THIRD real system widget (M-RP-MEMBER-ACT Leg E). Holds
+ * only the widget frame: the composed `entity-panel` / `entity-item` rows carry their own appearance, and
+ * every row here is a DM, so no per-row discriminator is skinned (N-192 — context supplies the sense).
+ * Frame matches `.self-panel`'s flush edge rather than `.inspector-panel`'s inset: this is a LIST region
+ * peer to R1, not a detail pane. Accent-neutral — a directory is chrome; the seed colour rides the avatar.
+ * PROVISIONAL → M-RP-SKIN (D-138: mechanism Chat's, values Joe's). ── */
+.dm-spaces {
+  padding: var(--sp-0);
+}
+
+/* ── dm-intro (.dm-intro-*) — the DM draft "start of conversation" page (Leg C-bis), mounted in the stream's
+ * `above` socket ONLY while a draft is active. It is a one-shot masthead, not a row, so it centres and
+ * carries the only large type in the stream column. `.dm-intro-avatar` is a PLACEHOLDER BOX: dm-intro.svelte
+ * deliberately wires no avatar source and invents none (:25), so the rule supplies a neutral disc on the
+ * 28px `--ea-size` rhythm scaled ×2 — sized here so it is VISIBLE and correctable; without a size it renders
+ * as nothing and cannot be looked at. Seed colours are NOT used: there is no identity fed to derive them
+ * from, and a fake seed would read as a real avatar. PROVISIONAL → M-RP-SKIN. ── */
+.dm-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-3) var(--sp-3);
+}
+.dm-intro-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #2b2d33;
+  border: 1px solid #3a3d45;
+}
+.dm-intro-heading {
+  color: var(--t);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.dm-intro-body {
+  margin: 0;
+  color: var(--t3);
+  font-size: var(--fs-1);
+  overflow-wrap: anywhere;
+}
+
 /* ── connection-stats (.connection-stats / .cs-*) — the FIRST `kind: custom` widget (M-RP-CONNSTATS), the
  * install→dock→uninstall lifecycle exemplar. A compact metric-row list reading the self-state store. ALL
  * skinnable presentation lives here (N-090 / N-094: the component ships ZERO <style>). PROVISIONAL → M-RP-SKIN

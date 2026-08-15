@@ -136,7 +136,7 @@
     {selected}
     {onActivate}
     selectOnActivate={false}
-    emptyText="No direct messages"
+    emptyText="No direct messages yet."
     id={cid('panel')}
   />
 </div>

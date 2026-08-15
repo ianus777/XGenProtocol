@@ -38,5 +38,5 @@
 <div use:envelope={{ name: 'dm-intro', id, debug }}>
   <div class="dm-intro-avatar" aria-hidden="true"></div>
   <div class="dm-intro-heading">{name}</div>
-  <p class="dm-intro-body">This is the start of private direct message stream with {name}.</p>
+  <p class="dm-intro-body">This is the start of your private direct message stream with {name}.</p>
 </div>

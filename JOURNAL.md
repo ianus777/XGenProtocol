@@ -8,6 +8,61 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-735 — the three open gates driven on a real DM between two identities; the milestone closes, and Joe's recall reopens what the intro IS
+**Date:** 2026-08-15 · **Seats:** Chat (all verification, the live drive, the skin fix, records) · Joe (V-7's eyes, two appearance findings, the recall that reframed the milestone, the name `M-RP-INTRO-CANVAS`). ✅ **`M-RP-INTRO` CLOSES.** Runbook **v1.3 → v1.4 COMPLETED** · Phase-0 **v1.4 → v1.5 COMPLETED** · ROADMAP **v7.22 → v7.23**. ***Every figure below was driven by Chat (Rule 5).***
+
+### ✅ THE THREE GATES THAT WERE OPEN AT J-734 ARE DRIVEN — ON A REAL DM, NOT A PROBE
+State re-measured at open rather than inherited: clean tree, HEAD `f0cd32a` = `origin/main` by `ls-remote`; apps DOWN by `netstat` (N-196 — Vite binds IPv6-only and `Test-NetConnection 127.0.0.1` lies about it).
+
+🔑 **THE SECOND IDENTITY WAS ALREADY ON DISK AND THE PRODUCT ROUTE WAS ALREADY OPEN.** `bin/instances/legf/` holds live keypairs from the Leg F arc; `LegF-CAROL` (`…7WGuWOqU…pp0`) is a member of `LegF Verification` alongside Joe. ⚠️ **`legf/bob` was REFUSED as the counterpart** — his config carries `is_ai = true`, which would have lit the AI badge and put a second variable into V-7's screenshot. *The gate was driven against the plainest available identity, deliberately.*
+
+**The whole path was driven through the product, with trusted clicks, no synthesised state:** space latch → room latch (`canSend: true`, roster **9**, phase `ready`) → Carol's row → draft opens (`draftActive: true`) → the intro disclosure → authoring → send.
+
+| gate | measured | verdict |
+|---|---|---|
+| **V-11** | echo row carries `hasIntro: true`, **`status: "accepted"`**, real `eventId` `…37a5a3cb…`; the own row paints a `message-intro` mount | ✅ **THE SENDER SEES THEIR OWN INTRO.** §4.5's own-row path is real |
+| **V-12 ③** | `msg-body-extras` `childCount: 2`, registry ids `__x-send-status` + `__x-message-intro` — **distinct** | ✅ two mounts on one row, no duplicate-key crash |
+| **V-7** | screenshot handed to Joe; **he looked** | ✅ **the intro renders in MESSAGE chrome (`I1`)** |
+
+🛑 **THE DISTINCTION THAT KEPT V-11 OPEN FOR A WHOLE SESSION IS THE ONE THAT CLOSED IT.** J-734's bogus-space probe exercised the **command**; this drove a **successful send** — `create_dm_space` signing and sending its three-event chain against a live node, then `echo.send` carrying the intro. **`status: accepted` with an `event_id` is the difference**, and nothing short of a real DM produces it.
+
+✅ **OPT-IN PROVEN ON THE RENDER, NOT ASSERTED:** with the draft open the disclosure is **collapsed by default** and the two fields are **absent from the DOM entirely** — §2.2's opt-in property visible as an absence, which is the strongest form it can take.
+
+### 🛑 JOE LOOKED AT THE SCREENSHOT AND FOUND TWO THINGS NO GATE ASKED ABOUT
+**① THE SEND LABEL LEFT ITS PLACE, AND THE CAUSE WAS THE SECOND MOUNT, NOT THE LED.** `.msg-body-extras` is `flex; align-items: center`. With ONE child the 12px LED sat under the body and read as a label; with TWO, it centres against a 37px prose block. **Nothing about `send-status` changed — the lane gained a sibling.**
+
+**② THE OPTIONAL EXTENSION WAS OUT-SHOUTING THE GUARANTEED SENTENCE.** Measured live: body **12px/18px**, intro headline AND blurb **16px/18.4px** — **33% larger, and a 1.15 ratio against `--lh: 1.5`.** 🔑 **THE CAUSE: `skin.css` HAD ZERO `.message-intro*` RULES.** The widget ships structural-only styles and says so — *"NO colour, NO font-size, NO weight — Joe's to skin (`D-138`)"* — so 16px was **the browser's inherited default, never a chosen value.** ⚠️ ***This inverted the hierarchy the protocol depends on:*** ch3 makes `content.text` the field that must always render true and 1-bis makes it load-bearing forever, while the key a reader is free to ignore rendered larger.
+
+🔒 **THE FIX, RE-DRIVEN LIVE (not read from the diff):** body `--fs-1 → --fs-2` (**14px/21px**); `.message-intro-headline` and `-blurb` given `--fs-1` + `--lh` (**12px/18px**, headline `600`); the intro takes its own lane via `order:-1; flex:1 0 100%`. **Stack: body 269 → headline 290 → blurb 308 → `Sent` 330** — the label returns beneath the whole block. Hierarchy **14 › 12 › 10**, descending, **zero new tokens minted** (the literal 12↔16 exchange Joe proposed would have needed an `--fs-3`; `--fs-2` was already the next step). 📌 **`.message[data-kind="system"]` pins itself to `--fs-1`, so system notices stayed 12px** — protocol-generated chrome stayed quiet while user prose grew. *That fell out of an existing rule; it was not added.*
+
+### 🔑 JOE'S RECALL REFRAMED THE MILESTONE, AND THE RECORD BACKED HIM ON EVERY POINT
+Joe: *"i needed to have some settable intro canvas to welcome the counterpart. it has to be settable through settings. it is plugin, am i right?"* **He is right, and the mechanism is already shipped.**
+
+- **`N-172` names it** — written in the same J-701 conversation: *"the first tenant that renders SOMEONE ELSE'S content — **a DM welcome intro**, a poll result, an AI resident's diagram"*, with the binding rule ***a canvas is a PROJECTION OF EVENTS, NEVER A CARRIER OF THEM.***
+- **`D-120` (2026-07-17, J-540) is the settings mechanism**: a plugin ships its own `settingsComponent` and Settings hosts it. Two live tenants: `grid-plate` (*"its backdrop IS its setting"*) and `substitutions-editor`.
+- **In `D-112`'s axes the intro is `host: client · delivery: compiled · surface: none`** — the editor is content inside Settings, the render is a `WidgetMount` inside a message host, and *content in a host is not a surface* (surfaces §3.2). **Literally S-2's "one component, two mounts".**
+
+🛑 **THE DIVERGENCE, NAMED RATHER THAN SMOOTHED: WHAT SHIPPED IS HAND-TYPED PER DM; WHAT JOE INTENDED IS COMPOSED ONCE IN SETTINGS.** Those are different products, and they compose — Settings holds the default, the composer overrides per person. **Neither half is wasted, and the wire contract is unchanged by either.**
+
+🛑 **AND THE LANE WAS NEVER FOR PROSE — JOE SPOTTED THAT TOO.** `M_RP6_9_BODY_EXTRAS.md` built `bodyExtras` as the reactions/tags lane (*"adding the 4th tag does not move the row"*, strip labels drawn as `👍 3 · 🎉 1 · 🚀 2`). ⚠️ **The Phase-0 said *"the `bodyExtras` (or `details`) tenant"* and the runbook picked one without asking which SHAPE the lane was for. That is Chat's.** ⇒ **placement ships PROVISIONAL with a named discharger**, which is this project's own rule: *a provisional that points nowhere is a defect with an alibi.*
+
+### 🛑 A CANONICAL RECORD WAS A MONTH STALE AND IT PRODUCED A LIVE ERROR IN THIS SESSION
+Chat told Joe the settings mechanism was *"filed, explicitly undecided"* and that *"nothing is built toward either until the grid works."* **`D-120` had resolved it on 2026-07-17.** 🔑 **The mechanism: `CLAUDE.md`'s J-513 block still carries the undecided text with NO annotation, and the string `D-120` appears NOWHERE in `CLAUDE.md` at all.** ⇒ **the entry-point document, whose whole job is to be read first, still tells every reader the question is open and blocking.** **Annotated at the site under `D-131`.** ***Joe's recall beat the canonical record again — that is now the pattern in this arc, not an anecdote.***
+
+### 🛑 A FIFTH INSTRUMENT FAILURE, CHAT'S, OWED TO `N-197`
+Chat's first probe read `spaceLatch.effectiveSpaceId` — **a field that does not exist on that store** (it is `latchedSpaceId`) — and got a clean-looking `null` that read **exactly like a failed click**. The click had worked. 🔑 **`N-110`'s shape: a selector that cannot see its subject reports a plausible nothing.** ⇒ **`N-197` is owed and its wording is Joe's; it now covers six failures across three seats.**
+
+### 📌 CARRIED, NOT ABSORBED
+- 🟡 **`M-RP-INTRO-CANVAS` — the settable welcome canvas: intro as a settings-hosted plugin** (name Joe's). Takes the authoring model AND the placement: `surface: none`, a `settingsComponent` on `D-120`'s shipped mechanism, two mounts. 🔒 **`N-172` binds it: the wire carries DATA, never a widget id, never markup; the receiver picks the widget.** ⚠️ **No `{@html}`** — Phase-0 §7.3, because the payload is authored by someone the recipient has never met.
+- 🟡 **`M-INTRO-POLICY` — ITS TRIGGER FIRES ON THIS CLOSE** (*"M-RP-INTRO lands"*). Protocol + node + client, explicitly **not** a UI leg; `D-143` stands (the filter is enforced in the CLIENT). **Phase-0 filed as OWED — a trigger that has fired with no Phase-0 is a defect.**
+- 🔓 **`blurb` → `about` NOT renamed.** 39 hits / 9 files (ch3 unaffected — it names the key, never the fields). **Naming is Joe's**, and it sequences into `M-RP-INTRO-CANVAS`, where the field set may change anyway. *Flagged, not silently skipped.*
+- 🔓 Joe's open items unchanged: the DM-draft-only asymmetry (Clair's, named as hers) · `HEADLINE_MAX 120` / `BLURB_MAX 600` (`D-138`, provisional) · `trust_assertion` · Round-2 audit still gates UI completion.
+- 📌 **Placeholders in the extras lane: ALREADY ANSWERED AND ALREADY DONE.** `M_RP6_9_BODY_EXTRAS.md` — *"Fixtures live in the SAMPLER only. In the real client the container renders nothing until something feeds it."* The sampler chips exist on Joe's own instruction (*"i need them for tuning now"*). **`M-RP-REACTIONS` stays deferred and opens as PROTOCOL** — *who reacted is identity data on the no-anonymity core.*
+
+### 🔒 FLOORS — UNTOUCHED BY SCOPE, STATED RATHER THAN SKIPPED
+`git diff --stat` for this session's code change is **`ui/assets/skin.css` ONLY (+33 / −1)** — zero `.rs`, zero `.ts`, zero `.svelte`. ⇒ cargo **1602/0/62 × 56** · vitest **172/172 × 9 FILES** · svelte-check **0/34/15**, all carried from J-734's driven figures and **deliberately not re-run**. 🛑 **Catalogue remains UNMEASURED** — its harness has still not been located, and `435` is not written from memory. 📌 Screen recorded with the numbers: 8 Spaces / 4 DMs before the send, 5 DMs after; client registry not carried.
+
+---
 ## Entry J-734 — legs 2a/2/3 ship and every driven gate held, including the one the whole ruling was chosen for; three remain open and are named rather than softened
 **Date:** 2026-08-15 · **Seats:** Clair (implementation, legs 2a/2/3, `e76bac8`) · Chat (Rule-5 re-drive of every gate, runbook v1.2 → v1.3) · Joe (sequencing; the quality call that split this from a full close). 🟢 **`M-RP-INTRO` STAYS PLAY — NOT CLOSED.** Runbook **v1.3 PENDING** · ROADMAP **v7.21 → v7.22**. ***Every figure below was driven by Chat. Clair's report agreed throughout and her numbers were cross-checked, not adopted.***
 

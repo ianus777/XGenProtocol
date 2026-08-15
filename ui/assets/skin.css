@@ -3065,7 +3065,7 @@ html, body {
 }
 
 .message .message-paragraph {
-	font-size: var(--fs-1);
+	font-size: var(--fs-2);
 	letter-spacing: .5px;
 	/* NOT COSMETIC — M-RP-MSG-NEWLINE (J-565). Preserves typed line breaks.
 	   MEASURED: without it this element computes white-space:normal and a \n paints
@@ -3173,6 +3173,38 @@ html, body {
   padding: 0;
   cursor: pointer;
   text-decoration: underline;
+}
+
+/* -- message-intro (M-RP-INTRO Leg 3) -- the SECOND tenant of the bodyExtras lane, in its own block,
+   exactly as the container block above reserved. PROVISIONAL on BOTH axes: appearance is Joe's, and
+   the PLACEMENT is provisional too -- named discharger M-RP-INTRO-PLACEMENT.
+
+   WHY THIS BLOCK EXISTS AT ALL: the widget shipped with NO skin rules, so headline and blurb both
+   painted at the browser default 16px / ~1.15 -- 33% LARGER than the message body (--fs-1, 12px) and
+   TIGHTER than --lh. That inverted the hierarchy the protocol depends on: ch3 makes content.text the
+   field that must always render true, and 1-bis makes it load-bearing forever. The OPTIONAL extension
+   was out-shouting the GUARANTEED sentence. Measured on the live client (J-735), not inferred.
+
+   THE LANE IS A CHIP LANE -- M-RP6.9 promises "adding the 4th tag does not move the row" -- so a prose
+   block takes its OWN lane instead of sharing one with the status LED: order:-1 lifts it above and
+   flex:1 0 100% makes it full-width, which returns the send-status label BENEATH the whole block,
+   where it sat while it was the lane's only tenant. ORDER IS VISUAL ONLY: the mount array still puts
+   send-status first and unconditional (runbook 4.5), so the M-RP6.9 D-5 guarantee is untouched. */
+.message .msg-body-extras > .message-intro {
+  order: -1;
+  flex: 1 0 100%;
+}
+.message-intro-headline {
+  font-size: var(--fs-1);
+  line-height: var(--lh);
+  font-weight: 600;
+  color: var(--t2);
+}
+.message-intro-blurb {
+  margin: 0;
+  font-size: var(--fs-1);
+  line-height: var(--lh);
+  color: var(--t3);
 }
 
 /* ── composer-panel (M-RP6.3 Leg D2) — R6 chrome. PROVISIONAL → M-RP-SKIN. Structural fill lives in the

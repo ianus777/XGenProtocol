@@ -1,6 +1,6 @@
 # M-RP-INTRO Runbook — the DM welcome intro: one additive key, two seams, and a fallback that must be tested rather than assumed
-> **Status**: PENDING  
-> Version: 1.3  
+> **Status**: COMPLETED  
+> Version: 1.4  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-15  
 > Language: EN  
@@ -540,3 +540,58 @@ number.**
 4. **Is anything reserved that §7.6 forbids?**
 
 📌 **Standing Clair up is Joe's.**
+
+---
+
+## §10 — ✅ CLOSE (J-735, 2026-08-15) — THE THREE OPEN GATES DRIVEN, ON A REAL DM
+
+🔒 **Driven by Chat (Rule 5) on the live client `9222`, HEAD `f0cd32a`, clean tree. Counterpart `LegF-CAROL`
+(`…7WGuWOqU…pp0`), a member of `LegF Verification`.** ⚠️ **`legf/bob` was REFUSED as counterpart** — his
+config carries `is_ai = true`, which would have lit the AI badge and added a second variable to `V-7`'s
+screenshot.
+
+| gate | measured | verdict |
+|---|---|---|
+| **V-11** | echo row `hasIntro: true`, **`status: "accepted"`**, `eventId …37a5a3cb…`; own row paints a `message-intro` mount | ✅ **THE SENDER SEES THEIR OWN INTRO** — §4.5's own-row path is real |
+| **V-12 ③** | `.msg-body-extras` `childCount: 2`; ids `__x-send-status` + `__x-message-intro`, **distinct** | ✅ no duplicate-key crash |
+| **V-7** | screenshot `temp/cdp-shot-client.png` → **Joe looked** | ✅ renders in MESSAGE chrome (`I1`) |
+
+🛑 **WHAT CLOSED IT WAS THE DISTINCTION THAT KEPT IT OPEN.** J-734's bogus-space probe exercised the
+**COMMAND**; this drove a **SUCCESSFUL SEND** — `create_dm_space` signing its three-event chain against a
+live node, then `echo.send` carrying the intro. ***`status: accepted` with an `event_id` is the difference,
+and nothing short of a real DM between two identities produces it.***
+
+✅ **The whole path was driven THROUGH THE PRODUCT with trusted clicks — space latch → room latch
+(`canSend: true`, roster 9, phase `ready`) → Carol's row → draft → disclosure → authoring → send.** No
+synthesised state; `dmDraft.open()` via the DEV handle was available and **not used**.
+
+✅ **OPT-IN PROVEN AS AN ABSENCE:** with the draft open the disclosure is collapsed by default and both
+fields are **absent from the DOM entirely** — the strongest form §2.2's property can take.
+
+### 🛑 TWO FINDINGS FROM JOE'S EYES THAT NO GATE IN §5 ASKED ABOUT
+
+**① The send label left its place, and the cause was the second mount.** `.msg-body-extras` is
+`flex; align-items: center`: one 12px child reads as a label under the body, two children centre the LED
+against a 37px block. **`send-status` did not change — the lane gained a sibling.**
+
+**② The optional extension out-shouted the guaranteed sentence.** Body **12px/18px** vs intro
+**16px/18.4px** — 33% larger, ratio 1.15 against `--lh: 1.5`. 🔑 **Cause: `skin.css` had ZERO
+`.message-intro*` rules**, so 16px was the browser default, never a chosen value. ⚠️ **ch3 makes
+`content.text` the field that must always render true and 1-bis makes it load-bearing forever** — the
+hierarchy was inverted against the protocol's own rule.
+
+🔒 **FIX, RE-DRIVEN LIVE:** body `--fs-1 → --fs-2` (14/21); headline + blurb `--fs-1` + `--lh` (12/18,
+headline `600`); intro takes its own lane (`order:-1; flex:1 0 100%`). Stack **body 269 → headline 290 →
+blurb 308 → `Sent` 330**. Hierarchy **14 › 12 › 10**, **no new token minted**. `skin.css` only, +33/−1.
+
+🛑 **PLACEMENT SHIPS PROVISIONAL — DISCHARGER `M-RP-INTRO-CANVAS`.** `bodyExtras` was built as the
+reactions/tags lane (`M_RP6_9_BODY_EXTRAS.md`: *"adding the 4th tag does not move the row"*). §2.3 said
+*"the `bodyExtras` (or `details`) tenant"* and this runbook picked one **without asking which SHAPE the lane
+was for. That is Chat's.**
+
+### 📌 DoD DISPOSITION
+Items 1–5 ✅ (every §5 gate driven by Chat, each with the screen it was measured on; 1-bis and the
+degradation path verified rather than asserted; floors stated by scope — `skin.css` only). Item 6 ✅ (no
+phase-limit note in this milestone's UI). Item 7: Clair's code commit `e76bac8` landed first; this
+doc-bridge is second. 🛑 **"Commit pushed" is NOT a DoD item** — this header's `Status: COMPLETED` is the
+canonical signal.

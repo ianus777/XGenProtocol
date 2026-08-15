@@ -1,6 +1,6 @@
 # M-RP-INTRO Phase-0 — the DM welcome intro: the surface was ruled, the payload never was
-> **Status**: ACTIVE  
-> Version: 1.4  
+> **Status**: COMPLETED  
+> Version: 1.5  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-15  
 > Language: EN  
@@ -399,7 +399,7 @@ before any code (`F9`: *can each gate be RUN, in the order written, from the sea
 | **2** | 🛑 **the WIRE seam — REAL RUST, and it was invisible while the milestone was filed as UI.** Widen `send_message` (`G-7a`), the resident outbound path and `build_message_text_event`, **plus the ch3 content-key convention** (d1) | 🟡 PENDING — **runbook authorable** |
 | **3** | the render path: the `bodyExtras` (or `details`) tenant, receiver-chosen (`G-9`, `I3`) | 🟡 PENDING — **runbook authorable** |
 | **4** | live verify, two identities, Chat re-drives every gate (Rule 5) | 🟡 PENDING |
-| **5** | records + close (`D-074`) | 🟡 PENDING |
+| **5** | records + close (`D-074`) | ✅ **DONE — J-735** |
 
 🛑 **LEG 2 IS NOT THE LEG THIS MILESTONE WAS FILED WITH.** v1.0's row 2 read *"the send path: whatever §3
 rules"* — true, and **narrower than the thing it describes**: §3's ruling makes it Rust in three files.
@@ -520,3 +520,49 @@ text — Joe's recall, Clair reading, or the live client. None came from a re-re
 
 🛑 **"Commit pushed" IS NOT A DoD ITEM** — it is unflippable inside the commit that performs the push.
 `Status: COMPLETED` in this file's header is the canonical signal.
+
+---
+
+## §11 — ✅ CLOSED (J-735, 2026-08-15)
+
+**All five legs done.** The three gates left open at J-734 — `V-11` (the sender sees their own intro),
+`V-12 ③` (two mounts on one row) and `V-7` (Joe's eyes) — were driven on a **real DM between two
+identities**, with `status: accepted` and a real `event_id`. Runbook **v1.4 COMPLETED** carries the figures;
+they are not restated here.
+
+### 🔒 WHAT THIS PHASE-0 GOT RIGHT, AND THE ONE THING IT DID NOT
+
+✅ **§2.3's central claim held exactly as written** — *"the render half is solved and the milestone is not
+about it"*. The socket needed no new mechanism, `W-13` dropped unknown ids, and the degradation path the
+whole **(d)** ruling was chosen for was **tested rather than argued**.
+
+🛑 **§2.3 SAID *"the `bodyExtras` (or `details`) tenant"* AND NEVER ASKED WHICH SHAPE THE LANE WAS FOR.**
+`bodyExtras` was built by `M-RP6.9` as the **reactions/tags lane** — *"adding the 4th tag does not move the
+row"*, fixtures drawn as `👍 3 · 🎉 1 · 🚀 2`. A 600-character blurb is a **prose block**, and the two are
+incompatible shapes. **The runbook picked one of the two options this file offered, and neither document
+asked the question. That is Chat's.** ⇒ **placement ships PROVISIONAL, discharger `M-RP-INTRO-CANVAS`.**
+*A provisional that points nowhere is a defect with an alibi.*
+
+🔑 **AND THE PAYLOAD QUESTION THIS FILE EXISTS FOR TURNS OUT TO HAVE HAD A SECOND HALF.** §0 says the
+surface was ruled and *"the payload never was"* — true. **What neither this file nor J-701 asked is WHERE
+THE PAYLOAD IS AUTHORED.** Joe's recall at J-735: *"i needed to have some settable intro canvas … it has to
+be settable through settings. it is plugin, am i right?"* — **he is right, and `N-172` had already named
+"a DM welcome intro" as a canvas tenant in the very conversation this Phase-0 audits.** What shipped is
+**hand-typed per DM**; what was intended is **composed once in Settings**. They compose (Settings holds the
+default, the composer overrides), and **the wire contract is unchanged by either** — which is why the close
+stands and `M-RP-INTRO-CANVAS` builds on this floor rather than replacing it.
+
+### 📌 CARRIED OUT OF THIS MILESTONE
+- 🟡 **`M-RP-INTRO-CANVAS` — the settable welcome canvas: intro as a settings-hosted plugin** (name Joe's).
+  `host: client · delivery: compiled · surface: none` (`D-112`); `settingsComponent` on `D-120`'s **shipped**
+  mechanism; two mounts (`S-2`). 🔒 **Bound by `N-172`: the wire carries DATA, never a widget id, never
+  markup — the receiver picks the widget.** ⚠️ **No `{@html}`** (§7.3): the payload is authored by someone
+  the recipient has never met.
+- 🟡 **`M-INTRO-POLICY` — trigger FIRED on this close.** Protocol + node + client, **not** a UI leg; `D-143`
+  stands. **Phase-0 OWED.** *A trigger that has fired with no Phase-0 is a defect — that is how this
+  milestone started.*
+- 🔓 **Joe's, still open:** the DM-draft-only asymmetry (Clair's) · `HEADLINE_MAX 120` / `BLURB_MAX 600`
+  (`D-138`, provisional) · the `blurb` → `about` rename (39 hits / 9 files; **ch3 unaffected** — it names the
+  key, never the fields) · `trust_assertion` · `N-197`'s wording.
+- 🔒 **Round-2 whole-codebase audit still GATES UI COMPLETION**, and bites harder now that **(d)** made this
+  protocol-plane.

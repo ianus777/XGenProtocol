@@ -54,9 +54,20 @@ import { narrowStatus, isRetryable, type SendStatus } from './echo-status';
 export { narrowStatus, toneOf, isRetryable } from './echo-status';
 export type { SendStatus } from './echo-status';
 
+// M-RP-INTRO Leg 2a — the intro payload's shape, TYPE-ONLY (erased at build), so this store stays free of
+// runtime imports. One declaration for both directions lives beside the key and the validator (`derive.ts`).
+import type { MessageIntro } from '$common/components/widgets/stream/derive';
+
 /** The injected send seam. The shell supplies a `send_message`-backed function; this module stays
- *  transport-agnostic and therefore unit-testable and W-3-clean. */
-export type SendTransport = (spaceId: string, roomId: string, text: string) => Promise<SendOutcome>;
+ *  transport-agnostic and therefore unit-testable and W-3-clean.
+ *  M-RP-INTRO Leg 2a widens it with a TRAILING OPTIONAL `intro`, so every existing implementation and every
+ *  existing call keeps its exact current shape — including the DEV bridge's zero-arg stub. */
+export type SendTransport = (
+  spaceId: string,
+  roomId: string,
+  text: string,
+  intro?: MessageIntro | null,
+) => Promise<SendOutcome>;
 
 /**
  * ONE outbound message as this client knows it.
@@ -84,6 +95,16 @@ export interface EchoMessage {
   code?: number;
   /** Human-readable cause — `rejected` / `failed`. */
   reason?: string;
+  /** M-RP-INTRO Leg 2a / §4.5 — the intro this send carried, when it carried one.
+   *
+   *  🔑 IT IS STORED, NOT ONLY PASSED, AND THAT IS THE WHOLE OF §4.5. Own rows never reach `projectEvent`
+   *  (`stream-panel.svelte:118-133` maps echoes through `echoToDescriptor` instead), so without a copy HERE
+   *  the SENDER never sees their own intro — and `I2`'s "symmetry is free" was ARGUED on the initiator
+   *  seeing their intro as message one.
+   *
+   *  ABSENT-NOT-EMPTY, the `eventId` discipline two fields up: an ordinary send has no `intro` key at all,
+   *  never an empty object (`N-182`). A retry re-reads this row, so a retried intro rides along unchanged. */
+  intro?: MessageIntro;
 }
 
 let _echoes = $state<EchoMessage[]>([]);
@@ -123,7 +144,9 @@ async function dispatch(e: EchoMessage): Promise<SendStatus> {
     });
   }
   try {
-    return resolve(e.localId, await _transport(e.spaceId, e.roomId, e.text));
+    // The intro rides FROM THE ROW, not from the caller — so a `retry` replays exactly what the first
+    // attempt carried, and a row without one passes `undefined` (no key on the wire, `N-182`).
+    return resolve(e.localId, await _transport(e.spaceId, e.roomId, e.text, e.intro));
   } catch (err) {
     // The transport itself threw — the call never completed, so nothing reached the wire.
     return resolve(e.localId, { event_id: null, status: 'failed', code: null, reason: String(err) });
@@ -158,8 +181,20 @@ export const echo = {
    *
    * Returns the final status so a caller can react; the RENDER never depends on the return value — it reads
    * the store, which is what makes an unawaited call safe.
+   *
+   * M-RP-INTRO Leg 2a — `intro` is a TRAILING OPTIONAL, appended AFTER `at` rather than before it. `at` is
+   * lock #4's client-minted timestamp and reordering a documented parameter to save one explicit argument at
+   * the single call site that needs both is the kind of silent meaning-change that bites later.
+   * 🛑 `text` IS UNCHANGED AND STILL REQUIRED (1-bis): the intro is composed independently and never
+   * populates, replaces or derives the sentence.
    */
-  async send(spaceId: string, roomId: string, text: string, at: number = Date.now()): Promise<SendStatus> {
+  async send(
+    spaceId: string,
+    roomId: string,
+    text: string,
+    at: number = Date.now(),
+    intro?: MessageIntro | null,
+  ): Promise<SendStatus> {
     _counter += 1;
     const row: EchoMessage = {
       localId: `echo-${at}-${_counter}`,
@@ -169,6 +204,9 @@ export const echo = {
       sentAt: at,
       status: 'pending',
     };
+    // Absent-not-null: the key is written ONLY when there is an intro, so an ordinary send's echo record is
+    // byte-identical to today's and `echoToDescriptor` (§4.5) has nothing to mount.
+    if (intro) row.intro = intro;
     _echoes = [..._echoes, row];
     return dispatch(row);
   },

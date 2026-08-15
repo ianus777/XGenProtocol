@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 3: Specification
 > **Status:** ACTIVE  
-> Version: 0.55  
+> Version: 0.56  
 > Date: May 2026  
-> **Last updated**: 2026-06-14  
+> **Last updated**: 2026-08-15  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -355,6 +355,25 @@ Namespace ownership rules:
 - Values are strings. Structured values MUST be JSON-encoded as a string, not embedded as nested objects.
 
 A receiving Node MUST ignore unknown `meta_atts` keys silently. Keys in the `xgen.` namespace that the Node does not recognise are treated as forward-compatible extensions and stored as opaque data.
+
+**Event `content` key namespace rules**
+
+An Event's `content` object is typed by its `EventType`, but it is **extensible**: an implementation MAY add keys carrying information the base type does not define, alongside — never in place of — the fields that type requires. Extension keys in `content` follow the **same namespace grammar** as `meta_atts` keys:
+
+- The `xgen.` namespace is **reserved** for XGen Protocol specification use. Example: `xgen.intro.v1`.
+- Third-party and application-defined keys MUST use a **reverse-domain prefix**. Example: `com.example.priority`.
+- Keys MUST use only lowercase letters, digits, underscores, and dots; key segments follow `snake_case`.
+- The maximum key length is 128 characters.
+
+**The grammar is shared; the value rule is not.** In `meta_atts`, structured values MUST be JSON-encoded as a string. In `content`, an extension key's value **MAY be a nested object, array, or any JSON value**. This divergence is deliberate and is recorded here rather than left to be inferred: `meta_atts` is a flat attribute map whose string-only rule keeps it cheap to index, while `content` is already a structured object per event type, so encoding a nested value as a string inside it would add an escaping layer with nothing to gain. An implementation MUST NOT carry the `meta_atts` string-encoding requirement across to `content` by analogy.
+
+**A base field is never displaced.** An extension key MUST NOT be used to replace or override a field the Event's own type defines. A `message.text` Event carries its human-readable body in `content.text` whether or not it also carries extension keys, so that a reader which understands none of them still renders something true. Degradation is to a plainer rendering, never to nothing.
+
+**Versioning belongs in the key.** Where an extension's shape is expected to evolve, the version is part of the key (`xgen.intro.v1`, then `xgen.intro.v2`) rather than a field inside the value. A reader that knows only `v1` ignores `v2` entirely, which is safe precisely because the base field above is still present.
+
+**Unknown content keys are ignored, and preserved byte-identically.** A receiving Node or client MUST ignore `content` keys it does not recognise, MUST NOT reject the Event on that basis, and MUST relay and store the Event's content **unmodified**.
+
+> ⚠️ **Stripping an unrecognised `content` key breaks the Event's signature.** The canonical form (3.2) recurses through `content` and sorts object keys with **no allowlist**, so every extension key is inside the signed bytes. An intermediary that "helpfully" filtered unknown keys would invalidate the signature of every Event passing through it. Removal of an extension key is therefore **detectable tampering, not silent loss** — which is the property that makes an extensible `content` safe to relay across implementations that do not understand each other's extensions.
 
 ---
 

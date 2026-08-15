@@ -40,11 +40,21 @@
 // and parks the cause in `error`, leaving the draft open with its text (§5.4, D-065).
 
 import { selection, type Selection } from '$common/stores/selection.svelte';
+// M-RP-INTRO Leg 2a — the intro payload's shape, TYPE-ONLY so nothing at runtime couples this store to the
+// stream widget. The type lives beside `INTRO_CONTENT_KEY` and the one validator (`derive.ts`) because the
+// authored payload and the read payload ARE the same object; a second declaration here is D-067 drift.
+import type { MessageIntro } from '$common/components/widgets/stream/derive';
 
 /** The counterpart being drafted, or `null` when no draft is open. `active` is exactly `!== null`. */
 let _counterpart = $state<string | null>(null);
 /** Typed text, keyed by counterpart id (§5.3) — switching between drafts keeps each one. */
 let _texts = $state<Record<string, string>>({});
+/** M-RP-INTRO Leg 2a — the composed intro, KEYED BY COUNTERPART exactly like `_texts` (runbook §3.0 item 1).
+ *  The existing `_texts` behaviour is the specification here, not a new decision: switching counterpart
+ *  preserves each draft's intro independently, `close()` keeps it, `clear()` drops it with the text.
+ *  🛑 ABSENT-NOT-EMPTY: a counterpart with no usable intro has NO ENTRY, never an empty object (`N-182`).
+ *  That is what makes an ordinary send byte-identical to today's — there is nothing to carry. */
+let _intros = $state<Record<string, MessageIntro>>({});
 /** The last create failure, or `null` (§5.4). A single readable field — the VISIBLE surface Joe rules on
  *  later. C-bis-4 SETS it and leaves it UN-RENDERED (behind this one call site); nothing paints it yet. */
 let _error = $state<string | null>(null);
@@ -81,6 +91,13 @@ export const dmDraft = {
   get text(): string {
     return _counterpart != null ? (_texts[_counterpart] ?? '') : '';
   },
+  /** M-RP-INTRO Leg 2a — the composed intro for the currently-open draft, or `null` when there is none.
+   *  🛑 `null` IS THE ORDINARY CASE AND MUST STAY CHEAP: the intro is OPT-IN, never automatic (§2.2), so a
+   *  DM sent without one carries no key at all rather than an empty one. `text` is authored SEPARATELY and
+   *  is never derived from this (1-bis) — removing the intro must never remove the sentence. */
+  get intro(): MessageIntro | null {
+    return _counterpart != null ? (_intros[_counterpart] ?? null) : null;
+  },
   /** The last create failure, or `null` (§5.4). The single call site a future VISIBLE surface reads; C-bis-4
    *  populates it and renders nothing (the surface is Joe's to rule on). Cleared on `open` and each `create`. */
   get error(): string | null {
@@ -107,7 +124,10 @@ export const dmDraft = {
    *  was sent — calling the wrong one silently eats what the user typed. Called by `note()` (a `room`
    *  selection) and DIRECTLY by members-panel's existing-DM branch (C-bis-7 / J-713): opening another DM is
    *  navigating to a conversation, but that path writes an IDENTITY (L-7) and latches directly, so `note()`
-   *  never sees it — the caller does what the bus effect would have. Writes `_counterpart`, never reads it (N-136). */
+   *  never sees it — the caller does what the bus effect would have. Writes `_counterpart`, never reads it (N-136).
+   *  M-RP-INTRO Leg 2a: the INTRO map is untouched here too, exactly like the text map — a close is
+   *  navigation, not a send, so re-opening restores BOTH halves of what was typed. `clear()` is the one that
+   *  drops them, because there they were actually sent. */
   close(): void {
     _counterpart = null;
   },
@@ -116,6 +136,22 @@ export const dmDraft = {
   setText(text: string): void {
     if (_counterpart == null) return;
     _texts = { ..._texts, [_counterpart]: text };
+  },
+  /** M-RP-INTRO Leg 2a — set (or REMOVE) the intro for the currently-open draft. No-op with no draft open.
+   *  `null` DELETES the entry, so a form the user emptied leaves nothing behind — absent-not-empty (`N-182`,
+   *  the `eventId` discipline in `echo-state`). Reassigns a fresh object (`$state` tracks the reference).
+   *
+   *  ⚠️ THIS IS A DRAFT BUFFER AND IT STORES WHAT WAS TYPED, VERBATIM — blank-stripping belongs to the SEND
+   *  (`normaliseIntro`), not here. Normalising on every keystroke would eat a leading space as the user typed
+   *  it, which is `setText`'s shape too: the buffer holds the draft, the seam decides what is sendable. */
+  setIntro(intro: MessageIntro | null): void {
+    if (_counterpart == null) return;
+    if (intro == null) {
+      const { [_counterpart]: _drop, ..._rest } = _intros;
+      _intros = _rest;
+      return;
+    }
+    _intros = { ..._intros, [_counterpart]: intro };
   },
   /** The shell injects the `create_dm_space`-backed transport at boot (W-3: this module imports no Tauri).
    *  Same seam shape as `echo.setTransport` — the store stays transport-agnostic and unit-testable. */
@@ -144,11 +180,16 @@ export const dmDraft = {
     }
   },
   /** Close the draft after a successful send (C-bis-4). Drops the counterpart AND its text — the text was
-   *  sent, and the real DM now takes over (create → latch → the shipped stream). */
+   *  sent, and the real DM now takes over (create → latch → the shipped stream).
+   *  M-RP-INTRO Leg 2a: the INTRO is dropped here too, for the same reason and NOT in `close()`. The intro
+   *  rode the send, so keeping it would re-offer a sent intro on the next draft to the same person — and an
+   *  intro is a FIRST-CONTACT artefact, so a second one is the thing it exists to be. */
   clear(): void {
     if (_counterpart != null) {
-      const { [_counterpart]: _drop, ..._rest } = _texts;
-      _texts = _rest;
+      const { [_counterpart]: _dropText, ..._restTexts } = _texts;
+      _texts = _restTexts;
+      const { [_counterpart]: _dropIntro, ..._restIntros } = _intros;
+      _intros = _restIntros;
     }
     _counterpart = null;
   },

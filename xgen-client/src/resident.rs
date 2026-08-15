@@ -35,7 +35,7 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, oneshot, watch};
 
-use xgen_core::message::exchange::build_message_text_event;
+use xgen_core::message::exchange::build_message_text_event_with_extras;
 use xgen_core::space::state::sign_event;
 use xgen_core::transport::connection::{Connection, EventConfirm, Inbound};
 use xgen_core::wire::types::{Event, TransportMessage};
@@ -447,13 +447,22 @@ where
                 if prev.is_empty() {
                     prev = vec![req.space_id.as_str().to_string()];
                 }
+                // M-RP-INTRO Leg 2 — the intro rides as ONE additive namespaced
+                // content key beside `text`, never in place of it (1-bis). No
+                // intro ⇒ `None` ⇒ no key at all, so an ordinary send's canonical
+                // bytes are unchanged from before this milestone (`N-182`).
+                let extras = req
+                    .intro
+                    .as_ref()
+                    .map(|v| serde_json::json!({ INTRO_CONTENT_KEY: v }));
                 let ev = sign_event(
-                    build_message_text_event(
+                    build_message_text_event_with_extras(
                         signing_key,
                         req.space_id.as_str(),
                         req.room_id.as_str(),
                         prev.clone(),
                         &req.text,
+                        extras.as_ref(),
                     ),
                     signing_key,
                 );
@@ -712,6 +721,17 @@ pub struct OutboundRequest {
     pub space_id: SpaceXgid,
     pub room_id: RoomXgid,
     pub text: String,
+    /// The DM welcome intro payload, or `None` for every ordinary send
+    /// (M-RP-INTRO Leg 2, Joe-locked option (d)/(d1)).
+    ///
+    /// It belongs here for the reason this struct's own doc comment gives: the
+    /// caller hands over INTENT, not an event. An intro is intent — the frontend
+    /// decides there is one, and the drain decides what the content looks like.
+    ///
+    /// 🛑 `None` MUST PRODUCE NO CONTENT KEY AT ALL, not an empty one (`N-182`):
+    /// a send without an intro stays byte-identical to every send before this
+    /// milestone, which is what keeps the key's absence meaningful.
+    pub intro: Option<serde_json::Value>,
     /// Resolved when the node's outcome correlates, the send fails to write, or
     /// the session drops — D6's binding rule applied to the transport: a message
     /// may never look sent when it is not.
@@ -784,6 +804,25 @@ pub struct SessionIo<'a, G: FnMut(Event) + Send> {
     /// (the desktop shell emits it to R5; the headless service no-ops).
     pub ingest: &'a mut G,
 }
+
+/// 🔒 THE DM WELCOME INTRO'S CONTENT KEY — NAMED HERE AND NOWHERE ELSE IN RUST
+/// (M-RP-INTRO Leg 2; Joe locked the key itself, Phase-0 §3.1, 2026-08-15).
+///
+/// The drain is the ONLY writer, so one `pub const` is the whole Rust surface. Its
+/// single mirror is `INTRO_CONTENT_KEY` in
+/// `ui/common/lib/components/widgets/stream/derive.ts`, which is where the READ
+/// side names it. A second spelling on either side is how drift starts (D-122).
+///
+/// The convention borrows `meta_atts`' GRAMMAR — `xgen.` reserved for protocol,
+/// reverse-domain for third parties, lowercase snake_case segments — and NOT its
+/// value rule: in `content` a value may be a nested object, where spec §3.1.3
+/// requires `meta_atts` values to be JSON-encoded strings. Carrying that rule
+/// across would import the defect and leave the benefit behind.
+///
+/// 🔑 VERSIONED DELIBERATELY: `.v1` exists so a `.v2` can arrive without
+/// renegotiating anything. A reader that knows neither still renders
+/// `content.text`, which is why that field may never stop being load-bearing.
+pub const INTRO_CONTENT_KEY: &str = "xgen.intro.v1";
 
 /// The ceiling on how long a queued send waits for its node ack before the
 /// resident reports `timed_out`. Mirrors `[sync].completion_timeout_seconds`'s
@@ -1566,6 +1605,7 @@ mod tests {
             space_id: SpaceXgid::from_xgid(Xgid::new("s".to_string())),
             room_id: RoomXgid::from_xgid(Xgid::new("r".to_string())),
             text: "t".to_string(),
+            intro: None,
             reply,
         };
 

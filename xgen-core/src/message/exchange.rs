@@ -1008,6 +1008,11 @@ pub fn build_message_redact_event(
 
 /// Build an unsigned `message.text` Event.
 /// Call `space::state::sign_event` to compute event_id and signature.
+///
+/// A one-line delegation to [`build_message_text_event_with_extras`] with no
+/// extras — the signature is UNCHANGED so its ~60 call sites (eighteen of them
+/// production: `resident.rs`, `ai_service.rs`, `ops.rs`, and fifteen shipped CLI
+/// subcommands in `xgen-client/src/app.rs`) are untouched.
 pub fn build_message_text_event(
     key: &SigningKey,
     space_id: &str,
@@ -1015,6 +1020,59 @@ pub fn build_message_text_event(
     prev_events: Vec<String>,
     text: &str,
 ) -> Event {
+    build_message_text_event_with_extras(key, space_id, room_id, prev_events, text, None)
+}
+
+/// Build an unsigned `message.text` Event whose `content` carries the
+/// human-readable `text` PLUS additive namespaced keys (M-RP-INTRO, Joe-locked
+/// option (d) / (d1), 2026-08-15).
+///
+/// **NOT the `build_message_file_event` / `build_message_redact_event` twin
+/// pattern, and deliberately not described as one.** Those twins each carry a
+/// DIFFERENT `EventType`; this reuses `EventType::MessageText` and widens
+/// CONTENT. It is a new sub-pattern, and claiming the twins' precedent would
+/// import a validation and fan-out story this does not have.
+///
+/// `extras` is a map of NAMESPACED KEYS to values, inserted at the TOP LEVEL of
+/// `content` (not nested under a wrapper — the wrapper would change the wire
+/// shape Joe ruled). The caller supplies the key, so core learns the mechanism
+/// and never the tenant: `xgen.intro.v1` is named in `xgen-client`, not here.
+///
+/// Unknown content keys are **inside the signed canonical bytes** —
+/// `canonical_value` recurses and sorts with no allowlist — so an intermediary
+/// that stripped one would BREAK THE SIGNATURE. Removal is detectable tampering,
+/// not silent loss. See spec §3.1.3.
+///
+/// 🛑 **`text` IS LOAD-BEARING AND CANNOT BE DISPLACED.** A key literally named
+/// `text` in `extras` is SKIPPED with a warning rather than applied. Overwriting
+/// it would leave a message whose only human-readable field had been replaced by
+/// a payload older clients cannot read — the exact degradation (d) was chosen to
+/// avoid. A `Result` was considered and rejected: no in-tree caller can produce
+/// this, so it would add an error arm at every call site to describe a bug rather
+/// than a condition. A `debug_assert!` was rejected too — it would panic the very
+/// unit test that proves the sentence survives.
+pub fn build_message_text_event_with_extras(
+    key: &SigningKey,
+    space_id: &str,
+    room_id: &str,
+    prev_events: Vec<String>,
+    text: &str,
+    extras: Option<&serde_json::Value>,
+) -> Event {
+    let mut content = json!({ "text": text });
+    if let (Some(map), Some(obj)) = (extras.and_then(|e| e.as_object()), content.as_object_mut()) {
+        for (k, v) in map {
+            if k == "text" {
+                tracing::warn!(
+                    key = %k,
+                    "build_message_text_event_with_extras: refusing an extras key that would \
+                     displace the message body; the sentence is kept"
+                );
+                continue;
+            }
+            obj.insert(k.clone(), v.clone());
+        }
+    }
     // Pass 2 widens these projections; the wraps collapse then.
     Event::new(
         EventType::MessageText,
@@ -1029,7 +1087,7 @@ pub fn build_message_text_event(
             .map(|s| EventXgid::from_xgid(Xgid::new(s)))
             .collect(),
         Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-        json!({ "text": text }),
+        content,
     )
 }
 
@@ -2751,5 +2809,102 @@ mod m12_file_builder_tests {
             .and_then(|v| v.as_array())
             .unwrap();
         assert_eq!(atts.len(), 2);
+    }
+
+}
+
+// ── M-RP-INTRO: the additive content-key seam ───────────────────────────────────
+// Its own module rather than a rider on `m12_file_builder_tests`: that suite covers
+// the `message.file` twin, and this is deliberately NOT that pattern (it reuses
+// `EventType::MessageText` and widens content). Sharing its module would imply the
+// precedent the builder's own doc comment refuses.
+#[cfg(test)]
+mod m_rp_intro_extras_tests {
+    use super::{build_message_text_event, build_message_text_event_with_extras};
+    use crate::wire::types::{Event, EventType};
+    use ed25519_dalek::SigningKey;
+    use serde_json::json;
+
+    fn key() -> SigningKey {
+        SigningKey::from_bytes(&[9u8; 32])
+    }
+
+    fn text_event(extras: Option<&serde_json::Value>) -> Event {
+        build_message_text_event_with_extras(
+            &key(),
+            "xgen://space/s",
+            "xgen://room/r",
+            vec![],
+            "hello",
+            extras,
+        )
+    }
+
+    /// NO extras ⇒ content is EXACTLY today's `{ "text": … }`. This is the
+    /// `N-182` property at the wire: a send without an intro must be
+    /// indistinguishable from every send made before this milestone existed, so
+    /// the key's ABSENCE keeps meaning something.
+    #[test]
+    fn no_extras_leaves_content_byte_identical_to_a_plain_text_event() {
+        let ev = text_event(None);
+        assert_eq!(ev.content, json!({ "text": "hello" }));
+        // And the delegating overload agrees with its own delegate.
+        let plain =
+            build_message_text_event(&key(), "xgen://space/s", "xgen://room/r", vec![], "hello");
+        assert_eq!(ev.content, plain.content);
+    }
+
+    /// Extras land at the TOP LEVEL of content, not nested under a wrapper —
+    /// the shape Joe ruled ((d)/(d1)). The base `text` field is untouched.
+    #[test]
+    fn extras_are_inserted_at_the_top_level_beside_text() {
+        let extras = json!({ "xgen.intro.v1": { "headline": "hi", "blurb": "about me" } });
+        let ev = text_event(Some(&extras));
+        assert_eq!(ev.content.get("text").and_then(|v| v.as_str()), Some("hello"));
+        let intro = ev
+            .content
+            .get("xgen.intro.v1")
+            .expect("the intro key sits at the top level of content, not under a wrapper");
+        assert_eq!(intro.get("headline").and_then(|v| v.as_str()), Some("hi"));
+        assert_eq!(intro.get("blurb").and_then(|v| v.as_str()), Some("about me"));
+    }
+
+    /// 🛑 1-bis AT THE LOWEST LEVEL. An extras key literally named `text` MUST
+    /// NOT displace the message body. Asserted on the OUTCOME rather than on the
+    /// mechanism (skip-and-warn today), so the guarantee survives a later change
+    /// of mechanism. The sibling key still lands, so this is a targeted refusal
+    /// and not a blanket rejection of the whole map.
+    #[test]
+    fn an_extras_key_named_text_never_displaces_the_message_body() {
+        let extras = json!({ "text": "DISPLACED", "xgen.intro.v1": { "headline": "hi" } });
+        let ev = text_event(Some(&extras));
+        assert_eq!(
+            ev.content.get("text").and_then(|v| v.as_str()),
+            Some("hello"),
+            "the human-readable sentence survives an extras key that tried to take its name"
+        );
+        assert!(
+            ev.content.get("xgen.intro.v1").is_some(),
+            "the refusal is targeted at `text` alone; other extras still apply"
+        );
+    }
+
+    /// A non-object `extras` is ignored rather than fatal. It cannot arise from
+    /// the one in-tree caller, which builds a map — so this pins the defensive
+    /// arm as a deliberate no-op instead of leaving it untested.
+    #[test]
+    fn a_non_object_extras_value_is_ignored() {
+        let extras = json!("not a map");
+        let ev = text_event(Some(&extras));
+        assert_eq!(ev.content, json!({ "text": "hello" }));
+    }
+
+    /// The event type is UNCHANGED — this is the whole reason (d) was chosen over
+    /// a new `message.intro` type: an older peer applies its existing
+    /// `message.text` handling and renders the sentence.
+    #[test]
+    fn an_intro_bearing_event_is_still_message_text() {
+        let extras = json!({ "xgen.intro.v1": { "headline": "hi" } });
+        assert_eq!(text_event(Some(&extras)).event_type, EventType::MessageText);
     }
 }

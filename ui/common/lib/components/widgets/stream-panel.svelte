@@ -31,6 +31,9 @@
   import { roomLatch } from '$common/stores/room-latch.svelte';
   import { echo, type EchoMessage } from '$common/stores/echo-state.svelte';
   import SendStatus from './send-status.svelte';
+  // M-RP-INTRO Leg 3 — the third `bodyExtras` tenant. ⚠️ NOT `dm-intro` (imported below): that is the
+  // PRE-send draft page in the `above` socket; this is the POST-send artefact on a message row (§7.4).
+  import MessageIntro from './message-intro.svelte';
   // Leg C-bis-2 — the DM draft render state (§5.1: R5 mounts the intro while a draft is active) and the
   // address book (§5.6: the counterpart's display label is resolved from `book`, reactively).
   import { dmDraft } from '$common/stores/dm-draft.svelte';
@@ -126,7 +129,24 @@
       // `mountKey` is a CONSTANT, not localId-composed: `resolveMounts` scopes keys PER ROW, so one mount
       // per row is already unique, and M-RP6.9's duplicate-key crash is a within-one-each-block condition.
       // A row-unique key here would only lengthen the registry id it anchors (`…__x-send-status`).
-      bodyExtras: [{ widgetId: 'send-status', mountKey: 'send-status', props: { localId: e.localId } }],
+      //
+      // 🛑 M-RP-INTRO Leg 3 / §4.5 — THE OWN-ROW PATH, AND WITHOUT IT THE SENDER IS BLIND TO THEIR OWN
+      // INTRO. Own rows NEVER reach `projectEvent`: the node excludes the author from fan-out by identity,
+      // so §4.1's read half can never fire for them. `I2` argued at J-701 that symmetry is free "because the
+      // initiator sees their own intro as message one" — it is free ONLY because own rows are
+      // `MessageDescriptor`s too, and only once this line exists. A milestone that quietly dropped one half
+      // of a ruled argument would have changed the ruling without saying so.
+      //
+      // 🛑 APPENDED, NEVER SUBSTITUTED. `send-status` stays first and unconditional: a send-status LED lost
+      // on exactly the rows carrying a first contact would be the M-RP6.9 D-5 mistake made backwards. The
+      // two `mountKey`s are distinct, which is what keeps the duplicate-key crash shape unreachable now that
+      // a row can carry two mounts.
+      bodyExtras: [
+        { widgetId: 'send-status', mountKey: 'send-status', props: { localId: e.localId } },
+        ...(e.intro
+          ? [{ widgetId: 'message-intro', mountKey: 'message-intro', props: { intro: e.intro } }]
+          : []),
+      ],
     };
   }
 
@@ -142,7 +162,11 @@
 
   // The `bodyExtras` consumer registry (W-13): an id the host cannot resolve is DROPPED on render, so a
   // future tenant is additive here and a retired one degrades to nothing rather than crashing the row.
-  const widgets = { 'send-status': SendStatus };
+  // 🔑 M-RP-INTRO Leg 3 — THIS ONE LINE IS THE DEGRADATION PATH, and it is what the whole (d) ruling was
+  // chosen for: remove `message-intro` from this object and an event carrying `xgen.intro.v1` still renders
+  // its plain `content.text`, with the mount silently dropped. That is rich → plain, not rich → nothing —
+  // exactly what a peer running an older client does, and it is TESTED rather than assumed (V-3).
+  const widgets = { 'send-status': SendStatus, 'message-intro': MessageIntro };
 
   // ── The `above` socket (Leg C-bis-1) ─────────────────────────────────────────────────────────────────
   // A fixed-size layer rendered ABOVE the stream, inside the same flex column (§2 of the runbook). J-704
@@ -251,6 +275,16 @@
     // The `above` socket render truth (Leg C-bis-1/2): 0 with no draft, 1 while a draft is active (the
     // dm-intro tenant), and a dropped unknown id lowers it — the drop-unknown proof, not a declared count.
     aboveMountCount: resolvedAbove.length,
+    // M-RP-INTRO Leg 3 — how many rows DECLARE an intro mount, split by direction. ⚠️ DECLARED, not
+    // rendered: `bodyExtras` is resolved inside `message.svelte`, so a mount dropped by W-13 still counts
+    // here. That gap is the POINT — comparing this against the painted mounts is what makes the degradation
+    // path (V-3) an observed difference rather than an assumed one.
+    introDeclaredInbound: inbound.filter((m) =>
+      m.bodyExtras?.some((x) => x.widgetId === 'message-intro'),
+    ).length,
+    introDeclaredOutbound: outbound.filter((m) =>
+      m.bodyExtras?.some((x) => x.widgetId === 'message-intro'),
+    ).length,
     // Leg C-bis-2 — the draft render state, exposed so the verify pass can assert the mount reactivity
     // (active ⇒ aboveMountCount 1, the label resolved) without reaching into __XGEN_DRAFT__ separately.
     draftActive: dmDraft.active,

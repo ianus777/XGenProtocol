@@ -346,11 +346,17 @@
   // ONE definition, named, so the DEV bridge's restore reinstates THE SAME transport rather than a second
   // copy of the guard (a duplicated guard is the D-067 drift this milestone's own central decision exists to
   // avoid — and a drifted copy would be reinstated by every verify run).
-  async function guardedSend(spaceId, roomId, text) {
+  //
+  // 🛑 M-RP-INTRO Leg 2a — A REPORTED FILE-LIST DEVIATION (Rule 6, the C-bis-4 / C-bis-6 model). The runbook
+  // §3.0 names three `$common` files and says "`echo.send` widens to pass it to `invoke('send_message', …)`".
+  // `echo.send` does NOT call `invoke` — it calls the INJECTED transport, and the transport lives HERE
+  // (W-3: there are zero `@tauri-apps` imports under `ui/common`, which is the whole reason the seam exists).
+  // So carrying the intro from the store to the command forces this fourth file, exactly as C-bis-4 forced it.
+  async function guardedSend(spaceId, roomId, text, intro) {
     if (selfState.connection?.state !== 'READY') {
       return { event_id: null, status: 'failed', code: null, reason: 'not connected' };
     }
-    return sendMessage(spaceId, roomId, text);
+    return sendMessage(spaceId, roomId, text, intro);
   }
   echo.setTransport(guardedSend);
 
@@ -827,10 +833,17 @@
   // four-way status (`accepted` / `rejected` / `timed_out` / `failed`), never a boolean. A caller that
   // reduced this to true/false would be the exact D6 violation: `timed_out` means the node MAY hold the
   // event, so it is neither sent nor failed. The Leg-D composer renders per-message state from this.
-  async function sendMessage(spaceId, roomId, text) {
+  //
+  // M-RP-INTRO Leg 2a — `intro` is the DM welcome payload, or null/undefined for every ordinary send.
+  // 🔑 IT IS PASSED EXPLICITLY AS `null` RATHER THAN OMITTED, and that is deliberate: it keeps this call site
+  // independent of whether Tauri treats a MISSING argument for an `Option<T>` parameter as `None` (the
+  // runbook's V-2 risk, which Chat measures and which nothing here designs around). Passing `null` is
+  // unambiguous on every Tauri version, and it costs nothing — a `null` here still produces NO content key
+  // on the wire, because the Rust seam attaches the key only for `Some` (`N-182`).
+  async function sendMessage(spaceId, roomId, text, intro) {
     try {
       const { invoke } = await import('@tauri-apps/api/core');
-      return await invoke('send_message', { spaceId, roomId, text });
+      return await invoke('send_message', { spaceId, roomId, text, intro: intro ?? null });
     } catch (e) {
       return { event_id: null, status: 'failed', code: null, reason: String(e) };
     }

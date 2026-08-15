@@ -33,6 +33,70 @@ export function shortId(id: string): string {
   return id ? id.slice(-6) : '';
 }
 
+// ── The DM welcome intro (M-RP-INTRO) ────────────────────────────────────────────────────────────────────
+
+/**
+ * 🔒 THE INTRO CONTENT KEY — NAMED HERE AND NOWHERE ELSE IN TS (runbook §4.1). Its only mirror is the single
+ * `pub const` in `xgen-client/src/resident.rs`, which is where the WRITE side names it: the frontend hands
+ * the bare payload to `send_message` and Rust wraps it under this key, so TS names it exactly once, on read.
+ * A second spelling on either side is how drift starts (D-122).
+ *
+ * 🔑 VERSIONED DELIBERATELY (Joe, Phase-0 §3.1) — a successor is `xgen.intro.v2`, and a reader that knows
+ * only v1 ignores v2 WHILE STILL RENDERING `content.text`. That degradation is rich → plain rather than
+ * rich → nothing, and it is the entire reason 1-bis requires `text` to stay load-bearing forever.
+ */
+export const INTRO_CONTENT_KEY = 'xgen.intro.v1';
+
+/**
+ * The intro payload as it rides `content['xgen.intro.v1']` (Phase-0 §3.1 / runbook §2.1).
+ *
+ * TWO OPTIONAL STRING FIELDS AND NOTHING ELSE. Every field added here must be rendered, escaped,
+ * length-bounded and versioned forever; `xgen.intro.v2` exists precisely so fields do not have to be guessed
+ * now. 🛑 NO url, no image ref, no avatar in v1 — a fetch the recipient did not ask for on first contact is
+ * `M-INTRO-POLICY`'s problem, not this milestone's.
+ *
+ * ⚠️ ONE TYPE FOR BOTH DIRECTIONS, DELIBERATELY. The composer AUTHORS this shape and `readIntro` RETURNS it.
+ * They are the same payload, and two declarations of one payload is the D-067 drift surface this codebase
+ * keeps paying for — which is also why `normaliseIntro` below is the single validation rule both sides call.
+ */
+export interface MessageIntro {
+  headline?: string;
+  blurb?: string;
+}
+
+/** A field survives only as a non-blank string. `''` would render an empty box that reads as a layout
+ *  defect, and `42` is not text. */
+function keepText(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() !== '' ? v : undefined;
+}
+
+/**
+ * THE ONE VALIDATION RULE, called by BOTH sides (the composer before it sends, `readIntro` after it arrives).
+ * Returns `null` for anything that is not a usable intro.
+ *
+ * 🛑 IT IS A TRUST BOUNDARY ON THE READ SIDE. The value is wire data authored by a person the reader has
+ * never met, and NOTHING type-checks a `WidgetMount`'s prop bag (`B-8`, `types.ts:53-71`) — so a non-object,
+ * an array, `null`, a string, or unexpected members must produce NO MOUNT rather than a broken one.
+ *
+ * 🛑 AND IF NOTHING SURVIVES THERE IS NO INTRO. An intro object with no renderable field is the
+ * reserved-unfed shape `N-182` forbids, one layer down: on the write side it is what keeps a send with an
+ * untouched intro form byte-identical to today's, and on the read side it is what stops an empty mount.
+ */
+export function normaliseIntro(raw: unknown): MessageIntro | null {
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  const headline = keepText(o.headline);
+  const blurb = keepText(o.blurb);
+  if (headline === undefined && blurb === undefined) return null;
+  return { headline, blurb };
+}
+
+/** Read + validate the intro key off an event's content. Delegates to `normaliseIntro` so the read side and
+ *  the write side can never disagree about what counts as an intro. */
+export function readIntro(content: Record<string, unknown> | undefined): MessageIntro | null {
+  return normaliseIntro(content?.[INTRO_CONTENT_KEY]);
+}
+
 /**
  * membership.* → a system centred notice (C-2). join/leave subject = the SENDER (grounded); kick/ban/
  * node_eject carry an actor-not-subject shape this leg does not ground (untested — only membership.join is
@@ -74,6 +138,11 @@ export function projectEvent(
   const t = wireType(e);
   if (t === 'message.text') {
     const eid = e.event_id ?? '';
+    // M-RP-INTRO Leg 3 — the intro is PURELY ADDITIVE here. `body` is untouched: it still reads
+    // `content.text` defensively, so a row whose intro is malformed, unknown or absent renders exactly what
+    // it rendered before this milestone (1-bis). `readIntro` returns `null` for anything unusable, and a
+    // `null` produces NO `bodyExtras` key at all rather than an empty array (`N-182`).
+    const intro = readIntro(e.content);
     return {
       kind: 'text',
       id: eid,
@@ -82,6 +151,11 @@ export function projectEvent(
       timestamp: e.timestamp ?? '',
       isOwn: selfId != null && e.sender === selfId,
       deleted: eid !== '' && redactedIds.has(eid),
+      // `mountKey` is a CONSTANT, not id-composed: `resolveMounts` scopes keys PER ROW, so one mount per row
+      // is already unique (the `send-status` reasoning at `stream-panel.svelte:126-128`).
+      ...(intro
+        ? { bodyExtras: [{ widgetId: 'message-intro', mountKey: 'message-intro', props: { intro } }] }
+        : {}),
     };
   }
   if (

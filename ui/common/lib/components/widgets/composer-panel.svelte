@@ -53,8 +53,22 @@
   // CONFIGURING — composing is prose written in flow, where the transformation is visible and correctable
   // as it happens; configuring is a value stored and reused, where the rewrite lands silently and nobody
   // is watching. A message is the composing case, which is the whole reason this widget qualifies.
+  //
+  // 🔒 M-RP-INTRO LEG 2a — THE INTRO IS AUTHORED HERE, AND IT IS OPT-IN, NEVER AUTOMATIC (§2.2/§3.0). The
+  // affordance is a disclosure that exists ONLY while a DM draft is active: the intro is a FIRST-CONTACT
+  // artefact, so the surface that authors it is the surface that opens a first contact. A send with the
+  // disclosure untouched — or opened and left empty — is BYTE-IDENTICAL to today's: no key at all, not an
+  // empty one (`N-182`). ⚠️ An intro the user did not choose to send would be stranger-authored content
+  // their own client authored FOR them, which is a different object from the one J-701 ruled on.
+  //
+  // 🛑 AND `text` IS AUTHORED INDEPENDENTLY AND STAYS REQUIRED (1-bis). Writing an intro does not populate,
+  // replace or derive the sentence, and a user who writes an intro and NO sentence cannot send: `hasText`
+  // reads the SENTENCE buffer only, so Send stays disabled — the composer says so before `desktop.rs:313`
+  // has to refuse it silently.
   import { envelope } from '$common/components/base/envelope';
   import Textarea from '$core/components/data-independent/textarea.svelte';
+  import Textfield from '$core/components/data-independent/textfield.svelte';
+  import Toggle from '$core/components/data-independent/toggle.svelte';
   import Button from '$core/components/data-independent/button.svelte';
   import { roomLatch } from '$common/stores/room-latch.svelte';
   import { spaceLatch } from '$common/stores/space-latch.svelte';
@@ -62,6 +76,9 @@
   import { dmDraft } from '$common/stores/dm-draft.svelte';
   import { substitutions } from '$common/components/processor/store.svelte';
   import { processor } from '$common/components/processor/processor';
+  // M-RP-INTRO Leg 2a — the ONE validation rule, shared with the read side (`derive.ts`). The composer calls
+  // it at the SEAM, never per keystroke.
+  import { normaliseIntro, type MessageIntro } from './stream/derive';
 
   let { regionId, id = `region-${regionId}` }: { regionId: string; id?: string } = $props();
   const cid = (s: string) => (id ? `${id}__${s}` : undefined);
@@ -82,6 +99,38 @@
     if (dmDraft.active) dmDraft.setText(v);
     else draft = v;
   };
+
+  // ── M-RP-INTRO Leg 2a: the intro disclosure ────────────────────────────────────────────────────────────
+  // Whether the disclosure is EXPANDED. Widget-local and deliberately NOT keyed by counterpart: it is a view
+  // preference, not content. The CONTENT is keyed by counterpart in `dmDraft` (the `_texts` shape), so
+  // switching drafts repopulates the fields with that person's intro while the panel stays as the user left
+  // it. 🛑 Collapsed by DEFAULT — that is what makes the intro opt-in rather than a form to dismiss.
+  let introOpen = $state(false);
+
+  // Function bindings, the `composerText` shape one block up: the fields PULL from the store rather than
+  // syncing two states with a bidirectional effect (N-136 warns about exactly that read-modify-write).
+  // ⚠️ THE BUFFER HOLDS RAW TYPED TEXT. `normaliseIntro` runs at the SEAM, not here — stripping blanks per
+  // keystroke would eat a leading space as the user typed it.
+  const introHeadline = (): string => dmDraft.intro?.headline ?? '';
+  const introBlurb = (): string => dmDraft.intro?.blurb ?? '';
+  function writeIntro(headline: string, blurb: string): void {
+    // An entirely empty form stores NOTHING (absent-not-empty, N-182) — so opening the disclosure, typing,
+    // then clearing it again leaves a send byte-identical to one that never opened it.
+    dmDraft.setIntro(headline === '' && blurb === '' ? null : { headline, blurb });
+  }
+  const setIntroHeadline = (v: string): void => writeIntro(v, introBlurb());
+  const setIntroBlurb = (v: string): void => writeIntro(introHeadline(), v);
+
+  // What would actually go on the wire, validated by the SAME rule the receiver validates with. `null` ⇒ no
+  // key. Read by `submit()` and by the getter, so the verify pass sees exactly what the send will carry.
+  const sendableIntro = $derived(dmDraft.active ? normaliseIntro(dmDraft.intro) : null);
+
+  // Functional copy, PROVISIONAL (wording and appearance are Joe's — M-RP-SKIN; the PLACEHOLDER precedent
+  // three lines down). Shipped with plausible values rather than blank, because something that does not
+  // render cannot be looked at (D-138).
+  const INTRO_DISCLOSURE = 'Add an intro';
+  const INTRO_HEADLINE_PLACEHOLDER = 'Headline (optional)';
+  const INTRO_BLURB_PLACEHOLDER = 'A sentence or two about you (optional)';
 
   // Lock #12's ONE predicate, read from the shared latch so R5 and R6 can never disagree about which room
   // is active (a second copy of this rule is the D-067 drift the lift exists to prevent). C-bis-3 widens the
@@ -113,7 +162,9 @@
       // C-bis-4 (§5.2) — the real sequence, in an async helper. Capture the counterpart + text NOW: `create`
       // is awaited, and a navigation mid-create must not swap either out from under the send. Fire and
       // return — submit() stays sync so the key/click handler is responsive while the node round-trips.
-      void createDraftDm(counterpart, draftText);
+      // M-RP-INTRO Leg 2a — the intro is captured HERE for the same reason and validated HERE, at the seam:
+      // `sendableIntro` is `null` unless the user actually typed one, so the ordinary DM send is unchanged.
+      void createDraftDm(counterpart, draftText, sendableIntro);
       return;
     }
     const text = draft.trim();
@@ -147,7 +198,15 @@
   // resolves to NULL and R5 shows "Select a room" instead of the new DM. The fix lives in the shell's
   // injected transport (which owns `loadSpaces`, the disk re-read); this widget's sequence is unchanged, and
   // by the time `create` resolves the store already carries the new DM. See app_client.svelte for the seam.
-  async function createDraftDm(counterpart: string, text: string): Promise<void> {
+  //
+  // 🔒 M-RP-INTRO Leg 2a — `intro` is CARRIED, NEVER DERIVED. It is already validated by the caller and is
+  // `null` for an ordinary send, in which case `echo.send` writes no `intro` on the row and the Rust seam
+  // attaches no key: byte-identical to today's output (`N-182`). `text` is passed exactly as before (1-bis).
+  async function createDraftDm(
+    counterpart: string,
+    text: string,
+    intro: MessageIntro | null,
+  ): Promise<void> {
     const result = await dmDraft.create(counterpart);
     if (result == null) return; // create failed — draft stays open (dmDraft.create kept text + set `error`)
     roomLatch.latch(result.room_id);
@@ -164,7 +223,10 @@
     spaceLatch.latch(result.space_id);
     // Not awaited — the echo row appends synchronously, so the sent message is on screen the instant the
     // draft clears; every later status change arrives through the echo store (the room-send precedent).
-    void echo.send(result.space_id, result.room_id, text);
+    // M-RP-INTRO Leg 2a — `at` is passed EXPLICITLY because `intro` is the trailing parameter. Its default
+    // is `Date.now()` and this is the same instant, so lock #4's client-minted timestamp is unchanged; the
+    // explicit argument is positional bookkeeping, not a new decision about time.
+    void echo.send(result.space_id, result.room_id, text, Date.now(), intro);
     dmDraft.clear();
   }
 
@@ -195,6 +257,14 @@
     // C-bis-4 — the create failure surface (§5.4), read here so the verify pass can assert "failure ⇒ draft
     // open, text kept, error set" without reaching into __XGEN_DRAFT__ separately.
     draftError: dmDraft.error,
+    // M-RP-INTRO Leg 2a — the authoring surface, exposed so the verify pass can assert the OPT-IN property
+    // directly: `introSendable` is what will actually ride the wire, validated by the same rule the receiver
+    // uses. `false` with the disclosure open and the fields blank is the load-bearing reading — that is the
+    // state which must still produce a send byte-identical to today's.
+    introOpen,
+    introSendable: sendableIntro !== null,
+    introHeadlineLength: introHeadline().length,
+    introBlurbLength: introBlurb().length,
     roomId: roomLatch.effectiveRoomId,
     spaceId: roomLatch.effectiveSpaceId,
     wired: echo.wired,
@@ -219,6 +289,37 @@
     id={cid('input')}
     onkeydown={onKeydown}
   />
+  <!-- M-RP-INTRO Leg 2a — THE INTRO DISCLOSURE. Rendered ONLY while a DM draft is active: the intro is a
+    first-contact artefact, so the affordance lives on the surface that opens a first contact, and the
+    ordinary room composer is untouched. Collapsed by default (`introOpen = false`) — opening it is the
+    opt-in, and leaving it empty still sends no key (`N-182`). The native <label> wrapping a core Toggle is
+    the shipped `grid-plate-settings` shape. Appearance is PROVISIONAL → M-RP-SKIN; the structure is here so
+    Joe has something to look at (D-138). -->
+  {#if dmDraft.active}
+    <div class="composer-intro">
+      <label class="composer-intro-toggle">
+        <Toggle bind:checked={introOpen} id={cid('intro-toggle')} />
+        <span>{INTRO_DISCLOSURE}</span>
+      </label>
+      {#if introOpen}
+        <!-- ⚠️ NO `maxlength` HERE, AND IT IS NOT AN OVERSIGHT: `textfield` does not forward `{...rest}`
+          (the processor comment above says so), so bounding at the input needs a `core` change. The bound
+          therefore lives at the RENDER (`message-intro.svelte`), which covers BOTH directions with one rule
+          — our own typing and a stranger's payload — rather than only ours. -->
+        <Textfield
+          bind:value={introHeadline, setIntroHeadline}
+          placeholder={INTRO_HEADLINE_PLACEHOLDER}
+          id={cid('intro-headline')}
+        />
+        <Textarea
+          bind:value={introBlurb, setIntroBlurb}
+          placeholder={INTRO_BLURB_PLACEHOLDER}
+          rows={2}
+          id={cid('intro-blurb')}
+        />
+      {/if}
+    </div>
+  {/if}
   <div class="composer-actions">
     <Button label="Send" disabled={!sendEnabled} onclick={submit} id={cid('send')} />
   </div>
@@ -252,6 +353,23 @@
     display: flex;
     justify-content: flex-end;
     flex: 0 0 auto;
+  }
+  /* M-RP-INTRO Leg 2a — STRUCTURAL ONLY, and PROVISIONAL (discharged at M-RP-SKIN, like the block above).
+     The disclosure is a fixed-size stack above the actions: `flex: 0 0 auto` so it never steals the
+     textarea's growth, `min-width: 0` so a long field cannot push the composer wider than R6. NO colour, NO
+     font-size, NO weight, NO spacing opinion beyond the gap that keeps the two fields from touching —
+     `.composer-intro*` is Joe's to skin. */
+  .composer-intro {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+  .composer-intro-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
   /* C-bis-8 (§5.4) — STRUCTURAL ONLY (the block above is PROVISIONAL, discharged at M-RP-SKIN). The failure
      line must stay inside the tile: `min-width: 0` lets the flex item shrink below its content, and

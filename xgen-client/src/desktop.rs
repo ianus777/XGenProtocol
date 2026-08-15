@@ -306,10 +306,21 @@ async fn send_message(
     space_id: String,
     room_id: String,
     text: String,
+    // M-RP-INTRO Leg 2 — the DM welcome intro payload, or `None`/`null` for every
+    // ordinary send. `Option` so a caller may omit it; the shipped webview caller
+    // passes an explicit `null` rather than relying on that, because whether Tauri
+    // treats a MISSING argument as `None` is measured (runbook V-2), not assumed.
+    intro: Option<serde_json::Value>,
     app: AppHandle,
 ) -> crate::resident::SendOutcome {
     use crate::resident::SendOutcome;
 
+    // 🛑 UNCHANGED, AND DELIBERATELY SO (M-RP-INTRO 1-bis / runbook §3.2 item 4).
+    // This guard is what makes the load-bearing-`text` rule enforceable at the
+    // seam: AN INTRO WITH NO SENTENCE IS NOT SENDABLE, and that is the point. A
+    // message whose only human-readable field was replaced by a payload older
+    // clients cannot read is precisely the degradation option (d) was chosen to
+    // avoid. Do not weaken it to let a text-less intro through.
     if text.trim().is_empty() {
         return SendOutcome::failed("empty message");
     }
@@ -359,6 +370,11 @@ async fn send_message(
             space_id: SpaceXgid::from_xgid(Xgid::new(space_id)),
             room_id: RoomXgid::from_xgid(Xgid::new(room_id)),
             text,
+            // M-RP-INTRO Leg 2 — carried VERBATIM, at the SAME projection point,
+            // and deliberately not inspected here: the drain owns what content
+            // looks like (`OutboundRequest`'s "intent, not an event"), and the
+            // content key is named exactly once, there.
+            intro,
             reply: reply_tx,
         });
     if let Err(e) = queued {

@@ -1,6 +1,6 @@
 # M-RP-INTRO Runbook — the DM welcome intro: one additive key, two seams, and a fallback that must be tested rather than assumed
 > **Status**: PENDING  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-15  
 > Language: EN  
@@ -313,40 +313,80 @@ fed with nothing.*
 🔒 **Numbers Chat did not personally measure do not enter the record.** Clair's numbers are cross-checked,
 never adopted. **Listed here so Clair can see the target — not for her to run.**
 
-### §5.0 — 🛑 V-0's OWNERSHIP AND SUBJECT SET — **REWRITTEN IN v1.1 (F-4/F-5)**
+### §5.0 — 🛑 BASELINES AND CONTROLS ARE DIFFERENT ACTS — **REWRITTEN AGAIN IN v1.2**
 
-**v1.0 said both *"CHAT DRIVES ALL OF IT"* (§5 header, §8.2) and *"belongs in the IMPLEMENTER's window"*
-(V-0). Flat contradiction, and it made the sequencing unexecutable.** Resolved:
+🛑 **v1.1's FIX REPRODUCED THE DEFECT IT WAS FIXING, FOUR LINES LATER IN ITS OWN PARAGRAPH.** v1.1
+correctly excluded `V-1`/`V-6`/`V-8` from V-0's subject set (*a floor cannot fail pre-edit*) and `V-2`
+(*impossible before the parameter exists*) — **and then named a subject set of V-3/V-4/V-5/V-9 without walking
+it.** Walked in v1.2:
 
-🔒 **CHAT DRIVES V-0, and drives it BEFORE handing the runbook to Clair.** The `F9` principle stands — a
-pre-change control is a gate on the change — **but the seat that owns it is the seat that owns every gate
-here.** *What E-3b actually got wrong was TIMING, not ownership: the control was captured after the edit. The
-fix is to run it first, not to move it to another seat.*
+| gate | pre-edit behaviour | verdict |
+|---|---|---|
+| **V-9** | `build_message_text_event_with_extras` **does not exist** | 🛑 **IMPOSSIBLE** — *the identical disqualifier v1.1 applied to V-2, four lines earlier* |
+| **V-3** | `projectEvent` (`derive.ts:69-97`) reads no content key but `text`, so **there is no mount to drop** | 🛑 **PASSES VACUOUSLY** |
+| **V-4** | no mount is ever produced, so "no mount and no crash" is trivially true | 🛑 **PASSES VACUOUSLY** |
+| **V-5** | the key cannot be attached at all | 🛑 **PASSES VACUOUSLY** |
 
-🛑 **V-0's SUBJECT SET IS V-3, V-4, V-5 AND V-9 — AND NOTHING ELSE.** *A pre-edit `cargo` (V-1), svelte-check
-(V-6) or vitest (V-8) **cannot fail**: they are FLOORS and they pass today by definition. V-2 is **impossible**
-before the parameter exists. Asking a floor to serve as a positive control is a category error that would
-have produced a "control" nobody could interpret.*
+🔑 **THE HONEST CONCLUSION, STATED RATHER THAN ENGINEERED AROUND: THIS MILESTONE HAS NO PRE-EDIT POSITIVE
+CONTROL, AND THAT IS NOT A GAP TO BE CLOSED.** A control must **fail before and pass after**. **Every gate
+here tests behaviour that does not exist yet**, so *pre/post is the wrong axis* — and a "control" that passes
+vacuously is worse than none, because it produces a green reading that means nothing. ⚠️ ***Asking a check
+that cannot fail to serve as a positive control is the exact category error v1.1 named — sixth instance in
+this arc, and the second time it landed inside the correction rather than the original.***
 
-🛑 **V-1's BASELINE, WHICH v1.0 OMITTED: `cargo` IS UNMEASURED IN THIS MILESTONE.** It was refused entry
-during Phase-0 because that pass touched zero `.rs`, so **there is no inherited number to compare against and
-none may be quoted from memory.** ⇒ **Chat measures the baseline as part of V-0's window, at the pre-edit
-commit, and records it with its commit hash.** ⚠️ **And `unchanged` may be the CORRECT result** — new tests
-add, existing counts hold; **a moved number is not automatically progress and an unmoved one is not
-automatically a miss.**
+🔒 **⇒ THE TWO ACTS ARE SPLIT, BECAUSE v1.0 AND v1.1 CONFLATED THEM UNDER ONE V-NUMBER:**
+
+**🔒 V-0a — BASELINE CAPTURE. PRE-EDIT. CHAT'S. REAL, RUNNABLE, AND OWED.** Three floors, each recorded
+**with the commit it was driven at**. *A baseline is not a control: it does not discriminate, it anchors.*
+
+### ✅ V-0a — **DRIVEN AND CAPTURED, 2026-08-15, AT `84285c2` ON A CLEAN TREE**
+
+| floor | measured | note |
+|---|---|---|
+| **`cargo test --workspace`** | 🔒 **1597 passed / 0 failed / 62 ignored, across 56 suites** | 🛑 **THIS MILESTONE'S `cargo` BASELINE, MEASURED RATHER THAN INHERITED.** ⚠️ *`CLAUDE.md`'s J-676-era entry states **1596**/0/62 × 56 — **+1 since**. Not investigated here; recorded so the delta is visible rather than silently absorbed into a "matches" claim* |
+| **`npx vitest run`** (from `ui/`) | 🔒 **9 files / 154 tests / 154 passed / 860 ms** | re-driven at this commit rather than carried from the `f9557ef` reading (830 ms) |
+| **`npm run check`** (svelte-check) | 🔒 **0 errors / 34 warnings / 15 files** | 🔑 **DRIVEN, NOT INHERITED** — *this figure had been STATED all session from the kickoff and never once measured by Chat; it is confirmed exact* |
+
+🛑 **TWO DIFFERENT SUITES REPORT `154` AND THEY ARE UNRELATED.** One Rust suite in the workspace reports
+`154 passed`, and the vitest total is `154 tests`. ⚠️ ***A number that appears in two floors is a number that
+will be quoted from the wrong one.*** **The vitest floor is `154/154 across 9 FILES`; the cargo floor is
+`1597/0/62 across 56 SUITES`. Neither figure may be cited without its unit.**
+
+📌 **AND CHAT'S OWN INSTRUMENT LIED DURING THIS CAPTURE, CAUGHT BEFORE IT WAS REPORTED.** A grep for
+`^error|FAILED|panicked` over the cargo log returned **59 hits** — which reads as alarming. **PowerShell
+`Select-String` is CASE-INSENSITIVE by default, so `FAILED` matched the `0 failed` inside every
+`test result: ok` line.** ✅ `^test result: FAILED` returns **zero**. 🔑 ***Same species as Clair's `grep -c
+$'\r'` in the same session, from the opposite direction: hers produced a false NEGATIVE about line endings,
+Chat's a false POSITIVE about failures — and both instruments returned a plausible number rather than an
+obvious error.*** ⇒ **belongs with `N-197`.**
+
+**🔒 V-0b — DISCRIMINATION, POST-EDIT, FOLDED INTO EACH GATE AS AN A/B.** The discriminating form here is
+**inside the post-edit build**: run `V-3` with the widget **registered** and **unregistered** and show the
+mount counts differ. ***That proves the gate can tell the difference — which is the only thing a control was
+ever for.*** Same shape for `V-4` (well-formed vs malformed) and `V-9` (extras with and without a `text`
+key).
+
+🛑 **AND THE VACUITY IS RECORDED AT EACH GATE RATHER THAN THE SECTION BEING QUIETLY REWRITTEN A THIRD
+TIME** — *a section silently corrected twice is a section whose history no reader can reconstruct.*
+
+🛑 **V-1's BASELINE: `cargo` IS UNMEASURED IN THIS MILESTONE.** It was refused entry during Phase-0 for
+touching zero `.rs`, so **there is no inherited number and none may be quoted from memory.** ⚠️ **`unchanged`
+MAY BE THE CORRECT RESULT** — new tests add, existing counts hold; *a moved number is not automatically
+progress and an unmoved one is not automatically a miss.*
 
 | gate | what it proves | how |
 |---|---|---|
-| **V-0** | **PRE-EDIT POSITIVE CONTROL for V-3 / V-4 / V-5 / V-9 ONLY**, plus the `cargo` baseline capture | driven **by Chat, BEFORE Clair's first edit**, at a named commit |
-| **V-1** | `cargo` moves in the expected direction against **V-0's captured baseline** and nothing else regresses. ⚠️ **unchanged may be correct** | `cargo test --workspace` **detached** via `Start-Process`, output to a log, poll for terminator lines (it exceeds the MCP timeout) |
+| **V-0a** | 🔒 **BASELINE CAPTURE, PRE-EDIT** — `cargo` (**UNMEASURED**), vitest, svelte-check, **each stamped with the commit it was driven at** | Chat, before handing over. 🛑 **NOT a control. It anchors; it does not discriminate** |
+| **V-0b** | 🔒 **DISCRIMINATION** — folded into V-3 / V-4 / V-9 as a post-edit A/B, **not run as a separate pre-edit gate** | see each gate |
+| **V-1** | `cargo` against **V-0a's captured baseline**, nothing else regresses. ⚠️ **unchanged may be correct** | `cargo test --workspace` **detached** via `Start-Process`, output to a log, poll for terminator lines (it exceeds the MCP timeout) |
 | **V-2** | ⚠️ **an added optional Tauri param does not break a webview caller that omits it** | drive `send_message` from the live client with the old argument set. **Assumed by nobody; measured** |
-| **V-3** | 🔑 **THE DEGRADATION PATH — the one that must be TESTED, NOT ASSUMED.** An event carrying `xgen.intro.v1` whose widget is **NOT registered** renders **the plain `text`** and drops the mount (W-13) | **M1′ (`B-5`)**: Vite eval `await import('/@fs/…/stream/derive.ts')`, run `projectEvent` on a synthetic event, read back through a window global. **Real execution, no disk, no consent** |
-| **V-4** | malformed payloads produce **no mount and no crash** — string, array, `null`, missing members, oversized blurb | same M1′ harness, table-driven |
-| **V-5** | 🛑 **1-bis HELD: an event with the key and NO `text` never leaves the client**, and one with `text` and no key is **byte-identical to today's send** | `desktop.rs:313` guard exercised live; canonical bytes compared |
+| **V-3** | 🔑 **THE DEGRADATION PATH — the one that must be TESTED, NOT ASSUMED.** An event carrying `xgen.intro.v1` whose widget is **NOT registered** renders **the plain `text`** and drops the mount (W-13). 🔒 **V-0b A/B: run registered AND unregistered in the SAME post-edit build and show the mount counts DIFFER.** 🛑 *Pre-edit this passes VACUOUSLY — `projectEvent` reads no key but `text`, so there is no mount to drop* | **M1′ (`B-5`)**: Vite eval `await import('/@fs/…/stream/derive.ts')`, run `projectEvent` on a synthetic event, read back through a window global. **Real execution, no disk, no consent** |
+| **V-4** | malformed payloads produce **no mount and no crash** — string, array, `null`, missing members, oversized blurb. 🔒 **V-0b A/B: well-formed vs malformed in the same build.** 🛑 *Pre-edit: VACUOUS — no mount is ever produced* | same M1′ harness, table-driven |
+| **V-5** | 🛑 **1-bis HELD: an event with the key and NO `text` never leaves the client**, and one with `text` and no key is **byte-identical to today's send**. 🛑 *Pre-edit: VACUOUS — the key cannot be attached at all* | `desktop.rs:313` guard exercised live; canonical bytes compared against **V-0a's captured pre-edit send** |
 | **V-6** | svelte-check floor **0/34/15** unmoved or improved | `cd ui; npm run check`, launched detached, poll the output file |
 | **V-7** | the intro renders in message chrome on the live client, two identities | CDP 9222, `cdp-debug.ps1`. 🛑 **Chat cannot see PNGs — screenshot, name it, ASK JOE TO LOOK** |
 | **V-8** | 🔒 **NEW (F-2) — the vitest floor holds: 9 files / 154 tests / 154 passed.** Leg 3 edits **two of those nine** (`derive.test.ts`, `mounts.test.ts`), and Leg 3's new branch must arrive **covered** | `npx vitest run` from `ui/`, detached, poll the log. 🛑 **No npm script exists — invoke it directly** (`B-10`) |
-| **V-9** | 🔒 **NEW (F-3) — an `extras` map containing a key literally named `text` DOES NOT overwrite the sentence.** §3.1 leaves the mechanism to Clair, so the gate tests the OUTCOME and not her choice of mechanism | a `xgen-core` unit test on `build_message_text_event_with_extras` |
+| **V-9** | 🔒 **(F-3) — an `extras` map containing a key literally named `text` DOES NOT overwrite the sentence.** §3.1 leaves the mechanism to Clair, so the gate tests the OUTCOME and not her choice of mechanism. 🔒 **V-0b A/B: extras with and without a `text` key.** 🛑 *Pre-edit: IMPOSSIBLE — the function does not exist* | a `xgen-core` unit test on `build_message_text_event_with_extras` |
 | **V-10** | 🔒 **NEW (F-7) — the registry contract, either way.** If `message-intro` takes an `id`, it is fed; if not, that is stated. **A widget mounted with a prop bag nothing type-checks (`B-8`) must not depend on a field no mount supplies** | vitest against `resolveMounts` + the live row |
 | **V-11** | 🔒 **NEW (F-6 / `B-11`) — THE SENDER SEES THEIR OWN INTRO.** `I2` claimed symmetry is free; own rows bypass `projectEvent` entirely, so it is free only once §4.5 exists | live client, own row after send |
 | **V-12** | 🔒 **NEW (census→partition) — the four unlisted failure modes:** ① `xgen.intro.v1` present on a **non-DM room** message · ② the key present on a **redacted/tombstoned** row · ③ **two** intro mounts on one row (duplicate-key crash shape, M-RP6.9) · ④ an intro on a **grouped continuation** row, where the header guard is suppressed | vitest + M1′ where pure, live where not |

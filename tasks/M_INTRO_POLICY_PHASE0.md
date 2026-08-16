@@ -1,6 +1,6 @@
 # M-INTRO-POLICY Phase-0 — receiver-side render policy: the mechanism was named, its INPUT was never measured
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-16  
 > Language: EN  
@@ -190,6 +190,29 @@ an opinion.** *Five of the fourteen rows below correct or narrow something Chat 
 | **G-20** | ✅ **THE "OPEN DM" vs "ASK FOR DM" AFFORDANCE SPLIT COSTS NOTHING TODAY — ITS FEEDER SHIPPED AT `OQ8`/K3.** `counterpart` is a real Space-record field threaded into the UI: **39 hits in `members-panel.svelte`**, plus `dm-draft` 34 · `ops.rs` 16 · `composer-panel` 12 · `dm-spaces` 10 · `stream-panel` 6 · `spaces-state` 5. **The client can already answer *"do I have a DM with this identity?"* with no new data** | `ops.rs:89`; `ui/**` |
 | **G-21** | ⚠️ **A PER-SPACE REGIME HAS AN ENFORCEABILITY HOLE.** `dm_space_create` carries `invitee` and **nothing recording where the initiator found you**, and a DM Space is **not created inside** the group Space. A recipient's node could partly reconstruct co-membership — **but only for Spaces it hosts or replicates**, so it fails silently for group Spaces homed elsewhere. 🔑 ***A regime that holds only when two parties share a host is not a regime; it is a coincidence*** | `state.rs:1811-1829` |
 | **G-22** | 📌 **VOCABULARY DRIFT, FILED NOT CHASED:** `TrustClaims.tier_verified` is a **`bool`** in `xgen-common`, `Tier2Claims.tier_verified` is a **`u32`** in `xgen-core/auth/tiers.rs`. **One name, two types, two crates** | `trust_assertion.rs:93`; `tiers.rs:73` |
+
+### §3a.5 — ✅ LEG M EXECUTED (J-740, 2026-08-16) — AND THE ANSWER IS BIGGER THAN EITHER BRANCH
+
+📌 **Leg M was the one leg gated on no ruling. It is DONE. Measured at `607b208`.**
+
+| # | fact | site |
+|---|---|---|
+| **M-1** | ✅ **`G-18a` CONFIRMED — Q9's HOME IS FREE.** `#[serde(flatten)] extra: BTreeMap<String, Value>` on **`TrustClaims` (`:105`), `ModulePolicy` (`:167`) and `Erasability` (`:179`)**, documented as *"Unknown claim keys are preserved round-trip (open-namespace forward compat)"*. ⇒ an additive `dm_invite_required` key is **native, round-tripping, zero struct change** | `xgen-common/src/trust_assertion.rs:105`, `:167`, `:179`, `:88-90` |
+| **M-2** | 🛑 **`G-16a` ANSWERED, AND THE ANSWER IS NEITHER BRANCH: THE CLIENT DOES NOT AUTO-JOIN BECAUSE THE CLIENT CANNOT JOIN AT ALL.** `ops::join` has **exactly three callers — the CLI, the AI control plane and the pipe** — and **ZERO Tauri commands**; the desktop surface is 21 commands and **none of them is a join** | `ops.rs:1638`; callers `app.rs:3050` · `aicontrol.rs:492` · `batch.rs:527`; `desktop.rs` command list |
+| **M-2a** | ✅ **AND THE WEBVIEW NEVER EMITS ONE EITHER — IT ONLY CONSUMES.** The shell routes `membership.join` and `membership.invite` inbound and `derive.ts` renders join/leave as **system notices**; **`app_client.svelte:321` says it outright — *"an invite is not a join"***. **Zero outbound sites** | `app_client.svelte:284`, `:321`; `stream/derive.ts:108`, `:162` |
+| **M-2b** | 🛑 **AND A PENDING INVITEE IS SERVED NOTHING.** At DM creation `members` holds **ONLY the creator** (`state.rs:382`) and `is_member` reads `members` alone (`:1284`) ⇒ `collect_sync_history`'s member gate yields **nothing**. The only thing a pending invitee can fetch is the **structural invite bootstrap**, which exists **solely so `ops::join` can chain `prev_events`** | `state.rs:382`, `:1284`; `fanout.rs:563-581`, `:485-487` |
+| **M-2c** | 🔑 **⇒ THE DESKTOP CLIENT'S DM IS SEND-ONLY. THE RECEIVING HALF HAS NO PATH.** 🛑 **AND THAT IS WHY EVERY `M-RP-INTRO` GATE WAS SENDER-SIDE** — `V-11` *"the sender sees their own intro"*, `V-7` Joe's own screenshot on his own client. ***No recipient has ever rendered an intro.*** The milestone's central user story is not merely unverified; **it is currently unreachable** | derived from M-2 / M-2a / M-2b |
+| **M-3** | ✅ **`G-12a` HALF ONE: THE CUT HAS NO GUI PATH EITHER, SAME SHAPE.** `ops::leave` has the **identical three callers and zero Tauri** | `ops.rs:1773`; `app.rs:3082` · `aicontrol.rs:498` · `batch.rs:539` |
+| **M-3a** | 🛑 **`G-12a` HALF TWO: THERE IS NO 1-MEMBER DM BEHAVIOUR BECAUSE THERE IS NO DM CASE AT ALL.** `apply_leave` has **no DM guard and consults `dm_constraints_active` nowhere** — it removes the leaver from `members` and from every room. **Since only the creator is a member today, a creator leaving a DM empties `members` ENTIRELY**, and nothing anywhere handles a zero-member Space. **Reachable from the CLI today** | `state.rs:1038-1053` |
+| **M-4** | ⚠️ **CORRECTION TO `G-13`'s URGENCY, NOT ITS CONTENT.** *"the cut terminates the victim's access to the record of what was done to them"* is **true of the protocol and premature as stated**: the victim has **no GUI access to that record in the first place**, never having been a member. **The finding survives; its urgency was overstated** | `G-13` vs M-2b |
+
+### 🔑 WHAT LEG M DOES TO Q8 — IT RE-PRICES THE ACCEPTANCE PLANE, HARD
+
+🛑 **§4's Q8 table prices the acceptance gate as *"a policy read + a new request verb"* — AND IT PRICED IT AGAINST A WORKING FLOW THAT DOES NOT EXIST.** Whoever makes a DM **arrive** must build the recipient's join **regardless of any policy question.** ⇒ ***the acceptance gate stops being an ADDITION and becomes a DECISION INSIDE A LEG THAT MUST HAPPEN ANYWAY.*** **Its marginal cost is a branch, not a feature.**
+
+✅ **AND NOTHING HAS BEEN LOST YET: the `PendingInvite` consent gate is not being SPENT SILENTLY — it is UNBUILT ON THE ACCEPTING SIDE.** *That is a better answer than either branch the question offered, and it is only visible because the measurement was run before the options were priced.*
+
+📌 **A NEW MILESTONE IS IMPLIED AND IS NOT THIS ONE'S** — the DM receiving half (join / accept / the pending-invite surface). **Named here so it is not absorbed as a rider**; its node and its Phase-0 are Joe's to open.
 
 ### 🔒 TWO LOCKS THAT CAME OUT OF THE WALK
 
@@ -461,9 +484,23 @@ cost. **In a group, leaving costs you the group, which is exactly why someone el
    terminal** under §3.16.1's invitations-disabled (`G-12`). **It needs a user-reachable verb, not a new
    event.** 🛑 **`G-13` first: leaving currently closes YOUR OWN read path, and that must be resolved before
    the cut gets a verb** — either the cut preserves a *was-a-member* read grant, or preservation lives
-   somewhere other than the Space you left. 🔓 **Chat has NO recommendation; `G-12a` is unread.**
+   somewhere other than the Space you left. 🔓 **`G-12a` IS NOW READ (`M-3` / `M-3a`) AND IT NARROWS THE FORK
+   RATHER THAN CLOSING IT:** the cut has **no GUI path either**, and `apply_leave` has **no DM case at all**,
+   so a creator leaving today **empties `members` entirely** — a zero-member Space nothing handles. **Chat
+   still makes NO recommendation on the read-path half; the ruling is Joe's.**
 3. **The ban is ADDRESS-BOOK-LOCAL** — unilateral, invisible to the other party, unenforced against arrival and
    **honest about it** (`G-14`). 🔒 **And exempt from retention eviction (`G-14a`).**
+
+🔒 **JOE'S CORRECTION, 2026-08-16 — PARTS 2 AND 3 ARE INDEPENDENT EVENTS, AND v1.1 WELDED THEM.** *"cut and
+ban are independent events even in this case. the dm can be cut without subsequential ban."* ✅ **Correct, and
+in BOTH directions: a cut without a ban is the NORMAL case** — you end the conversation, you do not declare
+the person unwanted forever — **and a ban needs no prior DM at all**, being reachable from any member row or
+avatar including someone you have never spoken to. 🛑 **v1.1 said *"a cut AND a ban"* in four places, which
+reads as a conjunction and would have made `M-RP-BLOCK` look like one indivisible prerequisite.** ⇒ **TWO
+CONSEQUENCES: ① they ship INDEPENDENTLY, in either order, so `M-RP-BLOCK` splits into two legs; ② it
+STRENGTHENS the address-book home** — a ban that does not presuppose a DM is **Space-independent by nature**,
+which is exactly what the book is, and it connects the ban to **`M-RP-PEOPLE`** rather than to the DM arc.
+*Corrected at every site in this file, in `docs/ROADMAP.md`, in `CLAUDE.md` and in `JOURNAL.md` J-740.*
 
 🔑 **THE ASYMMETRY IS ITSELF A PRIVACY PROPERTY: the cut is protocol and mutual; the ban is local and tells
 the other party nothing.**
@@ -476,9 +513,11 @@ cut disposes of the **repeat**, never the **first**. 🔑 ***That is why Q2 (C) 
 deferring the canvas is not moderation, it is the receiver's own client deciding what to draw.***
 
 🛑 **DoD CONSEQUENCE, AND IT IS THE ONE THAT MOVES WORK: A PRIVACY RULE JUSTIFIED BY *"they can just cut and
-ban"* IS UNSOUND WHILE THEY CANNOT (`G-11`, `G-11a`).** ⇒ **`M-RP-BLOCK` becomes a PREREQUISITE of this `D`,
-not an unrelated filed milestone** — and `G-12` re-prices it **downward**: the DM case needs **no new wire
-event**, only a leave verb and a book flag.
+ban"* IS UNSOUND WHILE THEY CAN DO NEITHER (`G-11`, `G-11a`, and `M-3` — even the CUT has no GUI path).** ⇒
+**`M-RP-BLOCK` becomes a PREREQUISITE of this `D`, not an unrelated filed milestone** — and `G-12` re-prices
+it **downward**: the DM case needs **no new wire event**, only a leave verb and a book flag. 🔒 **AND THE
+PREREQUISITE IS TWO, NOT ONE:** the cut and the ban are independent, so **either may discharge its half
+alone**, and the `D` may be stated as a guarantee **only when both halves exist.**
 
 📌 **AND IT LANDS AS A SPEC AMENDMENT, NOT A CONFORMANCE FIX (`G-10`).** §3.16.1 gains a **sixth constraint**
 and §3.7.13 gains an explicit DM exclusion; the **tier omission (`G-10d`) is recorded as deliberate** in the
@@ -502,7 +541,7 @@ nothing that can go false, which is `D-065`'s no-empty-machinery half.*
 | **B** | **the disclosure copy** — `D-144` client state copy, authored by the client and by nothing else. ⚠️ **Wording is Joe's (`D-138`, scaffolded not blank)** | A | 🟡 **PENDING** |
 | **C** | 🔓 **Joe rules Q6** — and **`M-RP-INTRO-CANVAS`'s H1/H2 is the same question; rule once** | — | 🟡 **PENDING — Joe, and NOT gated on A/B** |
 | **D** | **the tier-aware policy proper** — policy record, storage, the client↔node read (Q7's new namespace), enforcement at render | C · Q7 | ⏸️ **BLOCKED on C. Do not scope before it** |
-| **M** | 🔑 **THE ONE MEASUREMENT, AND IT GATES THE WHOLE ACCEPTANCE PLANE: DOES THE CLIENT AUTO-JOIN A DM INVITE (`G-16a`)?** Plus `G-12a` (1-member DM behaviour; are `ops.rs`'s `MembershipLeave` sites reachable?) and `G-18a` (`extra` flatten). **Reads and one live drive; no code** | — | 🟡 **PENDING — NOT gated on any ruling** |
+| **M** | ✅ **DONE J-740 — §3a.5.** `G-16a` answered (**the client cannot join at all**), `G-12a` answered both halves, `G-18a` confirmed. 🛑 **It re-priced Q8: the acceptance gate is a BRANCH inside work already owed, not a feature** | — | ✅ **DONE (J-740)** |
 | **P** | 🔓 **Joe rules Q9 + Q10** (requirement home + publish; per-identity vs per-Space) | 0-pre · M | 🟡 **PENDING — Joe** |
 | **G** | **the acceptance gate** — `ModulePolicy.extra` requirement, node-side enforcement at invite, the request verb under `L-2`. 🛑 **Protocol + node + client** | P | ⏸️ **BLOCKED on P** |
 | **E** | live verify, two identities, Chat re-drives every gate (Rule 5) | the legs that land | 🟡 **PENDING** |
@@ -641,10 +680,10 @@ afterwards.** 🛑 ***If you are about to verify something by re-reading it, tha
    option** (publish one boolean). 🔓 **Chat's reading is that Q1 EARNS a `D`** — it decides whether a
    user-facing policy layer exists in this project at all, and that binds beyond this milestone. **The number
    and the wording are Joe's.**
-1-ter. 🔑 **LEG M IS RUN BEFORE ANY ACCEPTANCE-PLANE LEG IS SCOPED** — `G-16a` (does the client auto-join a DM
-   invite?), `G-12a` (1-member DM behaviour; reachable `MembershipLeave`?), `G-18a` (`extra` flatten).
-   🛑 **If the client auto-joins, a consent gate exists in the protocol and is being spent silently — and
-   every option in Q8 is priced against a fact nobody has checked.**
+1-ter. ✅ **LEG M IS DONE (J-740, §3a.5) AND ITS ANSWER MUST BE READ BEFORE Q8 IS RULED:** the client **cannot
+   join at all**, so the DM's receiving half has no path, **no recipient has ever rendered an intro**, and the
+   acceptance gate's marginal cost is **a branch inside a leg that must happen anyway** — not a feature.
+   🛑 **Q8's §4 cost table was written against a working flow that does not exist and is corrected in §3a.5.**
 2. **The `§5` split is Joe-confirmed or Joe-overturned.** 🛑 **If overturned, Legs A + B are RE-SITED into
    `M-RP-INTRO-CANVAS`, not dropped** — the prominence question is live either way.
 3. Legs per §5, each verified by **Chat re-driving every gate independently** (Rule 5) — **numbers Chat did

@@ -8,6 +8,63 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-740 — Leg M runs, and the answer is that the desktop client cannot join anything: a DM's receiving half has no path, so no recipient has ever rendered an intro
+**Date:** 2026-08-16 · **Seats:** Chat (Leg M, every measurement, the records) · Joe (the cut-versus-ban correction, and *"go"*). **NO PRODUCT CODE.** `tasks/M_INTRO_POLICY_PHASE0.md` **v1.1 → v1.2** (§3a.5 new). `M-INTRO-POLICY — receiver-side render policy` stays **🟡 PENDING**; **Leg M ✅ DONE**, every other leg still gated on Joe.
+
+✅ **STATE RE-MEASURED AT OPEN:** clean tree, `HEAD` `607b208` = `origin/main` by `git ls-remote` — J-739's commit confirmed on the remote before anything was read.
+
+📌 **WHY LEG M RAN FIRST:** it was the one leg in §5 gated on **no ruling at all**, and §10 item 1-ter bound it to run **before any acceptance-plane leg is scoped**, on the ground that *every option in Q8 is priced against a fact nobody has checked*. **That instruction was right, and the fact turned out to be worse than either branch it anticipated.**
+
+### 🛑 M-2 — THE CLIENT DOES NOT AUTO-JOIN A DM INVITE, BECAUSE THE CLIENT CANNOT JOIN AT ALL
+
+`G-16a` asked *does the client auto-join?* and offered two branches. **Neither is the answer.**
+
+- **`ops::join` (`ops.rs:1638`) has exactly THREE callers** — the CLI (`app.rs:3050`), the AI control plane (`aicontrol.rs:492`) and the pipe (`batch.rs:527`) — **and ZERO Tauri commands.** The desktop surface is **21 commands** and **none of them is a join**.
+- **The webview never emits one either — it only consumes.** The shell routes `membership.join` and `membership.invite` **inbound** (`app_client.svelte:284`, `:321`) and `derive.ts` renders join/leave as **system notices** (`:108`, `:162`). **Zero outbound sites.** 🔑 **`app_client.svelte:321` states the situation itself: *"an invite is not a join"*.**
+- **And a pending invitee is served nothing.** At DM creation `members` holds **only the creator** (`state.rs:382`); `is_member` reads `members` alone (`:1284`); `collect_sync_history` gates on `is_member` (`fanout.rs:485-487`). The **only** thing a pending invitee can fetch is the **structural invite bootstrap** (`fanout.rs:563-581`) — which exists **solely so `ops::join` can chain `prev_events`.**
+
+🔑 **⇒ THE DESKTOP CLIENT'S DM IS SEND-ONLY. THE RECEIVING HALF HAS NO PATH.**
+
+🛑 **AND THAT IS WHY EVERY `M-RP-INTRO` GATE WAS SENDER-SIDE.** `V-11` was *"the sender sees their own intro"*; `V-7` was **Joe looking at his own screenshot on his own client**. The records are accurate about what they measured — ***and no recipient has ever rendered an intro.*** The milestone's central user story is not merely unverified: **it is currently unreachable.** *The `M-RP-INTRO` close is not thereby wrong; its scope is narrower than a reader would assume, and nothing said so.*
+
+### ✅ M-3 / M-3a — THE CUT HAS NO GUI PATH EITHER, AND THERE IS NO DM CASE IN `apply_leave` AT ALL
+
+`ops::leave` (`ops.rs:1773`) has the **identical three callers and zero Tauri** (`app.rs:3082` · `aicontrol.rs:498` · `batch.rs:539`). And `apply_leave` (`state.rs:1038-1053`) has **no DM guard and consults `dm_constraints_active` nowhere** — it removes the leaver from `members` and from every room. 🛑 **Since only the creator is a member today, a creator leaving a DM empties `members` ENTIRELY**, and **nothing anywhere handles a zero-member Space.** **Reachable from the CLI today.**
+
+### ✅ M-1 — Q9's HOME IS FREE, CONFIRMED
+
+`#[serde(flatten)] extra: BTreeMap<String, Value>` sits on **`TrustClaims` (`:105`), `ModulePolicy` (`:167`) and `Erasability` (`:179`)**, documented as *"Unknown claim keys are preserved round-trip (open-namespace forward compat)"* ⇒ a `dm_invite_required` key is **native, round-tripping, zero struct change.**
+
+### 🔑 WHAT LEG M DOES TO Q8 — IT RE-PRICES THE ACCEPTANCE PLANE, HARD
+
+🛑 **§4's Q8 cost table prices the acceptance gate as *"a policy read + a new request verb"* — and it priced it AGAINST A WORKING FLOW THAT DOES NOT EXIST.** Whoever makes a DM **arrive** must build the recipient's join **regardless of any policy question** ⇒ ***the acceptance gate stops being an ADDITION and becomes a DECISION INSIDE A LEG THAT MUST HAPPEN ANYWAY. Its marginal cost is a branch, not a feature.***
+
+✅ **AND NOTHING HAS BEEN LOST: the `PendingInvite` consent gate is not being SPENT SILENTLY — it is UNBUILT ON THE ACCEPTING SIDE.** *A better answer than either branch the question offered, and visible only because the measurement ran before the options were priced.*
+
+📌 **A NEW MILESTONE IS IMPLIED AND IS DELIBERATELY NOT ABSORBED:** the **DM receiving half** — join / accept / the pending-invite surface. **Named in §3a.5 so it cannot arrive as a rider; its node and its Phase-0 are Joe's to open.**
+
+### 🔒 JOE'S CORRECTION — THE CUT AND THE BAN ARE INDEPENDENT, AND J-739 WELDED THEM
+
+Joe: *"cut and ban are independent events even in this case. the dm can be cut without subsequential ban."* ✅ **Correct, and in both directions.** A cut without a ban is the **normal** case — you end the conversation, you do not declare the person unwanted forever — **and a ban needs no prior DM at all**, being reachable from any member row or avatar including someone you have never spoken to.
+
+🛑 **J-739 wrote *"a cut AND a ban"* in four places**, which reads as a conjunction and **would have made `M-RP-BLOCK` look like one indivisible prerequisite.** ⇒ **① the two ship INDEPENDENTLY, in either order, so `M-RP-BLOCK` splits into two legs and either may discharge its half alone; ② it STRENGTHENS the address-book home** — a ban that does not presuppose a DM is **Space-independent by nature**, which is exactly what the book is, **connecting the ban to `M-RP-PEOPLE` rather than to the DM arc.** ✅ **Corrected at every site** (Phase-0 §4 Q11 + §10, `docs/ROADMAP.md` both nodes, `CLAUDE.md`, and here). 📌 **Folded into this commit rather than pushed as a records-only fix — `D-074` wants records travelling with work, and Leg M is the work.**
+
+### ⚠️ M-4 — AND ONE OF CHAT'S OWN J-739 CLAIMS IS NARROWED BY ITS OWN MEASUREMENT
+
+`G-13` was written as *"the cut terminates the victim's access to the record of what was done to them."* **True of the protocol and premature as stated:** by `M-2b` the victim has **no GUI access to that record in the first place**, never having been a member. 🔑 **The finding survives; its urgency was overstated** — and it was overstated **in the same session that produced it**, which is the arc's own species one turn later.
+
+### 📌 STILL UNREAD, STATED RATHER THAN IMPLIED
+
+ch3 §3.7.13.1 / .2 / .7 / .8 and Ch6 §6.12.6 — unchanged from J-739, and still required before any DM-exclusion spec amendment is drafted.
+
+### 🔒 FLOORS — UNTOUCHED BY SCOPE, STATED RATHER THAN SKIPPED
+
+Leg M was **reads only** — zero `.rs`, zero `.ts`, zero `.svelte`, zero `ui/**`. ⇒ cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**, carried from J-734's driven figures and **deliberately not re-run**. 🛑 **Catalogue remains UNMEASURED.** 🛑 **No registry number carried.** 🔒 **Every census states its pool and excludes `\.claude\`, `\target\` and `node_modules`.**
+
+**No new `D`. No new `N`.** 🔓 `N-197` still owed and Joe's.
+
+---
+
 ## Entry J-739 — the M-INTRO-POLICY Phase-0 lands, its stated INPUT turns out not to be on the wire, and a design walk gives the milestone a second plane
 **Date:** 2026-08-16 · **Seats:** Chat (the audit, the Phase-0, every measurement, the records) · Joe (the DM-autonomy walk, four rulings-in-progress, two corrections to Chat). **NO PRODUCT CODE.** New file `tasks/M_INTRO_POLICY_PHASE0.md` **v1.1 ACTIVE**. `M-INTRO-POLICY — receiver-side render policy` stays **🟡 PENDING** — **its Phase-0 defect is cleared; its decisions are Joe's and unruled.**
 

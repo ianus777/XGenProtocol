@@ -8,6 +8,85 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-743 — Clair's fourth cold read: GO WITH FINDINGS, six of them, and two moved premises Joe was one ruling away from locking
+**Date:** 2026-08-16 · **Seats:** Clair (cold read, six findings, zero files modified) · Chat (re-drove all six, folded them in, the records) · Joe (rules §6; unchanged, and now ruling on corrected text)
+
+✅ **STATE RE-MEASURED AT OPEN:** clean tree, `HEAD` `86486bb` = `origin/main` by `git ls-remote`.
+
+🎯 **NO PRODUCT CODE. Reads only.** Zero `.rs`, zero `.ts`, zero `.svelte`, zero `ui/**`.
+
+🔒 **THE SEQUENCING WAS JOE'S AND IT WAS RIGHT: read before lock, not after.** J-742 closed with eight open questions and a recommended cold read; Joe took the read first. **Two of the six findings landed on §6.2 and §6.4 — questions he was about to rule on.** ***A cold read that arrives after the lock is a post-mortem.***
+
+### ✅ WHAT REPRODUCED CLEAN — INCLUDING THE THING THE WHOLE MILESTONE RESTS ON
+
+📌 **Clair re-drove `F2-1…F2-5`, `G-1…G-4`, `G-7`, `G-8`, `A-1`, `A-2`, `A-3`, `P-1`, `P-3`, `P-4`, `R-1…R-4`, §7's `Unknown` arm and Leg C's `known_variants()` — all verbatim.** Two came back **better than claimed**: `P-4` is a **complete** read (23 fields, item-for-item against the file) rather than a sample, and `A-2`'s arm enumeration is **exhaustive** (11 arms + `_ => None`) rather than a suspect-list check.
+
+🔑 **AND SHE CLOSED THE SHARPEST FALSIFICATION TARGET IN CHAT'S FAVOUR.** The brief asked whether **any other gate** sits between the WebSocket frame and `dispatch_event`. She traced `server.accept()` (`app.rs:1389`) → `handle_connection` (`:1494`) → `server_authenticate` (`:1524`) → `is_revoked` (`:1539`) → `SessionContext` (`:1547`) → loop → `process_inbound` (`:2004`). **`session_ctx` is passed only to `trace_event` — seven uses, all logging — and its `role: Some(SpaceRole::Owner)` gates nothing. There is no sender-vs-session binding check anywhere** (`event.sender != …` has 5 production hits: 2 `owner_id`, 3 `home_node`). ✅ **§4 is sound.** 📌 **She also improved the metric: `process_inbound(` with the paren separates call expressions from the 56 bare-token lines MECHANICALLY, where Chat hand-read 50+ hits** — *same answer, better instrument.*
+
+### 🛑 F-1 — THE HEADLINE WIDENS, AND BOTH OF ITS STATED BOUNDS DIE
+
+`§4` said the hole is a **multi-tenancy** property: *"locally submitted … means submitted by any identity homed here"*, with bound 2 reading *"reachable via the CLI or the pipe **against one's own home node**"*. ✅ **RE-DRIVEN BY CHAT, AND CLAIR IS RIGHT:**
+
+- **`server_authenticate` (`transport/connection.rs:523-576`) is challenge → nonce → `verify_auth_response`.** No registry is consulted.
+- **`verify_auth_response` (`transport/auth.rs:91-123`) extracts the verifying key FROM the `identity_id` itself** (`parse_identity_id`, `:117`) and checks a signature over the nonce ⇒ ***the `identity_id` IS the public key, and authentication is key possession, full stop.***
+- **The sole registry gate is `is_revoked` (`identity/registry.rs:184-189`), which returns `false` for absent records** — its own doc states it: *"Unknown identities are not 'revoked' … the auth gate treats absent as 'not revoked' (Phase 1 local mode admits unregistered keypairs)"* — and **the call site (`xgen-node/app.rs:1537-1543`) carries no `local_mode` conditional.**
+
+🔑 **⇒ ANY FRESHLY GENERATED Ed25519 KEYPAIR CAN OPEN AN AUTHENTICATED CLIENT SESSION AGAINST ANY NODE'S LISTENER. Registration is not required. Tenancy is not required.** ⇒ ***the hole is not multi-tenancy-conditional: a SINGLE-TENANT node with a public listener has it identically.*** **CONFIRMS the finding and KILLS both stated bounds on its reach.** ⚠️ **It also changes what §6.6 is pricing** — the sequencing question was framed against *"no node is publicly hosted with untrusted tenants"*, and **tenancy was never the variable.**
+
+📌 **Bound 1 survives untouched and both seats hold it: neither Chat nor Clair ran an exploit.** F-1 is a source trace of `server_authenticate` + `is_revoked`; **no unregistered-keypair session was opened.** ⇒ **Leg A-bis's fixture must use a FRESH UNREGISTERED KEYPAIR, or it tests a narrower thing than the hole** — written into §12.
+
+### 🛑 F-2 — A CONVERGENCE CLAIM DIES, AND THE CLOSE IT SAT UNDER GETS STRONGER
+
+`§6.3` said: *"Convergence is not broken (fold order is deterministic under `D-076`), but nothing reports the disagreement."* 🛑 **The parenthetical is FALSE.** ✅ **Re-driven at `runtime.rs:851-874`:**
+
+`let conflict = state_key_for_event(&event).is_some() && conflicts_in_log(…)` — **`state_key_for_event` is the FIRST short-circuit**, and the comment above it says so outright (*"the `state_key_for_event` guard short-circuits before any log scan for non-keyed events"*). ⇒ **no arm ⇒ `conflict = false` ⇒ the `else` branch runs `state.apply_event(&event, …)` (`:867`) — incremental, in ARRIVAL ORDER.** `derive_resolved`, the only path that reaches the deterministic `topological_sort`, **is never entered**, and the appliers are **last-writer-wins assignments** (`state.rs:761`).
+
+🔑 **⇒ TWO NODES RECEIVING TWO CONCURRENT OWNER-ISSUED SETTINGS IN DIFFERENT ORDERS HOLD DIFFERENT VALUES.** 📌 **Clair closed her own leg rather than leaving the gap: the three production `derive_resolved` sites are `runtime.rs:677` (cold-start restore), `:832` (create-arm) and `:857` (the conflict rebuild) — nothing reconciles periodically** — and `replay_spaces_from_dir` sorts topologically (`app.rs:5027`), **so it heals only on RESTART.** The client carries the identical gate (`ai_service.rs:547`).
+
+⇒ **the sibling has a LIVE IN-MEMORY DIVERGENCE TODAY, not an unreported conflict.** 🔒 **§6.3's close is right and its REASON is upgraded from OBSERVABILITY to CORRECTNESS:** for a visibility preference a divergence window is tolerable; **for a gate evaluated ONCE and IRREVERSIBLY at a join it is a correctness failure — the same join admitted on one node and refused on another, and `L-B`'s own *"no past to falsify"* property is exactly what makes it unfixable afterwards.** ⚠️ **And `C-1`'s filed follow-up is now URGENT rather than tidy-up** — `member_temperature_visibility` and `human`/`ai_pacing_ms` are diverging today. *Its own milestone still, never a rider — but filed at the right priority instead of the one it had this morning.*
+
+### 🛑 F-3 — §6.2's PREMISE WAS INVERTED, AND JOE WAS ABOUT TO RULE ON IT
+
+The draft argued: the sibling *"treats unknown as `moderator` — its MOST RESTRICTIVE value"*, so admission's fail-closed rule **inverts** the sibling's. ✅ **Re-driven at `state.rs:1759-1784`: `moderator` is NOT the most restrictive — `VISIBILITY_SELF_ONLY => false` denies every non-self recipient, while `moderator` admits moderators-and-above.** And the source states the real rule: *"moderator is **the default value** and the fallback for unknown values"* (`:1770-1771`), with `DEFAULT_MEMBER_TEMPERATURE_VISIBILITY = VISIBILITY_MODERATOR` (`wire.rs:641`).
+
+⇒ **the sibling's principle is `unknown ⇒ DEFAULT`, which applied to admission yields `unknown ⇒ open` — the OPPOSITE of the recommendation.** ✅ **The recommendation survives; the argument under it is replaced.** 🔑 **AND THE COLLISION PUT TO JOE WAS MIS-STATED: the sibling's convention and `L-E` point the SAME WAY, both toward open.** **The real tension is fail-closed-as-a-security-stance versus the codebase's default-fallback convention** — and admission is the first field where the two diverge, **because it is the first one whose fallback is a GATE rather than a DISPLAY RULE.** 📌 **A better precedent sits AT the admission gate itself and the draft never cited it (Clair): `runtime.rs:1591` — `.unwrap_or(true); // unparseable ⇒ fail-closed`.** *The right argument was one file away from the wrong one.*
+
+### 🛑 F-4 — A DOC COMMENT CITED FOR A DECISIVE CLAIM. THE `F-4` SPECIES, IN THE FILE THAT NAMES IT.
+
+`§6.4` cited *"`state.dm_promote` … flips `dm_constraints_active` to false (`state.rs:238-239`)"*. **`:238-239` is the FIELD DECLARATION AND ITS DOC COMMENT.** The flip is `apply_dm_promote`, `state.rs:659-666`, assignment at `:664`. ✅ **Claim TRUE, site WRONG** — *in the section carrying option (b)'s decisive argument, three sections after §3's header names that species as "Chat's again".*
+
+📌 **AND CLAIR ADDED A FACT THAT STRENGTHENS (b), ABSENT FROM THE FILE:** ✅ re-driven — **`apply_dm_promote` has NO permission gate at all**, and **`StateDmPromote` is not in `skip_membership`** (`exchange.rs:649-659`), so `check_permission`'s `_ => Ok(())` admits **any Space member** ⇒ **in a DM, EITHER PARTY can promote.** ⇒ under option (a) **the stranger's promotion silently opens the Space** — `Rider 1`'s own threat arriving through a different door.
+
+### 🛑 F-5 — §6.5 WAS A CENSUS CLAIMING TO BE A PARTITION. FOURTH INSTANCE, AGAINST THE SECTION WRITTEN TO TEST FOR IT.
+
+**At least three more homes for the former-member fact, all added:** **(f) re-seed `pending_invites` at leave** — `PendingInvite { role, invited_by, valid_until }` (`state.rs:99-103`), ✅ confirmed; **the only candidate that arrives WITH the erasure story (b) is criticised for lacking, and it makes `collect_invite_bootstrap` work for a rejoiner, dissolving §8's item 3** — ⚠️ **at the cost of a leave auto-minting a standing re-entry right, which cuts against Q11c's *consented* rejoin** · **(g) retain `SpaceMember` with a `left_at` marker** — distinct from (b) because **it changes `members` semantics, so every `is_member` caller inherits it**, including the sync gate this milestone reasons about · **(h) node-local storage** — refusable on convergence, **but a home, and a partition names it.**
+
+🔑 ***A census is not a partition — named FOUR times in this arc now, and this time the section that failed the test was the one explicitly written to pass it.*** 📌 **(f) is recorded as the strongest challenger and refused on ONE ground that is Joe's to overturn**; **(g) is refused on blast radius, not merit, and is the honest alternative if Joe wants the simplest data model rather than the smallest diff.**
+
+### 🛑 F-6 — §8 ITEM 3 OVERSTATED; THE `D-067` INVOCATION WITHDRAWN
+
+The draft called a `1011` refusal of a permitted rejoiner *a gate and a bootstrap disagreeing — the two-sources-of-truth shape `D-067` exists to prevent*. 🛑 **`collect_invite_bootstrap` is NOT a gate — it hands out `prev_events`**, and refusing a non-invitee is **designed, with a designed fallback**: `rejoin_anchor_or_root` via the `_ =>` arm (`ops.rs:1699`), with a deliberate anchor comment at `:1694-1698`. ⇒ **item 3 collapses into item 1.** ***Calling one problem two is the inverse of the unification error and inflates a milestone the same way.*** 📌 **What survives as a real note: the design leg must still confirm the fallback anchor is correct under a gate that can REFUSE the join it anchors.**
+
+### 📌 C-5 — C-4 CHECKS OUT AND IS SHARPER THAN IT WAS FILED
+
+✅ **Re-driven by Chat: `docs/xgen_ch3_specification.md:4999` reads `| Invitations | Disabled — no third party may be invited |`, one hit corpus-wide.** 🔑 **In a 2-member DM the prose rule and the blanket code bar are EXTENSIONALLY EQUIVALENT — they diverge on exactly ONE case: re-inviting the ORIGINAL COUNTERPART, which is the rejoin case.** ⇒ ***the divergence is not incidental to this milestone; it is precisely the case the milestone exists to decide.*** **Still ch3's amendment, still its own node, never a rider.**
+
+### ⚠️ BOTH SEATS' UNVERIFIED LEGS, NAMED — AND THEY ARE THE SAME LEG
+
+🔑 **Neither seat ran an exploit and neither ran a two-node test.** F-1 is a source trace on the same bound as §4's bound 1; **F-2's divergence is DERIVED from a measured gate and a measured applier, not observed.** ⇒ **§12's `Leg A-bis` now carries TWO executable legs**: ① the third-party local join, **with a fresh unregistered keypair per F-1**; ② **a live two-node concurrent-set test for the divergence.** 📌 ***Clair flagged her own leg rather than letting it read as driven — that is the standard, and it is the second consecutive read where it was met.***
+
+### 🔒 WHAT LANDED
+
+`tasks/M_SPACE_ADMISSION_PHASE0.md` **v1.1 → v1.2** — §4 widened · §3.2 and §6.3 corrected and the reason upgraded · §6.2's premise replaced · §6.4's site fixed and strengthened · §6.5's census completed · §8 item 3 downgraded · §13 rewritten from a recommendation into the read's result · §12's Leg A-bis doubled · C-5 added. `docs/ROADMAP.md` **v7.28 → v7.29**, the node gaining three `Owes:` rows. **No new `D`. No new `N`.**
+
+🛑 **THE STANDING SCORE, RECORDED BECAUSE IT IS STILL THE SAME SCORE: Chat's own re-reads have never once caught a defect in this arc. Clair's four cold reads have returned seven, six, six and six.** ⚠️ **Four of this session's six findings were Chat's own errors in a document Chat wrote yesterday and re-read before committing.**
+
+🔓 **§6.1–§6.8 remain Joe's and are UNRULED. ⚠️ Nothing may be locked against the v1.1 text — §6.2 and §6.4 both changed.** 🔓 `N-197` still owed. 🛑 **THE ROUND-2 CONTRADICTION IS UNTOUCHED FOR A FIFTH CONSECUTIVE SESSION.**
+
+🔒 **FLOORS — READS ONLY, CARRIED AND NOT RE-RUN:** cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 Catalogue **UNMEASURED**. ✅ **CRLF integrity re-asserted on `docs/ROADMAP.md`: CR 603 == LF 603, zero `\r\r`, zero lone LF, no BOM; format gate PASS exit 0.** → J-743.
+
+---
+
 ## Entry J-742 — F-2's local-submission leg closes and the answer is yes; the sibling turns out to be right on shape and wrong on gate; `M-SPACE-ADMISSION`'s Phase-0 lands
 **Date:** 2026-08-16 · **Seats:** Chat (the audit, every measurement, the Phase-0, the records) · Joe (locks §6, pushes) · Clair (stood down; the cold read is recommended, not run)
 

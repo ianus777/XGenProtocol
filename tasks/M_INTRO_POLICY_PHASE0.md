@@ -1,6 +1,6 @@
 # M-INTRO-POLICY Phase-0 — receiver-side render policy: the mechanism was named, its INPUT was never measured
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-16  
 > Language: EN  
@@ -210,9 +210,66 @@ an opinion.** *Five of the fourteen rows below correct or narrow something Chat 
 
 🛑 **§4's Q8 table prices the acceptance gate as *"a policy read + a new request verb"* — AND IT PRICED IT AGAINST A WORKING FLOW THAT DOES NOT EXIST.** Whoever makes a DM **arrive** must build the recipient's join **regardless of any policy question.** ⇒ ***the acceptance gate stops being an ADDITION and becomes a DECISION INSIDE A LEG THAT MUST HAPPEN ANYWAY.*** **Its marginal cost is a branch, not a feature.**
 
-✅ **AND NOTHING HAS BEEN LOST YET: the `PendingInvite` consent gate is not being SPENT SILENTLY — it is UNBUILT ON THE ACCEPTING SIDE.** *That is a better answer than either branch the question offered, and it is only visible because the measurement was run before the options were priced.*
+✅ **AND NOTHING HAS BEEN LOST YET —** 🛑 **CORRECTED AT THE SITE BY CLAIR'S `F-1` (J-741): THIS SENTENCE WAS WRONG IN ITS NOUN.** It read *"the `PendingInvite` consent gate is not being SPENT SILENTLY — it is UNBUILT ON THE ACCEPTING SIDE."* **There is no consent gate to spend, on either side:** `MembershipJoin` skips steps 11 and 13, the invite-expiry gate runs **only if an invite exists**, and `apply_join`'s guards are **already-member and banned, nothing else.** The **state** claim (pending, not a member) holds; the **gate** claim does not. ⇒ **the accurate statement is that ADMISSION HAS NO INVITE REQUIREMENT AT ALL, in any Space** — which is what routed the mechanism out to `M-SPACE-ADMISSION` (§3a.7). *Chat's sentence was written from the shape of the data structure rather than from the code that reads it.*
 
 📌 **A NEW MILESTONE IS IMPLIED AND IS NOT THIS ONE'S** — the DM receiving half (join / accept / the pending-invite surface). **Named here so it is not absorbed as a rider**; its node and its Phase-0 are Joe's to open.
+
+### §3a.6 — 🛑 CLAIR'S COLD READ (J-741, 2026-08-16): SIX FINDINGS, AND THE HEADLINE KILLS A NOUN THIS FILE HAD BEEN USING
+
+📌 **Sent in pre-lock, on the arc's standing evidence: Chat's own re-reads have never once caught a defect here.** Clair's previous two returned **seven** then **six**. **This is the third, and it moved the milestone again.** ✅ **Chat re-drove the load-bearing findings before this section was written (Rule 5); what was NOT re-driven is stated as such.**
+
+| # | finding | verdict |
+|---|---|---|
+| **F-1** | 🛑 **NOTHING REQUIRES AN INVITE TO JOIN — SO `PendingInvite` IS NOT A CONSENT GATE.** `MembershipJoin` sits in `skip_membership` (`exchange.rs:648-651`) so steps 11 and 13 are both skipped; the invite-expiry gate is `if let Some(pi) = space.pending_invites.get(...)` and **its own comment says *"an open join (no pending invite at all) is untouched"*** (`runtime.rs:1564-1565`); `apply_join`'s space-level guards are **exactly two** — already-member (`:1016`) and banned (`:1019`) — with an absent invite taking `None => (Role::Member, None)` (`:1024`). **`runtime.rs:5580` names the model outright: *"open-join per J-275"*** | ✅ **RE-DRIVEN, REPRODUCES EXACTLY** |
+| **F-1a** | 🛑 **⇒ §3a.5's SENTENCE IS WRONG IN ITS NOUN.** *"the `PendingInvite` consent gate is not being SPENT SILENTLY — it is UNBUILT ON THE ACCEPTING SIDE"* — **there is no consent gate to spend, on either side.** The *state* claim (pending, not a member) is true; the *gate* claim is false. **Corrected in place** | ✅ **CONFIRMED** |
+| **F-2** | ⚠️ **THE THIRD-PARTY DM-JOIN GUARD IS ORIGIN-SCOPED.** The block Clair found is **F-3** (`runtime.rs:1183`), whose own comment reads *"Runs only for federation-channel events (`peer_node_id` is `Some`); locally-submitted events skip this check."* ⇒ a third party homed on the **same node** submits locally, F-3 is skipped, and F-1's open-join path is reached | 🛑 **SOURCE TRACE ONLY — NOT DRIVEN.** Clair stated her own unverified leg (does `xgen-node` route client submissions as `LocallySubmitted`?) and **it is still open. MUST NOT be recorded as a measured security finding until that leg closes** |
+| **F-3** | 🛑 **`G-12`'s *"leave + invitations-disabled = TERMINAL"* DOES NOT HOLD.** Invitations are barred (`apply_invite`'s first statement) — **but re-entry does not use an invitation.** The seeded invite was consumed at the first join, so a second join takes the `None` branch and is admitted as `Role::Member`. **The only thing keeping a leaver out is `banned`, and `can_ban` is `>= Role::Admin`** (`membership.rs:141`) ⇒ **in a DM only the OWNER can ban, and on unsolicited first contact that is the stranger** | ✅ **RE-DRIVEN, REPRODUCES EXACTLY.** `G-12` is **CORRECTED, not annotated-and-kept** |
+| **F-4** | 🛑 **CHAT'S *"21 Tauri commands"* IS WRONG: it is 20 client + 2 node.** Two independent methods agree | ✅ **RE-DRIVEN: 20 and 2.** *A wrong number under a correct conclusion — none of the 20 is a join or a leave — the J-738 F-4 species, Chat's this time* |
+| **F-5** | 🛑 **`check_permission_pub` IS NOT THE GATE THE BRIEF FEARED.** It is a three-line re-export (`exchange.rs:317-319`) with **exactly one production call site** (`runtime.rs:1426`), **scoped to AI-operator events**. The real `check_permission` gates joins on **nothing** — `_ => Ok(())` at `exchange.rs:914` | ✅ **RE-DRIVEN** |
+| **F-6** | 🛑 **CHAT'S UNIFICATION IS 3-OF-4, NOT 4-OF-4.** The ban, policy and regime inversions **do** reduce to the Owner/Member asymmetry. **Re-entry does NOT** — it is admitted by the *absence of a join gate*, which is **role-independent**: an Owner and a Member re-enter identically. ⇒ **making the recipient an Owner fixes three faces and does nothing for the fourth** | ✅ **CONFIRMED.** 🔑 ***A unification is the most satisfying kind of wrong answer***, and this one would have implied option (A) was a complete remedy |
+
+### ⚠️ AND CHAT'S RE-DRIVE FOUND A DEFECT IN CLAIR'S OWN CENSUS — RULE 5 RUNS BOTH WAYS
+
+**Clair's `Role` census: raw 134 (`Role::Owner` 43 + `owner_id` 91), ≈55 production across 9 files.** 🔑 **Chat's re-drive, stating the metric: LINES matching `Role::Owner|owner_id`, case-sensitive, `cfg(test)`-split per file, 257-file pool — raw 128 / production 72 across 13 files.**
+
+- 🛑 **134 vs 128: her method SUMMED TWO GREP COUNTS, so a line carrying BOTH terms is double-counted.** Six such lines. *Two defensible metrics, and neither stated one — the `blurb` census lesson (`F-3`, 28/35/37/50) at a different scale.*
+- 🛑 **≈55 vs 72: her list OMITTED FOUR FILES** (`xgen-common/event_trace.rs`, `xgen-node/federation_session.rs`, `xgen-node/migration_driver.rs`, and the `xgen-mptest` crate she excluded by judgement without saying it was a judgement). ***A census omitted files, third instance in this arc, and this time it was the reader's.***
+- ✅ **HER SHARP FINDING SURVIVES INTACT AND IS THE USEFUL PART: `algorithm.rs` and `derive.rs` carry ZERO production owner refs** — the resolution layer, named in the brief as the prime suspect, is **not** a consumer. Reproduced: neither file appears in Chat's production list at all.
+- ✅ **AND HER `owner_id` FINDING IS EXACT AND IS THE ONE THAT MATTERS:** `owner_id` is a **direct authority test at exactly two production sites** — `state.rs:733` (`apply_space_pacing`) and `:753` (`apply_space_temperature_visibility`) — plus `resolve_operator`'s fallback at `:1269`. 🔑 **⇒ option (A) is a 2-SITE DIVERGENCE, NOT A REWRITE**, and the two denied sites are **precisely the DM-relevant ones**, so a second Owner could not change temperature visibility on their own DM. *A specific user-visible consequence that appeared in no Chat document.*
+
+📌 **AND A CHAT PROCESS DEFECT CLAIR CAUGHT BY DECLINING TO GUESS: option (B) WAS NEVER WRITTEN TO DISK.** Options (A)/(B)/(C) lived in chat only, so she **correctly refused to evaluate an option she could not read.** ***That is the kickoffs-are-not-files convention one level down: an option set that exists only in a conversation cannot be audited.*** ⇒ the (A)/(B)/(C) set is recorded in §3a.7 rather than left in chat.
+
+---
+
+### §3a.7 — 🔒 THE RE-ROUTING: ADMISSION IS SPACE-GENERAL AND LEAVES THIS MILESTONE
+
+🔑 **JOE, 2026-08-16, AND IT IS THE SESSION'S STRUCTURAL RULING:** *"the rejoin event has to have also general spaces, definitely, so this mechanism must be space general."*
+
+✅ **F-1 PROVES HIM RIGHT AND THE CODE SAYS IT IN ONE LINE: `runtime.rs:5580` — *"A plain Space (`dm_constraints_active = false`; open-join per J-275)"*.** 🛑 **Open-join is the shipped admission model for EVERY Space, not a DM oversight** ⇒ a DM-scoped invite requirement would be **a second admission model bolted onto a project-wide default**, invisible from both sides.
+
+🔒 **⇒ ADMISSION BELONGS ON THE SPACE, AND THERE IS ALREADY A SLOT: `auth_tier` IS AN ADMISSION CONTRACT ON `SpaceState`** (a tier floor checked at join). This adds a **second dimension to an object that already carries one** rather than inventing a place. 📌 **Measured: no admission-policy field exists today** — `join_policy` / `open_join` / `discoverable` / `is_public` all **0**; `space_visibility`'s 3 hits are **test function names** for `member_temperature_visibility`, **checked rather than assumed.**
+
+🔑 **AND IT CLOSES F-2 AS A SIDE-EFFECT, WHICH IS THE STRONGEST ARGUMENT FOR IT:** an invite-required Space refuses a third party **by the admission rule itself, origin-independently** — replacing a guard that only holds on the federation channel with one that holds on both.
+
+🔒 **NEW MILESTONE, NAMED BY JOE: `M-SPACE-ADMISSION` — who may join a Space, and how a leaver comes back.** Protocol + node, Space-general. **No collision** (`SPACE-ADMISSION` and `M-SPACE` return 0 corpus-wide), and **the word is the codebase's own** — *admission* appears **41 times** in `xgen-core`/`xgen-node` comments (`"admission-only"`, F-3, INV-EXP), so this is continuity, not coinage.
+
+🔒 **JOE-LOCKED 2026-08-16 — OWNER-SETTABLE, WITH TWO RIDERS.**
+
+🔑 **THE DISCRIMINATOR, AND IT DECIDES RATHER THAN BALANCES: ASK WHY THE SET-ONCE PRECEDENTS ARE SET-ONCE.** `jurisdiction` says *"a silent post-hoc change is the integrity hazard to avoid"*; `e2e_encryption` says *"a Space cannot be retroactively encrypted or decrypted"*. **Both re-label data that already exists — they falsify the past.** ⚠️ **Admission has neither property: it is evaluated ONCE, at a join, and never re-evaluated.** Opening a Space admits nobody retroactively; closing one ejects nobody. ⇒ ***there is no past for a change to falsify, so the set-once argument does not transfer.*** **The right sibling is `member_temperature_visibility`** — a forward-looking behaviour rule, owner-settable, whose event type, applier arm and resolution arm already exist and work.
+
+① **user-visible:** set-once makes an owner decide at Space birth **with the least information they will ever have**, permanently. 🛑 **Concrete failure: a Space under abuse could never be locked**, leaving per-member banning as the only remedy, forever. ② **tier consequence: NONE** — admission creates no copy and destroys none. ③ **resource:** set-once is cheaper, but owner-settable's cost is **precedented, not novel** (`state.space_temperature_visibility` is the template). ⚠️ **A new event type is `G-1a`'s THREE hand edits** (enum + `as_str` + `from_str`), not one line.
+
+🔒 **RIDER 1 — THE DM PINS THE VALUE; IT IS NOT SETTABLE THERE.** DM admission is **invite-required, fixed**, joining §3.16.1's constraints. **Otherwise the stranger — who owns the DM — could flip their own DM open.** 🔑 *That is the Space-general shape working as intended: one mechanism, with the DM as a CONSTRAINED INSTANCE rather than an exception.*
+
+🔒 **RIDER 2 — GATE IT ON THE ROLE PREDICATE, NEVER ON `owner_id` EQUALITY.** The file carries both patterns, and Clair's `owner_id` finding is exactly the divergence: using `owner_id` equality would add a **THIRD** site to a split-authority problem that currently has **two**.
+
+📌 **A FOURTH OPTION, NAMED SO THE SET IS A PARTITION AND NOT A CENSUS:** a **one-way ratchet** (`open → invite` permitted, `invite → open` refused). **Not recommended** — it trades a real want (re-opening a community) against a threat that already has a bigger door, since a compromised owner can invite anyone anyway. *Recorded because a missing option has been the finding three times in this arc.*
+
+🔑 **WHAT THE RE-ROUTING DOES TO Q8 — A THIRD RE-PRICING IN ONE DAY, AND THIS ONE IS DOWNWARD.** §4 priced the acceptance gate as *a policy read + a new request verb*; Leg M re-priced it to *a branch inside work already owed*; **F-1 re-priced it back up to *a branch + a NEW ADMISSION GATE*, which is not the same object.** ⇒ **under the re-routing the admission gate is `M-SPACE-ADMISSION`'s, and `M-INTRO-POLICY`'s Q8 rides it as a VALUE (`DM ⇒ invite-required`) rather than building a mechanism.** ***The gate exists once, for everything.***
+
+🛑 **AND Q8's TABLE IS A DICHOTOMY, NOT A PARTITION (Clair).** Both columns presume the DM **arrives**; they differ only on **when it is stopped.** **A third plane is DISCOVERY** — whether the initiator can obtain the recipient's XGID at all — which §3.16.1's *not discoverable via Bootstrap directory* already touches and which the two-column framing **cannot express.** *Not claimed to be the right answer; claimed to be unrepresentable in the table as drawn.*
+
+---
 
 ### 🔒 TWO LOCKS THAT CAME OUT OF THE WALK
 
@@ -462,7 +519,9 @@ forecloses the other.**
 
 ---
 
-### 🔓 **Q11 — THE DM-PRIVACY `D`. 🛑 IT OUTRANKS Q1–Q10 AND SHOULD BE RULED FIRST.**
+### 🔓 **Q11 — THE DM-PRIVACY `D`. 🔒 RULED BY JOE 2026-08-16: a / b / d / e TAKEN ON CHAT'S RECOMMENDATIONS; c RULED VIA THE RE-ROUTING (§3a.7).**
+
+🔒 **THE RULINGS, RECORDED SO A RUNBOOK CANNOT DRIFT FROM THEM:** **Q11a** — the ground is the **no-bystander argument, tier-independent**, with T1-bannability as support rather than foundation · **Q11b** — Part 1 as stated: **moderation/content exempt, resource uniform, and the test is *what the node can still enforce on ciphertext after PG-05*** · **Q11d** — the ban is **address-book-local and exempt from retention eviction** · **Q11e** — it **earns a `D`** (number and wording Joe's) and the **ch3 amendment takes its own node**. 🔓 **Q11c** — see Part 2 below.
 
 **Joe, 2026-08-16:** *"such space is a special mechanism and has to be autonomous from node setting of general
 spaces… the dm has to be a private space"*, on the ground that **T1 identity is already bannable, so the
@@ -480,14 +539,8 @@ cost. **In a group, leaving costs you the group, which is exactly why someone el
    exempt DM is an unmetered write path into a node.** 🔑 **The boundary is not a preference: it is *what the
    node can still enforce on ciphertext after PG-05* — the same test `I1` uses, and the one §3.7.13.4 already
    sits on the correct side of (`G-10c`).**
-2. **The terminal cut is `membership.leave`** — protocol, mutual, in the DAG, **and already structurally
-   terminal** under §3.16.1's invitations-disabled (`G-12`). **It needs a user-reachable verb, not a new
-   event.** 🛑 **`G-13` first: leaving currently closes YOUR OWN read path, and that must be resolved before
-   the cut gets a verb** — either the cut preserves a *was-a-member* read grant, or preservation lives
-   somewhere other than the Space you left. 🔓 **`G-12a` IS NOW READ (`M-3` / `M-3a`) AND IT NARROWS THE FORK
-   RATHER THAN CLOSING IT:** the cut has **no GUI path either**, and `apply_leave` has **no DM case at all**,
-   so a creator leaving today **empties `members` entirely** — a zero-member Space nothing handles. **Chat
-   still makes NO recommendation on the read-path half; the ruling is Joe's.**
+2. **The terminal cut is `membership.leave`** — protocol, mutual, in the DAG. 🛑 **`G-12`'s *"already structurally terminal under §3.16.1's invitations-disabled"* IS CORRECTED BY CLAIR'S `F-3` (J-741) AND DOES NOT HOLD:** invitations are barred, **but re-entry does not use an invitation** — the seeded invite was consumed at the first join, so a second join takes `apply_join`'s `None` branch and is admitted as `Role::Member`. **The only thing keeping a leaver out is `banned`, and `can_ban >= Role::Admin`, so in a DM only the OWNER can ban — the stranger, on unsolicited first contact.** ⇒ **the cut is terminal against RE-INVITATION and not against RE-ENTRY**, and making it terminal is `M-SPACE-ADMISSION`'s job, not this milestone's (§3a.7).
+   🔓 **`Q11c` RULED — the read-path fork is CLOSED BY THE RE-ROUTING, not by a grant.** Under an invite-required DM, **leaving suspends access and a consented rejoin restores it**; the node's event store is untouched by a leave, so nothing is lost, only made unreachable while you are out. ⇒ ***access follows membership, and membership is recoverable by consent*** — **no *was-a-member* read grant is minted**, and no class of reader who can read a Space they are not in is created. ⚠️ **THE COST, NAMED RATHER THAN BURIED: a leaver needs the other party's consent to see the record again**, so cutting an abusive stranger means the abuser controls your access to the evidence. **That is a real cost of the ruling and it is `M-SPACE-ADMISSION`'s to carry**, alongside the preservation question, which stays Arc I / PG-02's.
 3. **The ban is ADDRESS-BOOK-LOCAL** — unilateral, invisible to the other party, unenforced against arrival and
    **honest about it** (`G-14`). 🔒 **And exempt from retention eviction (`G-14a`).**
 
@@ -534,7 +587,7 @@ nothing that can go false, which is `D-065`'s no-empty-machinery half.*
 
 | leg | what it does | gate | state |
 |---|---|---|---|
-| **0-pre** | 🔓 **Joe rules Q11 — the DM-privacy `D`.** 🛑 **It outranks everything below: under it, Q1's operator half collapses for DMs and Q4 narrows.** No code | — | 🟡 **PENDING — Joe** |
+| **0-pre** | 🔒 **DONE 2026-08-16 — Q11 RULED (a/b/d/e on Chat's recommendations; c via the re-routing).** §3a.7 | — | ✅ **DONE (J-741)** |
 | **0** | 🔓 **Joe rules Q1** (whose policy) — **no code. This leg is the gate for every other one** | 0-pre | 🟡 **PENDING — Joe** |
 | **0-bis** | 🔓 **Joe rules Q2 + Q3 + Q8** (the default, disclosed-to-whom, and which plane) | Leg 0 | 🟡 **PENDING — Joe** |
 | **A** | **the render-time deferral: Q2(C) built client-side.** The intro's rich canvas renders behind one deliberate act; `content.text` always renders. **A `D-120` `settingsComponent` holds the preference.** 🛑 **ZERO Rust, ZERO wire, ZERO spec — and it discharges `I7`/Q5** | 0-bis | 🟡 **PENDING** |
@@ -543,7 +596,7 @@ nothing that can go false, which is `D-065`'s no-empty-machinery half.*
 | **D** | **the tier-aware policy proper** — policy record, storage, the client↔node read (Q7's new namespace), enforcement at render | C · Q7 | ⏸️ **BLOCKED on C. Do not scope before it** |
 | **M** | ✅ **DONE J-740 — §3a.5.** `G-16a` answered (**the client cannot join at all**), `G-12a` answered both halves, `G-18a` confirmed. 🛑 **It re-priced Q8: the acceptance gate is a BRANCH inside work already owed, not a feature** | — | ✅ **DONE (J-740)** |
 | **P** | 🔓 **Joe rules Q9 + Q10** (requirement home + publish; per-identity vs per-Space) | 0-pre · M | 🟡 **PENDING — Joe** |
-| **G** | **the acceptance gate** — `ModulePolicy.extra` requirement, node-side enforcement at invite, the request verb under `L-2`. 🛑 **Protocol + node + client** | P | ⏸️ **BLOCKED on P** |
+| **G** | — ⬛ **RE-ROUTED OUT AT J-741.** The admission gate is **`M-SPACE-ADMISSION`'s**, Space-general; this milestone's Q8 rides it as a **VALUE** (`DM ⇒ invite-required`), not as a mechanism (§3a.7) | — | ⬛ **REPLACED — successor `M-SPACE-ADMISSION`** |
 | **E** | live verify, two identities, Chat re-drives every gate (Rule 5) | the legs that land | 🟡 **PENDING** |
 | **F** | records + close (`D-074`) | E | 🟡 **PENDING** |
 

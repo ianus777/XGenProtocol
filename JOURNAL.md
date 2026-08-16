@@ -8,6 +8,81 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-741 — Clair's third cold read kills a noun the milestone had been using, admission turns out to be Space-general, and a mechanism leaves this milestone entirely
+**Date:** 2026-08-16 · **Seats:** Clair (cold read, six findings, zero files modified) · Chat (the re-drive, the re-routing, the records) · Joe (the structural ruling, four locks, the milestone name, and one correction to Chat's spelling recommendation that went the other way). **NO PRODUCT CODE.** `tasks/M_INTRO_POLICY_PHASE0.md` **v1.2 → v1.3** (§3a.6, §3a.7 new). **NEW NODE: `M-SPACE-ADMISSION`.** `M-INTRO-POLICY` stays 🟡 PENDING; **Leg 0-pre ✅ DONE**, **Leg G ⬛ RE-ROUTED OUT**.
+
+✅ **STATE RE-MEASURED AT OPEN:** clean tree, `HEAD` `535232f` = `origin/main` by `git ls-remote`.
+
+### 🛑 F-1 — THE HEADLINE: NOTHING REQUIRES AN INVITE TO JOIN, SO `PendingInvite` IS NOT A CONSENT GATE
+
+J-740 and §3a.5 rested on *"the recipient is PENDING, not a member, until they emit `membership.join`"* and drew from it *"a consent gate exists in the protocol and is being spent silently."* 🔑 **The STATE claim is true. The GATE claim is false.** Four independent sites, **all re-driven by Chat**:
+
+- **`MembershipJoin` is in `skip_membership`** (`exchange.rs:648-651`) ⇒ step 11 (membership) **and** step 13 (permission) are both skipped for a join.
+- **The invite-expiry gate is `if let Some(pi) = space.pending_invites.get(&event.sender)`** — and its own comment says it outright: ***"an open join (no pending invite at all) is untouched"*** (`runtime.rs:1564-1565`).
+- **`apply_join`'s space-level guards are EXACTLY TWO** — already-member (`state.rs:1016`) and banned (`:1019`); an absent invite takes `None => (Role::Member, None)` (`:1024`).
+- **`check_permission` gates joins on nothing** — `_ => Ok(())` (`exchange.rs:914`).
+
+🔑 **AND THE MODEL IS DELIBERATE AND NAMED: `runtime.rs:5580` — *"A plain Space (`dm_constraints_active = false`; **open-join per J-275**)"*.** ⇒ 🛑 **§3a.5's sentence is WRONG IN ITS NOUN and is corrected at the site: there is no consent gate to spend, on either side.** *Chat's sentence was written from the shape of a data structure rather than from the code that reads it.*
+
+### 🛑 F-3 — AND `G-12`'s "LEAVE + INVITATIONS-DISABLED = TERMINAL" DOES NOT HOLD
+
+Invitations **are** barred (`apply_invite`'s first statement, before the actor or target is read). 🛑 **But re-entry does not use an invitation.** The seeded invite was consumed at the first join, so a **second join takes the `None` branch and is admitted as `Role::Member`.** The only thing keeping a leaver out is `banned` — and **`can_ban` is `>= Role::Admin`** (`membership.rs:141`), so **in a DM only the OWNER can ban, and on unsolicited first contact that is the stranger.** ⇒ ***the cut is terminal against RE-INVITATION, not against RE-ENTRY.*** **Corrected, not annotated-and-kept.**
+
+### ⚠️ F-2 — THE THIRD-PARTY DM-JOIN GUARD IS ORIGIN-SCOPED. **SOURCE TRACE ONLY.**
+
+The block is **F-3** (`runtime.rs:1183`), whose comment reads *"Runs only for federation-channel events (`peer_node_id` is `Some`); locally-submitted events skip this check."* ⇒ a third party homed on the **same node** submits locally, F-3 is skipped, and F-1's open-join path is reached. 🛑 **Clair stated her own unverified leg — whether `xgen-node` routes client submissions as `LocallySubmitted` — and it is STILL OPEN. This must NOT be recorded as a measured security finding until that leg closes.** *She flagged it herself rather than letting it read as driven; that is the standard.*
+
+### 🛑 F-4 / F-5 / F-6 — THREE MORE, TWO OF THEM CHAT'S
+
+**F-4: *"21 Tauri commands"* is wrong — it is 20 client + 2 node.** Re-driven both ways. *A wrong number under a correct conclusion (none of the 20 is a join or a leave) — the J-738 F-4 species, Chat's this time.* **F-5: `check_permission_pub` is not the gate the brief feared** — a three-line re-export with **one** production call site, **scoped to AI-operator events**. **F-6: Chat's unification is 3-of-4, not 4-of-4** — the ban, policy and regime inversions reduce to the Owner/Member asymmetry; **re-entry does not**, being admitted by the *absence of a join gate*, which is role-independent. 🔑 ***A unification is the most satisfying kind of wrong answer***, and this one would have implied option (A) was a complete remedy.
+
+### ⚠️ AND RULE 5 RAN BOTH WAYS — CHAT'S RE-DRIVE FOUND A DEFECT IN CLAIR'S CENSUS
+
+Her `Role` census: **raw 134, ≈55 production, 9 files.** Chat's re-drive, **stating the metric** — LINES matching `Role::Owner|owner_id`, case-sensitive, `cfg(test)`-split per file, 257-file pool — **raw 128 / production 72 across 13 files.**
+
+- 🛑 **134 vs 128: she SUMMED TWO GREP COUNTS, so a line carrying both terms is double-counted.** Six such lines.
+- 🛑 **≈55 vs 72: her list OMITTED FOUR FILES**, one of them an entire crate excluded by judgement without saying it was a judgement. ***A census omitted files — third instance in this arc, and this time it was the reader's.***
+- ✅ **Her sharp finding survives and is the useful part: `algorithm.rs` and `derive.rs` carry ZERO production owner refs** — the resolution layer, named in the brief as prime suspect, is not a consumer.
+- ✅ **And her `owner_id` finding is EXACT:** a direct authority test at **exactly two** production sites, `state.rs:733` and `:753`, plus `resolve_operator`'s fallback at `:1269`. 🔑 **⇒ option (A) is a 2-SITE DIVERGENCE, not a rewrite — and the two denied sites are precisely the DM-relevant ones**, so a second Owner could not change temperature visibility on their own DM. *A specific user-visible consequence that appeared in no Chat document.*
+
+📌 **AND A CHAT PROCESS DEFECT SHE CAUGHT BY DECLINING TO GUESS: option (B) WAS NEVER WRITTEN TO DISK.** Options (A)/(B)/(C) lived in chat only, so she **refused to evaluate an option she could not read.** ***That is the kickoffs-are-not-files convention one level down: an option set that exists only in a conversation cannot be audited.***
+
+### 🔒 JOE'S STRUCTURAL RULING — ADMISSION IS SPACE-GENERAL, AND A MECHANISM LEAVES THIS MILESTONE
+
+Joe: *"the rejoin event has to have also general spaces, definitely, so this mechanism must be space general."* ✅ **F-1 proves him right and the code says it in one line** — `open-join per J-275` is the shipped model for **every** Space, so a DM-scoped invite requirement would be **a second admission model bolted onto a project-wide default.**
+
+🔒 **⇒ ADMISSION BELONGS ON THE SPACE, AND `auth_tier` IS ALREADY AN ADMISSION CONTRACT THERE** — this adds a second dimension to an object that already carries one. 📌 **Measured: no admission field exists** (`join_policy` / `open_join` / `discoverable` / `is_public` all **0**; `space_visibility`'s 3 hits are **test function names**, checked rather than assumed). 🔑 **AND IT CLOSES F-2 AS A SIDE-EFFECT** — an invite-required Space refuses a third party **by the admission rule itself, origin-independently.**
+
+🔒 **NEW MILESTONE: `M-SPACE-ADMISSION` — who may join a Space, and how a leaver comes back.** Name Joe's. No collision (0 corpus-wide), and **the word is the codebase's own** — *admission* appears **41 times** in `xgen-core`/`xgen-node` comments. 📌 *Joe first proposed `ADDMISSION`, confirmed it deliberately, then asked which spelling was correct and took the single-`D` form — settled before a single citation existed, which is exactly what `D-134` makes cheap now and expensive later.*
+
+🔒 **JOE-LOCKED: OWNER-SETTABLE, WITH TWO RIDERS.** 🔑 **The discriminator decides rather than balances: ask WHY the set-once precedents are set-once.** `jurisdiction` (*"a silent post-hoc change is the integrity hazard to avoid"*) and `e2e_encryption` (*"a Space cannot be retroactively encrypted or decrypted"*) **both re-label data that already exists — they falsify the past.** ⚠️ **Admission has neither property: it is evaluated ONCE, at a join, and never re-evaluated** — opening admits nobody retroactively, closing ejects nobody. ⇒ ***there is no past for a change to falsify, so the set-once argument does not transfer***, and the right sibling is `member_temperature_visibility`. 🛑 **Concrete failure of set-once: a Space under abuse could never be locked.** 🔒 **Rider 1 — the DM PINS the value (invite-required, not settable there), or the stranger who owns the DM could flip their own DM open.** 🔒 **Rider 2 — gate on the ROLE PREDICATE, never on `owner_id` equality**, or it becomes a **third** site of the split-authority problem that currently has two. 📌 **A fourth option named so the set is a partition: a one-way ratchet — not recommended.**
+
+### 🔒 Q11 RULED — a / b / d / e ON CHAT'S RECOMMENDATIONS, c VIA THE RE-ROUTING
+
+**Q11a** the ground is the **no-bystander argument, tier-independent** · **Q11b** moderation exempt, **resource uniform**, test = *what the node can still enforce on ciphertext after PG-05* · **Q11d** the ban is **address-book-local and exempt from retention eviction** · **Q11e** it **earns a `D`** and the **ch3 amendment takes its own node**.
+
+🔓 **Q11c — CLOSED BY THE RE-ROUTING, NOT BY A GRANT.** Under an invite-required DM, **leaving suspends access and a consented rejoin restores it**; the node's event store is untouched by a leave. ⇒ ***access follows membership, and membership is recoverable by consent*** — **no *was-a-member* read grant is minted**, and no class of reader who can read a Space they are not in is created. ⚠️ **THE COST, NAMED RATHER THAN BURIED: a leaver needs the other party's consent to see the record again**, so cutting an abusive stranger means the abuser controls access to the evidence. **That cost is `M-SPACE-ADMISSION`'s to carry**; preservation stays Arc I / PG-02's.
+
+### 🔑 Q8 WAS RE-PRICED THREE TIMES IN ONE DAY, AND THE LAST MOVE IS DOWNWARD
+
+§4 priced the acceptance gate as *a policy read + a new request verb* → Leg M re-priced it to *a branch inside work already owed* → **F-1 re-priced it back up to *a branch + a NEW ADMISSION GATE*, which is not the same object** → **the re-routing moves the gate to `M-SPACE-ADMISSION` and leaves `M-INTRO-POLICY` riding it as a VALUE (`DM ⇒ invite-required`).** ***The gate exists once, for everything.*** 🛑 **And Q8's table is a DICHOTOMY, not a partition (Clair): both columns presume the DM ARRIVES. A third plane is DISCOVERY**, which the two-column framing cannot express.
+
+### ⚠️ CHAT'S OWN SPLICE DEFECT THIS SESSION, CAUGHT BY THE DIFF
+
+A three-edit batch on the Phase-0 consumed a section heading and then restored it **onto the line that opened `L-1`**, producing `### TWO LOCKS THAT CAME OUT OF THE WALK Once a DM exists…`. 🔑 **Caught by reading the returned diff, not by re-reading the file** — `N-124b`'s rule holding for the fourth time: ***after every edit, DIFF IT.*** Repaired in the next call.
+
+### 📌 STILL UNREAD AND STILL OWED
+
+ch3 §3.7.13.1 / .2 / .7 / .8 · Ch6 §6.12.6 · **F-2's local-submission leg** · Phase-0 §1–§3 and §6–§10 were **not** read by Clair and she said so. 🛑 **The ROUND-2 CONTRADICTION is untouched for a THIRD consecutive session** — `ROADMAP:290` ✅ GO at J-390 vs the J-735 kickoff's *"still GATES UI COMPLETION"*. **A third deferral starts to look like a decision nobody made.**
+
+### 🔒 FLOORS — READS ONLY
+
+Zero `.rs`, `.ts`, `.svelte`, `ui/**`. cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**, carried from J-734 and **deliberately not re-run**. 🛑 Catalogue **UNMEASURED**. 🛑 No registry number carried. 🔒 **Every census states its metric and its pool** — the lesson Clair's own census needed.
+
+**No new `D` written** (Q11e's `D` and `M-SPACE-ADMISSION`'s are Joe's to mint). **No new `N`.** 🔓 `N-197` still owed.
+
+---
+
 ## Entry J-740 — Leg M runs, and the answer is that the desktop client cannot join anything: a DM's receiving half has no path, so no recipient has ever rendered an intro
 **Date:** 2026-08-16 · **Seats:** Chat (Leg M, every measurement, the records) · Joe (the cut-versus-ban correction, and *"go"*). **NO PRODUCT CODE.** `tasks/M_INTRO_POLICY_PHASE0.md` **v1.1 → v1.2** (§3a.5 new). `M-INTRO-POLICY — receiver-side render policy` stays **🟡 PENDING**; **Leg M ✅ DONE**, every other leg still gated on Joe.
 

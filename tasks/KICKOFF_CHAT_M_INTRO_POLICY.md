@@ -11,6 +11,8 @@
 ---
 
 ```
+XGen Protocol — session kickoff (CHAT CLAUDE)
+
 MILESTONE: M-INTRO-POLICY — receiver-side intro policy. 🟡 PENDING, PHASE-0 OWED.
 🎯 THIS SESSION: author the M-INTRO-POLICY Phase-0 audit. Chat writes it FIRST, with
    Joe decisions as open §§ carrying recommendations + D-121 lenses. NEVER end a turn

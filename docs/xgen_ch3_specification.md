@@ -1,6 +1,6 @@
 # XGen Protocol — Chapter 3: Specification
 > **Status:** ACTIVE  
-> Version: 0.57  
+> Version: 0.58  
 > Date: May 2026  
 > **Last updated**: 2026-08-16  
 > Language: English  
@@ -729,6 +729,23 @@ Example:
 "signature": "ed25519:AAAAC3NzaC1lZDI1NTE5AAAAIHvoNgEMoFYGNhWMTRSXqFGrjWYRBhKVNBnPXVwB:U29tZVNpZ25hdHVyZUJ5dGVzSGVyZUluQmFzZTY0dXJsRW5jb2RpbmdXaXRob3V0UGFkZGluZw"
 ```
 
+**Attribution permanence**
+
+The inclusion of `sender` in the canonical form has a consequence that reaches beyond signing, and it is stated here because several later sections depend on it.
+
+Because `sender` is one of the canonicalised fields, it is covered by the signature **and** it is an input to the `event_id` derivation (3.2.3). An Event's identifier is therefore partly a function of who wrote it. Removing the `sender`, or substituting another, does not merely invalidate the signature — it produces a different `event_id`, and since `event_id` values are what `prev_events` references contain (3.2.5), it detaches the Event from every descendant that named it. **Attribution cannot be stripped from an Event without destroying the Event's place in the DAG.**
+
+Two properties follow, and both are load-bearing elsewhere in this specification.
+
+**Attribution survives content encryption.** `sender` is an envelope field, not part of `content`, and only `content` is encrypted (3.10.7). A Space using end-to-end encryption therefore carries events whose author is readable and whose body is not. Signatures are computed over the ciphertext and remain verifiable without any access to plaintext.
+
+**Attribution survives erasure.** Content erasure is performed by destroying keys rather than by mutating or deleting events (3.10, and the erasure model it implements), so an erased Event remains in the DAG with its `sender` intact. Identity erasure operates on the **binding** between a public key and a person — held in Node-side registry records — and not on the key as it appears in events: the public key persists in the log as an anonymous token, every signature continues to verify, and the DAG is untouched. Blanking fields of an at-rest Event is not an erasure mechanism in this protocol; it would break universal signature-verifiability and is not performed.
+
+⚠️ **What this does and does not guarantee.** It guarantees that a retained record says **which key** produced each Event, permanently and unforgeably. It does **not** by itself say **which person** holds that key: that binding lives in Auth Module and registry records, is tier-dependent, and is the thing identity erasure removes. A reader of a retained archive therefore faces two separate questions — *whose key is this?*, which the log answers on its own, and *whose key was this?*, which it does not. Neither content decryption keys nor the key-to-person binding are held by the protocol, by design.
+
+📌 Note also that not every Event is authored by a person. Node-authored Events (`membership.node_eject`, `membership.node_unban`, and the migration Events of 3.15) carry the home Node's key as `sender`, and their authority derives from `sender == space.home_node` rather than from Space membership. An archive read at the key level must distinguish Node keys from Identity keys.
+
+*This is why the no-anonymity property of the protocol is structural rather than declared: participation requires signing, signing binds the key into the Event's own identifier, and no later operation in this specification removes it.*
 ---
 
 #### 3.2.5 The prev_events DAG
@@ -2860,6 +2877,8 @@ On promotion to a full Space (3.16), the pinned value is retained and the Space 
 A member who leaves may return. Leaving suspends access; it does not forfeit it permanently.
 
 `membership.leave` removes the leaver from the Space's active membership. Under `open` admission a return needs nothing further — the leaver issues `membership.join` and is admitted like any other joiner. Under `invite` admission a return requires the Space to distinguish a former member from a stranger, which the active membership set alone cannot do once the leaver has been removed from it.
+
+📌 The DAG itself is not the difficulty: membership Events are retained like any other, and each carries its author's key permanently (3.2.4, *Attribution permanence*), so the history of who joined and who left is recoverable by reading the log. What the derived Space State cannot do is answer the question **at the moment a join is being evaluated**, from state rather than from a replay, on a Node whose log may be incomplete.
 
 **The membership record therefore survives departure.** A member who leaves retains their membership record marked with the time of departure, rather than being deleted from it. The record states that this Identity was a member and when they ceased to be one; it is a record of history, not a standing entitlement, and it does not by itself re-admit anyone. Readmission remains an explicit act.
 

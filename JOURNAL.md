@@ -8,6 +8,48 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-747 — Attribution permanence enters ch3 §3.2.4: the sender is inside the hash, so no operation in the specification can strip it
+**Date:** 2026-08-16 · **Seats:** Joe (the claim, and the instruction to place it) · Chat (the broader-scope verification, the spec text) · Clair (not engaged)
+
+✅ **STATE RE-MEASURED AT OPEN:** clean tree, `HEAD` = `origin/main` by `git ls-remote`, J-745 + J-746 pushed.
+
+🎯 **NO PRODUCT CODE.** One document — the normative specification.
+
+### 🔑 THE CLAIM WAS VERIFIED AGAINST A BROADER SCOPE THAN THE ONE THAT PRODUCED IT, AND IT GOT STRONGER
+
+J-746 confirmed Joe's *"when the communication will be written, the pubkeys will be presented"* against **one struct**. Joe then asked the right question — *can you confirm my claim against broader scope?* — ***which is the arc's own recurring defect asked as a question: a claim narrower than the thing it describes.*** Four places it could have failed were tested.
+
+| # | test | result |
+|---|---|---|
+| **① struct** | `sender: IdentityXgid` is top-level, **not `Option`**, sibling to `content` (`wire.rs:473-494`); no production path assigns or clears it after construction | ✅ holds |
+| **② signature + ID** | 🔑 **`EVENT_FIELD_ORDER` is `protocol_version · type · sender · room_id · space_id · prev_events · timestamp · content · meta_atts` (`xgen-common/src/canonical.rs`), and `canonical_event_bytes` feeds BOTH the signature AND the `event_id` derivation** | ✅ **stronger than claimed** |
+| **③ encryption boundary** | only `content` is encrypted; `D-088`: *signatures sign ciphertext and remain valid* ⇒ the envelope is plaintext by design | ✅ holds |
+| **④ erasure** | `D-088` verbatim: ***identity is erased by orphaning the pubkey↔person binding in the registry cache; the pubkey persists as an anonymous token, all signatures keep verifying, the DAG is untouched***; and **blank-at-rest event mutation is explicitly REJECTED** as an erasure mechanism | ✅ **holds under the hardest test** |
+
+🔑 **⇒ THE PUBKEY IS NOT MERELY WRITTEN ALONGSIDE THE COMMUNICATION; IT IS INSIDE THE HASH THAT NAMES THE EVENT.** Remove or substitute `sender` and you invalidate the signature **and** change the `event_id` — and since `event_id` values are what `prev_events` contains, **you detach the Event from every descendant that named it.** ***Attribution cannot be stripped without destroying the Event's place in the DAG.***
+
+📌 **And `D-088` states Joe's requirement in its own words at T4: *"destruction of no record at all, retained under Art.17(3) lawful basis (the conscious counterpart to the no-anonymity pillar)."*** His *"archivable and readable under specific security circumstances"* is not adjacent to the design — **it is the design, already written down.**
+
+### ✅ WHAT THE CHECK CONFIRMED ABOUT HIS PHRASING, PRECISELY
+
+- *"the pubkeys will be presented"* — ✅ **confirmed and understated.**
+- *"identity could be recorded either"* — ✅ **true at the KEY level, always and permanently.** ⚠️ **At the PERSON level it is conditional** — that binding lives in Auth Module and registry records, is tier-dependent, and **is exactly what identity erasure removes.**
+- *"it depends how the auth module would write data"* — 🔑 **that clause IS the condition, and Joe bounded his own claim correctly before being asked to.**
+
+### 🔒 WHAT LANDED IN ch3
+
+**A regular prose block at the END of §3.2.4 (Signature Canonicalisation) — no new numbered section and no renumbering**, placed there because that section already states the canonical field order the whole property rests on. It states: the `event_id`/signature consequence and why attribution cannot be stripped · **attribution survives content encryption** (envelope vs `content`) · **attribution survives erasure** (key destruction leaves the Event; identity erasure orphans the binding, not the key; blanking is not a mechanism here) · ⚠️ **what it does NOT guarantee — *whose key is this* the log answers alone; *whose key was this* it does not, and neither content keys nor the key↔person binding are held by the protocol, by design** · 📌 **Node-authored Events carry a NODE key as `sender`** (`node_eject`, `node_unban`, the 3.15 migration Events, authority by `sender == space.home_node`), so an archive read at key level must distinguish Node keys from Identity keys.
+
+**Closing line, and it is the point of the block:** *the no-anonymity property is structural rather than declared — participation requires signing, signing binds the key into the Event's own identifier, and no later operation in this specification removes it.*
+
+📌 **§3.7.14.6 gains a two-sentence pointer** correcting the impression left by J-745: **the DAG is not the difficulty** — membership Events are retained and carry their author's key permanently, so who joined and who left is recoverable **by reading the log**. What the derived Space State cannot do is answer **at the moment a join is being evaluated, from state rather than a replay, on a Node whose log may be incomplete.** ***That is the (g) argument stated at its true size.***
+
+### 🔒 FLOORS — ONE DOCUMENT, CARRIED AND NOT RE-RUN
+
+cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 Catalogue **UNMEASURED**. `docs/xgen_ch3_specification.md` **v0.57 → v0.58**, LF preserved (CR 0, no BOM), **+20 / −1**. **No new `D`, no new `N`** — *the property is a consequence of `D-088` and `D-093` rather than a new decision, and recording it as a `D` would have minted a decision nobody made.* 🔓 `N-197` still owed. 🔓 **§6.3's one branch remains the only unruled question in §6.** 🛑 **ROUND-2 CONTRADICTION UNTOUCHED FOR A NINTH CONSECUTIVE SESSION.** → J-747.
+
+---
+
 ## Entry J-746 — Joe falsifies a claim in a decision minted the day before: the pubkeys are written with the communication, so identity was never the missing half
 **Date:** 2026-08-16 · **Seats:** Joe (the falsification; the Auth Module framing) · Chat (the measurement, the annotations) · Clair (not engaged)
 

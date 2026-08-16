@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.25  
+> Version: 1.26  
 > Date: May 2026  
-> **Last updated**: 2026-08-13  
+> **Last updated**: 2026-08-16  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -3529,11 +3529,14 @@ if (m) selection.set(regionId, toDescriptor(m));          // conditional
 
 `WidgetMount` (`{widgetId, props?}`) is the **containment** model — the half of the slot inventory that is *content anchors inside a host widget*, as distinct from the **placement** model (`surface: none|region|shelf|window`, `D-112`). It has three live sockets and, as of today, three tenants:
 
+⚠️ **ANNOTATION AT THE SITE (`D-131`, J-739, 2026-08-16) — THE TABLE BELOW WAS STALE ON THE DAY IT WAS WRITTEN AND IS NOW STALE TWICE, AND THE CORRECTION WAS A DoD ITEM OF A CLOSED MILESTONE THAT NOBODY DID.** `M-RP-INTRO`'s Phase-0 §5 `R-2` — *"three sockets → four: add `stream-panel.above` / `dm-intro`"* — was **§10 DoD item 5**, and the milestone **CLOSED at J-735 without it**. 🛑 **Measured at J-739: no annotation existed anywhere in this file.** Two corrections, both against the shipped build: **① there are FOUR sockets** — `stream-panel`'s `above`, tenanted by `dm-intro`, is missing (`stream-panel.svelte:153-160`, `:182`); **② `message.bodyExtras` has TWO tenants, not one** — `message-intro` joined `send-status` when `M-RP-INTRO` shipped, driven at J-735 as `childCount: 2` with distinct registry ids. 🔑 ***The note whose whole job is to stop a future feature spending the socket's security property was the note nobody swept.*** 📌 **The PROPERTY the note records is unaffected and is what matters: `WidgetMount` still has zero hits in any `.rs`, and every mount is still chosen by the receiving client.** Original table kept below with the two corrections marked, per `D-131`.
+
 | socket | tenant | where the mount is decided |
 |---|---|---|
 | `message-stream.background` | `grid-plate` | `layout-default.ts` — a **local constant** |
-| `message.bodyExtras` | `send-status` | the shell, from **local** send state |
+| `message.bodyExtras` | `send-status` · **`message-intro` (added `M-RP-INTRO`, J-735 — J-739)** | the shell, from **local** send state |
 | `message.details` | — | — |
+| **`stream-panel.above` (MISSING FROM THE ORIGINAL — J-739)** | **`dm-intro`** | **the shell, from local draft state** |
 
 🔑 **THE PROPERTY, MEASURED: `WidgetMount` HAS ZERO HITS IN ANY `.rs` FILE.** Nothing on the wire carries one. Every mount in the product is chosen by the client doing the rendering, from a widget it already has. **The sender contributes DATA; the receiver decides RENDERING.**
 
@@ -3556,6 +3559,8 @@ Two independent axes share the words, and they have not yet met because one of t
 |---|---|---|
 | **`AuthTier`** | `xgen-core/src/auth/tiers.rs` | identity verification strength. **Tier 1 = cryptographic identity only; Tiers 2–4 are built in institutional collaboration with qualified organisations** — i.e. Tier 1 is all that exists |
 | **processor provenance tier** | `ui/…/transform.ts`, `processor.ts`, `store.svelte.ts` | code-vs-user trust. *"Tier-1 trusted code bypasses these entirely; Tier-2 user/settings literal pairs enforce caps"* |
+
+⚠️ **ANNOTATION AT THE SITE (`D-131`, J-739, 2026-08-16) — THE SENTENCE BELOW IS FALSE ONCE THE TEMPLATE AND BACKUP FILES ARE IN THE POOL, AND THE COLLISION IS WORSE THAN THIS NOTE FILED IT.** Re-measured over a **145-file `ui/` pool** (`*.ts` `*.svelte` `*.js` `*.css`, `node_modules` excluded): **`auth_tier` 0 · `authTier` 0 · `trust_assertion` 0 · `NodePolicy` 0** — ✅ **that half holds exactly.** But `tier` returns **106**, and while every **live-path** hit is `data-tier="widget"`, **the AUTH axis survives in dead files**: `ui/templates/skeleton/tokens.css:199-220` and `ui/backup/run_1.0/tokens.css:88-264` carry a full `--xgen-color-tier-1–4` palette **and `.xgen-tier-badge[data-tier="1".."4"]` rules** (D-038 era). 🛑 ***`data-tier` is therefore ALREADY SPENT TWICE, on one attribute name, with opposite meanings*** — so a third sense would be a third meaning for one attribute, and a future skin pass that revives the template CSS revives the collision with it. 📌 **The rename is still Joe's and nothing is renamed here; only the measurement is corrected.** *Original sentence follows.*
 
 🔑 **EVERY `tier` HIT IN `ui/` IS THE SECOND AXIS. `auth_tier` HAS ZERO HITS IN `ui/`.** The collision is therefore **latent, not live** — which is exactly the moment to fix it, because the first feature that surfaces an auth tier in the client makes *"is this row Tier-2?"* an ambiguous question in review, in kickoffs, and in this notes file.
 

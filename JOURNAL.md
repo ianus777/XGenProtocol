@@ -1,10 +1,99 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-15  
+> **Last updated:** 2026-08-16  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-739 — the M-INTRO-POLICY Phase-0 lands, its stated INPUT turns out not to be on the wire, and a design walk gives the milestone a second plane
+**Date:** 2026-08-16 · **Seats:** Chat (the audit, the Phase-0, every measurement, the records) · Joe (the DM-autonomy walk, four rulings-in-progress, two corrections to Chat). **NO PRODUCT CODE.** New file `tasks/M_INTRO_POLICY_PHASE0.md` **v1.1 ACTIVE**. `M-INTRO-POLICY — receiver-side render policy` stays **🟡 PENDING** — **its Phase-0 defect is cleared; its decisions are Joe's and unruled.**
+
+✅ **STATE RE-MEASURED AT OPEN, NOT INHERITED:** clean tree, `HEAD` `9cbbf54` = `origin/main` by `git ls-remote`.
+
+📌 **WHY THE SESSION EXISTED:** `M-INTRO-POLICY`'s trigger fired at J-735 (`3e1014d`) and the node itself recorded *"Phase-0 is OWED; a trigger that has fired with no Phase-0 is a defect."* **Second instance of that exact shape in two milestones** — `M-RP-INTRO` started the same way. **A standing defect cleared, not a new want opened.**
+
+### 🛑 THE HEADLINE FINDING — THE MILESTONE'S NAMED INPUT IS NOT ON THE WIRE, AND THE RECORD PRICED THE WRONG OBSTACLE
+
+The ROADMAP node says *"auth tier is an INPUT to the policy"* and treats the obstacle as *Tiers 2–4 do not exist*. **True, and it is the weaker of two.** Measured:
+
+- **`identity.record` — the ONLY identity lookup response the protocol has — carries EIGHT fields** (`protocol_version`, `identity_id`, `display_name`, `registered_at`, `devices`, `home_node`, `is_ai`, `ai_capabilities`) and **no `trust_assertion`, no tier, no `revoked`, no `update_version`** (`wire/types.rs:453-471`), while the stored `IdentityRecord` carries **twelve** (`registry.rs:32`). ⇒ **the wire projection is NARROWER THAN THE STORE and the tier is one of the four fields dropped.**
+- ⇒ **even if Tier 2 shipped tomorrow, a receiver's client could not read a sender's tier.**
+- 🔑 **AND `auth_tier` IS THE WRONG OBJECT ANYWAY.** `verify_tier_assertion(assertion_tier, space_auth_tier)` is a **Space JOIN-GATE FLOOR** checked at admission (`tiers.rs:158-168`), not a property of a sender ⇒ **inside a DM it is a constant `1` by construction and carries ZERO information about who is speaking.**
+- 🛑 **THE UNFED BRANCH IS ALREADY SHIPPED, IN PRODUCTION, ON EXACTLY THIS INPUT:** `address_book.rs` declares `trust_assertion: Option<Value>` **plus** a reader `trust_lapsed()` **plus** a guard test asserting *"an ordinary fetched record has no assertion"* (`:105-113`, `:145-160`, `:676-681`). ***A field, a reader, a test and no feeder — `N-091` at protocol scale.***
+
+### 🛑 AND `M-RP-INTRO` TICKED A DoD ITEM IT DID NOT DO
+
+Its Phase-0 §5 `R-2` — annotate `N-172`'s socket table — was **§10 DoD item 5**, and the milestone **CLOSED at J-735**. **Measured: no annotation exists anywhere in `xgen-ui-notes.md`.** The table is now stale **twice**: it lists **three sockets** (missing `stream-panel.above` / `dm-intro`) **and one `bodyExtras` tenant** where the shipped build has **two** (`send-status` + `message-intro`, driven at J-735 as `childCount: 2`). ⚠️ ***In the one note whose whole job is to stop a future feature spending the socket's security property.*** ⇒ `R-1` of this Phase-0, and **it does not get ticked twice.**
+
+### 🔑 THE PRECEDENT IS INERT, AND ITS OWN MODULE DOC SAYS SO IN CAPITALS
+
+`NodePolicy` — 47 occurrences, 5 files, **all node-side**, zero in `xgen-client/`, zero in `ui/`. **`node_policy.rs:26-32`: *"FORK X (NP-D3): the store is INERT this arc — nothing in the running Node reads it"***, with the two admin verbs as **sole consumer**. ⇒ **there is NO enforcement path in this codebase to copy.** It also mismatches on **key** (`HashMap<SpaceXgid, _>` — per hosted Space, where an intro policy is per receiver identity) and on **principal** (node-operator authority #1, where an intro policy is a user preference). ✅ **What DOES transfer: the `absent == disabled` prime invariant** — `N-182` realised in a persisted store. 📌 **And there is no `policy.*` namespace on the wire at all** — 61 renamed `TransportMessage`/`IdentityMessage` variants across nine namespaces, zero policy ⇒ a client-facing policy read is a **new namespace**, not a field.
+
+### 🔑 THEN JOE WALKED IT, AND THE WALK MOVED MORE THAN THE AUDIT DID
+
+**Every step was a measurement, not an opinion, and five of them corrected Chat inside the same session.**
+
+🔒 **① THE DM PRIVACY ARGUMENT, AND ITS STRONGEST FORM IS TIER-INDEPENDENT.** Joe: *"the dm has to be a private space"*, justified by T1 identity already being bannable so the counterpart needs no third party. 🔑 **The stronger form, recorded instead: *third-party moderation exists to protect people who did not choose to be in the room, and a DM has no bystanders*** — both parties are the entire membership, and either one's exit ends it at zero cost, where in a group leaving costs you the group.
+
+🛑 **② BUT THE SPEC DOES NOT SAY IT, AND THAT CHANGES WHO OWES THE WORK.** §3.16.1 lists **five** constraints and its "Private" row means ***not discoverable via Bootstrap Node directory*** — **discovery privacy, not content privacy**; *"private, bilateral nature"* is prose framing, not a normative row. ⇒ **the autonomy is a SIXTH constraint that does not exist: a SPEC AMENDMENT, not a conformance fix.** ⚠️ **And the collision is live:** §3.7.13.6 has automated moderation issue signed `membership.kick`/`membership.mute` **signed by the node operator's identity**, and **nothing in §3.7.13 scopes itself away from DMs** — in a two-member DM that removes one of the two participants. **DM Space state already carries `member_temperature_visibility`, initialised to the `moderator` default** (`state.rs:465`, `:581`) ⇒ the machinery is **already present on DM state; it was never scoped away, only never contemplated.**
+
+🔑 **③ THE SPEC ALREADY DRAWS THE RIGHT BOUNDARY ONE SECTION OVER.** §3.7.13.4: *"The home Node enforces visibility… the client does not implement filtering"* — **the exact inverse of `I1`**, and **both are correct**: temperature is `meta_atts` computed node-side and stays readable on ciphertext; message content does not. ⇒ ***the boundary is what the node can still enforce after PG-05***, which is `D-143`'s test, not a preference.
+
+🛑 **④ AUTONOMY IS A CARVE-OUT TO BUILD, NOT A PROPERTY TO PRESERVE.** `is_dm` has **zero hits in `xgen-node/`, production and tests** ⇒ the node's config/policy layer **never asks whether a Space is a DM**, so **every general-Space node setting already applies to DMs today, silently.** ⚠️ **Chat's own framing needed correcting at the site: *"`is_dm` = 0 in `xgen-node/`"* is true and must NOT be read as "the constraints are not enforced"** — the five §3.16.1 constraints **are** enforced, in `xgen-core`'s state machine, which the node runs.
+
+🛑 **⑤ THE INVERSION, WHICH APPEARED THREE TIMES IN ONE SESSION WEARING THREE FACES.** `owner_id: creator` (`state.rs:449`, `:559`) and ch3:2451's *"`membership.ban` — sent by admin or owner"* ⇒ **on unsolicited first contact the STRANGER is the owner and the RECIPIENT is a plain member.** The same fact killed the ban, then a Space-level policy setting, then a Space-level regime: ***in a DM, the person you may need protection from owns the room.*** 📌 `blocklist` **0 hits**, `block_identity` **0** — no user-level block exists at all.
+
+✅ **⑥ BUT THE TERMINAL CUT ALREADY EXISTS STRUCTURALLY.** `membership.leave` applies at `state.rs:605` **with no DM guard**, and §3.16.1 **disables invitations** ⇒ **the counterpart cannot re-add you. Leave + invitations-disabled = TERMINAL, with no new event type** — what is missing is a user-reachable verb and a UI. 🛑 **AND LEAVING CLOSES YOUR OWN READ PATH:** `collect_sync_history` opens `if !space.is_member(requester_id) { continue; }` (`fanout.rs:485-487`) ⇒ **the node keeps the events and stops serving them to you** — the cut currently terminates the victim's access to the record of what was done to them. 🔑 **The preservation gap is RETRIEVAL, not storage:** `SyncRequest`→`HistoryBatch` is built, tested and never issued by the GUI, and §5's R4 replay is open and in no leg.
+
+🔒 **⑦ THE BAN'S HOME IS THE ADDRESS BOOK — AND THE EVICTION WOULD SILENTLY UN-BAN.** `SeenRecord` already carries book-local fields the wire does not (`update_version`, `revoked`, `trust_assertion`), so a `banned` flag joins them with **no wire, no node, no spec change**. 🛑 **But `evict_older_than` keys on `last_seen` with `T1_DEFAULT_RETENTION_DAYS = 182`, and a banned identity STOPS BEING SEEN BY DEFINITION** ⇒ their `last_seen` freezes and they become the **most** eligible record ⇒ ***the ban expires precisely because it worked.*** Cannot fire today (**zero production callers**; every call site is inside the test module). 🔒 **RULE: a ban record is not retention-eligible.** *`D-065` in its plainest form — a guard that expires on a timer nobody connected to it is a guard that lies.*
+
+### 🔑 JOE'S RECALL BEAT CHAT AGAIN — FIFTH CONSECUTIVE SESSION — AND IT WITHDREW TWO OF CHAT'S OWN CLAIMS
+
+Chat had framed DM retention-vs-erasure as **unresolved, a race, and a thing a DM cannot express**. Joe: *"this will be managed by auth plugin as all other archival operations."* **He is right and the mechanism is in production:**
+
+- `ModulePolicy.erasability.retention: Retention { Erasable, Retained }` rides the **Trust Assertion** (`trust_assertion.rs:162-192`); `xgen-auth-module/src/lib.rs:81-84` sets **`Retained` for Tier 4, `Erasable` for T1–T3** — literally Joe's *"minimal for T4, can apply also in lesser tiers."*
+- `resolve_redact_erasure` reads the **ORIGINAL CONTENT AUTHOR's** retention, **not the redactor's**, because *"retention is a property of the record (`D-093` c2)"*; only explicit `Retained` blocks — **the legal-hold floor**, M12's **first production `Retention` reader** (`runtime.rs:134`, `:145`, `:608-639`).
+
+🛑 **⇒ TWO CHAT CLAIMS WITHDRAWN, NOT SOFTENED: ① *"whose tier governs is a race"* is FALSE — decided per-record on the author, deliberately, in M12.4. ② *"a DM cannot express that it is T4"* is IRRELEVANT — retention rides the AUTHOR'S IDENTITY, never the Space's `auth_tier`.** ***Chat put the obligation on the wrong object.***
+
+🔑 **AND IT SHARPENED THE HEADLINE FINDING RATHER THAN CONTRADICTING IT:** the retention read comes from the **identity registry, node-local** ⇒ ***the tier IS reachable node-side and is NOT reachable client-side*** — which is exactly why retention works today and a client-side render policy cannot. **v1.0 stated only the client half.**
+
+### 🔑 THE MILESTONE GAINED A PLANE IT DID NOT HAVE — AND §9 PREDICTED IT WITHIN THE DAY
+
+§9 named *"a fifth option is the most likely defect in this file."* **It was, and Joe found it.** From *"in t4 always initiator is institution — we have to filter it"*: **gate the DM's CREATION, not the message's RENDERING.**
+
+🔑 **AN ACCEPTANCE GATE DOES NOT INHERIT `D-143`'s EXPIRY DATE, AND THAT IS THE WHOLE POINT.** `I1` moves the filter client-side because after PG-05 the node cannot read **content**. An acceptance gate reads the **initiator's identity tier from the registry** — which the retention path proves the node already does. ***Identity is not encrypted; content is.*** ⇒ **node-side, permanent, ENFORCEABLE rather than advisory, and it CLOSES Q4 outright.**
+
+✅ **AND THE HOOK ALREADY EXISTS: DM creation seeds a `PendingInvite` for the invitee (`state.rs:416-430`) ⇒ the recipient is PENDING, not a member, until they emit `membership.join`.** 🛑 **THE ONE MEASUREMENT NOT TAKEN, AND IT GATES THE PLANE: does the client AUTO-JOIN a DM invite? If it does, a consent gate exists in the protocol and is being spent silently.**
+
+✅ **THE REQUIREMENT HAS AN ADDITIVE HOME AND WORKS AT T1** — Joe: *"can be a part of each auth module, even t1."* `ModulePolicy` carries `extra: BTreeMap<String, Value>` ⇒ a `dm_invite_required` key lands with **zero struct change**, the same shape as `xgen.intro.v1`. 🔑 **And discovery collapses Q6 into something small: to render *"Open DM"* vs *"Ask for DM"* the client needs ONE BOOLEAN, not `trust_assertion` wholesale** — no legal name, no clearance, no jurisdiction, **no regulated data.**
+
+🛑 **CORRECTION — `space.join_request` IS NOT THE PRECEDENT IT LOOKS LIKE:** measured `{ space_id, node_id }`, **node↔node federation**. **There is NO user-level request-to-join verb anywhere on the wire** ⇒ *"ask for a DM invitation"* is genuinely new protocol.
+
+🔒 **`L-1` — THE GATE IS ON *CREATE*, NEVER ON *OPEN*.** Joe: *"'ask for dm' only if the space has such a regime; 'open dm' always."* ✅ **Correct by construction: if a DM exists, consent was already given.** *Consent at the door, nothing inside the room, and the door is passed only once.* ✅ **And the affordance split costs nothing today** — `counterpart` shipped at `OQ8`/K3 and is threaded into the UI (**39 hits in `members-panel.svelte`** plus five more files), so the client can already answer *"do I have a DM with this identity?"*
+
+🔒 **`L-2` — A REQUEST FLOW IS ITSELF AN UNSOLICITED MESSAGE.** A free-text *reason* field **rebuilds this milestone's entire problem one layer down, on a new object, arriving BEFORE consent instead of after** ⇒ **identity only, or identity plus a hard-capped plain string — no canvas, no `WidgetMount`, no rich form.** *Naming it now is cheaper than discovering it.*
+
+⚠️ **AND THE PER-SPACE REGIME HAS AN ENFORCEABILITY HOLE:** `dm_space_create` records **nothing about where the initiator found you**, and the DM Space is not created inside the group Space ⇒ partial reconstruction works **only where the recipient's node hosts or replicates that Space**. ***A regime that holds only when two parties share a host is not a regime; it is a coincidence.*** ⇒ Chat recommends **per-identity**; per-Space files separately.
+
+### 📌 WHAT THE PHASE-0 CARRIES OUT
+
+**Eleven open questions, all Joe's, `Q11` (the DM-privacy `D`) outranking the rest.** Chat recommends on all but **Q6** (what an identity publishes — identity AND the wire, no recommendation made and none will be) and **Q11 part 2** (the read-path fork inside the cut — `G-12a` unread). **Six record corrections `R-1`…`R-6`.** 🛑 **`M-RP-BLOCK` is RE-PRICED IN BOTH DIRECTIONS: cheaper than its node says for the DM case (no new wire event — a leave verb and a book flag), and it becomes a PREREQUISITE of `Q11`'s `D`**, because a privacy rule justified by *"they can cut and ban"* is unsound while the recipient can do neither. **It gains a trigger it has never had.**
+
+📌 **DELIBERATELY ROUTED OUT, NOT OMITTED:** DM **retention** (Auth-Module property, shipped; what remains is Arc I / PG-02's crypto-shred-vs-legal-hold question) · the **ch3 amendment** (§3.16.1's sixth constraint + §3.7.13's DM exclusion + the tier omission made deliberate) — **its own milestone, spec work, never a rider** · the **per-Space regime**.
+
+📌 **STATED RATHER THAN IMPLIED — NOT READ THIS PASS:** ch3 §3.7.13.1 / .2 / .7 / .8 and Ch6 §6.12.6; whether `ModulePolicy.extra` is `#[serde(flatten)]`; whether a 1-member DM Space has defined behaviour; whether `ops.rs`'s two `MembershipLeave` sites are reachable or scaffolding.
+
+🛑 **STILL UNRESOLVED AND UNTOUCHED: the ROUND-2 CONTRADICTION.** `docs/ROADMAP.md:290` marks Round 2 ✅ GO at J-390 while the J-735 kickoff carried *"Round-2 still GATES UI COMPLETION"*. **Both cannot be current, and it bites this milestone if it ever reaches protocol-plane work.** *Left for a session that starts on it — second session running, named rather than absorbed.*
+
+### 🔒 FLOORS — UNTOUCHED BY SCOPE, STATED RATHER THAN SKIPPED
+
+`git diff --stat` for this session is **documents only — zero `.rs`, zero `.ts`, zero `.svelte`, zero `ui/**`.** ⇒ cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**, carried from J-734's driven figures and **deliberately not re-run**. 🛑 **Catalogue remains UNMEASURED** — its harness has still not been located. 🛑 **No registry number carried** (`N-184` / `N-190` / `N-194`). 🔒 **Every census in the Phase-0 excludes `\.claude\`, `\target\` and `node_modules`, and states its file pool** (464 code files / 145 `ui/` files) — J-737's 51% inflation applied as a rule, not remembered as an anecdote.
+
+**No new `D`. No new `N`.** 🔓 `N-197` still owed and Joe's.
 
 ---
 

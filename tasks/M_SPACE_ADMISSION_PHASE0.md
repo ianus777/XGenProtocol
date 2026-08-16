@@ -1,0 +1,335 @@
+# M-SPACE-ADMISSION Phase-0 — who may join a Space, and how a leaver comes back
+> **Status**: ACTIVE  
+> Version: 1.1  
+> Date: Aug 2026  
+> **Last updated**: 2026-08-16  
+> Language: EN  
+> Author: JozefN  
+> Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
+> License: BSL 1.1 (converts to GPL upon project handover)  
+
+---
+
+## §0 — WHAT THIS FILE IS
+
+The **D-071 phase-0 audit** for `M-SPACE-ADMISSION — who may join a Space, and how a leaver comes back`.
+
+🔒 **The SHAPE is already locked (Joe, J-741) and this file audits AGAINST it. It does not re-open it.** Owner-settable, two riders, default open. §1 restates the lock so the audit has a fixed target.
+
+📌 **Chat wrote this file FIRST**, with Joe's decisions as open §§ carrying recommendations and `D-121`'s three lenses (① user-visible impact · ② tier consequence · ③ resource cost, in that order). Joe locks after. `D-123`'s named failure mode is Chat gating its own authoring on unasked Joe decisions; this file exists so that cannot happen.
+
+📌 **Every claim below carries its site.** Claims inherited from J-739/J-740/J-741 were **re-driven at `de9a397`** and are marked ✅ RE-DRIVEN; claims taken on the record are marked 📌 CARRIED. **Rule 5 runs both ways** — §3 and §10 record defects this audit found in the canonical record itself.
+
+🛑 **NO PRODUCT CODE. Reads only.** Zero `.rs`, zero `.ts`, zero `.svelte`, zero `ui/**` written this session.
+
+---
+
+## §1 — 🔒 THE LOCK. **AUDIT AGAINST IT; DO NOT RE-OPEN IT.**
+
+| # | the lock (Joe, J-741) |
+|---|---|
+| **L-A** | **Admission is a SPACE property, not a DM special case.** *"the rejoin event has to have also general spaces, definitely, so this mechanism must be space general."* |
+| **L-B** | **OWNER-SETTABLE, not set-once.** The discriminator: `jurisdiction` and `e2e_encryption` are set-once because they **re-label data that already exists — they falsify the past.** Admission is evaluated **once, at a join, and never re-evaluated** ⇒ no past to falsify. |
+| **L-C** | **RIDER 1 — the DM PINS the value** (invite-required, not settable there), or the stranger who owns a DM could flip their own DM open. |
+| **L-D** | **RIDER 2 — gate on the ROLE PREDICATE, never on `owner_id` equality**, which would add a **third** site to a split-authority problem that has exactly two. |
+| **L-E** | **DEFAULT MUST STAY OPEN**, or J-275's model breaks for every existing Space. |
+| **L-F** | 📌 A **one-way ratchet** (`open → invite` permitted, `invite → open` refused) is filed as a partition member and **not recommended**. |
+
+---
+
+## §2 — GROUNDING: THE SHIPPED ADMISSION MODEL. **RE-DRIVEN AT `de9a397`.**
+
+### §2.1 — Nothing requires an invite to join any Space
+
+| # | fact | site | status |
+|---|---|---|---|
+| **G-1** | `MembershipJoin` sits in `skip_membership` ⇒ the membership check (step 11) and the permission check (step 13) are both skipped for a join | `exchange.rs:649-659` | ✅ RE-DRIVEN |
+| **G-2** | The invite-expiry gate is `if let Some(pi) = space.pending_invites.get(&event.sender)`, and the comment directly above reads *"an open join (no pending invite at all) is untouched"* | `runtime.rs:1564-1565`, `:1586` | ✅ RE-DRIVEN |
+| **G-3** | `apply_join`'s space-level guards are **exactly two** — already-member (`:1016`) and banned (`:1019`) — with an absent invite taking `None => (Role::Member, None)` (`:1024`) | `state.rs:1016`, `:1019`, `:1022-1025` | ✅ RE-DRIVEN |
+| **G-4** | `check_permission` gates joins on **nothing** — the catch-all is `_ => Ok(())` | `exchange.rs:914` | ✅ RE-DRIVEN |
+| **G-5** | The model is **deliberate and named in the source**: *"A plain Space (`dm_constraints_active = false`; open-join per J-275)"* | `runtime.rs:5580` | 📌 CARRIED (J-741) |
+
+🔑 **⇒ `PendingInvite` is a STATE, not a GATE.** The state claim (an invitee is pending until they emit `membership.join`) is true; the gate claim is false. **There is nothing to spend, on either side.**
+
+### §2.2 — No admission field exists, and there IS a slot for one
+
+| # | fact | site | status |
+|---|---|---|---|
+| **G-6** | `auth_tier` is **already an admission contract on `SpaceState`** — `verify_tier_assertion(assertion_tier, space_auth_tier)`, a floor checked at join | `tiers.rs:158-168`; field `state.rs:190` | 📌 CARRIED (J-741) |
+| **G-7** | ⚠️ **BUT `auth_tier` IS A REQUIRED CREATE FIELD, NOT AN OPTIONAL ONE.** `from_space_create` reads `content["auth_tier"].as_u64().ok_or(SpaceError::MissingField("auth_tier"))?` — **absent is an ERROR.** It is therefore the wrong template for the absent-⇒-default migration L-E requires | `state.rs:275` | ✅ **NEW, THIS SESSION** |
+| **G-8** | `member_temperature_visibility` **is** the right create-parse template: `content[...].as_str().map(...).unwrap_or_else(|| DEFAULT...)` — **absent ⇒ derived default, no backfill** | `state.rs:307-310` | ✅ **NEW, THIS SESSION** |
+| **G-9** | No admission field exists today: `join_policy` / `open_join` / `discoverable` / `is_public` = **0**; `space_visibility`'s 3 hits are test function names | corpus-wide, `.rs`, `\.claude\` + `\target\` excluded | 📌 CARRIED (J-741) |
+
+### §2.3 — Role predicates already exist and are the L-D vehicle
+
+`can_invite` / `can_kick` / `can_mute` ≥ `Moderator` · `can_ban` / `can_create_room` / `can_change_space_info` ≥ `Admin` · `can_manage_federation` == `Owner` (`membership.rs:128-155`, 📌 CARRIED). **The applier-side idiom is `apply_mute`'s** — `self.member_role(actor.as_str()).ok_or(NotASpaceMember)?` then `if !can_X(actor_role)` (`state.rs:769-773`, ✅ RE-DRIVEN). **That is L-D's vehicle and it already exists.**
+
+---
+
+## §3 — 🛑 THE SIBLING IS RIGHT ON SHAPE AND WRONG ON GATE. **THREE NEW FINDINGS.**
+
+J-741 named `member_temperature_visibility` as the right sibling — *"whose event type, applier arm and resolution arm already exist and work"* (`docs/ROADMAP.md` M-SPACE-ADMISSION node, and `tasks/M_INTRO_POLICY_PHASE0.md` §3a.7 — ⚠️ **NOT `CLAUDE.md`, whose J-741 block says only *"the right sibling is `member_temperature_visibility`"* and makes no arm claim at all.** Chat's first draft of this file misattributed it there and the re-drive caught it; **a wrong site under a correct finding is the F-4 species, Chat's again**). **The naming is correct. Two of the three claimed parts do not survive measurement.**
+
+### §3.1 — 🛑 A-1 — THE SIBLING'S APPLIER IS ONE OF THE TWO `owner_id` SITES RIDER 2 FORBIDS
+
+```
+752: fn apply_space_temperature_visibility(&mut self, event: &Event) -> Result<(), SpaceError> {
+753:     if event.sender != self.owner_id {
+754:         return Err(SpaceError::PermissionDenied(...));
+```
+
+✅ **RE-DRIVEN at `state.rs:752-763`.** Its sibling `apply_space_pacing` is identical at `:732-737`. **These two lines — `:733` and `:753` — ARE the two production `owner_id` direct-authority sites Clair measured and L-D names.**
+
+🔑 **⇒ THE TEMPLATE IS THE ANTI-PATTERN.** Copying `apply_space_temperature_visibility` verbatim — the obvious, cheapest, most defensible implementation move, and the one a runbook would naturally specify — **produces exactly the third `owner_id` site Rider 2 was written to prevent.** The admission applier must use the `apply_mute` idiom (§2.3), **not** the sibling's.
+
+⚠️ ***A precedent named for the right reason can still be the wrong thing to copy.*** The sibling was chosen on the **set-once-vs-forward-looking** axis, where it is correct. Nobody asked what its **gate** looked like. **This must be an executable constraint in the runbook, not a note** — the failure mode is silent, passes every test, and is invisible in review because it matches two neighbours.
+
+### §3.2 — 🛑 A-2 — THE SIBLING HAS NO RESOLUTION ARM. THE RECORD SAYS IT DOES.
+
+✅ **MEASURED:** `state_key_for_event` (`resolution/state_key.rs:44-161`) has arms for `MembershipJoin|MembershipLeave` · `MembershipKick` · `MembershipInvite|Ban|NodeEject|NodeUnban` · `StateRoomUpdate` · `StateSpaceUpdate` · `ThreadResolved|ThreadArchived` · `StateNodePriority` · `MlsGroupInit` · `MlsCommit` · `SystemKeyRotation`, then `_ => None`.
+
+🛑 **`StateSpaceTemperatureVisibility` and `StateSpacePacing` appear ZERO times in `state_key.rs`** (pattern `TemperatureVisibility|SpacePacing`, case-sensitive, count **0**). **They fall to `_ => None`.**
+
+📌 **And the one hit in the resolution layer is a TEST FIXTURE** — `algorithm.rs:435` is a `SpaceState` constructor inside `#[cfg(test)]`. **`member_temperature_visibility` has ZERO production presence in the resolution layer.**
+
+⇒ **The sibling is a TWO-part precedent (enum + applier), not a three-part one.** The claim *"resolution arm already exists"* is **false** and is a record correction owed (§10, C-1).
+
+🔑 **WHY THIS MATTERS RATHER THAN BEING PEDANTRY.** No `state_key` arm ⇒ no conflict class ⇒ `conflicts_in_log` returns false ⇒ two concurrent admission settings are **not detected as a conflict** and are applied in fold order. Convergence is not broken (fold order is deterministic under `D-076`), but **nothing reports the disagreement**, and the winner is a fold-order artefact rather than an adjudicated outcome. **For a visibility preference that is tolerable. For the gate that decides who may enter, it is not** — see §6.3, which Chat closes rather than routes.
+
+### §3.3 — ⚠️ A-3 — "ORIGIN-INDEPENDENTLY" IS THE WRONG WORD, AND THE RIGHT STORY IS BETTER
+
+`docs/ROADMAP.md` records that an invite-required Space *"refuses a third party **by the admission rule itself, origin-independently**"*.
+
+⚠️ **The existing admission-gate precedent is explicitly ORIGIN-SCOPED and says so at the site.** The invite-expiry gate runs `if origin == EventOrigin::LocallySubmitted && event.room_id.as_str().is_empty()` (`runtime.rs:1580`, ✅ RE-DRIVEN), under a comment reading *"INV-EXP (D-1/D-3, C2) — **admission-only** + injected clock … on `ReceivedViaFederation` it is SKIPPED … **A peer trusts the home node's already-made admission decision and does not re-adjudicate**"* (`:1567-1572`).
+
+✅ **The CONCLUSION survives and the mechanism is sounder than the sentence:** it is not one rule holding on both channels, it is **two rules, one per channel, and the new one fills the gap the old one leaves.** Local submissions → the new admission gate. Federation submissions → F-3's relationship check, which already refuses a peer absent from `federation_nodes`. **Correct the word; keep the design.** (§10, C-2.)
+
+🔑 **AND IT NAMES THE GATE'S HOME.** An admission gate belongs **beside the invite-expiry gate in `dispatch_event`, on the `origin == LocallySubmitted` branch** — an established location, an established convention, and the same fail-closed reject-coded shape (`3044 invite_expired` is the pattern to mirror with a new code).
+
+---
+
+## §4 — ✅ F-2's LOCAL-SUBMISSION LEG IS CLOSED. **DRIVEN THIS SESSION.**
+
+**The open question (Clair's own flagged unverified leg, J-741): does `xgen-node` route client submissions as `LocallySubmitted`?** It was cheap, it was unread, and it changes this milestone's priority. **It is now answered: YES.**
+
+| # | fact | site |
+|---|---|---|
+| **F2-1** | `dispatch_event(event, origin, peer_node_id)` — the F-3 federation-relationship check is `if let Some(peer) = peer_node_id`, under a comment reading *"Runs only for federation-channel events … locally-submitted events skip this check"* | `runtime.rs:1120-1124`, `:1175-1183` |
+| **F2-2** | `process_inbound` derives the peer id **from the origin, mechanically**: `EventOrigin::ReceivedViaFederation => Some(...)` / **`EventOrigin::LocallySubmitted => None`** | `xgen-node/src/app.rs:3142-3147` |
+| **F2-3** | **`process_inbound` has exactly THREE production call sites.** Two are `handle_federation_incoming` (`app.rs:2432`, `:2600`), both passing `ReceivedViaFederation`. **The third is the client-connection loop inside `run_node` (`app.rs:2004`) and it passes `EventOrigin::LocallySubmitted`**, under the comment *"Origin = LocallySubmitted — client connection is the origination point for federation-push purposes (runbook §3.4.1 R15)"* | `app.rs:2001-2016`, enclosing `pub async fn run_node` at `:558` |
+| **F2-4** | **⇒ EVERY event a client submits over its session reaches `dispatch_event` with `peer_node_id = None`, so F-3 is structurally skipped for all of them.** The chain is mechanical, not conditional: no branch, no policy, no exception | derived from F2-1…F2-3 |
+| **F2-5** | The client listener's bind address is **operator config** (`config.node.listen`, default `ws://127.0.0.1:8080/xgen`, `app.rs:342`, `:722-731`, `:1235`). **A publicly-hosted node binds publicly by configuration** | `app.rs` as cited |
+
+### 🔑 WHAT THIS IS, STATED PRECISELY AND NOT ONE WORD WIDER
+
+🛑 **On a multi-tenant node, "locally submitted" does not mean "submitted by the operator" — it means "submitted by any identity homed here".** F-3 was written as a **federation** guard and is correct as one. It was never a **tenant-isolation** guard, and nothing else performs that job for a join: G-1…G-4 show the join path has no other space-level gate but already-member and banned.
+
+⇒ **A third party homed on the same node as a DM's parties can submit a `membership.join` for that DM and be admitted as `Role::Member`.** No invite. No permission check. No federation guard.
+
+### ⚠️ THE HONEST BOUNDS ON THIS FINDING — THREE OF THEM, ALL LOAD-BEARING
+
+1. **It is a SOURCE TRACE of the routing, driven to the entry point. It is not a live exploit run against a running node.** Every link is cited above; **no event was submitted.** The next honest step is an executable one (§12, Leg A-bis) and it belongs to the design, not to this audit.
+2. **It is not reachable from the desktop client.** `ops::join` has three callers — CLI, AI control plane, pipe — and **zero Tauri commands** (M-2/F-4, J-740/J-741: 20 client + 2 node, none a join). **Reachable today via the CLI or the pipe against one's own home node**, which is a real actor on a public node, not a hypothetical one.
+3. **The attacker needs the `space_id`.** A DM's space id is not published by anything measured here. **That is an obscurity bound, not an access-control one, and it must not be recorded as a mitigation.**
+
+### 🎯 WHAT IT DOES TO THIS MILESTONE'S PRIORITY
+
+**It converts `M-SPACE-ADMISSION` from a feature into a fix.** With the leg closed, the milestone closes a **measured** gap between the shipped tenant model and the shipped guard set, rather than adding a setting. 📌 **Whether that re-sequences it against the UI arc is §6.6 and is Joe's.**
+
+🔒 **RECORD DISCIPLINE:** the ROADMAP node currently reads *"F-2 is a SOURCE TRACE and not a measurement — whether `xgen-node` routes client submissions as `LocallySubmitted` is UNVERIFIED, and until that leg closes the third-party-join hole must not be recorded as a measured security finding."* **That leg has now closed and the node must be updated in the same commit as this file** (§10, C-3). ⚠️ **The clause is discharged for the ROUTING and NOT for the EXPLOIT** — bound 1 above stands and is written into C-3.
+
+---
+
+## §5 — 🛑 THE PREDICATE HAS NO FEEDER: `SpaceState` CANNOT SAY WHO A FORMER MEMBER IS
+
+This is the part of the milestone that is **not** a settings field, and it is the harder half.
+
+| # | fact | site | status |
+|---|---|---|---|
+| **P-1** | **`apply_leave` leaves NO TOMBSTONE.** It removes the leaver from `members` and from every room, and writes nothing else | `state.rs:1038-1053` | ✅ RE-DRIVEN |
+| **P-2** | **The invite was consumed at the first join** — `pending_invites.remove(joiner)` | `state.rs:1022` | ✅ RE-DRIVEN |
+| **P-3** | **`apply_invite` bars ALL DM invites unconditionally, as its FIRST statement**, before the target is even read | `state.rs:962-965` | ✅ RE-DRIVEN |
+| **P-4** | `SpaceState` carries **no counterpart, invitee, or ex-member field.** Full field list read at `state.rs:186-258`: `space_id · name · topic · auth_tier · max_event_size · home_node · owner_id · is_dm · jurisdiction · e2e_encryption · members · pending_invites · ai_operator_delegations · banned · rooms · federation_nodes · node_priority_order · dm_constraints_active · human_pacing_ms · ai_pacing_ms · member_temperature_visibility · active_mutes · threads` | `state.rs:186-258` | ✅ **NEW, THIS SESSION** |
+
+🔑 **⇒ UNDER INVITE-REQUIRED ADMISSION, A LEAVER IS INDISTINGUISHABLE FROM A STRANGER.** The state that would tell them apart was deleted by the leave, and in a DM the one mechanism that could re-admit them — an invite — is barred outright by P-3.
+
+🛑 **AND ch3 §3.16.1's PROSE ALREADY SAYS SOMETHING THE CODE DOES NOT IMPLEMENT:** *"no third party may be invited"*. **`apply_invite` bars ALL invites, not third-party ones.** The prose describes a target-scoped rule; the code ships a blanket one. **Filed as a spec-vs-build divergence (§10, C-4); it is ch3's to fix and its amendment is its own node, never a rider** — but a consented rejoin needs the bar **relaxed for a returning counterpart**, so this milestone cannot proceed without naming it.
+
+📌 **The obvious repair — a set-once derived field on the `jurisdiction` pattern recording the DM's two parties — is CHAT'S PROPOSAL AND NOT A LOCK.** It is §6.5.
+
+---
+
+## §6 — 🔓 THE OPEN DECISIONS. **JOE'S, UNRESOLVED, NAMED.** Each carries `D-121`'s three lenses.
+
+> 📌 **Every option below is written in this file.** J-741's process defect — an option set that existed only in chat could not be audited — is not repeated. **A census is not a partition:** where the set is a partition it says so; where it may not be, it says that instead.
+
+### §6.1 — 🔓 Q1: THE FIELD'S NAME
+
+**Options:** (a) `admission` · (b) `join_policy` · (c) `admission_policy` · (d) `open_join` (boolean-shaped).
+
+**① user-visible:** none directly — but it becomes a **wire string** in the event type name (`state.space_<name>`) and therefore **permanent and federated**, and it will surface in any future settings UI label. **② tier consequence: NONE** — admission creates no copy and destroys none; no crypto-shred surface, no T4 durability floor touched, no erasure-fate imposed on another party. **③ resource:** identical across all four.
+
+🎯 **CHAT RECOMMENDS (a) `admission`.** It is **the codebase's own word** — 41 occurrences across `xgen-core`/`xgen-node` comments (*"admission-only"*, INV-EXP, F-3), and `runtime.rs:1567` already calls the invite-expiry gate an *admission* gate. **(b) and (c) invent a synonym for a word the source already uses.** ⚠️ **(d) is rejected on shape, not taste** — see §6.2.
+
+### §6.2 — 🔓 Q2: THE FIELD'S SHAPE AND VALUE SET
+
+**Options:** (a) **open-enum `String`** on the `member_temperature_visibility` pattern, values `open` (default) / `invite` · (b) **`bool`** (`open_join: true`) · (c) a typed Rust enum.
+
+**① user-visible:** none today (one setting, two states either way). **The difference lands on the FUTURE:** a third value — `request` (ask to join), `tier_gated`, `closed` — is **additive** under (a) and a **breaking wire change** under (b). Joe has already named request-to-join as a live possibility (`L-2`, `M_INTRO_POLICY_PHASE0.md` §3a.7), so the third value is expected rather than merely permitted. **② tier consequence: NONE.** **③ resource:** (a) and (b) are equal to build; (a) costs one `unwrap_or_else` at each of three constructors, exactly as the sibling does. (c) costs a serde impl and **forecloses forward-compat by construction** — an unknown value fails to deserialise.
+
+🎯 **CHAT RECOMMENDS (a), open-enum `String`, values `open` / `invite`, unknown ⇒ treated as `invite`.** 🔑 **The unknown-value rule INVERTS the sibling's.** `member_temperature_visibility` treats unknown as `moderator` — its **most restrictive** value. **The same principle, applied to admission, means unknown ⇒ `invite`: fail CLOSED.** ⚠️ **This is the one place where the principle and `L-E` point in opposite directions and the collision is named, not silently traded:** L-E's *default must stay open* is about **ABSENCE** (a field never written, i.e. every Space that exists today); fail-closed is about a **PRESENT but UNPARSEABLE** value (a Space whose owner set something this build does not understand). **Absent ⇒ `open` · present-and-unknown ⇒ `invite`.** They are different facts and they must not be collapsed into one rule.
+
+### §6.3 — ✅ Q3: THE RESOLUTION ARM. **CHAT'S SEAT — CLOSED HERE, NOT ROUTED.**
+
+📌 **Stated rather than routed, per J-618's rule: Joe owns choices between honest options; he does not own whether the system converges on an adjudicated answer or a fold-order artefact.** §3.2 measured that the sibling has no `state_key_for_event` arm.
+
+🔒 **CHAT'S CLOSE: the admission event GETS a `state_key_for_event` arm**, keyed `("state.space_admission", space_id)` — the `StateSpaceUpdate` / `StateNodePriority` shape (one active value per Space).
+
+**Reasoning:** two concurrent owner-issued admission changes are a **genuine state-key conflict**, and a gate that decides who may enter must resolve to an **adjudicated** winner that `conflicts_in_log` can see and `resolve()` can settle, not to whichever the fold happened to apply last. **The cost is one match arm and it is the cheapest item in the milestone.** ⚠️ **The sibling's missing arm is left alone — fixing `state.space_pacing` and `state.space_temperature_visibility` is its own finding and its own milestone, never a rider on this one** (§10, C-1 files it).
+
+🔓 **THE ONE BRANCH THAT IS JOE'S:** if two concurrent settings resolve to `open` while a join raced between them, **is a join admitted under the losing value valid?** Chat's reading is **YES and it must be** — a join is evaluated once, at apply time, against the state then derived; re-adjudicating past joins is exactly the *falsifying the past* property L-B says admission does not have. 📌 **Named because it is the one place L-B's own argument has an edge, and the edge should be Joe's.**
+
+### §6.4 — 🔓 Q4: RIDER 1's MECHANISM — HOW THE DM PINS THE VALUE
+
+**Options:** (a) **DERIVE at gate time** — the gate reads `if space.dm_constraints_active { require_invite } else { <field> }`, and the field is simply never consulted in a DM · (b) **STORE `invite` at DM creation** and refuse the mutation event when `dm_constraints_active` · (c) both.
+
+**① user-visible:** identical in behaviour. **They differ on what a reader SEES:** under (a) a DM's stored admission reads `open` while behaving as `invite` — **an observable that lies**, which is the `G-13` shape this project has named repeatedly. Under (b) the stored value matches the behaviour. **② tier consequence: NONE.** **③ resource:** (a) is one condition; (b) is one constructor line in `from_dm_space_create` **plus** a refusal arm in the applier; (c) is (b) plus a redundant condition.
+
+🎯 **CHAT RECOMMENDS (b).** ⚠️ **And it is not a preference — (a) has a measured failure mode:** `state.dm_promote` exists and flips `dm_constraints_active` to false (`state.rs:238-239`). **Under (a), a promoted DM silently becomes an OPEN Space at the instant of promotion**, because the field it falls back to still holds the create-time default. **Under (b) it becomes an `invite` Space and the owner may open it deliberately.** 🔑 ***The pin must survive the un-pinning event, and only a stored value does.***
+
+### §6.5 — 🔓 Q5: THE FORMER-MEMBER PREDICATE — WHAT FEEDS IT (§5)
+
+**Options, as a partition over where the fact lives:**
+
+- **(a) A SET-ONCE `dm_parties` FIELD** on `SpaceState`, written at `from_dm_space_create` from the creator + invitee, on the `jurisdiction` pattern (set-once, no mutation event, no applier arm). **A rejoin is admitted iff the joiner is in `dm_parties`.**
+- **(b) A MEMBERSHIP TOMBSTONE** — `apply_leave` records the leaver in a `former_members` set. **General to every Space, not DM-specific.**
+- **(c) RELAX `apply_invite`'s DM bar** for a target already known to the Space, and re-admit by ordinary invite.
+- **(d) DERIVE FROM THE DAG** at gate time — walk the log for a prior `membership.join` by this sender.
+- **(e) NO REJOIN** — a leave is terminal and the parties open a new DM.
+
+**① user-visible:** (a)/(b)/(c)/(d) all deliver *"you left, the other party consents, you are back in the same conversation with its history"*. **(e) is a different product**: the record of what was said is unreachable to one party forever, and Q11c's already-named cost — *a leaver needs the other party's consent to see the record again* — becomes *a leaver never sees it*. **⚠️ (b) has a user-visible consequence the others do not: a permanent, federated, never-evicted list of everyone who ever left a Space** — including people who left to get away from it. **② tier consequence:** **NONE for (a)/(c)/(d)/(e).** ⚠️ **(b) is the one option with a real one:** `former_members` is third-party personal data on a federated, replicated object with **no erasure story**, written by an event (`membership.leave`) whose whole purpose is departure. **That is a GDPR-facing surface on the project's own hardest open problem, minted as a side-effect of a rejoin feature.** **③ resource:** (a) ≈ 6 lines + a constructor arm; (b) ≈ 10 lines + an erasure story that does not exist; (c) ≈ 4 lines but scoped to DMs only; (d) is a log walk **inside a hot admission path** and the only option whose cost grows with Space history.
+
+🎯 **CHAT RECOMMENDS (a), and recommends it narrowly.** It satisfies L-A (Space-general **mechanism**, DM-scoped **data** — a DM has parties, a general Space has none, and the field is simply `None` there), it costs nothing at rest for non-DM Spaces, it is set-once so it rides M8 for free exactly as `jurisdiction` does, and **it stores a fact the DM's own creation event already contains** rather than accumulating a new one over time. 🛑 **(b) is the option that looks most general and is the most expensive**, and its cost is not build time — it is a durable federated record of departures. **(d) is rejected on the admission path being hot and on convergence: a derived predicate over a partially-synced log answers differently on different nodes.**
+
+⚠️ **ALL FIVE STILL REQUIRE ch3 §3.16.1's INVITE BAR TO BE RE-STATED** (§5, C-4). **The predicate decides WHO may return; it does not by itself make the return legal.**
+
+### §6.6 — 🔓 Q6: DOES §4 RE-SEQUENCE THIS MILESTONE?
+
+**Options:** (a) **schedule it next**, ahead of the UI arc · (b) **leave it filed**, unscheduled, with §4 recorded · (c) **split**: ship the gate (the fix) now, defer the rejoin story (the feature).
+
+**① user-visible:** (a) and (c) delay every open UI milestone by the length of a protocol + node milestone; **(b) leaves a measured gap open for that same period.** ⚠️ **The gap's real-world exposure today is bounded by reachability (§4, bounds 2 and 3), and by the fact that no node is publicly hosted with untrusted tenants** — which is a fact about the deployment, **not about the code, and it expires the day that changes.** **② tier consequence: NONE.** **③ resource:** (c) is the cheapest path to closing the gap and it is genuinely separable — the gate needs the field, the applier and the dispatch-site check; the rejoin story needs Q5 and a ch3 amendment.
+
+🎯 **CHAT RECOMMENDS (c), and states its own conflict of interest in doing so.** Chat proposed the split; a split that ships the half Chat measured is exactly the shape J-513's *"the schedule was Chat's"* correction was written about. 🛑 **THE SEQUENCING IS JOE'S AND CHAT IS NOT NEUTRAL HERE.**
+
+### §6.7 — 🔓 Q7: THE RATCHET (L-F)
+
+📌 **Filed, already not-recommended by Joe at J-741, restated here only so the option set is a partition and the file is auditable.** ① a ratchet forecloses re-opening a community that locked itself during an incident — **a real want, permanently refused**; ② none; ③ one comparison in the applier. 🎯 **Chat concurs: not recommended.**
+
+### §6.8 — 🔓 Q8: THE `D` NUMBER AND WORDING
+
+📌 **Joe's, and Chat makes no recommendation on the number.** What the `D` must bind, on this audit's evidence: **admission is owner-settable and Space-general** · **absent ⇒ open, present-and-unknown ⇒ invite** (§6.2's named collision) · **gate on the role predicate, never `owner_id`** (L-D, and §3.1 shows the trap is live) · **the DM pins by a STORED value that survives `state.dm_promote`** (§6.4). 🔓 **N-197's wording is still owed and is still Joe's** — §4 does not add an instrument failure to it.
+
+---
+
+## §7 — MIGRATION
+
+🔒 **`L-E` is satisfied BY THE PARSE, NOT BY A BACKFILL.** `from_space_create` reads the field as `content["admission"].as_str().map(...).unwrap_or_else(|| DEFAULT_ADMISSION)` — **G-8's measured pattern, byte-for-byte the sibling's.** Every Space that exists today has no key in its `state.space_create` content ⇒ every one derives `open` ⇒ **J-275's model is untouched for every existing Space, and no stored event is ever rewritten.**
+
+📌 **There is no version bump and no migrate function.** A `state.space_create` content key is additive; `EventType::Unknown` accept-as-opaque (`wire.rs:158`) means a Space created by a newer client is carried, not rejected, by an older peer.
+
+⚠️ **But `state.space_admission` events are a different case and it must be said plainly: an OLDER node stores and relays an admission event and NEVER APPLIES IT** — so a mixed-version federation has one Space with two admission values. **That is the accept-as-opaque property working as designed and it is worse than rejection because nothing reports a failure** (the J-732 finding, applied here). 🔓 **Whether admission needs a capability negotiation is the H2 question named at J-601 and is NOT this milestone's** — but it is the first mechanism in the project where accept-as-opaque produces a **security** divergence rather than a rendering one, and it is filed here so the pointer is not dangling.
+
+---
+
+## §8 — THE REJOIN STORY END TO END. **CONVERGENCE MUST BE RE-ARGUED, NOT ASSUMED.**
+
+📌 **Grounded, not recalled:**
+
+| # | fact | site |
+|---|---|---|
+| **R-1** | `rejoin_anchor_or_root` exists because *"a just-left rejoiner is a non-member, so member-gated sync starves `get_dag_tips`"* | `xgen-client/src/ops.rs:142`, used at `:1699` |
+| **R-2** | The primary path is `get_invite_bootstrap` (`ops.rs:1674` → `batch.rs:262`), and `rejoin_anchor_or_root` is its `_ =>` **fallback** | `ops.rs:1674-1699` |
+| **R-3** | 🛑 **`collect_invite_bootstrap` REFUSES A NON-INVITEE with `1011 invite_bootstrap_refused`** — asserted by a dedicated test, `collect_invite_bootstrap_refuses_non_invitee_1011` | `fanout.rs:572-577`, `:1485-1498` |
+| **R-4** | `collect_sync_history` gates on `is_member`, and `is_member` reads `members` alone | `fanout.rs:485-487`; `state.rs:1284` |
+
+🔑 **⇒ THE TWO PATHS FAIL IN OPPOSITE DIRECTIONS AND A REJOINER FALLS BETWEEN THEM.** A returning ex-member has **no pending invite** (P-2 consumed it) ⇒ `get_invite_bootstrap` returns `1011` ⇒ the client falls back to `rejoin_anchor_or_root`. And they are **not a member** ⇒ `collect_sync_history` serves nothing. **Under today's open-join model the fallback works because the join itself is unconditional. Under invite-required admission it must be re-argued**, and the argument has three parts the design leg owes:
+
+1. **Does the rejoiner's `membership.join` still anchor correctly** when `prev_events` came from the fallback rather than the bootstrap?
+2. **What re-issues the consent** — a fresh invite (barred in a DM by P-3), or the §6.5 predicate admitting without one? **These produce different DAGs and the choice is Q5's.**
+3. **If the predicate admits without an invite, `collect_invite_bootstrap`'s `1011` is now WRONG for this actor** — it refuses someone the admission rule permits. **A gate and a bootstrap that disagree is the two-sources-of-truth shape `D-067` exists to prevent.**
+
+🛑 **NAMED, NOT SOLVED. This is the design leg's first item and it is the reason §12 does not put implementation next.**
+
+---
+
+## §9 — WHAT THIS MILESTONE MUST NOT DO
+
+1. 🛑 **It must not re-open §1's lock.** Owner-settable, two riders, default open.
+2. 🛑 **It must not copy `apply_space_temperature_visibility`'s gate** (§3.1). **Executable constraint, not a note.**
+3. 🛑 **It must not amend ch3.** §3.16.1's invite-bar divergence (C-4) is real and **its amendment is its own node, never a rider** — already Joe's ruling at J-739 for the ch3 work generally.
+4. 🛑 **It must not fix the sibling's missing resolution arm** (§3.2). Filed as C-1; its own milestone.
+5. 🛑 **It must not record §4 as an exploit.** The routing is measured; the exploit is not run. **The distinction is written into C-3 and must survive into the ROADMAP.**
+6. 🛑 **It must not build the DM receiving half.** Join / accept / the pending-invite surface has no node and is Joe's to open (J-740). ⚠️ **This milestone's gate is unreachable from the desktop client until it exists** — that is a sequencing fact for §6.6, not a licence to absorb it.
+7. 🛑 **It must not mint a `was-a-member` READ grant.** Q11c closed by re-routing: **leaving SUSPENDS access, a consented rejoin RESTORES it.** §6.5's predicate governs **admission**, never **history access**.
+
+---
+
+## §10 — RECORD CORRECTIONS OWED. **CHAT'S SEAT — NO RULING REQUIRED.**
+
+| # | correction | where |
+|---|---|---|
+| **C-1** | ✅ **APPLIED.** *"whose event type, applier arm and **resolution arm** already exist"* — **the resolution arm does not exist** (§3.2). Corrected to *"event type and applier arm"* at both sites, with the sibling's missing arm filed as its own finding | `docs/ROADMAP.md` M-SPACE-ADMISSION node · `tasks/M_INTRO_POLICY_PHASE0.md` §3a.7. ⚠️ **`CLAUDE.md` does NOT carry the claim** — verified by a corpus-wide `.md` search for *"resolution arm"* |
+| **C-2** | ✅ **APPLIED.** *"origin-independently"* → **two rules, one per channel** (§3.3). The conclusion survives; the word does not | `docs/ROADMAP.md` M-SPACE-ADMISSION node · `tasks/M_INTRO_POLICY_PHASE0.md` §3a.7 |
+| **C-3** | ✅ **APPLIED.** *"whether `xgen-node` routes client submissions as `LocallySubmitted` is UNVERIFIED"* — **VERIFIED, `app.rs:2014` + `:3146`** (§4). Replaced with the discharged form **AND its three bounds** — the routing is measured, the exploit is not run | `docs/ROADMAP.md` M-SPACE-ADMISSION node |
+| **C-4** | ch3 §3.16.1's *"no third party may be invited"* is **target-scoped prose against a blanket code bar** (`state.rs:963-965`). **File as a spec-vs-build divergence on the ch3 amendment node; do not fix here** | `docs/ch3`, via the ch3-amendment node |
+
+📌 **All four are corrections at the site, not `D-131` annotations** — `D-131` governs **citations proven broken**; these are **claims proven false**, and this arc's standing practice for those is *corrected, not annotated-and-kept* (F-3, J-741).
+
+---
+
+## §11 — FLOORS
+
+🔒 **CARRIED, NOT RE-RUN — this pass wrote zero `.rs`, zero `.ts`, zero `.svelte`, zero `ui/**`:** cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 **Sampler catalogue is UNMEASURED** — its harness has never been located. 📌 **`cargo` is not a floor for a reads-only pass**: an identical result over zero `.rs` is a scope argument, not a measurement.
+
+📌 **Census metrics stated:** the `LocallySubmitted` census (§4) is **LINES matching `LocallySubmitted`, case-sensitive, over `*.rs`, with `\.claude\`, `\target\` and `node_modules` excluded** — `\.claude\` holds 8 full source trees `git status` cannot see. The `process_inbound` call-site count (**3 production**) is **call expressions, hand-separated from 50+ doc-comment mentions by reading each hit, NOT by a grep total.**
+
+---
+
+## §12 — 🔒 PROPOSED LEGS. **THE SPLIT IS CHAT'S SEAT (`D-123`); EVERY RULING IN IT IS JOE'S.**
+
+| leg | content | gated on |
+|---|---|---|
+| **0** | ✅ **THIS FILE.** Audit + §4's closed leg + §10's corrections, committed atomically with the ROADMAP node under `D-074` | — |
+| **A** | 🔒 **DESIGN LOCK** — Joe rules §6.1…§6.8. Chat writes the design into this file (v2.0) with each ruling at its site | §6 |
+| **A-bis** | ⚠️ **THE EXECUTABLE F-2 LEG** — a test that submits a third-party `membership.join` locally against a DM and asserts today's admission, then asserts the new gate refuses it. **The before-assertion is what makes it a regression test rather than a feature test** | Leg A |
+| **B** | **THE FIELD + THE CREATE PARSE** — `SpaceState` field, three constructors, `DEFAULT_ADMISSION`, §7's absent-⇒-open derive. **No gate yet: nothing reads it** | Leg A |
+| **C** | **THE MUTATION EVENT** — enum + `as_str` + `from_str` (`wire.rs:114-115`, `:215`, `:309`) ⚠️ **plus `known_variants()` at `wire.rs:736-757`, a hand-maintained test vec: omitting the variant there does not fail, it silently drops it from the round-trip test.** *A check whose failure mode reads exactly like success is not a check.* Plus the content struct, the applier arm (**`apply_mute`'s idiom, §3.1**) and §6.3's `state_key_for_event` arm | Leg B |
+| **D** | **THE GATE** — in `dispatch_event` beside the invite-expiry gate, on the `origin == LocallySubmitted` branch, fail-closed, new reject code (`3044`'s shape). **This is the leg that closes §4** | Leg C |
+| **E** | **THE REJOIN STORY** — §6.5's predicate, §8's three convergence questions, and the `collect_invite_bootstrap` disagreement (§8.3) | Legs A + D |
+| **F** | **CLOSE** — records, `D-074` atomic commit, `roadmap-format-gate.ps1` exit 0 | all |
+
+🔓 **Legs are Chat's proposal; the leg list is Joe's to lock, and §6.6 may cut it at D.**
+
+---
+
+## §13 — 🎯 RECOMMENDED: CLAIR'S COLD READ, POINTED AT THE CLAIMS FIRST
+
+🔑 **THE EVIDENCE IS UNAMBIGUOUS AND IT IS AGAINST CHAT: Chat's own re-reads have never once caught a defect in this arc. Clair's three cold reads returned 7, then 6, then 6 — and the third moved the milestone.**
+
+**Point her at, in this order:** ① **§4's five-link chain** — the whole priority argument rests on it and Chat drove it alone · ② **§3.1 and §3.2**, which contradict two canonical records · ③ **§5/§8**, the half with no code behind it at all · ④ **§6.5's option set**, explicitly as a partition test: *is there a sixth place the former-member fact could live?* · ⑤ **§6.2's absent-vs-unknown split**, the one place a principle and a lock point in opposite directions.
+
+⚠️ **AND RULE 5 RUNS BOTH WAYS.** At J-741 Chat's re-drive found a real defect in Clair's census. **Adopt nothing; reproduce everything.** 📌 **Every option in this file is ON DISK** — the J-741 process defect is not repeated.
+
+---
+
+## §14 — DoD FOR PHASE-0 (LEG 0)
+
+- [x] This file exists at `tasks/M_SPACE_ADMISSION_PHASE0.md`, header correct, `Status: ACTIVE` — **39,664 B, LF-only, no BOM, verified on disk**
+- [x] §4's leg is closed with all five sites cited and all three bounds stated
+- [x] §10's C-1, C-2 and C-3 are applied — **to `docs/ROADMAP.md` and `tasks/M_INTRO_POLICY_PHASE0.md`, NOT `CLAUDE.md`, which never carried the claim**; C-4 is filed, not fixed
+- [x] The `M-SPACE-ADMISSION` ROADMAP node gains its Phase-0 pointer and two new Owes: rows (§3.1 the gate trap · §5/§8 the feeder and the rejoin split); §3.2 and §4 landed as in-place corrections
+- [x] `roadmap-format-gate.ps1` returns exit 0 — **PASS, tree lines 73..450 clean**; ROADMAP v7.27 → **v7.28**; CRLF integrity re-asserted (CR 600 == LF 600, zero CRCR, zero lone LF, no BOM)
+- [x] JOURNAL entry written (**J-742**); `CLAUDE.md` PLAY block updated (**head, above J-741; CR 1620 == LF 1620, zero CRCR, zero lone LF, no BOM**); ROADMAP version bumped (**v7.28**) — **one commit, `D-074`**
+- [x] Every open § in §6 carries options, three lenses and either a recommendation or an explicit refusal to make one
+
+📌 **"Commit pushed" is deliberately not a DoD item** — `Status: COMPLETED` in this header is the shipped signal, and this file stays `ACTIVE` until Leg A locks the design into it.

@@ -8,6 +8,91 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-742 — F-2's local-submission leg closes and the answer is yes; the sibling turns out to be right on shape and wrong on gate; `M-SPACE-ADMISSION`'s Phase-0 lands
+**Date:** 2026-08-16 · **Seats:** Chat (the audit, every measurement, the Phase-0, the records) · Joe (locks §6, pushes) · Clair (stood down; the cold read is recommended, not run)
+
+✅ **STATE RE-MEASURED AT OPEN:** clean tree, `HEAD` `de9a397` = `origin/main` by `git ls-remote origin refs/heads/main` (not the tracking ref).
+
+🎯 **NO PRODUCT CODE. Reads only.** Zero `.rs`, zero `.ts`, zero `.svelte`, zero `ui/**`.
+
+### ✅ THE OWED LEG CLOSED FIRST, AND IT CHANGED THE MILESTONE'S CHARACTER
+
+The kickoff named `F-2`'s local-submission leg as cheap, unread, and possibly decisive. **It was all three.** The question — *does `xgen-node` route client submissions as `LocallySubmitted`?* — is now **answered: YES**, by a five-link chain each of which was opened rather than inferred:
+
+- `dispatch_event`'s F-3 federation-relationship check is `if let Some(peer) = peer_node_id` (`runtime.rs:1120-1124`, `:1175-1183`), under a comment reading *"Runs only for federation-channel events … locally-submitted events skip this check"*.
+- `process_inbound` derives the peer id **from the origin, mechanically**: `ReceivedViaFederation => Some(...)` / **`LocallySubmitted => None`** (`xgen-node/src/app.rs:3142-3147`). No branch, no policy, no exception.
+- **`process_inbound` has exactly THREE production call sites.** Two are `handle_federation_incoming` (`app.rs:2432`, `:2600`), both `ReceivedViaFederation`. **The third is the client-connection loop inside `run_node` (`app.rs:2004`, enclosing fn at `:558`) and it passes `EventOrigin::LocallySubmitted`** — with the comment *"client connection is the origination point for federation-push purposes"*.
+- The client listener's bind address is **operator config** (`config.node.listen`, default `ws://127.0.0.1:8080/xgen`; `app.rs:342`, `:722-731`, `:1235`).
+
+🔑 **⇒ ON A MULTI-TENANT NODE, "LOCALLY SUBMITTED" DOES NOT MEAN "SUBMITTED BY THE OPERATOR" — IT MEANS "SUBMITTED BY ANY IDENTITY HOMED HERE".** F-3 was written as a **federation** guard and is correct as one; **it was never a tenant-isolation guard**, and nothing else does that job for a join — `apply_join`'s only space-level guards are already-member and banned. **A third party homed on the same node as a DM's parties can submit a `membership.join` for that DM and be admitted as `Role::Member`.**
+
+⚠️ **AND THE THREE BOUNDS ARE PART OF THE FINDING, NOT A HEDGE ON IT.** ① It is a **driven source trace of the routing and NOT an exploit run** — every link is cited; **no event was submitted**, and the executable leg is written into the design as `Leg A-bis` rather than claimed here. ② It is **unreachable from the desktop client** (`ops::join` has three callers — CLI, AI control plane, pipe — and zero Tauri commands), and reachable today via the CLI or the pipe. ③ The attacker needs the `space_id`, **which is obscurity, not access control, and must not be recorded as a mitigation.**
+
+🎯 **It converts `M-SPACE-ADMISSION` from a feature into a fix** — it closes a **measured** gap between the shipped tenant model and the shipped guard set rather than adding a setting. **Whether that re-sequences it against the UI arc is `§6.6` and is Joe's**, and Chat recorded its own conflict of interest in recommending there.
+
+### 🛑 THE SIBLING IS RIGHT ON SHAPE AND WRONG ON GATE — AND THE TRAP IS LIVE
+
+J-741 named `member_temperature_visibility` as admission's right sibling. **The naming is correct and two of the three parts claimed for it are not.**
+
+🛑 **A-1 — ITS APPLIER IS ONE OF THE TWO `owner_id` SITES RIDER 2 FORBIDS.** `apply_space_temperature_visibility` opens `if event.sender != self.owner_id` (`state.rs:752-763`); `apply_space_pacing` is identical (`:732-737`). **Those two lines *are* `state.rs:733` and `:753` — the exact pair Clair measured and the exact pair Rider 2 names.** ⇒ **copying the sibling verbatim — the cheapest, most defensible implementation move, and the one a runbook would naturally specify — produces precisely the third site the rider was written to prevent.** The correct idiom is `apply_mute`'s (`member_role` then a `can_X` predicate, `:769-773`). 🔑 ***A precedent named for the right reason can still be the wrong thing to copy*** — the sibling was chosen on the **set-once-vs-forward-looking** axis, where it is correct, and **nobody asked what its gate looked like.** **Written into the Phase-0 as an executable runbook constraint, never a note**, because the failure mode is silent, passes every test, and is invisible in review *because it matches two neighbours*.
+
+🛑 **A-2 — IT HAS NO RESOLUTION ARM, AND TWO CANONICAL RECORDS SAID IT DID.** `StateSpaceTemperatureVisibility` and `StateSpacePacing` appear **zero** times in `resolution/state_key.rs` (case-sensitive count **0**) and fall to `_ => None`; the single resolution-layer hit is a `cfg(test)` fixture (`algorithm.rs:435`). ⇒ **the sibling is a TWO-part precedent (enum + applier), not a three-part one.** 🔑 **Why it is not pedantry:** no `state_key` arm ⇒ no conflict class ⇒ `conflicts_in_log` returns false ⇒ two concurrent settings are applied in fold order and **nothing reports the disagreement**. Convergence is not broken (fold order is deterministic under `D-076`); **the winner is a fold-order artefact rather than an adjudicated outcome.** *Tolerable for a visibility preference. Not tolerable for the gate that decides who may enter.* ⇒ **Chat's seat, closed rather than routed (the J-618 rule): the admission event GETS an arm**, keyed `("state.space_admission", space_id)`. **Fixing the sibling's own missing arm is its own finding and its own milestone, never a rider.**
+
+⚠️ **A-3 — "ORIGIN-INDEPENDENTLY" IS THE WRONG WORD, AND THE REAL MECHANISM IS SOUNDER THAN THE SENTENCE.** The record claimed an invite-required Space would refuse a third party *by the admission rule itself, origin-independently*. **But the existing admission-gate precedent is explicitly origin-SCOPED and says so at the site:** the invite-expiry gate runs `if origin == EventOrigin::LocallySubmitted && event.room_id.as_str().is_empty()` (`runtime.rs:1580`), under INV-EXP's rule that *a peer trusts the home node's already-made admission decision and does not re-adjudicate* (`:1567-1572`). ⇒ **it is not one rule holding on both channels; it is TWO rules, one per channel, and the new one fills the gap the old one leaves** — local submissions take the new admission gate, federation submissions take F-3's relationship check. ✅ **The conclusion survives; the word does not.** 🔑 **And it names the gate's HOME:** beside the invite-expiry gate in `dispatch_event`, on the `LocallySubmitted` branch, fail-closed, mirroring `3044`'s coded-reject shape.
+
+### 🛑 THE PREDICATE STILL HAS NO FEEDER, AND THE REJOIN PATHS FAIL IN OPPOSITE DIRECTIONS
+
+Grounded, not recalled: `apply_leave` writes **no tombstone** (`state.rs:1038-1053`) · the invite was **consumed at the first join** (`:1022`) · `apply_invite` **bars ALL DM invites as its first statement**, before the target is read (`:962-965`) · and `SpaceState` carries **no counterpart, invitee or ex-member field** — the full field list was read at `:186-258` rather than sampled. ⇒ **under invite-required admission a leaver is indistinguishable from a stranger.**
+
+🛑 **AND THE TWO REJOIN PATHS FAIL IN OPPOSITE DIRECTIONS.** `collect_invite_bootstrap` **refuses a non-invitee with `1011`** — asserted by a dedicated test (`fanout.rs:1485-1498`) — while `collect_sync_history` gates on `is_member` (`:485-487`). A returning ex-member is **neither**, so the bootstrap refuses them and the history serves them nothing. **`rejoin_anchor_or_root` (`ops.rs:142`, used at `:1699`) exists as the fallback and works today only because the join itself is unconditional.** ⇒ **convergence must be RE-ARGUED, not assumed**, and the third part of that argument is the sharp one: *if the predicate admits without an invite, `collect_invite_bootstrap`'s `1011` is now wrong for that actor* — **a gate and a bootstrap that disagree is the two-sources-of-truth shape `D-067` exists to prevent.**
+
+📌 **And ch3 §3.16.1's prose says *"no third party may be invited"* while the code bars ALL invites** — a target-scoped rule against a blanket implementation. **Filed as a spec-versus-build divergence on the ch3-amendment node; deliberately not fixed here.**
+
+### ✅ THE PHASE-0 LANDED — `tasks/M_SPACE_ADMISSION_PHASE0.md` v1.1 ACTIVE
+
+Chat wrote it **first**, with Joe's decisions as open §§ carrying recommendations and `D-121`'s three lenses — `D-123`'s named failure mode (Chat gating its own authoring on unasked Joe decisions) did not occur. **Eight open questions, every option written to disk** — the J-741 process defect (*an option set that exists only in a conversation cannot be audited*) is not repeated.
+
+**Three recommendations rest on a measurement rather than a preference, and those are the ones worth naming:**
+
+- **§6.2 — `absent` and `present-but-unknown` are DIFFERENT FACTS and must not be collapsed.** `L-E`'s *default must stay open* governs **absence** (every Space that exists today); **fail-closed** governs a present value this build does not understand. ⇒ **absent ⇒ `open` · present-and-unknown ⇒ `invite`.** ⚠️ **The collision is named, not silently traded** — it is the one place a principle and a lock point in opposite directions.
+- **§6.4 — the DM must pin by a STORED value, not a derived one, and the reason is measured:** `state.dm_promote` flips `dm_constraints_active` to false. **Under a derived pin a promoted DM silently becomes an OPEN Space at the instant of promotion.** ***The pin must survive the un-pinning event, and only a stored value does.***
+- **§6.5 — the option that looks most general is the most expensive, and its cost is not build time.** A `former_members` tombstone is **a permanent, federated, never-evicted list of everyone who ever left a Space, including people who left to get away from it** — a GDPR-facing surface on the project's own hardest open problem, minted as a side-effect of a rejoin feature. **The recommendation is a set-once `dm_parties` field on the `jurisdiction` pattern, which stores a fact the DM's creation event already contains rather than accumulating a new one over time.**
+
+📌 **Two migration facts grounded rather than assumed:** `auth_tier` is a **required** create field (`state.rs:275`, `ok_or(MissingField)`) and is therefore **the wrong template** for `L-E`; `member_temperature_visibility`'s `unwrap_or_else` (`:307-310`) is the right one — **absent ⇒ derived default, no backfill, no version bump, no migrate function.** ⚠️ **But `state.space_admission` events inherit accept-as-opaque:** an older node **stores and relays an admission event and never applies it**, so a mixed-version federation holds one Space with two admission values — **the first place in the project where accept-as-opaque produces a *security* divergence rather than a rendering one.** Filed against the H2 capability question (J-601), which is not this milestone's.
+
+📌 **`Leg C` carries a fourth edit the "three hand edits" figure omits:** `known_variants()` at `wire.rs:736-757` is a hand-maintained test vec, and **omitting the new variant there does not fail — it silently drops the variant from the round-trip test.** ***A check whose failure mode reads exactly like success is not a check.***
+
+### ⚠️ CHAT'S OWN DEFECTS THIS SESSION — TWO, BOTH CAUGHT BY VERIFICATION AND NEITHER BY RE-READING
+
+🛑 **① A WRITE WHOSE CONFIRMATION NEVER RETURNED WAS NOT RECORDED AS DONE.** Both MCP servers went unresponsive mid-session; the `Filesystem:write_file` call and the verification call after it both timed out at four minutes. **Chat reported the file as UNVERIFIED rather than written**, and on restart `Test-Path` returned **ABSENT** — the write had not landed. *The honest report was also the correct one; had it been recorded as done, the milestone's deliverable would have been a file that did not exist.* 📌 **This is `N-124b`'s family at tool-transport scale: a call that does not return is not a call that succeeded.**
+
+🛑 **② A WRONG SITE UNDER A CORRECT FINDING — THE `F-4` SPECIES, CHAT'S AGAIN.** The Phase-0 as first written attributed the false *resolution arm* claim to **`CLAUDE.md`** as well as the ROADMAP. **A corpus-wide `.md` search for *"resolution arm"* returns `docs/ROADMAP.md` and `tasks/M_INTRO_POLICY_PHASE0.md` — and NOT `CLAUDE.md`**, whose J-741 block says only *"the right sibling is `member_temperature_visibility`"* and makes no arm claim at all. **Corrected at the site in the Phase-0 and in `§10`'s correction table.** *The finding was right, the blast radius was wrong, and only the grep that preceded the edit caught it.*
+
+### ✅ RECORD CORRECTIONS APPLIED (CHAT'S SEAT — NO RULING REQUIRED)
+
+- **C-1 ✅ APPLIED** — the *resolution arm already exists* claim corrected at **both** sites (`docs/ROADMAP.md` M-SPACE-ADMISSION node · `tasks/M_INTRO_POLICY_PHASE0.md` §3a.7), with the sibling's missing arm filed as its own finding.
+- **C-2 ✅ APPLIED** — *origin-independently* → **two rules, one per channel**, at both sites.
+- **C-3 ✅ APPLIED** — the ROADMAP's *"UNVERIFIED"* clause replaced with the **discharged form AND its three bounds**. ⚠️ **Discharged for the ROUTING and NOT for the EXPLOIT**, and the node now says so.
+- **C-4 📌 FILED, NOT FIXED** — ch3 §3.16.1's invite-bar divergence belongs to the ch3-amendment node, never a rider.
+
+📌 **All four are corrections at the site, not `D-131` annotations** — `D-131` governs **citations proven broken**; these are **claims proven false**, and this arc's standing practice for those is *corrected, not annotated-and-kept*.
+
+### 🔒 FLOORS — CARRIED, NOT RE-RUN
+
+Zero `.rs`, `.ts`, `.svelte`, `ui/**`. cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 **Sampler catalogue UNMEASURED** — its harness has never been located. 📌 **`cargo` is not a floor for a reads-only pass:** an identical result over zero `.rs` is a scope argument, not a measurement.
+
+📌 **CENSUS METRICS STATED, PER THE ARC'S OWN RULE:** the `LocallySubmitted` census is **LINES matching `LocallySubmitted`, case-sensitive, over `*.rs`, with `\.claude\`, `\target\` and `node_modules` excluded** (`.claude/worktrees/` holds 8 full source trees `git status` cannot see). **The `process_inbound` count of THREE production call sites is CALL EXPRESSIONS, hand-separated from 50+ doc-comment mentions by reading every hit — not a grep total.**
+
+✅ **INTEGRITY RE-ASSERTED ON THE CRLF FILE:** `docs/ROADMAP.md` after the splice — **CR 600 == LF 600, zero `\r\r`, zero lone LF, no BOM**; `roadmap-format-gate.ps1` **PASS, exit 0**. The splice ran **descending with an assertion on every line before it was replaced**, and the diffstat was read back (**6 insertions, 4 deletions** on the node) rather than assumed.
+
+**No new `D` written** (`M-SPACE-ADMISSION`'s is Joe's to mint, and `§6.8` states what it must bind). **No new `N`.** 🔓 `N-197` still owed and still Joe's — **this session adds an instrument failure to it (defect ① above), which makes it seven.** `docs/ROADMAP.md` **v7.27 → v7.28** · `tasks/M_INTRO_POLICY_PHASE0.md` **v1.3 → v1.4** · `tasks/M_SPACE_ADMISSION_PHASE0.md` **NEW, v1.1 ACTIVE**.
+
+🛑 **THE ROUND-2 CONTRADICTION IS UNTOUCHED FOR A FOURTH CONSECUTIVE SESSION** (`docs/ROADMAP.md:290` marks Round 2 ✅ GO at J-390 while the J-735 kickoff carried *"Round-2 still GATES UI COMPLETION"*). ⚠️ **It bites this milestone directly — this is protocol-plane work.** ***A fourth deferral is no longer a deferral.***
+
+🎯 **NEXT:** Joe rules `§6.1`–`§6.8`; **Clair's cold read is recommended before any of it is locked**, pointed at `§4`'s five-link chain first — *Chat's own re-reads have never once caught a defect in this arc, and Clair's three have returned seven, six and six.*
+
+---
+
 ## Entry J-741 — Clair's third cold read kills a noun the milestone had been using, admission turns out to be Space-general, and a mechanism leaves this milestone entirely
 **Date:** 2026-08-16 · **Seats:** Clair (cold read, six findings, zero files modified) · Chat (the re-drive, the re-routing, the records) · Joe (the structural ruling, four locks, the milestone name, and one correction to Chat's spelling recommendation that went the other way). **NO PRODUCT CODE.** `tasks/M_INTRO_POLICY_PHASE0.md` **v1.2 → v1.3** (§3a.6, §3a.7 new). **NEW NODE: `M-SPACE-ADMISSION`.** `M-INTRO-POLICY` stays 🟡 PENDING; **Leg 0-pre ✅ DONE**, **Leg G ⬛ RE-ROUTED OUT**.
 

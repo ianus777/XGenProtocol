@@ -562,7 +562,7 @@ stands and `M-RP-INTRO-CANVAS` builds on this floor rather than replacing it.
   stands. **Phase-0 OWED.** *A trigger that has fired with no Phase-0 is a defect — that is how this
   milestone started.*
 - 🔓 **Joe's, still open:** the DM-draft-only asymmetry (Clair's) · `HEADLINE_MAX 120` / `BLURB_MAX 600`
-  (`D-138`, provisional) · the `blurb` → `about` rename (**35 code sites / 5 files** — corrected J-737, the 39 at J-735 was wrong when written; **ch3 unaffected** — it names the
+  (`D-138`, provisional) · the `blurb` → `about` rename (**37 sites / 6 files** (case-insensitive LINES — state the metric; other metrics give 28/37/50) — **corrected J-738, Clair F-2: the 35/5 OMITTED `ui/assets/skin.css`, and that file is the FAILURE MODE — `.message-intro-blurb` is the rule matching the class `message-intro.svelte:68` emits, so renaming the field without the selector reverts the blurb to the browser default 16px, the exact defect J-735 fixed. It also crosses a seat boundary: `skin.css` is Joe`s.**; **ch3 unaffected** — it names the
   key, never the fields) · `trust_assertion` · `N-197`'s wording.
 - 🔒 **Round-2 whole-codebase audit still GATES UI COMPLETION**, and bites harder now that **(d)** made this
   protocol-plane.

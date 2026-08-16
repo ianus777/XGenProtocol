@@ -8,6 +8,50 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-738 — Clair cold read returns SIX findings on the M-RP-INTRO close records, FOUR of them wrong claims, and two sit in the file nobody re-read
+**Date:** 2026-08-15 · **Seats:** Clair (cold read, six findings, zero files modified — correct, records are Chat's seat) · Chat (independent re-drive of all six, then the corrections). **No milestone state moved. NO product CODE.** ROADMAP **v7.24** · `skin.css` comment-only.
+
+🔑 **THE ARC PREDICTION HELD AGAIN, AND THIS TIME IT WAS TESTED DELIBERATELY.** The kickoff sent Clair in on the ground that *Chat's own re-reads have never once caught a defect in this arc*. **Six findings. Four wrong claims. Chat had re-read every one of those documents and found none of them.**
+
+🛑 **TWO OF THE SIX ARE IN `ui/assets/skin.css` — the file the close touched LAST and the only one nobody re-read afterwards.** *The last file edited is the least reviewed file; that is now measured, not suspected.*
+
+✅ **Every finding was RE-DRIVEN by Chat before any record moved (Rule 5 applies to Chat reading Clair exactly as it applies to Clair reading Chat). All six reproduced.**
+
+### 🛑 F-1 — `skin.css` NAMED A DISCHARGER THAT DOES NOT EXIST. **WRONG.**
+`skin.css:3180` promised the placement provisional was discharged by **`M-RP-INTRO-PLACEMENT`** — measured: **exactly ONE occurrence in the entire repo, that line.** The real milestone is **`M-RP-INTRO-CANVAS`: 15 sites across 5 files, owning a ROADMAP node.** 🔑 **Both were written in the SAME commit `3e1014d`** — Chat used a working name in the code comment and Joe's real name in the records, in one commit, and never reconciled them. ⚠️ **A dangling pointer in the one place an implementer of the canvas actually reads.** ***The records said placement was discharged; the code said it was discharged by a milestone that does not exist.*** ✅ Corrected in place, with the working-name history kept so the next reader is not confused twice.
+
+### 🛑 F-2 — THE CENSUS OMITTED A SIXTH FILE, AND THE OMITTED FILE IS THE FAILURE MODE. **WRONG.**
+Published **35 code sites / 5 files**. Measured: **`ui/assets/skin.css` also carries it** — `:3203` `.message-intro-blurb` (a LIVE SELECTOR) and `:3182` (prose) ⇒ **37 sites across 6 files.**
+
+🔑 **WHY THIS IS NOT PEDANTRY:** `message-intro.svelte:68` emits `class="message-intro-blurb"` and `skin.css:3203` is the rule that matches it. **Rename the field without the selector and the blurb loses `--fs-1` / `--lh` / `--t3` and reverts to the browser default 16px — WHICH IS EXACTLY THE DEFECT J-735 MEASURED AND FIXED.** ⚠️ **It also crosses a seat boundary the published figure hid: `skin.css` is Joe's, so the rename was never purely Clair-scoped.** 📌 **Root cause of the miss: `.css` was not in the grep include list — the same omission in both the original census and its J-737 "correction".**
+
+🛑 **THREE CONSECUTIVE PUBLISHED VALUES FOR ONE CENSUS: 39 → 35 → 37.** ***A number that has been wrong twice should be quoted with its metric or not quoted at all.***
+
+### ⚠️ F-3 — 35 WAS RIGHT UNDER AN UNSTATED METRIC; THREE OTHERS ARE DEFENSIBLE. **CONFIRMED-with-caveat.**
+Clair reproduced the per-file breakdown **only on the fourth attempt**: case-sensitive lines **28** · case-sensitive occurrences **37** · **case-INsensitive lines 35** (PowerShell `Select-String` default — matches exactly) · case-insensitive occurrences **50**. ✅ The metric is the RIGHT one (it catches `BLURB_MAX` and `…Blurb`, which a rename must move) **but it was nowhere stated** — and the runbook's own v1.1 pointer-defect #5 already ruled this class: *"Neither number may be quoted as the other."* ⇒ **the metric is now stated at every live site.**
+📌 **Two different 50s now exist in the record** — J-737's 50 (sum of a 9-file code+docs list) and the case-insensitive occurrence count over the 5 code files. **Clair could not establish whether that is coincidence and said so.** Flagged so a future reader meeting both is not misled.
+
+### 🛑 F-4 — "`auth_tier` HAS ZERO HITS IN THE CLIENT" IS **FALSE**. Conclusion survives; the stated reason does not.
+Measured in `xgen-client/`: **10 hits, 6 of them production** — `app.rs:982` is a **real user-facing CLI flag** on `create-space`, and `ops.rs:669` threads it straight into `build_space_create_event`. ✅ The TRUE claim is `ui-notes:3560`'s and it is **scoped**: *"`auth_tier` has zero hits in `ui/`"* — measured **0**, holds. **The ROADMAP dropped the `ui/` qualifier, and that qualifier was what made it true.**
+
+🔑 **AND THE ACCURATE STATEMENT IS MORE USEFUL THAN THE FALSE ONE:** `CreateDmSpaceArgs` carries **only `invitee`** — no tier parameter anywhere in the DM chain, **which is WHY the builder hardcodes 1** — while the ordinary-Space path threads a **user-settable** tier end to end. ***That asymmetry is the real fact, and "zero hits in the client" hid it.*** ✅ The conclusion (a Tier-2+ gate today excludes everyone) **survives on its other two grounds**; only the third reason was false. **Contained to one site.**
+
+### ⚠️ F-5 — THE JOURNAL REPORTED THE **RENDERED** ORDER AS THE **DOM** ORDER, AND THEREBY CONTRADICTED ITSELF.
+Measured: `echoToDescriptor` (`stream-panel.svelte:144-149`) emits `[send-status, message-intro]` ⇒ **DOM = body → LED → canvas**; `skin.css` `order:-1; flex:1 0 100%` produces **RENDERED = body → canvas → LED**. 🔑 **Clair's sharp half: if the DOM already ran body → canvas → LED, the `order` rule the sentence complains about would not need to exist.** ✅ `skin.css:3191` states it correctly (*"ORDER IS VISUAL ONLY"*) and `ROADMAP:364` states it without the error. **The conclusion — Joe's placement retires the order rule — is correct and unaffected.** One site, corrected.
+
+### ⚠️ F-6 — THE `bodyExtras` TENANT ORDINAL DISAGREES ACROSS FOUR SITES. **MINOR, NOT YET FIXED.**
+`skin.css:3132` says send-status is the **FIRST real** tenant; `skin.css:3178` says message-intro is the **SECOND**; `send-status.svelte:2` says send-status is the **SECOND**; `message-intro.svelte:3` + `stream-panel.svelte:34` say message-intro is the **THIRD**. **Two internally consistent systems, off by one, with no stated counting rule.** The measured registry has exactly two entries, so `skin.css` matches the artefact — **its word "real" is doing the work, unlabelled.** ⇒ **ROUTED, NOT FIXED: the counting rule is a naming decision and naming is Joe's.**
+
+### ✅ WHAT CLAIR CONFIRMED — SEVERAL EXACTLY, AND ONE MATTERS A LOT
+①②④⑤⑦⑧⑩ and the first half of ⑨ all confirmed. 🔑 **⑥ HOLDS AND IT IS THE LOAD-BEARING ONE: `message.svelte` line 171 is outside `{#if !grouped}` (guard opens :157, closes :170, :171 is `{#if deleted}`), inside `msg-content` (:153-198). JOE'S HEADER-TO-PARAGRAPH PLACEMENT RESTS ON SOLID GROUND, AND BOTH NAMED GUARD QUESTIONS ARE CORRECT.** Also independently reproduced: J-737's worktree census (8/4/4, all names, all May 2026) and the `auth_tier` inflation figures **219 / 112 / 107, which closes exactly**; and ch3 carries `xgen.intro.v1` twice with **zero** `blurb`/`headline` — so *"names the key, never the fields"* holds.
+
+✅ **CLAIR STATED WHAT SHE DID NOT VERIFY, PLAINLY:** the floors were **NOT re-run** (read-only session, not in the claim list). She validated them **structurally** — `git diff --name-only e76bac8 HEAD` returns zero `.rs`/`.ts`/`.svelte` — and said outright that this is **evidence they are legitimately carried, not a measurement, and must not be quoted as one.** 🔑 **She also reported her own first-pass error rather than burying it** (1388/473 across all file types including binaries — a different question, re-measured to the stated metric). ***That is the standard.***
+
+### 🔒 FLOORS — UNCHANGED, NO PRODUCT CODE
+cargo **1602/0/62 × 56** · vitest **172/172 × 9 FILES** · svelte-check **0/34/15**, carried and deliberately not re-run; this session changed records plus one `skin.css` COMMENT. 🛑 Catalogue still **UNMEASURED**.
+
+---
+
 ## Entry J-737 — a census hazard hiding in .gitignore, and a number Chat published today that its own evidence contradicted
 **Date:** 2026-08-15 · **Seats:** Chat (grounding pass, both findings, both corrections). **No milestone state moved. NO CODE.** Records only. ✅ `M-RP-INTRO` stays CLOSED at `1994e28`, remote-confirmed, tree clean.
 
@@ -38,7 +82,7 @@ Chat wrote **"39 hits / 9 files"** into J-735, `CLAUDE.md`, `docs/ROADMAP.md` an
 | **code — the real rename cost** | **35 hits / 5 files** | `composer-panel` 10 · `derive.test.ts` 10 · `message-intro` 9 · `derive.ts` 4 · `exchange.rs` 2 — **stable all day** |
 | docs | 25 hits / 5 files | **was 15 — grew by 10 purely because Chat wrote prose ABOUT the rename** |
 
-⚠️ ***A census that counts the documents describing it becomes false by the act of publishing it.*** **The actionable rename cost is 35 code sites across 5 files**, and that figure has not moved.
+⚠️ ***A census that counts the documents describing it becomes false by the act of publishing it.*** **The actionable rename cost is 37 sites across 6 files** (case-insensitive LINES). ⚠️ **CORRECTED J-738 — the 35/5 asserted here was ALSO wrong, because it omitted `ui/assets/skin.css`, whose `.message-intro-blurb` rule is the one that makes the rename regress. Clair F-2. Three consecutive published values for one census: 39, 35, 37.**
 
 ✅ **CORRECTED AT THE CLASS, NOT THE INSTANCE** — all four sites (`docs/ROADMAP.md`, `tasks/M_RP_INTRO_PHASE0.md`, `CLAUDE.md`, `JOURNAL.md`), then **re-grepped to prove zero remained.** 🔑 *This is the J-734 lesson applied properly for once: v1.1 fixed the two instances Clair cited and never searched for the class.*
 
@@ -81,7 +125,7 @@ Joe asked directly: *"where you intend to place the canvas? in the main text or 
 ### 🔑 JOE REFINED THE POSITION AND HIS IS BETTER — **BETWEEN THE HEADER AND THE PARAGRAPH**
 Chat proposed the socket **below** the body. Joe: *"put that block between header and paragraph … theoretically we could still use the main message for text that want to add something to the canvas."* **Grounded: the insertion point is `message.svelte` line 171** — after the header guard closes at `:170`, before the `{#if deleted}` branch.
 
-🔑 **THE CONSEQUENCE JOE DID NOT HAVE TO COMPUTE, AND IT IS THE CLINCHER: HIS ORDER RETIRES THE `order: -1` SKIN RULE SHIPPED HOURS EARLIER AT J-735.** Today the DOM runs body → canvas → LED, and the ONLY thing putting `Sent` back under the text is a CSS `order` reorder **fighting the DOM**. Canvas-above-body makes it **canvas → body → extras naturally**, so send-status sits directly under the text it reports on ⇒ Joe's own J-735 complaint (*"send label down, under whole text block, as it used to be"*) becomes **STRUCTURALLY TRUE INSTEAD OF CSS-CORRECTED**, and the rule is deleted rather than inherited. ***A placement that removes a workaround is better than one that keeps it working.***
+🔑 **THE CONSEQUENCE JOE DID NOT HAVE TO COMPUTE, AND IT IS THE CLINCHER: HIS ORDER RETIRES THE `order: -1` SKIN RULE SHIPPED HOURS EARLIER AT J-735.** Today the DOM runs body → **LED** → canvas (`echoToDescriptor` emits `[send-status, message-intro]`), and the RENDERED order is body → canvas → LED only because a CSS `order: -1` **fights the DOM**. ⚠️ **CORRECTED J-738 (Clair F-5): this sentence originally reported the RENDERED order AS the DOM order, which contradicted itself — if the DOM already ran body → canvas → LED, the `order` rule it complains about would not need to exist.** Canvas-above-body makes it **canvas → body → extras naturally**, so send-status sits directly under the text it reports on ⇒ Joe's own J-735 complaint (*"send label down, under whole text block, as it used to be"*) becomes **STRUCTURALLY TRUE INSTEAD OF CSS-CORRECTED**, and the rule is deleted rather than inherited. ***A placement that removes a workaround is better than one that keeps it working.***
 
 ✅ **Three further arguments, all favouring Joe:** **attribution proximity** — the header states WHO, the canvas elaborates WHO, the body says WHAT, so header → canvas → body is semantically ordered and the canvas neighbours the identity claim it expands · **his own reason holds** — the sentence becomes a comment ON the card, which is how a visit card actually works · **it generalises better** — a block socket ABOVE the body serves any *context-for-this-message* tenant (a quoted reply, a poll header, a resident's diagram preamble), while below the body only ever serves annotations.
 
@@ -143,7 +187,7 @@ Chat's first probe read `spaceLatch.effectiveSpaceId` — **a field that does no
 ### 📌 CARRIED, NOT ABSORBED
 - 🟡 **`M-RP-INTRO-CANVAS` — the settable welcome canvas: intro as a settings-hosted plugin** (name Joe's). Takes the authoring model AND the placement: `surface: none`, a `settingsComponent` on `D-120`'s shipped mechanism, two mounts. 🔒 **`N-172` binds it: the wire carries DATA, never a widget id, never markup; the receiver picks the widget.** ⚠️ **No `{@html}`** — Phase-0 §7.3, because the payload is authored by someone the recipient has never met.
 - 🟡 **`M-INTRO-POLICY` — ITS TRIGGER FIRES ON THIS CLOSE** (*"M-RP-INTRO lands"*). Protocol + node + client, explicitly **not** a UI leg; `D-143` stands (the filter is enforced in the CLIENT). **Phase-0 filed as OWED — a trigger that has fired with no Phase-0 is a defect.**
-- 🔓 **`blurb` → `about` NOT renamed.** **35 code sites / 5 files** (figure corrected at J-737; the 39 written here was wrong when written) (ch3 unaffected — it names the key, never the fields). **Naming is Joe's**, and it sequences into `M-RP-INTRO-CANVAS`, where the field set may change anyway. *Flagged, not silently skipped.*
+- 🔓 **`blurb` → `about` NOT renamed.** **37 sites / 6 files** (case-insensitive LINES — state the metric; other metrics give 28/37/50) — **corrected J-738, Clair F-2: the 35/5 OMITTED `ui/assets/skin.css`, and that file is the FAILURE MODE — `.message-intro-blurb` is the rule matching the class `message-intro.svelte:68` emits, so renaming the field without the selector reverts the blurb to the browser default 16px, the exact defect J-735 fixed. It also crosses a seat boundary: `skin.css` is Joe`s.** (ch3 unaffected — it names the key, never the fields). **Naming is Joe's**, and it sequences into `M-RP-INTRO-CANVAS`, where the field set may change anyway. *Flagged, not silently skipped.*
 - 🔓 Joe's open items unchanged: the DM-draft-only asymmetry (Clair's, named as hers) · `HEADLINE_MAX 120` / `BLURB_MAX 600` (`D-138`, provisional) · `trust_assertion` · Round-2 audit still gates UI completion.
 - 📌 **Placeholders in the extras lane: ALREADY ANSWERED AND ALREADY DONE.** `M_RP6_9_BODY_EXTRAS.md` — *"Fixtures live in the SAMPLER only. In the real client the container renders nothing until something feeds it."* The sampler chips exist on Joe's own instruction (*"i need them for tuning now"*). **`M-RP-REACTIONS` stays deferred and opens as PROTOCOL** — *who reacted is identity data on the no-anonymity core.*
 

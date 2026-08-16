@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 3: Specification
 > **Status:** ACTIVE  
-> Version: 0.56  
+> Version: 0.57  
 > Date: May 2026  
-> **Last updated**: 2026-08-15  
+> **Last updated**: 2026-08-16  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -2410,7 +2410,7 @@ Space membership is managed by `membership.*` Events produced in the Space's sta
 
 `valid_until` (M8.5-B, INV-D6) is an **absolute** RFC-3339 deadline bounding the invite as a circulating capability — the window during which it can sit detached and be misdirected (deliberately named `valid_until`, matching the TrustAssertion §3.8.4 credential-validity semantics, **not** `expires_at`). The inviting client stamps it at sign time via the cascade `individual validity → protocol default (14 days)`, bounded by a **per-tier ceiling keyed on the invitee's tier** that tightens as tier rises (exposure-window minimization). Only **Tier 1 = 14 days** is defined today; higher-tier ceilings land with the tier modules (honest posture — until trusted Auth Modules exist every Identity resolves to Tier 1). The home Node enforces it at two points: it **rejects at ingest** an invite whose `valid_until` exceeds the ceiling (`3045 invite_validity_exceeds_max` — never a silent clamp), and it **rejects at join acceptance** a `membership.join` whose invite `valid_until` is past (`3044 invite_expired`). Expiry is **lazy** — an expired pending invite is left inert (both the join gate and the invite-bootstrap read path check at request time); renewal is a fresh `membership.invite`.
 
-The validity gate is **fail-closed on regular Spaces and exempt on DM Spaces, by design.** On a regular Space a client always stamps `valid_until`, so an *absent* `valid_until` at the join gate is malformed/legacy and the join is rejected `3044` — never treated as "no expiry" (which would re-create the unbounded capability `valid_until` exists to bound). **DM Spaces are exempt** (`dm_constraints_active`): a DM creator atomically seeds the 2-party counterparty as the bootstrap invite, so there is no detached in-flight invite to misdirect — the absence of `valid_until` there is the absence of the window it guards, not an omission. An open join (a `membership.join` with no pending invite at all) is untouched by this gate.
+The validity gate is **fail-closed on regular Spaces and exempt on DM Spaces, by design.** On a regular Space a client always stamps `valid_until`, so an *absent* `valid_until` at the join gate is malformed/legacy and the join is rejected `3044` — never treated as "no expiry" (which would re-create the unbounded capability `valid_until` exists to bound). **DM Spaces are exempt** (`dm_constraints_active`): a DM creator atomically seeds the 2-party counterparty as the bootstrap invite, so there is no detached in-flight invite to misdirect — the absence of `valid_until` there is the absence of the window it guards, not an omission. An open join (a `membership.join` with no pending invite at all) is untouched by this gate — see 3.7.14, which states the admission model these events operate under: as implemented, an invite assigns a role and an inviter but is not required in order to join.
 
 `note` (M8.5-B, INV-D5) is an **optional** opaque UTF-8 body carrying invite text in the `message.rich` form (markdown, mentions, code blocks). It is convergence-neutral content with no `state_key` (the applier ignores it); it is Space-visible (a private invite message would be a separate encrypted DM). *Forward-note (D-077): when `message.rich` is implemented as a first-class message type, the invite `note` adopts its body shape so the two stay one format.*
 
@@ -2807,6 +2807,73 @@ Temperature values travel as `meta_atts` on existing Events and as a Node-to-cli
 
 ---
 
+#### 3.7.14 Space Admission
+
+*Status: as-built for the current model (3.7.14.1); specified, not implemented, for the admission property (3.7.14.2 onward).*
+
+Admission is the rule that decides **who may join a Space**. It is a property of the Space, evaluated once at each join and never re-evaluated, and it sits alongside `auth_tier` (3.7.3) as the Space's second admission dimension: `auth_tier` states *what standard of identity verification a joiner must meet*, and admission states *whether a joiner needs to have been invited at all*.
+
+##### 3.7.14.1 The current model: open join
+
+**As-built.** Every Space in the protocol as implemented is **open-join**. A `membership.join` naming a Space is admitted on two conditions only — the sender is not already a member, and the sender is not banned. A pending invite, where one exists, supplies the joiner's role and inviter; where none exists the joiner is admitted as `member` with no inviter recorded. There is no invite requirement, no permission check and no per-Space policy governing joins, and this holds identically for DM Spaces and full Spaces.
+
+This is deliberate and it is the model the rest of the specification has assumed without stating: `membership.invite` (3.7.8) is a **role- and inviter-assignment** mechanism and a discovery aid, not a gate. The invite-validity gate (3.7.8) bounds an invite that exists; it does not require one. An invitee that never receives an invite may still join.
+
+The consequence worth stating plainly, because it is easy to read the invite machinery as implying otherwise: **possession of a Space ID is sufficient to join a Space**. A Space ID is not a secret and is not treated as one anywhere in this specification. Deployments that require a stronger boundary need the admission property below.
+
+##### 3.7.14.2 The admission property
+
+**Specified, not implemented.** `SpaceState` carries an `admission` field, set at Space creation from `state.space_create` content and updated thereafter by `state.space_admission`.
+
+| Value | Meaning |
+|---|---|
+| `open` | Any Identity meeting the Space's `auth_tier` floor may join. The default. |
+| `invite` | A joiner must hold an unconsumed pending invite for the Space. |
+
+`admission` is an **open enum carried as a string**, so a later value — for example a request-to-join mode — is an additive change rather than a breaking one. Two rules govern values this specification does not define, and they are deliberately different because they describe different facts:
+
+- **Absent** means `open`. Every Space created before this property existed carries no key, and such Spaces are open-join, which is what they have always been. Absence is resolved at parse time from the creation Event; no stored Event is ever rewritten and no migration is performed.
+- **Present but unrecognised** means `invite`. A value this implementation cannot interpret is a value whose intent it cannot honour, and an admission rule is a gate rather than a display preference: the safe reading of an uninterpretable gate is the closed one. This mirrors the invite-validity gate, which treats an unparseable `valid_until` as expired rather than as absent.
+
+Admission is **owner-settable rather than set-once**, unlike `jurisdiction` (3.7.3) and `e2e_encryption` (3.10.8). Those two are fixed at creation because changing them would re-label data that already exists — a Space cannot be retroactively encrypted, and a jurisdiction changed after the fact falsifies the record of where events were held. Admission has no such property: it is read once at each join and never consulted again, so opening a Space admits nobody retroactively and closing one ejects nobody. There is no past for a change to falsify. A Space that comes under abuse must be able to close, and a set-once rule would require the owner to decide at Space birth, with the least information they will ever have, permanently.
+
+Changing admission does not invalidate joins already admitted under the previous value. A member admitted while the Space was `open` remains a member after it is set to `invite`; removing them is a moderation action (`membership.kick`, `membership.ban`), not an admission one.
+
+##### 3.7.14.3 Admission in DM Spaces
+
+A DM Space is **`invite`, fixed**. The value is set at DM Space creation and `state.space_admission` is rejected for a Space with DM constraints active, joining the constraints in 3.16.1.
+
+The reason is specific rather than conservative. A DM's owner is whoever created it, which on unsolicited first contact is the party the recipient did not choose to hear from. If admission were settable there, that party could open their own DM. Fixing the value makes the DM a **constrained instance of the general mechanism** rather than an exception to it.
+
+On promotion to a full Space (3.16), the pinned value is retained and the Space becomes an `invite` Space whose owner may open it deliberately. Promotion does not silently widen admission.
+
+##### 3.7.14.4 Authority
+
+`state.space_admission` is permitted from the Space **owner role**. The check is a role-predicate test against the sender's membership record, in the same form as the other membership-permission checks in 3.7.8, and is not an equality test against a stored owner Identity. The distinction matters where a Space has more than one Identity in the owner role: an authority test written as identity equality recognises only one of them.
+
+##### 3.7.14.5 Resolution
+
+`state.space_admission` participates in state resolution (3.9) under the state key `state.space_admission` scoped to the Space, so two concurrent admission changes are a genuine conflict that resolution settles to a single value on every Node. This is required rather than optional: admission decides an irreversible act, and a value that differed between Nodes would mean the same join was admitted on one and refused on another, with no later correction possible.
+
+##### 3.7.14.6 Rejoin
+
+A member who leaves may return. Leaving suspends access; it does not forfeit it permanently.
+
+`membership.leave` removes the leaver from the Space's active membership. Under `open` admission a return needs nothing further — the leaver issues `membership.join` and is admitted like any other joiner. Under `invite` admission a return requires the Space to distinguish a former member from a stranger, which the active membership set alone cannot do once the leaver has been removed from it.
+
+**The membership record therefore survives departure.** A member who leaves retains their membership record marked with the time of departure, rather than being deleted from it. The record states that this Identity was a member and when they ceased to be one; it is a record of history, not a standing entitlement, and it does not by itself re-admit anyone. Readmission remains an explicit act.
+
+This shape is chosen over the alternatives for one reason: membership has a lifecycle, and a Space that forgets its former members cannot answer questions it is routinely asked — who may return, who was here when a given event was written, and who an invite came from. Recording departure in a second, separate structure would hold one fact in two places; deriving it by re-reading the event log answers differently on Nodes whose logs are at different points.
+
+**A DM is the case where this is load-bearing.** 3.16.1 disables invitations in a DM Space, so a DM's returning counterpart cannot be re-admitted by invitation and must be recognised by their retained record. That constraint is written as a bar on inviting a **third party**; in a two-party Space the two readings coincide except in exactly this case, and the constraint is to be read as permitting the readmission of an original party.
+
+##### 3.7.14.7 EventType registry addition
+
+| Type | Purpose | Phase |
+|---|---|---|
+| `state.space_admission` | Updates the `admission` value for a Space. Signed by an Identity holding the owner role. Rejected in a DM Space. | Phase 2 |
+
+---
 ### 3.8 Auth Module — Tier 1 Specification
 
 *Status: complete*
@@ -4996,7 +5063,8 @@ A DM Space has the following constraints that are not present on full Spaces:
 | Maximum members | 2 — the two original participants |
 | Maximum Rooms | 1 — auto-created at DM Space creation |
 | Federation | Disabled — DM Spaces do not federate |
-| Invitations | Disabled — no third party may be invited |
+| Invitations | Disabled — no third party may be invited. Readmission of an original party is not an invitation of a third party; see 3.7.14.6 |
+| Admission | `invite`, fixed — not settable in a DM Space (3.7.14.3) |
 | Space visibility | Private — not discoverable via Bootstrap Node directory |
 
 These constraints are enforced by the Node. Any Event that would violate them (e.g. a `membership.invite` in a DM Space) is rejected with the appropriate error code.

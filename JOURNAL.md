@@ -8,6 +8,57 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-744 — Four rulings, and admission enters the specification: ch3 gains §3.7.14, and the biggest addition is the discovery that ch3 never had an admission model at all
+**Date:** 2026-08-16 · **Seats:** Joe (four rulings; the qualitative question; the instruction to write ch3 direct) · Chat (the spec text, the records) · Clair (not engaged)
+
+✅ **STATE RE-MEASURED AT OPEN:** clean tree, `HEAD` `81111b4` = `origin/main` by `git ls-remote`.
+
+🎯 **NO PRODUCT CODE.** Zero `.rs`, zero `.ts`, zero `.svelte`, zero `ui/**`. **Documents only — but one of them is the normative protocol specification.**
+
+### 🔒 THE RULINGS
+
+**Q1 — `admission`** (the codebase's own word, 41 comment occurrences) · **Q2 — open-enum `String`, `open` / `invite`, absent ⇒ `open`, present-and-unknown ⇒ `invite`**, ruled on the **corrected** J-743 argument and not the v1.1 one · **Q6 — SPLIT: ship the gate now, defer the rejoin story** · **Q5 — (g), retain `SpaceMember` with a `left_at` marker.**
+
+### 🔑 Q5 — JOE ASKED A DIFFERENT QUESTION AND IT OVERTURNED CHAT'S OWN RECOMMENDATION
+
+Chat had recommended **(a)**, a set-once `dm_parties` field. Joe asked **which option is qualitatively most superior** — ***a different question from the one Chat had answered.*** Chat's (a) was a **cost-and-scope** recommendation; asked about the model, the answer is **(g)**, and the disqualifier for (a) was sitting in the milestone's own lock.
+
+🛑 **`L-A` says admission is SPACE-GENERAL. `dm_parties` is DM-SHAPED DATA.** It answers *can this leaver rejoin their DM* and says **nothing** about how a leaver returns to a 500-member community. ⇒ **(a) answers half the milestone's own title and leaves the other half unmodelled** — ***the exact defect that routed this milestone out of `M-INTRO-POLICY` in the first place, reproduced inside its own Phase-0.***
+
+✅ **WHY (g) IS THE RIGHT MODEL: today `members` conflates *is here* with *was ever here* BY FORGETTING, and the forgetting is the bug.** (g) makes membership **a record with a lifecycle** rather than a set, and one source then serves the admission predicate, the sync gate, the audit trail and rejoin — **and `invited_by` survives, which `apply_leave` currently destroys.** 🔑 **It is also the ONLY option that delivers Q11c's word *consented*: `left_at` is a MARKER, NOT A GRANT** — it records that an Identity was a member, never that they may return, so readmission stays a separate explicit act. **(a) and (f) both auto-admit, and Chat had refused (f) on precisely that ground while not seeing that (a) shared it.**
+
+⚠️ **Seen against (g) the rest resolve:** **(b)** is (g)'s fact stored in a **second place** — two sources of truth for one fact, `D-067`'s exact target, plus the unbounded departures list · **(f)** reuses `PendingInvite` for a meaning it does not have, *a pending invite nobody issued* — cheap, and it lies in the data model · **(a)** duplicates into a DM-only field what (g) holds generally · **(d)/(h)** fail convergence · **(e)** is a different product.
+
+🛑 **THE COST IS NOT WAVED AWAY, AND IT MINTS A LEG.** (g) changes `is_member` **semantics**, so every caller inherits it — including `collect_sync_history`'s gate. **The blast radius points toward correctness** (those callers read a set that silently discarded the fact they need) **but `D-071` binds: an `is_member` caller census is now `Leg E-0`, a NAMED PREREQUISITE, rather than something discovered during implementation.** *Three sessions ago the arc's own meta-finding was scope written in files and requirements written in behaviours, never reconciled. This is that rule applied before the fact instead of after.*
+
+### 🛑 ch3 §3.7.14 — AND THE BIGGEST ADDITION IS NOT THE FEATURE
+
+Joe: write it **direct into the text**, regular prose, no appendix, no exclusive enclosure. ⚠️ **This supersedes J-739's ruling that the ch3 amendment takes its own node, and it is recorded as Joe's call rather than a silent override.**
+
+🔑 **THE FINDING THAT REFRAMED THE TASK, GREPPED BEFORE A WORD WAS WRITTEN: ch3 HAS NEVER STATED AN ADMISSION MODEL.** A corpus-wide search of the specification for *open join* / *open-join* / *join policy* / *who may join* / *admission* returns **two hits, neither of them an admission rule.** ⇒ ***the protocol's most fundamental access rule — anyone holding a Space ID may join any Space — has lived in ONE code comment (`runtime.rs:5580`, "open-join per J-275") and a journal entry.*** **We are not amending ch3's admission model. We are writing the first one.**
+
+**Three additions, and the first is a gap fill rather than a feature:** **§3.7.14.1 states the AS-BUILT open-join model**, including the consequence the invite machinery makes easy to misread — ***possession of a Space ID is sufficient to join a Space, and a Space ID is not a secret and is not treated as one anywhere in this specification*** · **§3.7.14.2–.7 specify the `admission` property**, the absent-vs-unrecognised split, owner-settability with its discriminator, the DM pin and its promotion behaviour, the role-predicate authority rule, the resolution requirement and rejoin · **§3.7.8 and §3.16.1 gain pointers**, and 3.16.1 gains an **Admission** row plus C-5's readmission clarification.
+
+⚠️ **AND A BUILD-STATUS DECISION TAKEN IN CHAT'S OWN SEAT, NOT ROUTED:** §3.7.14.1 is **as-built**; everything after it is **specified, not implemented**, and the section says so at the site using ch3's own existing as-built-note convention. **Flat prose would have made the normative specification assert a capability the code does not have** — ***the N-109 family inside the spec, where it would be read as a contract rather than a note.***
+
+📌 **What §3.7.14.6 commits to, in prose and without naming an implementation:** the membership record **survives departure**, marked with the time of leaving; it is **a record of history, not a standing entitlement**; and 3.16.1's third-party invitation bar **is to be read as permitting the readmission of an original party** — the one case where the prose rule and the blanket code bar diverge, which C-5 measured and which is exactly the rejoin case.
+
+### 📌 WHAT REMAINS OPEN, NAMED SO IT IS NOT ABSORBED
+
+🔓 **§6.4** — the DM pin: **store vs derive.** Chat recommends **store**; Clair's *either-party-can-promote* finding made it decisive. **Implementation, not spec — the spec text is neutral between them — but it blocks Leg B.** 🔓 **§6.7** (the ratchet, expected confirm-and-close) · 🔓 **§6.8** (the `D` number and wording) · 🔓 **§6.3's one branch** (is a join admitted under a losing concurrent value still valid — Chat reads **yes and it must be**).
+
+📌 **The split earns its keep immediately: Legs B–D need the admission FIELD, not the PREDICATE**, so (g) blocks nothing now and `Leg E-0`'s census can be run when the rejoin leg opens rather than ahead of the gate.
+
+🛑 **STILL DANGLING AND NOW PARTLY DISCHARGED: the ch3-amendment node does not exist.** Five `Owes:` rows across two milestones point at *"its own node, never a rider"* and **nothing is behind the pointer** — the J-710/J-719 rule. **§3.7.14 discharges the admission part of it; §3.7.13's DM exclusion and the tier omission are still unowned.** *Named here rather than minted, because the node's name and scope are Joe's.*
+
+### 🔒 FLOORS — DOCUMENTS ONLY, CARRIED AND NOT RE-RUN
+
+cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 Catalogue **UNMEASURED**. ✅ **CRLF integrity on `docs/ROADMAP.md`: CR 605 == LF 605, zero `\r\r`, zero lone LF, no BOM; gate PASS exit 0.** `docs/xgen_ch3_specification.md` is **LF** and stayed LF (CR 0, no BOM), **v0.56 → v0.57** · `docs/ROADMAP.md` **v7.29 → v7.30** · `tasks/M_SPACE_ADMISSION_PHASE0.md` **v1.2 → v1.3**.
+
+**No new `D`** — ⚠️ **and §6.8 is the reason: the `D` that binds these four rulings is still unminted, so the rulings currently live in a Phase-0 and a spec section rather than in `DECISIONS.md`.** **No new `N`.** 🔓 `N-197` still owed. 🛑 **THE ROUND-2 CONTRADICTION IS UNTOUCHED FOR A SIXTH CONSECUTIVE SESSION.** → J-744.
+
+---
+
 ## Entry J-743 — Clair's fourth cold read: GO WITH FINDINGS, six of them, and two moved premises Joe was one ruling away from locking
 **Date:** 2026-08-16 · **Seats:** Clair (cold read, six findings, zero files modified) · Chat (re-drove all six, folded them in, the records) · Joe (rules §6; unchanged, and now ruling on corrected text)
 

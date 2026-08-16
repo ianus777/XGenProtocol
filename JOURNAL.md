@@ -8,6 +8,119 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-746 — Joe falsifies a claim in a decision minted the day before: the pubkeys are written with the communication, so identity was never the missing half
+**Date:** 2026-08-16 · **Seats:** Joe (the falsification; the Auth Module framing) · Chat (the measurement, the annotations) · Clair (not engaged)
+
+✅ **STATE RE-MEASURED AT OPEN:** clean tree, `HEAD` `04bf0d4` + the J-745 push = `origin/main` by `git ls-remote`.
+
+🎯 **NO PRODUCT CODE. Documents only.** Zero `.rs`, `.ts`, `.svelte`, `ui/**`.
+
+### 🛑 THE FALSIFICATION, AND IT LANDED ON A `D` MINTED ONE DAY EARLIER
+
+J-745 recorded, and `D-148` carries, this claim: ***"`D-093` retains the bytes; it does not retain who was in the room. Today the protocol cannot answer 'was this Identity a member when this event was written?' — because departure erases the record."*** It was Chat's, offered as a T4 argument for the `left_at` rejoin shape.
+
+Joe: *"just say why the auth module retain this data. that one day can be read if needed and identity could be recorded either. but it depends how the auth module would write data. **i think when the communication will be written, the pubkeys will be presented.**"*
+
+✅ **MEASURED, AND HE IS RIGHT.** `Event` (`xgen-common/src/wire.rs:473-494`) declares **`sender: IdentityXgid` as a TOP-LEVEL ENVELOPE FIELD, sibling to `content: Value`** — and only `content` is encrypted. ⇒ **every retained event attributes itself to a pubkey IN PLAINTEXT, outside the ciphertext, and that attribution survives crypto-shredding of the event's own content.** ⇒ **`membership.join` / `leave` / `kick` / `ban` are themselves retained events carrying their own `sender` and `timestamp`.**
+
+🔑 ***⇒ THE FACT IS RETAINED. `apply_leave` ERASES THE DERIVED SNAPSHOT, NOT THE RECORD.*** **The claim is retracted, not hedged.**
+
+### 🔑 AND JOE'S FRAMING IS BETTER THAN THE ONE IT REPLACES
+
+The question J-745 treated as a protocol gap is **the Auth Module's purpose, stated plainly:** retention exists **so that one day it can be read if needed, with identity attached** — and the identity attaches **structurally**, because the pubkey is written with the communication.
+
+⇒ **READING A RETAINED ARCHIVE IS A TWO-KEY PROBLEM, AND BOTH KEYS LIVE OUTSIDE THE PROTOCOL BY DESIGN:** the **content** needs decryption keys — `D-093` clause 1 is universal E2E with no protocol escrow, and an accountable deployment supplies that at **its own tier** — and the **pubkey→person binding** needs the **Auth Module's own records**.
+
+***That is not a gap. It is institutional independence working: the protocol records WHO in a form nobody can repudiate, and deliberately holds neither key.***
+
+⚠️ **WHAT REMAINS GENUINELY MISSING IS NARROWER THAN J-745 IMPLIED: an operator-facing READ VERB** (the zero-hit search for `export` / `archive` / `dump` / `legal_hold` / `worm` stands) — **not the identity record, which ships.** 📌 **And the dependency is Joe's own and belongs to `M10`: *"it depends how the auth module would write data."*** The Auth Module's record format is what makes a pubkey resolvable later; **it is `M10`'s to define, not admission's.**
+
+### ✅ WHAT SURVIVES, STATED PRECISELY SO THE RETRACTION IS NOT OVER-READ
+
+- ✅ **The (g) ruling is UNAFFECTED.** It wins on its own ground: the admission gate needs the fact **at gate time**, and deriving it from a partially-synced log at gate time is **exactly option (d)'s convergence objection**. **Only the extra T4 argument is withdrawn.**
+- ⚠️ **What (g) buys on this axis is smaller and must be stated as such: queryability from state without a log replay.** **That is not a retention property**, and calling it one was the error.
+- ✅ **`D-093`'s clauses are untouched.** The durability floor, the erasure refusal, and the reservation of retain-and-produce to the operator/module layer all stand.
+- ✅ **The zero-hit read-verb finding stands.**
+
+🔑 ***A correct ruling with one argument too many — the `F-3` species from the cold read, one day later and self-inflicted.*** *And the mechanism is the same one this arc keeps naming: the claim was built from a DERIVED-STATE reading (`SpaceState.members` forgets) and asserted about the RECORD (the log does not). **A statement about a projection is not a statement about the thing projected.***
+
+### 📌 DISPOSITION — `D-145` DECIDED IT, AND IT DECIDED AGAINST SILENT REPAIR
+
+`D-145`'s test is whether the document has a **downstream reader**: **ACTIVE / COMPLETED / ARCHIVED ⇒ annotate at the site, never silently repaired; PENDING-and-never-locked ⇒ repair.** `DECISIONS.md`, `docs/ROADMAP.md` and `tasks/M_SPACE_ADMISSION_PHASE0.md` are all **ACTIVE and already cited by each other**, so **all three take annotations** — the false text stays, with what was measured, when, and by whom beside it.
+
+**Annotated:** `D-148`'s rejoin paragraph · Phase-0 §6.5 (the withdrawn T4 argument) and §6.7 (the *accessible* half, narrowed to the read verb) · the `M-SPACE-ADMISSION` ROADMAP node · this journal's own J-745 entry.
+
+📌 ***Annotating a decision one day after minting it looks like ceremony and is not: `D-148` was pushed, is cited by the ROADMAP and `CLAUDE.md`, and a reader arriving at its rejoin clause would otherwise act on a false premise about what the DAG retains.***
+
+### 🔒 FLOORS — DOCUMENTS ONLY, CARRIED AND NOT RE-RUN
+
+cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 Catalogue **UNMEASURED**. ✅ **CRLF integrity on `docs/ROADMAP.md`: CR 609 == LF 609, zero `\r\r`, zero lone LF, no BOM; gate PASS exit 0.** `DECISIONS.md` and the Phase-0 are **LF** and stayed LF. `docs/ROADMAP.md` **v7.31 → v7.32** · `tasks/M_SPACE_ADMISSION_PHASE0.md` **v1.4 → v1.5** · `DECISIONS.md` **annotated, no new entry.** **No new `D`, no new `N`.** 🔓 `N-197` still owed. 🔓 **§6.3's one branch is still the only unruled question in §6.** 🛑 **ROUND-2 CONTRADICTION UNTOUCHED FOR AN EIGHTH CONSECUTIVE SESSION.** → J-746.
+
+---
+
+## Entry J-745 — The last three rulings land, `D-148` and `D-149` are minted, and a lens Chat had waved through turns out to have been right for no stated reason
+**Date:** 2026-08-16 · **Seats:** Joe (Q4, Q7, Q8; the T4 challenge; the definition of *accessible*) · Chat (the T4 grounding, both `D` entries, the records) · Clair (not engaged)
+
+> 🛑 **ANNOTATION AT THE SITE (`D-145`, J-746, 2026-08-16): THIS ENTRY'S T4 ARGUMENT FOR (g) IS FALSE AND IS RETRACTED.** `sender` is a **top-level envelope field** on `Event`, sibling to `content`, and only `content` is encrypted (`wire.rs:473-494`) ⇒ **every retained event carries its author's pubkey in plaintext**, and `membership.*` events are themselves retained ⇒ ***the fact IS retained; `apply_leave` erases the DERIVED SNAPSHOT, not the record.*** **The (g) ruling and the zero-hit read-verb finding both stand; only the extra argument is withdrawn.** See J-746.
+
+✅ **STATE RE-MEASURED AT OPEN:** clean tree, `HEAD` `04bf0d4` = `origin/main` by `git ls-remote`.
+
+🎯 **NO PRODUCT CODE. Documents only.** Zero `.rs`, `.ts`, `.svelte`, `ui/**`.
+
+🔒 **ALL EIGHT OPEN QUESTIONS ARE NOW RULED.** **Q4 — (b), STORE `invite` at DM creation.** **Q7 — the ratchet is REFUSED**; `open ⇄ invite` settable both ways. **Q8 — TWO decisions rather than one: `D-148` the admission model, `D-149` absent-versus-unrecognised.**
+
+### 🛑 Q7 — JOE SENT IT BACK, THE ANSWER HELD, AND THE DRAFT HAD NO BASIS FOR IT
+
+The Phase-0's `D-121` lens-2 entry for the ratchet read **"② none"**. Joe: *"can you check it against auth t4? we need that all be accessible even after some members are out."*
+
+✅ **Checked, and the answer is unchanged — but it was an assertion until it was run.** `D-093` clause 2, verbatim: ***Retained (T4) = a durability floor on the ciphertext bytes (don't drop them) + an erasure refusal — NOT a protocol key that can reproduce plaintext.*** ⇒ **T4 "accessible" means the bytes are not dropped and cannot be erased; it is not an access grant.**
+
+**And the layers are disjoint, measured rather than reasoned:** the bytes live in the event store and blob store, and **`apply_leave` (`state.rs:1038-1053`) mutates `SpaceState.members` and room membership and nothing else** — it never reaches `dag/store.rs` or `blob_store.rs`. **Read access is a separate gate entirely: `is_member` at `fanout.rs:488` (`collect_sync_history`).** ⇒ ***leaving, admission and the ratchet delete nothing, so none of them can breach the T4 floor.***
+
+**On the ratchet specifically:** in a regular Space `admission: invite` still permits invitations (`can_invite` ≥ Moderator, untouched), so **the ratchet blocks only the reversion to `open` and never a readmission**; in a DM the value is pinned regardless, so it is inert there. 🎯 **Refused on the argument that decides it: the threat a ratchet defends against already has a bigger door — a compromised owner does not need to re-open the Space, they can simply invite the attackers.** ***A permanent restriction that does not remove the threat it is named for.***
+
+⚠️ **THE LESSON IS ABOUT THE LENS, NOT THE ANSWER.** *`D-121`'s lens 2 is the one that is easy to answer correctly by reflex and impossible to trust unless it was actually run — and "no tier consequence" is a legal and expected answer, which is exactly what makes an ungrounded one indistinguishable from a considered one.* **The convention already says never to manufacture a tier rationale; this is the mirror failure — asserting the absence of one without looking.**
+
+### 🔑 AND THE QUESTION LANDED ON A DIFFERENT OPTION THAN IT WAS AIMED AT
+
+Joe aimed at the **ratchet**, which turned out to be tier-neutral. **The check produced a T4 argument for (g) that is stronger than the rejoin argument (g) was ruled on.**
+
+**`D-093` retains the BYTES. It does not retain WHO WAS IN THE ROOM.** ⇒ **the protocol cannot today answer *"was this Identity a member when this event was written?"*, because `apply_leave` erases the record.** For an accountable deployment that is precisely the question a retained record has to survive to answer, and **retaining content while discarding the membership context makes the retention less useful than it looks.** **(g) fixes it as a side effect** — the membership record becomes part of the retained history rather than a live set that silently rewrites itself. *Recorded at the site in §6.5.*
+
+### 🔒 JOE'S DEFINITION IS A REQUIREMENT, AND THE PROJECT MEETS ONE HALF OF IT
+
+Joe: ***"accessible mean archivable and readable under specific security circumstances."***
+
+✅ **ARCHIVABLE — holds structurally.** Nothing deletes on leave; the stores are per-Space and node-local; `store.range(0)` is reachable to node-local code.
+
+🛑 **READABLE UNDER SPECIFIC SECURITY CIRCUMSTANCES — NOT BUILT, AND NOT MERELY UNBUILT: THERE IS NO SEAM.** A corpus-wide case-insensitive search for `fn export_` / `fn archive_` / `fn dump_` / `legal_hold` / `worm` over `*.rs` with `\.claude\`, `\target\` and tests excluded returns **ZERO hits**. `admin_ops`'s two `is_member` uses are a Space filter (`:1077`) and a removal precondition (`:4191`) — **not a history read, because no operator history read exists.** 📌 **`D-093` clause 2 reserved that capability to the operator/module layer (*"mark + reserve the hook, don't build the vault"*) — and the hook does not exist either.** ⚠️ **Even a perfect read path would yield CIPHERTEXT:** clause 1 is universal E2E with no protocol escrow, so *readable* additionally requires key access **the protocol deliberately does not provide**.
+
+🛑 **FILED, NOT SOLVED, AND EXPLICITLY NOT THIS MILESTONE'S — admission must not grow it.** Nearest owners: `M10` (Auth Module Reference Set) and Arc I / PG-02 preservation. *Named so the requirement has a home rather than an assumption.*
+
+### 🔒 `D-148` AND `D-149` — WRITTEN, AND THE SPLIT IS THE POINT
+
+**`D-148` — Space admission.** Eight clauses: Space-general · owner-settable with the falsify-the-past discriminator · default open, resolved by parse and never by backfill · the DM pin **stored**, because it must survive `apply_dm_promote` · **the gate is a role predicate, never an `owner_id` comparison** — with the finding that **the named sibling is itself the anti-pattern**, so the cheapest implementation move produces the third divergent site the rider forbids · the resolution arm is **required**, because a keyless event is applied in arrival order and heals only on restart · a change does not invalidate joins already admitted · **no ratchet**, with the T4 check recorded. Plus the rejoin shape and its `D-071` consequence: **an `is_member` caller census is a named prerequisite leg.**
+
+**`D-149` — absent takes the default; present-but-unrecognised fails closed; the discriminator is gate-versus-display-rule.** 🔑 **Both halves already ship and nothing connected them:** `should_include_member_temperature` takes an unknown visibility as `moderator` because *"moderator is the default value and the fallback for unknown values"* (a **display** rule → **default**), while the invite gate takes an unparseable `valid_until` as expired — `.unwrap_or(true); // unparseable ⇒ fail-closed` (a **gate** → **closed**). ⇒ ***the codebase was already right in both places and had never stated the rule that distinguishes them***, so the next open-enum field would have been decided by whichever precedent its author happened to read.
+
+📌 **Why two and not one, and it was Joe's call on Chat's recommendation: `D-149` outlives admission entirely.** It governs every open-enum field the protocol will ever add. **Buried inside a decision titled *admission*, the next person adding such a field would not find it** — the `D-131` / J-513 stale-record failure in advance rather than in retrospect.
+
+✅ **Corpus integrity checked, not assumed:** `DECISIONS.md` now holds **155 entries, max `D-149`**, and the **seven duplicate numbers are exactly `D-134`'s seven documented collision splits** (`D-030 · 031 · 037 · 038 · 039 · 055 · 056`) — **no new collision introduced.**
+
+### 📌 WHAT REMAINS
+
+🔓 **§6.3's one branch is the only thing left unruled in §6:** if two concurrent settings resolve to `open` while a join raced between them, **is a join admitted under the losing value still valid?** Chat reads **yes and it must be** — re-adjudicating past joins is exactly the *falsifying the past* property `L-B` says admission does not have. **Named again rather than absorbed.**
+
+🔓 `N-197` still owed. 🛑 **The ch3-amendment node still does not exist** — §3.7.14 discharged the admission part at J-744; **§3.7.13's DM exclusion and the tier omission remain unowned.** 🛑 **THE ROUND-2 CONTRADICTION IS UNTOUCHED FOR A SEVENTH CONSECUTIVE SESSION.**
+
+📌 **The milestone is now design-complete and implementation has not started.** Legs B–D (the field, the event, the gate) need `D-148` clauses 3–6 and nothing further; **Leg E-0's `is_member` census gates the rejoin work, and Leg A-bis still owes two executable legs neither seat has run.**
+
+### 🔒 FLOORS — DOCUMENTS ONLY, CARRIED AND NOT RE-RUN
+
+cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 Catalogue **UNMEASURED**. ✅ **CRLF integrity on `docs/ROADMAP.md`: CR 608 == LF 608, zero `\r\r`, zero lone LF, no BOM; gate PASS exit 0.** `DECISIONS.md` is **LF** and stayed LF (CR 0, no BOM). `docs/ROADMAP.md` **v7.30 → v7.31** · `tasks/M_SPACE_ADMISSION_PHASE0.md` **v1.3 → v1.4** · `DECISIONS.md` **+2 entries**. **No new `N`.** → J-745.
+
+---
+
 ## Entry J-744 — Four rulings, and admission enters the specification: ch3 gains §3.7.14, and the biggest addition is the discovery that ch3 never had an admission model at all
 **Date:** 2026-08-16 · **Seats:** Joe (four rulings; the qualitative question; the instruction to write ch3 direct) · Chat (the spec text, the records) · Clair (not engaged)
 

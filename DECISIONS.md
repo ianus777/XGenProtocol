@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-08  
+> **Last updated:** 2026-08-16  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -5570,3 +5570,96 @@ Before presenting a question as open, search the record for whether it has been 
 ### Provenance (`D-141`)
 
 **The rule is Chat's**, minted from its own two errors in one session. **Joe supplied both corrections**: *"in this actual session"* (pointing at the settlement Chat had already made and then abandoned) and, earlier, the observation that the S-1/S-2 discussion had already happened. ⚠️ **Recorded as ADOPTED on *"go ahead"*, not examined.**
+
+---
+
+## D-148 — Space admission: a Space-general, owner-settable property; default open; the DM pins it; and the gate is a role predicate, never an owner-identity comparison
+
+**Date:** 2026-08-16 · **Layer:** protocol (Space state, membership admission) + node (dispatch gate) · **Spec reference:** ch3 §3.7.14 (written this session — the specification's first admission model), §3.7.8 (membership), §3.16.1 (DM constraints), §3.9 (state resolution) · **Ref:** `D-067` (single source of truth), `D-071` (audits precede dependent milestones), `D-093` (T4 = durability floor, not producibility), `D-121` (three lenses), `D-149` (its sibling — the absent-vs-unrecognised rule) · **Milestone:** `M-SPACE-ADMISSION` — who may join a Space, and how a leaver comes back
+
+### The finding that precedes the rule
+
+**The protocol had an admission model and had never written it down.** A corpus-wide search of `docs/xgen_ch3_specification.md` for *open join* / *join policy* / *who may join* / *admission* returned two hits, neither of them an admission rule. The shipped behaviour — **every Space is open-join** — lived in one code comment (`xgen-core/src/node/runtime.rs:5580`, *"open-join per J-275"*) and a journal entry.
+
+Measured at `de9a397`: `MembershipJoin` sits in `skip_membership` (`exchange.rs:649-659`) so the membership and permission steps are both skipped; the invite-expiry gate runs only when an invite exists (`runtime.rs:1586`); `apply_join`'s space-level guards are **exactly two** — already-member (`state.rs:1016`) and banned (`:1019`) — with an absent invite taking `None => (Role::Member, None)` (`:1024`); and `check_permission` gates joins on nothing, `_ => Ok(())` (`exchange.rs:914`).
+
+⇒ **`membership.invite` assigns a role and an inviter. It has never been a gate.** ⇒ **possession of a Space ID is sufficient to join a Space, and a Space ID is not a secret anywhere in the specification.**
+
+### The decision
+
+**Admission is a property of the Space** — a second dimension beside `auth_tier`, which already gates joins on a verification floor. `auth_tier` says *what standard of identity a joiner must meet*; `admission` says *whether a joiner must have been invited at all*.
+
+**1. Space-general, not a DM special case.** The mechanism is one mechanism. A DM-scoped invite requirement would have been a second admission model bolted onto a project-wide default, invisible from both sides.
+
+**2. Owner-settable, not set-once — and the discriminator decides rather than balances.** `jurisdiction` and `e2e_encryption` are set-once because **they re-label data that already exists: they falsify the past.** Admission has neither property — it is evaluated **once, at a join, and never re-evaluated**, so opening admits nobody retroactively and closing ejects nobody. **There is no past for a change to falsify, and the set-once argument does not transfer.** Concretely: set-once would mean a Space under abuse could never be locked.
+
+**3. Default open.** Every Space that exists carries no key; absence resolves to `open` at parse time from the creation Event. **No stored Event is ever rewritten and no migration is performed** — the derived-default parse (`state.rs:307-310`'s pattern) rather than `auth_tier`'s required-field pattern (`:275`), which would reject every existing Space.
+
+**4. The DM pins the value, and it is STORED rather than derived.** A DM is `invite`, fixed, and `state.space_admission` is rejected while DM constraints are active. **The pin must survive the un-pinning event, and only a stored value does:** `apply_dm_promote` (`state.rs:659-666`) flips `dm_constraints_active` to false, so a derived pin would fall back to the create-time default and **a promoted DM would silently become an open Space at the instant of promotion.** ⚠️ And the promotion is not privileged: `apply_dm_promote` has **no permission gate at all** and `StateDmPromote` is not in `skip_membership`, so `check_permission`'s catch-all admits **either DM party** — under a derived pin, the party the recipient did not choose to hear from could open the Space through that door.
+
+**5. The gate is a ROLE PREDICATE, never an `owner_id` equality test.** `owner_id` is a direct authority test at exactly two production sites — `state.rs:733` (`apply_space_pacing`) and `:753` (`apply_space_temperature_visibility`) — and an identity-equality test recognises only one Identity where a Space may have several in the owner role. ⚠️ **The named sibling is itself the anti-pattern:** `apply_space_temperature_visibility` was correctly identified as admission's closest precedent on the set-once axis, and **its applier opens with `if event.sender != self.owner_id`** — so copying it verbatim, the cheapest and most defensible implementation move, produces exactly the third divergent site this clause forbids. **The applier idiom is `apply_mute`'s** (`state.rs:769-773`): resolve `member_role`, then test a `can_X` predicate.
+
+**6. It participates in state resolution.** `state.space_admission` gets a `state_key_for_event` arm keyed `("state.space_admission", space_id)`. **This is required, not optional.** `state_key_for_event(&event).is_some()` is the first short-circuit of the conflict gate (`runtime.rs:852`); an event with no arm never reaches `derive_resolved` and is applied **incrementally, in arrival order, last-writer-wins** (`:867`, `state.rs:761`), healing only on restart. For a display preference that is tolerable. **For a gate that decides an irreversible act it is a correctness failure: the same join admitted on one Node and refused on another, with no later correction possible — because clause 2's own "no past to falsify" property is exactly what makes it unfixable.**
+
+**7. A change does not invalidate joins already admitted.** A member admitted while the Space was `open` remains a member after it is set to `invite`. Removing them is a moderation act, not an admission one.
+
+**8. No one-way ratchet.** `open → invite → open` is permitted in both directions. A ratchet would defend against a compromised owner re-opening a closed Space, but **that threat already has a bigger door: a compromised owner can simply invite the attackers** (`can_invite` is Moderator-and-above and an owner outranks it). ⇒ the ratchet buys a permanent restriction — a community that locks down during an incident could never re-open — **and does not remove the threat it is named for.** ✅ **Checked against `D-093` and it has no tier consequence:** admission, leaving and the ratchet delete nothing. `apply_leave` (`state.rs:1038-1053`) mutates `SpaceState.members` and room membership only; it never reaches `dag/store.rs` or `blob_store.rs`, where the T4 durability floor lives.
+
+### Rejoin, and why the membership record survives departure
+
+A member who leaves may return: **leaving suspends access, it does not forfeit it permanently.** Under `open` a return needs nothing. Under `invite` the Space must distinguish a former member from a stranger, **which today it cannot** — `apply_leave` leaves no tombstone, the invite was consumed at the first join (`state.rs:1022`), `apply_invite` bars all DM invites as its first statement (`:962-965`), and `SpaceState` carries no counterpart, invitee or ex-member field (full field list, `:186-258`).
+
+**⇒ a member who leaves retains their membership record, marked with the time of departure, rather than being deleted from it.**
+
+**Why this shape and not a separate structure.** Eight homes for the fact were priced. **`members` today conflates *is here* with *was ever here* by forgetting, and the forgetting is the bug.** A retained record with a departure marker makes membership a lifecycle rather than a set, so one source serves the admission predicate, the sync gate, the audit trail and rejoin — and `invited_by` survives, which `apply_leave` currently destroys. A separate `former_members` set holds one fact in two places (`D-067`'s target) and accumulates a permanent, federated, never-evicted list of everyone who ever left a Space, including people who left to get away from it. Deriving it from the event log answers differently on Nodes whose logs are at different points. Re-seeding a pending invite at leave reuses a field for a meaning it does not have — *a pending invite nobody issued*.
+
+🔑 **And it is the only shape that keeps the word CONSENTED honest:** a departure marker is **a record, not a grant**. It states that an Identity was a member; it never states that they may return. Readmission stays a separate explicit act. A DM-scoped parties field would have auto-admitted, and so would a re-seeded invite.
+
+⚠️ **A DM-shaped field was Chat's recommendation and was wrong on this decision's own clause 1:** it answers *can this leaver rejoin their DM* and says nothing about how a leaver returns to a large Space — **half the milestone's title, and the same defect that routed this milestone out of `M-INTRO-POLICY` in the first place.**
+
+🛑 **`D-071` consequence, binding:** this changes `is_member` **semantics**, and every caller inherits it — including `collect_sync_history`'s gate (`fanout.rs:488`). **An `is_member` caller census is a named prerequisite leg of the rejoin work, not something discovered inside it.**
+
+📌 **And it is what makes retention answerable.** `D-093` retains the bytes; it does not retain who was in the room. **Today the protocol cannot answer *"was this Identity a member when this event was written?"* — because departure erases the record.** For an accountable deployment that is precisely the question a retained record must survive to answer.
+
+> 🛑 **ANNOTATION AT THE SITE (`D-145`, J-746, 2026-08-16) — THE PARAGRAPH ABOVE IS FALSE AND IS RETRACTED, NOT HEDGED. IT WAS WRITTEN ONE DAY BEFORE AND FALSIFIED BY JOE.** ✅ **MEASURED: `sender: IdentityXgid` is a TOP-LEVEL ENVELOPE FIELD on `Event`, sibling to `content: Value` (`xgen-common/src/wire.rs:473-494`), and only `content` is encrypted** ⇒ **every retained event attributes itself to a pubkey IN PLAINTEXT, outside the ciphertext, and survives crypto-shredding of its own content.** ⇒ **`membership.join` / `leave` / `kick` / `ban` are themselves retained events carrying their own sender and timestamp**, so ***the fact of who was a member when IS retained — `apply_leave` erases the DERIVED SNAPSHOT, not the record.*** 🔑 **What the retained shape actually buys is what Joe named: the Auth Module retains so that one day it can be read if needed, with identity attached — and the identity attaches STRUCTURALLY because the pubkey is written with the communication.** ⚠️ **THE RULING IS UNAFFECTED AND THE EXTRA ARGUMENT IS WITHDRAWN.** (g) still wins on its own ground — the admission gate needs the fact **at gate time**, and deriving it from a partially-synced log at gate time is precisely option (d)'s convergence objection. **What (g) buys on this axis is QUERYABILITY FROM STATE WITHOUT A LOG REPLAY, which is smaller than "makes retention answerable" and is not a retention property at all.** *A correct ruling with one argument too many — the `F-3` species from the cold read, one day later and self-inflicted.*
+
+### Provenance (`D-141`)
+
+**Clauses 1–4 and 8 are Joe's**, ruled 2026-08-16 across J-741 and J-744, including the structural ruling *"the rejoin event has to have also general spaces, definitely, so this mechanism must be space general"*. **Clause 5 is Joe's rider**; the finding that the named sibling violates it is Chat's, from the Phase-0 audit. **Clause 6 is Chat's**, closed in its own seat rather than routed, on the ground that convergence is not a choice between honest options; **its measurement was corrected by Clair's cold read**, which showed the divergence is live rather than merely unreported. **The rejoin shape is Joe's**, given in answer to a question he asked — *which option is qualitatively superior* — **that overturned Chat's own cost-driven recommendation.**
+
+---
+
+## D-149 — An absent value takes the default; a present value this build cannot interpret fails closed. The discriminator is whether the field is a gate or a display rule
+
+**Date:** 2026-08-16 · **Layer:** protocol (open-enum field semantics, forward compatibility) · **Spec reference:** ch3 §3.7.14.2 (its first statement in the spec) · **Ref:** `D-065` (honest behaviour), `D-093` (universal E2E; no escrow), `D-148` (the admission model, which minted it), `D-139` (a claim states its corpus) · **Milestone:** `M-SPACE-ADMISSION` — who may join a Space, and how a leaver comes back
+
+### The rule
+
+Every open-enum field carried as a string on the wire has two distinct failure inputs, and **they are different facts that must not be collapsed into one rule**:
+
+- **ABSENT** — the key is not present. This is what every record written before the field existed looks like. ⇒ **take the field's DEFAULT.** Absence is resolved at parse time from the creating Event; nothing stored is rewritten, and no migration is performed.
+- **PRESENT BUT UNRECOGNISED** — the key is present and holds a value this build cannot interpret. This is a peer that knows something this build does not. ⇒ **the answer depends on what the field does.**
+
+**The discriminator: a field that GATES an action fails CLOSED. A field that governs DISPLAY or a preference falls back to its DEFAULT.**
+
+A value this implementation cannot interpret is a value whose intent it cannot honour. Where the field decides whether something is *shown*, honouring it wrongly costs a rendering. Where the field decides whether something is *permitted*, honouring it wrongly costs the thing the field exists to prevent — and for an irreversible permission, permanently.
+
+### Why it had to be written down
+
+**Both halves already ship, and nothing connected them.** `should_include_member_temperature` (`state.rs:1759-1784`) takes an unrecognised visibility value as `moderator`, and the source states the reason: *"moderator is the default value and the fallback for unknown values"* — a **display** rule falling back to its **default** (`DEFAULT_MEMBER_TEMPERATURE_VISIBILITY = VISIBILITY_MODERATOR`, `wire.rs:641`). The invite-expiry gate (`runtime.rs:1591`) takes an unparseable `valid_until` as expired — `.unwrap_or(true); // unparseable ⇒ fail-closed` — a **gate** failing **closed**.
+
+⇒ **the codebase was already right in both places and had never stated the rule that distinguishes them**, so the next open-enum field would have been decided by whichever precedent its author happened to read.
+
+⚠️ **It nearly was.** The `M-SPACE-ADMISSION` Phase-0 argued for admission failing closed on the premise that the temperature-visibility fallback picks its **most restrictive** value. **That premise is false** — `VISIBILITY_SELF_ONLY` denies every non-self recipient, while `moderator` admits moderators-and-above. Read correctly, the sibling's convention says `unknown ⇒ default`, which for admission yields **`open`** — the opposite of the recommendation it was cited to support. **The recommendation survived; the argument under it did not**, and the collision put to Joe was mis-stated as a clash with the default-open lock when it is a clash with a **convention**.
+
+### What it does not license
+
+🛑 **It is not a licence to make fields gates.** Whether a field gates an action is a property of the field, decided when the field is designed. This rule reads that property; it does not create it.
+
+🛑 **It does not permit fail-closed on ABSENCE.** Absence is the state of every record predating the field, and failing closed on it would break every one of them — for admission, that would have closed every Space in existence. **The two inputs are separate and the rules are separate.**
+
+📌 **A field whose classification is genuinely unclear goes to Joe as a collision, named as one** (`D-121`), rather than being decided by whichever half of the precedent is nearer to hand.
+
+### Provenance (`D-141`)
+
+**The rule is Chat's**, extracted from two shipped behaviours neither of which had stated it. **The correction that produced it is Clair's**, from the fourth cold read of the `M-SPACE-ADMISSION` Phase-0: she measured that the sibling's fallback is the default rather than the floor, and cited the fail-closed precedent sitting at the admission gate itself. **The split into two decisions rather than one is Joe's**, on Chat's recommendation that this rule outlives admission and would be unfindable buried in a decision titled for it.

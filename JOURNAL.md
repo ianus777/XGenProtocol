@@ -8,6 +8,48 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-737 — a census hazard hiding in .gitignore, and a number Chat published today that its own evidence contradicted
+**Date:** 2026-08-15 · **Seats:** Chat (grounding pass, both findings, both corrections). **No milestone state moved. NO CODE.** Records only. ✅ `M-RP-INTRO` stays CLOSED at `1994e28`, remote-confirmed, tree clean.
+
+**Context:** the pass was meant to re-ground `M-INTRO-POLICY`'s stated facts before its Phase-0 is authored, on the reasoning that a six-week-old claim is a hazard here — J-735 proved that when `CLAUDE.md` told Chat a resolved decision was still open. **The pass found two things, and neither was the thing it went looking for.**
+
+### 🛑 FINDING 1 — EIGHT STALE SOURCE COPIES LIVE INSIDE THE REPO AND `git status` CANNOT SEE THEM
+`.claude/worktrees/` holds **8 directories, each a full source tree (46–80 `.rs` files), all last written in MAY 2026** — three months stale. **`.gitignore:10` (`.claude/`) hides every one of them from `git status`**, so the normal clean-tree check reports clean and always will.
+
+🛑 **ONLY 4 OF THE 8 ARE REGISTERED WITH `git worktree list`.** Registered: `admiring-lewin-97cead` · `admiring-saha-9de4a9` · `nostalgic-antonelli-f89ce7` · `reverent-wilbur-fab22b`. **ORPHANED — on disk, unknown to git:** `frosty-hertz-e0a90e` · `elated-lamport-d02819` · `beautiful-joliot-953f69` · `adoring-hoover-479fd8`.
+
+🔑 **THE HAZARD IS TO CENSUSES, AND IT IS SEVERE.** Measured on real terms, worktrees included vs excluded:
+
+| term | raw total | from worktrees | true | inflation |
+|---|---|---|---|---|
+| `auth_tier` | 219 | 112 | **107** | **51%** |
+| `EventType` | 2519 | 1562 | **957** | **62%** |
+
+⚠️ **A repo-wide grep that does not exclude `.claude/` returns 2–3× the truth, and the inflated number is complete-looking, plausible and wrong.** ***That is the named class exactly: a check whose failure mode produces the same reading as success is not a check.*** 🛑 **ANY whole-codebase census must exclude `\.claude\` alongside `\target\` and `node_modules`.**
+📌 *Instrument honesty: a third sample term, `SpaceId`, returned 0 — a badly chosen probe (Rust uses `space_id`), not a finding. Nothing is read into it.*
+
+### 🛑 FINDING 2 — THE `blurb` CENSUS CHAT PUBLISHED AT J-735 WAS WRONG, AND ITS OWN DISPLAYED EVIDENCE SAID SO
+Chat wrote **"39 hits / 9 files"** into J-735, `CLAUDE.md`, `docs/ROADMAP.md` and the Phase-0, **and pushed it twice.** 🛑 **The grouped file list it was read from summed to 50** (10+10+9+7+5+4+2+2+1). **The number was wrong at the moment of writing, contradicted by the output on the same screen, and nobody caught it — including Chat, in the very session it annotated someone else's stale claim under `D-131`.**
+
+🔑 **AND THE FIGURE WAS THE WRONG SHAPE TOO — IT CONFLATED CODE WITH DOCUMENTATION, AND THE DOC HALF SELF-INFLATES.** Re-measured, worktrees excluded:
+
+| slice | count | note |
+|---|---|---|
+| **code — the real rename cost** | **35 hits / 5 files** | `composer-panel` 10 · `derive.test.ts` 10 · `message-intro` 9 · `derive.ts` 4 · `exchange.rs` 2 — **stable all day** |
+| docs | 25 hits / 5 files | **was 15 — grew by 10 purely because Chat wrote prose ABOUT the rename** |
+
+⚠️ ***A census that counts the documents describing it becomes false by the act of publishing it.*** **The actionable rename cost is 35 code sites across 5 files**, and that figure has not moved.
+
+✅ **CORRECTED AT THE CLASS, NOT THE INSTANCE** — all four sites (`docs/ROADMAP.md`, `tasks/M_RP_INTRO_PHASE0.md`, `CLAUDE.md`, `JOURNAL.md`), then **re-grepped to prove zero remained.** 🔑 *This is the J-734 lesson applied properly for once: v1.1 fixed the two instances Clair cited and never searched for the class.*
+
+### 🔓 NOTED, DELIBERATELY NOT RESOLVED AT A SESSION TAIL
+**`docs/ROADMAP.md`:290 marks Round 2 as ✅ GO at J-390** (*"final pre-UI whole-codebase gate"*), while the session kickoff carried *"Round-2 whole-codebase audit still GATES UI COMPLETION"*. **Both cannot be current.** ⚠️ **Left open and named** — a records reconciliation deserves a session that starts on it, and today already produced two stale-claim findings.
+
+### 📌 STILL OWED AND UNCHANGED
+`N-197`'s wording (Joe's; **six** instrument failures, three seats) · **`M-INTRO-POLICY`'s Phase-0 — trigger fired at `3e1014d`** · `M-RP-INTRO-CANVAS` Phase-0, with Joe's header-to-paragraph placement and its two guard questions · `HEADLINE_MAX`/`BLURB_MAX` (`D-138`) · `trust_assertion`. 🔒 **Floors untouched — NO CODE:** cargo **1602/0/62 × 56** · vitest **172/172 × 9 FILES** · svelte-check **0/34/15**, carried and deliberately not re-run. 🛑 Catalogue still **UNMEASURED**.
+
+---
+
 ## Entry J-736 — a throwaway comparison message executed the one gate that had been recorded as unexecutable, and the canvas gets its placement proposal
 **Date:** 2026-08-15 · **Seats:** Joe (the comparison message, the placement verdict, the question that forced the answer) · Chat (measurement, records). **No milestone state moved.** `docs/ROADMAP.md` **v7.23 → v7.24**. **NO CODE.** ✅ `M-RP-INTRO` stays CLOSED at `3e1014d`, confirmed on the remote by `ls-remote`, tree clean.
 
@@ -101,7 +143,7 @@ Chat's first probe read `spaceLatch.effectiveSpaceId` — **a field that does no
 ### 📌 CARRIED, NOT ABSORBED
 - 🟡 **`M-RP-INTRO-CANVAS` — the settable welcome canvas: intro as a settings-hosted plugin** (name Joe's). Takes the authoring model AND the placement: `surface: none`, a `settingsComponent` on `D-120`'s shipped mechanism, two mounts. 🔒 **`N-172` binds it: the wire carries DATA, never a widget id, never markup; the receiver picks the widget.** ⚠️ **No `{@html}`** — Phase-0 §7.3, because the payload is authored by someone the recipient has never met.
 - 🟡 **`M-INTRO-POLICY` — ITS TRIGGER FIRES ON THIS CLOSE** (*"M-RP-INTRO lands"*). Protocol + node + client, explicitly **not** a UI leg; `D-143` stands (the filter is enforced in the CLIENT). **Phase-0 filed as OWED — a trigger that has fired with no Phase-0 is a defect.**
-- 🔓 **`blurb` → `about` NOT renamed.** 39 hits / 9 files (ch3 unaffected — it names the key, never the fields). **Naming is Joe's**, and it sequences into `M-RP-INTRO-CANVAS`, where the field set may change anyway. *Flagged, not silently skipped.*
+- 🔓 **`blurb` → `about` NOT renamed.** **35 code sites / 5 files** (figure corrected at J-737; the 39 written here was wrong when written) (ch3 unaffected — it names the key, never the fields). **Naming is Joe's**, and it sequences into `M-RP-INTRO-CANVAS`, where the field set may change anyway. *Flagged, not silently skipped.*
 - 🔓 Joe's open items unchanged: the DM-draft-only asymmetry (Clair's, named as hers) · `HEADLINE_MAX 120` / `BLURB_MAX 600` (`D-138`, provisional) · `trust_assertion` · Round-2 audit still gates UI completion.
 - 📌 **Placeholders in the extras lane: ALREADY ANSWERED AND ALREADY DONE.** `M_RP6_9_BODY_EXTRAS.md` — *"Fixtures live in the SAMPLER only. In the real client the container renders nothing until something feeds it."* The sampler chips exist on Joe's own instruction (*"i need them for tuning now"*). **`M-RP-REACTIONS` stays deferred and opens as PROTOCOL** — *who reacted is identity data on the no-anonymity core.*
 

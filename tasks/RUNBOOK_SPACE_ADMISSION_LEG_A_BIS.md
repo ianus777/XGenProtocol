@@ -1,6 +1,6 @@
 # M-SPACE-ADMISSION Leg A-bis Runbook — leg ①: the before-assertion, and the fixture that had to be corrected twice to get it
-> **Status**: PENDING  
-> Version: 1.0  
+> **Status**: ACTIVE  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-17  
 > Language: EN  
@@ -38,6 +38,8 @@ measurement. 🔑 ***It is a prerequisite of the fix having a proof, not polish 
 | **the shape** | a **before-assertion** — assert today's admission first; the after-assertion belongs to Leg D | Phase-0 §12 A-bis |
 | **the name** | `tasks/RUNBOOK_SPACE_ADMISSION_LEG_A_BIS.md` | Joe, 2026-08-16 |
 | **`D-148` cl. 4** | **a DM pins `invite`** — which is why the before-state is unrecoverable after Leg D | `DECISIONS.md` D-148 |
+| **§4.6** | **the companion open-Space test SHIPS** — locked on Chat's recommendation | Joe, 2026-08-17 |
+| **§4.1 names** | **KEPT as scaffolded** — file, `mod.rs` line and both test fns stand | Joe, 2026-08-17 |
 
 📌 **State this runbook was authored against:** `HEAD` `f728cb4` **= `origin/main` by `git ls-remote`**,
 clean tree. Every `H-` and `X-` row below was measured this session at that commit.
@@ -108,9 +110,10 @@ partition, and that is the highest-value question in the cold read.**
 
 - **file:** `xgen-node/src/tests/space_admission_third_party_join.rs`
 - **`mod.rs` line:** `pub mod space_admission_third_party_join;`
-- **test fn:** `third_party_registered_identity_joins_a_dm_it_is_not_party_to`
+- **test fn (§4.4):** `third_party_registered_identity_joins_a_dm_it_is_not_party_to`
+- **test fn (§4.6):** `third_party_registered_identity_joins_an_open_space`
 
-📌 **Naming is Joe's seat. These ship as written so nothing waits; replacing one is a value edit.**
+🔒 **KEPT AS SCAFFOLDED (Joe, 2026-08-17).** Naming is Joe's seat; these shipped plausible rather than blank (`D-138`), and they stand.
 
 ### §4.2 — Setup — **`ingest` ONLY (H-2)**
 
@@ -172,20 +175,29 @@ let outcome = node.submit_locally(carol_join).await;
    visible. *Without it the test could be satisfied by a build in which some invite mechanism admitted
    her, and the reader could not tell.*
 
-### §4.6 — 🔓 CHAT'S PROPOSAL, NOT A LOCK — **A COMPANION TEST THAT SURVIVES LEG D**
+### §4.6 — 🔒 THE COMPANION TEST — **LOCKED (Joe, 2026-08-17). SHIPS.**
 
-**The DM test above INVERTS at Leg D and is a one-way witness (§0).** Chat proposes a **second test in the
-same file**: the identical third-party join against an **ordinary Space** (`build_space_create_event`,
-`auth_tier` 1), which under `D-148` clause 3 **defaults to `open` forever** ⇒ **it stays green through Leg D
-and afterwards.**
+**The DM test above INVERTS at Leg D and is a one-way witness (§0).** A **second test in the same file** runs the identical third-party join against an **ordinary Space** (`build_space_create_event`, `auth_tier` 1), which under `D-148` clause 3 **defaults to `open` forever** ⇒ **it stays green through Leg D and afterwards.**
 
-**`D-121`:** ① **user-visible impact: none** — a test. ② **tier consequence: none** — nothing is copied,
-nothing erased. ③ **resource: ~30 lines in a file being created anyway.**
+🔑 **THE ARGUMENT THAT CARRIED IT: after Leg D the DM test is edited into its opposite, and at that moment the project has NO live assertion that open-join still works** — which is `J-275`'s model and `L-E`'s whole ground. ***The DM test is the perishable witness; the companion is the permanent lock.***
 
-🎯 **CHAT RECOMMENDS SHIPPING IT**, on one argument: **after Leg D the DM test is edited into its opposite,
-and at that moment the project has NO live assertion that open-join still works** — which is `J-275`'s model
-and `L-E`'s whole ground. **The companion is the permanent lock; the DM test is the perishable witness.**
-🔓 **It is a scope addition to a leg Joe locked, so it is routed rather than taken.**
+**`D-121` as recorded before the lock:** ① **user-visible impact: none** — a test. ② **tier consequence: none** — nothing is copied, nothing erased. ③ **resource: ~30 lines in a file being created anyway.**
+
+#### 🔓 Name — SCAFFOLDED (naming is Joe's; `D-138`)
+
+**test fn:** `third_party_registered_identity_joins_an_open_space`
+
+#### The shape — **IDENTICAL TO §4.2–§4.5 EXCEPT WHERE STATED**
+
+🛑 **TWO CLAIMS IN THE FIRST DRAFT OF THIS SECTION WERE FALSE AND ARE CORRECTED HERE RATHER THAN ANNOTATED** — the section was PENDING and had no downstream reader when they were caught (`D-145`'s test), and **both fell the moment the source was opened, neither to any re-read.** *Chat's own, in the section Chat had just recommended, thirty minutes after writing it.* **They are named because the pattern is the arc's:** ***a claim narrower — or simply other — than the thing it describes.***
+
+1. Setup: **alice** (creator) + **carol** (third party), both registered. 📌 **No bob** — an ordinary Space has no counterpart, and adding one would import the DM's shape into a test whose whole point is that it is not a DM.
+2. `build_space_create_event(&alice_key, "<name>", None, 1, &node.node_id, None, false)` → `ingest`. 🛑 **CORRECTED: the trailing `false` is `e2e_encryption`, NOT `is_dm`** (`state.rs:1381-1389` — the seven params are `key`, `name`, `topic`, `auth_tier`, `home_node`, `jurisdiction`, `e2e_encryption`). **`is_dm` is not a parameter at all:** `from_space_create` hardcodes `is_dm: false` and `dm_constraints_active: false` (`state.rs:317`, `:330`). ⇒ **the two preconditions still ship — they are cheap and they document the test's subject — but they are STRUCTURALLY GUARANTEED, not a risk being guarded**, and the runbook must not imply otherwise.
+3. 🛑 **CORRECTED, AND THIS ONE WOULD HAVE COST A WRONG SETUP STEP: ALICE DOES NOT NEED TO JOIN.** The first draft said `from_space_create` leaves `members` empty. **It does not** — `state.rs:290-297` builds a `SpaceMember { role: Role::Owner, invited_by: None }` for `event.sender` and inserts it before the struct is returned. ⇒ **the creator is a member with `Role::Owner` the instant the create Event is ingested; no `MembershipJoin` for alice is required or wanted.** ⚠️ **AND THE SIBLING IS NOT THE MODEL HERE:** `phase9_unknown_signer_first_contact.rs` ingests an invite **and** a join for alice **who is already the owner-member** — through `ingest`, which bypasses `dispatch_event`, so whatever `apply_join`'s already-member guard (`state.rs:1016`) returns is swallowed. ***Copying that setup would have added two events that do nothing and one of which is an error nobody sees.*** 🔑 **The general lesson, and it is why §8 item 1 exists: a sibling test is a model for the HARNESS SHAPE, never for the SEMANTICS — it was written to reach a different gate.**
+4. Preconditions: `state.auth_tier == 1` (`H-6`), **`state.member_role(&alice_id) == Some(&Role::Owner)`** (the create seeded her — assert what is actually true), `!state.is_member(&carol_id)`, `pending_invites` does not contain carol.
+5. Subject event and all three assertions of §4.5, unchanged.
+
+🔒 **AND ITS OWN DoD CLAUSE, WHICH IS THE POINT OF IT: THIS TEST IS NOT TOUCHED BY LEG D.** Leg D inverts the DM test **only**. 🛑 **If Leg D finds it must also weaken or edit this one, that is a FINDING about the gate's scope — the gate would be refusing an open join — and it is reported, never absorbed.** ***A companion that gets edited alongside the thing it was built to outlive was never a control.***
 
 ---
 
@@ -286,7 +298,7 @@ inside it is load-bearing.
    §6.1's bound is wrong in the generous direction, which is the dangerous one.*
 4. **Is there a fourth assertion §4.5 should carry** — a fact about today's behaviour that becomes
    unobservable after Leg D and that nothing else records?
-5. **§4.6: is the companion test right, and does it actually survive Leg D?**
+5. **§4.6 is LOCKED and ships — but TWO of its claims were already found false by Chat and corrected in place** (the trailing `false` is `e2e_encryption` not `is_dm`; `from_space_create` DOES seed the creator as `Role::Owner`). 🔑 **Treat the whole of §4.6 as the LEAST-TRUSTED section in this document** — it is the newest, it was written after the recommendation rather than before it, and its error rate so far is two-for-five. **What else in it does not survive the source?**
 
 📌 **Standing Clair up is Joe's.**
 
@@ -301,7 +313,9 @@ inside it is load-bearing.
 3. 🔒 **V-3's negative control is RUN and RECORDED** — *`X-1` must not remain a claim in a document.*
 4. 🔒 **§6's four non-claims are written into the `M-SPACE-ADMISSION` ROADMAP node**, replacing the
    generous form with the measured one.
-5. `cargo` re-measured and **moved**; scope proven two files by diffstat.
+5. `cargo` re-measured and **moved**; scope proven two files by diffstat. 🔒 **Expected `1602` → `1604`
+   (two tests, §4.4 and §4.6).** 🛑 **MEASURED, NEVER DERIVED — and the SUITE count is measured too, not
+   predicted.**
 6. 🔒 **LEG D's DoD GAINS THE INVERSION ITEM, WRITTEN IN THE SAME EDIT THAT CLOSES THIS LEG** (`N-109`):
    *"invert `third_party_registered_identity_joins_a_dm_it_is_not_party_to` — after the gate ships, a
    GREEN run of the un-edited test is a FAILURE OF THE GATE, not a pass."* 🛑 **Written now, because the

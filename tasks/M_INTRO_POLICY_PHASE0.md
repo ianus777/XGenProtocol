@@ -1,8 +1,8 @@
 # M-INTRO-POLICY Phase-0 — receiver-side render policy: the mechanism was named, its INPUT was never measured
 > **Status**: ACTIVE  
-> Version: 1.4  
+> Version: 1.5  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-16  
+> **Last updated**: 2026-08-17  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -665,12 +665,8 @@ milestone's first commit under `D-074` — **JOURNAL + CLAUDE.md + ROADMAP + thi
 
 📌 Recorded so they are not rediscovered as findings, and so none is quietly absorbed:
 
-- 🛑 **THE ROUND-2 CONTRADICTION IS STILL UNRESOLVED.** `docs/ROADMAP.md:290` marks Round 2 **✅ GO at J-390**
-  (*"final pre-UI whole-codebase gate"*) while the J-735 kickoff carried *"Round-2 still GATES UI
-  COMPLETION"*. **Both cannot be current.** ⚠️ **It bites here**: if this milestone reaches Leg D it is
-  protocol-plane work, and whether a gate stands in front of it is unknown. **Reconcile in a session that
-  starts on it** — not at a tail, and not inside this milestone.
-- 🔓 **`N-197`'s wording** — six instrument failures across three seats. Joe's, still owed.
+- ✅ **THE ROUND-2 CONTRADICTION IS RESOLVED (J-750, 2026-08-17). `docs/ROADMAP.md:290` WAS CORRECT THE WHOLE TIME AND THE KICKOFF CLAIM WAS FALSE.** 🔑 **AND IT WAS NEVER MERELY STALE — IT MUTATED THE CLAIM IT CAME FROM.** ✅ **MEASURED:** three Round-2 documents exist and **all three are TERMINAL** — `tasks/archive/ROUND_2_AUDIT.md` **COMPLETE v1.3** (Pass 1, J-267, 2026-06-05, GO) · `tasks/archive/ROUND_2_CHECKPOINT_AUDIT.md` **COMPLETED v1.0** (J-357, 2026-06-12, GO) · `tasks/archive/ROUND_2_FINAL_GATE_AUDIT.md` **COMPLETED v1.1** (Pass 2, J-390, 2026-06-17, GO). **Every record calls it a *pre-UI* gate**, and J-390 closes with *"the pre-UI chain is fully discharged; next-active = UI"* ⇒ ***"gates UI COMPLETION" is a stronger and different claim that no record ever made.*** 🛑 **ORIGIN ESTABLISHED RATHER THAN ASSUMED: `tasks/M_RP_INTRO_PHASE0.md`, three sites (`:166`, `:453`, `:567`), each carrying a 🔒** — annotated there per `D-145`. ⚠️ **AND THE MECHANISM IS THE ONE WORTH KEEPING: it was routed to Joe for ELEVEN sessions as though it were a RULING, and it was a MEASUREMENT.** ***A contradiction between two records is settled by reading them, not by deciding between them — and calling it "Joe's" was Chat deferring its own work.*** ⇒ **nothing gates this milestone's protocol-plane work.**
+- 🔓 **`N-197`'s wording** — seven instrument failures across three seats. **Joe's; Chat drafts (Joe, 2026-08-17), Joe edits or overrules.**
 - 🔓 **`F-6`, from Clair: the `bodyExtras` tenant ordinal disagrees across FOUR sites** with no stated
   counting rule. **A counting rule is naming ⇒ Joe's.** *Touches `R-1`'s file; do not fold them.*
 - 🔓 **`blurb` → `about`: 37 sites / 6 files, case-insensitive LINES** (state the metric — 28/37/50 are all

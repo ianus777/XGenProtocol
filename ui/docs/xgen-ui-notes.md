@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.26  
+> Version: 1.27  
 > Date: May 2026  
-> **Last updated**: 2026-08-16  
+> **Last updated**: 2026-08-17  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -3992,3 +3992,51 @@ The verification was the project's standing CRLF check (`N-191`): `len`, `CR` co
 ⚠️ **THE STANDING KICKOFF NOTE IS NARROWER THAN THE FAILURE.** *"`run-client.ps1` needs `-Debug` or 9222 never opens"* is true and insufficient: `-Debug` was passed, **9222 opened, and that says nothing whatsoever about Vite.** A green check on the wrong port is a probe that cannot fail.
 
 ---
+
+---
+
+## N-197 — a check whose failure mode reads exactly like success is not a check (2026-08-17)
+
+**DRAFTED BY CHAT ON JOE'S INSTRUCTION (2026-08-17). The wording is Joe's to edit or overrule** — it was owed to him for eight sessions as a blank, and a blank is harder to correct than a draft (`D-138`, applied to a note).
+
+### The species
+
+An instrument fails in one of two directions. It can fail **loudly** — a throw, a non-zero exit, an obviously wrong shape — and a loud failure costs a retry. Or it can fail **quietly**, returning a value with the same *shape* the true answer would have had: a plausible number, an empty array, a clean `null`, a green log.
+
+🔑 **The second kind is not a weaker version of the first. It is a different object, because it cannot be detected by looking at the output.** The reading that means *the thing is fine* and the reading that means *the instrument never saw the thing* are byte-identical. ⇒ ***a check whose failure mode produces the same reading as success is not a check; it is a ritual that returns a number.***
+
+### The instances this note was minted from — SEVEN, and the count is itself stated as a claim
+
+⚠️ **THE COUNT IS RECORDED HONESTLY RATHER THAN INHERITED.** Session kickoffs carried *"six instrument failures across three seats"*, then *"seven"*, and **no document ever listed them.** The seven below are the ones with a citable site; **if an eighth exists it is not in the record, and this list is offered as a CENSUS, not a partition** — which is the note's own subject matter applied to the note.
+
+| # | seat | the instrument | what it returned | why it read as success |
+|---|---|---|---|---|
+| **1** | Clair | `grep -c $'\r'` on an LF file | **CR = 302** | the pattern **expanded to empty** and matched every line, so the count equalled the LINE count — **and a genuine CRLF file shows equal counts too.** Caught only when the byte total did not move after `tr -d '\r'` |
+| **2** | Chat | `Select-String "FAILED"` over a cargo log | **59 hits** | PowerShell `Select-String` is **case-insensitive by default**, so `FAILED` matched the `0 failed` inside every **passing** `test result: ok` line. `^test result: FAILED` returns zero |
+| **3** | Chat | a bridge-up poll capturing `cdp-debug.ps1` | *"not yet"*, repeatedly, while the screen printed `EVAL RESULT: object` **six times** | the harness writes via **`Write-Host`**, which `2>&1 \| Out-String` **does not capture at all** |
+| **4** | Chat | the first M1′ probe | **blank, with no error** | the throw was swallowed; the cause stayed invisible until a `catch` was added |
+| **5** | Chat | `projectEvent(ev)` in a probe | a throw | **called with ONE argument where it takes THREE** (`e, selfId, redactedIds`) ⇒ ***it would have thrown even if the code were perfect.*** `N-194`'s question was never asked of Chat's own probe |
+| **6** | Chat | a **killed** detached `cargo test` run | **`1195 / 0 / 60`** — plausible, complete-looking, wrong | a long `Start-Sleep` killed the shell and took the detached run with it, leaving **a truncated log**. Betrayed only by the **missing final `test result:` line** ⇒ ***a killed detached run leaves a MEASUREMENT-SHAPED ARTEFACT*** |
+| **7** | Chat | a `Filesystem:write_file` that **never returned** | no result at all | the absence of a return was read as *"probably landed"*. **`Test-Path` said ABSENT** ⇒ ***a call that does not return is not a call that succeeded*** |
+
+📌 **A related instance sits one layer out and is NOT counted here because it already has a designation: `N-110`** — probing `effectiveSpaceId` where the code writes `latchedSpaceId` returns **a clean-looking `null` indistinguishable from a failed click.** Same species, own note.
+
+### Why it took seven
+
+⚠️ **Every one of these was caught by something OUTSIDE the instrument** — a byte total that did not move, a screen that disagreed with a variable, a missing final line, a `Test-Path`. **Not one was caught by re-reading the command.** 🔑 ***The command always looks right; that is what a quiet failure is.***
+
+### The rules
+
+🔒 **① ASSERT THE INSTRUMENT CAN SEE ITS SUBJECT, BEFORE ASSERTING ANYTHING ABOUT THE SUBJECT.** A selector that matches nothing, a grep whose pattern expanded to empty, and a probe attached to the wrong target all return *nothing wrong*. **`readable: true` before `diffs: 0`.**
+
+🔒 **② RUN THE NEGATIVE CONTROL.** Ask **what would this return if the thing were BROKEN?** — and if the answer is *the same*, the check is not built yet. **A harness that can only pass is a weak harness** (`-KeepSelection`, J-519, is this rule made into a flag).
+
+🔒 **③ A CALL THAT DOES NOT RETURN IS NOT A CALL THAT SUCCEEDED.** Verify the effect, not the invocation: `get_file_info` after a write, the final `test result:` line after a detached run, `netstat` after a port check.
+
+🔒 **④ STATE THE METRIC WITH THE NUMBER.** `× SUITES` is not `× FILES`; LINES are not HITS are not CALL SITES. **A number without its unit cannot be compared to the next one**, and two metrics of the same thing will disagree and both look right.
+
+🔒 **⑤ RECORD THE SCREEN, OR RECORD NO NUMBER.** A count is a fact about a state — quiescence, store contents, selection, saved-state count. **A baseline that does not name its state is unreadable** (`N-105` · `N-108` · `N-112` · `N-115`).
+
+🔒 **⑥ A NUMBER THAT DISAGREES WITH THE RECORD IS A HYPOTHESIS, NOT A DISCOVERY. TEST THE MEASUREMENT FIRST** (`N-105`).
+
+📌 **Forward pointer:** ① and ② are the two that would have caught **all seven**. They are also the two that cost the most to run, which is why they get skipped — *and skipping them is invisible until the number is already in a document.*

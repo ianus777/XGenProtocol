@@ -8,6 +8,49 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-750 — The runbook locks, the Round-2 contradiction turns out to have been a measurement routed as a ruling for eleven sessions, and N-197 is drafted
+**Date:** 2026-08-17 · **Seats:** Joe (five rulings) · Chat (the measurement, the corrections, the draft, the records) · Clair (not yet engaged — standing her up is next)
+
+✅ **STATE RE-MEASURED AT OPEN:** clean tree, `HEAD` `118a9f9` = `origin/main` by `git ls-remote`.
+
+🎯 **NO PRODUCT CODE.** Five documents.
+
+### 🔒 THE RUNBOOK IS LOCKED — AND TWO OF CHAT'S OWN CLAIMS IN IT WERE FALSE WITHIN THE HOUR
+
+**Joe locked §4.6 (the companion test SHIPS) and §4.1 (names KEPT)** ⇒ `tasks/RUNBOOK_SPACE_ADMISSION_LEG_A_BIS.md` **v1.0 PENDING → v1.1 ACTIVE**, `cargo` expectation **1602 → 1604**.
+
+🛑 **WRITING §4.6's IMPLEMENTATION STEPS AGAINST SOURCE IMMEDIATELY FALSIFIED TWO OF THEM.** ① **the trailing `false` in `build_space_create_event` is `e2e_encryption`, NOT `is_dm`** (`state.rs:1381-1389`; `is_dm` is not a parameter at all — `from_space_create` hardcodes `is_dm: false` and `dm_constraints_active: false` at `:317`/`:330`), so the two preconditions are **structurally guaranteed rather than guarding a risk** · ② **`from_space_create` DOES seed the creator** as `SpaceMember { role: Role::Owner, invited_by: None }` (`:290-297`) ⇒ ***alice does not need to join at all***, where the draft had specified an explicit `MembershipJoin` for her.
+
+🔑 **AND ② EXPOSED SOMETHING ABOUT THE SIBLING WORTH KEEPING: `phase9_unknown_signer_first_contact.rs` ingests an invite AND a join for an identity that is ALREADY the owner-member** — through `ingest`, which bypasses `dispatch_event`, so whatever `apply_join`'s already-member guard returns is swallowed. **Copying that setup would have added two events that do nothing, one of which is an error nobody sees.** ⇒ ***a sibling test is a model for the HARNESS SHAPE, never for the SEMANTICS — it was written to reach a different gate.***
+
+⚠️ **BOTH FELL THE MOMENT THE SOURCE WAS OPENED AND NEITHER TO ANY RE-READ** — in the section Chat had recommended thirty minutes earlier. **Corrected in place rather than annotated (`D-145`: the section was PENDING with no downstream reader), and §9 now names §4.6 the LEAST-TRUSTED section in the document**, error rate two-for-five.
+
+### ✅ THE ROUND-2 CONTRADICTION WAS NEVER JOE'S, AND THAT IS THE FINDING
+
+**Eleven consecutive sessions routed it to Joe as an open item.** 🛑 **It was a MEASUREMENT, and reading the record settles it in one pass.**
+
+✅ **THREE Round-2 documents exist and ALL THREE ARE TERMINAL:** `tasks/archive/ROUND_2_AUDIT.md` **COMPLETE v1.3** (Pass 1, J-267, 2026-06-05, GO) · `tasks/archive/ROUND_2_CHECKPOINT_AUDIT.md` **COMPLETED v1.0** (J-357, 2026-06-12, GO) · `tasks/archive/ROUND_2_FINAL_GATE_AUDIT.md` **COMPLETED v1.1** (Pass 2, J-390, 2026-06-17, GO). **`docs/ROADMAP.md:290` was correct the whole time.**
+
+🔑 **AND IT WAS NEVER MERELY STALE — IT MUTATED THE CLAIM IT CAME FROM.** Every record calls it a ***pre-UI*** gate; J-390 closes with *"the pre-UI chain is fully discharged; next-active = UI"*. ⇒ ***"gates UI COMPLETION" is a stronger and different claim that no record has ever made*** — the gate stood in front of UI's **start**, not its **finish**. 🛑 **ORIGIN ESTABLISHED RATHER THAN ASSUMED: `tasks/M_RP_INTRO_PHASE0.md`, THREE sites (`:166`, `:453`, `:567`), each carrying a 🔒** — annotated per `D-145`, superseded text kept. From there it propagated into nine kickoffs and two Phase-0s.
+
+⚠️ **THE LESSON IS CHAT'S AND IT IS LARGER THAN THE ITEM.** ***A contradiction between two records is settled by READING them, not by DECIDING between them.*** Routing it to Joe looked like seat discipline and was **Chat deferring its own work behind a routing** — and the cost was eleven sessions of a milestone carrying an unknown gate over protocol-plane work. 📌 **The discriminator, stated so it is reusable: if the answer is on disk, it is a measurement and it is Chat's. It becomes Joe's only if BOTH records turn out to be genuine decisions that actually conflict** — and that would be a real re-open, named as one.
+
+### 🔓 N-197 DRAFTED — AND THE COUNT IS STATED AS A CLAIM
+
+**Owed to Joe for eight sessions as a blank.** 📌 **Chat drafts, Joe edits or overrules** — *a blank is harder to correct than a draft* (`D-138` applied to a note). Landed at `ui/docs/xgen-ui-notes.md` **v1.26 → v1.27**, appended, LF, no BOM.
+
+🔑 **THE SPECIES:** an instrument that fails **loudly** costs a retry; one that fails **quietly** returns a value with the same *shape* the true answer would have had. ***The reading that means "the thing is fine" and the reading that means "the instrument never saw the thing" are byte-identical*** ⇒ **a check whose failure mode reads exactly like success is not a check; it is a ritual that returns a number.**
+
+**SEVEN instances tabulated with seat, instrument, return value, and why it read as success:** Clair's `grep -c $'\r'` (pattern **expanded to empty**, counted LINES — and a real CRLF file shows equal counts too) · Chat's case-insensitive `FAILED` grep (matched `0 failed` in every **passing** line, 59 phantom hits) · a `Write-Host` harness invisible to `2>&1 | Out-String` · a swallowed throw returning blank · **a probe calling a 3-arg function with 1 arg, which would have thrown even if the code were perfect** · a killed detached `cargo` run leaving **a measurement-shaped artefact reading `1195/0/60`**, betrayed only by the missing final `test result:` line · and **a `write_file` that never returned, read as "probably landed", where `Test-Path` said ABSENT**.
+
+🛑 **THE COUNT IS RECORDED HONESTLY RATHER THAN INHERITED.** Kickoffs carried *six*, then *seven*, and **no document ever listed them** ⇒ **the table is offered as a CENSUS, not a partition** — the note's own subject applied to the note. 🔑 **Six rules, and ① *assert the instrument can SEE its subject* and ② *run the NEGATIVE control* would have caught all seven** — *and they are the two that cost most to run, which is why they get skipped, and skipping them is invisible until the number is already in a document.* 📌 `N-110` is named as the same species and **deliberately not counted**, because it already has a designation.
+
+### 🔒 FLOORS — DOCUMENTS ONLY, CARRIED AND NOT RE-RUN
+
+cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 Catalogue **UNMEASURED**. 📌 **Sixteenth consecutive no-code session.** ⚠️ **The next one is the first in sixteen where `cargo` MUST MOVE — `1602` → `1604`, two tests, MEASURED and never derived.** `docs/ROADMAP.md` **v7.34 → v7.35** · runbook **v1.0 → v1.1, PENDING → ACTIVE** · `tasks/M_RP_INTRO_PHASE0.md` **v1.5 → v1.6** (three annotations) · `tasks/M_INTRO_POLICY_PHASE0.md` **v1.4 → v1.5** · `ui/docs/xgen-ui-notes.md` **v1.26 → v1.27**. ✅ **ROADMAP CR 617 == LF 617, zero `\r\r`, zero lone LF, no BOM, gate PASS exit 0.** **No new `D`.** ✅ **`N-197` MINTED — the first `N` in this arc, and it closes the oldest outstanding owed item.** ✅ **ROUND-2 CONTRADICTION CLOSED after eleven sessions.** 🎯 **NEXT: stand Clair up against the LOCKED runbook.** → J-750.
+
+---
+
 ## Entry J-749 — Two rulings reach disk, the Leg A-bis runbook is authored, and enumerating the gate list found a fourth gate nobody had named
 **Date:** 2026-08-17 · **Seats:** Joe (the §6.3 ruling; the runbook name) · Chat (the enumeration, the runbook, the records) · Clair (not yet engaged — her cold read is §9 of the new runbook)
 

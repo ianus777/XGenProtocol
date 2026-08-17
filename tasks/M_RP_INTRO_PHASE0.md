@@ -1,8 +1,8 @@
 # M-RP-INTRO Phase-0 — the DM welcome intro: the surface was ruled, the payload never was
 > **Status**: COMPLETED  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-15  
+> **Last updated**: 2026-08-17  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -164,6 +164,8 @@ message.** *A manufactured tier rationale is as bad as a manufactured UX one.*
   (`G-5`) · **a new Tauri command, a new resident outbound path and a new builder (`G-7a` — the cost nobody
   had priced)** · **ch3 spec — and in a protocol project the spec IS the deliverable** · node validation.
   ⚠️ **AND IT WOULD GATE ON THE ROUND-2 WHOLE-CODEBASE AUDIT**, which still gates UI completion.
+
+  > 🛑 **ANNOTATION AT THE SITE (`D-145`, J-750, 2026-08-17) — THE CLAUSE ABOVE IS FALSE, AND THIS FILE IS WHERE IT WAS MINTED. IT IS ALSO NOT A MERE STALENESS: IT MUTATED THE CLAIM IT CAME FROM.** ✅ **MEASURED — THREE Round-2 documents exist and ALL THREE ARE TERMINAL:** `tasks/archive/ROUND_2_AUDIT.md` **COMPLETE v1.3** (Pass 1, J-267, 2026-06-05, verdict GO) · `tasks/archive/ROUND_2_CHECKPOINT_AUDIT.md` **COMPLETED v1.0** (J-357, 2026-06-12, GO) · `tasks/archive/ROUND_2_FINAL_GATE_AUDIT.md` **COMPLETED v1.1** (Pass 2, J-390, 2026-06-17, GO). 🔑 **EVERY RECORD CALLS IT A *PRE-UI* GATE — it gates UI's START, and J-390 closes with *"the pre-UI chain is fully discharged; next-active = UI"*.** ⇒ ***"gates UI COMPLETION" is a STRONGER AND DIFFERENT claim that no record has ever made***, and it was minted here, carried a 🔒, and propagated into nine session kickoffs. **`docs/ROADMAP.md:290` was correct the whole time.** *Superseded text kept above per `D-145`.*
 
 #### **(c) — structured data inside the `text` string.**
 
@@ -452,6 +454,8 @@ CHANGE, so it belongs in the IMPLEMENTER's kickoff**, not in the verifier's.
 
 - 🔒 **Round-2 whole-codebase audit still gates UI completion.** **If §3 lands on (b), `M-RP-INTRO` gates on
   it too.**
+
+  > 🛑 **ANNOTATION AT THE SITE (`D-145`, J-750, 2026-08-17): FALSE — see the annotation at `:166`. All three Round-2 documents are terminal and GO (J-267 · J-357 · J-390); the gate is PRE-UI and was discharged before UI began.**
 - 🛑 **`OWED-2` (DM to an erased identity) and `OWED-3` (the partial first send)** —
   `M_RP_MEMBER_ACT_LEG_C_BIS.md:89` / `:104`, ticked as *re-sited to the retention milestone* — **and that
   milestone HAS NO NODE.** ⚠️ **The one-sided-gate shape, second instance.** `OWED-3` is
@@ -566,3 +570,5 @@ stands and `M-RP-INTRO-CANVAS` builds on this floor rather than replacing it.
   key, never the fields) · `trust_assertion` · `N-197`'s wording.
 - 🔒 **Round-2 whole-codebase audit still GATES UI COMPLETION**, and bites harder now that **(d)** made this
   protocol-plane.
+
+  > 🛑 **ANNOTATION AT THE SITE (`D-145`, J-750, 2026-08-17): FALSE — see the annotation at `:166`. The gate is PRE-UI, closed GO at J-390, and this file is the origin of the *"UI COMPLETION"* mutation.**

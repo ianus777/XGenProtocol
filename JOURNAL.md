@@ -8,6 +8,70 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-748 — A third gate on the local path that neither seat found: registration is required after all, and it partly reverses J-743's own correction
+**Date:** 2026-08-16 · **Seats:** Joe (*"go"* — proceed with Leg A-bis) · Chat (the scoping, the measurement, the annotations) · Clair (not engaged; her J-743 finding is the one corrected here)
+
+✅ **STATE RE-MEASURED AT OPEN:** clean tree, `HEAD` `4e92bc2` = `origin/main` by `git ls-remote`.
+
+🎯 **NO PRODUCT CODE.** Reads and records only. The session's task was **scoping Leg A-bis**, and the scoping found the defect.
+
+### 🔑 THE SCOPING FOUND WHAT THE AUDIT AND THE COLD READ BOTH MISSED
+
+Leg A-bis was the last unexecuted claim in the milestone. Scoping it meant looking for existing harnesses — **and the harnesses were already there, which neither seat had checked**: `phase9_harness`'s `InProcessNode`, `phase9_two_node_smoke.rs`, and **`phase9_unknown_signer_first_contact.rs`, which is the FEDERATION sibling of the exact test Leg A-bis ① describes.**
+
+🛑 **Reading that sibling exposed a gate:** an unknown signer arriving via federation is **`HeldPending`**, not accepted. **That prompted the question neither the Phase-0 nor the cold read had asked — does the LOCAL path hold-pending an unregistered sender too?**
+
+### 🛑 IT DOES. `exchange.rs:601-634`, STEP 11, COMMENTED *"sender is a registered Identity (universal)"*
+
+```
+if !fed_add_via_federation && !node_authored && !id_registry.contains(sender) {
+    return ValidationOutcome::HeldPending { missing_predecessors: Vec::new(),
+                                            missing_identity: Some(sender.clone()) };
+}
+```
+
+✅ **It is NOT origin-scoped** — its consumer (`runtime.rs:1339-1361`) sits in the **common** validation path, and the buffer entry stores the dispatch's own origin for re-dispatch rather than skipping on it. ✅ **And `MembershipJoin` is NOT exempt: `skip_membership` covers the MEMBERSHIP check in the block BELOW this one (`exchange.rs:636+`), not this registration check.**
+
+⇒ ***an UNREGISTERED keypair's `membership.join` is BUFFERED, not applied*** — discarded after the 30-second `4006` window unless the Identity registers meanwhile.
+
+🛑 **⇒ `F-1`'s claim that *registration is not required; tenancy is not required* is FALSE, and the original tenancy framing was right after all.**
+
+🔑 **THE DIAGNOSIS, BECAUSE IT IS MORE USEFUL THAN THE VERDICT: Clair was right that AUTHENTICATION needs only key possession, and over-extended it to ADMISSION, which needs registration.** Two different gates with one session boundary between them. ⚠️ **And Chat adopted the over-extension without testing it** — *the same failure as the `sender`/DAG claim two entries ago, in the same direction: checking the gate you were told about and not the ones you weren't.* ***Rule 5 says reproduce everything; it does not say reproduce everything you were pointed at.***
+
+### ✅ AND REGISTRATION IS GATED BY THE AUTH MODULE — WHICH SIZES THE HOLE FOR THE FIRST TIME
+
+`accept_registration` (`identity/registration.rs:444-512`) **skips trust assertions entirely when `local_node`** (§3.8.8) and otherwise **requires a `trust_assertion`**, which `validate_assertion` checks at **Step 1: `if !policy.trusted_issuers.contains(&assertion.issuer) { return Err(AuthModuleUntrusted) }`** (`:231-234`). **The default `AssertionPolicy` is EMPTY — *"trust no Auth Module, required_tier 1"*** (`runtime.rs:363-369`).
+
+| # | deployment | who can reach the join path |
+|---|---|---|
+| ① | **Local Node mode** (§3.8.8) | assertions bypassed ⇒ **anyone may register. FULLY OPEN** — and this is the single-user / dev deployment |
+| ② | **production, no Auth Module configured — THE DEFAULT** | every registration fails `AuthModuleUntrusted` ⇒ **no new actor reaches the path at all** |
+| ③ | **production + a trusted Auth Module** | the actor must present a **valid signed tier assertion for their own Identity** ⇒ ***a tier-verified, named person*** — who may then join any Space on that node **without invitation**, with F-3 never seeing them |
+
+🎯 **⇒ THE FINDING SURVIVES AND ITS SHAPE IS NOW EXACTLY RIGHT: a MULTI-TENANCY hole on a node that has admitted real users.** The exploitable population is **precisely the node's own legitimate members** — ***which is the population an invite requirement exists for.***
+
+⚠️ **It does NOT make the hole safe: a verified stranger walking into a DM is still a breach.** 🔑 **But it makes it ATTRIBUTABLE — the no-anonymity pillar is what BOUNDS this hole, and `D-148`'s admission gate is what CLOSES it.** 📌 **And it SHARPENS Q6's split rather than reopening it: the gate is the whole fix for the exposed deployment, and the exposed deployment is the one this project is for.**
+
+### 🛑 LEG A-bis ①'s FIXTURE WAS WRONG, AND WOULD HAVE PASSED WHILE PROVING NOTHING
+
+J-743 wrote into the Phase-0: *"per F-1 the actor needs NO registration, so the fixture must use a fresh unregistered keypair **or it tests a narrower thing than the hole**."* **That is exactly backwards.** `exchange.rs:629` HeldPends an unregistered sender universally ⇒ **a fresh-keypair fixture would assert `HeldPending`, pass, and prove nothing about admission.**
+
+🔑 ***A check whose failure mode reads exactly like success — minted by a correction written to prevent one.*** **The actor is a SECOND REGISTERED IDENTITY.** *Both executable legs remain owed and neither seat has run either.*
+
+### 📌 DISPOSITION AND WHAT THIS SAYS ABOUT THE ARC
+
+Per `D-145`, all three carriers are ACTIVE and cross-cited ⇒ **annotated at the site, superseded text kept:** Phase-0 §4 (**v1.5 → v1.6**) and its Leg A-bis row · the `M-SPACE-ADMISSION` ROADMAP node (three rows) · `CLAUDE.md`'s J-743 block · J-743 itself.
+
+🔑 **§4 has now been corrected TWICE IN OPPOSITE DIRECTIONS, and the record shows the whole path rather than only the current answer** — J-742 said multi-tenancy, J-743 said not tenancy, J-748 says tenancy with a measured reason none of the three earlier framings had. ***The value is not that the third answer is right; it is that a reader can see which claim each seat actually tested.***
+
+⚠️ **AND THE STANDING SCORE NEEDS A CORRECTION OF ITS OWN.** The arc has recorded four times that *Chat's own re-reads have never caught a defect in this arc*. **This one did** — and it is the largest single correction in the arc, reversing a cold-read finding. 📌 **The mechanism is worth more than the credit: it was found by SCOPING AN EXECUTABLE LEG rather than by re-reading a document.** ***The harness was the instrument. Prose re-reading has still never caught anything.***
+
+### 🔒 FLOORS — READS AND RECORDS ONLY, CARRIED AND NOT RE-RUN
+
+cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 Catalogue **UNMEASURED**. ✅ **CRLF integrity on `docs/ROADMAP.md`: CR 612 == LF 612, zero `\r\r`, zero lone LF, no BOM; gate PASS exit 0.** `docs/ROADMAP.md` **v7.32 → v7.33** · `tasks/M_SPACE_ADMISSION_PHASE0.md` **v1.5 → v1.6**. **No new `D`** — *the rulings are unaffected; only the finding's size changed.* **No new `N`.** 🔓 `N-197` still owed. 🔓 **§6.3's one branch remains the only unruled question in §6.** 🛑 **ROUND-2 CONTRADICTION UNTOUCHED FOR A TENTH CONSECUTIVE SESSION.** → J-748.
+
+---
+
 ## Entry J-747 — Attribution permanence enters ch3 §3.2.4: the sender is inside the hash, so no operation in the specification can strip it
 **Date:** 2026-08-16 · **Seats:** Joe (the claim, and the instruction to place it) · Chat (the broader-scope verification, the spec text) · Clair (not engaged)
 
@@ -216,6 +280,8 @@ cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelt
 
 ## Entry J-743 — Clair's fourth cold read: GO WITH FINDINGS, six of them, and two moved premises Joe was one ruling away from locking
 **Date:** 2026-08-16 · **Seats:** Clair (cold read, six findings, zero files modified) · Chat (re-drove all six, folded them in, the records) · Joe (rules §6; unchanged, and now ruling on corrected text)
+
+> 🛑 **ANNOTATION AT THE SITE (`D-145`, J-748, 2026-08-16): `F-1` IS PARTLY REVERSED.** Its claim that *registration is not required; tenancy is not required* is **FALSE** — `exchange.rs:601-634` (Step 11, *"sender is a registered Identity (universal)"*) HeldPends an **unregistered** sender, is **not origin-scoped**, and **`MembershipJoin` is not exempt**, so an unregistered keypair's join is **buffered, not applied**. **Clair was right that AUTHENTICATION needs only key possession and over-extended it to ADMISSION; Chat adopted it without testing.** ⚠️ **And this entry's Leg A-bis fixture instruction — *"must use a fresh unregistered keypair"* — is BACKWARDS and would have produced a test that passes while proving nothing.** See J-748.
 
 ✅ **STATE RE-MEASURED AT OPEN:** clean tree, `HEAD` `86486bb` = `origin/main` by `git ls-remote`.
 

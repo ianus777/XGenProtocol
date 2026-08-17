@@ -1,10 +1,53 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-16  
+> **Last updated:** 2026-08-17  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-749 — Two rulings reach disk, the Leg A-bis runbook is authored, and enumerating the gate list found a fourth gate nobody had named
+**Date:** 2026-08-17 · **Seats:** Joe (the §6.3 ruling; the runbook name) · Chat (the enumeration, the runbook, the records) · Clair (not yet engaged — her cold read is §9 of the new runbook)
+
+✅ **STATE RE-MEASURED AT OPEN:** clean tree, `HEAD` `f728cb4` = `origin/main` by `git ls-remote` (**not** the tracking ref).
+
+🎯 **NO PRODUCT CODE.** One new runbook, two rulings to disk, records.
+
+### 🔒 THE TWO RULINGS THAT EXISTED ONLY IN CHAT
+
+🔒 **§6.3's OPEN BRANCH (Joe, 2026-08-16): a join admitted under a losing concurrent admission value REMAINS VALID.** Re-adjudicating past joins is exactly the *falsifying the past* property `L-B` says admission does not have. 🔑 **The ruling extends `D-148` clause 7 to the case clause 7 does not name** — clause 7 answers *the owner deliberately changed the setting*, this answers *the resolver picked a winner after the fact*. **Two causes, one answer, one reason: the admission decision is a completed act.** ⚠️ **It does not weaken §6.3's own close** — the `state_key_for_event` arm stays required, because it is what stops divergence **going forward**; what is refused is **retroactive repair**. ⚠️ **And the residue is named rather than absorbed:** two Nodes can end up with the same admission value and **different membership sets**. That is a pre-existing property of the incremental-apply path (§3.2) and is `Leg ②`'s subject. ⇒ **§6 IS NOW FULLY RULED — all eight and the branch.**
+
+🔒 **THE RUNBOOK NAME (Joe): `tasks/RUNBOOK_SPACE_ADMISSION_LEG_A_BIS.md`.** Authored this session, **v1.0 PENDING, LEG ① ONLY.** 📌 **Leg ② is deferred to after `Leg E-0` and is deliberately absent** — it tests the **sibling's** divergence, because admission is not built and there is no `state.space_admission` event to set concurrently.
+
+### 🔑 THE RUNBOOK'S SPINE IS A GATE ENUMERATION, AND ENUMERATING IT FOUND A GATE
+
+The fixture has now been specified wrong twice — J-742 said tenancy, J-743 said not tenancy and no registration needed, J-748 reversed it back with a measured reason. 🔑 **The response is structural rather than corrective: §2 of the runbook enumerates EVERY gate between `dispatch_event` entry and the `members` insert, each with its verdict for this fixture, so the fixture is built against a partition instead of against a memory.**
+
+🛑 **AND THE ENUMERATION IMMEDIATELY PAID: `X-3`, THE TIER GATE, IS NAMED IN NO KICKOFF AND IN NO PHASE-0 SECTION.** `runtime.rs:1532-1544` runs `verify_tier_assertion(joiner_tier, space.auth_tier)` on **every** space-level join, with `joiner_tier = identity_registry.get(sender).map(assertion_tier_of).unwrap_or(1)`. ✅ **It passes as a no-op — and only because two unrelated constants happen to agree:** `build_dm_space_create_event` writes `"auth_tier": 1` (`state.rs:1812-1833`) and `make_identity_record` sets `trust_assertion: None` (`phase9_harness.rs:1263`) ⇒ `assertion_tier_of` → 1 ⇒ `verify_tier_assertion(1, 1) = Ok`. 🔑 **Neither constant is pinned by anything, so the runbook makes the fixture ASSERT `auth_tier == 1` before submitting** — otherwise a future tier change rejects with `3030` and **the test fails with a message about admission, which is a wrong diagnosis delivered silently and forever.**
+
+🛑 **A SECOND FIND, AND IT IS WHY THE FIXTURE NEEDS A THIRD IDENTITY: THE DM COUNTERPART HAS A PENDING INVITE AND THE INTRUDER DOES NOT — AND THE INV-EXP GATE BRANCHES ON EXACTLY THAT.** `from_dm_space_create_node` seeds the invitee as a `PendingInvite` (`state.rs:496-540`), and X-4's DM arm (`None => {}`, *"DM-seeded invite: exempt by design"*, `runtime.rs:1603-1608`) exists **for the counterpart**. ⇒ **had the fixture used Bob as the actor it would have been measuring the invite-expiry gate and reporting it as admission.** ***The third identity is not decoration; it is what keeps the subject on the intended gate.***
+
+### 🔑 AND THE DEPLOYMENT-STATE QUESTION HAS AN ANSWER THE KICKOFF DID NOT ANTICIPATE
+
+J-748 established three deployment states and the brief required the runbook to say **which one the harness is in**. 🛑 **The answer is NONE OF THEM.** `InProcessNode::register_identity` calls `NodeRuntime::register_identity(record)` **directly** (`phase9_harness.rs:501-506`); **`accept_registration` is never called**, so **no `AssertionPolicy` is ever consulted.** ⇒ the fixture registers **by construction, not by policy**. 🔑 **This is written into the runbook as a BOUND (§6.1) rather than glossed: the test proves what a REGISTERED Identity can do and says nothing about how hard it is to become one — and how hard that is IS the hole's size.** *The question assumed the harness sat somewhere on the production spectrum; it sits beside it.*
+
+### 🔒 THREE DISCIPLINES WRITTEN INTO THE RUNBOOK RATHER THAN ASSUMED
+
+🔒 **A NEGATIVE CONTROL (`V-3`) — run the fixture once with the actor UNREGISTERED, by hand, and discard it.** It **must** return `HeldPending`. 🔑 ***This is the only step that proves the J-743 fixture would have been a false pass; without it `X-1` stays a claim in a document.*** 📌 It ships as a discarded probe, **not** as a test — a shipped `HeldPending` assertion is a slower second way of saying what `heldpending_identity_integration` already says.
+
+🔒 **THE INVERSION IS A LEG D DoD ITEM, NOT A RESERVATION HERE.** Under `D-148` clause 4 a DM pins `invite`, so **after Leg D the before-state is unrecoverable** — the test asserts something that becomes false by design. **No `#[ignore]`, no `todo!`, no commented-out after-assertion**; instead Leg D's DoD gains, in the same edit that closes this leg: *a GREEN run of the un-edited test after the gate ships is a FAILURE OF THE GATE, not a pass.* **`N-109` applied forward rather than swept later.**
+
+🔓 **AND ONE PROPOSAL ROUTED RATHER THAN TAKEN (§4.6): a COMPANION test against an ORDINARY Space**, which under `D-148` clause 3 defaults to `open` forever and therefore **survives Leg D**. **The argument: at the moment the DM test is inverted, the project has no live assertion that open-join still works** — which is `J-275`'s model and `L-E`'s whole ground. **The DM test is a perishable witness; the companion is the permanent lock.** 📌 **It is a scope addition to a leg Joe locked, so it is recommended and not absorbed.**
+
+### 📌 A STALE DoD BOX FLIPPED IN CHAT'S OWN SEAT
+
+Phase-0 §14's last item read *"JOE HAS NOT YET RULED §6.1–§6.8"*. **The eight rulings landed at J-744 and J-745**, and v1.4, v1.5 and v1.6 each carried a ruling at its own § while leaving that box unticked. **Flipped, with the staleness named at the site rather than quietly corrected** — *a DoD item that contradicts the sections above it trains the reader to skip the DoD.* 📌 Nothing was ever locked against the v1.1 text.
+
+### 🔒 FLOORS — READS AND RECORDS ONLY, CARRIED AND NOT RE-RUN
+
+cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 Catalogue **UNMEASURED**. 📌 **Fifteenth consecutive no-code session.** ⚠️ **The next session is the first in fifteen where `cargo` MUST MOVE** — `1602` → `1603` (or `1604` with §4.6) — *the inverse of the M-RP6.1i leg, where an identical count proved no Rust landed.* `tasks/M_SPACE_ADMISSION_PHASE0.md` **v1.6 → v1.7** · `tasks/RUNBOOK_SPACE_ADMISSION_LEG_A_BIS.md` **NEW, v1.0 PENDING, LF, no BOM** · `docs/ROADMAP.md` **v7.33 → v7.34**. **No new `D`** — *the §6.3 ruling is `D-148` clause 7 applied to a case clause 7 did not name, and minting a `D` for it would fork one rule into two.* **No new `N`.** 🔓 `N-197` still owed. 🛑 **ROUND-2 CONTRADICTION UNTOUCHED FOR AN ELEVENTH CONSECUTIVE SESSION — and it now sits directly under protocol-plane work.** → J-749.
 
 ---
 

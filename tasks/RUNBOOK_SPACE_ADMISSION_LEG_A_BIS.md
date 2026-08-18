@@ -1,6 +1,6 @@
 # M-SPACE-ADMISSION Leg A-bis Runbook — leg ①: the before-assertion, and the fixture that had to be corrected twice to get it
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-18  
 > Language: EN  
@@ -40,6 +40,9 @@ measurement. 🔑 ***It is a prerequisite of the fix having a proof, not polish 
 | **`D-148` cl. 4** | **a DM pins `invite`** — which is why the before-state is unrecoverable after Leg D | `DECISIONS.md` D-148 |
 | **§4.6** | **the companion open-Space test SHIPS** — locked on Chat's recommendation | Joe, 2026-08-17 |
 | **§4.1 names** | **KEPT as scaffolded** — file, `mod.rs` line and both test fns stand | Joe, 2026-08-17 |
+| 🔒 **THE LOCK** | **LOCKED by Joe 2026-08-18.** The locked content is **v1.3**; **v1.4 is the lock stamp and nothing else** — zero changes to §1–§10, verifiable by diff | Joe, records J-754 |
+
+🛑 **A LOCK IS OF A VERSION, NOT OF A FILENAME.** J-750 locked **v1.1** and `docs/ROADMAP.md` recorded it as *"the runbook is LOCKED AND ACTIVE"* against the file — then Clair's cold read moved **two plan-movers** into v1.2/v1.3, and a lock taken against v1.1 does not carry to a document whose verification section was rebuilt. ⇒ **Clair implements from v1.4 and from no earlier version.** *A lock recorded against a path rather than a version cannot tell a reader whether it still holds.*
 
 📌 **State this runbook was authored against:** `HEAD` `f728cb4` **= `origin/main` by `git ls-remote`**,
 clean tree. Every `H-` and `X-` row below was measured this session at that commit.

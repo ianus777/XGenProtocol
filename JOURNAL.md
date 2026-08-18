@@ -1,10 +1,46 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-17  
+> **Last updated:** 2026-08-18  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-754 — The runbook locks at v1.3, and the lock exposes that the previous lock was recorded against a filename
+**Date:** 2026-08-18 · **Seats:** Joe (the lock) · Chat (records, `F-6`'s measurement half) · Clair (stood up at the end of this entry)
+
+✅ **STATE, RE-MEASURED AT OPEN AND NOT INHERITED:** `HEAD` `99ef69c` **= `origin/main` by `git ls-remote origin refs/heads/main`** (the remote ref, never the tracking ref), tree **clean**. `JOURNAL.md` max **J-753** ⇒ next free **J-754**. `DECISIONS.md` **156 entries, max D-150**. `ui/docs/xgen-ui-notes.md` max **N-198**. `docs/ROADMAP.md` **v7.38**. 🎯 **NO PRODUCT CODE.**
+
+### 🔒 THE LOCK
+
+🔒 **`tasks/RUNBOOK_SPACE_ADMISSION_LEG_A_BIS.md` IS LOCKED (Joe, 2026-08-18).** The locked content is **v1.3**; the file now reads **v1.4**, and **v1.4 is the lock stamp and nothing else** — one §0 table row and one paragraph, **zero changes to §1–§10**, verifiable by diff. ⇒ **Clair implements from v1.4 and from no earlier version.**
+
+🔑 **AND STAMPING IT SURFACED A DEFECT IN HOW THE PREVIOUS LOCK WAS RECORDED: A LOCK IS OF A VERSION, NOT OF A FILENAME.** `docs/ROADMAP.md:389` reads *"THE RUNBOOK IS LOCKED AND ACTIVE (Joe, 2026-08-17; J-750). tasks/RUNBOOK_SPACE_ADMISSION_LEG_A_BIS.md v1.1 ACTIVE."* — **true when written.** Then Clair's cold read moved **two plan-movers into the verification section** (`F-1` withdrew §2's partition claim; `F-2` rebuilt `V-3`, which could not fail as written) and the document became v1.3. 🛑 **A lock taken against v1.1 does not carry to a document whose gates were rebuilt** — but the row names a **path**, and **a reader arriving at that row cannot tell whether the lock still holds**, because the row does not say what it locked. ⇒ the stamp is written **into the runbook's own §0**, where the version it applies to sits next to it. 📌 **The J-750 row is not annotated:** it was accurate on its own date and the ambiguity is in its FORM, not its content — the fix is the new form, applied from here.
+
+### ✅ `F-6` — THE MEASUREMENT HALF IS CHAT'S AND IS DISCHARGED; THE NAMING HALF STAYS JOE'S
+
+🔑 **Carried for two sessions as *"a counting rule is naming ⇒ Joe's"*, which is true of ONE HALF of it** — **J-750's own discriminator applied**: *if the answer is on disk it is a measurement and it is Chat's; it is Joe's only if both records are genuine decisions that actually conflict.* ✅ **Re-driven at `99ef69c`, all four sites open and read, none inherited from `J-736`:**
+
+| site | says |
+|---|---|
+| `ui/assets/skin.css:3132` | `send-status` = *"the **FIRST real** tenant of the bodyExtras lane"* |
+| `ui/assets/skin.css:3178` | `message-intro` = *"the **SECOND** tenant of the bodyExtras lane"* |
+| `ui/common/lib/components/widgets/send-status.svelte:2` | `send-status` = *"the **SECOND** tenant of the `bodyExtras` socket"* |
+| `ui/common/lib/components/widgets/message-intro.svelte:3` (+ `stream-panel.svelte:34`) | `message-intro` = *"the **THIRD** tenant"* |
+
+✅ **Unchanged since `J-736` — nothing has drifted, and the two systems are each internally consistent and off by one.** 🔑 **THE DISCRIMINATOR, MEASURED: the systems differ over whether a SAMPLER-ONLY occupant counts.** `skin.css:3863` describes `fixture-widget.svelte` / `fixture-reg-widget.svelte` as stand-ins *"for real tenants"*, and `ui/core/lib/components/data-dependent/message.svelte:33` reads *"real tenants land at Leg D3 (`send-status`) and `M-RP-REACTIONS`"* ⇒ **`skin.css` counts CLIENT-RENDERED occupants only**, and its unlabelled word **"real"** is what carries the whole rule.
+
+⚠️ **STATED AS AN INFERENCE, BECAUSE THAT IS WHAT IT IS: that the Svelte headers' #1 is the sampler fixture is derived from it being the ONLY available candidate, not from any site that says so.** A repo-wide sweep of `ui/**` for *tenant* returns the rows above plus commentary, and **no site anywhere states a counting rule.** 🔑 ***That absence IS the defect*** — four comments count from two different bases and none of them declares its base, so each is locally true and the set is unreadable.
+
+🔓 **WHAT REMAINS FOR JOE IS ONE WORD:** does a sampler-only fixture count as a tenant? Either answer sweeps all four comments in one edit; the alternative labels are **`real tenant`** (make `skin.css`'s implicit word explicit everywhere) or **`socket tenant N (incl. fixture)`**. 📌 **Touches `R-1`'s file — do not fold them.**
+
+### 🔒 FLOORS — DOCUMENTS ONLY, CARRIED AND DELIBERATELY NOT RE-RUN
+
+cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 Catalogue **UNMEASURED**. 📌 **TWENTIETH consecutive no-code session** — ⚠️ **and the next is the first in twenty where `cargo` MUST MOVE: `1602` → `1604`, MEASURED and never derived, with `56 SUITES` STRUCTURALLY unchanged (`xgen-node/src/lib.rs:42` is `#[cfg(test)] pub mod tests;`) ⇒ a changed suite count is a §8 FINDING.** 🛑 **A floor is never cited without its unit:** cargo = **× SUITES**, vitest = **× FILES**.
+
+**No new `D`. No new `N`.** 🔓 **STILL OPEN AND JOE'S:** `N-197`'s wording · `N-198`'s wording · `F-6`'s counting word (above) · the DM receiving half's name and scope. 🎯 **NEXT: Clair implements Leg A-bis leg ① from v1.4, §9.1's ordering honoured — she derives the expected outcome from source and WRITES IT DOWN BEFORE reading §4.5.** → J-754 · ROADMAP v7.39.
 
 ---
 

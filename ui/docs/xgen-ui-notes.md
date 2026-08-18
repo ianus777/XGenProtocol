@@ -1,8 +1,8 @@
 # XGen UI — Notes
 > **Status**: ACTIVE  
-> Version: 1.27  
+> Version: 1.28  
 > Date: May 2026  
-> **Last updated**: 2026-08-17  
+> **Last updated**: 2026-08-18  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -4040,3 +4040,45 @@ An instrument fails in one of two directions. It can fail **loudly** — a throw
 🔒 **⑥ A NUMBER THAT DISAGREES WITH THE RECORD IS A HYPOTHESIS, NOT A DISCOVERY. TEST THE MEASUREMENT FIRST** (`N-105`).
 
 📌 **Forward pointer:** ① and ② are the two that would have caught **all seven**. They are also the two that cost the most to run, which is why they get skipped — *and skipping them is invisible until the number is already in a document.*
+
+---
+
+## N-198 — a designation cited before its entry exists is a phantom citation the moment it is pushed (2026-08-18)
+
+**DRAFTED BY CHAT (2026-08-18). Wording is Joe's to edit or overrule**, same shape as `N-197`.
+
+### The shape
+
+A session does the work, writes the artifacts, and defers the JOURNAL entry to a later commit — but the artifacts **already cite the J-number**. The number is real to the author (it is the next free one) and **unresolvable to every reader** until the deferred commit lands. If the deferred commit never lands, or lands under a different number, the citation is permanently dangling.
+
+🔑 **The rule is not "always commit the records together" — that is `D-074` and it has its own arguments.** The rule this note adds is narrower and has no counter-argument:
+
+🔒 ***IF THE RECORDS RIDE LATER, THE ARTIFACTS MUST NOT CITE THE NUMBER YET.***
+
+Write `(records pending)`, or write the number **only** in the commit that also creates the entry. **A J-number in a pushed artifact is a promise the artifact cannot keep alone.**
+
+### The instances
+
+| # | what | why it survived |
+|---|---|---|
+| **1** | `J-722` — a documents-only pair committed with no records at all | nothing pointed at the missing entry, so nothing failed |
+| **2** | `J-727` — the same breach repeated **inside an entry that named `J-722`'s breach** | 🔑 ***naming a defect in prose is not a control against it*** |
+| **3** | `d6b7f77` (2026-08-18) — commit subject cites `J-753`; `J-753` absent, max was `J-752`; `CLAUDE.md` zero occurrences; ROADMAP not bumped; **the number resolved only inside an ACTIVE runbook a second seat was to implement from** | ⚠️ **the first instance with a LIVE DOWNSTREAM READER** — and it was caught by that reader, not by the author |
+
+📌 **Instance 3 also carried a false description of its own shape:** the handoff called it *"same shape as `84285c2`"* while `84285c2` carried **six** files including all three record files and this carried **two**. ***A commit that describes itself wrongly is harder to audit than one that says nothing.***
+
+### Why the author cannot catch it
+
+⚠️ **The number resolves in the author's context and nowhere else.** At the moment of writing, `J-753` is unambiguous — it is next, it is intended, the entry is drafted mentally. **The artifact reads correctly to the person who made it and is broken for everyone else**, which is why every instance so far was caught by a second seat or not at all.
+
+### The rules
+
+🔒 **① CITE A DESIGNATION ONLY IN A COMMIT THAT ALSO CREATES IT.** J-numbers, D-numbers, N-numbers alike.
+
+🔒 **② IF DEFERRING RECORDS, DEFER THE CITATION TOO.** `(records pending)` costs one edit later and cannot dangle.
+
+🔒 **③ RE-MEASURE A DESIGNATION BEFORE TRUSTING IT — INCLUDING ONE IN A DOCUMENT YOU WERE TOLD TO TRUST.** *"Re-measure, never inherit"* applies to J-numbers exactly as it does to test counts. **Instance 3 was caught by exactly this.**
+
+🔒 **④ A COMMIT'S SELF-DESCRIPTION IS A CLAIM AND IS CHECKABLE.** *"Same shape as `<sha>`"* can be verified with `git show --stat` in one call, by the author, before pushing.
+
+📌 **Forward pointer:** rule ③ is the only one that catches this from outside the author's head; ①, ② and ④ are all disciplines the author must apply to themselves, and **the record shows self-application failing three times.**

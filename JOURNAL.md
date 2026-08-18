@@ -8,6 +8,53 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-753 — The cold read lands and all six findings hold — and the commit that carried it cited a JOURNAL entry that did not exist
+**Date:** 2026-08-18 · **Seats:** Clair (the cold read, and the catch) · Chat (Rule-5 re-drive, v1.2/v1.3, and the defect) · Joe (lock pending)
+
+✅ **STATE:** `HEAD` `d6b7f77` = `origin/main` by `git ls-remote`, clean. 🎯 **NO PRODUCT CODE.**
+
+### 🛑 THE DEFECT FIRST, BECAUSE IT IS ALREADY ON `origin/main`
+
+🛑 **`d6b7f77`'s SUBJECT CITES `J-753`, AND `J-753` DID NOT EXIST WHEN IT WAS PUSHED.** ✅ **Re-driven by Chat after Clair reported it:** `## Entry J-753` **ABSENT** from `JOURNAL.md` (max was **J-752**) · **zero** occurrences in `CLAUDE.md` · `docs/ROADMAP.md` still at **v7.37** · commit scope **2 files** · and the designation resolved **only** inside `tasks/RUNBOOK_SPACE_ADMISSION_LEG_A_BIS.md` (`:83`, `:323`) — ***an ACTIVE runbook that Clair is to implement from.***
+
+⚠️ **AND CHAT'S OWN FRAMING MADE IT WORSE, NOT BETTER.** The handoff message said this commit rode ***"same shape as `84285c2`"*** **and**, in the same message, that the records would ride the **next** commit. ✅ **Measured: `84285c2` carried SIX files including `CLAUDE.md`, `JOURNAL.md` and `docs/ROADMAP.md`; `d6b7f77` carried TWO.** 🔑 ***The two sentences contradict each other and Chat shipped the contradiction*** — the second sentence was a deliberate choice and the first was a false description of it, and **the choice itself was wrong anyway.**
+
+🔒 **THE RULE THIS BREAKS IS NOT THE ONE IT LOOKS LIKE.** `D-074` says records travel atomically with the work — deferring records to a later commit is arguable. 🛑 **What is not arguable: a designation was MINTED INTO TWO PERSISTED ARTIFACTS AND A COMMIT SUBJECT BEFORE THE ENTRY EXISTED.** ⇒ ***if the records ride later, the artifacts must not cite the number yet.*** **A forward-reference is a phantom citation the moment it is pushed** — `J-704`'s species, and **this instance has a live downstream reader**, which the earlier ones did not.
+
+📌 **THIRD INSTANCE OF THE SHAPE IN THIS ARC:** `J-722` committed a documents-only pair with no records; `J-727` repeated it **in an entry that named `J-722`'s breach**; this is the third. → **`N-198` minted.** 🔑 **Caught by Clair, who checked a designation in a document she was told to trust rather than inheriting it** — *the standing instruction is "re-measure, never inherit", and it applies to J-numbers as much as to test counts.*
+
+✅ **DISCHARGED HERE:** this entry, `CLAUDE.md`, `docs/ROADMAP.md` **v7.37 → v7.38**, and the runbook's two citations re-pointed to read as records-references rather than as an existing entry.
+
+### ✅ THE COLD READ — ALL SIX FINDINGS UPHELD UNDER RULE 5
+
+`tasks/CLAIR_LEG_A_BIS_RUNBOOK_READ.md`, **350 lines, LF, no BOM.** **Verdict: LOCKABLE with two plan-movers and four wording fixes.** 📌 **Chat re-measured every one independently — Clair's numbers did not enter the record until Chat had its own — and all six hold.**
+
+🔑 **THE FIXTURE DESIGN SURVIVED INTACT.** Actor, third identity, `rdx("")`, the three original assertions, the `H-6` tier precondition — all hold against source, and **Clair's independent §1 derivation reached §4.5's answer exactly** (`Accepted` / `Role::Member` / `invited_by: None`). ⚠️ ***BOTH PLAN-MOVERS WERE ON THE VERIFICATION SIDE. Chat's fixture was right and Chat's instruments were not*** — the fourth arc running where the defects sat in Chat's gates rather than in the build.
+
+🛑 **`F-1` — §2 WAS A CENSUS, NOT A PARTITION. FIFTH INSTANCE IN THIS ARC, AND THE SECOND INSIDE A SECTION WRITTEN TO PREVENT IT.** §2's own text predicted the defect by name, invited Clair to attack it, **and was still wrong.** ***Predicting a failure mode is not immunity to it; the prediction is worth exactly the audit that follows.*** Six unlisted gates each fail with a diagnosis that is **not** about admission — worst `runtime.rs:1169` space-not-found and `exchange.rs:571`, where **Step 10 runs BEFORE Step 9 precisely so malformed `prev_events` fail synchronously.** ⇒ **§4.3 gains two DAG preconditions**, because v1.1's preconditions derived entirely from the X-rows and **asserted nothing about the DAG.**
+
+🛑 **`F-2` — THE SHARPEST, AND WORSE THAN CLAIR PUT IT. `DispatchOutcome::HeldPending` IS A UNIT VARIANT.** `ValidationOutcome::HeldPending { missing_predecessors, missing_identity }` carries the reason and **`runtime.rs:1341-1361` binds both, hands them to the `PendingBuffer`, and returns the bare unit** ⇒ **an unregistered sender and a missing predecessor return the IDENTICAL value**, so `V-3` would have passed on a fixture with wrong `prev_events` — **the exact defect it was written to expose.** 🔑 **The discriminator, `pending_identity_count()`, is used at `phase9_unknown_signer_first_contact.rs:91`/`:238` — THE FILE §0 NAMES AS "READ IT FIRST".** ⇒ ***`N-197` rule ② failed on the step written to enforce `N-197` rule ②.*** `V-3` rebuilt with the discriminator and an after-`V-1` ordering.
+
+✅ **`Q4` TAKEN AND IT IS THE STRONGEST ASSERTION OF THE FOUR: `!state.is_member(&bob_id)`.** Membership goes `{alice} → {alice, carol}` with `is_dm` still true ⇒ **the DM's actual counterpart is not a member while the stranger is.** *Chat wrote three assertions about the intruder and none about the DM; the missing one was about the thing the DM is FOR.*
+
+✅ **`F-3`** — `xgen-node/src/lib.rs:42` is `#[cfg(test)] pub mod tests;` ⇒ **56 → 57 suites is structurally impossible**; v1.1 told the driver to measure a reading that cannot occur, which left the gate unable to tell a real anomaly from the expected case. **`V-2` now states 56 flat; a change is a §8 FINDING.** ✅ **`F-4`** `V-1` → **1604** flat. ✅ **`F-5`** `H-4` now names `state.members.get(...).invited_by`. ✅ **`F-6`** `X-4` → `1580-1610`. ✅ **`Q3` HOLDS — the one whose wrong answer would have been dangerous:** exactly **one** production `accept_registration` call site (`app.rs:3479`) ⇒ **§6.1's bound is correct, not generous.**
+
+### 🔒 TWO CONVENTIONS FIXED, ONE OF THEM A NEAR-MISS
+
+🔑 **THE GATE COUNT: CHAT SAID 35, CLAIR SAID ≈33, AND BOTH ARE RIGHT.** **35 = raw return sites** (19 + 16). **33 = distinct gates**, with `runtime.rs:1337`/`:1361` counted **once** — they are the `match validate_event(...)` **arms**, the funnel all 16 `exchange.rs` outcomes return through. **A fixed offset of 2.** ⚠️ ***`J-628`'s species: two correct measurements reading as a contradiction because each document stated its own convention and neither stated the other's.*** ⇒ **v1.3 carries both figures side by side with the convention named. §2's rows are GATES, so 33 is the figure the table is a subset of.** 📌 **The standing floor rule generalises: a count without its convention cannot be compared to the next one.**
+
+🔒 **§9.1 NOW FREEZES §1.** Clair disclosed **unprompted** that she refined eight line-refs in §1 after reading the runbook, two then matching it exactly — **no verdict, crux or answer moved.** 🔑 **But the record cannot distinguish convergence-by-re-measurement from transcription, and an independence claim that cannot be checked is not one.** ⇒ **procedural fix, not restraint: write §1, verify the bytes, never reopen it; later refinements go in a §3 measurement note.** *A rule that depends on the reader resisting a temptation is not a rule.* 📌 **A fix to Chat's runbook, not a mark against Clair.**
+
+### ⚠️ AND TWO INSTRUMENT FAILURES OF CHAT'S OWN, IN THE ACT OF CHECKING CLAIR'S
+
+🛑 **Verifying `F-1`, Chat swept `xgen-core\src\node\exchange.rs` — the wrong path; it is `src/message/`.** It returned **`TOTAL=0`**, which reads exactly like *"no gates found"* and meant *"file not read"* — **and Chat nearly recorded it as REFUTING `F-1`.** Caught only by `filelen=0` on the following call. ⇒ **`N-197` instances 9 and 10.** *The wrong-path sweep is `N-197` rule ① — assert the instrument can SEE its subject — failed while auditing someone else's census.*
+
+### 🔒 FLOORS — DOCUMENTS ONLY, CARRIED AND NOT RE-RUN
+
+cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 Catalogue **UNMEASURED**. 📌 **Nineteenth consecutive no-code session** — ⚠️ **the next is still the first in nineteen where `cargo` MUST MOVE: `1602` → `1604`, MEASURED and never derived.** Runbook **v1.2 → v1.3** · `docs/ROADMAP.md` **v7.37 → v7.38** · `ui/docs/xgen-ui-notes.md` **v1.27 → v1.28** (`N-198`). **No new `D`.** 🔓 **`N-198` MINTED — Joe edits or overrules the wording, same shape as `N-197`.** 🛑 **THE RUNBOOK IS v1.3 AND NOT YET LOCKED. Joe locks; Clair is stood down and stays down until a kickoff points at the locked version.** → J-753.
+
+---
+
 ## Entry J-752 — `D-150` minted, and the `skin.css` note re-pointed rather than deleted — both of which J-751 said would not happen
 **Date:** 2026-08-17 · **Seats:** Joe (approved both) · Chat (drafted, edited, recorded)
 

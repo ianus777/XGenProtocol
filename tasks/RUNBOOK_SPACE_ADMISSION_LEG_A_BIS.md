@@ -1,6 +1,6 @@
 # M-SPACE-ADMISSION Leg A-bis Runbook — leg ①: the before-assertion, and the fixture that had to be corrected twice to get it
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-18  
 > Language: EN  
@@ -80,7 +80,15 @@ verdict for this fixture.** 📌 **Metric:** read by opening each cited span, no
 | **X-6** | `check_permission` | `exchange.rs:914` | catch-all `_ => Ok(())` ⇒ gates joins on nothing | ✅ carried (G-4) |
 | **X-7** | `apply_join`, space-level arm | `state.rs:1016`, `:1019`, `:1022-1025` | **exactly two guards** (already-member, banned), then `match pending_invites.remove(joiner) { … None => (Role::Member, None) }` ⇒ **`Role::Member`, `invited_by: None`** | ✅ **RE-DRIVEN** |
 
-🛑 **⇒ THE PARTITION CLAIM WAS FALSE AND IS WITHDRAWN (v1.2, J-753 — Clair's cold read `F-1`, re-driven by Chat under Rule 5).** v1.1 offered X-0…X-7 as **the complete set of gates between `dispatch_event` entry and the `members` insert**. ✅ **MEASURED MECHANICALLY: there are 35 rejection points on that path** — **19** `return DispatchOutcome::` in `runtime.rs:1120-1758` and **16** `return ValidationOutcome::` in `xgen-core/src/message/exchange.rs:489-740`. **§2 lists seven.**
+🛑 **⇒ THE PARTITION CLAIM WAS FALSE AND IS WITHDRAWN (v1.2 — Clair's cold read `F-1`, re-driven by Chat under Rule 5).** v1.1 offered X-0…X-7 as **the complete set of gates between `dispatch_event` entry and the `members` insert**.
+
+✅ **MEASURED — AND THE METRIC IS STATED, BECAUSE THE TWO SEATS GOT TWO NUMBERS AND BOTH ARE RIGHT (v1.3, Clair's second pass):**
+- **35 RAW RETURN SITES** — **19** `return DispatchOutcome::` in `runtime.rs:1120-1758` **+ 16** `return ValidationOutcome::` in `xgen-core/src/message/exchange.rs:489-740`.
+- **33 DISTINCT GATES** — the same set with **`runtime.rs:1337` and `:1361` counted once, not twice**: they are the `match validate_event(...)` **arms**, the funnel through which all 16 `exchange.rs` outcomes return. **A fixed offset of 2.**
+
+🔑 **BOTH FIGURES ARE CORRECT UNDER THEIR OWN CONVENTION AND NEITHER IS A DISCREPANCY — which is exactly why the convention has to sit next to the figure.** Chat wrote **35** (raw sites); Clair wrote **≈33** (distinct gates); **each document stated its own metric and neither stated the other's.** ⚠️ ***`J-628`'s species: two correct measurements that read as a contradiction because the conventions were never placed side by side*** — cheap to name here, a session to rediscover later. 📌 **§2's rows are GATES, so 33 is the figure this table is a subset of.** 🛑 **Whichever is cited, cite the convention with it — the standing floor rule (`cargo` = × SUITES, `vitest` = × FILES) generalises: a count without its convention cannot be compared to the next one.**
+
+**§2 lists seven.**
 
 🔒 **WHAT §2 ACTUALLY IS, STATED HONESTLY: THE ADMISSION GATES — the checks that decide WHETHER A JOIN IS ADMITTED. It is NOT every gate on the path.** ✅ **As a partition of the admission gates it survived the cold read intact**; what failed was the width of the sentence around it.
 
@@ -320,7 +328,7 @@ inside it is load-bearing.
 
 ## §10 — DoD
 
-🔒 **THE COLD READ IS DONE (J-753) AND ITS FINDINGS ARE FOLDED IN AT v1.2.** `tasks/CLAIR_LEG_A_BIS_RUNBOOK_READ.md`, 32,130 B. **Verdict: LOCKABLE with two plan-movers and four wording fixes** — all six re-driven by Chat under Rule 5 and **all six upheld**. 📌 **The fixture design survived intact**: actor, third identity, `rdx("")`, the three original assertions and the `H-6` tier precondition all hold against source, and **Clair's §1 derivation reached §4.5's answer exactly** (`Accepted` / `Role::Member` / `invited_by: None`). ⚠️ ***Both plan-movers were on the VERIFICATION side, not the fixture side — Chat's fixture was right and Chat's instruments were not.***
+🔒 **THE COLD READ IS DONE AND ITS FINDINGS ARE FOLDED IN AT v1.2 (records: `J-753`).** `tasks/CLAIR_LEG_A_BIS_RUNBOOK_READ.md`, 32,130 B. **Verdict: LOCKABLE with two plan-movers and four wording fixes** — all six re-driven by Chat under Rule 5 and **all six upheld**. 📌 **The fixture design survived intact**: actor, third identity, `rdx("")`, the three original assertions and the `H-6` tier precondition all hold against source, and **Clair's §1 derivation reached §4.5's answer exactly** (`Accepted` / `Role::Member` / `invited_by: None`). ⚠️ ***Both plan-movers were on the VERIFICATION side, not the fixture side — Chat's fixture was right and Chat's instruments were not.***
 
 📌 **Also upheld, and it is the one whose wrong answer would have been dangerous: `H-7` HOLDS** — exactly **one** production `accept_registration` call site (`app.rs:3479`), everything else tests or comments. **§6.1's bound is correct, not generous.**
 

@@ -1,8 +1,8 @@
 # M-SPACE-ADMISSION Leg A-bis Runbook — leg ①: the before-assertion, and the fixture that had to be corrected twice to get it
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-17  
+> **Last updated**: 2026-08-18  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -75,16 +75,18 @@ verdict for this fixture.** 📌 **Metric:** read by opening each cited span, no
 | **X-1** | **Step 11 — registration.** `if !fed_add_via_federation && !node_authored && !id_registry.contains(sender) { HeldPending }` | `exchange.rs:601-634`, consumer `runtime.rs:1339-1361` | 🔑 **THE GATE THAT DICTATES THE FIXTURE.** Carol **must be registered** or the test asserts `HeldPending` and proves nothing | ✅ **RE-DRIVEN** |
 | **X-2** | banned check | `runtime.rs:1522-1531` | Carol is not in `banned` ⇒ passes | ✅ **RE-DRIVEN** |
 | **X-3** | 🛑 **THE TIER GATE — NEW THIS SESSION, NAMED IN NO KICKOFF AND IN NO PHASE-0 SECTION.** `verify_tier_assertion(joiner_tier, space.auth_tier)`, where `joiner_tier = identity_registry.get(sender).map(assertion_tier_of).unwrap_or(1)` | `runtime.rs:1532-1544`; `assertion_tier_of` at `:241` | **PASSES AS A NO-OP, AND ONLY BECAUSE TWO SEPARATE FACTS HAPPEN TO AGREE:** `build_dm_space_create_event` writes **`"auth_tier": 1`** (`state.rs:1812-1833`), and `make_identity_record` sets **`trust_assertion: None`** ⇒ `assertion_tier_of` → 1 ⇒ `verify_tier_assertion(1, 1) = Ok`. ⚠️ **Neither fact is guaranteed by anything the fixture asserts** — see `H-6` | ✅ **NEW, THIS SESSION** |
-| **X-4** | invite-expiry gate (INV-EXP) — `if origin == LocallySubmitted && room_id.is_empty()` then `if let Some(pi) = space.pending_invites.get(&event.sender)` | `runtime.rs:1583-1610` | **THE INNER `if let` IS FALSE FOR CAROL ⇒ THE WHOLE BLOCK IS SKIPPED.** ⚠️ **AND THAT IS A TRAP, NOT A CONVENIENCE** — see `H-5` | ✅ **RE-DRIVEN** |
+| **X-4** | invite-expiry gate (INV-EXP) — outer guard `if origin == LocallySubmitted && room_id.is_empty()` (`:1580`), then `if let Some(pi) = space.pending_invites.get(&event.sender)` (`:1586`) | `runtime.rs:1580-1610` | **THE INNER `if let` IS FALSE FOR CAROL ⇒ THE WHOLE BLOCK IS SKIPPED.** ⚠️ **AND THAT IS A TRAP, NOT A CONVENIENCE** — see `H-5`. 📌 *Span corrected in v1.2: v1.1 cited `1583-1610`, which began three lines BELOW the gate's own outer guard (Clair `F-6`).* | ✅ **RE-DRIVEN** |
 | **X-5** | `skip_membership` — membership + permission steps | `exchange.rs:649-659` | `MembershipJoin` is in the set ⇒ both skipped | ✅ carried (G-1) |
 | **X-6** | `check_permission` | `exchange.rs:914` | catch-all `_ => Ok(())` ⇒ gates joins on nothing | ✅ carried (G-4) |
 | **X-7** | `apply_join`, space-level arm | `state.rs:1016`, `:1019`, `:1022-1025` | **exactly two guards** (already-member, banned), then `match pending_invites.remove(joiner) { … None => (Role::Member, None) }` ⇒ **`Role::Member`, `invited_by: None`** | ✅ **RE-DRIVEN** |
 
-🔒 **⇒ THE PARTITION CLAIM, STATED SO IT CAN BE FALSIFIED:** X-0…X-7 is offered as **the complete set of
-gates between `dispatch_event` entry and the `members` insert for a space-level `MembershipJoin` with
-`origin == LocallySubmitted`**. 🛑 **It is Chat's measurement and it is exactly the kind of set that has been
-a census-wearing-a-partition's-clothes FOUR times in this arc.** **§9 asks Clair to attack it as a
-partition, and that is the highest-value question in the cold read.**
+🛑 **⇒ THE PARTITION CLAIM WAS FALSE AND IS WITHDRAWN (v1.2, J-753 — Clair's cold read `F-1`, re-driven by Chat under Rule 5).** v1.1 offered X-0…X-7 as **the complete set of gates between `dispatch_event` entry and the `members` insert**. ✅ **MEASURED MECHANICALLY: there are 35 rejection points on that path** — **19** `return DispatchOutcome::` in `runtime.rs:1120-1758` and **16** `return ValidationOutcome::` in `xgen-core/src/message/exchange.rs:489-740`. **§2 lists seven.**
+
+🔒 **WHAT §2 ACTUALLY IS, STATED HONESTLY: THE ADMISSION GATES — the checks that decide WHETHER A JOIN IS ADMITTED. It is NOT every gate on the path.** ✅ **As a partition of the admission gates it survived the cold read intact**; what failed was the width of the sentence around it.
+
+⚠️ **THE SIX UNLISTED GATES THAT MATTER, BECAUSE EACH FAILS WITH A DIAGNOSIS THAT IS NOT ABOUT ADMISSION:** `runtime.rs:1169` **space not found** · `exchange.rs:571` **`validate_dag_structure` DagError** — 🔑 **Step 10 runs BEFORE Step 9's predecessor lookup exactly so malformed `prev_events` fail synchronously** · `:532`/`:538` missing / mismatched `event_id` · `:554`/`:561` timestamp out of bounds · `:686` signature failure · and **`check_ai_capability`, which runs unconditionally**. ⇒ **§4.3 gains two DAG preconditions (v1.2), because v1.1's preconditions derived entirely from the X-rows and asserted NOTHING about the DAG.**
+
+🔑 **FIFTH INSTANCE IN THIS ARC OF *a census wearing a partition's clothes* — and the second time inside a section written to prevent it.** §2's own v1.1 text predicted this defect by name, invited Clair to attack it, **and was still wrong.** ***Predicting a failure mode is not the same as being immune to it; the prediction is worth exactly the audit that follows it.***
 
 ---
 
@@ -139,6 +141,7 @@ Before the subject event, assert on `node.space_state(&space_id).await.expect(�
   ***This is the line that proves the subject is on the admission path and not on the invite-expiry
   path.***
 - `state.is_member(&alice_id)` — the DM has its creator, so the Space is real and not an empty shell.
+- 🔒 **TWO DAG PRECONDITIONS — NEW IN v1.2, FROM Clair `F-1`.** ① **`node.space_state(&space_id).await.is_some()`** — the Space resolves, or `runtime.rs:1169` rejects with **space-not-found** and the failure reads as if admission refused it. ② **`!tips.is_empty()`** on the `dag_tips` read of §4.4 — `validate_dag_structure` (`exchange.rs:571`, **Step 10, which runs BEFORE Step 9's predecessor lookup**) rejects malformed or empty `prev_events` with a `DagError`. 🔑 **v1.1's preconditions derived entirely from the X-rows and therefore asserted NOTHING about the DAG** — ***a fixture cannot be verified only against the gates its author enumerated.*** 📌 **Two lines, and they convert two of the six unlisted gates from silent misdiagnoses into loud ones.**
 
 ### §4.4 — The subject event
 
@@ -173,7 +176,14 @@ let outcome = node.submit_locally(carol_join).await;
 3. **`invited_by` is `None`** on carol's `SpaceMember` — 🔑 ***this is the assertion that names the hole.***
    She is a member **and nobody invited her**, which is `X-7`'s `None => (Role::Member, None)` arm made
    visible. *Without it the test could be satisfied by a build in which some invite mechanism admitted
-   her, and the reader could not tell.*
+   her, and the reader could not tell.* 📌 **Accessor (v1.2, Clair `F-5`): `H-4` named only `member_role` and `is_member`, neither of which reaches `invited_by`. Read it off `state.members.get(&carol_id)` — `SpaceState::members` is `pub` (`state.rs:221`) and `SpaceMember::invited_by` is a field (`:74`).**
+4. 🔒 **`!state.is_member(&bob_id)` — NEW IN v1.2, FROM Clair `Q4`, AND IT IS THE STRONGEST OF THE FOUR.**
+   **The DM's ACTUAL COUNTERPART is not a member while the STRANGER is.** Membership goes
+   `{alice} → {alice, carol}` and `is_dm` stays `true`. 🔑 **Assertions 1–3 record that an uninvited party
+   was admitted; THIS one records that the two-party invariant of a DM is not enforced by anything at
+   all** — the Space is now a three-name DM whose named second party never joined. ⚠️ **Unobservable after
+   Leg D, and recorded in no other test.** ***Chat wrote three assertions about the intruder and none
+   about the DM; the missing one was about the thing the DM is FOR.***
 
 ### §4.6 — 🔒 THE COMPANION TEST — **LOCKED (Joe, 2026-08-17). SHIPS.**
 
@@ -205,14 +215,16 @@ let outcome = node.submit_locally(carol_join).await;
 
 | gate | what | expected |
 |---|---|---|
-| **V-1** | `cargo test --workspace` — **detached, log to file, own exit sentinel appended** (it exceeds the MCP timeout) | 🔒 **MUST MOVE from `1602 / 0 / 62 × 56 SUITES`** → **1603** (or **1604** with §4.6). ⚠️ **Summed programmatically, never hand-counted; the final `test result:` line must be present** — *a killed detached run leaves a measurement-shaped artefact* |
-| **V-2** | the new test named in the run output, and its **suite** present | **57 suites** if a new binary is produced; **56** if it folds into the existing `xgen-node` test binary. 🛑 **MEASURE IT — do not predict it.** *Stating a unit is mandatory: cargo = × SUITES* |
-| **V-3** | 🔒 **THE NEGATIVE CONTROL — RUN THE FIXTURE WITH CAROL UNREGISTERED, ONCE, BY HAND, AND DISCARD IT** | **MUST return `HeldPending`.** 🔑 ***This is the only step that proves the J-743 fixture would have been a false pass.*** **Without it, `X-1` is a claim in a document.** ⚠️ **It is a throwaway probe, not a shipped test** — a shipped `HeldPending` assertion would be a second, slower way of saying what `heldpending_identity_integration` already says |
+| **V-1** | `cargo test --workspace` — **detached, log to file, own exit sentinel appended** (it exceeds the MCP timeout) | 🔒 **MUST MOVE from `1602 / 0 / 62 × 56 SUITES`** → **`1604`** (two tests: §4.4 and §4.6). 📌 *v1.2, Clair `F-4`: v1.1 still offered "1603 or 1604" after §4.6 was locked — **a dead branch left in a gate is a gate that accepts a wrong number.*** ⚠️ **Summed programmatically, never hand-counted; the final `test result:` line must be present** — *a killed detached run leaves a measurement-shaped artefact* |
+| **V-2** | the new tests named in the run output, and the **suite** count | 🔒 **56 SUITES — UNCHANGED, AND STRUCTURALLY SO.** `xgen-node/src/lib.rs:42` is `#[cfg(test)] pub mod tests;` ⇒ a file under `src/tests/` compiles into the **existing lib test binary**, not a new one. 🛑 *v1.2, Clair `F-3`: v1.1 offered "**57** if a new binary is produced" and told the driver to measure it — **but 57 is not a possible reading, so offering it as a live branch invited a false alarm and made the gate unable to distinguish a real anomaly from the expected case.*** ✅ **A CHANGED suite count is now a FINDING, reported under §8.** *Stating a unit stays mandatory: cargo = × SUITES* |
+| **V-3** | 🔒 **THE NEGATIVE CONTROL — REBUILT IN v1.2 BECAUSE v1.1's VERSION COULD NOT FAIL.** Run the fixture with carol **UNREGISTERED**, once, by hand, and discard it | 🛑 **`DispatchOutcome::HeldPending` IS A UNIT VARIANT — IT CARRIES NO REASON.** `ValidationOutcome::HeldPending { missing_predecessors, missing_identity }` **does**, and `runtime.rs:1341-1361` **binds both, hands them to the `PendingBuffer`, and returns the bare unit variant** ⇒ ***an unregistered sender and a missing predecessor produce the IDENTICAL return value.*** ⚠️ **So v1.1's control would have passed on a fixture with wrong `prev_events`** — **the exact defect it was written to expose.** 🔒 **THE FIX, PRECEDENTED AND NOT INVENTED: assert `pending_identity_count()` INCREMENTED** (`dag/pending.rs:556`, `pub`, reachable via `InProcessNode.runtime`) — **`phase9_unknown_signer_first_contact.rs:91`/`:238` already does exactly this.** ➕ **RUN V-3 ONLY AFTER V-1 IS GREEN**, so a compile or harness fault cannot present as a registration hold |
 | **V-4** | ✅ scope, by diffstat | **exactly two files** — the new test file and `mod.rs`. **Zero `ui/**`, zero `xgen-core`, zero `xgen-common`, zero `xgen-client`** ⇒ vitest and svelte-check floors are **carried by scope, not re-run** |
 | **V-5** | ✅ `git ls-files --eol` on both files | **`i/lf`** — everything but `CLAUDE.md` and `docs/ROADMAP.md` is LF |
 
 🛑 **A FLOOR IS NEVER CITED WITHOUT ITS UNIT.** cargo = **× SUITES** · vitest = **× FILES**.
 🛑 **The sampler catalogue is UNMEASURED and its harness has never been located. DO NOT WRITE 435.**
+
+🔑 **AND THE LESSON V-3 CARRIES OUT OF THIS RUNBOOK, BECAUSE IT IS BIGGER THAN V-3: the discriminator that makes the control real was sitting in `phase9_unknown_signer_first_contact.rs` — THE FILE §0 NAMES AS "READ IT FIRST".** Chat wrote a step, called it *"the only step that proves the J-743 fixture would have been a false pass"*, **and did not check whether that step could itself fail.** ⇒ ***`N-197` rule ② — run the negative control — failed on the step written to enforce `N-197` rule ②.*** 📌 **The finding is Clair's, from the cold read, and it is the sharpest thing either seat produced on this leg.**
 
 ---
 
@@ -281,6 +293,8 @@ Her read file opens with her own answer to: **what does `dispatch_event` do with
 space-level `membership.join` against a DM, today?** — derived from `exchange.rs`, `runtime.rs` and
 `state.rs`, with sites. **Only then does she read §4.5 and compare.**
 
+🔒 **AND §1 IS FROZEN ONCE WRITTEN — NEW IN v1.2.** Write it, **verify the bytes landed**, and **do not reopen it** for any reason, including tightening a line-reference that later measurement improves. ⚠️ **THIS IS NOT A REPRIMAND; IT IS A GAP CLAIR FOUND AND DISCLOSED HERSELF.** On the first cold read she refined eight line-refs in §1 after reading the runbook, **two of which then matched the runbook's exactly** — and although **no verdict, crux or answer changed**, ***the record cannot distinguish convergence-by-re-measurement from transcription, and an independence claim that cannot be checked is not an independence claim.*** 🔑 **The fix is procedural, not a matter of restraint: later refinements go in a §3 measurement note, never back into §1.** *A rule that depends on the reader resisting a temptation is not a rule.*
+
 ⚠️ **THE REASON, AND IT IS NOT HYPOTHETICAL: LEG A-bis ARBITRATES A CLAIM CHAT MADE, AND THE WRONG FIXTURE
 WAS AUTHORED BY THE SEAT WITH A STAKE IN THE RESULT.** Reading Chat's stated expectation first makes an
 independent derivation into a confirmation. 📌 **This is a RUNBOOK INSTRUCTION, not a new seat rule** — the
@@ -305,6 +319,10 @@ inside it is load-bearing.
 ---
 
 ## §10 — DoD
+
+🔒 **THE COLD READ IS DONE (J-753) AND ITS FINDINGS ARE FOLDED IN AT v1.2.** `tasks/CLAIR_LEG_A_BIS_RUNBOOK_READ.md`, 32,130 B. **Verdict: LOCKABLE with two plan-movers and four wording fixes** — all six re-driven by Chat under Rule 5 and **all six upheld**. 📌 **The fixture design survived intact**: actor, third identity, `rdx("")`, the three original assertions and the `H-6` tier precondition all hold against source, and **Clair's §1 derivation reached §4.5's answer exactly** (`Accepted` / `Role::Member` / `invited_by: None`). ⚠️ ***Both plan-movers were on the VERIFICATION side, not the fixture side — Chat's fixture was right and Chat's instruments were not.***
+
+📌 **Also upheld, and it is the one whose wrong answer would have been dangerous: `H-7` HOLDS** — exactly **one** production `accept_registration` call site (`app.rs:3479`), everything else tests or comments. **§6.1's bound is correct, not generous.**
 
 **Leg A-bis ① is DONE when:**
 

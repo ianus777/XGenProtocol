@@ -86,3 +86,9 @@ pub mod arc_h_content_blindness;
 pub mod m12_blob_roundtrip;
 pub mod m12_3_federation_fetch;
 pub mod m12_4_redact;
+
+// M-SPACE-ADMISSION Leg A-bis leg 1 (before-assertion) — a registered third
+// party is admitted to a DM it is not party to, as Role::Member with no invite;
+// plus the permanent open-Space companion. Records today's behaviour before the
+// admission gate (Leg D) makes the DM half unobservable (D-148 clause 4).
+pub mod space_admission_third_party_join;

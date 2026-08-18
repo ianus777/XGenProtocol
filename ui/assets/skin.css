@@ -3202,11 +3202,14 @@ html, body {
   font-weight: 600;
   color: var(--t2);
 }
-/* RENAME COUPLING (Clair cold read F-2, J-738): this selector is HALF of a pair --
-   message-intro.svelte:68 emits class="message-intro-blurb". A blurb -> about rename that moves
-   the FIELD without moving THIS SELECTOR silently drops font-size/--lh/--t3 and the blurb reverts
+/* CLASS COUPLING (Clair cold read F-2, J-738; RE-POINTED J-751): this selector is HALF of a pair --
+   message-intro.svelte:68 emits class="message-intro-blurb". ANY rename of that class that moves
+   the EMITTER without moving THIS SELECTOR silently drops font-size/--lh/--t3 and the text reverts
    to the browser default 16px -- WHICH IS EXACTLY THE DEFECT J-735 MEASURED AND FIXED. skin.css is
-   Joe file, so that rename is NOT purely Clair-scoped: it crosses a seat boundary. */
+   Joe file, so such a rename is NOT purely Clair-scoped: it crosses a seat boundary.
+   The blurb -> about rename that originally motivated this note is CANCELLED (Joe, J-751) -- the
+   field stays blurb, kept on its connotation (see D-150). THE COUPLING STANDS; only its trigger is
+   gone. Re-pointed rather than deleted: a dead trigger is not a reason to discard a live warning. */
 .message-intro-blurb {
   margin: 0;
   font-size: var(--fs-1);

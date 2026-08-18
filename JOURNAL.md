@@ -8,6 +8,39 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-752 — `D-150` minted, and the `skin.css` note re-pointed rather than deleted — both of which J-751 said would not happen
+**Date:** 2026-08-17 · **Seats:** Joe (approved both) · Chat (drafted, edited, recorded)
+
+✅ **STATE:** clean tree, `HEAD` `d0375de` = `origin/main` by `git ls-remote`. 🎯 **NO PRODUCT CODE.**
+
+🛑 **THIS ENTRY SUPERSEDES TWO CLAIMS IN J-751, AND NAMES THEM RATHER THAN LETTING THEM STAND:** J-751 recorded ***"No new `D` — recommended and routed"*** and ***"Chat did not edit `skin.css`"***. **Joe approved both after that entry was pushed.** 📌 *Both were true when written; a chronological record does not get rewritten, it gets superseded — and the superseding entry has to say which lines it supersedes, or the reader has to guess which of two entries is current.*
+
+### ✅ `D-150` — MINTED, TWO CLAUSES, DELIBERATELY SEPARATE
+
+**Census re-driven before minting, never inherited: `DECISIONS.md` held 155 entries, max `D-149` ⇒ next free `D-150`.** Now **156 / max 150**.
+
+🔒 **CLAUSE 1 — A FIELD NAME IS AN INSTRUCTION TO WHOEVER FILLS IT IN.** For any **user-authored** field the name is not a developer's label, it is **the prompt the person answers**. `bio`, `blurb`, `note`, `pitch`, `about`, `description` denote the same *shape* and ask for **different things**. 🔑 **AND THE CLAUSE DOES NOT DECIDE WHICH NAME IS RIGHT — it says the CONNOTATION IS THE THING BEING DECIDED.** ⚠️ **Chat and Joe both applied it correctly and reached opposite answers on `blurb`, and that is the clause WORKING, not failing.** *A rule that resolves taste would be a rule nobody could disagree with, which is not what a decision record is for.*
+
+🔒 **CLAUSE 2 — WHILE A WIRE FIELD IS UNSPECIFIED ITS NAME IS FREE; ONCE THE SPEC OR A SECOND IMPLEMENTATION NAMES IT, THE NAME IS A VERSION BUMP.** 🛑 **The transition is SILENT** — nothing fires when a field crosses from internal detail to protocol surface: the field does not change, the code does not change, and the cost goes from search-and-replace to `xgen.<ext>.vN+1`. ⇒ **price the deadline in the same breath as the option**, because ***the choice is between renaming NOW and NEVER, not between renaming now and renaming later.*** 📌 **Scope stated so it is not over-read: clause 2 governs anything reachable FROM THE WIRE** — extension payload fields, content keys, enum string values — **and NOT purely local names** (Rust bindings, Svelte props, CSS classes), **which stay free permanently.**
+
+🔑 **WHY IT EARNED A `D` RATHER THAN A 🔒 IN A TASK FILE: both clauses were derived while settling ONE field and neither is about that field.** Clause 2 especially is **a property of the spec process**, identical for the next extension payload. ***A rule extracted from one case and left inside that case's task file is a rule nobody will find when the second case arrives.***
+
+🛑 **AND WHAT IT DOES NOT SAY, WRITTEN INTO THE `D` ITSELF: IT DOES NOT MOVE NAMING OUT OF JOE'S SEAT.** What it obliges is that a naming question **arrive** with its connotation reading and, for wire-reachable names, its deadline — *so the ruling is made against the real cost.* **`D-138` says ship a plausible value rather than a blank; `D-150` says ship it with what it will cost to change.** 📌 It also **does not license renaming already-specified fields for register** — past clause 2's window a connotation objection is **a `vN+1` proposal**, decided by `D-121` like anything else.
+
+📌 **The losing argument is preserved inside `D-150`'s worked example**, both readings intact — J-751's reason: *the next reader will otherwise re-derive it from scratch.*
+
+### ✅ `skin.css:3205` — RE-POINTED, AND THE DISPOSITION IS THE POINT
+
+**Joe authorised the edit, so Chat made it** — 📌 **an authorised exception, not a change to the standing rule: `skin.css` remains Joe's file and stays out of Chat's commits by default.**
+
+✅ **`RENAME COUPLING` → `CLASS COUPLING`.** The note warned that a `blurb` → `about` rename moving the field without `.message-intro-blurb` silently reverts the text to browser-default 16px — **the exact defect J-735 measured and fixed.** The rename is cancelled, so the note had become **an expired countdown** (`N-109`'s species). 🔑 **BUT THE COUPLING FACT IS STILL TRUE AND STILL LOAD-BEARING:** the selector and the class `message-intro.svelte:68` emits are a pair, and **any** future rename of that class needs both. ⇒ **generalised from *this rename* to *any rename of that class*, with the dead trigger named as dead.** ⚠️ ***A dead trigger is not a reason to discard a live warning*** — and deleting the block would have been the tidier-looking mistake. ✅ **Comment text only — zero rules, zero values, zero selectors changed.**
+
+### 🔒 FLOORS — DOCUMENTS ONLY (plus one comment-only `.css` edit), CARRIED AND NOT RE-RUN
+
+cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 📌 **A comment-only CSS edit moves no floor** — *stated rather than assumed, because "it's only a comment" is exactly the claim that should be checked, and here it is checkable from the diff: no rule body was touched.* 🛑 Catalogue **UNMEASURED**. `DECISIONS.md` **155 → 156 entries, max `D-149` → `D-150`** · `docs/ROADMAP.md` **v7.36 → v7.37**. ✅ **ROADMAP CR 617 == LF 617, zero `\r\r`, zero lone LF, no BOM, gate PASS exit 0.** ✅ **`DECISIONS.md` LF, no BOM.** 📌 **Eighteenth consecutive no-code session** — ⚠️ **the next is still the first in eighteen where `cargo` MUST MOVE: `1602` → `1604`, MEASURED and never derived.** **No new `N`.** 🎯 **NEXT, UNCHANGED AND NOW THE ONLY OUTSTANDING ACTION: stand Clair up against the LOCKED runbook.** → J-752.
+
+---
+
 ## Entry J-751 — `blurb` stays, on its connotation — and the ruling turns out to close a window nobody had priced
 **Date:** 2026-08-17 · **Seats:** Joe (the ruling, and the objection that opened it) · Chat (the grounding, the etymology, the records)
 

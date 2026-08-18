@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-16  
+> **Last updated:** 2026-08-17  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -5663,3 +5663,39 @@ A value this implementation cannot interpret is a value whose intent it cannot h
 ### Provenance (`D-141`)
 
 **The rule is Chat's**, extracted from two shipped behaviours neither of which had stated it. **The correction that produced it is Clair's**, from the fourth cold read of the `M-SPACE-ADMISSION` Phase-0: she measured that the sibling's fallback is the default rather than the floor, and cited the fail-closed precedent sitting at the admission gate itself. **The split into two decisions rather than one is Joe's**, on Chat's recommendation that this rule outlives admission and would be unfindable buried in a decision titled for it.
+
+---
+
+## D-150 — A field name is an instruction to whoever fills it in; and while a wire field is unspecified, its name is free in a way that will not announce when it stops being free
+
+**Date:** 2026-08-17 · **Status:** ACTIVE · **Arc:** naming / wire-schema · **Origin:** J-751 (`blurb` → `about`, cancelled)
+
+### The rule — two clauses, and they are separate
+
+🔒 **CLAUSE 1 — A FIELD NAME IS AN INSTRUCTION TO WHOEVER FILLS IT IN.** For any field a **user** authors, the name is not a label for the developer; it is **the prompt the person answers.** `bio`, `blurb`, `note`, `pitch`, `about` and `description` all denote roughly the same shape — short free text — and each asks for **a different thing**. ⇒ **choose a user-authored field's name by what it asks the writer to produce**, not by what type it holds.
+
+🔒 **CLAUSE 2 — WHILE A WIRE FIELD IS UNSPECIFIED, ITS NAME IS FREE; ONCE THE SPEC OR A SECOND IMPLEMENTATION NAMES IT, THE NAME IS A VERSION BUMP.** ⚠️ **The transition is silent.** Nothing fires when a field crosses from *internal detail* to *protocol surface* — the field does not change, the code does not change, and the cost of renaming it goes from **a search-and-replace** to **`xgen.<ext>.vN+1`**. ⇒ **when a naming question is raised about a not-yet-specified wire field, price the deadline in the same breath as the option** — *the choice is between renaming now and never renaming, not between renaming now and renaming later.*
+
+📌 **Clause 2 governs any name reachable from the wire — extension payload fields, content keys, enum string values — and NOT purely local names** (Rust bindings, Svelte props, CSS classes), which stay free permanently.
+
+### Why it earned a `D`
+
+Both clauses were derived while settling **one** field and neither is about that field. ⚠️ **Clause 2 in particular is a property of the SPEC PROCESS, not of `blurb`**: it will apply identically to the next extension payload, and it is exactly the kind of fact that gets rediscovered as a finding after the window has already shut. 🔑 ***A rule extracted from one case and left inside that case's task file is a rule nobody will find when the second case arrives.***
+
+### Worked example — the case that produced it
+
+**`xgen.intro.v1` carries `{ headline, blurb }`** — the sender's self-introduction on a DM's first contact. A rename to `about` was carried as an open item for nine sessions.
+
+- **Clause 1, applied and ARGUED BOTH WAYS.** Chat: `blurb` is **Gelett Burgess's 1907 coinage** parodying gushing dust-jacket endorsements, so it **invites a pitch** — wrong for a stranger's first sentence about themselves on a **no-anonymity** network. 🔒 **Joe ruled the opposite and kept the name FOR that connotation.** 📌 ***Clause 1 does not decide which name is right; it says the connotation is the thing being decided.*** Both readings applied the clause correctly and reached opposite answers, and **that is the clause working, not failing.**
+- **Clause 1 also disqualified the proposed replacement.** **`about` means a PERSISTENT PROFILE BIO** in every comparable product — one text, authored once, shown to everyone. This field is **per-DM, per-recipient, first-contact**. ⇒ ***it would have named the field after the thing it is most likely to be confused with***, inviting a later "unification" with a profile field **whose privacy properties are entirely different.**
+- **Clause 2, applied.** `blurb` is asserted on the wire (`exchange.rs:2861`) — but **`ch3` names only the KEY, never the FIELDS** (`xgen_ch3_specification.md:363`, `:372`). ⇒ **the rename was 37 sites and zero external cost, and will be `xgen.intro.v2` after the payload is specified.** 🔑 **The item had been carried for nine sessions as a COST question when it was a DEADLINE, and neither seat had said so.**
+
+### What this does not say
+
+🛑 **It does not make naming Chat's.** Naming is **Joe's seat** and this rule does not move it. **What it obliges is that a naming question be presented with its connotation reading and, for wire-reachable names, its deadline** — so the ruling is made against the real cost. *`D-138` already says ship a plausible value rather than a blank; this says ship it with what it will cost to change.*
+
+🛑 **It does not license renaming already-specified fields for register.** Once clause 2's window is shut, a connotation objection is **a `vN+1` proposal**, and `D-121`'s two lenses decide it like anything else.
+
+### Provenance (`D-141`)
+
+**The question is Joe's** — he raised the `about`/About-modal collision that reopened a nine-session-old item. **The semantic disqualification of `about` and both clauses are Chat's**, from grounding the field's actual authoring path (`composer-panel.svelte:115`) and its spec status. **The ruling on `blurb` is Joe's, against Chat's recommendation.** 📌 **Recorded with the losing argument intact**, because the next reader will otherwise re-derive it from scratch.

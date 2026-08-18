@@ -8,6 +8,45 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-751 — `blurb` stays, on its connotation — and the ruling turns out to close a window nobody had priced
+**Date:** 2026-08-17 · **Seats:** Joe (the ruling, and the objection that opened it) · Chat (the grounding, the etymology, the records)
+
+✅ **STATE:** clean tree, `HEAD` `9c18f6d` = `origin/main`. 🎯 **NO PRODUCT CODE. NO RENAME. Four documents.**
+
+### 🔒 THE RULING
+
+🔒 **`blurb` → `about` IS CANCELLED. THE FIELD STAYS `blurb` (Joe).** 🔑 **Kept DELIBERATELY ON ITS CONNOTATION** — not for cost, not for inertia. **`blurb` is not an abbreviation of anything:** it is **Gelett Burgess's 1907 coinage**, *"Miss Belinda Blurb, in the act of blurbing"*, printed on a mock dust jacket **parodying publishers' gushing cover endorsements** — and the satirical edge never fully washed out.
+
+⚠️ **CHAT ARGUED THAT EDGE WAS A REASON AGAINST THE NAME AND JOE RULED THE OPPOSITE, KEEPING IT FOR THAT REASON.** Chat's argument: ***a field name is an instruction to whoever fills it in*** — `blurb` invites a pitch, where this field is a stranger's first sentence about themselves on a **no-anonymity** network. 📌 **Both sides are on disk so this is not re-derived from scratch in two years.** *The ruling is a taste judgement about register on a field Joe owns, and it needed no measurement to be legitimate.*
+
+### 🛑 `about` WAS ALSO WRONG ON SEMANTICS — INDEPENDENTLY OF THE COLLISION JOE RAISED
+
+Joe's objection was a **collision with an About modal**. ✅ **Measured: no About modal exists in the tree** ⇒ the collision was **prospective, not current** — ***which is the worse ordering, because it would have arrived after the name was entrenched.***
+
+🔑 **AND A SECOND, STRONGER OBJECTION SURFACED WHILE GROUNDING IT.** Everywhere else in social software **`about` means a PROFILE BIO** — one persistent text, authored once, shown to everyone. **This field is its opposite:** written **per-DM, in the composer, by the sender, for one specific recipient**, at first contact (`composer-panel.svelte:115` reads it off `dmDraft.intro`). ⇒ ***`about` would have named the field after the thing it is most likely to be confused with*** — and the confusion is expensive, because it invites a later "unification" with a profile field **whose privacy properties are entirely different.** 📌 *Joe's instinct was right and the reason under it was bigger than the reason he gave.*
+
+### 🔑 THE COST NOBODY HAD PRICED — AND IT IS THE REASON THIS ENTRY EXISTS
+
+🛑 **`blurb` IS A WIRE KEY, NOT A UI LABEL.** It sits inside `xgen.intro.v1` and `exchange.rs:2861` asserts on it. ✅ **But `ch3` names only the KEY and never the FIELDS** (`xgen_ch3_specification.md:363`, `:372`).
+
+⇒ **while the fields are unspecified, a rename is 37 sites and ZERO external cost; once `ch3` specifies the payload or a second implementation exists, it is `xgen.intro.v2`.** ⚠️ ***That window will not announce when it closes.*** 🔑 **So the ruling is not merely "keep it" — it is "keep it knowing the alternative was still free today and will not be later", and that is the version of the decision that had to reach disk.** *An open item carried for nine sessions as a cost question was actually a deadline, and neither seat had said so.*
+
+### 📌 WHAT THE RULING MAKES STALE — AND THE ONE FILE CHAT DID NOT TOUCH
+
+🛑 **`ui/assets/skin.css:3205-3209` is now a countdown that has expired** (`N-109`'s species). Its *RENAME COUPLING* comment warns that a **`blurb` → `about`** rename moving the field without `.message-intro-blurb` silently reverts the text to browser-default 16px — the exact defect J-735 measured and fixed. **The rename it names is cancelled.**
+
+🔒 **CHAT DID NOT EDIT IT. `skin.css` IS JOE'S FILE AND STAYS OUT OF CHAT'S COMMITS** — the replacement text was handed to Joe instead. ⚠️ **And the correct disposition is RE-POINT, NOT DELETE:** the **coupling fact remains true and load-bearing** — the selector and the class `message-intro.svelte:68` emits are a pair, and *any* future rename of that class still needs both. *Deleting the note would discard a real warning along with a dead trigger.*
+
+### 🔓 ROUTED, NOT TAKEN
+
+🔓 **A `D` MAY BE OWED AND THE NUMBER IS JOE'S.** The reusable principle is ***a field name is an instruction to whoever fills it in*** — it binds **every future user-authored field**, not just this one, and it is the shape that earns a `D` rather than a 🔒 inside one task file. **Chat recommends minting it; number and wording are Joe's.**
+
+### 🔒 FLOORS — DOCUMENTS ONLY, CARRIED AND NOT RE-RUN
+
+cargo **1602 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 Catalogue **UNMEASURED**. 📌 **Seventeenth consecutive no-code session** — ⚠️ **and the next is still the first in seventeen where `cargo` MUST MOVE: `1602` → `1604`, MEASURED and never derived.** `docs/ROADMAP.md` **v7.35 → v7.36** · `tasks/M_INTRO_POLICY_PHASE0.md` **v1.5 → v1.6** · `tasks/M_RP_INTRO_PHASE0.md` **v1.6 → v1.7** (annotated, not rewritten). ✅ **ROADMAP CR 617 == LF 617, zero `\r\r`, zero lone LF, no BOM, gate PASS exit 0.** ✅ **`blurb` → `about` CLOSED after nine sessions — the second long-carried item closed in two sessions.** **No new `D`** — recommended and routed. **No new `N`.** 🎯 **NEXT, UNCHANGED: stand Clair up against the LOCKED runbook.** → J-751.
+
+---
+
 ## Entry J-750 — The runbook locks, the Round-2 contradiction turns out to have been a measurement routed as a ruling for eleven sessions, and N-197 is drafted
 **Date:** 2026-08-17 · **Seats:** Joe (five rulings) · Chat (the measurement, the corrections, the draft, the records) · Clair (not yet engaged — standing her up is next)
 

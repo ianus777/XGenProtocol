@@ -1,6 +1,6 @@
 # M-RP-INTRO Phase-0 — the DM welcome intro: the surface was ruled, the payload never was
 > **Status**: COMPLETED  
-> Version: 1.6  
+> Version: 1.7  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-17  
 > Language: EN  
@@ -568,6 +568,8 @@ stands and `M-RP-INTRO-CANVAS` builds on this floor rather than replacing it.
 - 🔓 **Joe's, still open:** the DM-draft-only asymmetry (Clair's) · `HEADLINE_MAX 120` / `BLURB_MAX 600`
   (`D-138`, provisional) · the `blurb` → `about` rename (**37 sites / 6 files** (case-insensitive LINES — state the metric; other metrics give 28/37/50) — **corrected J-738, Clair F-2: the 35/5 OMITTED `ui/assets/skin.css`, and that file is the FAILURE MODE — `.message-intro-blurb` is the rule matching the class `message-intro.svelte:68` emits, so renaming the field without the selector reverts the blurb to the browser default 16px, the exact defect J-735 fixed. It also crosses a seat boundary: `skin.css` is Joe`s.**; **ch3 unaffected** — it names the
   key, never the fields) · `trust_assertion` · `N-197`'s wording.
+
+  > ✅ **ANNOTATION AT THE SITE (J-751, 2026-08-17): THE RENAME IS CANCELLED — THE FIELD STAYS `blurb` (Joe).** **Kept deliberately ON ITS CONNOTATION**: `blurb` is no abbreviation but **Gelett Burgess's 1907 coinage** parodying gushing dust-jacket endorsements, and Joe wants that edge. 🛑 **`about` was ALSO wrong on semantics, independently of the About-modal collision Joe raised** — it means a **persistent profile bio** everywhere else, where this field is **per-DM, per-recipient, first-contact** (`composer-panel.svelte:115`). ⚠️ **The census above stands as a historical measurement and the seat-boundary warning stands as a general coupling fact** — but **neither is now a pending action.** 🔑 **AND THE PRICE OF THE DECISION IS RECORDED: `blurb` IS A WIRE KEY** (`xgen.intro.v1`, asserted at `exchange.rs:2861`) **and `ch3` names only the KEY, never the FIELDS** ⇒ the rename was **free today and becomes `xgen.intro.v2` once the payload is specified**. *`N-197` is drafted, J-750.*
 - 🔒 **Round-2 whole-codebase audit still GATES UI COMPLETION**, and bites harder now that **(d)** made this
   protocol-plane.
 

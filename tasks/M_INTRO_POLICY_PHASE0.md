@@ -1,6 +1,6 @@
 # M-INTRO-POLICY Phase-0 — receiver-side render policy: the mechanism was named, its INPUT was never measured
 > **Status**: ACTIVE  
-> Version: 1.5  
+> Version: 1.6  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-17  
 > Language: EN  
@@ -669,9 +669,13 @@ milestone's first commit under `D-074` — **JOURNAL + CLAUDE.md + ROADMAP + thi
 - 🔓 **`N-197`'s wording** — seven instrument failures across three seats. **Joe's; Chat drafts (Joe, 2026-08-17), Joe edits or overrules.**
 - 🔓 **`F-6`, from Clair: the `bodyExtras` tenant ordinal disagrees across FOUR sites** with no stated
   counting rule. **A counting rule is naming ⇒ Joe's.** *Touches `R-1`'s file; do not fold them.*
-- 🔓 **`blurb` → `about`: 37 sites / 6 files, case-insensitive LINES** (state the metric — 28/37/50 are all
-  defensible). **Crosses into `skin.css`, which is Joe's**, and the selector `.message-intro-blurb` must move
-  **with** the field. **Sequences into `M-RP-INTRO-CANVAS`.**
+- ✅ **`blurb` → `about` — CANCELLED. THE FIELD STAYS `blurb` (Joe, 2026-08-17; J-751).** 🔑 **The name is KEPT ON ITS CONNOTATION, DELIBERATELY** — not for cost, not for inertia. **`blurb` is not an abbreviation of anything**: it was coined by **Gelett Burgess in 1907** as *"Miss Belinda Blurb, in the act of blurbing"* on a mock dust jacket **parodying publishers' gushing cover endorsements**, and that satirical edge never fully washed out. ⚠️ **Chat argued that edge was a reason AGAINST the name** — *a field name is an instruction to whoever fills it in, and `blurb` invites a pitch where the field is a stranger's first sentence about themselves on a no-anonymity network.* 🔒 **Joe ruled the opposite and kept the name FOR that reason.** 📌 **The argument is recorded on both sides so it is not re-litigated from scratch, and ⇒ nothing is renamed and no site is touched.**
+
+  🛑 **AND `about` WAS WRONG ON SEMANTICS INDEPENDENTLY OF THE MODAL COLLISION JOE RAISED.** In every social product **`about` means a PROFILE BIO** — one persistent text, authored once, shown to everyone. **This field is the opposite**: written per-DM, in the composer, by the sender, **for one specific recipient**, at first contact (`composer-panel.svelte:115` reads it off `dmDraft.intro`). ⇒ ***`about` would have named it after the thing it is most likely to be confused with*** — and the confusion is expensive, because it invites a later "unification" with a profile field **whose privacy properties are entirely different.** 📌 Joe's own objection — the collision with an **About modal** — is prospective rather than current (no such modal exists in the tree), **which is the worse ordering: the collision would have arrived after the name was entrenched.**
+
+  🔑 **ONE COST NEITHER SEAT HAD PRICED, RECORDED BECAUSE IT OUTLIVES THIS RULING:** **`blurb` is a WIRE key, not a UI label** — it sits inside `xgen.intro.v1` and `exchange.rs:2861` asserts on it. **But `ch3` names only the KEY and never the FIELDS** (`xgen_ch3_specification.md:363`, `:372`). ⇒ **while the fields are unspecified a rename is 37 sites and zero external cost; once `ch3` specifies the payload or a second implementation exists it becomes `xgen.intro.v2`.** ⚠️ ***That window will not announce when it closes*** — so the ruling above is not merely "keep it", it is **keep it knowing the alternative was still free today and will not be later.**
+
+  🔓 **ROUTED, NOT TAKEN — A `D` MAY BE OWED AND THE NUMBER IS JOE'S:** the reusable principle is ***a field name is an instruction to whoever fills it in***, which binds every future user-authored field, not just this one. **Chat recommends minting it; the number and the wording are Joe's.**
 - 🔓 **`HEADLINE_MAX 120` / `BLURB_MAX 600`** ship PROVISIONAL under `D-138` and are Joe's. ⚠️ **A policy that
   filters content should probably own its bounds — Chat recommends they be re-sited here IF Leg D is ever
   built, and NOT before.**

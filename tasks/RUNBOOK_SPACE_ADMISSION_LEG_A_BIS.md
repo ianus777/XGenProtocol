@@ -1,6 +1,6 @@
 # M-SPACE-ADMISSION Leg A-bis Runbook — leg ①: the before-assertion, and the fixture that had to be corrected twice to get it
-> **Status**: ACTIVE  
-> Version: 1.4  
+> **Status**: COMPLETED  
+> Version: 1.5  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-18  
 > Language: EN  
@@ -353,3 +353,28 @@ inside it is load-bearing.
 
 🛑 **"Commit pushed" IS NOT A DoD ITEM.** `Status: COMPLETED` in this file's header is the canonical signal.
 📌 **The milestone close is Phase-0 §12 Leg F and is not restated here.**
+
+---
+
+## §11 — ✅ CLOSE RECORD. **EVERY GATE RE-DRIVEN BY CHAT (Rule 5). J-755, 2026-08-18.**
+
+**Shipped at `eedfebd`** (parent `e42ee3f` = J-754): **two files, +330/−0** — `xgen-node/src/tests/space_admission_third_party_join.rs` (new, 324 lines) + `xgen-node/src/tests/mod.rs` (+6). **Zero `xgen-core`, zero `xgen-common`, zero `xgen-client`, zero `ui/**`, zero production code.**
+
+| gate | measured | verdict |
+|---|---|---|
+| **V-1** | detached `cargo test --workspace`, own exit sentinel `=0`, final `test result:` line present, summed programmatically over `^test result:` | ✅ **1604 / 0 / 62**, both tests named in the output, `Compiling xgen-node` present ⇒ not a cached pass |
+| **V-1b** | 🔑 **THE BASELINE, MEASURED ON THIS TREE INSTEAD OF CARRIED** — the same workspace run with `--skip space_admission_third_party_join` | ✅ **1602 / 0 / 62 × 56 SUITES, exactly 2 FILTERED OUT** ⇒ ***the +2 is a MEASUREMENT, not arithmetic against a figure carried for twenty sessions.*** *Clair stated this limit herself and it is now closed rather than accepted* |
+| **V-2** | suite count from the same run | ✅ **56 SUITES**, structurally unchanged — no §8 finding |
+| **V-3** | 🔒 **THE NEGATIVE CONTROL — RUN, AND IT IS THE ONE CLAIR DID NOT RUN.** Scratch fixture, carol UNREGISTERED, one removed line, **never committed and deleted immediately (§7.6)** | ✅ `HeldPending` **AND `pending_identity_count` 0 → 1**, on a Space whose DAG tips are **non-empty** ⇒ ***the hold is for a MISSING IDENTITY and cannot be a missing predecessor.*** `DispatchOutcome::HeldPending` is a UNIT variant and could never have said this alone. ⇒ **`X-1` stops being a claim in a document** |
+| **V-4** | `git diff --numstat e42ee3f eedfebd` | ✅ **exactly two files**, `324/0` + `6/0` ⇒ vitest and svelte-check floors carried **by scope** |
+| **V-5** | `git ls-files --eol` on both files | ✅ **`i/lf w/lf`** both |
+
+✅ **§2 HELD — AND THE FIXTURE'S OWN PATH IS THE PROOF:** it reached `Accepted` exactly as `X-1`…`X-7` predict, so **no gate outside §2 was encountered** and §8 item 2 (*named as the likeliest defect in this document*) **did not fire.** 📌 **The X-row spans are carried from the J-753 re-drive by SCOPE** — `eedfebd` changed **zero** production `.rs`, so no cited span can have moved.
+
+✅ **§9.1's ORDERING WAS HONOURED AND IT CONVERGED.** Clair derived the expected outcome cold from `exchange.rs` / `runtime.rs` / `state.rs` and wrote it down **before** reading §4.5; it reached §4.5's answer exactly (`Accepted` / `Role::Member` / `invited_by: None`) and **independently reached assertion 4 and all three fixture traps.** `tasks/CLAIR_LEG_A_BIS_RUNBOOK_READ.md` was **not touched** — §1's freeze holds.
+
+⚠️ **TWO DEVIATIONS REPORTED AND NOT ABSORBED (Rule 6). NEITHER BLOCKS.** ① The session kickoff sited `dispatch_event` at `xgen-node/src/…/runtime.rs`; it is **`xgen-core/src/node/runtime.rs`**. **The runbook cites `runtime.rs` unqualified and is NOT wrong — the defect was in the kickoff**, and it is flagged because *a sweep of the wrong path returns a clean-looking nothing* (`N-197` instances 9/10 were exactly that). ② **§4.6 item 5 says *"all three assertions of §4.5"* and §4.5 carries FOUR** — assertion 4 arrived at v1.2 from Clair's `Q4` and §4.6's count was never swept, **while §4.5's own item 4 calls itself *"the strongest of the four"*.** 🔑 **The omission is STRUCTURAL, not a weakening:** assertion 4 reads `bob_id` and **an ordinary Space has no counterpart**, so the companion implements 1–3 and there is nothing for the fourth to assert. 📌 ***The arc's recurring species — a claim narrower than the thing it describes — found in the section §9.2 item 5 named as the least-trusted, which is the audit working.***
+
+🔑 **AND AN INSTRUMENT FAILURE CLAIR CAUGHT ON HERSELF BEFORE IT ENTERED ANYTHING (`N-197`, instance 1 reproducing exactly):** an EOL check using `grep -c $'\r'` returned `cr == lines` for **every** file including one `git` reports `w/lf` — **the pattern expands to empty and counts LINES.** Re-measured with `tr -cd '\015' | wc -c` under **positive and negative controls**: `mod.rs` **0 CR** (`w/lf`), `phase9_harness.rs` **1619 CR** (`w/crlf`), new file **0 CR**. 📌 **And `awk '/\r$/'` returned 0 even for the confirmed-CRLF file ⇒ TWO of three instruments were blind and only `tr` discriminated.** ***Running two instruments is what surfaced it; running one would have produced a confident wrong answer in either direction.***
+
+🔒 **FLOORS AT CLOSE:** cargo **1602 → 1604 / 0 / 62 × 56 SUITES** — **MOVED, measured both sides.** vitest **172 / 172 × 9 FILES** and svelte-check **0 / 34 / 15** — **carried BY SCOPE** (zero `ui/**`), stated rather than silently skipped. 🛑 Catalogue **UNMEASURED**.

@@ -8,6 +8,48 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-755 — Leg A-bis leg ① ships, and the two gates Clair could not close are the two that mattered
+**Date:** 2026-08-18 · **Seats:** Clair (implementation, `eedfebd`) · Chat (Rule-5 re-drive, V-1b, V-3, records) · Joe (pushed)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `eedfebd` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean, parent `e42ee3f` = J-754. 🎯 **THE FIRST CODE SESSION IN TWENTY.**
+
+✅ **WHAT SHIPPED:** two integration tests in `xgen-node` — `third_party_registered_identity_joins_a_dm_it_is_not_party_to` and the permanent companion `third_party_registered_identity_joins_an_open_space`. **Two files, +330/−0, zero production code**, nothing §7 forbids. 📌 **The commit cites NO J-number, and `N-198`'s trap is avoided BY CONSTRUCTION rather than by care** — the records ride this commit and the artifact never reached forward. *The rule minted three days ago worked the first time it was tested.*
+
+### 🔑 THE TWO GATES CHAT OWED WERE THE TWO THAT COULD NOT BE DELEGATED, AND BOTH MOVED SOMETHING
+
+🔒 **V-3 — THE NEGATIVE CONTROL, RUN.** The identical fixture with carol **UNREGISTERED**, one line removed, run once by hand as a **discarded probe** and deleted before anything else (§7.6 bars it from shipped code; tree verified clean afterwards). **`HeldPending`, and `pending_identity_count` 0 → 1**, on a Space whose **DAG tips are non-empty** ⇒ ***the hold is for a MISSING IDENTITY and cannot be a missing predecessor.*** 🔑 **This is the whole content of `F-2`: `DispatchOutcome::HeldPending` is a UNIT variant, so an unregistered sender and a missing predecessor return the identical value** — v1.1's control would have passed on a fixture with wrong `prev_events`, which is the exact defect it was written to expose. ⇒ **`X-1` — *carol must be registered or the test proves nothing* — STOPS BEING A CLAIM IN A DOCUMENT.** 📌 *Run only after V-1 was green, so a compile or harness fault could not present as a registration hold.*
+
+🔑 **V-1b — AND THE BASELINE TURNED OUT TO BE MEASURABLE FOR THE COST OF ONE FLAG.** Clair reported `1604` and **named her own limit**: the `+2` was against the **carried** `1602`, and she had not measured the pre-change baseline on this tree. ✅ **The same workspace run with `--skip space_admission_third_party_join` returns `1602 / 0 / 62 × 56 SUITES` with exactly `2` FILTERED OUT** ⇒ ***both sides of the delta are now measured on the same tree, in the same session, with the same binaries.*** 🔑 **A figure carried unmeasured for twenty consecutive sessions was one command away from being measured the whole time** — *and the honest limit statement is what made it visible; a seat that had simply written `1604` would have left the gap invisible.*
+
+### ✅ THE REST OF §5, RE-DRIVEN (Rule 5 — not one of Clair's numbers adopted on report)
+
+**V-1** detached `cargo test --workspace`, own exit sentinel `=0`, final `test result:` line present, summed programmatically over `^test result:` → **1604 / 0 / 62**, both tests named, `Compiling xgen-node` present ⇒ **not a cached pass**; case-**sensitive** anchored negative controls all zero (`^test result: FAILED`, `error[`, `panicked`). **V-2** **56 SUITES**, structurally unchanged ⇒ no §8 finding. **V-4** `git diff --numstat e42ee3f eedfebd` → **exactly two files**, `324/0` + `6/0`. **V-5** `git ls-files --eol` → **`i/lf w/lf`** both.
+
+✅ **§2 HELD, AND THE FIXTURE'S OWN PATH IS THE PROOF** — it reached `Accepted` exactly as `X-1`…`X-7` predict, so **no gate outside §2 was encountered** and **§8 item 2, which the runbook itself named *the likeliest defect in this document*, did not fire.** 📌 **The X-row spans are carried from the J-753 re-drive BY SCOPE** — `eedfebd` changed zero production `.rs`, so no cited span can have moved; *stated as a carry rather than re-read and reported as fresh.*
+
+✅ **§9.1's ORDERING WAS HONOURED AND IT CONVERGED.** The expected outcome was derived cold from `exchange.rs` / `runtime.rs` / `state.rs` and written down **before** §4.5 was read; it reached §4.5's answer exactly and **independently reached assertion 4 and all three fixture traps.** `tasks/CLAIR_LEG_A_BIS_RUNBOOK_READ.md` untouched ⇒ **§1's freeze holds.** 📌 **The derivation lives in session scratch only — §2's two-file scope forbids committing it**, which is correct and is also the honest limit on the convergence claim.
+
+### ⚠️ TWO DEVIATIONS REPORTED AND NOT ABSORBED (Rule 6). NEITHER BLOCKS.
+
+① **The session kickoff sited `dispatch_event` at `xgen-node/src/…/runtime.rs`; it is `xgen-core/src/node/runtime.rs`.** 🔑 **The RUNBOOK cites `runtime.rs` unqualified and is NOT wrong — the defect was Chat's kickoff**, and it is flagged because *a sweep of the wrong path returns a clean-looking nothing*: `N-197` instances 9 and 10 were exactly that, a sweep of `xgen-core/src/node/exchange.rs` returning `TOTAL=0` that meant **file not read**.
+
+② **§4.6 item 5 says *"all three assertions of §4.5"*, and §4.5 carries FOUR.** Assertion 4 arrived at v1.2 from Clair's own `Q4` and **§4.6's count was never swept** — while §4.5's item 4 calls itself *"the strongest of the four"* **in the same document.** 🔑 **The omission in the companion is STRUCTURAL, not a weakening:** assertion 4 reads `bob_id`, and **an ordinary Space has no counterpart**, so there is nothing for it to assert. 📌 ***The arc's recurring species — a claim narrower than the thing it describes — and it was found in the section §9.2 item 5 had named the LEAST-TRUSTED. That is the audit working, not failing.***
+
+### 🔑 AN INSTRUMENT FAILURE CLAIR CAUGHT ON HERSELF, AND IT IS `N-197` INSTANCE 1 REPRODUCING EXACTLY
+
+An EOL check using `grep -c $'\r'` returned **`cr == lines` for every file** — including `mod.rs`, which `git` reports `w/lf`. **The pattern expands to empty and counts LINES**, and *a real CRLF file shows equal counts too*, so the reading was indistinguishable from the truth. ✅ **Re-measured with `tr -cd '\015' | wc -c` under POSITIVE AND NEGATIVE controls:** `mod.rs` **0 CR** (`w/lf`), `phase9_harness.rs` **1619 CR** (`w/crlf`), the new file **0 CR**. 📌 **And a third instrument, `awk '/\r$/'`, returned 0 even for the confirmed-CRLF file** ⇒ **two of three instruments were blind and only `tr` discriminated.** 🔑 ***Running two instruments is what surfaced it; running one would have produced a confident wrong answer in either direction — which is `N-197` rule ② stated as a habit rather than as a rule.***
+
+### ✅ DoD 4 AND DoD 6 DISCHARGED IN THIS SAME EDIT
+
+✅ **DoD 4 — §6's FOUR NON-CLAIMS ARE NOW IN THE `M-SPACE-ADMISSION` ROADMAP NODE**, replacing the generous form with the measured one, together with the honest one-liner: ***a registered third-party Identity is admitted to a DM it is not party to, as `Role::Member`, with no invite — measured in-process on the local dispatch path.*** ✅ **DoD 6 — LEG D's row GAINS THE INVERSION ITEM** (`N-109`, written in the edit that closes this leg, never left to the leg that lifts the limit): after the gate ships, **a GREEN run of the un-edited DM test is a FAILURE OF THE GATE, not a pass** — and **the open-Space companion is NOT touched**, with any pressure to weaken it recorded as a finding about the gate's scope.
+
+### 🔒 FLOORS — cargo MOVED, AND BOTH SIDES ARE MEASURED
+cargo **1602 → 1604 / 0 / 62 × 56 SUITES** — **the twenty-session no-code streak ends, and it ends on the session where `cargo` was supposed to move and did.** vitest **172 / 172 × 9 FILES** and svelte-check **0 / 34 / 15** — **carried BY SCOPE** (zero `ui/**`), stated rather than silently skipped. 🛑 Catalogue **UNMEASURED**. 🛑 **A floor is never cited without its unit.**
+
+**No new `D`. No new `N`.** 🔓 **OPEN AND JOE'S:** `N-197` and `N-198` wording · `F-6`'s counting word · the DM receiving half's name and scope · 📌 **and one form question raised this session: Clair's hand-back was titled *session kickoff*, and a document that reports what happened is not a document that opens a session** — the risk is that an instruction-shaped *"WHAT CHAT OWES"* block inside a file named **kickoff** can be replayed as a brief. **Chat recommends `HAND-BACK` for the closing direction and reserves `kickoff` for the opening one; the words are Joe's.** 🎯 **NEXT: Legs B–F are unstarted and Leg B (the field + the create parse) is the next executable one; Leg ② stays deferred to after `Leg E-0`.** → J-755 · ROADMAP v7.40.
+
+---
+
 ## Entry J-754 — The runbook locks at v1.3, and the lock exposes that the previous lock was recorded against a filename
 **Date:** 2026-08-18 · **Seats:** Joe (the lock) · Chat (records, `F-6`'s measurement half) · Clair (stood up at the end of this entry)
 

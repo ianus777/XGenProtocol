@@ -1,6 +1,6 @@
 # M-SPACE-ADMISSION Phase-0 — who may join a Space, and how a leaver comes back
 > **Status**: ACTIVE  
-> Version: 1.8  
+> Version: 2.0  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-18  
 > Language: EN  
@@ -173,7 +173,7 @@ This is the part of the milestone that is **not** a settings field, and it is th
 
 ---
 
-## §6 — 🔓 THE OPEN DECISIONS. **JOE'S, UNRESOLVED, NAMED.** Each carries `D-121`'s three lenses.
+## §6 — ✅ THE DECISIONS. **ALL EIGHT RULED (Joe, 2026-08-16, J-744/J-745) PLUS §6.3's BRANCH (J-749). NOTHING HERE IS OPEN.** Each carries `D-121`'s three lenses. 📌 **The heading read *"🔓 THE OPEN DECISIONS. JOE'S, UNRESOLVED, NAMED"* through v1.7 — stale from the moment the rulings landed, and corrected at J-756. *An honesty note that outlives the thing it warned about is a live false record (`N-109`).***
 
 > 📌 **Every option below is written in this file.** J-741's process defect — an option set that existed only in chat could not be audited — is not repeated. **A census is not a partition:** where the set is a partition it says so; where it may not be, it says that instead.
 
@@ -338,13 +338,14 @@ This is the part of the milestone that is **not** a settings field, and it is th
 | leg | content | gated on |
 |---|---|---|
 | **0** | ✅ **THIS FILE.** Audit + §4's closed leg + §10's corrections, committed atomically with the ROADMAP node under `D-074` | — |
-| **A** | 🔒 **DESIGN LOCK** — Joe rules §6.1…§6.8. Chat writes the design into this file (v2.0) with each ruling at its site | §6 |
+| **A** | ✅ **DESIGN LOCK — DONE (J-756). §15 IS THE DESIGN.** §6.1…§6.8 ruled at J-744/J-745, §6.3's branch at J-749, and **four further rulings this session** (Q-2's mechanism, Q-1a, the `3048` invariant, the leg split) | §6 |
 | **A-bis** | ✅ **LEG ① SHIPPED AND VERIFIED — J-755, commit `eedfebd`, two files, +330/−0, ZERO production code.** `tasks/RUNBOOK_SPACE_ADMISSION_LEG_A_BIS.md` **v1.5 COMPLETED**. **MEASURED BY CHAT UNDER RULE 5, NOT ADOPTED ON REPORT:** `cargo` **1602 → 1604 / 0 / 62 × 56 SUITES**, and 🔑 **the baseline was MEASURED on this tree rather than carried** — the same workspace run with `--skip space_admission_third_party_join` returns **1602 / 0 / 62 × 56 with exactly 2 filtered out**, so ***the delta is a measurement and not arithmetic against a number carried for twenty sessions.*** 🔒 **V-3, the negative control, RUN AND GREEN (Chat's, a discarded probe, never committed):** the identical fixture with carol UNREGISTERED returns `HeldPending` **and `pending_identity_count` 0 → 1** on a Space whose DAG tips are non-empty ⇒ ***the hold is for a MISSING IDENTITY and cannot be a missing predecessor*** — which `DispatchOutcome::HeldPending`, a UNIT variant, could never have said on its own. ⇒ **`X-1` stops being a claim in a document.** 📌 **What it records:** *a registered third-party Identity is admitted to a DM it is not party to, as `Role::Member`, with no invite — measured in-process on the local dispatch path.* 📌 **Leg ② remains DEFERRED to after `Leg E-0`** and gets its own runbook. **Original row follows.** 🔒 **RUNBOOK NAMED (Joe, 2026-08-16; recorded J-749): `tasks/RUNBOOK_SPACE_ADMISSION_LEG_A_BIS.md`, authored J-749, LEG ① ONLY.** ⚠️ **THE TWO EXECUTABLE LEGS, BOTH STILL OWED — AND ①'s FIXTURE WAS WRONG UNTIL J-748.** 📌 **Leg ② is DEFERRED to after `Leg E-0` and is deliberately NOT in that runbook** — it tests the sibling's divergence, and admission is not built.<br> ① a test that submits a third-party `membership.join` locally against a DM and asserts today's admission, then asserts the new gate refuses it — **the before-assertion is what makes it a regression test rather than a feature test.** 🛑 **THE ACTOR IS A SECOND *REGISTERED* IDENTITY, NOT A FRESH KEYPAIR.** J-743's instruction (*"must use a fresh unregistered keypair or it tests a narrower thing than the hole"*) was **exactly backwards**: `exchange.rs:629` HeldPends an unregistered sender universally, so **a fresh-keypair fixture would assert `HeldPending` and pass while proving nothing** — ***a check whose failure mode reads exactly like success, minted by a correction meant to prevent one.*** 📌 **`phase9_harness`'s `InProcessNode` already supplies the shape; `phase9_unknown_signer_first_contact.rs` is the federation sibling and the model for keypair setup.** ② **a live two-node concurrent-set test for §3.2's divergence** — both Chat and Clair derived it from a measured gate and a measured applier, **and neither ran it**; `phase9_two_node_smoke.rs` is the existing two-node harness | Leg A |
 | **B** | **THE FIELD + THE CREATE PARSE** — `SpaceState` field, three constructors, `DEFAULT_ADMISSION`, §7's absent-⇒-open derive. **No gate yet: nothing reads it** | Leg A |
 | **C** | **THE MUTATION EVENT** — enum + `as_str` + `from_str` (`wire.rs:114-115`, `:215`, `:309`) ⚠️ **plus `known_variants()` at `wire.rs:736-757`, a hand-maintained test vec: omitting the variant there does not fail, it silently drops it from the round-trip test.** *A check whose failure mode reads exactly like success is not a check.* Plus the content struct, the applier arm (**`apply_mute`'s idiom, §3.1**) and §6.3's `state_key_for_event` arm | Leg B |
-| **D** | **THE GATE** — in `dispatch_event` beside the invite-expiry gate, on the `origin == LocallySubmitted` branch, fail-closed, new reject code (`3044`'s shape). **This is the leg that closes §4.** 🔒 **DoD ITEM INHERITED FROM LEG A-bis, WRITTEN IN THE EDIT THAT CLOSED IT (`N-109`, J-755): INVERT `third_party_registered_identity_joins_a_dm_it_is_not_party_to`.** Once the gate ships, ***a GREEN run of the UN-EDITED DM test is a FAILURE OF THE GATE, not a pass*** — the test asserts `Accepted` / `Role::Member` / `invited_by: None` for an uninvited third party, which is exactly what the gate exists to refuse. 🛑 **AND THE COMPANION `third_party_registered_identity_joins_an_open_space` IS NOT TOUCHED** — under `D-148` clause 3 an ordinary Space defaults to `open` forever, so it must stay green through Leg D and after it; **if Leg D finds it must be weakened or edited, that is a FINDING about the GATE'S SCOPE** (the gate would be refusing an open join), reported and never absorbed. *A companion edited alongside the thing it was built to outlive was never a control.* | Leg C |
+| **D** | **THE GATE** — in `dispatch_event` beside the invite-expiry gate, on the `origin == LocallySubmitted` branch, fail-closed, new reject code (`3044`'s shape). **This is the leg that closes §4.** 🔒 **DoD ITEM INHERITED FROM LEG A-bis, WRITTEN IN THE EDIT THAT CLOSED IT (`N-109`, J-755): INVERT `third_party_registered_identity_joins_a_dm_it_is_not_party_to`.** Once the gate ships, ***a GREEN run of the UN-EDITED DM test is a FAILURE OF THE GATE, not a pass*** — the test asserts `Accepted` / `Role::Member` / `invited_by: None` for an uninvited third party, which is exactly what the gate exists to refuse. 🛑 **AND THE COMPANION `third_party_registered_identity_joins_an_open_space` IS NOT TOUCHED** — under `D-148` clause 3 an ordinary Space defaults to `open` forever, so it must stay green through Leg D and after it; **if Leg D finds it must be weakened or edited, that is a FINDING about the GATE'S SCOPE** (the gate would be refusing an open join), reported and never absorbed. *A companion edited alongside the thing it was built to outlive was never a control.* 🔒 **AND `3048` RIDES THIS LEG (Joe, 2026-08-18, J-756; §15.6):** the gate must **refuse** a join that is concurrent with a leave on the same state key, rather than accepting it into a fold that will drop it. **Machinery already present — `conflicts_in_log`, `runtime.rs:853`.** | Leg C |
 | **E-0** | 🔒 **`D-071` PREREQUISITE, MINTED BY THE (g) RULING: an `is_member` CALLER CENSUS.** (g) changes `members` semantics, so every caller inherits it; **the audit precedes the dependent work and does not surface during it.** State the metric and the pool | Leg A |
 | **E** | **THE REJOIN STORY** — §6.5's `left_at` model, §8's convergence questions, and §8 item 3's surviving anchor note | Legs A + D + **E-0** |
+| **G** | 🔒 **THE REJOIN ANCHOR VERB — ITS OWN LEG (Joe, 2026-08-18, J-756), NOT A RIDER ON E.** A node-side `get_rejoin_anchor`, sibling of `collect_invite_bootstrap`: the rejoiner asks the Node for **her own** last membership event and anchors on it, so the causal anchor stops depending on client-local memory. **New wire surface ⇒ Joe's seat ⇒ its own leg**, sequenced after D, **and it may slip without leaving a silent failure behind, because `3048` already made the residue loud** | Legs A + D + E |
 | **F** | **CLOSE** — records, `D-074` atomic commit, `roadmap-format-gate.ps1` exit 0 | all |
 
 🔓 **Legs are Chat's proposal; the leg list is Joe's to lock, and §6.6 may cut it at D.**
@@ -392,4 +393,80 @@ This is the part of the milestone that is **not** a settings field, and it is th
 - [x] **Clair's cold read RUN (J-743), GO WITH FINDINGS, all six re-driven by Chat and folded in at their sites** — §4 widened · §3.2 + §6.3 corrected and upgraded · §6.2's premise replaced · §6.4's site fixed · §6.5's census completed · §8 item 3 downgraded
 - [x] 🔒 **§6.1–§6.8 ALL RULED (Joe, 2026-08-16, J-744 + J-745), AND §6.3's ONE BRANCH RULED AND ON DISK (J-749).** ⚠️ **This box was stale for four versions** — the eight rulings landed at J-744/J-745 and v1.4/v1.5/v1.6 each carried the ruling at its own § while leaving the DoD saying nothing had been ruled. **Flipped in Chat's own seat (record accuracy, `D-123`), and the staleness named rather than quietly corrected:** *a DoD item that contradicts the sections above it trains the reader to skip the DoD.* 📌 **Nothing was ever locked against the v1.1 text; the ruling sites all cite the corrected arguments.**
 
-📌 **"Commit pushed" is deliberately not a DoD item** — `Status: COMPLETED` in this header is the shipped signal, and this file stays `ACTIVE` until Leg A locks the design into it.
+📌 **"Commit pushed" is deliberately not a DoD item** — `Status: COMPLETED` in this header is the shipped signal, and this file stays `ACTIVE` until the milestone closes at Leg F. ✅ **Leg A locked the design in at v2.0 (J-756); §15 is it.**
+
+---
+
+## §15 — 🔒 THE DESIGN. **LEG A's DELIVERABLE. EVERY SITE MEASURED AT `b3ccb77`, NONE RECALLED.**
+
+📌 **Provenance:** §6.1–§6.8 (Joe, 2026-08-16) + §6.3's branch (J-749) + **four rulings taken 2026-08-18 (J-756)**: Q-2's rejoin mechanism **(a)**, Q-1a **(i)+(iii)**, `3048` riding Leg D, and the anchor verb as its own leg. 🛑 **Sections marked 🔓 are NOT ruled and must not be implemented from.**
+
+🛑 **A CORRECTION MADE WHILE WRITING THIS SECTION, RECORDED BECAUSE IT NEARLY SHIPPED:** the session's own recommendation said *"a `former_members` (or `left_at`) set"*, straddling **(b)** and **(g)** as if they were one option. §6.5 **ruled (g) and REFUSED (b) explicitly** — (b) is *"(g)'s fact stored in a SECOND PLACE, `D-067`'s exact target, plus the unbounded departures list"* with a named GDPR surface. ⇒ **the design below is (g) and only (g).** 🔑 ***Reading the ruling at its site is what caught it; re-reading the summary would not have.***
+
+### §15.1 — THE FIELD
+
+| what | where, measured |
+|---|---|
+| `pub admission: String` | `SpaceState`, `xgen-core/src/space/state.rs:186-258` — **append after `threads` (`:257`)**. Sibling in kind to `member_temperature_visibility` (`:249`): an **open enum**, `String`, no `enum` type |
+| `pub const DEFAULT_ADMISSION: &str = "open";` | module scope in the same file, above the `// ── Data structures` banner at `:71`. ⚠️ **`state.rs` has NO existing `const` block** — the only `const` is `HOME` at `:1992`, inside `mod tests`. **Leg B introduces the first one; that is expected, not a smell** |
+| convergence | `SpaceState` derives `Debug, Clone, PartialEq, Eq` (`:185`) and **is never serialised** — it is folded from the log. A `String` field is covered additively by the `derive_resolved` oracle, exactly as `jurisdiction` and `e2e_encryption` are (`:206`, `:219`) |
+
+🔓 **OPEN — JOE'S, AND IT IS A REAL DISTINCTION, NOT A DETAIL: `absent` and `present-but-unrecognised` ARE NOT THE SAME CASE.** `L-E` rules **absent ⇒ `open`** and that is settled — it is what keeps every existing Space working. **An unrecognised value is different: it was written deliberately, by a newer version, and the Node does not know what it means.** 🎯 **Chat recommends unrecognised ⇒ FAIL CLOSED (behave as `invite`)**, on the ground that the whole milestone exists because an unknown-to-us policy admitted a stranger, and `member_temperature_visibility`'s *unknown ⇒ most-restrictive* precedent (`:247-248`) already points that way. ⚠️ **Its cost, stated: a Space set to a future policy becomes join-refusing on older Nodes rather than join-permitting — a federation-visible split-brain in behaviour, and the honest price of not guessing.**
+
+### §15.2 — THE CREATE PARSE
+
+**Three constructors — MEASURED, not inherited from §6.2's count:** `from_space_create` **`state.rs:265`** · `from_dm_space_create` **`:342`** · `from_dm_space_create_node` **`:496`**. ✅ **Three is correct.**
+
+- `from_space_create` → read `content.admission`, **`unwrap_or_else(|| DEFAULT_ADMISSION.to_string())`** (§7's pattern; absent ⇒ `open`, `L-E`).
+- **Both DM constructors → pin `"invite"` unconditionally** (`L-C`, §6.4 ruling **(b)**), **ignoring content**.
+
+### §15.3 — THE MUTATION EVENT
+
+`state.space_admission` — **the wire name is already fixed by §6.3's state key** `("state.space_admission", space_id)`.
+
+| site | measured |
+|---|---|
+| variant + `as_str` | `xgen-common/src/wire.rs:168` |
+| `from_str` | `wire.rs:429` |
+| ⚠️ `known_variants()` | `wire.rs:736` — **hand-maintained; omission does not fail, it silently drops the round-trip case.** *A check whose failure mode reads exactly like success is not a check* |
+| `state_key_for_event` arm | `xgen-core/src/resolution/state_key.rs:44` — the `StateSpaceUpdate` / `StateNodePriority` shape, **one active value per Space** |
+| applier | new `apply_space_admission`, sibling of `apply_space_temperature_visibility` (`state.rs:752-768`) |
+| 🔒 DM refusal | the applier **refuses when `dm_constraints_active`** (§6.4(b)). ⚠️ **`apply_dm_promote` (`state.rs:659-666`, the flip at `:664`) has NO permission gate and `StateDmPromote` is not in `skip_membership` — in a DM EITHER PARTY can promote**, which is why the value is stored and not derived: ***the pin must survive the un-pinning event, and only a stored value does*** |
+
+🔓 **OPEN — JOE'S: who may change `admission`?** Owner only, or Owner + Admin. 🎯 **Chat recommends Owner-only for v1** — it is the tightest reversible choice, and widening later is additive while narrowing later is a capability removal. **Leg C measures `check_permission`'s existing table before this is implementable.**
+
+### §15.4 — THE GATE
+
+🔒 **SITE, MEASURED: `xgen-core/src/node/runtime.rs`, immediately after the invite-expiry block ends at `:1612`, inside the same `if origin == EventOrigin::LocallySubmitted && event.room_id.as_str().is_empty()` branch opened at `:1580`.** The `MembershipJoin` arm; expiry first, admission second.
+
+🔒 **REJECT CODE `3047`, `admission_refused` — MEASURED FREE.** 3044/3045 are the invite-admission family (`dag/pending.rs:97`), **3046 is taken at `resident.rs:1374`**. §12's *"3044's shape"* meant `RejectInfo::coded`'s shape, **not the number**.
+
+**Predicate — admit iff any of:** the Space resolves to `open` · the sender holds a `pending_invites` entry · **the sender is a FORMER MEMBER (§15.5)**. Otherwise `Rejected(3047)`. **Fail-closed**, `LocallySubmitted` only — a federated join is **not** re-adjudicated (`INV-EXP`'s D-1/D-3 precedent at `:1567-1579`).
+
+### §15.5 — THE REJOIN PREDICATE — §6.5's **(g)** FOR THE FEEDER, AND **Q-2's (a)** FOR THE PREDICATE. 📌 **`Q-2` IS THIS SESSION'S RULING (J-756) AND HAS NO §6 NUMBER — the draft cited a §6.9 that does not exist, which is `N-198`'s species caught in its own design section.**
+
+🔒 **`SpaceMember` gains `pub left_at: Option<String>`** (`state.rs:74-83`, beside `invited_by:82`). 🔒 **`apply_leave` STOPS REMOVING** — `state.rs:1046`'s `self.members.remove(leaver)` becomes a lookup + `left_at = Some(ts)`; the room-membership stripping at `:1049-1051` is unchanged.
+
+🔒 **Q-2 RULED (a) (Joe, 2026-08-18): a former member is re-admitted WITHOUT an invite** — the predicate is `members.get(sender).left_at.is_some()`. 🔑 **This was not a free choice for DMs and the measurement is why:** `apply_invite`'s **first statement** bars all DM invites unconditionally (`state.rs:962-965`), and `L-C` pins DMs to `invite` ⇒ **without (a), Leg D makes DM departure IRREVERSIBLE for both parties — including the DM's own counterpart.** 📌 **`left_at` is a MARKER, NOT A GRANT** (§6.5): it records that this Identity was a member; the return is still a separate explicit act.
+
+✅ **NO BACKFILL, AND THIS IS MEASURED, NOT HOPED: `SpaceState` IS NEVER PERSISTED — IT IS FOLDED FROM THE STORE.** `derive_resolved(store.range(0))` at **`runtime.rs:677`** (cold start, via `replay_spaces_from_dir`), **`:832`** (create) and **`:857`** (conflict rebuild). Leave events are already on disk in every Space ⇒ **`left_at` regenerates itself at the next cold start.** ⚠️ **The one honest limit: regeneration is on REBUILD.** The incremental path (`:866`) mutates live state, so a Node that never restarts carries pre-existing leavers as invisible until it does. **Statable, small, and not a blocker.**
+
+🛑 **`E-0` IS A HARD PREREQUISITE (`D-071`):** (g) changes `is_member` semantics, so **every caller inherits it** — including `collect_sync_history`'s gate at `xgen-node/src/fanout.rs:488`, which is §8's starvation problem. **The census precedes Leg E; it does not surface during it.**
+
+### §15.6 — 🔒 `3048` — THE `Accepted ≠ member` INVARIANT. **RIDES LEG D (Joe, 2026-08-18).**
+
+🔑 **THE DEFECT, MEASURED END TO END.** Under (a) a rejoiner needs no invite ⇒ `get_invite_bootstrap` yields nothing (`xgen-client/src/ops.rs:1674`) ⇒ `get_dag_tips` starves (non-member, `fanout.rs:488`) ⇒ **`rejoin_anchor_or_root` (`ops.rs:142`) becomes the PRIMARY path, not the defensive one its own comment calls it.** With `last_local_events` absent — reinstall, cleared state, **a second device**, a leave taken elsewhere, or the best-effort write failing at `ops.rs:1842-1847`, which **explicitly degrades to root** — the join anchors on the **create root** ⇒ it is concurrent with the leave on `membership:{space}:{identity}` ⇒ frontier ≥ 2 ⇒ a genuine conflict set ⇒ **`algorithm.rs:146-147`'s Layer 1 table picks `MembershipLeave` over `MembershipJoin`** ⇒ `derive.rs:113-119` **excludes the loser.**
+
+🛑 **⇒ THE NODE ACCEPTS, PERSISTS, RETURNS `Accepted` — AND THE FOLD DROPS IT. TWO SOURCES OF TRUTH INSIDE ONE NODE, SILENTLY.**
+
+📌 **NOT created by admission** — the same fold drops the same rejoin today, and `MP-F7` mitigated it client-side. **What Leg D changes is that the mitigation's failure modes stop being an edge case and become the normal path.**
+
+🔒 **THE RULING: the Node REFUSES rather than accepting-then-dropping.** New code **`3048` `rejoin_not_anchored`**, same gate block. ✅ **The machinery already exists** — `conflicts_in_log` is called at `runtime.rs:853`. 🔑 ***It closes `Accepted ≠ member` as an INVARIANT rather than as a case, and it reaches old clients that `§15.7` never can.***
+
+### §15.7 — 🔒 `get_rejoin_anchor` — **LEG G, ITS OWN LEG**
+
+A node-side sibling of `collect_invite_bootstrap` (`xgen-node/src/fanout.rs:572-577`): the rejoiner asks her Node for **her own** last membership event; the join anchors `prev_events=[leave_id]` ⇒ linear `j→lv→rj` ⇒ **frontier of size 1 ⇒ no conflict set ⇒ the fold applies it.** **Authorization is trivial — she asks for her OWN event, no disclosure surface.** An older Node that cannot answer ⇒ the client falls back to exactly today's behaviour. **New wire verb ⇒ Joe's seat ⇒ not smuggled into Leg E.**
+
+### §15.8 — WHAT §15 DELIBERATELY DOES NOT DECIDE
+
+🔓 unrecognised-value semantics (§15.1) · 🔓 who may change `admission` (§15.3) · 📌 Leg ②'s two-node divergence test (deferred past `E-0`) · 📌 §10 C-1's sibling-divergence follow-up (**its own milestone, never a rider**) · 📌 ch3 §3.16.1's invite-bar restatement (§5 C-4).

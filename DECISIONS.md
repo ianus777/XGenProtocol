@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-17  
+> **Last updated:** 2026-08-18  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -5699,3 +5699,31 @@ Both clauses were derived while settling **one** field and neither is about that
 ### Provenance (`D-141`)
 
 **The question is Joe's** — he raised the `about`/About-modal collision that reopened a nine-session-old item. **The semantic disqualification of `about` and both clauses are Chat's**, from grounding the field's actual authoring path (`composer-panel.svelte:115`) and its spec status. **The ruling on `blurb` is Joe's, against Chat's recommendation.** 📌 **Recorded with the losing argument intact**, because the next reader will otherwise re-derive it from scratch.
+
+---
+
+## D-151 — An acceptance decision must be adjudicated against the same resolution that will fold the state; and two independently-correct rules in different appliers can compose into a capability removal neither of them names
+
+**Date:** 2026-08-18 · **Status:** ACTIVE · **Arc:** node dispatch / state resolution / policy composition · **Origin:** J-756 (`M-SPACE-ADMISSION` Leg A design lock)
+
+### The rule — two clauses, and they are separate
+
+🔒 **CLAUSE 1 — A GATE THAT ACCEPTS WHAT THE FOLD WILL DISCARD IS TWO SOURCES OF TRUTH INSIDE ONE NODE. REFUSE INSTEAD.** An admission gate runs at dispatch; the state the user actually sees is produced later by the resolver. When the two can disagree — the Node persists the event, returns `Accepted`, and the fold then drops it as a concurrency loser — **the disagreement is invisible to everyone**: the client was told yes, the state says no, and **nothing reports a failure.** ⇒ **where a gate cannot guarantee that the resolver will keep what it admits, it must REFUSE with a coded reject rather than accept optimistically.** 🔑 ***A visible refusal is a worse user experience and a better system; a silent divergence is neither.***
+
+📌 **The general form: acceptance is a claim about the resolved state, not about the event.** Any check that adjudicates *may this happen* while reading a different picture from the one that decides *did this happen* carries this defect. **The test is not "is the gate correct" but "can the gate's yes survive the fold".**
+
+🔒 **CLAUSE 2 — BEFORE PINNING A POLICY VALUE, MEASURE THE APPLIERS THE PINNED VALUE FORECLOSES.** Two rules can each be right, be written years apart, live in different functions, and **compose into an irreversible capability removal that neither of them states.** Neither rule is wrong; **the composition is not written down anywhere**, because each applier only knows its own condition. ⇒ **when a design pins a value for a class of object, enumerate what that class's OTHER rules already forbid** — the pin plus an existing bar can equal *no door at all*.
+
+⚠️ **The composed consequence never appears in either site's diff.** It is not findable by reviewing the change; it is findable only by asking *what else is true of this object* before the pin lands. **That question is a design-time obligation, not a review-time one.**
+
+### Why it earned a `D`
+
+**Both clauses were paid for in the same session, by measurement, against a design that had already been ruled and was about to be written down as final.**
+
+**Clause 1** came out of tracing a rejoin end to end after the rejoin mechanism was ruled: the anchor falls back to the Space create root whenever the client's own memory of its leave is missing — a reinstall, a cleared profile, **a second device**, or a best-effort write that failed — and the join is then concurrent with the leave on one state key, where the resolver's hardcoded priority table prefers the leave. **The Node would have said `Accepted` and the member would not have existed.** 📌 **The defect predates admission** — the same fold drops the same rejoin today — **but the design promoted the rare path to the only path**, which is the shape worth naming: *a mitigation's failure modes become the design's exposure surface the moment the mitigated path stops being the exception.*
+
+**Clause 2** came out of measuring, rather than recalling, what a DM already forbids. A pin (*DMs are invite-only*) met an unconditional bar in a different applier (*DMs may not carry invites*), and the product of the two was **a one-way exit from every DM, for both parties, including the counterpart** — a capability that exists today and would have been removed by a milestone whose subject is admission, not departure. **The pin was correct. The bar was correct. Their product was a door that only closes.**
+
+🔑 **What both clauses share, and the reason they are one decision: neither is visible from inside the change that causes it.** Clause 1's defect lives between two functions that never call each other; clause 2's lives between two rules that never mention each other. ⇒ ***the discipline is the same in both cases — follow the thing to its end through code you did not write in this change, and do it before the design is locked rather than when the test goes red.***
+
+📌 **Recorded with the rulings it produced** — a former member is re-admitted without an invite; the anchor is fetched from the Node rather than remembered by the client; the refusal ships with the gate rather than after it; and the new wire verb is its own leg rather than a rider — **but the rulings are `M-SPACE-ADMISSION`'s and the two clauses outlive it.**

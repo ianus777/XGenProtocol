@@ -8,6 +8,45 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-756 — Leg A locks the design, and writing it down found two things the rulings could not
+**Date:** 2026-08-18 · **Seats:** Joe (four rulings) · Chat (measurement, §15, records)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `b3ccb77` **= `origin/main` by `git ls-remote`**, tree clean, **5 files / +90/−7 — matching the J-755 commit's own self-description, checked against the diffstat rather than against the message.**
+
+🎯 **LEG A IS THE MILESTONE'S GATE AND IT HAD NOT BEEN DONE.** §12 row A reads *"Chat writes the design into this file (v2.0)"*; the file was at **v1.8**, and §8 says so outright — *"this is the design leg's first item and it is the reason §12 does not put implementation next."* 🔑 **All eight §6 questions were ruled; a ruling is a decision and not a design.** ⇒ Phase-0 **v1.8 → v2.0**, **§15 THE DESIGN**, every site measured at `b3ccb77`.
+
+### 🔒 FOUR RULINGS — AND TWO OF THEM CAME OUT OF MEASUREMENT, NOT DELIBERATION
+
+🔒 **Q-2 — (a): a former member is re-admitted WITHOUT an invite.** 🔑 **It was not a free choice, and the reason is a composition nobody had written down: `apply_invite`'s FIRST STATEMENT bars all DM invites unconditionally (`state.rs:962-965`), and `L-C` pins DMs to `invite`** ⇒ **after Leg D a DM leaver could never be re-admitted by any invite, ever, because no DM invite can exist.** ***A one-way exit from every DM, for both parties, including the counterpart — removed by a milestone whose subject is admission, not departure.*** 📌 **Both rules are correct. Their product was a door that only closes.**
+
+🔒 **Q-1a — (i)+(iii), and §8 item 1 turned out not to be the question it asks.** ⚠️ **Chat answered it *"needs no ruling"* one turn earlier, and that answer was correct ONLY under the option Joe did NOT pick** — Joe pushed back with *"what is the question real?"* and the push was right. Under (a) a rejoiner needs no invite ⇒ `get_invite_bootstrap` yields nothing ⇒ `get_dag_tips` starves (non-member) ⇒ **`rejoin_anchor_or_root` becomes the PRIMARY path, not the defensive one its own comment calls it.** With `last_local_events` absent — reinstall, cleared state, **a second device**, or the best-effort write failing at `ops.rs:1842-1847`, **which explicitly degrades to root** — the join anchors on the create root, is concurrent with the leave on one key, and **`algorithm.rs:146-147`'s Layer 1 table prefers `MembershipLeave` over `MembershipJoin`** ⇒ `derive.rs:113-119` excludes the loser. 🛑 ***The Node accepts, persists, returns `Accepted` — and the fold drops it. Two sources of truth inside one Node, silently.***
+
+🔒 **⇒ `3048 rejoin_not_anchored` RIDES LEG D** (refuse rather than accept-then-drop; `conflicts_in_log` already exists at `runtime.rs:853`), and 🔒 **`get_rejoin_anchor` BECOMES ITS OWN LEG G** — new wire surface, Joe's seat, **not smuggled into Leg E**, and it may slip without leaving a silent failure behind precisely because `3048` made the residue loud.
+
+✅ **AND THE NO-BACKFILL QUESTION IS ANSWERED BY MEASUREMENT, NOT HOPE: `SpaceState` IS NEVER PERSISTED — IT IS FOLDED FROM THE STORE.** `derive_resolved(store.range(0))` at `runtime.rs:677` (cold start), `:832` (create), `:857` (conflict rebuild) ⇒ **`left_at` regenerates for every existing Space at the next cold start, from leave events already on disk.** ⚠️ **Honest limit: regeneration is on REBUILD** — the incremental path at `:866` mutates live state, so a Node that never restarts carries pre-existing leavers as invisible until it does.
+
+### 🛑 THE CATCH THAT MATTERS MOST — THE DESIGN WAS ABOUT TO BE WRITTEN AGAINST A REFUSED OPTION
+
+Chat's own recommendation two turns earlier said **"a `former_members` (or `left_at`) set written by `apply_leave`"** — straddling **(b)** and **(g)** as though they were one option. 🛑 **§6.5 RULED (g) AND REFUSED (b) EXPLICITLY**, on `D-067` (*"(g)'s fact stored in a SECOND PLACE"*) and on a named GDPR surface (*an unbounded federated list of everyone who ever left*). 🔑 ***Reading the ruling AT ITS SITE is what caught it; re-reading the summary would not have — and that is the arc's oldest lesson arriving through the one door it had not used yet.*** 📌 **The catch is recorded inside §15 itself**, not just here, so the next reader meets it where the mistake would have been.
+
+📌 **A second, smaller one, caught in the same pass:** §15.5's heading cited **§6.9**, which does not exist — Q-2 is this session's ruling and has no §6 number. **`N-198`'s species, in the design section, ninety minutes after Chat wrote the note about it.** Corrected at the site with the phantom named rather than silently deleted.
+
+### ✅ WHAT §15 CONTAINS — SITES MEASURED, NOT RECALLED
+
+**§15.1** the field (`state.rs:186-258`, append after `threads:257`; `DEFAULT_ADMISSION` — ⚠️ **`state.rs` has NO existing `const` block**, Leg B introduces the first) · **§15.2** ✅ **the three constructors MEASURED and the count CONFIRMED** — `:265` / `:342` / `:496` · **§15.3** the mutation event (`wire.rs:168`, `:429`, ⚠️ `known_variants()` `:736`, `state_key.rs:44`, applier on `apply_space_temperature_visibility`'s idiom) · **§15.4** 🔒 **the gate's site: immediately after the invite-expiry block ends at `runtime.rs:1612`, inside the branch opened at `:1580`**, and **`3047 admission_refused` MEASURED FREE** (3044/3045 the invite family, **3046 taken at `resident.rs:1374`**) — *§12's "3044's shape" meant `RejectInfo::coded`'s shape, not the number* · **§15.5** (g)'s `left_at` on `SpaceMember` + `apply_leave:1046` stops removing · **§15.6** `3048` · **§15.7** Leg G.
+
+🔓 **TWO ITEMS DELIBERATELY LEFT OPEN AND ROUTED TO JOE WITH RECOMMENDATIONS, NOT ANSWERED:** ① **`absent` and `present-but-unrecognised` are NOT the same case** — `L-E` settles absent ⇒ `open`, but an unrecognised value was written deliberately by a newer version; **Chat recommends FAIL CLOSED**, on `member_temperature_visibility`'s *unknown ⇒ most-restrictive* precedent, **and states the cost: a federation-visible behaviour split.** ② **who may change `admission`** — Chat recommends **Owner-only for v1** (widening is additive; narrowing is a capability removal).
+
+### 🔒 RECORDS
+
+**`D-151` written — two clauses, both paid for by measurement in this session:** ① *a gate that accepts what the fold will discard is two sources of truth inside one Node — refuse instead*; ② *before pinning a policy value, measure the appliers the pinned value forecloses.* 🔑 **What makes them one decision: neither defect is visible from inside the change that causes it** — one lives between two functions that never call each other, the other between two rules that never mention each other. ⚠️ **`D-151` was first spliced at the WRONG ANCHOR (between D-149 and D-150) because the matched text appeared twice; caught by re-reading the file's own ordering and relocated to the tail. `DECISIONS.md` is OLDEST-FIRST — the opposite of `JOURNAL.md`.** ✅ **157 entries, max `D-151`, order verified 149 → 150 → 151.**
+
+§6's heading corrected (*"🔓 THE OPEN DECISIONS — JOE'S, UNRESOLVED"* was stale for four versions, `N-109`) · §12 row A ✅ · Leg D gains `3048` · **Leg G added** · Phase-0 DoD's closing line corrected.
+
+🔒 **FLOORS — DOCUMENTS ONLY, CARRIED, NOT RE-RUN:** cargo **1604 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 Catalogue **UNMEASURED**. 🛑 Never cite a floor without its unit. 🎯 **NEXT: Leg B — the field + the create parse. It is small, nothing reads the field, and §15.1's open item does not block it — only the gate reads the value.** → J-756 · ROADMAP v7.41.
+
+---
+
 ## Entry J-755 — Leg A-bis leg ① ships, and the two gates Clair could not close are the two that mattered
 **Date:** 2026-08-18 · **Seats:** Clair (implementation, `eedfebd`) · Chat (Rule-5 re-drive, V-1b, V-3, records) · Joe (pushed)
 

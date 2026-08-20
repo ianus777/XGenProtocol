@@ -5727,3 +5727,31 @@ Both clauses were derived while settling **one** field and neither is about that
 🔑 **What both clauses share, and the reason they are one decision: neither is visible from inside the change that causes it.** Clause 1's defect lives between two functions that never call each other; clause 2's lives between two rules that never mention each other. ⇒ ***the discipline is the same in both cases — follow the thing to its end through code you did not write in this change, and do it before the design is locked rather than when the test goes red.***
 
 📌 **Recorded with the rulings it produced** — a former member is re-admitted without an invite; the anchor is fetched from the Node rather than remembered by the client; the refusal ships with the gate rather than after it; and the new wire verb is its own leg rather than a rider — **but the rulings are `M-SPACE-ADMISSION`'s and the two clauses outlive it.**
+
+---
+
+## D-152 — A `file:line` citation states the tree it was measured on; and an instrument's scope must be declared, because absence reads as cleanliness
+
+**Date:** 2026-08-18 · **Status:** ACTIVE · **Arc:** records / measurement discipline · **Origin:** J-758 (`M-SPACE-ADMISSION` Leg B close)
+
+### The rule — two clauses
+
+🔒 **CLAUSE 1 — A `file:line` IN A FINDING MUST NAME THE TREE IT WAS MEASURED ON.** A leg that inserts lines **invalidates every citation below its first insertion — including the citations in its own runbook.** ⇒ **cite the commit-ish**: `f45bb13 state.rs:554`, not `state.rs:554`. 🔑 **Two measurements of the same fact, both correct, read as a CONTRADICTION when neither states its tree** — and the reader cannot tell a disagreement from a drift without reconstructing somebody's edit sequence.
+
+🛑 **AND A NUMBER MEASURED MID-EDIT BELONGS TO NO TREE AT ALL.** It was true for the minutes between two writes and is true of nothing since — **not of `HEAD`, not of the working tree, not of the commit that ships.** ⇒ **it must never enter a record**, and where one already has, **replace it with the `HEAD`-anchored number**, which is the one a reader can verify without help.
+
+🔒 **CLAUSE 2 — AN INSTRUMENT MUST BE RUN WITH THE SCOPE THAT LETS IT SEE ITS WHOLE SUBJECT, AND ITS COMPLETION MUST BE PROVED, NOT INFERRED.** Two failure shapes, one rule: a **check** that silently excludes part of its subject returns a clean-looking wrong answer; a **run** that dies leaves an artefact that looks like a completed run. ⇒ **name the scope explicitly** (`--all-targets`, `--cached`, the untracked list) **and require a positive completion token** — an exit sentinel written by the run itself, plus the run's own terminal line. 🔑 ***An absent failure is not a passed test; it is an unasked question.***
+
+🛑 **THE ZERO-OUTPUT SHAPE IS THE DANGEROUS ONE.** A wrong number invites a second look. **An empty result, a green check, or a clean tree does not** — it wears the costume of success, and every surrounding signal agrees with it.
+
+### Why it earned a `D`
+
+**Both clauses were paid for inside one leg, and every instance came from a different seat.**
+
+**Clause 1** came out of three citation disagreements at the close, **all three of which turned out to be correct measurements**: two numbers eight lines apart described a **function declaration** and the **struct literal inside it**; two others differed by exactly the count of lines the leg had inserted above them; and one belonged to a tree that existed for about four minutes, mid-edit, between two of the implementer's own writes. 📌 **The arithmetic reconciled exactly** — which is precisely why the convention is the fix and the numbers were never the problem.
+
+**Clause 2** was paid for three times in three ways. A **census** counted its own pattern's line matches rather than its subject. A **compiler-driven enumeration** — written specifically to be the honest census a runbook could not author — **missed a quarter of its subject because the literal sat under `#[cfg(test)]` and the stated command never compiled it**, so following the gate literally produced a **green check** and deferred the miss to a later stage where it would read as a test defect rather than a census defect. And a **negative control** run inline under a stop-on-error preference **died on `cargo`'s stderr, leaving a zero-byte log and a correctly-restored tree** — every visible signal clean, `Test-Path` true, and nothing measured.
+
+🔑 **What unites them, and the reason they are one decision: in every instance the WRONG answer was the QUIET one.** ⇒ ***an instrument that cannot state what it looked at, and a run that cannot prove it finished, are not evidence — and the record must be able to tell the difference without trusting whoever ran them.***
+
+📌 **Provenance (`D-141`):** **clause 1 is Clair's**, handed over unprompted at stand-down precisely so the divergence would not enter the record as a contradiction. **Clause 2's three instances are one Clair's, one Clair's against Chat's runbook, and one Chat's own**, found while re-driving hers. **Neither seat's version was caught by re-reading prose.**

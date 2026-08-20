@@ -1,6 +1,6 @@
 # M-SPACE-ADMISSION Leg B Runbook — the field and the create parse: one String, three constructors, and nothing that reads it yet
-> **Status**: PENDING  
-> Version: 1.2  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-18  
 > Language: EN  
@@ -141,12 +141,12 @@ let ev = sign_event(ev, &key);
 
 | gate | how | expected |
 |---|---|---|
-| **V-0** | `cargo check --workspace` **before any literal is filled in**, output kept | 🔑 **the compiler's list of every `SpaceState` literal — the census this runbook cannot write.** ⚠️ **Its COUNT is recorded in the close as a measurement, not predicted here** |
+| **V-0** | 🛑 **`cargo check --workspace --all-targets`** — **CORRECTED AT v1.3 (Clair `F-1`): `--workspace` ALONE ENUMERATES THREE LITERALS, NOT FOUR.** `simple_space_state` is at `algorithm.rs:406`, inside `#[cfg(test)] mod tests` opened at `:329`, so a plain `check` **never compiles it** ⇒ an implementer following the original wording fills three, **gets a GREEN check**, and meets the fourth later at `cargo test` — **looking like a test defect rather than a census defect.** *A check whose failure mode reads exactly like success, inside the gate written to make the census honest* | the compiler's list of every `SpaceState` literal. 📌 **`M-4` predicts four; the compiler is the authority** |
 | **V-1** | `cargo test --workspace`, detached, own exit sentinel, final `test result:` line required, summed programmatically over `^test result:` | **1608 / 0 / 62**, exit 0, all four tests named in the output, `Compiling` present ⇒ not a cached pass. 📌 **`1604` is CARRIED from J-755, where BOTH SIDES were measured on one tree** — stated, not silently assumed |
 | **V-2** | suite count from the same run | **56 SUITES** — 🛑 **structural; a change is a §7 FINDING, not a correction** |
 | **V-3** | 🔒 **THE NEGATIVE CONTROL, AND IT IS THE ONE THAT CAN FAIL SILENTLY.** By hand, discarded, **never committed**: change §4.3's `unwrap_or_else` to a hardcoded `"invite"` and re-run test 1 | **test 1 must FAIL.** 🛑 **If it still passes, the fixture never exercised the absent path and the default is unproven.** Revert immediately; `git status` clean before continuing |
 | **V-4** | `git diff --numstat` vs the leg's parent | **FOUR files, all in `xgen-common`/`xgen-core`** — `wire.rs`, `wire/types.rs`, `state.rs`, `algorithm.rs`. 🛑 **ZERO `xgen-node`, ZERO `xgen-client`, ZERO `ui/**`** |
-| **V-5** | `git ls-files --eol` on every touched file | `i/lf w/lf` throughout |
+| **V-5** | `git ls-files --eol` on every touched file | 🛑 **`i/lf` — THE INDEX HALF ONLY. CORRECTED AT v1.3 (Clair `F-4`): the working-tree half is `w/crlf` on all four, pre-existing from `core.autocrlf=true`.** The original *"`i/lf w/lf` throughout"* **fails on correct files.** ✅ **The checkable assertions are `i/lf` and `bareLF=0`** |
 | **V-6** | `grep` the diff for `admission` | 🛑 **no `match` on the value, no `if admission ==`, no allow-list, anywhere.** *The absence of a reader is this leg's defining property and is checkable* |
 
 📌 **vitest and svelte-check are CARRIED BY SCOPE** (zero `ui/**`) — **stated in the close, not silently skipped.**
@@ -189,3 +189,26 @@ let ev = sign_event(ev, &key);
 - [ ] Records: JOURNAL + `CLAUDE.md` + ROADMAP + this file's `Status: COMPLETED`, **one `D-074` commit**
 
 📌 **"Commit pushed" is not a DoD item.** `Status: COMPLETED` in this header is the signal.
+
+---
+
+## §10 — ✅ CLOSE RECORD. **EVERY GATE RE-DRIVEN BY CHAT (Rule 5). J-758, 2026-08-18.**
+
+**Implemented by Clair from v1.2. Four files, +180/−2**, all in `xgen-common` / `xgen-core`: `wire.rs` (three constants under their own `spec 3.7.14` banner at `:718`, doc comments citing ch3 §3.7.14.2) · `wire/types.rs` (the re-export) · `state.rs` (field, parse, two DM pins, four tests) · `algorithm.rs` (`S-9`'s literal, one line). **Zero `xgen-node`, zero `xgen-client`, zero `ui/**`.**
+
+| gate | measured | verdict |
+|---|---|---|
+| **V-1** | detached, own exit sentinel `=0`, final `test result:` present, summed programmatically over 56 `^test result:` lines | ✅ **1608 / 0 / 62** — **exactly the predicted +4**; `Compiling xgen-core` present ⇒ not cached; `^test result: FAILED` / `error[` / `panicked` / `^warning` **all zero, case-sensitive** |
+| **V-2** | same run | ✅ **56 SUITES**, structural |
+| **V-3** | 🔒 **the negative control, on Chat's OWN separately-written script**: parse hardcoded to `ADMISSION_INVITE`, unconditional restore | ✅ **test 1 FAILED on the SEMANTIC assertion** — `absent => open (spec 3.7.14.2)` at `state.rs:2316`, exit `101` — **not on the precondition** ⇒ ***the absent path is genuinely exercised and the default is proven, not assumed.*** SHA256 identical before and after |
+| **V-4** | `git diff --numstat` **plus `git ls-files --others --exclude-standard`** | ✅ four files, `34/0` + `1/0` + `143/1` + `2/1`, **untracked list empty** |
+| **V-5** | `git ls-files --eol` | ✅ **`i/lf` ×4**, `bareLF=0` ×4 |
+| **V-6** | every `+` line in the diff mentioning admission, read individually | ✅ declaration, doc, parse binding, three fills, imports — **zero `match`, zero `if ==`, zero allow-list** |
+
+✅ **Leg A-bis's two witnesses both green**, including the DM test asserting a stranger IS admitted. ✅ **§7 triggers: none fired.**
+
+✅ **§8.1's derivation converged BYTE-IDENTICALLY** — the parse was derived from `from_space_create` before §4.3 was opened and came out character-for-character the same. ⚠️ **Its strength is REDUCED and stated: Clair read §4.1–§4.4 before `V-0`, holding back only §4.3, because CHAT'S KICKOFF narrowed §8.1's *"before reading §4"* to §4.3.** *The ambiguity was Chat's; the code shape was still derived from source, but §4.4 had already named the expected outcomes.*
+
+📌 **THREE CHOICES CLAIR MADE AND REPORTED RATHER THAN ABSORBED, ALL UPHELD:** the fully-qualified `crate::wire::types::DEFAULT_ADMISSION` in `algorithm.rs`, matching its two immediate neighbours (one-line diff instead of also widening the import) · `ADMISSION_OPEN` imported **inside `mod tests`**, because production never names it and a top-level import would warn · 🔑 **test 1's fixture precondition asserting the builder emits no `admission` key** — beyond the runbook, and ***it makes V-3's stated concern self-checking rather than dependent on someone remembering to run a manual control.***
+
+📌 **`F-3` RIDES FORWARD TO LEG D AND IS NOT CLOSED HERE:** `.as_str()` returns `None` for `42` / `true` / `{}`, so **a present NON-STRING collapses into the absent branch and stores `open`**, while a present unrecognised STRING (`"banana"`) survives and reaches the gate. **`D-149` rules the second case and is silent on the first.** ⚠️ **Leg D must not assume they are the same boundary.** ✅ **Not adding a fifth test was correct** — it would have moved V-1 off 1608, and the finding is worth more in the record than in an assertion.

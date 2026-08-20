@@ -30,7 +30,8 @@ use crate::{
     wire::{
         canonical::canonical_event_bytes,
         types::{
-            Event, EventType, ThreadStatus, DEFAULT_AI_PACING_MS, DEFAULT_HUMAN_PACING_MS,
+            Event, EventType, ThreadStatus, ADMISSION_INVITE, DEFAULT_ADMISSION,
+            DEFAULT_AI_PACING_MS, DEFAULT_HUMAN_PACING_MS,
             DEFAULT_MEMBER_TEMPERATURE_VISIBILITY, VISIBILITY_EVERYONE, VISIBILITY_MODERATOR,
             VISIBILITY_SELF_ONLY,
         },
@@ -255,6 +256,21 @@ pub struct SpaceState {
     /// Conceptual `String` key (`xgen://thread/sha256:`, AE-D8). Order-independent
     /// `HashMap` — a correct M8 convergence oracle.
     pub threads: HashMap<String, ThreadState>,
+    /// How this Space decides who may join (spec 3.7.14.2).
+    /// Open enum, `String`, on `member_temperature_visibility`'s model: the
+    /// permitted values are `open` and `invite`. An unrecognised value is stored
+    /// **verbatim** and is never normalised or rejected here — `D-149` places the
+    /// interpretation at *use*, not at parse, so fail-closed lives in the Leg D
+    /// gate rather than in this constructor.
+    /// **Absent from `state.space_create` ⇒ `DEFAULT_ADMISSION` (`open`)**, so every
+    /// Space that already exists keeps admitting exactly whom it admits today (`L-E`).
+    /// **A DM always pins `invite`**, set at creation and ignoring content entirely
+    /// (`L-C`) — it must survive `state.dm_promote`, which is why it is stored rather
+    /// than derived from `is_dm`.
+    /// Set-once for now: there is no mutation event, no applier arm and no
+    /// `state_key_for_event` arm — who may change it is Leg C's question.
+    /// **Nothing reads this field until Leg D.**
+    pub admission: String,
 }
 
 impl SpaceState {
@@ -308,6 +324,20 @@ impl SpaceState {
             .as_str()
             .map(str::to_string)
             .unwrap_or_else(|| DEFAULT_MEMBER_TEMPERATURE_VISIBILITY.to_string());
+        // Admission (spec 3.7.14.2). Absent => `open` (`L-E`): every Space that
+        // predates the property keeps admitting exactly whom it admits today.
+        // A present value is stored VERBATIM — no trimming, no lowercasing, no
+        // membership check. That is deliberate, and it is what Leg D depends on:
+        // the specification resolves an unrecognised value to `invite` at the
+        // ADMISSION GATE, not here — exactly as `should_include_member_temperature`
+        // and the invite-expiry gate resolve their own open enums at use. The
+        // constructor's job is fidelity; the gate's job is judgement. A validator
+        // here would move that judgement into parse and collapse "absent" and
+        // "present but unrecognised" into one case, which the spec keeps apart.
+        let admission = content["admission"]
+            .as_str()
+            .map(str::to_string)
+            .unwrap_or_else(|| DEFAULT_ADMISSION.to_string());
 
         Ok(SpaceState {
             space_id,
@@ -333,6 +363,7 @@ impl SpaceState {
             member_temperature_visibility,
             active_mutes: HashMap::new(),
             threads: HashMap::new(),
+            admission,
         })
     }
 
@@ -466,6 +497,7 @@ impl SpaceState {
             member_temperature_visibility: DEFAULT_MEMBER_TEMPERATURE_VISIBILITY.to_string(),
             active_mutes: HashMap::new(),
             threads: HashMap::new(),
+            admission: ADMISSION_INVITE.to_string(),
         };
 
         Ok((state, room_event, invite_event))
@@ -581,6 +613,7 @@ impl SpaceState {
             member_temperature_visibility,
             active_mutes: HashMap::new(),
             threads: HashMap::new(),
+            admission: ADMISSION_INVITE.to_string(),
         })
     }
 
@@ -1960,6 +1993,9 @@ pub fn build_membership_event(
 mod tests {
     use super::*;
     use crate::identity::keypair;
+    // Test-only: production code never names the `open` constant (a plain Space
+    // reaches it through `DEFAULT_ADMISSION`), so importing it above would warn.
+    use crate::wire::types::ADMISSION_OPEN;
 
     // ── Pass 1 Commit 4a test helpers ────────────────────────────────────────
     // Wrap `&str` into the typed XGID flavour at fixture / lookup sites. The
@@ -2256,6 +2292,112 @@ mod tests {
         assert!(state.is_member(bob_id.as_str()));
         assert_eq!(state.member_role(bob_id.as_str()), Some(&Role::Member));
         assert!(!state.pending_invites.contains_key(bob_id.as_str()));
+    }
+
+    // ── Space admission (spec 3.7.14) — create parse + DM pin ─────────────────
+
+    #[test]
+    fn from_space_create_absent_admission_defaults_to_open() {
+        // `L-E`: a create event with no `admission` key yields `open`, so every
+        // Space that predates the property keeps admitting exactly whom it admits
+        // today. The builder emits no such key — that absence IS the fixture, and
+        // the precondition below asserts it rather than assuming it.
+        let key = alice_key();
+        let ev = sign_event(
+            build_space_create_event(&key, "Plain Space", None, 1, HOME, None, false),
+            &key,
+        );
+        assert!(
+            ev.content.get("admission").is_none(),
+            "fixture precondition: the builder must not emit an admission key, or \
+             this test cannot exercise the absent path at all"
+        );
+        let state = SpaceState::from_space_create(&ev).unwrap();
+        assert_eq!(state.admission, ADMISSION_OPEN, "absent => open (spec 3.7.14.2)");
+    }
+
+    #[test]
+    fn from_space_create_present_admission_is_stored_verbatim() {
+        // CONTENT INJECTION, AND WHICH IDIOM THIS IS.
+        // `build_space_create_event` takes no `admission` parameter (widening it
+        // and its DM sibling costs 165 call sites across four crates), so the key
+        // is written into the UNSIGNED builder output and the event is signed
+        // AFTERWARDS. The result is a fully valid event whose `event_id` and
+        // signature cover the injected content.
+        // This is NOT `tampered_event_fails_verification`'s idiom. That test
+        // mutates content AFTER signing, deliberately, to produce an event whose
+        // id no longer matches its content so that verification fails. The two
+        // look alike and mean opposite things — and neither DM constructor
+        // verifies signatures, so copying the wrong one yields a test that passes
+        // while exercising nothing.
+        let key = alice_key();
+
+        let mut ev = build_space_create_event(&key, "Closed Space", None, 1, HOME, None, false);
+        ev.content["admission"] = json!(ADMISSION_INVITE); // BEFORE signing
+        let ev = sign_event(ev, &key);
+        let state = SpaceState::from_space_create(&ev).unwrap();
+        assert_eq!(
+            state.admission, ADMISSION_INVITE,
+            "a recognised value is stored exactly as given"
+        );
+
+        // An UNRECOGNISED value is stored verbatim too, and this assertion is the
+        // proof that the constructor adds no validation, normalisation or
+        // membership check: the spec resolves unrecognised => `invite` at the
+        // ADMISSION GATE (Leg D), not at parse.
+        // A future leg that adds parse-time validation WILL break this line. That
+        // is the point — it must see this assertion and change it deliberately,
+        // rather than silently relocating where the decision is made.
+        let mut ev = build_space_create_event(&key, "Odd Space", None, 1, HOME, None, false);
+        ev.content["admission"] = json!("banana"); // BEFORE signing
+        let ev = sign_event(ev, &key);
+        let state = SpaceState::from_space_create(&ev).unwrap();
+        assert_eq!(
+            state.admission, "banana",
+            "unrecognised => stored verbatim; judged at use, not at parse"
+        );
+    }
+
+    #[test]
+    fn from_dm_space_create_pins_invite_ignoring_content() {
+        // `L-C`: a DM pins `invite` at creation and never consults content
+        // (spec 3.7.14.3). The injected value is deliberately the WRONG one —
+        // `open` — because a fixture that omits the key cannot tell PINNING from
+        // PARSING: both would be satisfied by any path returning `invite`.
+        // Injected BEFORE signing; see the idiom note in
+        // `from_space_create_present_admission_is_stored_verbatim`.
+        let alice = alice_key();
+        let bob = bob_key();
+        let bob_id = sender_id(&bob);
+        let mut ev = build_dm_space_create_event(&alice, &bob_id, HOME);
+        ev.content["admission"] = json!(ADMISSION_OPEN); // BEFORE signing — the WRONG value
+        let create_ev = sign_event(ev, &alice);
+        let (keyed, _room_ev, _invite_ev) =
+            SpaceState::from_dm_space_create(&create_ev, &alice).unwrap();
+        assert_eq!(
+            keyed.admission, ADMISSION_INVITE,
+            "a DM pins invite even when its create content says open"
+        );
+    }
+
+    #[test]
+    fn from_dm_space_create_node_pins_invite_ignoring_content() {
+        // The node-side seed of the same DM. Kept separate from the keyed view
+        // because the two are separate code paths: this one parses
+        // `member_temperature_visibility` out of content where its sibling
+        // hard-sets the default, so "the DM constructors agree" is not something
+        // either test may assume on the other's behalf.
+        let alice = alice_key();
+        let bob = bob_key();
+        let bob_id = sender_id(&bob);
+        let mut ev = build_dm_space_create_event(&alice, &bob_id, HOME);
+        ev.content["admission"] = json!(ADMISSION_OPEN); // BEFORE signing — the WRONG value
+        let create_ev = sign_event(ev, &alice);
+        let node_view = SpaceState::from_dm_space_create_node(&create_ev).unwrap();
+        assert_eq!(
+            node_view.admission, ADMISSION_INVITE,
+            "the node-side DM seed pins invite even when content says open"
+        );
     }
 
     // ── PG-12-min (Arc D, C2) — state.room_update override applier ─────────────

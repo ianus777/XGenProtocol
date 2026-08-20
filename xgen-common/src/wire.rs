@@ -715,6 +715,40 @@ pub struct MembershipMuteContent {
     pub cooldown_until: String,
 }
 
+// ── Space admission (spec 3.7.14) ────────────────────────────────────────────
+
+/// Permitted values for `SpaceState.admission` (spec 3.7.14.2).
+/// Default. Any Identity meeting the Space's `auth_tier` floor may join.
+pub const ADMISSION_OPEN: &str = "open";
+/// A joiner must hold an unconsumed pending invite for the Space. Fixed for DM
+/// Spaces, which pin this value at creation and never read it from content
+/// (spec 3.7.14.3).
+pub const ADMISSION_INVITE: &str = "invite";
+
+/// Default value at Space creation when `admission` is absent from
+/// `state.space_create` content (spec 3.7.14.2).
+///
+/// `admission` is an **open enum carried as a string**, so a later value is an
+/// additive change rather than a breaking one. The specification gives two
+/// deliberately different rules, because they describe different facts:
+///
+/// - **Absent** means `open`, and that is resolved at parse time by this
+///   constant. Every Space created before the property existed carries no key
+///   and is open-join, which is what it has always been; no stored Event is
+///   rewritten and no migration is performed.
+/// - **Present but unrecognised** means `invite` — and that is deliberately
+///   NOT resolved here. An admission rule is a gate rather than a display
+///   preference, so the safe reading of an uninterpretable gate is the closed
+///   one; the specification places that reading at the admission gate, not at
+///   the constructor. The constructor stores whatever string it is given,
+///   verbatim.
+///
+/// Consequently there is intentionally **no enum and no validator** in this
+/// module: adding one would move an interpretation the specification locates
+/// at use back into parse, and would silently collapse the two rules above
+/// into one.
+pub const DEFAULT_ADMISSION: &str = ADMISSION_OPEN;
+
 /// Unknown-event forward-compat (PG-09 / FC-D1) — C1 type-layer tests.
 ///
 /// Guards the load-bearing invariant: `Deserialize` is tolerant (unknown wire

@@ -8,6 +8,53 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-758 — Leg B ships, and three citation disagreements turn out to be three correct measurements
+**Date:** 2026-08-18 · **Seats:** Clair (implementation + six findings) · Chat (Rule-5 re-drive, V-3, records) · Joe (pushes)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `f45bb13` **= `origin/main` by `git ls-remote`**. 🎯 **A CODE SESSION — the second in twenty-two.**
+
+✅ **SHIPPED: four files, +180/−2, all in `xgen-common`/`xgen-core`.** `wire.rs` (three constants under their own `spec 3.7.14` banner at `:718`, doc comments citing ch3 §3.7.14.2) · `wire/types.rs` (the hand-maintained re-export) · `state.rs` (field, parse, both DM pins, four tests) · `algorithm.rs` (§15.2's fourth literal, one line). **Zero `xgen-node`, zero `xgen-client`, zero `ui/**`.**
+
+### ✅ EVERY GATE RE-DRIVEN — NOT ONE NUMBER ADOPTED ON REPORT
+
+**V-1** detached, own exit sentinel `=0`, final `test result:` present, summed programmatically over 56 `^test result:` lines → **1608 / 0 / 62**, ***exactly the predicted +4***; `Compiling xgen-core` present ⇒ not cached; `^test result: FAILED` / `error[` / `panicked` / `^warning` **all zero, case-sensitive**; **all four tests confirmed BY EXACT NAME** — 📌 *a `grep 'admission'` finds only two of them, because two names do not contain the word.* **V-2** 56 SUITES. **V-4** four files + **the untracked list checked separately**. **V-5** `i/lf` ×4, `bareLF=0` ×4. **V-6** every `+` line mentioning admission read individually — **zero `match`, zero `if ==`, zero allow-list.** ✅ **Leg A-bis's two witnesses green**, including the DM test asserting a stranger IS admitted.
+
+🔒 **V-3 RE-DRIVEN ON CHAT'S OWN SEPARATELY-WRITTEN SCRIPT.** Parse hardcoded to `ADMISSION_INVITE` ⇒ **test 1 failed on the SEMANTIC assertion** — `absent => open (spec 3.7.14.2)` at `state.rs:2316`, exit `101` — **not on the precondition** ⇒ ***the absent path is genuinely exercised; the default is proven, not assumed.*** SHA256 identical before and after.
+
+### 🔑 THE HAND-OVER THAT MADE THE RECORD HONEST — `D-152` CLAUSE 1
+
+At stand-down Clair handed over, **unprompted**, that three of our citations differed — ***and all three were correct.*** ✅ **Chat re-drove every one:**
+
+| disagreement | resolution, measured |
+|---|---|
+| `algorithm.rs` **:406 vs :414** | **different objects**: `:406` is `fn simple_space_state`, `:414` is the `SpaceState {` literal inside it. Eight lines apart, both right |
+| `state.rs` DM sites | **different trees**: `f45bb13` **`:466`/`:554`** vs working **`:497`/`:586`**. ✅ **The delta reconciles EXACTLY** — `554 + 32 = 586`, and the leg inserted 32 lines above it |
+| her `F-5`'s **`:570`** | 🛑 **a MID-EDIT number belonging to NO committed tree** — true for about four minutes between two of her own writes, and true of nothing since. **Replaced with the `HEAD`-anchored `:554`, which a reader can verify without reconstructing anyone's edit sequence** |
+
+🔒 **`D-152` MINTED, TWO CLAUSES.** ① **A `file:line` in a finding must NAME THE TREE it was measured on** — *a leg that inserts lines invalidates every citation below its first insertion, including its own runbook's*, and **two correct measurements read as a CONTRADICTION when neither states its tree.** ② **An instrument must be run with the scope that lets it see its whole subject, and its completion must be PROVED, not inferred** — 🔑 ***in every instance this session, the wrong answer was the QUIET one.***
+
+### 🛑 CLAUSE 2 WAS PAID FOR THREE TIMES, AND ONE OF THEM WAS THE GATE ITSELF
+
+🛑 **`F-1` — V-0 COULD NOT SEE A QUARTER OF ITS SUBJECT.** `simple_space_state` sits at `algorithm.rs:406`, inside `#[cfg(test)] mod tests` opened at `:329` ⇒ **`cargo check --workspace` never compiles it and enumerates THREE literals, not four.** An implementer following the stated command fills three, **gets a GREEN check**, and meets the fourth at `cargo test` — ***looking like a test defect rather than a census defect.*** 🔑 **`N-197`'s shape, inside the gate written specifically to be the honest census the runbook could not author.** ✅ She used `--all-targets`; the runbook is corrected at v1.3.
+
+🛑 **AND CHAT'S OWN, FOUND WHILE RE-DRIVING HERS.** The first V-3 script ran `cargo` **inline** under `$ErrorActionPreference='Stop'`; **`cargo` writes progress to stderr, `2>&1` made it a TERMINATING error, the run died, and the `finally` restored the file** — leaving a **zero-byte log, a clean tree, and `Test-Path` returning true.** 🔑 ***Every visible signal agreed that it had worked.*** **Requiring the sentinel is the only thing that caught it** — and Clair's note is right that this shape is worse than hers: **a wrong number invites a second look; a plausible absence does not.**
+
+### ⚠️ WHAT RIDES FORWARD, AND WHAT WAS WRONG IN THE LAST RECORD
+
+⚠️ **`F-3` GOES TO LEG D AND IS NOT CLOSED HERE:** `.as_str()` returns `None` for `42` / `true` / `{}` ⇒ **a present NON-STRING collapses into the absent branch and stores `open`**, indistinguishable from absent, while a present unrecognised STRING (`"banana"`) survives and reaches the gate. **`D-149` rules the second case and is SILENT on the first.** ✅ **Not writing a fifth test was correct** — it would have moved V-1 off 1608, and the finding is worth more in the record than in an assertion.
+
+🛑 **A CORRECTION OWED FROM J-757: THAT COMMIT'S BODY SAYS "6 files, +61/-6" AND THE TRUTH IS +493/−6.** Chat measured with `git diff --numstat`, **which does not see UNTRACKED files** — the runbook (191 lines) and Clair's read (241) counted as zero. **`git diff --cached --numstat` after staging, or `git show --stat` after committing, would both have caught it**, and Chat had been running `git show --stat` on Joe's pushes for exactly this reason while using a blinder instrument on its own. 📌 **History is NOT rewritten; the content was correct and only the size claim was wrong. `D-152` clause 2 is the general fix.**
+
+⚠️ **`F-6`, CLAIR'S ON HERSELF, AND THE AMBIGUITY WAS CHAT'S:** §8.1 says *"before reading §4"*; **Chat's kickoff narrowed it to §4.3**, so she read §4.1–§4.4 before `V-0`. ✅ **The derivation still converged BYTE-IDENTICALLY from source** — recorded at that reduced strength rather than waved away or overstated.
+
+🛑 **AND CHAT REPEATED A DEFECT IT HAD RECORDED ONE SESSION EARLIER: `D-152` LANDED AT THE WRONG ANCHOR, exactly as `D-151` did**, because the matched provenance text occurs in more than one entry. **The J-756 note said "`DECISIONS.md` is oldest-first" — and that note did not prevent it, because the defect was never the ORDERING, it was ANCHORING ON REMEMBERED TEXT INSTEAD OF ON THE FILE'S TAIL.** 🔑 ***Knowing a fact about a file is not the same as using an anchor that cannot miss.*** Relocated; order verified **148 → 149 → 150 → 151 → 152**, **158 entries**.
+
+✅ **THREE CHOICES CLAIR REPORTED RATHER THAN ABSORBED, ALL UPHELD:** the fully-qualified path in `algorithm.rs` matching its two neighbours · `ADMISSION_OPEN` imported inside `mod tests` because production never names it · 🔑 **test 1's fixture precondition asserting the builder emits no `admission` key** — beyond the runbook, and ***it makes V-3's concern self-checking rather than dependent on someone remembering to run a manual control.***
+
+🔒 **FLOORS:** cargo **1604 → 1608 / 0 / 62 × 56 SUITES** — **moved, predicted, measured.** vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15** — **carried BY SCOPE** (zero `ui/**`), stated not skipped. 🛑 Catalogue **UNMEASURED**. 🔓 **OPEN AND JOE'S:** who may change `admission` (§15.3, Leg C — Chat recommends Owner-only) · **`F-3`'s non-string boundary, which Leg D needs** · `N-197` · `N-198` wording · `F-6`'s counting word · the DM receiving half · `HAND-BACK` vs `kickoff`. 🎯 **NEXT: LEG C — the mutation event and the permission gate**, which also inherits `F-3`'s builder widening (165 call sites) and §15.3's open permission question. → J-758 · ROADMAP v7.43.
+
+---
+
 ## Entry J-757 — The Leg B runbook locks at v1.1, and the cold read finds a ruling the design had re-opened
 **Date:** 2026-08-18 · **Seats:** Chat (runbook, grounding, records) · Clair (cold read — three blocking findings) · Joe (the `F-3` ruling, the lock)
 

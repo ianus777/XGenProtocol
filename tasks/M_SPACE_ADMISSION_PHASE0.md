@@ -1,6 +1,6 @@
 # M-SPACE-ADMISSION Phase-0 — who may join a Space, and how a leaver comes back
 > **Status**: ACTIVE  
-> Version: 2.0  
+> Version: 2.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-18  
 > Language: EN  
@@ -408,14 +408,20 @@ This is the part of the milestone that is **not** a settings field, and it is th
 | what | where, measured |
 |---|---|
 | `pub admission: String` | `SpaceState`, `xgen-core/src/space/state.rs:186-258` — **append after `threads` (`:257`)**. Sibling in kind to `member_temperature_visibility` (`:249`): an **open enum**, `String`, no `enum` type |
-| `pub const DEFAULT_ADMISSION: &str = "open";` | module scope in the same file, above the `// ── Data structures` banner at `:71`. ⚠️ **`state.rs` has NO existing `const` block** — the only `const` is `HOME` at `:1992`, inside `mod tests`. **Leg B introduces the first one; that is expected, not a smell** |
+| `pub const DEFAULT_ADMISSION: &str = ADMISSION_OPEN;` | 🛑 **CORRECTED AT v2.1 (J-757) — `xgen-common/src/wire.rs`, beside the other protocol defaults (`DEFAULT_HUMAN_PACING_MS:600`, `DEFAULT_AI_PACING_MS:603`, `DEFAULT_MEMBER_TEMPERATURE_VISIBILITY:641`), NOT `state.rs`.** ✅ **And the `VISIBILITY_*` pattern applies (`wire.rs:633-637`): the permitted values get named constants too** — `ADMISSION_OPEN = "open"`, `ADMISSION_INVITE = "invite"`, and `DEFAULT_ADMISSION = ADMISSION_OPEN`. 🛑 **v2.0 SAID `state.rs` HAS NO `const` BLOCK AND THAT WAS FALSE:** the sweep used `^\s*(pub )?const `, `state.rs` genuinely has none — **but the three defaults it consumes are DECLARED IN `wire.rs` AND IMPORTED**, so the census answered the question it was built to ask and not the one that mattered. ***A census cannot see what it was not built to enumerate*** — caught by reading `from_space_create`'s body while grounding Leg B, not by re-reading §15 |
 | convergence | `SpaceState` derives `Debug, Clone, PartialEq, Eq` (`:185`) and **is never serialised** — it is folded from the log. A `String` field is covered additively by the `derive_resolved` oracle, exactly as `jurisdiction` and `e2e_encryption` are (`:206`, `:219`) |
 
-🔓 **OPEN — JOE'S, AND IT IS A REAL DISTINCTION, NOT A DETAIL: `absent` and `present-but-unrecognised` ARE NOT THE SAME CASE.** `L-E` rules **absent ⇒ `open`** and that is settled — it is what keeps every existing Space working. **An unrecognised value is different: it was written deliberately, by a newer version, and the Node does not know what it means.** 🎯 **Chat recommends unrecognised ⇒ FAIL CLOSED (behave as `invite`)**, on the ground that the whole milestone exists because an unknown-to-us policy admitted a stranger, and `member_temperature_visibility`'s *unknown ⇒ most-restrictive* precedent (`:247-248`) already points that way. ⚠️ **Its cost, stated: a Space set to a future policy becomes join-refusing on older Nodes rather than join-permitting — a federation-visible split-brain in behaviour, and the honest price of not guessing.**
+🛑 **CORRECTED AT v2.2 (J-757) — THIS ITEM WAS NEVER OPEN. `D-149` RULED IT ON 2026-08-16, IN THIS MILESTONE, AND §6.2's OWN 🔒 HEADING SAYS SO: *"absent ⇒ `open`, present-and-unknown ⇒ `invite`"*.** §6.8 names `D-149` by number and §6's heading — **corrected one session earlier** — says *"ALL EIGHT RULED… NOTHING HERE IS OPEN"*. **Four records disagreed with v2.0 and v2.0 was the one that was wrong.**
+
+🛑 **AND THE v2.0 TEXT DID SOMETHING WORSE THAN CALL A RULED ITEM OPEN: IT REINSTATED THE ARGUMENT `D-149` EXPLICITLY RETRACTED.** It recommended fail-closed *"on `member_temperature_visibility`'s unknown ⇒ most-restrictive precedent (`:247-248`)"* — and **`D-149`'s own text names that premise FALSE**: `VISIBILITY_SELF_ONLY` denies every non-self recipient while `moderator` admits moderators-and-above, so the sibling's convention is *unknown ⇒ **default***, which for admission would yield `open`, **the opposite of what it was cited to support.** 🔑 ***The recommendation survived; the argument under it did not — and v2.0 cited the dead argument by line number, in the milestone that killed it.***
+
+🔒 **THE RULE, AS `D-149` STATES IT: a field that GATES fails CLOSED; a field that governs DISPLAY takes its DEFAULT. `admission` gates ⇒ unrecognised ⇒ behave as `invite`.** ✅ **AND THE CONSTRUCTORS ARE UNAFFECTED, WHICH IS WHY THIS SURVIVED SO LONG UNSEEN:** both of `D-149`'s own precedents **interpret at USE, not at PARSE** — `should_include_member_temperature` (`state.rs:1759-1784`) and the expiry gate's `.unwrap_or(true)` (`runtime.rs:1591`). ⇒ **§15.2 stores the value verbatim and §15.4's gate is where fail-closed lives.** 📌 **Same code as v2.0 described; a different reason — and the reason is what Leg D reads.**
 
 ### §15.2 — THE CREATE PARSE
 
-**Three constructors — MEASURED, not inherited from §6.2's count:** `from_space_create` **`state.rs:265`** · `from_dm_space_create` **`:342`** · `from_dm_space_create_node` **`:496`**. ✅ **Three is correct.**
+**Three constructors — MEASURED, not inherited from §6.2's count:** `from_space_create` **`state.rs:265`** · `from_dm_space_create` **`:342`** · `from_dm_space_create_node` **`:496`**. ✅ **Three is correct.** 📌 **Their three `SpaceState` literals end at `threads: HashMap::new()` — `:335`, `:468`, `:583` — which is the insertion anchor in each.**
+
+✅ **THE IDIOM IS ALREADY IN THE FILE AND IS COPIED, NOT INVENTED:** `member_temperature_visibility` at `state.rs:307-310` is `content["…"].as_str().map(str::to_string).unwrap_or_else(|| DEFAULT_….to_string())` — **the exact shape §7 describes**, sitting three lines above where `admission` will be parsed.
 
 - `from_space_create` → read `content.admission`, **`unwrap_or_else(|| DEFAULT_ADMISSION.to_string())`** (§7's pattern; absent ⇒ `open`, `L-E`).
 - **Both DM constructors → pin `"invite"` unconditionally** (`L-C`, §6.4 ruling **(b)**), **ignoring content**.
@@ -469,4 +475,4 @@ A node-side sibling of `collect_invite_bootstrap` (`xgen-node/src/fanout.rs:572-
 
 ### §15.8 — WHAT §15 DELIBERATELY DOES NOT DECIDE
 
-🔓 unrecognised-value semantics (§15.1) · 🔓 who may change `admission` (§15.3) · 📌 Leg ②'s two-node divergence test (deferred past `E-0`) · 📌 §10 C-1's sibling-divergence follow-up (**its own milestone, never a rider**) · 📌 ch3 §3.16.1's invite-bar restatement (§5 C-4).
+🔓 unrecognised-value semantics — 🛑 **STRUCK AT v2.2: `D-149` RULED IT, and listing it here was the same error twice in one document** · 🔓 who may change `admission` (§15.3) · 📌 Leg ②'s two-node divergence test (deferred past `E-0`) · 📌 §10 C-1's sibling-divergence follow-up (**its own milestone, never a rider**) · 📌 ch3 §3.16.1's invite-bar restatement (§5 C-4).

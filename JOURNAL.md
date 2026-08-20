@@ -8,6 +8,41 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-757 — The Leg B runbook locks at v1.1, and the cold read finds a ruling the design had re-opened
+**Date:** 2026-08-18 · **Seats:** Chat (runbook, grounding, records) · Clair (cold read — three blocking findings) · Joe (the `F-3` ruling, the lock)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `3876950` **= `origin/main` by `git ls-remote`**, clean, **5 files / +165/−7 — matching J-756's commit self-description, checked against the diffstat.** 🎯 **NO PRODUCT CODE.**
+
+🔒 **`tasks/RUNBOOK_SPACE_ADMISSION_LEG_B.md` IS LOCKED (Joe, 2026-08-18).** Locked content **v1.1**; the file reads **v1.2**, **the lock stamp and nothing else** — zero changes to §1–§9. ⇒ **Clair implements from v1.2 and no earlier version** (J-754's form, second use).
+
+### 🛑 `F-1` — THE DESIGN HAD RE-OPENED A RULING, AND THE RE-OPENING CITED THE ARGUMENT THAT RULING RETRACTED
+
+§15.1 called unrecognised-value semantics *"OPEN — Joe's"*. 🛑 **`D-149` ruled it on 2026-08-16, in this milestone.** §6.2's own 🔒 heading reads *"absent ⇒ `open`, present-and-unknown ⇒ `invite`"*; §6.8 names `D-149` by number; ch3 §3.7.14.2 states it normatively; and **§6's heading — which Chat corrected ONE SESSION EARLIER — says *"ALL EIGHT RULED… NOTHING HERE IS OPEN"*.** **Four records disagreed with v2.0 and v2.0 was the one that was wrong.**
+
+🔑 **AND THE WORSE HALF, WHICH THE COLD READ DID NOT REACH AND CHAT FOUND RE-DRIVING IT: §15.1 REINSTATED THE ARGUMENT `D-149` EXPLICITLY RETRACTED.** It recommended fail-closed *"on `member_temperature_visibility`'s unknown ⇒ most-restrictive precedent"* — **and `D-149`'s own text names that premise FALSE** (`VISIBILITY_SELF_ONLY` denies every non-self recipient; `moderator` admits moderators-and-above ⇒ the sibling's convention is *unknown ⇒ **default***, which for admission yields **`open`**, the opposite of what it was cited to support). 🔑 ***The recommendation survived; the argument under it did not — and §15.1 cited the dead argument BY LINE NUMBER, in the milestone that killed it, eight sessions later.***
+
+✅ **The code is unaffected, and the reason is what makes it survivable:** both of `D-149`'s precedents **interpret at USE, not at PARSE** — `should_include_member_temperature` (`state.rs:1759-1784`) and the expiry gate's `.unwrap_or(true)` (`runtime.rs:1591`). ⇒ **the constructor stores verbatim; fail-closed lives in Leg D's gate.** 📌 **Same code, different reason — and the reason is what Leg D reads.** 🛑 **§15.8 listed the same phantom-open item a second time and was struck too: the same error twice in one document.**
+
+### ✅ `F-2` AND `F-3` — BOTH RE-DRIVEN, BOTH HELD, BOTH STRUCTURAL
+
+🔑 **`F-2`: a FOURTH file, named nowhere.** `xgen-core/src/wire/types.rs:14-22` is a **hand-maintained `pub use` list, not a glob** (Fix 17), and `state.rs:32-36` reaches `DEFAULT_MEMBER_TEMPERATURE_VISIBILITY` **through it** ⇒ **adding a constant to `xgen-common` does not make `crate::wire::types::DEFAULT_ADMISSION` exist.** It fails loudly — **but the tempting fix (import from `xgen_common` directly) breaks the file's own stated convention, and Legs C and D inherit whichever path Leg B sets.**
+
+🔑 **`F-3`: tests 2–4 need a content key neither builder accepts, and Chat's count confirms Clair's exactly.** `build_space_create_event` **140** hits, `build_dm_space_create_event` **27**, minus two definitions = **165 call sites across four crates.** 🔒 **RULED (Joe): mutate content BEFORE signing.** The builders return an **unsigned** `Event` and `sign_event` is applied afterwards at every call site ⇒ **mutate-before-sign is not the tampering idiom** Clair rightly flagged (`state.rs`'s test module mutates AFTER signing, deliberately, to break a signature). 🛑 **§4.4 now REQUIRES a comment saying which idiom it is** — *the two look alike and mean opposite things.* 📌 **Widening the builders becomes LEG C's**, where a client genuinely needs to set the value — §6 item 3 arriving on schedule rather than as a surprise.
+
+### ✅ THE CENSUS, AND CLAIR'S INSTRUMENT FAILURE ON HERSELF
+
+🔒 **FOUR `SpaceState` literals workspace-wide, measured by READING every hit:** `state.rs:312` · `:443` · `:559` · **`resolution/algorithm.rs:414`** — the fourth, **named nowhere in v1.0**. ⚠️ **A `grep` for `SpaceState {` returns THIRTEEN;** the other nine are `-> SpaceState {` return types (two in `xgen-node`), one `pub struct`, one `impl`. 🔑 ***Clair's first census returned twelve including the two `xgen-node` hits, and she caught it by reading each hit rather than counting them — `N-197`'s class, and the wrong reading happened to be the ALARMING one, which is the only reason it got a second look.*** ✅ **All four are inside `xgen-common`/`xgen-core` ⇒ V-4's crate scope holds** — but **v1.0's "two files by design" is struck: it is FOUR.**
+
+### 📌 THE REST OF THE COLD READ
+
+**Clean, as she reported and as Chat spot-checked:** all seven §2 line citations exact · `M-1` and `M-3` verified · **Leg A-bis's two shipped tests construct no `SpaceState`** ⇒ untouched by the field. **Notes folded:** §8.2's phantom `§4.6` → `§4.4`, **the phantom NAMED rather than silently deleted** · the constants get **their own `spec 3.7.14` banner** with doc comments citing **ch3 §3.7.14.2** (verified at `xgen_ch3_specification.md:2827`), like every neighbour, instead of task-file locks · **V-1 now states that `1604` is CARRIED from J-755**, where both sides were measured on one tree.
+
+📌 **`J-757` was a forward citation on disk for one turn** — legal only because this entry ships in the same commit as the artifacts citing it, which is `N-198`'s rule used correctly rather than avoided.
+
+🔒 **FLOORS — DOCUMENTS ONLY, CARRIED, NOT RE-RUN:** cargo **1604 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 Catalogue **UNMEASURED**. **No new `D`. No new `N`.** 🔓 **OPEN AND JOE'S:** who may change `admission` (§15.3, Leg C) · `N-197` · `N-198` wording · `F-6`'s counting word · the DM receiving half · `HAND-BACK` vs `kickoff`. 🎯 **NEXT: Clair implements Leg B from v1.2 — §8.1 first: run `V-0` and read `from_space_create` whole, write the parse down, THEN read §4.3.** → J-757 · ROADMAP v7.42.
+
+---
+
 ## Entry J-756 — Leg A locks the design, and writing it down found two things the rulings could not
 **Date:** 2026-08-18 · **Seats:** Joe (four rulings) · Chat (measurement, §15, records)
 

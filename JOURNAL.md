@@ -8,6 +8,47 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-759 — Leg C's runbook locks, and the fix was about to reproduce the defect it was written against
+**Date:** 2026-08-18 · **Seats:** Chat (grounding, runbook, records) · Clair (cold read — eight findings, five blocking) · Joe (three rulings, the lock)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `d8a44f6` **= `origin/main` by `git ls-remote`**, clean, **10 files / +302/−9 — matching J-758's own commit claim, checked against the diffstat.** 🎯 **NO PRODUCT CODE.**
+
+🔒 **`tasks/RUNBOOK_SPACE_ADMISSION_LEG_C.md` IS LOCKED (Joe).** Locked content **v1.1**; the file reads **v1.2, the lock stamp and nothing else.** ⇒ **Clair implements from v1.2 and no earlier version.** 📌 `D-152` clause 1's form, third use.
+
+### 🛑 THE FINDING OF THE ARC — `F-1`: THE FIX REPRODUCED `M-1` ON A SECOND AXIS
+
+The grounding pass had already established **`M-1`: an applier-only permission check is not a refusal, it is a SILENT NO-OP.** `check_permission` ends `_ => Ok(())` (`exchange.rs:914`), `StateSpaceTemperatureVisibility` **appears nowhere in it**, and the applier's error is discarded at every production call site ⇒ ***a non-owner temperature-visibility change is accepted, persisted, answered `Accepted`, then dropped by the fold.*** 🔑 **Clair confirmed it independently under §7.1 before reading a section, and found the codebase already has a NAME for it: `runtime.rs:1505-1522` calls this species *"the reply lied"*.**
+
+🛑 **AND THEN SHE FOUND THAT v1.0's OWN FIX HAD THE SAME HOLE.** §4.4 put the ROLE check in both places and the **DM check in the applier only** ⇒ ***an OWNER changing admission on a DM would pass `can_change_admission`, be persisted, be refused by the applier, have that error DISCARDED, and be answered `Accepted`.*** **§1's second clause — *"a DM's pin cannot be changed at all"* — would have been delivered by NOTHING.** ✅ **Avoidable at zero cost: `check_permission` already takes `&SpaceState` and `dm_constraints_active` is a `pub` field.** 🔑 ***A runbook written specifically to refuse a defect, containing that defect, on the axis it was not looking at.***
+
+⚠️ **AND §4.4(b)1 HANDED THE IMPLEMENTER THE DEFECT AS A TEMPLATE:** `S-9` offered `apply_invite`'s DM bar as *"the refusal pattern"* — **and that bar is applier-only too**, so an invite in a DM today is accepted, persisted, answered `Accepted`, and silently dropped. **THIRD live instance. Filed separately, not ridden in.**
+
+### ✅ THE OTHER SEVEN — ALL RE-DRIVEN, ALL HELD
+
+**`F-2`** — **v1.0's `V-4` could not fail.** All three `known_variants()` consumers (`wire.rs:806`, `:818`, `:864`) **iterate** the vec; none asserts a count ⇒ a deletion is invisible to every one. 🔑 **And her sharper half: `V-4`'s reading of a pass was INVERTED** — a pass proves the omission is invisible, ***which is exactly what §4.1 claimed***; the two sections contradicted each other. ⇒ **§4.6 is new: a permanent `assert_eq!(known_variants().len(), N)`**, and `V-4` now requires **the count test to fail AND the three sweeps to pass** — both halves are the assertion.
+
+**`F-3`** — `M-1`'s cited "production call sites" `exchange.rs:1279`/`:2319` are **inside `#[cfg(test)]`** (opens `:1096`). Real set: **`runtime.rs:867` · `derive.rs:231` · `ai_service.rs:553`.** Conclusion unchanged; **an implementer checking it would have landed in a test module.** Corrected in runbook **and** Phase-0.
+
+**`F-4`** — **`M-4` inverted its own source.** `to_wire_code` is `_ => None` for `PermissionDenied` (`exchange.rs:140`); the reject arrives via `from_exchange`'s **generic fallback** as `RejectInfo { code: 4000, name: "generic" }`. v1.0 read the comment's *"4000-unmapped"* as *"wire 4000"*.
+
+**`F-5`** — `S-13` cited `state.rs:1382` **under a header claiming `d8a44f6`**; the function is at **`:1415`** and `:1382` is blank — measured pre-Leg-B, never re-driven. 🛑 ***`D-152` clause 1 broken in the first runbook written after `D-152` was minted.*** **`F-6`** federation DOES pass `check_permission` (`runtime.rs:1426`); only **replay** bypasses ⇒ (b)'s justification narrowed. **`F-8`** the applier's `SpaceError` variant is production-reachable only via replay — stated so it is not later read as dead code.
+
+🔑 **`F-7` IS THE NOTE THAT CHANGED THE TEST PLAN: all six tests were unit-level, and `M-1`'s defect is a COMPOSITION failure.** Each piece can be individually correct while the sender still receives `Accepted` ⇒ **a seventh test, END-TO-END through `dispatch_event`, asserting the outcome the SENDER receives.** 📌 *A suite that only checks the pieces would have gone green over `F-1`.*
+
+### 🔒 THREE RULINGS
+
+🔒 **Owner-only, via a NEW `can_change_admission` in the PERMISSION TABLE** — not an inline check. *A permission that exists only inside an applier is one a future leg will not find.* 🔒 **A SECOND constructor, `build_space_create_event_with_admission`** — widening the existing one costs **165 call sites across four crates**, and the second constructor closes a **RACE**: without it an invite-only Space is `open` between create and the mutation event. 🔒 **REJECT CODES: the DM refusal takes a new `3049 admission_immutable`; the plain non-owner refusal stays on `4000 generic`.** 🔑 **The split is what a client can ACT on** — *"this is a DM, its admission is fixed"* is a different message than *"you lack permission"*. **ch3 §3.6.10.10's registry gains the row**, plus a line stating that `3047`/`3048` are reserved and not yet live.
+
+### 🛑 AN INSTRUMENT RECONCILIATION THAT WENT THE WRONG WAY FIRST
+
+Chat sweep A (bare numerals) said **`3047` free**. Sweep B (matching `to_wire_code` / `RejectInfo::coded`) returned six assigned codes and **missed `3044`/`3045` entirely** — spec-registered, used 48 and 31 times, assigned on a path that pattern cannot see. 🛑 **Chat retracted the correct claim on the strength of the narrower instrument, *because it matched a mechanism already in mind*.** ✅ **Reconciled against the SPEC REGISTRY (`xgen_ch3_specification.md:2185-2194`), which is the authority: sweep A was right, `3047`/`3048`/`3049` are free across code and docs.** 🔑 ***`D-152` clause 2, run in both directions inside one conversation — and the rigorous-looking instrument was the blind one.***
+
+📌 **`4000` is documented as *"generic transport"* while the convention assigns 1xxx to transport and 4xxx to state resolution.** Noted, not this leg's to fix.
+
+🔒 **FLOORS — DOCUMENTS ONLY, CARRIED:** cargo **1608 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 Catalogue **UNMEASURED**. ⚠️ **NEXT SESSION MOVES cargo: 1608 → 1616** (seven tests + the count test), 56 SUITES structural. **No new `D`. No new `N`.** 🔓 **OPEN AND JOE'S:** `F-3`'s non-string boundary (**Leg D's**) · the third `M-1` instance in `apply_invite` · `N-197` · `N-198` wording · `F-6`'s counting word · the DM receiving half · `HAND-BACK` vs `kickoff`. 🎯 **NEXT: Clair implements Leg C from v1.2 — §7.1 first.** → J-759 · ROADMAP v7.44.
+
+---
+
 ## Entry J-758 — Leg B ships, and three citation disagreements turn out to be three correct measurements
 **Date:** 2026-08-18 · **Seats:** Clair (implementation + six findings) · Chat (Rule-5 re-drive, V-3, records) · Joe (pushes)
 

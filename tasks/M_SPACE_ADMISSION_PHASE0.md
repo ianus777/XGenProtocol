@@ -1,6 +1,6 @@
 # M-SPACE-ADMISSION Phase-0 — who may join a Space, and how a leaver comes back
 > **Status**: ACTIVE  
-> Version: 2.3  
+> Version: 2.5  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-18  
 > Language: EN  
@@ -441,7 +441,25 @@ This is the part of the milestone that is **not** a settings field, and it is th
 | applier | new `apply_space_admission`, sibling of `apply_space_temperature_visibility` (`state.rs:752-768`) |
 | 🔒 DM refusal | the applier **refuses when `dm_constraints_active`** (§6.4(b)). ⚠️ **`apply_dm_promote` (`state.rs:659-666`, the flip at `:664`) has NO permission gate and `StateDmPromote` is not in `skip_membership` — in a DM EITHER PARTY can promote**, which is why the value is stored and not derived: ***the pin must survive the un-pinning event, and only a stored value does*** |
 
-🔓 **OPEN — JOE'S: who may change `admission`?** Owner only, or Owner + Admin. 🎯 **Chat recommends Owner-only for v1** — it is the tightest reversible choice, and widening later is additive while narrowing later is a capability removal. **Leg C measures `check_permission`'s existing table before this is implementable.**
+🔒 **RULED (Joe, 2026-08-18, J-759) — §15.3's open item is CLOSED: `admission` is changeable by the OWNER ONLY, via a NEW `can_change_admission(role) -> *role == Role::Owner` in `membership.rs`'s permission table** (`:126-163`, on `can_manage_federation:150`'s form). 🔑 **The table, not an inline check** — *a permission that exists only inside an applier is one a future leg will not find*, and `membership.rs`'s banner is where a reader looks for who-may-do-what.
+
+🛑 **AND THE MECHANISM QUESTION EXPOSED A LIVE `D-151` CLAUSE-1 DEFECT IN THE NEAREST SIBLING.** `check_permission` (`exchange.rs:807-916`) ends `_ => Ok(())` at `:914`, and **`StateSpaceTemperatureVisibility` appears NOWHERE in that function** — its owner check lives only in its applier (`state.rs:786`). ⚠️ **Applier errors are DISCARDED at production call sites** — `let _ = …apply_event(…)` at **`runtime.rs:867` · `derive.rs:231` · `ai_service.rs:553`** (🛑 **CORRECTED at v2.5, Clair `F-3`: v2.4 cited `exchange.rs:1279` and `:2319`, and BOTH are inside `#[cfg(test)]`, which opens at `exchange.rs:1096`. Conclusion unchanged; evidence wrong**). ⇒ ***today a non-owner temperature-visibility change is validated, accepted, persisted, returned `Accepted` to its sender — and then dropped by the fold with the error thrown away.*** 🔒 **Leg C therefore places the check in `check_permission` (where `ExchangeError::PermissionDenied` maps to a wire reject at `runtime.rs:1519-1525`) AND keeps an applier copy as defence-in-depth for the federated/replay path.** 📌 **The sibling's own defect is NOT fixed here — filed separately, because riding it in would make Leg C's diff argue two cases at once.**
+
+🔒 **RULED (Joe, 2026-08-18, J-759) — REJECT CODES, measured against ch3 §3.6.10.10's registry (`xgen_ch3_specification.md:2185-2194`):** the **DM refusal** takes a new **`3049 admission_immutable`**; the **plain non-owner refusal** stays on **`RejectInfo { code: 4000, name: "generic" }`**, the unmapped-fallback band. 🔑 **The split is what a client can ACT on:** *"this is a DM, its admission is fixed"* is a different message to a user than *"you lack permission"*, and the second reads correctly as an ordinary permission failure. 📌 **`3047` (the gate) and `3048` (the invariant) remain reserved; `3040`–`3046` are assigned, and 3000–3999 is the identity domain with the 3040s its membership-authority sub-band.**
+
+🛑 **AND THE DM CHECK GOES IN `check_permission`, NOT ONLY THE APPLIER (Clair `F-1`, J-759).** The first draft put the role check in both places and the DM check in the applier alone ⇒ ***an OWNER changing admission on a DM would pass the role check, be persisted, be refused by the applier, have that error discarded, and be answered `Accepted`*** — **§15.3's own DM rule delivered by nothing, and the fix reproducing the defect it was written against.** ✅ **Zero cost: `check_permission` already takes `&SpaceState` and `dm_constraints_active` is a `pub` field.**
+
+⚠️ **A THIRD LIVE INSTANCE, FOUND THE SAME WAY AND NOT FIXED HERE: `apply_invite`'s DM bar (`state.rs:995-998`) IS APPLIER-ONLY TOO** ⇒ an invite in a DM today is accepted, persisted, answered `Accepted`, and silently dropped. **Filed separately** — riding it in would make Leg C's diff argue two cases at once.
+
+📌 **The federated path DOES pass `check_permission` (`runtime.rs:1426` → `check_permission_pub`); only REPLAY bypasses it.** The applier copy is defence-in-depth **for replay**.
+
+🛑 **A SECOND MEASURED ASYMMETRY, AND §6.3's KEY HAS NO LOCAL PRECEDENT:** `state_key_for_event` has **no arm for `StateSpaceTemperatureVisibility`** — the only Space-scoped arm is `StateSpaceUpdate` (`state_key.rs:95`). ⇒ **`admission` will be per-field conflict-resolved and the sibling is not**, which is correct under §6.3 but means **the arm is written from `StateSpaceUpdate`'s shape, not copied from the temperature twin.**
+
+🛑 **AND A THIRD: `known_variants()` (`wire.rs:770-791`) HAS NO COMPLETENESS CHECK.** All three consumers (`:806`, `:818`, `:864`) **iterate** the vec ⇒ **omitting a variant is invisible to every one of them.** Leg C adds a **count assertion** so the silent hole becomes a caught one for every future leg.
+
+### §15.3b — 🔒 SETTING `admission` AT CREATION (Clair's `F-3`, RULED J-759)
+
+**Neither builder takes an `admission` argument, and widening them costs 165 call sites across four crates (measured at `f45bb13`).** 🔒 **RULED: a SECOND constructor, `build_space_create_event_with_admission`**, on the `jurisdiction`/`e2e_encryption` precedent — **zero existing call sites touched.** 🔑 **Its purpose is to close a RACE, not to save typing:** without it a Space is created `open` and only becomes `invite` when the mutation event lands, ***leaving a federated window in which an invite-only Space admits strangers — exactly the class this milestone exists to close.*** 📌 **If the widened single builder is later preferred, it can absorb the second constructor; the reverse is harder.**
 
 ### §15.4 — THE GATE
 
@@ -477,4 +495,4 @@ A node-side sibling of `collect_invite_bootstrap` (`xgen-node/src/fanout.rs:572-
 
 ### §15.8 — WHAT §15 DELIBERATELY DOES NOT DECIDE
 
-🔓 unrecognised-value semantics — 🛑 **STRUCK AT v2.2: `D-149` RULED IT, and listing it here was the same error twice in one document** · 🔓 who may change `admission` (§15.3) · 📌 Leg ②'s two-node divergence test (deferred past `E-0`) · 📌 §10 C-1's sibling-divergence follow-up (**its own milestone, never a rider**) · 📌 ch3 §3.16.1's invite-bar restatement (§5 C-4).
+🔓 unrecognised-value semantics — 🛑 **STRUCK AT v2.2: `D-149` RULED IT, and listing it here was the same error twice in one document** · 🛑 **who may change `admission` — CLOSED at v2.4 (J-759): Owner-only, via the permission table** · 📌 Leg ②'s two-node divergence test (deferred past `E-0`) · 📌 §10 C-1's sibling-divergence follow-up (**its own milestone, never a rider**) · 📌 ch3 §3.16.1's invite-bar restatement (§5 C-4) · 🔓 **`F-3`'s non-string boundary — LEG D's, not decided here.**

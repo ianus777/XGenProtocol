@@ -2190,8 +2190,11 @@ The `is_ai` and `ai_capabilities` fields are part of the Identity record (3.6.6)
 | `3043` | `node_eject_authority` | A `membership.node_eject` / `membership.node_unban` whose `sender` is not the Space's `home_node` (M6 A4-D1). Node-administrator force-eject authority is signature + `sender == home_node`, a first-class authority distinct from member-role permission. |
 | `3044` | `invite_expired` | A `membership.join` for a pending invitee whose invite `valid_until` is past the home Node's clock (M8.5-B, INV-D6). The join-acceptance gate; convergence-neutral (a gate, like the PG-13 tier-gate — no resolved value). |
 | `3045` | `invite_validity_exceeds_max` | A `membership.invite` whose `valid_until` exceeds `invite_timestamp + ceiling(invitee_tier)` (M8.5-B, INV-D6). Rejected at ingest — the Node never silently clamps. The ceiling tightens as tier rises (exposure-window minimization); only Tier 1 (14 days) is live today (honest posture — higher-tier ceilings land with the tier modules). |
+| `3049` | `admission_immutable` | A `state.space_admission` targeting a DM Space. A DM's `admission` is pinned to `invite` at creation and cannot be changed by anyone, including the Space owner (M-SPACE-ADMISSION, L-C). Distinct from an ordinary permission refusal (which carries the unmapped-fallback `4000 generic`) because a client can act on it: the value is fixed by the Space's kind, not by the sender's role. |
 
-These codes live in the existing identity domain (3000–3999, per CLAUDE.md error code convention); 3044/3045 extend the 3040s membership-authority sub-band.
+A plain non-owner `state.space_admission` is **not** given a code here — it is an ordinary permission failure and arrives as `4000 generic`, the unmapped fallback, with the reason string carrying the detail.
+
+These codes live in the existing identity domain (3000–3999, per CLAUDE.md error code convention); 3044/3045 extend the 3040s membership-authority sub-band, and 3049 extends it again. 3046 is assigned outside this table (`event_timestamp_out_of_bounds`, M9.1); 3047 and 3048 are reserved for the M-SPACE-ADMISSION join gate and its causal-anchor invariant and are not yet live.
 
 ##### 3.6.10.11 Phase 2 vs future phases
 

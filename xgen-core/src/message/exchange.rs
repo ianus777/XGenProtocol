@@ -30,7 +30,8 @@ use crate::{
     identity::registry::IdentityRegistry,
     space::{
         membership::{
-            can_ban, can_change_space_info, can_delegate_ai_operator, can_invite, can_kick,
+            can_ban, can_change_admission, can_change_space_info, can_delegate_ai_operator,
+            can_invite, can_kick,
             Effect, RoomPermission,
         },
         state::{verify_event_signature, SpaceState},
@@ -114,6 +115,21 @@ pub enum ExchangeError {
     #[error("event is missing event_id")]
     MissingEventId,
 
+    /// Spec 3.7.14.3 (M-SPACE-ADMISSION Leg C) — a `state.space_admission`
+    /// targeting a Space whose DM constraints are active. A DM's `admission` is
+    /// pinned to `invite` at creation and cannot be changed by ANYONE, the Space
+    /// owner included: a DM's owner is whoever created it, which on unsolicited
+    /// first contact is the party the recipient did not choose to hear from, and
+    /// if admission were settable there that party could open their own DM.
+    ///
+    /// Deliberately NOT `PermissionDenied`. That variant is unmapped and lands as
+    /// `4000 generic`, which is correct for "you lack permission" and wrong here:
+    /// a client can ACT on "this is a DM, its admission is fixed" (the value is
+    /// fixed by the Space's KIND, not by the sender's role), and cannot act on a
+    /// parsed English string. Wire code 3049.
+    #[error("admission is immutable in DM Space {0}")]
+    AdmissionImmutable(String),
+
     /// M9.1-D1/D3 (F1 / gap G6) — Step 8.5 timestamp future-skew bound. The
     /// event's `timestamp` is either unparseable RFC3339 or more than
     /// `MAX_FUTURE_SKEW_SECS` ahead of the receiver's `now`. Admission-only: the
@@ -137,6 +153,11 @@ impl ExchangeError {
             // the 3044/3045 invite-admission gates (same clock/expiry family),
             // collision-checked free.
             Self::TimestampOutOfBounds(_) => Some((3046, "event_timestamp_out_of_bounds")),
+            // M-SPACE-ADMISSION Leg C — 3049 extends the 3040s membership-authority
+            // sub-band (ch3 3.6.10.10). The PLAIN non-owner refusal is deliberately
+            // NOT mapped: it stays `PermissionDenied` and falls through to `generic`
+            // (4000), because it IS an ordinary permission failure and reads as one.
+            Self::AdmissionImmutable(_) => Some((3049, "admission_immutable")),
             _ => None,
         }
     }
@@ -910,6 +931,44 @@ fn check_permission(event: &Event, space: &SpaceState) -> Result<(), ExchangeErr
             }
         }
 
+        // Space admission (spec 3.7.14.4) — owner role only, and refused outright
+        // in a DM Space.
+        //
+        // THE DM CHECK IS FIRST, AND THAT ORDER IS LOAD-BEARING. A DM's admission
+        // is pinned at creation and cannot be changed by ANYONE, the owner
+        // included (3.7.14.3). Testing the role first would let a DM's owner pass
+        // `can_change_admission`, be persisted, be refused by the applier — and
+        // have that error DISCARDED, because every production `apply_event` call
+        // site is `let _ = ...` (`runtime.rs:867`, `derive.rs:231`,
+        // `ai_service.rs:553`). The change would be accepted, persisted, answered
+        // `Accepted`, and silently dropped: the species this file's sibling
+        // `runtime.rs` calls *"the reply lied"*.
+        //
+        // The nearest sibling, `state.space_temperature_visibility`, has NO arm in
+        // this function at all — its owner check lives only in its applier, which
+        // is exactly that defect, live today. This arm is why Leg C exists; it is
+        // not copied from the twin.
+        EventType::StateSpaceAdmission => {
+            if space.dm_constraints_active {
+                // 3049 — a distinguishable code, not the 4000 fallback.
+                Err(ExchangeError::AdmissionImmutable(
+                    event.space_id.as_str().to_string(),
+                ))
+            } else {
+                let role = space.member_role(sender);
+                if role.map(can_change_admission).unwrap_or(false) {
+                    Ok(())
+                } else {
+                    // An ordinary permission failure: unmapped, so `from_exchange`
+                    // lands it on `4000 generic` with the reason string carrying
+                    // the detail. Deliberate — see `to_wire_code`.
+                    Err(ExchangeError::PermissionDenied(
+                        event.event_type.as_str().to_string(),
+                    ))
+                }
+            }
+        }
+
         // All other event types: permitted for any Space member.
         _ => Ok(()),
     }
@@ -1104,11 +1163,12 @@ mod tests {
             keypair,
             registry::{IdentityRecord, IdentityRegistry},
         },
+        node::runtime::RejectInfo,
         space::{
             membership::{Effect, Role, RoomPermission},
             state::{
-                build_room_create_event, build_room_update_event, build_space_create_event,
-                build_thread_resolved_event, sign_event, SpaceState,
+                build_dm_space_create_event, build_room_create_event, build_room_update_event,
+                build_space_create_event, build_thread_resolved_event, sign_event, SpaceState,
             },
         },
         wire::types::{Event, EventType},
@@ -2539,6 +2599,153 @@ mod tests {
             }
             other => panic!("expected AiRoleViolation, got {other:?}"),
         }
+    }
+
+    // ── Space admission (spec 3.7.14) — Leg C: the permission gate ─────────────
+
+    /// Build an unsigned `state.space_admission` Event with explicit prev_events.
+    fn admission_ev(key: &SigningKey, space_id: &str, prev: Vec<String>, value: &str) -> Event {
+        Event::new(
+            EventType::StateSpaceAdmission,
+            idx(&format!(
+                "xgen://pubkey/ed25519:{}",
+                encoding::encode(key.verifying_key().as_bytes())
+            )),
+            RoomXgid::from_xgid(Xgid::new(String::new())),
+            SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+            prev.into_iter().map(|p| EventXgid::from_xgid(Xgid::new(p))).collect(),
+            Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+            json!({ "admission": value }),
+        )
+    }
+
+    /// Leg C test 2 — a non-owner is refused AT `check_permission`, and the
+    /// refusal reaches the sender as `4000 generic`.
+    ///
+    /// The actor is an ADMIN, not a bare member: that is what makes this prove the
+    /// bar sits at OWNER rather than merely at some-privilege. And the assertion
+    /// runs on `check_permission` rather than on the applier, because an
+    /// applier-only check is a silent no-op — every production `apply_event` call
+    /// site discards its error.
+    #[test]
+    fn non_owner_admission_change_is_refused_at_check_permission() {
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let bob_id = format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(bob.verifying_key().as_bytes())
+        );
+
+        let space_ev =
+            sign_event(build_space_create_event(&alice, "s", None, 1, HOME, None, false), &alice);
+        let space_id = event_id_str(&space_ev);
+        let mut space = SpaceState::from_space_create(&space_ev).unwrap();
+
+        let invite = sign_event(
+            membership_ev_with_prev(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                vec![space_id.clone()],
+                json!({ "target_identity": bob_id, "role": "admin" }),
+            ),
+            &alice,
+        );
+        space.apply_event(&invite, "").unwrap();
+        let join = sign_event(
+            membership_ev_with_prev(
+                &bob,
+                &space_id,
+                "",
+                EventType::MembershipJoin,
+                vec![event_id_str(&invite)],
+                json!({}),
+            ),
+            &bob,
+        );
+        space.apply_event(&join, "").unwrap();
+        assert_eq!(
+            space.member_role(&bob_id),
+            Some(&Role::Admin),
+            "precondition: bob is an ADMIN, so a refusal cannot be explained by him being a nobody"
+        );
+
+        // The control: the OWNER passes the same gate. Without it, a refusal here
+        // is equally consistent with the arm refusing everyone.
+        let owner_try = sign_event(
+            admission_ev(&alice, &space_id, vec![space_id.clone()], "invite"),
+            &alice,
+        );
+        assert!(
+            check_permission(&owner_try, &space).is_ok(),
+            "the owner must pass, or this test cannot distinguish an owner-only gate from a closed door"
+        );
+
+        let bob_try =
+            sign_event(admission_ev(&bob, &space_id, vec![space_id.clone()], "invite"), &bob);
+        let err = check_permission(&bob_try, &space).unwrap_err();
+        assert!(
+            matches!(err, ExchangeError::PermissionDenied(_)),
+            "an admin is refused by check_permission; got {err:?}"
+        );
+
+        // And what the SENDER receives. `PermissionDenied` is deliberately
+        // unmapped, so it falls to the generic band: this IS an ordinary
+        // permission failure and reads as one.
+        assert!(
+            err.to_wire_code().is_none(),
+            "PermissionDenied stays unmapped — the DM case is the one that gets its own code"
+        );
+        let reject = RejectInfo::from_exchange(&err);
+        assert_eq!(reject.code, 4000, "plain permission refusal → 4000");
+        assert_eq!(reject.name, "generic");
+    }
+
+    /// Leg C test 4 — an admission change in a DM is refused at
+    /// `check_permission` with `3049`, **even from the Space's owner**.
+    ///
+    /// This is the case the first draft of this leg would have shipped broken: it
+    /// put the role check in both places and the DM check in the applier alone, so
+    /// the DM's owner would have passed the role test, been persisted, been
+    /// refused by the applier, had that error discarded, and been answered
+    /// `Accepted`.
+    #[test]
+    fn dm_admission_change_is_refused_at_check_permission_even_for_the_owner() {
+        let alice = keypair::generate();
+        let carol = keypair::generate();
+        let carol_id = format!(
+            "xgen://pubkey/ed25519:{}",
+            encoding::encode(carol.verifying_key().as_bytes())
+        );
+
+        let dm_ev = sign_event(build_dm_space_create_event(&alice, &carol_id, HOME), &alice);
+        let dm_id = event_id_str(&dm_ev);
+        let (dm, _room_ev, _invite_ev) =
+            SpaceState::from_dm_space_create(&dm_ev, &alice).unwrap();
+        assert!(dm.dm_constraints_active, "precondition: DM constraints are active");
+        assert_eq!(
+            dm.member_role(&format!(
+                "xgen://pubkey/ed25519:{}",
+                encoding::encode(alice.verifying_key().as_bytes())
+            )),
+            Some(&Role::Owner),
+            "precondition: alice OWNS this DM — she would PASS a role-only check, which is exactly why the DM branch must be tested first"
+        );
+
+        let owner_try =
+            sign_event(admission_ev(&alice, &dm_id, vec![dm_id.clone()], "open"), &alice);
+        let err = check_permission(&owner_try, &dm).unwrap_err();
+        assert!(
+            matches!(err, ExchangeError::AdmissionImmutable(_)),
+            "the DM refusal must be AdmissionImmutable, not PermissionDenied — the owner would have passed the role test; got {err:?}"
+        );
+
+        // 3049, not 4000: a client can act on "this is a DM, its admission is
+        // fixed" and cannot act on a parsed English string.
+        let reject = RejectInfo::from_exchange(&err);
+        assert_eq!(reject.code, 3049, "DM refusal carries its own code");
+        assert_eq!(reject.name, "admission_immutable");
     }
 
     // ── PG-12-min (Arc D, C2) — per-Room override enforcement ──────────────────

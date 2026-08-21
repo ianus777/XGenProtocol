@@ -25,7 +25,8 @@ use xgen_common::{
 use crate::{
     crypto::{encoding, hashing, signing},
     space::membership::{
-        can_ban, can_create_room, can_invite, can_kick, can_mute, Effect, Role, RoomPermission,
+        can_ban, can_change_admission, can_create_room, can_invite, can_kick, can_mute,
+        Effect, Role, RoomPermission,
     },
     wire::{
         canonical::canonical_event_bytes,
@@ -67,6 +68,16 @@ pub enum SpaceError {
     DmSecondRoomNotAllowed,
     #[error("federation is disabled in DM Spaces")]
     DmFederationNotAllowed,
+    /// Spec 3.7.14.3 — a `state.space_admission` against a Space whose DM
+    /// constraints are active. A DM's `admission` is pinned at creation and is
+    /// not changeable by anyone, the owner included.
+    ///
+    /// Reachable in production only via REPLAY: `check_permission` refuses this
+    /// case first on every live path (local and federated alike), so this variant
+    /// is defence-in-depth rather than the refusal the sender sees. Stated so
+    /// that test-only reachability is not later read as dead code.
+    #[error("admission is fixed in DM Spaces")]
+    DmAdmissionNotAllowed,
 }
 
 // ── Data structures ───────────────────────────────────────────────────────────
@@ -648,6 +659,8 @@ impl SpaceState {
             EventType::StateSpacePacing => self.apply_space_pacing(event),
             // Phase 2: owner updates temperature visibility (3.7.13.3).
             EventType::StateSpaceTemperatureVisibility => self.apply_space_temperature_visibility(event),
+            // Space admission (3.7.14). Owner-only; refused outright in a DM.
+            EventType::StateSpaceAdmission => self.apply_space_admission(event),
             // Phase 2: moderator-or-higher mutes a member (3.7.8).
             EventType::MembershipMute => self.apply_mute(event),
             // M3: AI operator delegation (3.6.10.6). Owner/admin only.
@@ -792,6 +805,56 @@ impl SpaceState {
             .as_str()
             .ok_or(SpaceError::MissingField("member_temperature_visibility"))?;
         self.member_temperature_visibility = value.to_string();
+        Ok(())
+    }
+
+    /// Apply a `state.space_admission` Event (spec 3.7.14.2).
+    ///
+    /// Defence-in-depth for the REPLAY path. `check_permission` refuses both of
+    /// these cases before an event is ever accepted, on the local AND the
+    /// federated channel alike: `dispatch_event` calls `validate_event`
+    /// unconditionally, and step 13's `skip_membership` set covers only
+    /// create / join / node-eject / node-unban / space-migrate (plus
+    /// federation-add-via-federation), none of which is this variant. Only REPLAY
+    /// bypasses validation. This copy exists so a replayed event cannot install a
+    /// value the live gate would have refused.
+    ///
+    /// NOTE for a future reader: `check_permission_pub` at `runtime.rs:1426` is
+    /// NOT the general federated permission gate — it sits inside a `matches!`
+    /// guard for the two AI-operator event types and this variant never reaches
+    /// it. The federated coverage above comes from `validate_event`, not from
+    /// that call.
+    ///
+    /// It is NOT the refusal the sender sees, and it cannot be: every production
+    /// call site discards this result (`let _ = ...apply_event(...)`). An
+    /// applier-only permission check is not a refusal, it is a silent no-op —
+    /// which is precisely the live defect in the sibling below.
+    fn apply_space_admission(&mut self, event: &Event) -> Result<(), SpaceError> {
+        // 1 — the DM bar, FIRST: a DM's admission binds the owner too (3.7.14.3).
+        if self.dm_constraints_active {
+            return Err(SpaceError::DmAdmissionNotAllowed);
+        }
+        // 2 — the ROLE PREDICATE. Spec 3.7.14.4 requires a role test against the
+        // sender's membership record and explicitly NOT an equality test against a
+        // stored owner Identity: where a Space has more than one Identity in the
+        // owner role, `event.sender != self.owner_id` recognises only one of them.
+        // The two nearest siblings (`apply_space_temperature_visibility` below,
+        // `apply_space_pacing` above) both use that identity-equality form. This
+        // one deliberately does not.
+        let actor_role = self
+            .member_role(event.sender.as_str())
+            .ok_or(SpaceError::NotASpaceMember)?;
+        if !can_change_admission(actor_role) {
+            return Err(SpaceError::PermissionDenied(actor_role.as_str().to_string()));
+        }
+        // 3 — store VERBATIM. An unrecognised value is not interpreted here: absent
+        // means `open` and present-but-unrecognised means `invite`, and that second
+        // rule belongs to the admission GATE (`D-149`, spec 3.7.14.2). Collapsing it
+        // into this applier would merge two deliberately different facts.
+        let value = event.content["admission"]
+            .as_str()
+            .ok_or(SpaceError::MissingField("admission"))?;
+        self.admission = value.to_string();
         Ok(())
     }
 
@@ -1450,6 +1513,46 @@ pub fn build_space_create_event(
         now(),
         content,
     )
+}
+
+/// Build an unsigned `state.space_create` Event that also sets `admission`
+/// (spec 3.7.14.2).
+///
+/// A SECOND constructor rather than a widened `build_space_create_event`, for two
+/// reasons. Widening the existing one costs 165 call sites across four crates and
+/// touches every Space-creation path in the workspace to serve a minority of them;
+/// and this follows the `jurisdiction` / `e2e_encryption` precedent of adding the
+/// key only where it is meant.
+///
+/// Its purpose is to close a RACE, not to save typing. Without it an invite-only
+/// Space is created `open` and becomes `invite` only when the mutation event lands
+/// — leaving a federated window in which a Space meant to be invite-only admits
+/// exactly the strangers this milestone exists to refuse.
+///
+/// The value is written verbatim and is NOT validated here. See
+/// `DEFAULT_ADMISSION`: absent means `open`, present-but-unrecognised means
+/// `invite`, and the second rule is resolved at the admission gate.
+pub fn build_space_create_event_with_admission(
+    key: &SigningKey,
+    name: &str,
+    topic: Option<&str>,
+    auth_tier: u32,
+    home_node: &str,
+    jurisdiction: Option<&str>,
+    e2e_encryption: bool,
+    admission: &str,
+) -> Event {
+    let mut ev = build_space_create_event(
+        key,
+        name,
+        topic,
+        auth_tier,
+        home_node,
+        jurisdiction,
+        e2e_encryption,
+    );
+    ev.content["admission"] = json!(admission);
+    ev
 }
 
 /// Build an unsigned `state.room_create` Event.
@@ -2397,6 +2500,160 @@ mod tests {
         assert_eq!(
             node_view.admission, ADMISSION_INVITE,
             "the node-side DM seed pins invite even when content says open"
+        );
+    }
+
+    // ── Space admission (spec 3.7.14) — Leg C: the mutation event ─────────────
+
+    /// Build an unsigned `state.space_admission` Event. Inline rather than a
+    /// public builder: Leg C ships no client-facing constructor for this event,
+    /// and the `xgen-node` end-to-end fixture builds it the same way.
+    fn admission_event(key: &SigningKey, space_id: &str, value: &str) -> Event {
+        Event::new(
+            EventType::StateSpaceAdmission,
+            sender_xgid(key),
+            empty_room_xgid(),
+            SpaceXgid::from_xgid(Xgid::new(space_id.to_string())),
+            prev_events_to_xgids(vec!["prev".to_string()]),
+            now(),
+            json!({ "admission": value }),
+        )
+    }
+
+    /// Leg C test 1 — the owner changes `admission` and the value is stored.
+    #[test]
+    fn owner_changes_admission_and_it_is_stored() {
+        let alice = alice_key();
+        let (mut state, space_id) = create_space(&alice);
+
+        // Precondition asserted, not assumed: a plain Space starts `open`, so a
+        // test that ended at `invite` could not otherwise distinguish "the applier
+        // stored it" from "it was already that value".
+        assert_eq!(state.admission, ADMISSION_OPEN, "a plain Space starts open");
+        assert_eq!(
+            state.member_role(sender_id(&alice).as_str()),
+            Some(&Role::Owner),
+            "alice holds the owner ROLE — the predicate the applier tests"
+        );
+
+        let ev = sign_event(admission_event(&alice, &space_id, ADMISSION_INVITE), &alice);
+        state.apply_event(&ev, "").expect("the owner may change admission");
+        assert_eq!(state.admission, ADMISSION_INVITE, "the new value is stored");
+
+        // And it is stored VERBATIM, not validated: an unrecognised value survives
+        // the applier untouched, because absent-vs-unrecognised is resolved at the
+        // admission GATE (D-149), not here.
+        let odd = sign_event(admission_event(&alice, &space_id, "banana"), &alice);
+        state.apply_event(&odd, "").expect("an unrecognised value is not rejected here");
+        assert_eq!(state.admission, "banana", "stored verbatim; judged at use");
+    }
+
+    /// Leg C test 3 — the APPLIER refuses on its own, independently of
+    /// `check_permission`.
+    ///
+    /// Both of §4.4(b)'s branches are exercised here. They are ONE test because
+    /// they prove one thing — that layer (b) exists and refuses — and because the
+    /// DM branch is otherwise constructed by nothing in the suite, which would
+    /// leave `SpaceError::DmAdmissionNotAllowed` a variant no test ever produces.
+    #[test]
+    fn applier_refuses_admission_change_independently_of_check_permission() {
+        // Branch 1 — the ROLE predicate, on an ordinary Space.
+        let alice = alice_key();
+        let bob = bob_key();
+        let (mut state, space_id) = create_space(&alice);
+        let bob_id = sender_id(&bob);
+
+        let invite = sign_event(
+            build_membership_event(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                json!({ "target_identity": bob_id, "role": "admin" }),
+            ),
+            &alice,
+        );
+        state.apply_event(&invite, "").unwrap();
+        let join = sign_event(
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
+            &bob,
+        );
+        state.apply_event(&join, "").unwrap();
+        assert_eq!(
+            state.member_role(bob_id.as_str()),
+            Some(&Role::Admin),
+            "bob is an ADMIN — deliberately not a bare member, so the test proves the bar is at OWNER rather than merely at some-privilege"
+        );
+
+        let bob_try = sign_event(admission_event(&bob, &space_id, ADMISSION_INVITE), &bob);
+        let err = state.apply_event(&bob_try, "").unwrap_err();
+        assert!(
+            matches!(err, SpaceError::PermissionDenied(_)),
+            "an admin is refused by the applier; got {err:?}"
+        );
+        assert_eq!(
+            state.admission, ADMISSION_OPEN,
+            "and the value did NOT change — the refusal is a refusal, not a log line"
+        );
+
+        // Branch 2 — the DM bar, which binds the OWNER too.
+        let carol = SigningKey::from_bytes(&[9u8; 32]);
+        let carol_id = sender_id(&carol);
+        let dm_create = sign_event(build_dm_space_create_event(&alice, &carol_id, HOME), &alice);
+        let dm_id = event_id_str(&dm_create);
+        let (mut dm, _r, _i) = SpaceState::from_dm_space_create(&dm_create, &alice).unwrap();
+        assert!(dm.dm_constraints_active, "the DM's constraints are active");
+        assert_eq!(
+            dm.member_role(sender_id(&alice).as_str()),
+            Some(&Role::Owner),
+            "alice OWNS this DM — which is what makes the next assertion meaningful"
+        );
+
+        let owner_try = sign_event(admission_event(&alice, &dm_id, ADMISSION_OPEN), &alice);
+        let err = dm.apply_event(&owner_try, "").unwrap_err();
+        assert!(
+            matches!(err, SpaceError::DmAdmissionNotAllowed),
+            "the DM bar refuses even the DM's own owner; got {err:?}"
+        );
+        assert_eq!(dm.admission, ADMISSION_INVITE, "the DM's pin is unchanged");
+    }
+
+    /// Leg C test 6 — the second constructor sets `admission` at CREATION.
+    #[test]
+    fn build_space_create_event_with_admission_sets_the_value_at_creation() {
+        let key = alice_key();
+
+        // The control: the ORIGINAL builder is untouched and still emits no key.
+        // Without this line the test cannot tell "the second constructor wrote it"
+        // from "the first constructor started writing it too".
+        let plain = build_space_create_event(&key, "Plain", None, 1, HOME, None, false);
+        assert!(
+            plain.content.get("admission").is_none(),
+            "the original builder must remain admission-free — zero of its call sites move, and that is the whole reason there are two constructors"
+        );
+
+        let ev = sign_event(
+            build_space_create_event_with_admission(
+                &key,
+                "Locked Space",
+                None,
+                1,
+                HOME,
+                None,
+                false,
+                ADMISSION_INVITE,
+            ),
+            &key,
+        );
+        assert_eq!(
+            ev.content["admission"].as_str(),
+            Some(ADMISSION_INVITE),
+            "the constructor emits the key into content"
+        );
+        let state = SpaceState::from_space_create(&ev).unwrap();
+        assert_eq!(
+            state.admission, ADMISSION_INVITE,
+            "and the create parse reads it back — this is the pair that closes the race in which an invite-only Space is `open` until a mutation lands"
         );
     }
 

@@ -150,6 +150,27 @@ pub fn can_manage_federation(role: &Role) -> bool {
     *role == Role::Owner
 }
 
+/// Whether `role` may sign `state.space_admission` events (spec 3.7.14.4).
+///
+/// **Owner only.** Admission decides who may enter the Space at all, which is a
+/// Space-wide constitutional setting rather than a moderation action: a
+/// moderator removes a member who is already in, an admission change decides
+/// whether anyone can get in. It is deliberately set at the narrowest role that
+/// can work, because the two directions are not symmetric — **widening this
+/// later (to `>= Role::Admin`) is additive and breaks nothing, whereas
+/// narrowing it later removes a capability people have already been using.**
+///
+/// 🛑 This is a **role-predicate** test against the sender's membership record,
+/// NOT an equality test against a stored owner Identity, and spec 3.7.14.4 says
+/// so explicitly. The distinction bites where a Space has more than one Identity
+/// in the owner role: an authority test written as `event.sender == owner_id`
+/// recognises only one of them. The nearest siblings
+/// (`apply_space_temperature_visibility`, `apply_space_pacing`) DO use the
+/// identity-equality form; this is the reason not to copy them.
+pub fn can_change_admission(role: &Role) -> bool {
+    *role == Role::Owner
+}
+
 pub fn can_change_space_info(role: &Role) -> bool {
     *role >= Role::Admin
 }

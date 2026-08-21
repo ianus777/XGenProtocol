@@ -14,7 +14,8 @@
 pub use xgen_common::wire::{
     clamp_temperature, AiCapabilities, Event, EventType, MembershipMuteContent,
     StateAiOperatorDelegateContent, StateAiOperatorRevokeContent,
-    StateSpacePacingContent, StateSpaceTemperatureVisibilityContent, ThreadStatus,
+    StateSpaceAdmissionContent, StateSpacePacingContent,
+    StateSpaceTemperatureVisibilityContent, ThreadStatus,
     TemperatureThresholds, ADMISSION_INVITE, ADMISSION_OPEN, DEFAULT_ADMISSION,
     DEFAULT_AI_PACING_MS, DEFAULT_HUMAN_PACING_MS,
     DEFAULT_MEMBER_TEMPERATURE_VISIBILITY, INFRA_EVENT_KINDS, META_ATT_MEMBER_TEMPERATURE,

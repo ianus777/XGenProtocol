@@ -92,3 +92,8 @@ pub mod m12_4_redact;
 // plus the permanent open-Space companion. Records today's behaviour before the
 // admission gate (Leg D) makes the DM half unobservable (D-148 clause 4).
 pub mod space_admission_third_party_join;
+// M-SPACE-ADMISSION Leg C test 7 - the end-to-end composition assertion. The
+// other six Leg C tests are unit-level and would all go green over an
+// applier-only permission check; this one asserts the DispatchOutcome the
+// SENDER receives.
+pub mod space_admission_mutation;

@@ -97,6 +97,22 @@ pub fn state_key_for_event(event: &Event) -> Option<StateKey> {
             event.space_id.as_str().to_string(),
         )),
 
+        // Space admission (spec 3.7.14.5) — keyed by the Space, so two concurrent
+        // admission changes are a genuine conflict that resolution settles to a
+        // single value on every Node. Required rather than optional: admission
+        // decides an irreversible act, and a value that differed between Nodes
+        // would mean the same join was admitted on one and refused on another,
+        // with no later correction possible.
+        //
+        // NOTE the asymmetry, because it is deliberate and looks like an
+        // oversight: the nearest sibling `state.space_temperature_visibility` has
+        // NO arm here at all. This arm is written from `StateSpaceUpdate`'s shape,
+        // not copied from that twin.
+        EventType::StateSpaceAdmission => Some(StateKey::new(
+            "state.space_admission",
+            event.space_id.as_str().to_string(),
+        )),
+
         // Thread status (Arc E PG-08) — keyed by the thread being transitioned.
         // `thread.resolved` and `thread.archived` share the **same** category so
         // a concurrent resolved-vs-archived pair on one thread is a genuine
@@ -194,6 +210,47 @@ mod tests {
             "2026-01-01T00:00:00.000Z".to_string(),
             content,
         )
+    }
+
+    /// Leg C test 5 — `state.space_admission` is keyed by the SPACE, and two
+    /// changes to one Space therefore share one key (spec 3.7.14.5).
+    #[test]
+    fn space_admission_state_key_is_space_scoped_and_shared() {
+        let a = make_event(
+            EventType::StateSpaceAdmission,
+            "xgen://pubkey/ed25519:OWNER",
+            "space1",
+            "",
+            json!({"admission": "invite"}),
+        );
+        let key_a = state_key_for_event(&a).expect("admission events define mutable state");
+        assert_eq!(key_a.category, "state.space_admission");
+        assert_eq!(key_a.key_field, "space1");
+        assert_eq!(key_a.to_string(), "state.space_admission:space1");
+
+        // A SECOND change to the same Space — different sender, different value —
+        // must produce the SAME key, or two concurrent changes would not be seen as
+        // a conflict and could resolve differently per Node.
+        let b = make_event(
+            EventType::StateSpaceAdmission,
+            "xgen://pubkey/ed25519:SOMEONE_ELSE",
+            "space1",
+            "",
+            json!({"admission": "open"}),
+        );
+        let key_b = state_key_for_event(&b).expect("admission events define mutable state");
+        assert_eq!(key_a, key_b, "two admission changes to one Space share one state key");
+
+        // And a change to a DIFFERENT Space must NOT collide with it.
+        let c = make_event(
+            EventType::StateSpaceAdmission,
+            "xgen://pubkey/ed25519:OWNER",
+            "space2",
+            "",
+            json!({"admission": "invite"}),
+        );
+        let key_c = state_key_for_event(&c).expect("admission events define mutable state");
+        assert_ne!(key_a, key_c, "admission is scoped per Space, not global");
     }
 
     #[test]

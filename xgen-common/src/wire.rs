@@ -114,6 +114,12 @@ pub enum EventType {
     /// Owner-issued update of the per-Space `member_temperature_visibility` setting.
     StateSpaceTemperatureVisibility,
 
+    // ── Space admission (spec 3.7.14) ────────────────────
+    /// Owner-issued update of the per-Space `admission` value (spec 3.7.14.2).
+    /// Permitted from the **owner role** (3.7.14.4) and **rejected outright in a
+    /// DM Space**, whose `admission` is pinned at creation (3.7.14.3).
+    StateSpaceAdmission,
+
     // ── Thread model (Arc E PG-08, ch2 §Thread-Model) ────────────────────
     /// Origin Event of a Thread, anchored to a Room. Content carries `title`
     /// (optional), `auth_tier_min`, and initial content. Non-root: its
@@ -213,6 +219,8 @@ impl EventType {
             Self::StateSpacePacing => "state.space_pacing",
             // Temperature visibility
             Self::StateSpaceTemperatureVisibility => "state.space_temperature_visibility",
+            // Space admission (3.7.14)
+            Self::StateSpaceAdmission => "state.space_admission",
             // Thread model (Arc E PG-08)
             Self::ThreadCreate => "thread.create",
             Self::ThreadResolved => "thread.resolved",
@@ -307,6 +315,8 @@ impl EventType {
             "state.space_pacing" => Some(Self::StateSpacePacing),
             // Temperature visibility
             "state.space_temperature_visibility" => Some(Self::StateSpaceTemperatureVisibility),
+            // Space admission (3.7.14)
+            "state.space_admission" => Some(Self::StateSpaceAdmission),
             // Thread model (Arc E PG-08)
             "thread.create" => Some(Self::ThreadCreate),
             "thread.resolved" => Some(Self::ThreadResolved),
@@ -703,6 +713,22 @@ pub struct StateSpaceTemperatureVisibilityContent {
     pub member_temperature_visibility: String,
 }
 
+/// Content for `state.space_admission` events (spec 3.7.14.2).
+///
+/// The `admission` field is an open-enum string. Permitted values are `open`
+/// and `invite` (`ADMISSION_OPEN` / `ADMISSION_INVITE`).
+///
+/// An unrecognised value is **stored verbatim and interpreted at the admission
+/// GATE, not here** (`D-149`). Absent means `open` and present-but-unrecognised
+/// means `invite`; those are two different facts, and only the gate is
+/// positioned to tell them apart. This struct therefore carries a `String` and
+/// performs no validation, matching the posture `DEFAULT_ADMISSION` documents
+/// for the creation path.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StateSpaceAdmissionContent {
+    pub admission: String,
+}
+
 /// Content for `membership.mute` events (spec 3.7.8).
 ///
 /// `cooldown_until` is an RFC 3339 timestamp; the mute auto-lifts at that time.
@@ -783,11 +809,36 @@ mod event_type_forward_compat_tests {
             BootstrapRegister, BootstrapRegisterAck, BootstrapKeepalive,
             BootstrapKeepaliveAck, BootstrapDeregister, ReputationDefederationSignal,
             StateAiOperatorDelegate, StateAiOperatorRevoke, StateSpacePacing,
-            StateSpaceTemperatureVisibility, ThreadCreate, ThreadResolved, ThreadArchived,
+            StateSpaceTemperatureVisibility, StateSpaceAdmission,
+            ThreadCreate, ThreadResolved, ThreadArchived,
             MlsGroupInit, MlsKeyPackage, MlsKeyPackageAck,
             MlsKeyPackageRequest, MlsKeyPackageResponse, MlsCommit, MlsWelcome,
             MlsProposal,
         ]
+    }
+
+    /// Leg C (`M-SPACE-ADMISSION`) — the completeness guard for `known_variants()`.
+    ///
+    /// `known_variants()` above is a HAND-MAINTAINED `vec!`, and every one of its
+    /// three consumers ITERATES it. That means omitting a variant does not fail any
+    /// of them: the sweeps simply never see the missing case and all three go green.
+    /// *A check whose failure mode reads exactly like success is not a check* — so
+    /// this assertion exists to convert that silent hole into a caught one.
+    ///
+    /// 🛑 **When you add an `EventType` variant, add it to `known_variants()` and
+    /// bump this number DELIBERATELY.** If this test is the only thing that failed,
+    /// the variant is missing from the vec above and the round-trip sweeps are
+    /// silently skipping it.
+    #[test]
+    fn known_variants_is_complete() {
+        // 59 before Leg C; `StateSpaceAdmission` makes 60. This equals the number of
+        // `EventType` variants excluding `Unknown(String)`, which `known_variants()`
+        // deliberately omits (it is covered by the dedicated unknown-type tests).
+        assert_eq!(
+            known_variants().len(),
+            60,
+            "known_variants() has drifted: a variant was added to EventType without being added here, or removed from here without being removed there. The round-trip sweeps CANNOT catch this - they iterate this vec, so a missing variant is invisible to them. Fix the vec, then bump this count."
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 # M-SPACE-ADMISSION Leg C Runbook — the mutation event: a wire type, a state key, a permission that is actually enforced, and a second constructor
-> **Status**: PENDING  
-> Version: 1.2  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-18  
 > Language: EN  
@@ -116,7 +116,7 @@ On **S-12**'s `can_manage_federation` form, with a doc comment saying **why Owne
 2. **re-checks `can_change_admission`**;
 3. stores the value **verbatim**.
 
-📌 **(b)'s JUSTIFICATION, NARROWED (Clair `F-6`): the FEDERATED path DOES pass through `check_permission` — `runtime.rs:1426` calls `check_permission_pub`. Only REPLAY bypasses it.** So (b) is defence-in-depth **for replay**, not for federation, and v1.0's reason was half wrong even though its conclusion was right.
+🛑 **(b)'s JUSTIFICATION — CORRECTED AT v1.3 (Clair `F-A`), AND v1.2's CITATION WAS FALSE.** v1.2 said the federated path reaches `check_permission` via **`runtime.rs:1426`**. ⚠️ **That call sits INSIDE `if matches!(event.event_type, StateAiOperatorDelegate | StateAiOperatorRevoke)` opened at `:1416` — `state.space_admission` can NEVER reach it.** ✅ **The claim is nonetheless TRUE by a different route: `validate_event` step 13 calls `check_permission(event, space)?` at `exchange.rs:256`, on every path that validates, plus the dispatch-side call at `:752`.** ⇒ **(b) remains defence-in-depth for REPLAY**, which is the only path that bypasses validation. 🔑 ***A conclusion can be right while its citation is false, and a reader who checks the citation finds a guard that does not apply and reasonably concludes the opposite.***
 
 🛑 **(a) WITHOUT (b) LEAVES REPLAY UNGUARDED. (b) WITHOUT (a) IS THE SILENT NO-OP `M-1` DESCRIBES. BOTH, OR THE LEG HAS NOT DONE ITS JOB.**
 
@@ -197,3 +197,32 @@ On **S-12**'s `can_manage_federation` form, with a doc comment saying **why Owne
 - [ ] Records: JOURNAL + `CLAUDE.md` + ROADMAP + `Status: COMPLETED`, **one `D-074` commit**
 
 📌 **"Commit pushed" is not a DoD item.**
+
+---
+
+## §9 — ✅ CLOSE RECORD. **EVERY GATE RE-DRIVEN BY CHAT (Rule 5). J-760, 2026-08-18.**
+
+**Implemented by Clair from v1.2. Seven tracked files +605/−6, plus one new test file (241 lines) and the hand-back.** Zero `xgen-client`, zero `ui/**`.
+
+| gate | measured by Chat | verdict |
+|---|---|---|
+| **V-1** | detached, own exit sentinel `=0`, summed programmatically over 56 `^test result:` lines | ✅ **1616 / 0 / 62 — exactly the predicted +8**; `Compiling xgen-core` present ⇒ not cached; `FAILED`/`error[`/`panicked`/`warning` **all zero, case-sensitive**; **all eight confirmed BY EXACT NAME** |
+| **V-2** | same run | ✅ **56 SUITES**, structural |
+| **V-3** | 🔒 Chat's own script: arm neutralised (both branches), **`xgen-core` and `xgen-node` run SEPARATELY** (Clair `F-G`) | ✅ tests 2 and 4 FAILED · 🔑 **and test 7 returned `Accepted { new_joiner: None, additional_persisted: [] }` — `M-1` REPRODUCED LIVE**, with the assertion message naming it: ***the reply lied.*** **Test 3, the applier test, stayed GREEN throughout** ⇒ `F-7` vindicated concretely |
+| **V-3b** | only the DM branch neutralised | ✅ **test 4 FAILED and NOTHING ELSE DID** — `non_owner…` still `ok` ⇒ the DM branch is independently load-bearing |
+| **V-4** | the `known_variants()` vec entry removed | ✅ **`known_variants_is_complete` FAILED**, and `as_str_and_from_str_are_inverse_for_known` + `known_type_round_trips_byte_identically` **both PASSED** ⇒ ***both halves: the count test catches it and the sweeps demonstrably do not*** |
+| **V-5** | `--numstat` **AND** `ls-files --others` | ✅ seven tracked + two untracked, all in `xgen-common`/`xgen-core`/`xgen-node`/`tasks` |
+| **V-6** | `git ls-files --eol` | ✅ `i/lf` ×7; the new test file is LF-only, as Leg A-bis's was |
+| **V-7** | every `+` line mentioning admission | ✅ **no `match` on the value, no `== "open"/"invite"`, no allow-list** |
+
+📌 **Every control restored SHA256-identical**; `git status` clean of control residue at close.
+
+⚠️ **TWO SCRIPT FAULTS OF CHAT'S, BOTH CAUGHT BY THEIR OWN GUARDS, BOTH WORTH THE LINE:** ① the first V-3 script used **LF here-string anchors against a CRLF file** ⇒ `.Replace` matched nothing; the *mutation-is-a-no-op* assertion threw and the `finally` restored. ② the second used **arm+7 where the target is arm+8** ⇒ the content assertion named the line it actually found and refused. 🔑 ***Without those two guards each script would have run three controls against UNMUTATED source and reported clean passes*** — the exact failure `N-124b` exists to prevent, twice, in one session.
+
+📌 **`F-B` IS NOT A FINDING — §4.7's spec row landed in `a0ccf3a`, which is THIS ARC'S OWN J-759 COMMIT**, pushed at the start of the implementation session. §4.7 said *"Chat writes this row"* and Chat did; Clair correctly reported not having written it.
+
+✅ **`F-C` AND `F-G` ARE DEPARTURES THAT IMPROVED ON THE LETTER, BOTH UPHELD:** §4.8's seven left the applier's DM branch untested, so **both of §4.4(b)'s branches went into test 3** rather than a ninth test; and **`V-3` as written left test 7 unobserved**, because cargo halts after the first failing suite — ***the leg's single most important assertion, invisible to its own control.*** Chat's re-drive adopted the separated form.
+
+📌 **FILED, NOT FIXED:** `F-D` the count assertion is satisfiable by a duplicate · `F-E` `build_membership_event` emits `prev_events: vec![]` and is unusable on the node ingest path · `F-F` three instruments give three counts for `known_variants()`.
+
+🛑 **WHAT WAS NOT DONE, STATED PLAINLY:** nothing ran against a running Node, a wire, or a second identity. **The REPLAY path — the entire justification for §4.4(b) — is not tested.** **`3049` was never observed on a wire.** vitest, svelte-check and the catalogue are carried by scope, not measured.

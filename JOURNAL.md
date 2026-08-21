@@ -8,6 +8,47 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-760 — Leg C ships, and the leg's own control caught the leg's own premise being live
+**Date:** 2026-08-18 · **Seats:** Clair (implementation, eight findings) · Chat (Rule-5 re-drive, three controls, records) · Joe (pushes)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `a0ccf3a` **= `origin/main` by `git ls-remote`**. 🎯 **A CODE SESSION.**
+
+✅ **SHIPPED: seven tracked files +605/−6 plus one new test file (241 lines) and the hand-back.** The wire type, the state key, `can_change_admission` in the permission table, **enforcement in BOTH `check_permission` and the applier**, `3049 admission_immutable`, the second constructor, and **eight tests**. Zero `xgen-client`, zero `ui/**`.
+
+### 🔑 THE MEASUREMENT OF THE ARC — V-3 REPRODUCED `M-1` LIVE
+
+🔒 **With the `check_permission` arm neutralised, test 7 returned `Accepted { new_joiner: None, additional_persisted: [] }`** — and the assertion message names the species out loud: ***the reply lied.*** 🔑 **Meanwhile test 3, the APPLIER test, stayed GREEN throughout.** ⇒ ***`F-7` vindicated concretely: six unit tests would have gone green over the defect this entire leg exists to refuse.*** 📌 **Tests 2 and 4 failed as required. V-3b: test 4 failed and NOTHING ELSE did** ⇒ the DM branch is independently load-bearing. 📌 **V-4 both halves: `known_variants_is_complete` FAILED while both round-trip sweeps PASSED** ⇒ the count assertion catches what the sweeps demonstrably cannot.
+
+✅ **V-1 re-driven by Chat: 1616 / 0 / 62 × 56 SUITES — exactly the predicted +8**, detached with its own exit sentinel, summed programmatically, `Compiling xgen-core` present ⇒ not cached, controls zero case-sensitive, **all eight confirmed BY EXACT NAME**. ✅ **V-5 both instruments · V-6 `i/lf` ×7 · V-7 no interpretation of the value anywhere in the diff.** 📌 **Every control restored SHA256-identical.**
+
+### 🛑 `F-A` — A CITATION IN A LOCKED RUNBOOK WAS FALSE, AND CHAT HAD CALLED IT RE-DRIVEN
+
+`runtime.rs:1426`'s `check_permission_pub` sits **inside `if matches!(event.event_type, StateAiOperatorDelegate | StateAiOperatorRevoke)`** opened at `:1416` ⇒ **`state.space_admission` can NEVER reach it.** ✅ **The conclusion survives by a different route** — `validate_event` step 13 calls `check_permission` at `exchange.rs:256`, plus the dispatch-side call at `:752` ⇒ the applier copy is defence-in-depth **for REPLAY**.
+
+🛑 **THE PROCESS DEFECT IS CHAT'S AND IT REACHED FOUR RECORDS.** `F-6` arrived as a **non-blocking note**; Chat folded it into the runbook — **which was then LOCKED** — into Phase-0, into J-759's *"the other seven — all re-driven, all held"*, and into `a0ccf3a`'s commit body. **The cited line was never opened.** 🔑 ***A conclusion can be TRUE while its citation is FALSE, and that is the worst case: the record reads correctly to anyone who skims and misleads exactly the reader who opens the citation.*** 📌 **Caught by Clair — who then measured it wrong and transcribed it into a code comment anyway before catching it herself**, which is what makes it a pattern rather than an incident.
+
+🔒 **`D-153` MINTED: a finding accepted from another seat is not re-driven until its CITATION has been opened.** 🔑 **And it binds hardest on the NON-BLOCKING notes** — blocking findings get opened because something depends on them; a note gets folded because folding is cheap and the conclusion sounded right. 📌 **Distinct from `D-152` clause 2: that governs an instrument you CHOSE AND RAN. Here there was no instrument — inherited evidence arrives already looking checked.** ✅ **Corrected at both sites** — runbook **v1.3**, Phase-0 **v2.6** — **with the false citation NAMED, not silently swapped.** 🛑 **`a0ccf3a`'s body keeps its "all re-driven" claim; history is not rewritten and the correction rides here.**
+
+### ✅ THE OTHER SEVEN FINDINGS
+
+📌 **`F-B` is not a finding: §4.7's spec row landed in `a0ccf3a`, THIS ARC'S OWN J-759 COMMIT**, pushed at the start of the implementation session. §4.7 said *"Chat writes this row"* and Chat did; Clair correctly reported not having written it, and could not have seen a commit that post-dated her read.
+
+✅ **`F-C` and `F-G` are departures that IMPROVED on the letter, both upheld.** §4.8's seven left the applier's DM branch untested ⇒ **both of §4.4(b)'s branches went into test 3** rather than a ninth test. And 🔑 **`V-3` as written left test 7 UNOBSERVED**, because cargo halts after the first failing suite ⇒ ***the leg's single most important assertion was invisible to its own control.*** She ran it separately under the still-applied control; **Chat's re-drive adopted the separated form.**
+
+📌 **Filed, not fixed:** `F-D` the count assertion is satisfiable by a duplicate · `F-E` `build_membership_event` emits `prev_events: vec![]`, unusable on the node ingest path · `F-F` three instruments give three counts for `known_variants()`.
+
+### ⚠️ TWO SCRIPT FAULTS OF CHAT'S, BOTH CAUGHT BY THEIR OWN GUARDS
+
+① The first V-3 script used **LF here-string anchors against a CRLF file** ⇒ `.Replace` matched nothing; the *mutation-is-a-no-op* assertion threw and the `finally` restored, **backup deleted, tree clean.** ② The second used **arm+7 where the target is arm+8** ⇒ the content assertion **named the line it actually found** and refused. 🔑 ***Without those guards each script would have run three controls against UNMUTATED source and reported clean passes*** — exactly what `N-124b` exists to prevent, twice in one session. 📌 **And an MCP outage mid-run left a mutated file possible-but-unverifiable; the `finally`+SHA design is why the answer was knowable afterwards from the backup's absence alone.**
+
+### 🛑 WHAT WAS NOT DONE, STATED PLAINLY
+
+Nothing ran against a running Node, a wire, or a second identity. **The REPLAY path — the entire justification for §4.4(b) — is NOT tested.** **`3049` was never observed on a wire.** vitest **172 / 172 × 9 FILES** and svelte-check **0 / 34 / 15** carried **by scope**; catalogue **UNMEASURED**.
+
+🔒 **FLOORS:** cargo **1608 → 1616 / 0 / 62 × 56 SUITES** — moved, predicted, measured. 🔓 **OPEN AND JOE'S:** `F-3`'s non-string boundary (**Leg D's**) · the third `M-1` instance in `apply_invite` · `F-D`/`F-E`/`F-F` · `N-197` · `N-198` wording · `F-6`'s counting word · the DM receiving half · `HAND-BACK` vs `kickoff`. 🎯 **NEXT: LEG D — THE GATE**, which needs `F-3`'s non-string ruling and carries `3047` plus `3048`'s `Accepted ≠ member` invariant. → J-760 · ROADMAP v7.45.
+
+---
+
 ## Entry J-759 — Leg C's runbook locks, and the fix was about to reproduce the defect it was written against
 **Date:** 2026-08-18 · **Seats:** Chat (grounding, runbook, records) · Clair (cold read — eight findings, five blocking) · Joe (three rulings, the lock)
 

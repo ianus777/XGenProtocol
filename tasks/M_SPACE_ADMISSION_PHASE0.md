@@ -1,6 +1,6 @@
 # M-SPACE-ADMISSION Phase-0 — who may join a Space, and how a leaver comes back
 > **Status**: ACTIVE  
-> Version: 2.5  
+> Version: 2.6  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-18  
 > Language: EN  
@@ -451,7 +451,7 @@ This is the part of the milestone that is **not** a settings field, and it is th
 
 ⚠️ **A THIRD LIVE INSTANCE, FOUND THE SAME WAY AND NOT FIXED HERE: `apply_invite`'s DM bar (`state.rs:995-998`) IS APPLIER-ONLY TOO** ⇒ an invite in a DM today is accepted, persisted, answered `Accepted`, and silently dropped. **Filed separately** — riding it in would make Leg C's diff argue two cases at once.
 
-📌 **The federated path DOES pass `check_permission` (`runtime.rs:1426` → `check_permission_pub`); only REPLAY bypasses it.** The applier copy is defence-in-depth **for replay**.
+🛑 **CORRECTED AT v2.6 (J-760): v2.5's CITATION WAS FALSE.** It said the federated path reaches `check_permission` via **`runtime.rs:1426`** — **that call sits INSIDE `if matches!(event.event_type, StateAiOperatorDelegate | StateAiOperatorRevoke)` opened at `:1416`, so `state.space_admission` can never reach it.** ✅ **The claim is TRUE by a different route: `validate_event` step 13 calls `check_permission(event, space)?` at `exchange.rs:256`, plus the dispatch-side call at `:752`.** ⇒ the applier copy is defence-in-depth **for REPLAY**, the only path that bypasses validation. 🔑 ***The finding arrived from Clair as a NOTE, was folded into a locked runbook and into this file, and was recorded as "re-driven" — without the cited line ever being opened. See `D-153`.***
 
 🛑 **A SECOND MEASURED ASYMMETRY, AND §6.3's KEY HAS NO LOCAL PRECEDENT:** `state_key_for_event` has **no arm for `StateSpaceTemperatureVisibility`** — the only Space-scoped arm is `StateSpaceUpdate` (`state_key.rs:95`). ⇒ **`admission` will be per-field conflict-resolved and the sibling is not**, which is correct under §6.3 but means **the arm is written from `StateSpaceUpdate`'s shape, not copied from the temperature twin.**
 

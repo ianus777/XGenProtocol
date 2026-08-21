@@ -5755,3 +5755,29 @@ Both clauses were derived while settling **one** field and neither is about that
 🔑 **What unites them, and the reason they are one decision: in every instance the WRONG answer was the QUIET one.** ⇒ ***an instrument that cannot state what it looked at, and a run that cannot prove it finished, are not evidence — and the record must be able to tell the difference without trusting whoever ran them.***
 
 📌 **Provenance (`D-141`):** **clause 1 is Clair's**, handed over unprompted at stand-down precisely so the divergence would not enter the record as a contradiction. **Clause 2's three instances are one Clair's, one Clair's against Chat's runbook, and one Chat's own**, found while re-driving hers. **Neither seat's version was caught by re-reading prose.**
+
+---
+
+## D-153 — A finding accepted from another seat is not re-driven until its citation has been opened
+
+**Date:** 2026-08-18 · **Status:** ACTIVE · **Arc:** cross-seat verification / records · **Origin:** J-760 (`M-SPACE-ADMISSION` Leg C close)
+
+### The rule
+
+🔒 **"I RE-DROVE IT" MEANS THE CITED LINE WAS OPENED. IT DOES NOT MEAN THE FINDING WAS READ AND FOUND CONVINCING.** A finding arriving from another seat carries two separable claims — **a conclusion** and **the evidence for it** — and they fail independently. ⇒ **a finding is re-driven only when its SITE has been opened at the tree it names.** Agreeing with a conclusion is review; opening the citation is measurement.
+
+🛑 **AND THE RULE BINDS HARDEST WHERE ATTENTION IS LOWEST: the NON-BLOCKING notes.** Blocking findings get opened because something depends on them. **A note gets folded in, because folding is cheap and the conclusion sounded right** — and a citation carried on a conclusion's coat-tails ***enters the record with the authority of a measurement and none of the substance.***
+
+📌 **A conclusion can be TRUE while its citation is FALSE, and that is the worst case, not the harmless one.** The record then reads correctly to anyone who skims and misleads exactly the reader who does the right thing: ***the one who opens the citation finds a guard that does not apply, and reasonably concludes the opposite of the truth.***
+
+### Why it earned a `D`
+
+**A cold read returned eight findings; six were blocking and were opened individually. One non-blocking note cited a line that was never opened.** It said a certain path reached a permission check at a named site. **The conclusion was right by a different route entirely; the named call sat inside a `matches!` guard admitting two unrelated event types, so the event under discussion could never reach it.**
+
+**The citation was then folded into a runbook that was subsequently LOCKED, into the milestone's Phase-0, into a session journal entry reading *"the other seven — all re-driven, all held"*, and into a pushed commit body.** 🛑 **Four records, one unopened line.** It was caught by the implementing seat, who **measured the citation as wrong and then transcribed it into a code comment anyway before catching it** — ***the same failure one layer down, which is what makes it a pattern rather than an incident.***
+
+🔑 **What makes this distinct from `D-152` clause 2 rather than an instance of it:** clause 2 governs **an instrument you chose and ran** — its scope, its completion. **This governs a claim you did not produce.** The instrument was never wrong here; **there was no instrument.** ⇒ ***the failure mode of inherited evidence is that it arrives already looking checked.***
+
+📌 **Practical form.** When folding another seat's finding: open the site, at the tree it names; if the conclusion survives but the citation does not, **record both** — the corrected route and the fact that the original was false — because a silently swapped citation teaches the next reader that citations are decorative. And when a record says a set of findings was re-driven, **that claim is itself checkable**, and someone will check it.
+
+📌 **Provenance (`D-141`):** **the defect is Chat's**, in a session where Chat wrote the words *"all re-driven, all held"*. **The catch is Clair's**, from the implementing seat. **The second instance is also Clair's, on herself**, reported unprompted.

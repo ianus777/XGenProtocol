@@ -8,6 +8,48 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-762 — Leg D is designed and runbooked: the gate that was never there, and a reserved code that turned out to be waiting
+**Date:** 2026-08-22 · **Seats:** Chat (grounding, Phase-0, runbook) · Joe (one ruling, two locks)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `1623eb6` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean. 🎯 **DESIGN + RECORDS. ZERO PRODUCT CODE.**
+
+`tasks/M_SPACE_ADMISSION_LEGD_PHASE0.md` **v1.1 ACTIVE, LOCKED** (new) · `tasks/RUNBOOK_SPACE_ADMISSION_LEG_D.md` **v1.1 ACTIVE, LOCKED** (new) · ROADMAP v7.46 → **v7.47**.
+
+## 🛑 THE HOLE IS NOT A GAP IN ENFORCEMENT — THERE IS NO ENFORCEMENT TO HAVE A GAP IN
+
+**`MembershipJoin` sits in `skip_membership` (`exchange.rs:670-680`)** ⇒ **step 11 (`:681`) and step 13 (`:750`) are BOTH skipped** ⇒ ***`validate_event` never adjudicates a join at all.*** The single join gate that exists is at dispatch time, `runtime.rs:1580-1613` — **and the check sits INSIDE `if let Some(pi) = space.pending_invites.get(&event.sender)` (`:1586`).**
+
+🔑 ***It adjudicates the EXPIRY OF AN INVITE THAT EXISTS. No pending invite ⇒ the block never runs ⇒ the join is applied.*** ⚠️ **The comment at `:1563-1565` already says so in the code — *"an open join (no pending invite at all) is untouched"*** — so the hole is **documented, deliberate, and has been waiting for its admission value since M8.5-B.** ⇒ **`3044` asks *is your invite still valid*; Leg D asks *do you need one*. Same block, different question.**
+
+## 🛑 AND `F-3` IS WORSE THAN A MISSING CASE — THE DOC COMMENT ASSERTS THE OPPOSITE OF WHAT THE LINE DOES
+
+`state.rs:344-347` claims the constructor deliberately keeps **absent** and **present-but-unrecognised** apart, and that collapsing them is exactly what it refuses to do. **`:348`'s `as_str()` returns `None` for ANY present non-string** ⇒ ***the collapse the comment forbids is performed by the line the comment sits on.***
+
+🛑 **AND IT COLLAPSES TOWARD PERMISSIVE:** `DEFAULT_ADMISSION` = `ADMISSION_OPEN` ⇒ **`{"admission": 5}` creates an OPEN Space.** **Harmless today because nothing reads the field** (`state.rs:283` says so outright) — ***the instant the gate exists, that malformed value is the difference between a closed Space and an open one.***
+
+## 🔒 §6 RULED (A) — AND THE CODE WAS ALREADY RESERVED
+
+**Joe, 2026-08-22:** a refusal **names the reason** — *an invite is required*. The alternatives were a bare *you cannot join* and a *no such Space* answer; **(C) was the only one resisting Space-existence probing, and it costs every honest user — almost always someone with a stale link — a comprehensible answer.** ⚠️ **The caveat is recorded and NOT discharged: (A) confirms a Space is real to anyone who asks, and Space-existence privacy is a larger question that must not be smuggled in through an error string.**
+
+🔑 **THE NUMBER WAS NOT THE NEXT FREE ONE.** Leg C had already added a ch3 line recording that **`3047` and `3048` are RESERVED and not yet live.** ⇒ **`3047 admission_required` TAKEN BY CHAT** — first of the two, in the `3040s` membership-authority sub-band beside `3044`/`3045`. 📌 *Allocating by "next free" would have been correct by accident and wrong by method.*
+
+## 🛑 `C-8` — THE WIRE-CODE REGISTRY IS ALREADY WRONG, FOUND WHILE ALLOCATING
+
+**`3046 event_timestamp_out_of_bounds` is LIVE in code** (`exchange.rs:155`, mapped in `to_wire_code`) **and ABSENT from ch3 §3.6.10.10's registry** — the table at `:2185-2193` runs `3040`→`3045` then jumps to `3049`. ⚠️ ***That table is the instrument that makes "3047 is reserved" checkable.*** **A registry missing a live code means the next allocator reads the table, sees a gap at `3046`, and takes a number already in use** — surfacing as **two unrelated refusals sharing one wire code, in production, on somebody else's machine.** 📌 **Chat's; rides Leg D's own §3.6.10.10 edit — a registry correction at the moment the registry is open, not a separate errand. Record only; `3046`'s meaning is not re-litigated.**
+
+## 📌 THE RUNBOOK'S ONE STRUCTURAL BINDING
+
+**D-1 (a Node dispatch gate) and D-3 (a `SpaceState` applier rule) are BARRED from sharing a test.** 🔑 **`M-1`'s entire species is a check that lives only in the applier and is therefore a silent no-op on the answer path:** a unit test calling `apply_event` **cannot see D-1**, and a node-path test **can pass while D-3 is absent.** ⇒ **three gates, three negative controls, each deleted in turn and each required to turn something red.** 🔑 **V-3c's second half is the one that matters — with D-3 gone a retained banned member is refused `AlreadyMember` instead of `Banned`: *a refusal that looks green and is the wrong refusal.***
+
+## 📋 STATE
+
+**Floors carried by scope, NOT re-measured — zero `.rs`, zero `ui/**`:** cargo **1616 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. Catalogue **UNMEASURED**.
+
+🔓 **OPEN, all Chat's, all Leg E's:** `C-3` mechanical · `C-4` · `C-5` · `C-6` · `C-7` · `F-E`. **Nothing open on Joe's side.**
+
+▶️ **NEXT: Clair implements Leg D from the locked runbook, in a session opened by its own kickoff. Chat re-drives every gate independently from HEAD (Rule 5).**
+
+---
 ## Entry J-761 — The census finishes, EVER is zero, and five questions about what a Space remembers become one ruling
 **Date:** 2026-08-22 · **Seats:** Chat (re-drive, classification, records) · Clair (the cold read, from Leg C's seat) · Joe (five rulings, and the two challenges that produced them)
 

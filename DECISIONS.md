@@ -5781,3 +5781,69 @@ Both clauses were derived while settling **one** field and neither is about that
 📌 **Practical form.** When folding another seat's finding: open the site, at the tree it names; if the conclusion survives but the citation does not, **record both** — the corrected route and the fact that the original was false — because a silently swapped citation teaches the next reader that citations are decorative. And when a record says a set of findings was re-driven, **that claim is itself checkable**, and someone will check it.
 
 📌 **Provenance (`D-141`):** **the defect is Chat's**, in a session where Chat wrote the words *"all re-driven, all held"*. **The catch is Clair's**, from the implementing seat. **The second instance is also Clair's, on herself**, reported unprompted.
+
+---
+
+## D-154 — What a Space remembers about someone who left, and what rejoining gives back
+
+**Date:** 2026-08-22 · **Layer:** protocol semantics — Space membership · **Ref:** `Q-2`(a)(g) (`M_SPACE_ADMISSION_PHASE0.md` §15.5), `D-065` (honest over polite), `D-067` (one fact in one place), `D-071` (subsystem audit precedes the milestone), `D-121` (the lenses), `D-123` (seats) · **Journal:** J-761 · **Code:** none yet — Legs E and G implement it.
+
+**Decision (Joe, 2026-08-22), five clauses, ruled together because the census showed they are one question.**
+
+| | ruling |
+|---|---|
+| **① The rejoin** | **She is back, AS OF NOW.** `left_at` clears · `joined_at` is stamped to the rejoin · **the role is re-derived** — no invite ⇒ `Role::Member`. 🔑 ***A departed Owner cannot walk back into Owner rights.*** |
+| **② Kick** | **Remembered, not erased** — a kicked member is retained and marked, exactly as a leaver is. |
+| **③ Ban** | **Same rule as kick.** `self.banned` is unchanged and stays the authority for the ban itself. |
+| **④ What a rejoiner may read** | **Everything up to her departure, plus everything from the rejoin forward. THE GAP STAYS CLOSED.** |
+| **⑤ Rooms** | **A rejoin restores presence in the SPACE ONLY.** Room membership is not restored; she re-enters each room herself. |
+
+### Why it earned a `D`
+
+🛑 **`(g)` RETAINS A RECORD THAT THE REJOIN PATH DESTROYS, AND NOTHING IN `Q-2` SAYS SO.** `apply_join` ends at `self.members.insert(...)` (`state.rs:1122`) — **`HashMap::insert` REPLACES.** Whatever `(g)` preserved is overwritten wholesale on the way back in. ⇒ ***the rejoin was never a gate question; it was a write question, and it was invisible until the census opened the site.*** `Q-2`(a) and `(g)` had been ruled four days apart and **contradicted each other at `state.rs:1112`** — `(a)` says she rejoins without an invite, `(g)` leaves her in the map so the bare `contains_key` refuses her.
+
+🔑 **THE UNIFYING PRINCIPLE, AND IT IS WHY FIVE QUESTIONS GOT ONE RULING:** ***a rejoin restores PRESENCE, never POSITION.*** Clause ① withholds the role, clause ⑤ withholds the rooms, clause ④ withholds the absence. **Any clause ruled the other way would have made the same person be treated two ways inside one rejoin.**
+
+⚠️ **CLAUSE ② IS NOT COSMETIC — IT IS WHAT KEEPS ONE WORD MEANING ONE THING.** Had a kick erased while a leave retained, ***"in `members`" would mean two different things depending on how you left***, and all **50** production readers of that map (`M_SPACE_ADMISSION_E0_PHASE0.md` §5e) would have to know which. **That ambiguity, not the storage, was the expensive option.**
+
+🛑 **CLAUSE ② ALSO REPAIRS AN ORDERING DEFECT `(g)` WOULD OTHERWISE CREATE.** `state.rs:1115`'s ban check sits **AFTER** `:1112`'s membership check. Today `apply_ban` removes from `members`, so `:1115` is reachable. **Under `(g)` a retained banned member hits `:1112` first and is refused `AlreadyMember` instead of `Banned`** — ***the ban check becomes dead code for exactly the people it exists for.*** Gating `:1112` on `left_at.is_none()` is therefore load-bearing, not tidy.
+
+📌 **CLAUSE ④ IS THE EXPENSIVE ONE AND WAS RULED KNOWING THAT.** *Everything* would let anyone leave, wait, rejoin and read every private conversation held in their absence — **leaving would cost nothing and rejoining would be a way in.** *Nothing* is cheap and takes from her conversations she was present for and had already read. **The chosen shape needs a per-member boundary, which is what `Leg G` builds.** ⇒ Leg G is load-bearing work, not a formality.
+
+⚠️ **WHAT CLAUSE ④ DOES NOT SETTLE, NAMED SO LEG G DOES NOT INVENT IT:** a silent jump across the gap would read as ***nothing was said***, which is a lie in the direction `D-065` governs. **The gap must be marked; the marker's wording and form are appearance and remain Joe's.**
+
+📌 **CLAUSE ⑤'s COST LANDS ON THE PERSON WHO CAME BACK** — eight rooms means eight re-entries — **and was accepted rather than traded away.** The alternative required a **per-room membership history for everyone who ever left**, a second permanent record on top of clause ②'s, multiplied by the room count: the `§6.5` `former_members` shape that was already refused once.
+
+⚠️ **A FACT PLACED IN VIEW, NOT AN ARGUMENT AGAINST ANY CLAUSE:** `§6.5` refused a `former_members` list partly because it would be *a permanent federated record of everyone who left a Space*. **`self.banned` is already exactly that shape for banned identities, and has been for a long time.** Filed for its own look; it is not this decision.
+
+📌 **Provenance (`D-141`):** **all five clauses are Joe's, taken on Chat's recommendation in every case.** The framing that made them answerable — five plain questions about what a Space remembers, rather than option tables — was produced **only after Joe rejected two rounds of Chat's framing as unanswerable.** 🛑 **Chat's first version of clause ① offered Joe a ruling he had already made on 2026-08-18 (`§5`'s option (i), which gates `is_member` explicitly) and argued for it on CHEAPNESS** — *"one accessor versus 13 hand edits"* — **a resource-cost argument for a site that no accessor change reaches.** ⇒ ***the cheap answer was doing the arguing because the site had not been opened***; `D-121`'s lens order exists precisely against that, and it was Joe asking for the claim to be grounded that surfaced it.
+
+---
+
+## D-155 — A decision belonging to the seat that owns MEANING is asked in the vocabulary of meaning, not in the vocabulary of the code
+
+**Date:** 2026-08-22 · **Layer:** Project-wide working principle · **Ref:** `D-121` (the lenses — this supplies the FORM the first lens implies), `D-123` (seats; under-stepping), `D-065` (honest over polite), `D-141` (attribution) · **Journal:** J-761 · **Code:** none — a discipline.
+
+**Decision (Joe, 2026-08-22).** Stated on Joe's own instruction after the `D-154` session: *"this type of form of folding questions was fully comprehensible for me. If it can be repeated in other occasions in the future, it will be very helpful."*
+
+**The rule.** When a question is routed to Joe under `D-123`, it is put **in the vocabulary of the thing being decided**, not the vocabulary of the code that implements it. Concretely:
+
+| | |
+|---|---|
+| **① One question at a time** | not a table of nine findings with an owner column. **A queue is read; a question is answered.** |
+| **② Stated as a situation, not a site** | ***"A member leaves your Space. Later she comes back. What does the Space remember about her?"*** — **not** *"does `apply_join` gate `:1112` on `left_at.is_none()`?"* |
+| **③ Two or three named outcomes, each described by WHAT A PERSON WOULD SEE** | *"Joined date resets; her old role is gone"* — **not** *"`insert` overwrites the retained `SpaceMember`."* |
+| **④ Chat's recommendation, with the reason in the same vocabulary** | and `D-121`'s lens ① first. **Cost is stated only where it genuinely differs.** |
+| **⑤ The honest caveat named** | *"this is the most work by a wide margin"* · *"the friction lands on the person who came back"* — **stated, never traded away silently.** |
+
+### Why it earned a `D`
+
+🛑 **THREE FRAMINGS WERE REJECTED BEFORE ONE LANDED, AND THE FIRST TWO FAILED FOR THE SAME REASON.** They named code sites, findings ids and accessor mechanics — **a vocabulary in which the seat that owns MEANING cannot evaluate anything.** Joe's reply to the second was ***"i dont understand. i wanted my left question, that need my answer"*** — ⚠️ **an accurate report that the question had not actually been asked.** The third form — five plain questions about what a Space remembers — **was answered in five short exchanges with no clarification needed, and every answer was the recommended one.**
+
+🔑 **THE FAILURE THIS PREVENTS IS NOT CONFUSION — IT IS A BAD RULING THAT LOOKS LIKE A GOOD ONE.** A question posed in implementation vocabulary invites the owning seat to **rule on the mechanism rather than on the meaning**, and the mechanism is not what he owns. ***An answer given to a question the answerer could not fully evaluate enters the record with a lock's authority and none of its substance*** — the `D-153` shape, one layer up: **not an unopened citation, but an unopened QUESTION.**
+
+⚠️ **AND THE SAME SESSION SHOWED THE COST DIRECTLY.** Chat's first form of the rejoin question **offered Joe a ruling he had already made four days earlier** and **argued it on CHEAPNESS** — *"one accessor versus 13 hand edits"* — **for a site that no accessor change reaches.** Joe asked for the claim to be grounded; ⇒ ***the cheap answer was doing the arguing because the site had not been opened***, and opening it produced `D-154`'s entire subject: **`HashMap::insert` REPLACES, so `(g)` retained a record the rejoin path destroys.** 📌 **The re-framing did not merely make the question clearer — it made the question CORRECT.**
+
+📌 **What this does NOT license.** It is a rule about **FORM**, not about scope. It does not move anything into or out of Joe's seat, it does not soften `D-123`'s held-hardest clause, and it is **not permission to simplify away a real fork**: where two options are genuinely both honest, both are still put up. ***Plain language is a requirement on the asking, never a reduction of what is asked.*** 🛑 **Nor does it license withholding the technical detail** — the detail belongs in the Phase-0 and the journal, where the implementing seat reads it; it simply does not belong in the sentence that carries the question.
+
+📌 **Provenance (`D-141`):** **the rule is Joe's, requested explicitly and in his own words.** **The three failed framings are Chat's**, and the record keeps them because *the form that worked is only legible against the two that did not.*

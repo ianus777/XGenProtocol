@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-18  
+> **Last updated:** 2026-08-22  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -8,6 +8,50 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-761 — The census finishes, EVER is zero, and five questions about what a Space remembers become one ruling
+**Date:** 2026-08-22 · **Seats:** Chat (re-drive, classification, records) · Clair (the cold read, from Leg C's seat) · Joe (five rulings, and the two challenges that produced them)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `5da9e53` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean. 🎯 **A CENSUS SESSION — ZERO PRODUCT CODE.**
+
+🛑 **AND THE FIRST MEASUREMENT WAS A RECORD DEFECT IN THE COMMIT THAT PRECEDED THIS ONE.** `5da9e53`'s subject reads *"J-761: E-0 Phase-0 …"* and **`5da9e53` contains no J-761** — one file, `+121/-0`, `JOURNAL.md` untouched, max entry still J-760. ⇒ **`D-074` break: the record did not travel with the thing it records.** 🔑 ***The shape matters more than the miss: J-761 existed ONLY in the commit subject, so a reader grepping the log found it and a reader opening the JOURNAL did not*** — `N-197` applied to the record layer, an instrument that cannot see its whole subject returning a clean-looking wrong answer. **This entry takes the number and says so at its own site rather than taking it quietly.**
+
+## ✅ THE CENSUS — **50 PRODUCTION SITES, ALL `CURRENTLY`, `EVER` 0, `INDIFFERENT` 0**
+
+`D-1` **13** · `D-2` **17** · `D-3` **20**. Full tables at `tasks/M_SPACE_ADMISSION_E0_PHASE0.md` §5b · §5c · §5d, aggregate at §5e.
+
+🔒 **§5's REOPEN TRIGGER IS DISCHARGED BY MEASUREMENT, NOT ARGUMENT.** It fired if `EVER` were the majority of the production set; **`EVER` is 0 of 50** ⇒ **(i) STANDS.** 📌 *The trigger was live for three sessions and never had a chance of firing — but it could not be KNOWN idle until the census finished, which is why it was recorded rather than waved off.*
+
+🔑 **WHY §5b's PREDICTION FAILED, AND IT IS STRUCTURAL.** §5b expected `EVER` to live in `D-3` — key material, DAG causality, history. **None of those read this map.** MLS keeps its own member set in `encryption/group.rs` / `client_mls.rs`, ***the very subsystem §3 excluded in order to make the census honest.*** ⇒ **`SpaceState.members` is a purely present-tense structure.** ⚠️ **That is what makes `(g)` cheap AND what makes it dangerous: no existing reader''s meaning is preserved, so all 50 change meaning at once.**
+
+📌 **`(i)`'s REAL COST, NOW COUNTABLE:** the two accessors carry **30 sites free**; **`D-3`''s 20 need individual edits under ANY ruling**, five of them inside `resolve_operator`. ***The ruling was never going to reach 40% of the census, and §5 does not say so.***
+
+## 🛑 CLAIR''S COLD READ — SIX BLOCKING FINDINGS, ALL HELD UNDER RE-DRIVE
+
+Every citation was opened at `5da9e53` before folding (`D-153`); **not one moved.** §3''s production figures were wrong **three independent ways**: `F-2` a second `#[cfg(test)]` module in `admin_ops.rs` filing `:3395-:4515` of production as test · `F-3` seven multi-line chains a line-oriented sweep cannot see · `F-4` two counted sites that are not this map. **43 → 50.** `F-10` additionally showed §3''s `65` was **64 plus a `get_mut` that is not in the stated set** — ***the total was right by one accident cancelling another.*** **`D-4` named for the first time:** `resolve_operator` reads `self.members` directly five times, so **`(i)` does not reach it**, and **`CLAUDE.md:1470` documents it as *"transparently skips members who left"*** — under `(g)` it stops skipping and the record goes false at a line nobody edits.
+
+⚠️ **TWO INSTRUMENT FAILURES OF CHAT''s OWN, BOTH CAUGHT, BOTH RECORDED.** ① A brace-depth test-span scanner returned **54 "production" `is_member` sites including obvious `assert!` lines** — format-string braces skew the count; **it exited 1 and printed a complete plausible-looking table anyway.** Replaced by a column-0 rule with the `admin_ops.rs` carve-out. ② Chat grepped **`space/state_key.rs`, a path that does not exist** (the file is `resolution/state_key.rs`), and `Select-String` returned **empty — which reads exactly like *Clair''s citation is wrong*.** ***An absent path and an absent match are indistinguishable in that output;*** a false finding against her §5 was one step away. **`N-197` at the tooling layer, twice in one session across two seats.**
+
+## 🔒 `D-154` — FIVE QUESTIONS, ONE RULING
+
+① back **as of now** · ② **kick remembered** · ③ **ban follows kick** · ④ **the gap stays closed** · ⑤ **presence restored, rooms not.** 🔑 ***A rejoin restores PRESENCE, never POSITION.***
+
+🛑 **THE FINDING THAT MADE IT ONE DECISION: `(g)` RETAINS A RECORD THE REJOIN PATH DESTROYS.** `apply_join` ends at `self.members.insert(...)` (`state.rs:1122`) and **`insert` REPLACES** ⇒ everything `(g)` preserved is overwritten on the way back in. ***The rejoin was never a gate question; it was a write question, invisible until the site was opened.*** And **`Q-2`(a) and `(g)`, ruled four days apart, contradicted each other at `state.rs:1112`.** 🛑 **Clause ② also repairs an ordering defect `(g)` would create:** `:1115`''s ban check sits **after** `:1112`, so a retained banned member would be refused `AlreadyMember` instead of `Banned` — ***the ban check dead for exactly the people it exists for.***
+
+## 🛑 THE SEAT WORK — AND JOE CAUGHT IT TWICE
+
+**Asked to assert six planned close items against `D-123`, Chat found none of the six wrong and the failure four rows away, in §8 of a document it had written an hour earlier: FOUR of nine findings mis-routed to Joe.** `C-5` (a departed member keeping fanout and history) has **one honest answer and three dishonest ones** — `RUNBOOK_LIVEFEED_LEG_A.md:19` governs. `F-E`, `C-7`, `C-6` likewise. **Fourth instance of the over-routing pattern `CLAUDE.md:538` already records** ⇒ 🔑 ***the failure is not forgetting the rule; it is that a long findings table makes routing feel like thoroughness.***
+
+🛑 **AND THE SECOND CATCH PRODUCED `D-154` ITSELF.** Chat''s first form of question ① **offered Joe a ruling he had already made on 2026-08-18** (§5''s (i) gates `is_member` explicitly) **and argued it on CHEAPNESS** — *"one accessor versus 13 hand edits"* — **for a site no accessor change reaches.** Joe asked for the claim to be grounded. ⇒ ***the cheap answer was doing the arguing because the site had not been opened***, and opening it found the `insert` that replaces. 📌 **The questions became answerable only after Joe rejected two framings.** ***Option tables naming code sites are unanswerable by the seat that owns MEANING;*** *"what does the Space remember about her?"* is the same decision in the vocabulary of the person who must make it. **Method, not apology.**
+
+## 📋 STATE
+
+**Floors carried by scope, NOT re-measured — zero `.rs`, zero `ui/**` this session:** cargo **1616 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. Catalogue **UNMEASURED**.
+
+🔓 **OPEN:** `C-3`''s mechanical half · `C-4`''s filter · `C-5` · `C-6` · `C-7` · `F-E` — **all Chat''s, all filed for Leg E** · `F-D` · `F-F` · the third `M-1` instance (`state.rs:995-998`) · `N-197`/`N-198` wording.
+
+▶️ **NEXT: Leg D''s Phase-0**, with `D-154` and the 50-site census in front of it.
+
+---
 ## Entry J-760 — Leg C ships, and the leg's own control caught the leg's own premise being live
 **Date:** 2026-08-18 · **Seats:** Clair (implementation, eight findings) · Chat (Rule-5 re-drive, three controls, records) · Joe (pushes)
 

@@ -5795,10 +5795,27 @@ Both clauses were derived while settling **one** field and neither is about that
 | **① The rejoin** | **She is back, AS OF NOW.** `left_at` clears · `joined_at` is stamped to the rejoin · **the role is re-derived** — no invite ⇒ `Role::Member`. 🔑 ***A departed Owner cannot walk back into Owner rights.*** |
 | **② Kick** | **Remembered, not erased** — a kicked member is retained and marked, exactly as a leaver is. |
 | **③ Ban** | **Same rule as kick.** `self.banned` is unchanged and stays the authority for the ban itself. |
-| **④ What a rejoiner may read** | **Everything up to her departure, plus everything from the rejoin forward. THE GAP STAYS CLOSED.** |
+| **④ What a rejoiner may read** | **Everything up to her departure, plus everything from the rejoin forward. THE GAP STAYS CLOSED.** 🔒 **CLARIFIED 2026-08-23 (Joe; J-769): the gap is closed to CONTENT and OPEN TO MEMBERSHIP STRUCTURE** — she receives the `membership.*` events from her absence, not the conversation. **A NARROWING, and recorded as one (below).** |
 | **⑤ Rooms** | **A rejoin restores presence in the SPACE ONLY.** Room membership is not restored; she re-enters each room herself. |
 | **⑥ Node-eject** | 🔒 **AMENDED 2026-08-23 (Joe; J-766) — SIXTH CLAUSE ADDED, NOT A REWRITE (`D-131`).** **`membership.node_eject` follows kick and ban: the target is RETAINED and MARKED.** `self.banned`, `pending_invites.remove` and the room strip are unchanged. |
 
+
+
+### ④ — CLARIFIED 2026-08-23 (Joe; J-769): **STRUCTURE IS NOT CONTENT**
+
+🔒 **RULED: a returning member DOES receive the `membership.*` events from the period she was absent — who joined, who left, who was removed and when. She does NOT receive the conversation.**
+
+🛑 **THIS IS A NARROWING OF ④, NOT AN APPLICATION OF IT, AND IT IS RECORDED AS ONE.** ④'s own wording is *"the gap stays closed."* Under this clarification the gap is closed to **content** and open to **membership structure**. **Written here rather than left as an implementation choice, because a clause that says one thing while the code does another is how a false citation gets a second life (`D-065`).**
+
+📌 **① user-visible:** under the strict reading she returns to a roster containing strangers **with no account of how they got there** — while the Space's own retained log says they were admitted. That is the same disagreement between history and record that ⑥ was ruled to prevent, pointed at a returning member instead of an auditor. ⚠️ **And it has a mechanical consequence:** her rejoin must **chain onto the DAG**, and an identity denied the intervening membership chain may be unable to compute a valid anchor — which is Leg G's whole subject.
+
+🔑 **② THE MEASURED GROUND, AND IT IS WHAT DECIDED IT.** `is_structural_bootstrap_type` (`xgen-node/src/fanout.rs:549-563`, M8.5-B / INV-D1) **already serves the FULL membership chain — invite, join, leave, kick, ban, node_eject, node_unban — to a NOT-YET-MEMBER holding an unexpired invite.** ⇒ ***the strict reading would give a RETURNING MEMBER strictly less than a stranger gets today***, which is not defensible as a privacy position. **Membership structure is already the least-protected class in this codebase, deliberately and on the record.**
+
+📌 **③ resource:** one clause in the interval walk — membership events pass, content does not.
+
+⚠️ **THE CAVEAT, CARRIED AND NOT DISCHARGED.** She learns **who else was removed, and when** — third-party information about people who never consented to her return, and who cannot see that she now holds it. **Accepted knowingly.** 📌 It sits beside this entry's two other open looks: **`self.banned` as a permanent federated list** (filed at ⑥), and the fact that `D-093` retains the **bytes** without retaining **who was in the room**.
+
+🔒 **SCOPE OF THE CLARIFICATION:** it governs **every door that serves history to an identity** — the joiner push, `collect_sync_history`, and `collect_invite_bootstrap` (`M_SPACE_ADMISSION_LEGE2_PHASE0.md` §3). **It does NOT govern node-to-node federation** (`D-089`): a peer Node holds the log, and ④ is about what a **person** may read.
 
 ### ⑥ — the sixth clause, and why it is an amendment rather than a new `D`
 

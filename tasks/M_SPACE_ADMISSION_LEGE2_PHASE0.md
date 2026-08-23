@@ -1,7 +1,7 @@
 # M-SPACE-ADMISSION Leg E-2 Phase-0 — clause ④, the gap: what a rejoiner may read, and the three doors that serve it
 
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-23  
 > Language: English  
@@ -93,6 +93,18 @@ Leg E-2 of **M-SPACE-ADMISSION — who may join a Space, and how a leaver comes 
 
 🎯 **CHAT RECOMMENDS (B), with (A)'s equality added as a REGRESSION TEST regardless** — because the two functions will keep drifting whether or not this leg reads them, and a test is the only thing that makes the drift visible. 📌 **(C) is filed, named, and not taken here.**
 
+### §4b — 🔒 **SETTLED BY CHAT (`D-123`, J-769): (B). AND IT COSTS NOTHING TO BUILD.**
+
+✅ **MEASURED AT `0d93117`: core's `topological_sort` is ALREADY publicly reachable from `xgen-node`** — `app.rs:59` imports it, `app.rs:5028` calls it, and **`app.rs:5642` is an existing test asserting exactly that reachability** (`topological_sort_publicly_reachable_from_xgen_node`). 🔑 ***(B) requires no plumbing, no new export and no crate boundary work — the fork was a design question that turned out to have no build cost.***
+
+🔒 **THE SHAPE, so the runbook cannot drift from it:**
+
+1. Compute the presence intervals over **`xgen_core::node::runtime::topological_sort(all)`** — *the same function `derive.rs:49` imports to fold the state*.
+2. That yields a **SET of permitted `event_id`s**.
+3. Filter the delivery list — still ordered by `fanout::topological_sort_events` — by membership in that set.
+
+⇒ 🔑 ***the ORDER events arrive in is unchanged, and the SET is decided by the same order the fold used to decide who is a member.*** The slice agrees with `left_at` **by construction**. 📌 **Two functions, two jobs, and neither is asked to do the other's** — which is why (C), unifying them, is not needed for correctness here and stays filed.
+
 ---
 
 ## §5 — WHAT THE SLICE ACTUALLY IS
@@ -127,7 +139,7 @@ Leg E-2 of **M-SPACE-ADMISSION — who may join a Space, and how a leaver comes 
 
 ---
 
-## §7 — 🔓 THE ONE OPEN QUESTION. **JOE'S** (`D-155`).
+## §7 — 🔒 RULED (Joe, 2026-08-23; J-769): **(b) — STRUCTURE IS NOT CONTENT.** RECORDED AS A `D-154`④ CLARIFICATION.
 
 A person left a Space months ago. Things happened while she was away: people joined, someone was removed, the roster changed. **Now she is coming back.** Clause ④ already rules that she does not get to read the *conversation* she missed.
 
@@ -138,7 +150,7 @@ A person left a Space months ago. Things happened while she was away: people joi
 | **(a)** | **No — the gap is the gap.** She returns and sees the roster as it is now, with no account of how it got that way. Someone who joined during her absence simply *is* there. |
 | **(b)** | **Yes — structure is not content.** She sees that three people joined and one was removed while she was away, but not a word anyone said. The Space's shape is public to its members; its conversation is not. |
 
-🎯 **CHAT RECOMMENDS (b).**
+🔒 **RULED (b).** A returning member **DOES** receive the `membership.*` events from her absence — who joined, who left, who was removed and when — and **does NOT** receive the conversation. **Recorded at `D-154`④'s own site as a CLARIFICATION, explicitly labelled a NARROWING of *"the gap stays closed"*, not an application of it** (`D-131`). 🔒 **It governs ALL THREE doors of §3; it does NOT govern node-to-node federation** (`D-089`). **Chat's recommendation, which the ruling took, follows.**
 
 **① USER-VISIBLE IMPACT.** Under **(a)** she returns to a roster containing strangers with **no way to learn they were ever admitted** — and the Space's own retained log says they were. It is the same disagreement between history and record that `D-154`⑥ was ruled to prevent, pointed at a returning member instead of an auditor. Under **(b)** the roster she sees is *explained* by the events she holds. ⚠️ **And (a) has a mechanical cost that is not obvious: her rejoin must CHAIN onto the DAG, and Leg G's `get_rejoin_anchor` exists because a rejoin needs a valid anchor** — an identity denied the intervening membership chain may be unable to compute one.
 
@@ -146,7 +158,7 @@ A person left a Space months ago. Things happened while she was away: people joi
 
 **③ RESOURCE COST.** **(b)** is one clause in the interval walk — membership events pass, content does not. **(a)** is simpler to state and harder to build, because of the anchoring consequence above.
 
-⚠️ **THE HONEST CAVEAT, NAMED AND NOT TRADED AWAY.** **(b)** means *"the gap stays closed"* is **not literally true**: a returning member learns something about the period she was excluded from — specifically, **who else was removed, and when.** That is third-party information about people who never consented to her return. `D-154`④'s wording says *the gap stays closed*, and **(b) is a narrowing of it, not an application of it.** 🛑 **If (b) is ruled, it goes into `D-154` as a clarification at its own site (`D-131`), not as an unrecorded implementation choice.**
+⚠️ **THE HONEST CAVEAT, NAMED AND NOT TRADED AWAY.** **(b)** means *"the gap stays closed"* is **not literally true**: a returning member learns something about the period she was excluded from — specifically, **who else was removed, and when.** That is third-party information about people who never consented to her return. `D-154`④'s wording says *the gap stays closed*, and **(b) is a narrowing of it, not an application of it.** ✅ **DONE — `DECISIONS.md` `D-154`④ carries the clarification and the caveat (J-769).** ⚠️ **The caveat is CARRIED, NOT DISCHARGED:** she learns who else was removed and when, about people who cannot see that she now holds it. It sits beside `D-154`'s two other open looks — **`self.banned` as a permanent federated list**, and `D-093` retaining the **bytes** without retaining **who was in the room**.
 
 ---
 
@@ -163,8 +175,8 @@ A person left a Space months ago. Things happened while she was away: people joi
 
 ## §9 — DoD
 
-- [ ] §7 ruled by Joe; if **(b)**, recorded as a `D-154`④ clarification at its own site
-- [ ] §4's fork settled in the runbook **before** implementation, with the two-sort regression test either way
+- [x] **§7 ruled (b) by Joe and recorded as a `D-154`④ clarification at its own site (J-769)**
+- [x] **§4's fork settled: (B), derive from the RESOLVED FOLD — see §4b. The two-sort regression test rides it regardless**
 - [ ] Runbook written, locked by Joe, implemented by Clair from the locked revision
 - [ ] `W-1` … `W-10` re-driven by Chat from `HEAD` (Rule 5), none adopted on report
 - [ ] **`V-4` discharged** — the gate E-1 could not close

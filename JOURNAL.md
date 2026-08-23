@@ -8,6 +8,52 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-769 — clause ④ is clarified, the two-sort fork turns out to cost nothing, and Leg E-2 is runbooked
+**Date:** 2026-08-23 · **Seats:** Joe (one ruling) · Chat (one design fork, records, runbook)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `0d93117` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean. 🎯 **DESIGN + RECORDS. ZERO PRODUCT CODE.**
+
+`DECISIONS.md` **161 entries, max `D-155` — no new designation; `D-154`④ CLARIFIED at its own site** · `tasks/M_SPACE_ADMISSION_LEGE2_PHASE0.md` v1.0 → **v1.1** · `tasks/RUNBOOK_SPACE_ADMISSION_LEG_E2.md` **v1.0 PENDING** (new) · ROADMAP v7.53 → **v7.54**. Floors carried by scope, zero `.rs`: cargo **1629 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. Catalogue **UNMEASURED**.
+
+## 🔒 RULED (Joe, 2026-08-23): **(b) — STRUCTURE IS NOT CONTENT**
+
+**A returning member receives the `membership.*` events from the period she was absent — who joined, who left, who was removed and when. She does not receive the conversation.**
+
+🔑 **THE MEASURED GROUND THAT DECIDED IT.** `is_structural_bootstrap_type` (`fanout.rs:549-563`, M8.5-B / INV-D1) **already serves the FULL membership chain — invite, join, leave, kick, ban, node_eject, node_unban — to a NOT-YET-MEMBER holding an unexpired invite.** ⇒ ***the strict reading would have given a RETURNING MEMBER strictly less than a stranger gets today.*** **Membership structure is already the least-protected class in this codebase, deliberately and on the record.** ⚠️ **And there is a mechanical consequence:** her rejoin must **chain onto the DAG**, and an identity denied the intervening membership chain may be unable to compute a valid anchor — **which is Leg G's whole subject.**
+
+🛑 **RECORDED AS A NARROWING, NOT AN APPLICATION.** ④'s own wording is *"the gap stays closed"*; under this clarification the gap is closed to **content** and open to **structure**. **Written into `D-154`④ at its own site rather than left as an implementation choice — a clause that says one thing while the code does another is how a false citation gets a second life (`D-065`), and this arc has now paid for that twice** (`F-E`, `F-1`). 📌 **No `D-156`:** the clause table is the register, and splitting it is `C-8`'s species (`D-067`) — same reasoning as ⑥ at J-766.
+
+⚠️ **CAVEAT CARRIED, NOT DISCHARGED:** she learns **who else was removed, and when** — third-party information about people who never consented to her return **and who cannot see that she now holds it.** Filed at ④ beside this entry's two other open looks: **`self.banned` as a permanent federated list**, and **`D-093` retaining the bytes without retaining who was in the room.**
+
+🔒 **SCOPE:** the clarification governs **all three doors**; it does **not** govern node-to-node federation (`D-089`).
+
+## ✅ THE TWO-SORT FORK: SETTLED (B), AND IT COSTS NOTHING TO BUILD
+
+Phase-0 §4 found `topological_sort` (`xgen-core/src/node/runtime.rs:2367`, the state fold) and `topological_sort_events` (`xgen-node/src/fanout.rs:405`, all three delivery doors) — **two implementations, two crates, one DAG**, and *"her departure"* is a position in an order.
+
+🔒 **CHAT TAKES (B): derive the interval boundary from the RESOLVED FOLD.** ✅ **And measuring it dissolved the cost objection: core's `topological_sort` is ALREADY publicly reachable from `xgen-node`** — `app.rs:59` imports it, `app.rs:5028` calls it, and **`app.rs:5642` `topological_sort_publicly_reachable_from_xgen_node` is an existing test asserting exactly that.** 🔑 ***The fork was a design question that turned out to have no build cost — no plumbing, no new export, no crate-boundary work.***
+
+🔒 **THE SHAPE:** intervals computed over **core's** sort ⇒ a **SET of permitted `event_id`s** ⇒ the delivery list, still ordered by `topological_sort_events`, filtered by that set. ⇒ ***the ORDER is unchanged and the SET is decided by the same order the fold used to decide who is a member.*** **Two functions, two jobs, neither asked to do the other's** — which is why unifying them (C) is not needed for correctness and stays filed. 📌 **The two-sort equality regression test rides the leg anyway**, because the functions will drift whether or not this leg reads them and a test is the only thing that makes drift visible.
+
+## 📋 THE RUNBOOK
+
+`RUNBOOK_SPACE_ADMISSION_LEG_E2.md` **v1.0 PENDING** — not locked; Joe locks. Six edits, nine tests, **six negative controls**.
+
+🔑 **THE TWO SHARPEST THINGS WRITTEN INTO IT:**
+
+🛑 **`W-3c` — the kick control must ISOLATE.** Disarming the walk to read only `event.sender` must turn the **kick** test RED and leave the **leave** test GREEN. ***That exact split IS the `N-197` proof; if the leave test also goes red, the control is not isolating what it claims.*** A `leave`-only suite cannot see this failure at all — the walk would produce a plausible, non-empty, wrong slice for every kicked, banned and ejected member.
+
+🛑 **`W-9` — `V-6`'s corrected rule is live from the first line.** Every existing history test asserts what a **PRESENT** member receives, and this leg does not change that. ⇒ **expect few or zero existing tests to go red, and DO NOT read that as the change not landing** — ***that inference is precisely what E-1's §2c got wrong.***
+
+📌 **`W-3f` is a control whose green is a MEASUREMENT:** ordering the walk with the delivery sort instead of core's may well pass, and a pass says *the fixture has no concurrency at the boundary.* **Record it; do not force it red.** 📌 **Door ③ is expected to be a NON-EDIT and Clair confirms that by READING `is_structural_bootstrap_type` — a non-empty intersection is a finding, REPORTED, not patched.** 📌 **`E2-4` and the `--no-fail-fast` requirement both come from E-1's findings**, not from first principles.
+
+📌 **`state.rs:114` corrected from `:96` and then from `:112` while writing this file** — `N-3`'s species, caught twice inside one document by opening the line instead of counting from the doc comment.
+
+## 📋 STATE
+
+✅ **Nothing open on either seat.** ▶️ **NEXT: Joe locks the runbook; Clair implements M-SPACE-ADMISSION Leg E-2 in a session opened by her own kickoff; Chat re-drives `W-1`…`W-9` and `W-3a`…`W-3f` from `HEAD` (Rule 5).**
+
+---
 ## Entry J-768 — Leg E-2's Phase-0 finds that clause ④ has three doors, and that "her departure" is a position in an order this leg keeps two of
 **Date:** 2026-08-23 · **Seats:** Chat (sweep, census, Phase-0) · Joe (one question, unruled at close)
 

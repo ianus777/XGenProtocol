@@ -8,6 +8,51 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-771 — Leg E-3 opens, and its sweep deletes half of what E-3 was supposed to be: ch3 was ahead of the code the whole time
+**Date:** 2026-08-23 · **Seats:** Chat (sweep, records, runbook)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `c72843a` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean. 🎯 **RECORDS + ONE RUNBOOK. ZERO PRODUCT CODE.**
+
+`tasks/M_SPACE_ADMISSION_PHASE0.md` v2.7 → **v2.8** · `docs/xgen_appendix_i_en.md` v1.8 → **v1.9** · `tasks/RUNBOOK_SPACE_ADMISSION_LEG_E3.md` **v1.0 PENDING** (new) · ROADMAP v7.55 → **v7.56**. Floors carried by scope, zero `.rs`: cargo **1641 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. Catalogue **UNMEASURED**.
+
+## ✅ ch3 NEEDS NO AMENDMENT — IT WAS AHEAD OF THE CODE THE WHOLE TIME
+
+The Leg E Phase-0's `E-3` row listed *"ch3's membership-lifecycle text"* as work. **Opened it.** `docs/xgen_ch3_specification.md` **§3.7.14.6 *Rejoin*** (`:2884-2892`) already reads:
+
+> ***"The membership record therefore survives departure. A member who leaves retains their membership record marked with the time of departure, rather than being deleted from it."***
+
+…and gives the reason E-1 and E-2 both rediscovered independently: *"Recording departure in a second, separate structure would hold one fact in two places; deriving it by re-reading the event log answers differently on Nodes whose logs are at different points."* 🔑 ***That is `§5d`(B) and `§5d`(C) of the Leg E Phase-0, written into the spec before either leg was designed.***
+
+📌 **And `:2886`'s *"`membership.leave` removes the leaver from the Space's ACTIVE membership"* is NOT false** — it is exactly `is_member()` going false while `contains_key` stays true, which `:2890` then states outright. **The spec is correct as written.**
+
+⇒ 🔑 ***THE E-3 ROW LISTED SPEC WORK ON AN ASSUMPTION NOBODY HAD CHECKED, AND THE STANDING "MUST NOT AMEND ch3" RULING (J-739; master Phase-0 §306) NEVER EVEN GETS TESTED.*** **The sweep's first result was to delete a task.** 📌 *Recorded because "the spec already said so" is the cheapest possible outcome and the one least likely to be discovered by anyone who does not open the file.*
+
+## 🔍 WHAT THE SWEEP FOUND INSTEAD
+
+🛑 **`C-7` HAS A SIBLING IN THE DOCS THAT NOBODY NAMED.** E-1 landed `C-7` in `state.rs` — ✅ verified, no `Active members` survives in any `.rs`. But **`docs/xgen_appendix_i_en.md:613` still read *"Active members"***, and **§VI.3 `SpaceMember` had NO `left_at` at all** — ***the canonical struct reference was missing a field that shipped two legs ago.*** 🔑 **`C-7` was filed as one doc comment; it was two, and the second one is the reference readers actually consult.** ✅ **Repaired: `members` re-described as a lifecycle record, `left_at` added with first-wins, the rejoin-clears rule, the role/`invited_by` re-derivation, and the 🛑 that the departure HISTORY is not stored there.**
+
+🛑 **`§12`'s LEG TABLE HAD TWO MORE DEFECTS THAN `N-2` RECORDED.**
+
+- **`N-2a`** (filed J-764): the table carried **`G` TWICE** from 2026-08-18 to today. ✅ Superseded row **struck, not deleted**.
+- **`N-2b`** (filed J-764): that row cited **`D-154`③** for *the gap stays closed*, which is **④**. ✅ Repaired at the site.
+- 🔓 **`N-2c` (NEW):** row **E** still said *"`D-154`'s **five** clauses."* **There have been six since J-766** — and ⑥ is the clause row E's own leg had to build.
+- 🔓 **`N-2d` (NEW), and it is the one worth keeping:** **`F — CLOSE` and the Leg E Phase-0's `E-3` ARE THE SAME LEG UNDER TWO NAMES.** 🔑 ***The Leg E Phase-0 split `E` into `E-1`/`E-2`/`E-3` without reconciling against `§12`, which already defined `F` as the close*** — **a leg list held in two documents, and the second written without reading the first.** ✅ **Merged: `E-3` IS the close.** 📌 **`C-8`'s species once more: a register that exists, is authoritative, and is not consulted at the moment of allocation** — the same failure that cost Leg D a deviation, one layer up, in a table I was editing at the time.
+
+## 📋 ONE ITEM IS NOT MINE
+
+🛑 **The A-bis rename touches `.rs`, so it goes to Clair.** `tasks/RUNBOOK_SPACE_ADMISSION_LEG_E3.md` **v1.0 PENDING** — one file, one symbol, one doc-comment paragraph. 🔑 ***"It is only a rename" is exactly the reasoning a seat rule exists to refuse, and it is not self-exempted here.***
+
+📌 **Three things written into it deliberately.** ✅ **`X-1` requires the floor UNCHANGED at `1641`** — *a rename must not move the count in either direction; a drop means a test stopped being collected.* ✅ **`X-2` requires the NEW name present AND the OLD name ABSENT** — *a rename verified only by the new name's presence cannot see a duplicate left behind.* 🛑 **NO NEGATIVE CONTROL, declined deliberately rather than by omission:** ***a rename has no behaviour to disarm, and inventing one would be a probe that cannot fail*** — `E2-6`.1's species, one leg later.
+
+📌 **And the `.md` citations of the old symbol are NOT rewritten.** `JOURNAL.md:703`, `CLAUDE.md:315`, `CLAIR_LEG_D_HANDBACK.md:67/98`, `RUNBOOK_..._LEG_A_BIS.md:126/349` are **historical records of what the symbol was called at the time** (`D-131`). **Only the live leg table is annotated.**
+
+## 📋 STATE
+
+🔓 **OPEN AND JOE'S: lock `RUNBOOK_SPACE_ADMISSION_LEG_E3.md`.** 🔓 **Nothing else on either seat.**
+
+▶️ **NEXT: Clair renames; Chat re-drives `X-1`…`X-5`; the milestone closes atomically. Then Leg G — `get_rejoin_anchor`, a new wire verb, Joe's seat.**
+
+---
 ## Entry J-770 — Leg E-2 closes the gap, and three of the runbook's own specifications turn out to be defective — one of them a gate that could only pass by breaking the runbook's own rule
 **Date:** 2026-08-23 · **Seats:** Clair (implementation, six findings, two self-caught instrument errors) · Chat (Rule 5 re-drive, close, records) · Joe (push)
 

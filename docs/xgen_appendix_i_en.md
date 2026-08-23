@@ -1,8 +1,8 @@
 # XGen Protocol — Appendix I: Data Structures
 > **Status**: ACTIVE  
-> Version: 1.8  
+> Version: 1.9  
 > Date: May 2026  
-> **Last updated**: 2026-07-05  
+> **Last updated**: 2026-08-23  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -610,7 +610,7 @@ The signature covers the canonical bytes. The public key in the signature must m
 | `home_node` | `NodeXgid` | `xgen://pubkey/ed25519:<base64url>` of the authoritative Node. Updated after successful migration. |
 | `owner_id` | `IdentityXgid` | `xgen://pubkey/ed25519:<base64url>` of the Space creator. |
 | `is_dm` | `bool` | True for DM Spaces created via `state.dm_space_create`. |
-| `members` | `HashMap<IdentityXgid, SpaceMember>` | Active members, keyed by `identity_id`. |
+| `members` | `HashMap<IdentityXgid, SpaceMember>` | **Every Identity the Space has admitted, present and departed**, keyed by `identity_id`. Presence is `left_at.is_none()` — see §VI.3. A departure marks the record rather than deleting it (spec §3.7.14.6; `D-154`). |
 | `pending_invites` | `HashMap<IdentityXgid, PendingInvite>` | Invited but not yet joined, keyed by `identity_id`. See §VI.7 — `PendingInvite` carries `role`, `invited_by` (M3 §3.6.10.6, `resolve_operator` step 2), and `valid_until` (invite expiry, M8.5-B INV-D6). |
 | `ai_operator_delegations` | `HashMap<IdentityXgid, IdentityXgid>` | Operator delegations for AI members (spec 3.6.10.6). Key: `ai_identity_id`; value: currently-delegated operator's `identity_id`. Updated by `state.ai_operator_delegate` / `state.ai_operator_revoke`. |
 | `banned` | `HashSet<IdentityXgid>` | Identity IDs that are permanently banned from the Space. |
@@ -647,14 +647,15 @@ The signature covers the canonical bytes. The public key in the signature must m
 
 **Source:** `xgen-core/src/space/state.rs`  
 **Spec:** §3.7.8  
-**Description:** A single active member entry within `SpaceState.members`.
+**Description:** A single membership record within `SpaceState.members`. **It is a lifecycle record, not a present-tense entry** — a member who leaves, is kicked, banned or node-ejected is RETAINED with `left_at` set (spec §3.7.14.6, *"the membership record therefore survives departure"*; `D-154` clauses ①②③⑥).
 
 | Field | Type | Description |
 |---|---|---|
 | `identity_id` | `IdentityXgid` | `xgen://pubkey/ed25519:<base64url>` — the member's Identity. |
 | `role` | `Role` | The member's role in this Space. See §VI.4. |
 | `joined_at` | `String` | RFC 3339 UTC timestamp of the `membership.join` event. |
-| `invited_by` | `Option<IdentityXgid>` | Identity that signed the `membership.invite` event admitting this member. `None` for the Space owner and for members admitted without an explicit invite (e.g. pre-M3 replay). Used by `resolve_operator` step 2 (spec 3.6.10.6). |
+| `invited_by` | `Option<IdentityXgid>` | Identity that signed the `membership.invite` event admitting this member. `None` for the Space owner and for members admitted without an explicit invite (e.g. pre-M3 replay). Used by `resolve_operator` step 2 (spec 3.6.10.6). **Re-derived on rejoin alongside `role`** — a returning member admitted without an invite was admitted by nobody. |
+| `left_at` | `Option<String>` | `None` = present; `Some(ts)` = departed at `ts`, the timestamp of the `membership.leave` / `kick` / `ban` / `node_eject` event. **First-wins: a second departure does not move the mark.** A rejoin CLEARS it and re-stamps `joined_at`, and **role is RE-DERIVED** — a departed Owner returns as `Member` (`D-154`①: a rejoin restores PRESENCE, never POSITION). 🛑 **The departure HISTORY is not stored here.** This field holds the CURRENT boundary only; the intervals a member was present for are DERIVED from the `membership.*` log at delivery time. |
 
 ### VI.4 `Role`
 

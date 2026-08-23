@@ -8,6 +8,60 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-764 — Leg E's Phase-0 lands, and the finding it carried as "mechanical" for two legs turns out to be the site where the ruling gets enforced
+**Date:** 2026-08-23 · **Seats:** Chat (sweep, grounding, Phase-0, records) · Joe (one question routed, unruled at close)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `2965e08` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean. 🎯 **PHASE-0 + RECORDS. ZERO PRODUCT CODE.**
+
+`tasks/M_SPACE_ADMISSION_LEGE_PHASE0.md` **v1.0 ACTIVE** (new) · ROADMAP v7.48 → **v7.49**. Floors carried by scope: cargo **1623 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. Catalogue **UNMEASURED**.
+
+## ✅ LESSON ① — THE BACKLOG SWEEP RAN BEFORE THE PHASE-0, AND EVERY ITEM WAS THERE
+
+Leg D shipped a deviation because a DoD item assigned to it appeared in no Leg D document. **Leg E is named as destination in more places than any other leg in this arc**, so the sweep ran first: `git ls-files`, worktrees excluded, every `M-SPACE-ADMISSION` hit opened.
+
+✅ **Ten inherited items, all present, none missing** — `D-154`'s five clauses · `D-3` · `C-3` · `C-4` · `C-5` · `C-6` · `C-7` · `F-E` · the A-bis rename · §8/§15.7's anchor note. 🔑 ***The sweep's value was not the inventory — it was the three findings the inventory did not contain.*** 📌 It also confirms `M-SPACE-ADMISSION` is ONE ROADMAP node carrying per-leg `Owes:` lines, so **Leg E needs no node** and `M-RP-MEMBER-ACT` Leg E's missing-node defect has no sibling here — *stated because its absence is the kind of thing that gets rediscovered as a finding.*
+
+## 🛑 `C-3` IS NOT MECHANICAL. UNDER `(i)` IT SELF-INVERTS INTO CLAUSE ④'s ENFORCEMENT SITE
+
+`C-3` was carried for two legs labelled *mechanical*. **`D-153` says a finding from another seat is not re-driven until its citation has been opened. The citation was opened.**
+
+✅ **THE FIRST HALF DISCHARGES ITSELF.** `runtime.rs:1713` computes `already_member` from **`is_member`** — a `D-1` door, and `(i)` gates `is_member` on `left_at.is_none()`. ⇒ a rejoiner reads `false` ⇒ `new_joiner = Some` ⇒ **the push fires.** ***`C-3` needs no edit of its own, and the compounding with `D-3` that E-0 warned of never materialises, because both sides move together in this leg instead of one at a time.***
+
+🛑 **AND THE SECOND HALF OPENS.** `fanout.rs:276-289`: `history = store.range(0)` — **the ENTIRE store**, minus only the triggering event, delivered at `:340-349` as one `HistoryBatch`. ⇒ **the rejoiner receives EVERYTHING, including the gap.** 🔑 ***`D-154`④ is violated in the opposite direction, by the same line, at the same moment `C-3` is fixed.*** *A finding whose fix creates the defect the ruling exists to prevent was never mechanical.*
+
+🔒 **⇒ `fanout.rs:262-289` IS WHERE CLAUSE ④ LIVES, AND IT IS DELIVERY, NOT ANCHORING.** Leg G's `get_rejoin_anchor` decides what a rejoin **hangs off**; this decides what she is **sent**. **Two mechanisms, one clause** — and only the delivery half is Leg E's, because Leg E creates the timestamps the slice needs.
+
+⚠️ **AND A DATA-MODEL CONSEQUENCE `D-154` DOES NOT NAME:** clause ① **clears** `left_at` on rejoin, so ***one `Option<String>` cannot hold both "she left at T1" and "she is back since T2" once the rejoin has been applied.*** The boundary must survive the write that erases it. **Chat's, E-1's, three candidate shapes priced there.**
+
+## ✅ LESSON ② — BUILDABILITY PROVEN SITE BY SITE, NOT ASSERTED
+
+Leg D's §5 specified an edit in terms of a field its own §7 forbade creating, and `V-3c` described a state the code could not reach. **§4 walks every deferred clause to its site and shows it reachable the moment `left_at` exists** — including `V-3c`, which becomes runnable because clause ③'s retained-banned member is exactly the state it needs. 📌 **Clause ⑤ is a NON-EDIT** — `apply_leave:1207-1209` already strips rooms and the Space-level join never restores them. *Recorded so nobody writes code to satisfy a clause the code already satisfies.*
+
+## 🔍 THREE NEW FINDINGS
+
+🔓 **`N-1` — A FIFTH REMOVAL SITE `D-154` DOES NOT NAME. JOE'S.** `self.members.remove` fires at `apply_leave:1203` · `apply_kick:1230` · `apply_ban:1250` · **`apply_node_eject:1275`**. `D-154` rules leave ①, kick ②, ban ③; **`membership.node_eject` — Node authority, reversible via `node_unban` — is unruled.** If it removes while the other three retain, ***"in `members`" means two things depending on how you left*** — the exact ambiguity clause ② was ruled to prevent, at a site clause ② does not reach. **Routed in `D-155` form; Chat recommends retain-and-mark; unruled at close.**
+
+📌 **`N-2` — `§12`'s LEG TABLE ISSUES `G` TWICE, AND ONE ROW MISCITES `D-154`.** `M_SPACE_ADMISSION_PHASE0.md:348` and `:349` both carry **`G`** (`D-134`: designations are issued unique; the lettered split is a repair at revision). **And `:348` cites `D-154`③ for *the gap stays closed*, which is ④** — ③ is *ban follows kick*. ⇒ **a reader who follows the citation lands on the wrong clause.** Chat's; repaired by annotation in E-4, never a silent swap.
+
+📌 **`N-3` — EVERY INHERITED APPLIER CITATION IS STALE AT HEAD.** `state.rs` gained ~61 lines between `5da9e53` and `2965e08`: `:1112` → **`:1173`** · `:1115` → **`:1176`** · `:1122` → **`:1183`** · `:1142` → **`:1203`** · `SpaceMember` → **`:85-95`** · `runtime.rs:1665` → **`:1713`** · `:2260` → **`:2312`**. **`D-154`'s own citation for the replacing `insert` is among them.** ⇒ 🔒 ***a `file:line` written into a document without its tree has a half-life measured in commits*** — `D-152` clause 1 restated as a cost. ✅ **The census re-anchored at `2965e08`: 13 + 17 + 20 = 50, `EVER` 0, `INDIFFERENT` 0 — the classification holds, only the lines moved.**
+
+📌 **AND A MEASURED NARROWING E-0 COULD NOT SEE: `C-4` IS DM-ONLY.** `repopulate_regular_federation_nodes` (`runtime.rs:2333`) sources `federation_nodes` from the **relationships map**, not from `members` ⇒ **a regular Space's federation set never contained a departed member's node**, and the fix is one filter in one helper, not two.
+
+## 🛑 `N-200` — A FAILED `[System.IO.File]` READ LEAVES THE PREVIOUS FILE'S CONTENT IN THE VARIABLE
+
+A four-file sweep loop assigned `$lines = [System.IO.File]::ReadAllLines($abs)`; the fourth path (`xgen-core\src\space\state_machine.rs`) **does not exist** — the file is `xgen-core/src/migration/state_machine.rs`. The assignment threw, **`$lines` retained the third file's content**, and the loop printed `runtime.rs`'s eight hits **under a `state_machine.rs` heading**, with an identical line count (6229) as the only tell.
+
+🔑 ***`N-197` again: the failure mode reads exactly like success*** — and worse than E-0's *absent path vs absent match*, because here the absent path produced **plausible non-empty output attributed to the wrong file.** 🔒 **RULE: assert the path exists BEFORE the read inside any loop (`if(-not (Test-Path $abs)){ throw }`), and report each file's own line count with its batch.** 📌 **Without the line-count coincidence the wrong data would have entered the Phase-0's census table.**
+
+## 📋 STATE
+
+🔒 **PROPOSED SPLIT (Chat's seat, Joe locks): `E-1` the field and the writes** (`left_at`, `apply_leave` stops removing, the rejoin branch replacing the blind `insert`, `D-3`'s gate, `V-3c` runnable; **precondition `F-E`**) · **`E-2` the readers** (two accessors carry 30 free; `D-3`'s 20 hand-edited incl. `resolve_operator`'s five, `C-5`, `C-4`) · **`E-3` clause ④'s history slice** (marker stays Joe's) · **`E-4` records** (the A-bis rename, `C-7`, `N-2`'s repairs, atomic `D-074` close).
+
+🔓 **OPEN AND JOE'S: `N-1` — what a Space remembers about someone the Node operator ejected.** 🔓 **OPEN AND CHAT'S: §5c's boundary-retention shape**, owned by E-1.
+
+▶️ **NEXT: Joe rules §8; Chat writes E-1's runbook.**
+
+---
 ## Entry J-763 — Leg D ships three of four gates, and the fourth was specified in terms of a field the same document forbids creating
 **Date:** 2026-08-23 · **Seats:** Clair (implementation, two deviations reported not absorbed) · Chat (Rule 5 re-drive, repairs, records) · Joe (one ruling, one carry)
 

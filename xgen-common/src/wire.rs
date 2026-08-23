@@ -775,6 +775,25 @@ pub const ADMISSION_INVITE: &str = "invite";
 /// into one.
 pub const DEFAULT_ADMISSION: &str = ADMISSION_OPEN;
 
+/// Maximum stored length, in BYTES, of a `SpaceState.admission` value parsed
+/// from `state.space_create` content (M-SPACE-ADMISSION Leg D, `F-3`).
+///
+/// **The number is not the point; identical truncation on every Node is.**
+/// `admission` is replicated Space state, so two Nodes that store different
+/// strings for the same create Event have diverged — and `from_space_create`
+/// is reached on every Node that replays the Space, not only the home one.
+/// A cap that is applied differently anywhere is worse than no cap at all,
+/// which is why the truncation is specified as well as the length: cut on a
+/// `char` boundary, never on a raw byte index.
+///
+/// The cap bites only on the **Malformed** branch of the three-state parse —
+/// a present value that is not a JSON string, or a string longer than this.
+/// Both are stored as the value's raw JSON text so an operator can see what
+/// actually arrived, and both resolve to `invite` at the admission gate. The
+/// two live values (`open`, `invite`) are five and six bytes; no honest value
+/// is anywhere near this bound.
+pub const ADMISSION_MAX_LEN: usize = 64;
+
 /// Unknown-event forward-compat (PG-09 / FC-D1) — C1 type-layer tests.
 ///
 /// Guards the load-bearing invariant: `Deserialize` is tolerant (unknown wire

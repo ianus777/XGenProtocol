@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-22  
+> **Last updated:** 2026-08-23  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -8,6 +8,52 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-763 — Leg D ships three of four gates, and the fourth was specified in terms of a field the same document forbids creating
+**Date:** 2026-08-23 · **Seats:** Clair (implementation, two deviations reported not absorbed) · Chat (Rule 5 re-drive, repairs, records) · Joe (one ruling, one carry)
+
+✅ **STATE:** `HEAD` `7abd341` **= `origin/main`**, unchanged throughout — **Clair committed nothing and pushed nothing.** Delivered tree: **7 modified + 3 new**.
+
+## ✅ SHIPPED — `D-1`, `D-2`, `D-4`
+
+**`D-1` the admission gate** at `runtime.rs:1580`'s block, **before** the expiry check. 🔑 **Predicate `space.admission != ADMISSION_OPEN`, NOT `== ADMISSION_INVITE`** — Clair's deviation from the runbook, and the right one: **the unrecognised set is unbounded and includes every value a FUTURE build may add**, so testing for `open` means the only value that opens the door is the one that says so. ⚠️ **She grounded it in `D-149`'s fail-closed posture and in the expiry gate's own `unwrap_or(true)` INDEPENDENTLY, before Joe ruled the same answer on user-facing grounds** — *two seats, two routes, one answer.* 📌 **Federation skip is STRUCTURAL, not a second condition: the enclosing block is already `origin == LocallySubmitted`, so it cannot rot.**
+
+**`D-2`** the named three-state parse (`state.rs:406-412`) + `truncate_on_char_boundary`. 🔑 **Her doc comment states the requirement better than the runbook did: *two Nodes agreeing on the cap could still store different strings* if one cuts by chars and the other by bytes** — reasoned from first principles, not copied.
+
+**`D-4`** `3047 admission_required` + **ch3 v0.59 gains its row AND `3046`'s (`C-8`)** — and the spec **says outright that `3046` was live before it appeared in the table.** ✅ A correction recorded as a correction (`D-131`), not quietly patched.
+
+## 🛑 DEVIATION ① — `D-3` WAS UNBUILDABLE, AND THE PHASE-0 CONTRADICTED ITSELF TWO SCREENS APART
+
+**`left_at` has ZERO occurrences in any `.rs` file** — design documents only. **`SpaceMember` (`state.rs:86-95`) has four fields and no departure marker.** Creating it **is** `(g)` — which **§7 item 1 of the same Phase-0 forbids this leg from touching.** ⇒ ***§5 specified an edit in terms of a field §7 forbids creating, in a document Joe locked on Chat's recommendation.***
+
+🔑 **THE DECISIVE EVIDENCE IS NOT THE MISSING FIELD — IT IS THAT `V-3c` CANNOT BE RUN.** No retained member ⇒ no rejoin to refuse and no retained-banned state ⇒ ***the control J-762 calls "the one that matters" describes a state the code cannot reach.*** **Written anyway, `D-3` would have been an unfed branch with no possible control, in the leg whose whole point is that a gate whose removal leaves the suite green was never tested.** ✅ **Clair reported it and did NOT improvise a substitute.** ✅ **`D-154`'s clause moves to Leg E untouched — only its leg changes.** ⚠️ **The false claim had been pushed into six sites; all six repaired by annotation (`D-131`), none deleted.**
+
+## 🛑 DEVIATION ② — A DoD ITEM ASSIGNED TO LEG D APPEARED IN NO LEG D DOCUMENT
+
+`RUNBOOK_SPACE_ADMISSION_LEG_A_BIS.md:203` — ***"after Leg D the DM test is edited into its opposite"*** — and `ROADMAP:396` — **"LEG D INHERITS AN INVERSION DoD ITEM … a GREEN run of the un-edited DM test is a FAILURE OF THE GATE, not a pass."** **Grep over both Leg D documents for `A-bis` / `witness` / `invert`: ZERO.** ⇒ ***the Phase-0 was written from the code and from `E-0` and never swept the backlog for work other legs had already assigned to it.*** 🔑 **Same species as `C-8`, one layer up: a register that exists, is authoritative, and is not consulted at the moment of allocation.**
+
+✅ Clair inverted the DM test from the A-bis instruction, left the companion untouched, and **flagged that the decision to act at all was hers.** 🔑 **Chat's `V-3a` re-drive then settled it by measurement: the inverted witness GOES RED WHEN THE GATE IS DISARMED** ⇒ ***gate-dependent, not a cosmetic edit to turn a red suite green.*** 🔓 **The inverted test's NAME still asserts the opposite of what it tests; Joe carried the rename to Leg E as an open item.**
+
+## ✅ RULE 5 — EVERY CLAIM RE-DRIVEN BY CHAT, NONE ACCEPTED
+
+**V-1 `1616 → 1623 / 0 / 62 × 56 SUITES`, sentinel 0, `Compiling xgen-core` present**, `+7` matching seven tests **confirmed by exact name**. **V-3a REPRODUCED (sentinel 101) — FOUR red**, including the inverted witness; open-Space companions green. **V-3b REPRODUCED (sentinel 101) — three red, FAILING OPEN** (`left: "open"`, `left: 4 / right: 61`). **V-4 proven, its local arm first so `AlreadyMember` cannot mask it.**
+
+## 🛑 `N-199` — A `sha256`-VERIFIED RESTORE IS NOT A VERIFIED RESTORE
+
+**`Copy-Item` carries the BACKUP's timestamp back**, leaving restored source **OLDER** than artifacts built from the mutation ⇒ **cargo compares mtimes, skips the rebuild, and the "restored" run executes MUTATED BINARIES.** Chat's first final run came back **1184 / 3 × 12, sentinel 101** — **V-3b's exact three failures, with V-3b's exact assertions** — against source that was byte-identical to the original. **`Compiling xgen-core` was ABSENT from the log, and that absence was the only signal.**
+
+🔑 ***THE NEAR-MISS IS THE POINT: with the stale binaries on the other side, that run returns GREEN on source that was never compiled*** — clean floor, clean tree, sentinel 0, every visible signal agreeing. **`N-197`'s shape, and the check that could not fail was the one being trusted.** ⇒ 🔒 **RULE: restore, then STAMP mtime to now, then REQUIRE `Compiling <crate>` in the log. Absence of a `Compiling` line is not efficiency — it is an unproven run.** 📌 **Clair independently hit the same absence in her own final log and resolved it by binary mtime rather than assuming — the same instinct, one session earlier.**
+
+📌 **Chat's own fourth instrument failure this arc, caught by the mandated guard:** `[System.IO.File]::ReadAllText` was given a RELATIVE path — **`cd` does not move .NET's working directory** — returning null, and `assert the mutation changed something` fired. **Without it, three controls would have run against unmutated source and reported clean passes.**
+
+## 📋 STATE
+
+**Floors, MEASURED on the delivered tree:** cargo **1623 / 0 / 62 × 56 SUITES**. vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15** carried by scope (**zero `ui/**`, zero `xgen-client`**). Catalogue **UNMEASURED**.
+
+🔓 **OPEN, all Chat's, all Leg E's:** `D-154`'s `:1112` clause · the inverted test's rename · `C-3` mechanical · `C-4` · `C-5` · `C-6` · `C-7` · `F-E`. **Nothing open on Joe's side.**
+
+▶️ **NEXT: Leg E — the rejoin story**, where `left_at` is created and `V-3c` becomes reachable.
+
+---
 ## Entry J-762 — Leg D is designed and runbooked: the gate that was never there, and a reserved code that turned out to be waiting
 **Date:** 2026-08-22 · **Seats:** Chat (grounding, Phase-0, runbook) · Joe (one ruling, two locks)
 

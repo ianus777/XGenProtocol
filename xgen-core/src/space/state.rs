@@ -31,8 +31,8 @@ use crate::{
     wire::{
         canonical::canonical_event_bytes,
         types::{
-            Event, EventType, ThreadStatus, ADMISSION_INVITE, DEFAULT_ADMISSION,
-            DEFAULT_AI_PACING_MS, DEFAULT_HUMAN_PACING_MS,
+            Event, EventType, ThreadStatus, ADMISSION_INVITE, ADMISSION_MAX_LEN,
+            DEFAULT_ADMISSION, DEFAULT_AI_PACING_MS, DEFAULT_HUMAN_PACING_MS,
             DEFAULT_MEMBER_TEMPERATURE_VISIBILITY, VISIBILITY_EVERYONE, VISIBILITY_MODERATOR,
             VISIBILITY_SELF_ONLY,
         },
@@ -284,6 +284,30 @@ pub struct SpaceState {
     pub admission: String,
 }
 
+/// Truncate `s` to at most `max_bytes` BYTES, cutting only on a `char`
+/// boundary (M-SPACE-ADMISSION Leg D, `F-3`).
+///
+/// **Determinism is the requirement, not brevity.** The only caller is the
+/// Malformed branch of `from_space_create`'s admission parse, and that branch
+/// runs on every Node that replays the Space. A byte-index slice would panic on
+/// a multi-byte character; a `chars().take(n)` would cut by CHARACTERS while the
+/// cap is stated in BYTES, so two Nodes agreeing on the cap could still store
+/// different strings. Walking back to the nearest `char` boundary is the one
+/// rule that gives every Node the same answer for the same input.
+///
+/// A string already within the cap is returned unchanged, so the function is
+/// idempotent and safe to apply to a value that may already have been capped.
+fn truncate_on_char_boundary(s: &str, max_bytes: usize) -> String {
+    if s.len() <= max_bytes {
+        return s.to_string();
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    s[..end].to_string()
+}
+
 impl SpaceState {
     // ── Constructors ──────────────────────────────────────────────────────────
 
@@ -335,20 +359,57 @@ impl SpaceState {
             .as_str()
             .map(str::to_string)
             .unwrap_or_else(|| DEFAULT_MEMBER_TEMPERATURE_VISIBILITY.to_string());
-        // Admission (spec 3.7.14.2). Absent => `open` (`L-E`): every Space that
-        // predates the property keeps admitting exactly whom it admits today.
+        // Admission (spec 3.7.14.2) — a NAMED THREE-STATE PARSE.
+        //
         // A present value is stored VERBATIM — no trimming, no lowercasing, no
         // membership check. That is deliberate, and it is what Leg D depends on:
         // the specification resolves an unrecognised value to `invite` at the
         // ADMISSION GATE, not here — exactly as `should_include_member_temperature`
         // and the invite-expiry gate resolve their own open enums at use. The
-        // constructor's job is fidelity; the gate's job is judgement. A validator
-        // here would move that judgement into parse and collapse "absent" and
-        // "present but unrecognised" into one case, which the spec keeps apart.
-        let admission = content["admission"]
-            .as_str()
-            .map(str::to_string)
-            .unwrap_or_else(|| DEFAULT_ADMISSION.to_string());
+        // constructor's job is fidelity; the gate's job is judgement. There is
+        // still no validator here, and adding one would move that judgement into
+        // parse.
+        //
+        // ── CORRECTED, NOT DELETED (Leg D `F-3`, `D-131`) ────────────────────
+        // Until Leg D this comment ended by claiming that a validator "would
+        // collapse *absent* and *present but unrecognised* into one case, which
+        // the spec keeps apart". The claim was true of the SPEC and FALSE of the
+        // line it sat on: the parse was `content["admission"].as_str()`, and
+        // `as_str()` returns `None` for ANY present non-string — a number, a
+        // bool, an object, an explicit null. Every one of those took the
+        // `unwrap_or_else` arm, so the constructor performed exactly the
+        // collapse the comment forbade, and collapsed toward the PERMISSIVE
+        // value: `{"admission": 5}` created an `open` Space.
+        //
+        // That was harmless only while nothing read the field. Leg D's gate
+        // reads it, so a malformed value became the difference between a closed
+        // Space and an open one — which is why the three states are now named
+        // rather than described.
+        //
+        //   Absent    — the key is not present at all ⇒ `DEFAULT_ADMISSION`
+        //               (`L-E`: every Space that predates the property keeps
+        //               admitting exactly whom it admits today).
+        //   Valid     — a JSON string within `ADMISSION_MAX_LEN` ⇒ stored as-is.
+        //               An unrecognised STRING (`"banana"`) is a VALID parse and
+        //               an unrecognised value at the gate; that distinction is
+        //               the one the spec keeps apart, and it survives here.
+        //   Malformed — present but not a string, or a string over the cap ⇒
+        //               stored as the value's RAW JSON TEXT, truncated on a
+        //               `char` boundary. The gate resolves it to `invite`
+        //               (fail-closed, matching the invite-expiry gate's own
+        //               `unwrap_or(true)`).
+        //
+        // Malformed is stored rather than discarded so an operator can see what
+        // actually arrived; it is bounded and char-boundary-truncated because
+        // this runs on EVERY Node that replays the Space, and two Nodes storing
+        // different strings for one create Event have diverged.
+        let admission = match content.get("admission") {
+            None => DEFAULT_ADMISSION.to_string(),
+            Some(value) => match value.as_str() {
+                Some(s) if s.len() <= ADMISSION_MAX_LEN => s.to_string(),
+                _ => truncate_on_char_boundary(&value.to_string(), ADMISSION_MAX_LEN),
+            },
+        };
 
         Ok(SpaceState {
             space_id,
@@ -2098,7 +2159,7 @@ mod tests {
     use crate::identity::keypair;
     // Test-only: production code never names the `open` constant (a plain Space
     // reaches it through `DEFAULT_ADMISSION`), so importing it above would warn.
-    use crate::wire::types::ADMISSION_OPEN;
+    use crate::wire::types::{ADMISSION_MAX_LEN, ADMISSION_OPEN};
 
     // ── Pass 1 Commit 4a test helpers ────────────────────────────────────────
     // Wrap `&str` into the typed XGID flavour at fixture / lookup sites. The
@@ -2458,6 +2519,134 @@ mod tests {
         assert_eq!(
             state.admission, "banana",
             "unrecognised => stored verbatim; judged at use, not at parse"
+        );
+    }
+
+    /// Leg D `F-3` — a PRESENT NON-STRING is Malformed, and Malformed must not
+    /// resolve to `open`.
+    ///
+    /// **This is the test the defect would have passed.** Before Leg D the parse
+    /// was `content["admission"].as_str()`, and `as_str()` returns `None` for a
+    /// number exactly as it does for an absent key — so `{"admission": 5}` took
+    /// the default arm and produced an `open` Space, while the comment sitting on
+    /// that line claimed the constructor kept the two cases apart. Nothing read
+    /// the field, so nothing noticed. Leg D's gate reads it, and from that moment
+    /// a malformed value is the difference between a closed Space and an open one.
+    ///
+    /// The assertion is written as `!= ADMISSION_OPEN` FIRST and only then as an
+    /// equality, because the direction is what matters: a Malformed value failing
+    /// closed is the property, and the exact stored text is the mechanism by which
+    /// an operator can see what arrived.
+    #[test]
+    fn from_space_create_present_non_string_admission_is_malformed_and_fails_closed() {
+        let key = alice_key();
+
+        for bad in [json!(5), json!(true), json!({"nested": "object"}), json!(null)] {
+            let mut ev = build_space_create_event(&key, "Odd Space", None, 1, HOME, None, false);
+            ev.content["admission"] = bad.clone(); // BEFORE signing
+            let ev = sign_event(ev, &key);
+            let state = SpaceState::from_space_create(&ev).unwrap();
+
+            assert_ne!(
+                state.admission, ADMISSION_OPEN,
+                "a present non-string ({bad}) must NOT collapse to `open` — that is \
+                 the permissive collapse `F-3` found, and the admission gate reads \
+                 this value"
+            );
+            assert_eq!(
+                state.admission,
+                bad.to_string(),
+                "Malformed is stored as the value's RAW JSON TEXT so an operator can \
+                 see what actually arrived"
+            );
+        }
+
+        // And the state it must be kept apart from: ABSENT still yields `open`.
+        // Without this the test above is equally consistent with the parse having
+        // become fail-closed for everything, which would break `L-E` and silently
+        // close every Space that predates the property.
+        let ev = sign_event(
+            build_space_create_event(&key, "Plain Space", None, 1, HOME, None, false),
+            &key,
+        );
+        let state = SpaceState::from_space_create(&ev).unwrap();
+        assert_eq!(
+            state.admission, ADMISSION_OPEN,
+            "Absent is a DIFFERENT state from Malformed and still takes the default"
+        );
+    }
+
+    /// Leg D `F-3` — an over-cap value is truncated to `ADMISSION_MAX_LEN` bytes
+    /// on a CHAR boundary.
+    ///
+    /// **The cap is about convergence, not size.** `from_space_create` runs on
+    /// every Node that replays the Space, so two Nodes storing different strings
+    /// for one create Event have diverged. A byte-index slice would panic on a
+    /// multi-byte character and a character-count cut would disagree with a
+    /// byte-stated bound.
+    ///
+    /// **THE FIXTURE IS 4-BYTE, AND THE FIRST VERSION OF THIS TEST WAS 3-BYTE AND
+    /// WRONG.** The truncation runs on the value's RAW JSON TEXT, which for a
+    /// string carries a leading `"`. With 3-byte characters the boundaries in the
+    /// quoted form fall at `1 + 3k`, and 64 = 1 + 3×21 — so the cap landed exactly
+    /// ON a boundary and the walk never moved. The precondition had been asserted
+    /// against the BARE string, which is not the string the code sees. With 4-byte
+    /// characters the boundaries fall at `1 + 4k` and 64 is not among them, so the
+    /// walk must step back to 61. The precondition below is therefore asserted on
+    /// the actual JSON text, and the pass condition is that the stored length is
+    /// STRICTLY under the cap — a test that only checked `<=` would have gone
+    /// green over a byte-index slice that happened not to panic.
+    #[test]
+    fn from_space_create_over_cap_admission_is_truncated_on_a_char_boundary() {
+        let key = alice_key();
+
+        // U+1D11E MUSICAL SYMBOL G CLEF — four bytes in UTF-8.
+        let long = "\u{1D11E}".repeat(40);
+        let raw = json!(long).to_string(); // what the Malformed branch truncates
+        assert!(
+            raw.len() > ADMISSION_MAX_LEN && !raw.is_char_boundary(ADMISSION_MAX_LEN),
+            "fixture precondition, asserted on the RAW JSON TEXT the code actually \
+             cuts: it must exceed the cap AND the cap must fall mid-character, or \
+             this test cannot exercise the boundary walk at all"
+        );
+
+        let mut ev = build_space_create_event(&key, "Long Space", None, 1, HOME, None, false);
+        ev.content["admission"] = json!(long); // BEFORE signing
+        let ev = sign_event(ev, &key);
+        let state = SpaceState::from_space_create(&ev).unwrap();
+
+        assert!(
+            state.admission.len() < ADMISSION_MAX_LEN,
+            "the walk MOVED — strictly under the cap, not merely within it. Got {} \
+             bytes; a cut at the raw byte index would read exactly {}",
+            state.admission.len(),
+            ADMISSION_MAX_LEN
+        );
+        assert_eq!(
+            state.admission.len(),
+            61,
+            "and it stopped at the nearest CHAR boundary below the cap: 61, being \
+             the leading quote plus fifteen four-byte characters"
+        );
+        // Returning at all is part of the proof: a `String` is UTF-8 by
+        // construction, so a slice at a non-boundary index would have panicked
+        // rather than produced a short answer.
+        assert_ne!(
+            state.admission, ADMISSION_OPEN,
+            "an over-cap value is Malformed and must fail closed at the gate"
+        );
+
+        // A value AT the cap is Valid and is not touched — the boundary is
+        // inclusive, and a test that only exercises the over-cap side cannot tell
+        // an off-by-one from a correct bound.
+        let exact = "a".repeat(ADMISSION_MAX_LEN);
+        let mut ev = build_space_create_event(&key, "Exact Space", None, 1, HOME, None, false);
+        ev.content["admission"] = json!(exact); // BEFORE signing
+        let ev = sign_event(ev, &key);
+        let state = SpaceState::from_space_create(&ev).unwrap();
+        assert_eq!(
+            state.admission, exact,
+            "a string exactly AT the cap is Valid and stored verbatim, unquoted"
         );
     }
 

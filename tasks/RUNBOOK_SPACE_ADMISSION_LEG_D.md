@@ -1,8 +1,8 @@
 # M-SPACE-ADMISSION Leg D Runbook — the admission gate
-> **Status**: ACTIVE — 🔒 LOCKED BY JOE 2026-08-22  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-22  
+> **Last updated**: 2026-08-23  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -48,7 +48,7 @@ From source alone, answer in writing:
 |---|---|---|
 | **D-1** | the admission gate, **before** the expiry check, inside the existing `origin == LocallySubmitted && room_id.is_empty()` block | `runtime.rs:1580` |
 | **D-2** | `F-3`'s three-state parse + 64-byte char-boundary cap; **the false doc comment corrected, not deleted** | `state.rs:344-351` |
-| **D-3** | `:1112` gates on `left_at.is_none()` (`D-154`) | `state.rs:1112` |
+| ~~**D-3**~~ | 🛑 **NOT SHIPPED — UNBUILDABLE, MOVED TO LEG E (J-763).** `left_at` has **zero occurrences in any `.rs` file**; `SpaceMember` has four fields and no departure marker; creating it **is** `(g)`, which the Phase-0's §7 item 1 forbids this leg. **`V-3c` cannot be run** — no retained member means no retained-banned state. **Found and reported by Clair, who did not improvise a substitute (Rule 6).** | — |
 | **D-4** | `3047 admission_required` minted; ch3 §3.6.10.10 gains **its row AND `3046`'s** (`C-8`) | `exchange.rs`, `ch3` |
 
 🛑 **D-1 AND D-3 ARE DIFFERENT LAYERS AND MUST NOT SHARE A TEST.** D-1 is a **Node dispatch gate**; D-3 is a **`SpaceState` applier** rule. ⚠️ **`M-1`'s species is precisely a check that exists only in the applier and is therefore a silent no-op on the answer path** — a unit test calling `apply_event` directly **cannot** see D-1, and a node-path test **can** pass while D-3 is absent.
@@ -74,7 +74,7 @@ Runs when `admission` resolves to **`invite`** (or Malformed) **and** the sender
 |---|---|---|
 | **V-3a** | delete D-1's arm | the **node-path** invite-only join test |
 | **V-3b** | delete D-2's Malformed branch | the `{"admission": 5}` test — **and it must fail CLOSED, not open** |
-| **V-3c** | delete D-3's `left_at` guard | the rejoin test **and** the retained-ban test |
+| ~~**V-3c**~~ | 🛑 **UNRUNNABLE — the state it describes cannot be reached.** *This is the evidence that killed `D-3`, not a consequence of killing it.* | — |
 
 🔑 **V-3c's second half is the one that matters:** with D-3 absent, a retained banned member is refused **`AlreadyMember` instead of `Banned`** — ***a green-looking refusal that is the wrong refusal.***
 
@@ -89,8 +89,8 @@ Runs when `admission` resolves to **`invite`** (or Malformed) **and** the sender
 ## §5 — DoD
 
 - [ ] §1 executed **from source, before §4 was opened**, and the derivation written down
-- [ ] D-1 · D-2 · D-3 · D-4 shipped
-- [ ] **V-3a/b/c all reproduced live**, each restored and `sha256`-verified
+- [x] **D-1 · D-2 · D-4 shipped.** ~~D-3~~ **moved to Leg E — recorded as broken rather than ticked (`D-065`).**
+- [x] **V-3a and V-3b reproduced live BY BOTH SEATS**, restored and `sha256`-verified. ~~V-3c~~ unrunnable. 🛑 **AND `sha256`-VERIFIED RESTORE PROVED INSUFFICIENT — see `N-199`.**
 - [ ] V-4 · V-5 · V-6
 - [ ] Deviations reported, not absorbed (Rule 6)
 - [ ] Hand-back at `tasks/CLAIR_LEG_D_HANDBACK.md`

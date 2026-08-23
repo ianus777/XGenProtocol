@@ -5,19 +5,30 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
-//! M-SPACE-ADMISSION Leg A-bis leg ① — the before-assertion.
-//! Runbook: `tasks/RUNBOOK_SPACE_ADMISSION_LEG_A_BIS.md` v1.4 (LOCKED).
+//! M-SPACE-ADMISSION Leg A-bis leg ① — **INVERTED BY LEG D**.
+//! Runbook: `tasks/RUNBOOK_SPACE_ADMISSION_LEG_A_BIS.md` v1.4 (LOCKED);
+//! inverted per that runbook's §4.6 and `J-755`'s Leg D DoD item.
 //!
-//! **What this records.** Today a *registered* third-party Identity may submit a
-//! space-level `membership.join` against a Space it is not party to — including a
-//! **DM** — and the local dispatch path admits it as `Role::Member` with no invite.
-//! Nothing between `dispatch_event` entry and `apply_join`'s `members` insert
-//! refuses it.
+//! **What this records NOW.** A registered third-party Identity submitting a
+//! space-level `membership.join` against a **DM** it is not party to is refused
+//! `3047 admission_required`: a DM pins `admission = invite` at creation
+//! (`D-148` clause 4), and the Leg D gate at `runtime.rs:1580`'s block refuses a
+//! joiner holding no pending invite before the applier is ever reached.
 //!
-//! **Why it is a before-assertion, and why it lands before the gate.** Leg D ships
-//! the admission gate, and under `D-148` clause 4 a DM pins `invite` — so once the
-//! gate exists there is no configuration under which a DM can be observed admitting
-//! an uninvited third party, and no later session can produce this measurement.
+//! **WHAT IT RECORDED BEFORE, KEPT BECAUSE THE HOLE IS THE POINT.** Until Leg D
+//! this same fixture asserted the opposite, and it passed: the local dispatch
+//! path admitted carol as `Role::Member` with `invited_by: None`, and **nothing
+//! between `dispatch_event` entry and `apply_join`'s `members` insert refused
+//! her**. That was not a gap in enforcement — there was no enforcement to have a
+//! gap in. Each of the four assertions below carries the line it replaced.
+//!
+//! **Why it was written as a one-way witness.** Once the gate exists there is no
+//! configuration under which a DM can be observed admitting an uninvited third
+//! party, so the measurement could not be produced by any later session — it had
+//! to be taken before the gate, and then edited into its opposite by the leg that
+//! shipped the gate. **A GREEN run of the UN-EDITED test after Leg D would have
+//! been a failure of the gate, not a pass** (`J-755`, `N-109`). It went RED, on
+//! assertion 1, which is the gate reporting for duty.
 //!
 //! ## The three traps this fixture is built against
 //!
@@ -58,10 +69,14 @@
 //! 4. They prove **nothing about federation**. `peer_node_id` is `None` throughout,
 //!    so the F-3 relationship gate is never evaluated.
 //!
-//! **The companion test is the permanent half.** The DM test is a one-way witness.
+//! **The companion test is the permanent half, and Leg D did NOT touch it.**
 //! `third_party_registered_identity_joins_an_open_space` runs the identical join
 //! against an ordinary Space, which under `D-148` clause 3 defaults to `open`
-//! forever — it is the standing assertion that open join still works.
+//! forever — it is the standing assertion that open join still works, and it was
+//! green through Leg D's gate and through Leg D's own negative controls. That is
+//! what makes the DM inversion above readable as *the gate closed a DM* rather
+//! than as *the gate closed everything*. If a later leg finds this companion must
+//! be weakened or edited, that is a finding about the gate's SCOPE.
 
 #![cfg(test)]
 
@@ -82,11 +97,20 @@ mod tests {
         wire::types::{Event, EventType},
     };
 
-    /// Leg ① — a registered third party joins a **DM** it is not party to.
+    /// Leg ① — a registered third party ATTEMPTS to join a **DM** it is not
+    /// party to, and is refused. **INVERTED BY LEG D.**
     ///
-    /// Records today's behaviour: `Accepted`, `Role::Member`, `invited_by: None`,
-    /// and — the assertion that names the shape of the hole — the DM's *actual*
-    /// counterpart is still not a member while the stranger is.
+    /// Asserts, since the gate: `Rejected(3047 admission_required)`, no role, no
+    /// member record — and, unchanged from the before-assertion and meaning the
+    /// opposite of what it used to, the DM's *actual* counterpart is still not a
+    /// member either.
+    ///
+    /// ⚠️ **The function NAME still describes the attempt rather than the
+    /// outcome**, which is at odds with this codebase's convention (`..._is_
+    /// rejected_to_the_sender_end_to_end`). It is kept because renaming is a
+    /// naming decision and the current name is cited by `docs/ROADMAP.md`, the
+    /// `JOURNAL` and the A-bis runbook. Routed at Leg D's hand-back §2, not
+    /// absorbed.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn third_party_registered_identity_joins_a_dm_it_is_not_party_to() {
         let node = spawn_in_process_node().await;
@@ -174,44 +198,73 @@ mod tests {
         );
         let outcome = node.submit_locally(carol_join).await;
 
-        // ── Assertions (runbook §4.5) ────────────────────────────────────────
-        // 1 — the dispatch path admitted it.
-        assert!(
-            matches!(outcome, DispatchOutcome::Accepted { .. }),
-            "an uninvited registered third party's join of a DM is ACCEPTED today; got {outcome:?}"
+        // ── Assertions — INVERTED BY LEG D (M-SPACE-ADMISSION, J-755's DoD item) ──
+        //
+        // Each of the four assertions below was written as its opposite when this
+        // test was the BEFORE-assertion, and each is reversed here rather than
+        // deleted, so a reader can see the exact behaviour the gate closed.
+        //
+        // Assertion 4 is the exception and is UNCHANGED — it was true before the
+        // gate and is true after it, for opposite reasons. That is not an oversight;
+        // it is the sharpest line in the file, and the comment on it says why.
+        //
+        // 1 — the dispatch path REFUSES it, and names the reason.
+        //     WAS: `matches!(outcome, DispatchOutcome::Accepted { .. })`.
+        let reject = match outcome {
+            DispatchOutcome::Rejected(info) => info,
+            other => panic!(
+                "a DM pins `invite` (`D-148` clause 4), so an uninvited third party's \
+                 join MUST now be refused. Got {other:?}. A GREEN `Accepted` here is a \
+                 FAILURE OF THE GATE, not a pass — it is this file recording the hole \
+                 again, after the leg that was supposed to close it."
+            ),
+        };
+        assert_eq!(
+            reject.code, 3047,
+            "wire 3047 admission_required — the refusal NAMES its reason. A 4000 \
+             generic here would mean carol is being refused by something else \
+             (banned, tier, malformed prev_events) and the gate is still absent"
         );
+        assert_eq!(reject.name, "admission_required");
 
         let after = node
             .space_state(&space_id)
             .await
-            .expect("the DM Space still resolves after the join");
+            .expect("the DM Space still resolves after the refused join");
 
-        // 2 — and the state records her as a full member. Assertion 1 alone is an
-        // outcome of the dispatch; `Role::Member` is the fact the milestone is about.
+        // 2 — and the state records NO role for her. Assertion 1 alone is an outcome
+        //     of the dispatch; this is the fact the milestone is about, and a
+        //     `Rejected` reply over a state that admitted her anyway would be the
+        //     reply lying in the other direction.
+        //     WAS: `Some(&Role::Member)`.
         assert_eq!(
             after.member_role(&carol_id),
-            Some(&Role::Member),
-            "carol is recorded as a full Space member"
+            None,
+            "carol holds no role in the Space at all"
         );
 
-        // 3 — and nobody invited her. This is the assertion that names the hole:
-        // `apply_join`'s `None => (Role::Member, None)` arm made visible.
-        let carol_member = after
-            .members
-            .get(&idx(&carol_id))
-            .expect("carol is in `members`");
+        // 3 — and she is not in `members`. This is the assertion that named the
+        //     hole: `apply_join`'s `None => (Role::Member, None)` arm, which is now
+        //     unreachable for her because the gate returns before the applier runs.
+        //     WAS: an `expect("carol is in `members`")` followed by
+        //     `carol_member.invited_by.is_none()` — the uninvited admission made
+        //     visible.
         assert!(
-            carol_member.invited_by.is_none(),
-            "carol was admitted with no invite at all — `invited_by` is None"
+            !after.members.contains_key(&idx(&carol_id)),
+            "carol never reached the applier — no member record was created"
         );
 
-        // 4 — the DM's ACTUAL counterpart is not a member while the STRANGER is.
-        // Membership went {alice} -> {alice, carol} and `is_dm` is still true: the
-        // Space is a three-name DM whose named second party never joined, and
-        // nothing enforces the two-party invariant.
+        // 4 — UNCHANGED, AND IT MEANS THE OPPOSITE NOW. Before the gate this line
+        //     read as an indictment: the DM's named counterpart was still absent
+        //     while a STRANGER had been admitted, a three-name DM whose second party
+        //     never joined. After the gate it reads as the ordinary state of a DM
+        //     nobody has accepted yet — bob has not joined, and neither has anyone
+        //     else. The assertion did not have to change for its meaning to invert,
+        //     which is exactly why it is worth keeping.
         assert!(
             !after.is_member(&bob_id),
-            "the DM's named counterpart is STILL not a member, while the third party is"
+            "the DM's named counterpart has still not joined — and now nor has the \
+             third party"
         );
         assert!(after.is_dm, "and the Space is still flagged as a DM");
         assert!(after.is_member(&alice_id), "the creator is unaffected");

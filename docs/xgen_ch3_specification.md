@@ -1,8 +1,8 @@
 # XGen Protocol — Chapter 3: Specification
 > **Status:** ACTIVE  
-> Version: 0.58  
+> Version: 0.59  
 > Date: May 2026  
-> **Last updated**: 2026-08-16  
+> **Last updated**: 2026-08-22  
 > Language: English  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -2190,11 +2190,15 @@ The `is_ai` and `ai_capabilities` fields are part of the Identity record (3.6.6)
 | `3043` | `node_eject_authority` | A `membership.node_eject` / `membership.node_unban` whose `sender` is not the Space's `home_node` (M6 A4-D1). Node-administrator force-eject authority is signature + `sender == home_node`, a first-class authority distinct from member-role permission. |
 | `3044` | `invite_expired` | A `membership.join` for a pending invitee whose invite `valid_until` is past the home Node's clock (M8.5-B, INV-D6). The join-acceptance gate; convergence-neutral (a gate, like the PG-13 tier-gate — no resolved value). |
 | `3045` | `invite_validity_exceeds_max` | A `membership.invite` whose `valid_until` exceeds `invite_timestamp + ceiling(invitee_tier)` (M8.5-B, INV-D6). Rejected at ingest — the Node never silently clamps. The ceiling tightens as tier rises (exposure-window minimization); only Tier 1 (14 days) is live today (honest posture — higher-tier ceilings land with the tier modules). |
+| `3046` | `event_timestamp_out_of_bounds` | An Event whose `timestamp` is either unparseable RFC-3339 or more than the future-skew bound ahead of the receiving Node's clock (M9.1, step 8.5). Admission-only: the timestamp is never read by ordering or resolution (D-076), so the check cannot move a resolved value. Listed here because the code is allocated from this band; the condition itself is not AI-specific. |
+| `3047` | `admission_required` | A Space-level `membership.join` into a Space whose `admission` is not `open`, from a sender holding no unconsumed pending invite (M-SPACE-ADMISSION Leg D, 3.7.14). Local admission only — a join `ReceivedViaFederation` is not re-adjudicated, since a replica trusts the home Node's admission decision. An `admission` value this build does not recognise is read as `invite`, so the gate fails closed. The refusal names its reason: an invite is required. |
 | `3049` | `admission_immutable` | A `state.space_admission` targeting a DM Space. A DM's `admission` is pinned to `invite` at creation and cannot be changed by anyone, including the Space owner (M-SPACE-ADMISSION, L-C). Distinct from an ordinary permission refusal (which carries the unmapped-fallback `4000 generic`) because a client can act on it: the value is fixed by the Space's kind, not by the sender's role. |
 
 A plain non-owner `state.space_admission` is **not** given a code here — it is an ordinary permission failure and arrives as `4000 generic`, the unmapped fallback, with the reason string carrying the detail.
 
-These codes live in the existing identity domain (3000–3999, per CLAUDE.md error code convention); 3044/3045 extend the 3040s membership-authority sub-band, and 3049 extends it again. 3046 is assigned outside this table (`event_timestamp_out_of_bounds`, M9.1); 3047 and 3048 are reserved for the M-SPACE-ADMISSION join gate and its causal-anchor invariant and are not yet live.
+These codes live in the existing identity domain (3000–3999, per CLAUDE.md error code convention); 3044/3045 extend the 3040s membership-authority sub-band, and 3047 and 3049 extend it again. 3048 remains reserved for the M-SPACE-ADMISSION causal-anchor invariant and is not yet live.
+
+`3046` was live in the implementation before it appeared in this table, and its row above is the correction. That is worth stating rather than quietly fixing, because **this table is the instrument that makes a reservation checkable**: an allocator reads it, sees the numbers in use, and takes the next free one. While `3046` was missing, the table showed a gap at a number already in production — so the next allocation by the table alone would have put two unrelated refusals on one wire code, and the collision would have surfaced on somebody else's deployment. A registry that omits a live code is worse than no registry, because it is trusted. The rule the correction encodes: **a wire code is allocated in this table in the same change that first emits it**, and any code named only in prose is a code the next reader will not see.
 
 ##### 3.6.10.11 Phase 2 vs future phases
 

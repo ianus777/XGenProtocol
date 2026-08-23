@@ -54,7 +54,7 @@ use crate::{
         state_key::state_key_for_event,
     },
     space::{dm_promotion::DmProposal, state::SpaceState},
-    wire::types::{Event, EventType},
+    wire::types::{Event, EventType, ADMISSION_OPEN},
 };
 
 /// Outcome of `NodeRuntime::dispatch_event` — the F-4 unified post-validation
@@ -1578,6 +1578,58 @@ impl NodeRuntime {
                 // making the home node's real-time enforcement deterministically
                 // testable (the aged-Space repro advances the injected clock).
                 if origin == EventOrigin::LocallySubmitted && event.room_id.as_str().is_empty() {
+                    // M-SPACE-ADMISSION Leg D (D-1) — THE ADMISSION GATE, and it
+                    // runs BEFORE the expiry check because it asks the prior
+                    // question. `3044` asks *your invite — is it still valid?*;
+                    // this asks *do you need one at all?*
+                    //
+                    // Until this leg the answer to the second question was
+                    // nowhere. The expiry check below lives INSIDE
+                    // `if let Some(pi) = space.pending_invites.get(...)`, so a
+                    // joiner holding no invite fell straight past it, and
+                    // `apply_join` then took its own explicit no-invite branch
+                    // (`None => (Role::Member, None)`) and admitted them. That is
+                    // not a gap in enforcement — there was no enforcement to have
+                    // a gap in, and the comment above says so out loud: *"an open
+                    // join (no pending invite at all) is untouched"*. It was
+                    // untouched because every Space was open.
+                    //
+                    // THE PREDICATE IS `!= ADMISSION_OPEN`, NOT `== ADMISSION_INVITE`,
+                    // and the asymmetry is deliberate. `admission` is an open enum
+                    // carried as a string, so the set of values this build does not
+                    // recognise is unbounded and includes every value a FUTURE build
+                    // may add. Testing for `open` means the only value that opens the
+                    // door is the one that says so; everything else — `invite`, a
+                    // Malformed value stored as raw JSON text by `from_space_create`,
+                    // or an `admission` a later version of the protocol introduces —
+                    // gates. That is the fail-closed reading the specification places
+                    // at the gate (`D-149`), and it matches the expiry check's own
+                    // `unwrap_or(true)` a few lines below: an uninterpretable gate is
+                    // read as the closed one.
+                    //
+                    // Federation is NOT re-adjudicated — the whole block is already
+                    // `origin == LocallySubmitted`, so a `ReceivedViaFederation` join
+                    // is SKIPPED rather than rejected, inheriting the C2 posture
+                    // documented above. A replica trusts the home Node's admission
+                    // decision; re-deciding it here would re-create exactly the
+                    // aged-Space membership divergence that posture exists to prevent.
+                    //
+                    // Room joins are out of scope by the enclosing `room_id.is_empty()`
+                    // condition: a Room join is gated by Space membership, which the
+                    // Space-level join this gate guards is what confers.
+                    if space.admission != ADMISSION_OPEN
+                        && !space.pending_invites.contains_key(&event.sender)
+                    {
+                        return DispatchOutcome::Rejected(RejectInfo::coded(
+                            3047,
+                            "admission_required",
+                            format!(
+                                "admission_required (3047): Space {} admits by invite only and {} holds no pending invite",
+                                space_id.as_str(),
+                                event.sender.as_str()
+                            ),
+                        ));
+                    }
                     // D-090 — read the injected clock once before the
                     // pending-invite lookup. `space` borrows `self.spaces`;
                     // `self.clock` is a disjoint field (both shared borrows), and
@@ -3530,10 +3582,11 @@ mod persistence_amendment_commit_2a_tests {
         message::exchange::build_message_text_event,
         space::state::{
             build_dm_space_create_event, build_federation_add_event, build_membership_event,
-            build_room_create_event, build_space_create_event, build_thread_create_event,
-            sign_event, thread_id_from_event_id,
+            build_room_create_event, build_space_create_event,
+            build_space_create_event_with_admission, build_thread_create_event, sign_event,
+            thread_id_from_event_id,
         },
-        wire::types::{Event, EventType, ThreadStatus},
+        wire::types::{Event, EventType, ThreadStatus, ADMISSION_INVITE, ADMISSION_OPEN},
     };
 
     fn pubkey_uri(key: &ed25519_dalek::SigningKey) -> String {
@@ -5078,6 +5131,212 @@ mod persistence_amendment_commit_2a_tests {
             outcome
         );
         assert!(node.spaces[space_id.as_str()].is_member(&bob_uri));
+    }
+
+    /// M-SPACE-ADMISSION Leg D — build an invite-only Space through the REAL
+    /// create path.
+    ///
+    /// Deliberately NOT `setup_space_with_room()` with the field hand-set
+    /// afterwards. The gate is fed by `from_space_create`'s admission parse, and
+    /// hand-setting `state.admission` would test D-1 and D-2 in isolation while
+    /// leaving the one thing between them — that the parsed value actually
+    /// reaches the gate — untested. That composition is `M-1`'s entire species.
+    fn setup_invite_only_space() -> (NodeRuntime, String, ed25519_dalek::SigningKey) {
+        let alice = keypair::generate();
+        let node_key = keypair::generate();
+        let mut node = NodeRuntime::new(node_key);
+        node.register_identity(make_record(&alice, node.node_id.as_str()))
+            .unwrap();
+        let space_ev = sign_event(
+            build_space_create_event_with_admission(
+                &alice,
+                "leg-d-invite-only",
+                None,
+                1,
+                node.node_id.as_str(),
+                None,
+                false,
+                ADMISSION_INVITE,
+            ),
+            &alice,
+        );
+        let space_id = event_id_str(&space_ev);
+        node.ingest_event(space_ev);
+        assert_eq!(
+            node.spaces[&sdx(&space_id)].admission,
+            ADMISSION_INVITE,
+            "precondition: the CREATE PARSE delivered `invite` to the state the gate \
+             reads. If this fails the gate is being fed by something other than the \
+             create event, and every assertion below is measuring the wrong thing."
+        );
+        (node, space_id, alice)
+    }
+
+    /// Leg D `V-4` — a join `ReceivedViaFederation` into an invite-only Space is
+    /// APPLIED, and the same join `LocallySubmitted` is refused `3047`.
+    ///
+    /// **Proven, not asserted.** The federation posture is inherited from the C2
+    /// invite-expiry gate rather than re-argued: a replica trusts the home Node's
+    /// already-made admission decision, and re-adjudicating on replication is what
+    /// makes membership diverge from the home Node on an aged Space. The sibling
+    /// above (`inv_exp_federation_direct_skips_expiry`) locks that property for
+    /// `3044`; this locks it for `3047`.
+    ///
+    /// **The local reject runs FIRST and that ordering is load-bearing.** The
+    /// federation arm admits carol, so a federation-first ordering would leave the
+    /// local arm hitting `AlreadyMember` — a refusal that looks green and is the
+    /// wrong refusal.
+    #[test]
+    fn leg_d_federation_join_into_invite_only_space_skips_the_admission_gate() {
+        let (mut node, space_id, _alice) = setup_invite_only_space();
+
+        // carol is registered — an unregistered sender is HeldPending universally
+        // (step 11-pre), and that outcome would prove nothing about admission.
+        let carol = keypair::generate();
+        let carol_uri = pubkey_uri(&carol);
+        node.register_identity(make_record(&carol, node.node_id.as_str()))
+            .unwrap();
+        assert!(
+            !node.spaces[&sdx(&space_id)]
+                .pending_invites
+                .contains_key(&idx(&carol_uri)),
+            "precondition: carol holds NO pending invite — the gate's whole subject"
+        );
+
+        // LOCAL — refused 3047. Runs first; see the doc comment.
+        let outcome = node.dispatch_event(
+            bob_space_join(&node, &space_id, &carol),
+            EventOrigin::LocallySubmitted,
+            None,
+        );
+        match outcome {
+            DispatchOutcome::Rejected(info) => {
+                assert_eq!(info.code, 3047, "wire code; got {}", info.code);
+                assert_eq!(info.name, "admission_required");
+            }
+            other => panic!(
+                "an uninvited local join into an invite-only Space must be Rejected \
+                 3047; got {other:?}. If this is Accepted the gate is absent and the \
+                 join fell past the expiry check exactly as it did before Leg D."
+            ),
+        }
+        assert!(
+            !node.spaces[&sdx(&space_id)].is_member(&carol_uri),
+            "and the gate has teeth: carol is not a member"
+        );
+
+        // FEDERATION — the identical join is ADMITTED. `peer_node_id = None`
+        // isolates the admission gate from F-3 (orthogonal; the same shape the
+        // 3044 sibling above uses).
+        let outcome = node.dispatch_event(
+            bob_space_join(&node, &space_id, &carol),
+            EventOrigin::ReceivedViaFederation,
+            None,
+        );
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { new_joiner: Some(_), .. }),
+            "a federated join must be admitted — a replica does not re-adjudicate \
+             the home Node's admission decision; got {outcome:?}"
+        );
+        assert!(
+            node.spaces[&sdx(&space_id)].is_member(&carol_uri),
+            "and it actually landed — an `Accepted` with no member would be the same \
+             defect wearing the other face"
+        );
+    }
+
+    /// Leg D — `open` does not gate, and that is what keeps `L-E` true.
+    ///
+    /// Without this the 3047 rejection above is equally consistent with the gate
+    /// refusing EVERY uninvited join regardless of `admission` — which would close
+    /// every Space that predates the property, the precise outcome `L-E` exists to
+    /// prevent. Same joiner, same absence of an invite; only the Space's
+    /// `admission` differs.
+    #[test]
+    fn leg_d_open_space_still_admits_an_uninvited_join() {
+        let (mut node, space_id, _room_id, _alice) = setup_space_with_room();
+        assert_eq!(
+            node.spaces[&sdx(&space_id)].admission,
+            ADMISSION_OPEN,
+            "precondition: the ordinary fixture is open — an absent `admission` key \
+             takes the default (`L-E`)"
+        );
+
+        let carol = keypair::generate();
+        let carol_uri = pubkey_uri(&carol);
+        node.register_identity(make_record(&carol, node.node_id.as_str()))
+            .unwrap();
+
+        let outcome = node.dispatch_event(
+            bob_space_join(&node, &space_id, &carol),
+            EventOrigin::LocallySubmitted,
+            None,
+        );
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { new_joiner: Some(_), .. }),
+            "an open Space must still admit an uninvited joiner; got {outcome:?}"
+        );
+        assert!(node.spaces[&sdx(&space_id)].is_member(&carol_uri));
+    }
+
+    /// Leg D `F-3` composition — a Space created with a MALFORMED `admission`
+    /// gates, because the gate reads anything that is not `open` as closed.
+    ///
+    /// **This is the half of `F-3` that no unit test in `state.rs` can reach.**
+    /// Those tests prove the parse stores `5` rather than collapsing to `open`;
+    /// only this one proves that what it stores actually closes the door. Before
+    /// Leg D the same create produced an `open` Space, so this join would have
+    /// been admitted — the malformed value being the difference between a closed
+    /// Space and an open one, which is the whole reason `F-3` rides this leg.
+    #[test]
+    fn leg_d_malformed_admission_gates_like_invite() {
+        let alice = keypair::generate();
+        let node_key = keypair::generate();
+        let mut node = NodeRuntime::new(node_key);
+        node.register_identity(make_record(&alice, node.node_id.as_str()))
+            .unwrap();
+
+        let mut space_ev = build_space_create_event(
+            &alice,
+            "leg-d-malformed",
+            None,
+            1,
+            node.node_id.as_str(),
+            None,
+            false,
+        );
+        space_ev.content["admission"] = json!(5); // BEFORE signing
+        let space_ev = sign_event(space_ev, &alice);
+        let space_id = event_id_str(&space_ev);
+        node.ingest_event(space_ev);
+
+        let stored = node.spaces[&sdx(&space_id)].admission.clone();
+        assert_ne!(
+            stored, ADMISSION_OPEN,
+            "precondition: the create parse did not collapse a non-string to `open`"
+        );
+
+        let carol = keypair::generate();
+        node.register_identity(make_record(&carol, node.node_id.as_str()))
+            .unwrap();
+        let outcome = node.dispatch_event(
+            bob_space_join(&node, &space_id, &carol),
+            EventOrigin::LocallySubmitted,
+            None,
+        );
+        match outcome {
+            DispatchOutcome::Rejected(info) => assert_eq!(
+                info.code, 3047,
+                "a Space whose admission this build cannot interpret must fail CLOSED; \
+                 got code {}",
+                info.code
+            ),
+            other => panic!(
+                "an uninvited join into a Space with malformed admission ({stored:?}) \
+                 must be Rejected 3047 — the gate reads an uninterpretable value as \
+                 the closed one; got {other:?}"
+            ),
+        }
     }
 
     /// Federation-buffered→drained skips (the per-entry-origin path): a

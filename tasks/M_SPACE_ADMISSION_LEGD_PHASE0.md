@@ -1,8 +1,8 @@
 # M-SPACE-ADMISSION Leg D Phase-0 — the admission gate: the first thing that ever reads `admission`
-> **Status**: ACTIVE — 🔒 LOCKED BY JOE 2026-08-22  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-22  
+> **Last updated**: 2026-08-23  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -77,7 +77,13 @@ let admission = content["admission"].as_str().map(str::to_string)
 
 **A direct `contains_key` — `E-0` classifies it under `D-3`, so NO accessor ruling reaches it.** Under `(g)` it refuses the rejoin `Q-2`(a) promised, and **`D-154`②③ make `:1115` unreachable for retained banned members** ⇒ ***the ban check dead for exactly the people it exists for.***
 
-⇒ **`:1112` gates on `left_at.is_none()` in this leg.** 🛑 **It is a `SpaceState` applier edit, not a Node gate** — a different file and a different failure mode from §3, and the runbook must not let them share a test.
+🛑 **SUPERSEDED — `D-3` WAS UNBUILDABLE AND THIS §§ SPECIFIED IT ANYWAY (`D-131`, 2026-08-23, J-763). THE CLAIM BELOW IS FALSE AND IS KEPT, NOT DELETED.**
+
+⇒ ~~**`:1112` gates on `left_at.is_none()` in this leg.**~~ 🛑 **`left_at` HAS ZERO OCCURRENCES IN ANY `.rs` FILE** — it exists only in design documents. **`SpaceMember` (`state.rs:86-95`) has four fields — `identity_id`, `role`, `joined_at`, `invited_by` — and NO departure marker.** Creating it **is** `(g)`, which **§7 item 1 of this very document forbids this leg from touching** ⇒ ***§5 specified an edit in terms of a field §7 forbids creating, and the contradiction sat two screens apart in a document Joe locked on Chat's recommendation.***
+
+🔑 **THE DECISIVE EVIDENCE IS NOT THE MISSING FIELD — IT IS THAT `V-3c` CANNOT BE RUN.** With no retained member there is no rejoin to refuse and no retained-banned state ⇒ ***the control `J-762` calls "the one that matters" describes a state the code cannot reach.*** **Written anyway, `D-3` would have been an unfed branch with no possible control — in the leg whose entire point is that a gate whose removal leaves the suite green was never tested.** 📌 **Found by Clair, who reported it and did NOT improvise a substitute (Rule 6).**
+
+✅ **`D-154`'s `:1112` clause MOVES TO LEG E**, where `left_at` is created and `V-3c` becomes reachable. **The ruling is untouched; only its leg changes.** 🛑 **It is a `SpaceState` applier edit, not a Node gate** — a different file and a different failure mode from §3, and the runbook must not let them share a test.
 
 ---
 
@@ -109,6 +115,7 @@ let admission = content["admission"].as_str().map(str::to_string)
 2. **It does not re-adjudicate on federation** (§3).
 3. **It does not close `E-0`'s six carried findings** — `C-3` mechanical · `C-4` · `C-5` · `C-6` · `C-7` · `F-E`, all Chat's, all Leg E's.
 4. **It does not make Space existence private** (§6's caveat).
+5. 🛑 **AND IT WAS SILENTLY MISSING A DoD ITEM ANOTHER LEG HAD ALREADY ASSIGNED IT.** `RUNBOOK_SPACE_ADMISSION_LEG_A_BIS.md:203` states ***"after Leg D the DM test is edited into its opposite"***, and `ROADMAP:396` records **"LEG D INHERITS AN INVERSION DoD ITEM … a GREEN run of the un-edited DM test is a FAILURE OF THE GATE, not a pass"**. **Grep over this document and the runbook for `A-bis` / `witness` / `invert` returned ZERO.** ⇒ ***this Phase-0 was written from the code and from `E-0`, and never swept the backlog for work other legs had already assigned to it.*** 🔑 **Same species as `C-8`, one layer up: a register that exists, is authoritative, and is not consulted at the moment of allocation.** ✅ Clair hit it as a red suite, executed the inversion from the A-bis instruction, kept the companion untouched, and **flagged that the decision to act at all was hers.** ✅ **Chat's `V-3a` re-drive then proved the inversion is GATE-DEPENDENT — it goes red when the gate is disarmed** ⇒ *the choice to act was correct, and now measured rather than argued.*
 
 ---
 
@@ -126,7 +133,7 @@ let admission = content["admission"].as_str().map(str::to_string)
 
 - [ ] The gate at `runtime.rs:1580`'s block, **before** the expiry check, `LocallySubmitted` only, Space-level only
 - [ ] `F-3`'s three-state parse at `state.rs:348` + the 64-byte cap, **with the false doc comment at `:344-347` corrected, not deleted** (`D-131`)
-- [ ] `state.rs:1112` gates on `left_at.is_none()` (`D-154`)
+- [~] ~~`state.rs:1112` gates on `left_at.is_none()`~~ 🛑 **UNBUILDABLE — MOVED TO LEG E.** See §5's annotation. **Recorded as broken rather than ticked (`D-065`).**
 - [x] §6 ruled **(A)**; **`3047 admission_required`** minted and recorded at the site
 - [ ] `C-8` — the missing **`3046`** row added to `ch3` §3.6.10.10 in the same edit that adds `3047`'s
 - [ ] **A NEGATIVE CONTROL PER GATE** — each must be shown to FAIL when its own arm is removed (`N-194`); a test that passes with the gate deleted is not a test

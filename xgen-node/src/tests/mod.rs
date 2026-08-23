@@ -97,3 +97,8 @@ pub mod space_admission_third_party_join;
 // applier-only permission check; this one asserts the DispatchOutcome the
 // SENDER receives.
 pub mod space_admission_mutation;
+// M-SPACE-ADMISSION Leg D - the admission gate on the ANSWER PATH. The
+// dispatch-level tests in xgen-core prove the gate's logic; these prove the
+// DispatchOutcome the SENDER receives, which is the half M-1's species makes
+// invisible to any test that calls apply_event directly.
+pub mod space_admission_gate;

@@ -1,7 +1,7 @@
 # RUNBOOK — M-SPACE-ADMISSION Leg E-3 (code half): rename the inverted A-bis test to assert what it tests
 
-> **Status**: PENDING  
-> Version: 1.0  
+> **Status**: ACTIVE  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-23  
 > Language: English  
@@ -15,10 +15,10 @@
 
 | | |
 |---|---|
-| **Status** | 🛑 **PENDING — NOT LOCKED.** Joe locks |
+| **Status** | 🔒 **ACTIVE, LOCKED (Joe, 2026-08-23).** Clair implements from **v1.1** and no earlier revision |
 | **Why it is a runbook at all** | 🔑 **It is one symbol, and it is `.rs`.** Chat writes no product code, and *"it is only a rename"* is exactly the reasoning a seat rule exists to refuse. **Not self-exempted** |
 | **Blocking on** | ✅ **NOTHING** |
-| **Tree** | measured at **`c72843a`** = `origin/main`, tree clean (`D-152`) |
+| **Tree** | citations measured at **`c72843a`**; **locked at `920ee62`** = `origin/main`, tree clean (`D-152`). 📌 *No `.rs` changed between them — the citations hold* |
 | **Floors in** | cargo **1641 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15** · catalogue **UNMEASURED** |
 | **Scope** | 🔒 **ONE FILE: `xgen-node/src/tests/space_admission_third_party_join.rs`.** No production code. No other test |
 

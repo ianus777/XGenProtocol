@@ -3457,7 +3457,8 @@ pub async fn space_list_hosted(
         .map(|s| HostedSpaceSummary {
             space_id: s.space_id.as_str().to_string(),
             name: s.name.clone(),
-            member_count: s.members.len(),
+            // `D-154` — a member count is a count of PRESENT members.
+            member_count: s.members.values().filter(|m| m.is_present()).count(),
             room_count: s.rooms.len(),
             federated_peers: s.federation_nodes.len(),
             created_at: None,
@@ -6063,6 +6064,7 @@ mod tests {
                 role: Role::Member,
                 joined_at: "2026-05-01T00:00:00.000Z".into(),
                 invited_by: None,
+                left_at: None,
             },
         );
         (Arc::new(Mutex::new(rt)), space_id, bob_uri)

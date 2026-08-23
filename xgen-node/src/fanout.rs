@@ -269,7 +269,15 @@ pub async fn apply_fanout(
             Some(s) => s,
             None => return,
         };
-        let recipients = space.members.keys().cloned().collect::<Vec<_>>();
+        // `C-5` / `D-154` — PRESENT members only. A departed member is retained in
+        // `members` now, and a bare `.keys()` would keep delivering every event in
+        // this Space to someone who left it.
+        let recipients = space
+            .members
+            .iter()
+            .filter(|(_, m)| m.is_present())
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
         // EV-D4 v1.1 — derive the event's node set while the Space is in hand
         // (the `nodes` filter dimension the pure `matches` can't see). Cheap;
         // consumed only by the observer loop below.
@@ -882,6 +890,61 @@ mod tests {
         assert!(rx_a.try_recv().is_err());
         let _ = bob;
         let _ = carol;
+    }
+
+    /// `C-5` / `D-154` — a DEPARTED member is RETAINED in `SpaceState::members`
+    /// and must drop out of the fan-out recipient list. Without the presence
+    /// filter at the recipient site she keeps receiving every event in a Space she
+    /// left, which is the privacy half of this leg.
+    #[tokio::test]
+    async fn fanout_excludes_a_departed_member() {
+        let (mut rt, space_id, room_id, alice, bob, carol) = setup_three_member_space();
+        let alice_id = pubkey_uri(&alice);
+        let bob_id = pubkey_uri(&bob);
+        let carol_id = pubkey_uri(&carol);
+        let sx = sdx(&space_id);
+
+        // Carol leaves. Chained off the running tip: `ingest_event` skips
+        // validation, but an unchained non-root membership event is resolved as
+        // concurrent and dropped — the fixture above says so at length.
+        let tip = rt.dag_tips(&sx)[0].clone();
+        let mut leave =
+            build_membership_event(&carol, &space_id, "", EventType::MembershipLeave, json!({}));
+        leave.prev_events = vec![edx(&tip)];
+        rt.ingest_event(sign_event(leave, &carol));
+
+        // Precondition, two-sided: retained in the map, absent from the answer.
+        assert!(
+            rt.spaces[&sx].members.contains_key(carol_id.as_str()),
+            "D-154 - carol's record is RETAINED, which is what makes this test necessary"
+        );
+        assert!(!rt.spaces[&sx].is_member(carol_id.as_str()), "and she is not present");
+
+        let runtime = Arc::new(Mutex::new(rt));
+        let senders: ClientSenders = Arc::new(Mutex::new(HashMap::new()));
+        let (tx_a, mut rx_a) = mpsc::channel::<OutboundMsg>(64);
+        let (tx_b, mut rx_b) = mpsc::channel::<OutboundMsg>(64);
+        let (tx_c, mut rx_c) = mpsc::channel::<OutboundMsg>(64);
+        senders.lock().await.insert(idx(&alice_id), vec![(ConnId::mint(), tx_a)]);
+        senders.lock().await.insert(idx(&bob_id), vec![(ConnId::mint(), tx_b)]);
+        senders.lock().await.insert(idx(&carol_id), vec![(ConnId::mint(), tx_c)]);
+
+        let tip2 = runtime.lock().await.dag_tips(&sx)[0].clone();
+        let msg = sign_event(
+            build_message_text_event(&alice, &space_id, &room_id, vec![tip2], "hello"),
+            &alice,
+        );
+        let req = FanoutRequest { event: Some(msg.clone()), new_joiner: None };
+        apply_fanout(req, &idx(&alice_id), &runtime, &senders).await;
+
+        // Bob is the POSITIVE CONTROL: he is still present and DOES receive, so an
+        // empty channel for carol is a real exclusion and not a dead fan-out.
+        match rx_b.recv().await.expect("bob (present) receives") {
+            OutboundMsg::Event(ev) => assert_eq!(ev.event_id, msg.event_id),
+            _ => panic!("expected Event"),
+        }
+        assert!(rx_c.try_recv().is_err(), "C-5: the DEPARTED member receives nothing");
+        assert!(rx_a.try_recv().is_err(), "and the author is still excluded");
     }
 
     #[tokio::test]

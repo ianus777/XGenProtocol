@@ -4042,7 +4042,8 @@ fn build_node_state(
                     let sid = space.space_id.as_str();
                     sid[..sid.len().min(20)].to_string()
                 }),
-                member_count: space.members.len(),
+                // `D-154` — a member count is a count of PRESENT members.
+                member_count: space.members.values().filter(|m| m.is_present()).count(),
                 event_count: total_events,
                 rooms,
             }

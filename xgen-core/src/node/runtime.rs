@@ -2155,7 +2155,7 @@ impl NodeRuntime {
             .iter()
             .filter(|(_, s)| {
                 s.dm_constraints_active
-                    && (s.members.contains_key(identity_id)
+                    && (s.members.get(identity_id).is_some_and(|m| m.is_present())
                         || s.pending_invites.contains_key(identity_id))
             })
             .map(|(id, _)| id.clone())
@@ -2309,7 +2309,13 @@ fn repopulate_dm_federation_nodes(state: &mut SpaceState, registry: &IdentityReg
     // Parties = members ∪ pending invitees (invariant E). `apply_join` moves the
     // joiner from pending_invites to members in one apply, so the union is stable
     // across that transition (never momentarily drops a party).
-    for id in state.members.keys().chain(state.pending_invites.keys()) {
+    // `C-4` / `D-154` — a DEPARTED party's home Node must drop out of the
+    // federation set; her record is retained in `members` and would otherwise keep
+    // her Node receiving this DM's federated traffic. The `sort` below is AFTER
+    // this loop, so filtering cannot disturb the byte-identical `Vec<NodeXgid>`
+    // the within-node `assert_converges` oracle requires.
+    let present = state.members.iter().filter(|(_, m)| m.is_present()).map(|(id, _)| id);
+    for id in present.chain(state.pending_invites.keys()) {
         if let Some(rec) = registry.get(id) {
             if !nodes.contains(&rec.home_node) {
                 nodes.push(rec.home_node.clone());
@@ -3705,9 +3711,14 @@ mod persistence_amendment_commit_2a_tests {
         let ban = sign_event(ban, &alice);
         node.ingest_event(ban);
         assert!(node.spaces[&sx].banned.contains(&idx(&bob_id)), "bob is banned");
+        // `D-154` clause 3 - the ban cascade RETAINS AND MARKS rather than removing.
         assert!(
-            !node.spaces[&sx].members.contains_key(&idx(&bob_id)),
-            "the ban cascade removed bob from members"
+            !node.spaces[&sx].is_member(bob_id.as_str()),
+            "the ban cascade leaves bob a non-member (present-tense)"
+        );
+        assert!(
+            node.spaces[&sx].members.get(bob_id.as_str()).is_some_and(|m| m.left_at.is_some()),
+            "D-154 clause 3 - retained and marked, never erased"
         );
 
         // bob re-joins → the pre-check rejects it (honest reply), not
@@ -3730,10 +3741,15 @@ mod persistence_amendment_commit_2a_tests {
                  (Accepted would be the MP-F6 accepted-but-inert bug)"
             ),
         }
-        // Protected state unchanged: bob is still not a member.
+        // Protected state unchanged: bob is still not a member, and the REFUSED
+        // rejoin did not clear his departure mark (`D-154` clauses 1 and 3).
         assert!(
-            !node.spaces[&sx].members.contains_key(&idx(&bob_id)),
+            !node.spaces[&sx].is_member(bob_id.as_str()),
             "a banned bob must not become a member"
+        );
+        assert!(
+            node.spaces[&sx].members.get(bob_id.as_str()).is_some_and(|m| m.left_at.is_some()),
+            "the refused rejoin left the ban's mark in place"
         );
     }
 
@@ -5883,11 +5899,22 @@ mod persistence_amendment_commit_2a_tests {
 
         let dm = &node.spaces[space_id.as_str()];
         assert!(!dm.is_member(&bob_id), "bob has left the DM");
+        // Two-sided (`D-154` clause 1): the leave marks, it does not erase.
+        assert!(
+            dm.members.get(bob_id.as_str()).is_some_and(|m| m.left_at.is_some()),
+            "D-154 clause 1 - the departed DM party is retained and marked"
+        );
         assert_eq!(
             dm.federation_nodes,
             vec![ndx(&a_home)],
             "F1B-D7-C: a leave shrinks federation_nodes (bob's home gone)"
         );
+        // C-4 / D-154 - the presence filter sits BEFORE the sort in
+        // repopulate_dm_federation_nodes, so the byte-identical Vec<NodeXgid> the
+        // within-node assert_converges oracle requires is undisturbed.
+        let mut sorted = dm.federation_nodes.clone();
+        sorted.sort();
+        assert_eq!(dm.federation_nodes, sorted, "C-4: the set is still sorted after filtering");
     }
 }
 

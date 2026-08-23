@@ -76,13 +76,14 @@ pub fn handle_propose(
     // Find the other member (DM Space always has exactly 2 members).
     // Pass 1 Commit 4: members keys are IdentityXgid; project to String for the
     // public-API ProposeResult.deliver_to field (Pass 2 may widen).
+    // `D-154` — the counterpart must be a PRESENT member; a departed party is not
+    // the other half of this DM and must not be proposed to.
     let deliver_to = space_state
         .members
-        .keys()
-        .find(|id| id.as_str() != proposer)
-        .ok_or(PromoteError::SenderNotMember)?
-        .as_str()
-        .to_string();
+        .iter()
+        .find(|(id, m)| m.is_present() && id.as_str() != proposer)
+        .map(|(id, _)| id.as_str().to_string())
+        .ok_or(PromoteError::SenderNotMember)?;
 
     let proposal = DmProposal {
         space_id: space_id.to_string(),
@@ -126,10 +127,13 @@ pub fn handle_confirm(
 
     // Pass 1 Commit 4: members keys are IdentityXgid; project to String for the
     // public-API ConfirmResult.deliver_to field (Pass 2 may widen).
+    // `D-154` — deliver only to PRESENT members; a departed party is retained in
+    // the map and must not receive the promotion.
     let deliver_to = space_state
         .members
-        .keys()
-        .map(|k| k.as_str().to_string())
+        .iter()
+        .filter(|(_, m)| m.is_present())
+        .map(|(k, _)| k.as_str().to_string())
         .collect();
 
     Ok(ConfirmResult { dm_promote_event, deliver_to })

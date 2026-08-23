@@ -410,6 +410,7 @@ mod tests {
             role: owner_role,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
+            left_at: None,
         });
         SpaceState {
             space_id: SpaceXgid::from_xgid(Xgid::new("space1".to_string())),
@@ -509,6 +510,7 @@ mod tests {
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
+            left_at: None,
         });
 
         let conflicts = [ev_admin, ev_owner];
@@ -533,12 +535,14 @@ mod tests {
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
+            left_at: None,
         });
         space_state.members.insert(idx(mod_id), SpaceMember {
             identity_id: idx(mod_id),
             role: Role::Moderator,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
+            left_at: None,
         });
 
         let conflicts = [ev_mod, ev_admin];
@@ -561,6 +565,7 @@ mod tests {
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
+            left_at: None,
         });
 
         let conflicts = [ev_admin, ev_owner];
@@ -590,12 +595,14 @@ mod tests {
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
+            left_at: None,
         });
         space_state.members.insert(idx(bob_id), SpaceMember {
             identity_id: idx(bob_id),
             role: Role::Admin,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
+            left_at: None,
         });
 
         // node_a has higher priority (index 0) than node_b (index 1).
@@ -635,12 +642,14 @@ mod tests {
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
+            left_at: None,
         });
         space_state.members.insert(idx(bob_id), SpaceMember {
             identity_id: idx(bob_id),
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
+            left_at: None,
         });
 
         let conflicts = [ev1, ev2];
@@ -710,6 +719,7 @@ mod tests {
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
+            left_at: None,
         });
 
         let conflicts = [ev_alice.clone(), ev_bob.clone()];
@@ -754,12 +764,14 @@ mod tests {
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
+            left_at: None,
         });
         space_state.members.insert(idx(bob_id), SpaceMember {
             identity_id: idx(bob_id),
             role: Role::Member,
             joined_at: "2026-01-01T00:00:00.000Z".to_string(),
             invited_by: None,
+            left_at: None,
         });
 
         // Order 1: A then B

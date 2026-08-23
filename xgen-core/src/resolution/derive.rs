@@ -481,8 +481,15 @@ mod tests {
         let rejoin = mem(&a1, &sid, EventType::MembershipJoin, json!({}), &[&eid(&leave)]);
 
         let state = assert_converges(vec![create, join, leave, rejoin], &empty_ihn());
+        // `D-154` - `contains_key` became a TAUTOLOGY here: the leave now retains the
+        // record, so it would hold even if the rejoin had been dropped. Only the
+        // present-tense answer still discriminates.
         assert!(
-            state.members.contains_key(&xid(&a1_id)),
+            state.members.get(a1_id.as_str()).is_some_and(|m| m.left_at.is_none()),
+            "the winning rejoin CLEARED the leave's mark (D-154 clause 1)"
+        );
+        assert!(
+            state.is_member(a1_id.as_str()),
             "rejoin anchored after the leave wins (linear j→lv→rj, frontier={{rj}}) — a1 is a member"
         );
     }
@@ -505,8 +512,16 @@ mod tests {
         let rejoin_root = mem(&a1, &sid, EventType::MembershipJoin, json!({}), &[&sid]);
 
         let state = assert_converges(vec![create, join, leave, rejoin_root], &empty_ihn());
+        // `D-154` - `contains_key` NO LONGER WITNESSES THIS. The leave retains the
+        // record, so it holds whether the rejoin was dropped or landed. `left_at` is
+        // cleared only by a rejoin that actually resolved, so a still-marked a1 IS
+        // the dropped rejoin - and that is the assertion that can still fail.
         assert!(
-            !state.members.contains_key(&xid(&a1_id)),
+            state.members.get(a1_id.as_str()).is_some_and(|m| m.left_at.is_some()),
+            "the leave's mark survives - the dropped rejoin never cleared it (D-154 clause 1)"
+        );
+        assert!(
+            !state.is_member(a1_id.as_str()),
             "root-anchored rejoin is concurrent with the leave and dropped (Layer-1 leave>join) — \
              a1 non-member: the MP-C-11 fault"
         );
@@ -1068,7 +1083,13 @@ mod tests {
         let state = assert_converges(vec![create, room, space_join, ban, room_join], &empty_ihn());
         let rk = RoomXgid::from_xgid(Xgid::new(room_id));
         assert!(state.banned.contains(&xid(&bob_id)), "ban wins — bob banned under every order");
-        assert!(!state.members.contains_key(&xid(&bob_id)), "bob not a Space member");
+        // `D-154`3 - a ban RETAINS AND MARKS. Two-sided: bob is no longer a member
+        // (present-tense), and the record survives to say that he once was.
+        assert!(!state.is_member(bob_id.as_str()), "bob not a Space member");
+        assert!(
+            state.members.get(bob_id.as_str()).is_some_and(|m| m.left_at.is_some()),
+            "D-154 clause 3 - the banned member is retained and marked, never erased"
+        );
         assert!(
             !state.rooms.get(&rk).expect("room exists").members.contains(&xid(&bob_id)),
             "bob not a room member — cross-scope removal dominates the room-join"

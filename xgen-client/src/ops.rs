@@ -2572,6 +2572,7 @@ pub async fn ai_status(
             let inviter = state
                 .members
                 .get(args.ai.as_str())
+                .filter(|m| m.is_present())
                 .and_then(|m| m.invited_by.clone());
             let label = if stored.as_ref().map(|x| x.as_str()) == Some(op.as_str()) {
                 "stored delegation"
@@ -2587,13 +2588,17 @@ pub async fn ai_status(
         None => (None, None),
     };
 
+    // `D-154` — a departed AI has no role and no live admission to report; the
+    // record is retained in `members` but is not present.
     let ai_member_role = state
         .members
         .get(args.ai.as_str())
+        .filter(|m| m.is_present())
         .map(|m| format!("{:?}", m.role));
     let ai_invited_by = state
         .members
         .get(args.ai.as_str())
+        .filter(|m| m.is_present())
         .and_then(|m| m.invited_by.clone());
 
     Ok(AiStatusResult {
@@ -2603,7 +2608,8 @@ pub async fn ai_status(
         operator: operator.map(|o| IdentityXgid::from_xgid(Xgid::new(o))),
         source,
         events_replayed: events.len(),
-        members_count: state.members.len(),
+        // `D-154` — a member count is a count of PRESENT members.
+        members_count: state.members.values().filter(|m| m.is_present()).count(),
         delegations_count: state.ai_operator_delegations.len(),
         // state.owner_id / SpaceMember.invited_by are already typed (Pass 2/3) — direct.
         owner_id: state.owner_id.clone(),
@@ -2732,9 +2738,13 @@ fn members_projection(
     let state = derive_resolved(events.to_vec(), "", &std::collections::HashMap::new())
         .ok_or_else(|| anyhow::anyhow!("no state.space_create event observed for {}", space))?;
 
+    // `D-154` — the roster projects PRESENT members. Departed members are retained
+    // in `SpaceState::members` and are deliberately not rendered here; how a
+    // departed member would appear is appearance, and is not this leg's.
     let mut members: Vec<MemberEntry> = state
         .members
         .values()
+        .filter(|m| m.is_present())
         .map(|m| MemberEntry {
             identity_id: m.identity_id.clone(),
             role: m.role.clone(),

@@ -92,6 +92,57 @@ pub struct SpaceMember {
     /// (e.g. founding members of pre-M3 Spaces replayed from disk). Used by
     /// `resolve_operator` step 2 (spec 3.6.10.6).
     pub invited_by: Option<IdentityXgid>,
+    /// Departure marker (`D-154`). `None` = **present**; `Some(ts)` = departed at
+    /// `ts`, the timestamp of the `membership.leave` / `kick` / `ban` /
+    /// `node_eject` event that removed them. A departed member is RETAINED in
+    /// `SpaceState::members` — the map is a record with a lifecycle, not a set of
+    /// people who are here.
+    ///
+    /// - `is_member` and `member_role` gate on this: both answer the
+    ///   **present-tense** question, so a departed member is not a member and has
+    ///   no role. Every other reader of `members` gates on it explicitly.
+    /// - A rejoin **CLEARS** it (`D-154`①): `apply_join` writes a fresh record —
+    ///   `left_at: None`, `joined_at` re-stamped, role and `invited_by`
+    ///   re-derived from `pending_invites`. *A rejoin restores presence, never
+    ///   position.*
+    /// - 🛑 **The departure HISTORY is NOT stored here and must not be.** This
+    ///   field holds the CURRENT boundary only. The intervals a member was
+    ///   present for are DERIVED from the `membership.*` log at delivery time
+    ///   (Leg E Phase-0 §5d(C)). Adding an absence list to this struct would
+    ///   re-mint the `former_members` shape §6.5 refused: a permanent, federated,
+    ///   per-member record of every departure, with no erasure story.
+    pub left_at: Option<String>,
+}
+
+impl SpaceMember {
+    /// Present-tense membership (`D-154`). The single definition of the
+    /// predicate every reader of `SpaceState::members` gates on — `D-067`: one
+    /// fact, one place.
+    pub fn is_present(&self) -> bool {
+        self.left_at.is_none()
+    }
+}
+
+/// `D-154`②③⑥ — mark a member departed without removing them.
+///
+/// Takes the member map rather than `&mut SpaceState` so the call sites show, on
+/// the line, that this touches membership and NOT `banned` or `pending_invites`.
+///
+/// - **Absent target → no-op.** `kick` / `ban` / `node_eject` have always been
+///   silent on a non-member; that is preserved exactly.
+/// - **Already-departed target → `left_at` is LEFT ALONE.** The FIRST departure is
+///   the boundary E-2's history slice reads; moving it forward would widen the gap
+///   a rejoiner is allowed to see. First-wins is the conservative direction.
+fn mark_departed(
+    members: &mut HashMap<IdentityXgid, SpaceMember>,
+    target: &IdentityXgid,
+    timestamp: &str,
+) {
+    if let Some(m) = members.get_mut(target) {
+        if m.is_present() {
+            m.left_at = Some(timestamp.to_string());
+        }
+    }
 }
 
 /// Pending-invite record (3.7.8). Carries the inviter alongside the assigned
@@ -229,7 +280,12 @@ pub struct SpaceState {
     /// is a D3 decision, not Arc H's. Rides M8 for free (set-once ⇒ no conflict
     /// class; `SpaceState`'s `PartialEq`/`Eq` covers it additively, AG-D3 shape).
     pub e2e_encryption: bool,
-    /// Active members: identity_id → SpaceMember
+    /// Every identity this Space has admitted, present and departed
+    /// (`D-154`, `C-7`): identity_id → SpaceMember. **Presence is
+    /// `SpaceMember::is_present()` (`left_at.is_none()`), never
+    /// `contains_key`.** A departure marks the record; it does not remove it, so
+    /// the Space keeps a truthful account of who was once here — which is what
+    /// the retained event log already says, signed by them.
     pub members: HashMap<IdentityXgid, SpaceMember>,
     /// Invited but not yet joined: identity_id → PendingInvite (carries role + inviter).
     pub pending_invites: HashMap<IdentityXgid, PendingInvite>,
@@ -345,6 +401,7 @@ impl SpaceState {
             role: Role::Owner,
             joined_at: event.timestamp.clone(),
             invited_by: None,
+            left_at: None,
         };
         let mut members = HashMap::new();
         members.insert(creator.clone(), owner);
@@ -480,6 +537,7 @@ impl SpaceState {
             role: Role::Owner,
             joined_at: event.timestamp.clone(),
             invited_by: None,
+            left_at: None,
         };
         let mut members = HashMap::new();
         members.insert(creator.clone(), owner);
@@ -632,6 +690,7 @@ impl SpaceState {
             role: Role::Owner,
             joined_at: event.timestamp.clone(),
             invited_by: None,
+            left_at: None,
         };
         let mut members = HashMap::new();
         members.insert(creator.clone(), owner);
@@ -1157,8 +1216,11 @@ impl SpaceState {
 
         // Room-level join: room_id is non-empty.
         if !event.room_id.as_str().is_empty() {
-            // Joiner must already be a Space member.
-            if !self.members.contains_key(joiner) {
+            // Joiner must be a PRESENT Space member (`D-154`). A bare
+            // `contains_key` here would admit a DEPARTED member to a room, because
+            // the record is now retained — and `(i)`'s accessors do not reach this
+            // line, it reads the map directly. Verified by reading, not assumed.
+            if !self.members.get(joiner).is_some_and(|m| m.is_present()) {
                 return Err(SpaceError::NotASpaceMember);
             }
             let room = self.rooms.get_mut(&event.room_id).ok_or(SpaceError::RoomNotFound)?;
@@ -1170,7 +1232,17 @@ impl SpaceState {
         }
 
         // Space-level join: room_id is empty.
-        if self.members.contains_key(joiner) {
+        //
+        // `D-3` / `D-154`①③ — the three-way gate:
+        //   record ABSENT               → fall through (first join)
+        //   record PRESENT              → AlreadyMember (today's behaviour, kept)
+        //   record PRESENT but DEPARTED → fall through — **this is the rejoin**
+        //
+        // The third arm is what keeps the ban check below reachable. Under a bare
+        // `contains_key`, a retained banned member is refused `AlreadyMember`
+        // instead of `Banned` — a refusal that looks green and is the wrong
+        // refusal, leaving the ban check dead for exactly the people it exists for.
+        if self.members.get(joiner).is_some_and(|m| m.is_present()) {
             return Err(SpaceError::AlreadyMember);
         }
         if self.banned.contains(joiner) {
@@ -1180,6 +1252,13 @@ impl SpaceState {
             Some(pi) => (pi.role, pi.invited_by),
             None => (Role::Member, None),
         };
+        // `N-201` — this `insert` is UNCHANGED beyond `left_at: None`, and that is
+        // the ruling rather than a defect. `HashMap::insert` REPLACES, and the
+        // replacement is exactly `D-154`①: `left_at` cleared, `joined_at`
+        // re-stamped, role and `invited_by` re-derived from `pending_invites`
+        // above (absent ⇒ `Member` / `None`). A rejoiner admitted without an
+        // invite was admitted by nobody, and a departed Owner cannot walk back
+        // into Owner rights. *Presence, never position.*
         self.members.insert(
             joiner.clone(),
             SpaceMember {
@@ -1187,6 +1266,7 @@ impl SpaceState {
                 role,
                 joined_at: event.timestamp.clone(),
                 invited_by,
+                left_at: None,
             },
         );
         Ok(())
@@ -1200,9 +1280,18 @@ impl SpaceState {
             room.members.remove(leaver);
             return Ok(());
         }
-        if self.members.remove(leaver).is_none() {
+        // D-154① — retain and mark; never remove. A second leave from someone
+        // already gone is not a success, and it must NOT overwrite `left_at`:
+        // that boundary is what E-2's history slice reads, and moving it forward
+        // would widen the gap a rejoiner is allowed to see.
+        let member = self.members.get_mut(leaver).ok_or(SpaceError::NotASpaceMember)?;
+        if !member.is_present() {
             return Err(SpaceError::NotASpaceMember);
         }
+        member.left_at = Some(event.timestamp.clone());
+        // Room strip UNCHANGED — D-154⑤ (a rejoin restores presence in the Space
+        // only) is already satisfied by it; the Space-level join never restores
+        // room membership.
         for room in self.rooms.values_mut() {
             room.members.remove(leaver);
         }
@@ -1227,7 +1316,10 @@ impl SpaceState {
             room.members.remove(&target);
             return Ok(());
         }
-        self.members.remove(&target);
+        // D-154② — a kick is REMEMBERED, not erased. An absent target stays a
+        // silent no-op (today's behaviour, preserved); an already-departed target
+        // keeps its first `left_at` (see apply_leave).
+        mark_departed(&mut self.members, &target, &event.timestamp);
         for room in self.rooms.values_mut() {
             room.members.remove(&target);
         }
@@ -1247,7 +1339,16 @@ impl SpaceState {
                 .ok_or(SpaceError::MissingField("target_identity"))?
                 .to_string(),
         ));
-        self.members.remove(&target);
+        // D-154③ — ban follows kick: retain and mark. `self.banned` below is
+        // unchanged and stays the authority for the ban itself; retention only
+        // records that this identity was once admitted here.
+        //
+        // ORDER IS LOAD-BEARING: because the record is now retained,
+        // `apply_join`'s membership gate would refuse a banned rejoiner
+        // `AlreadyMember` before ever reaching its ban check. Gating that check on
+        // presence (E1-5) is what keeps `Banned` reachable for exactly the people
+        // it exists for.
+        mark_departed(&mut self.members, &target, &event.timestamp);
         self.pending_invites.remove(&target);
         self.banned.insert(target.clone());
         for room in self.rooms.values_mut() {
@@ -1272,7 +1373,19 @@ impl SpaceState {
                 .ok_or(SpaceError::MissingField("target_identity"))?
                 .to_string(),
         ));
-        self.members.remove(&target);
+        // D-154⑥ (Joe, 2026-08-23; J-766) — this path RETAINS AND MARKS, exactly
+        // as kick and ban do. It matches its neighbours because it was RULED to,
+        // not by accident: **this applier also BANS** (`self.banned.insert` two
+        // lines below), so it reaches `apply_ban`'s exact end state by a different
+        // authority — Node-operator rather than member role. Removing here while
+        // `apply_ban` retained would draw a line between two paths that terminate
+        // identically, and "in `members`" would mean two things depending on how
+        // you left.
+        //
+        // Caveat carried at D-154⑥, not closed here: `membership.node_eject` is
+        // reversible (`membership.node_unban`), so a reversed ejection still
+        // leaves the record saying it happened.
+        mark_departed(&mut self.members, &target, &event.timestamp);
         self.pending_invites.remove(&target);
         self.banned.insert(target.clone());
         for room in self.rooms.values_mut() {
@@ -1403,27 +1516,39 @@ impl SpaceState {
     pub fn resolve_operator(&self, ai_id: &str) -> Option<String> {
         // Pass 2 widens this method to take `&IdentityXgid` and return `Option<IdentityXgid>`;
         // the wraps + projections collapse then.
+        //
+        // `D-4` / `D-154` — every membership test below is PRESENT-TENSE. This fn
+        // reads `self.members` directly, so `(i)`'s accessors do not reach it: with
+        // departed members now retained, a bare `contains_key` would resolve a
+        // departed delegate, inviter or owner as the operator. `CLAUDE.md`'s
+        // description of this fn — *"transparently skips members who left"* — stays
+        // true only because these lines were edited.
         let ai_xgid = IdentityXgid::from_xgid(Xgid::new(ai_id.to_string()));
-        if !self.members.contains_key(&ai_xgid) {
+        if !self.members.get(&ai_xgid).is_some_and(|m| m.is_present()) {
             return None;
         }
-        // Step 1 — stored delegation, if delegate is still a Space member.
+        // Step 1 — stored delegation, if delegate is still a present Space member.
         if let Some(delegate) = self.ai_operator_delegations.get(&ai_xgid) {
-            if self.members.contains_key(delegate) {
+            if self.members.get(delegate).is_some_and(|m| m.is_present()) {
                 return Some(delegate.as_str().to_string());
             }
         }
-        // Step 2 — recorded inviter, if still a Space member.
+        // Step 2 — recorded inviter, if still a present Space member.
+        //
+        // The `get` below needs NO presence filter and deliberately does not carry
+        // one: the guard above already established that `ai_xgid` is present, with
+        // the same key and no intervening mutation, so a filter here could never
+        // fire. It is a field read, not a membership test — recorded so the next
+        // reader does not take it for a missed site.
         if let Some(member) = self.members.get(&ai_xgid) {
             if let Some(inviter) = &member.invited_by {
-                if self.members.contains_key(inviter) {
+                if self.members.get(inviter).is_some_and(|m| m.is_present()) {
                     return Some(inviter.as_str().to_string());
                 }
             }
         }
-        // Step 3 — Space owner (defensive `contains_key`; in a live Space the
-        // owner is always a member).
-        if self.members.contains_key(&self.owner_id) {
+        // Step 3 — Space owner (defensive; in a live Space the owner is present).
+        if self.members.get(&self.owner_id).is_some_and(|m| m.is_present()) {
             return Some(self.owner_id.as_str().to_string());
         }
         None
@@ -1431,17 +1556,25 @@ impl SpaceState {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    /// `(i)` / `D-154` — the **present-tense** role. A departed member has no
+    /// role, so every permission gate that reads this refuses them.
     pub fn member_role(&self, identity_id: &str) -> Option<&Role> {
         // Pass 2 widens this method to take `&IdentityXgid`; the wrap collapses then.
         self.members
             .get(&IdentityXgid::from_xgid(Xgid::new(identity_id.to_string())))
+            .filter(|m| m.is_present())
             .map(|m| &m.role)
     }
 
+    /// `(i)` / `D-154` — the **present-tense** membership question, and the door
+    /// 13 production sites read. A departed member is retained in `members` and is
+    /// NOT a member: `contains_key` and `is_member` stopped being the same
+    /// question at this leg.
     pub fn is_member(&self, identity_id: &str) -> bool {
         // Pass 2 widens this method to take `&IdentityXgid`; the wrap collapses then.
         self.members
-            .contains_key(&IdentityXgid::from_xgid(Xgid::new(identity_id.to_string())))
+            .get(&IdentityXgid::from_xgid(Xgid::new(identity_id.to_string())))
+            .is_some_and(|m| m.is_present())
     }
 
     pub fn is_room_member(&self, identity_id: &str, room_id: &str) -> bool {
@@ -3043,6 +3176,13 @@ mod tests {
         ), "").unwrap();
         assert!(!state.is_member(bob_id.as_str()));
         assert!(!state.is_room_member(bob_id.as_str(), room_id.as_str()));
+        // Two-sided (`D-154` clause 1). `!is_member` alone STAYS TRUE under `(i)`
+        // whether the record was removed or retained, so on its own it can no
+        // longer witness this leg. The retention assertion is what discriminates.
+        assert!(
+            state.members.get(bob_id.as_str()).is_some_and(|m| m.left_at.is_some()),
+            "D-154 clause 1 - the leaver is retained and marked, never erased"
+        );
     }
 
     #[test]
@@ -3116,6 +3256,13 @@ mod tests {
         state.apply_event(&eject, node_uri.as_str()).unwrap();
         assert!(!state.is_member(bob_id.as_str()));
         assert!(state.banned.contains(bob_id.as_str()));
+        // `D-154` clause 6 (Joe, 2026-08-23) - node_eject follows kick and ban:
+        // retained and marked. It reaches apply_ban's end state by Node authority,
+        // so drawing a line between them would make "in members" mean two things.
+        assert!(
+            state.members.get(bob_id.as_str()).is_some_and(|m| m.left_at.is_some()),
+            "D-154 clause 6 - the ejected member is retained and marked"
+        );
     }
 
     #[test]
@@ -4060,7 +4207,12 @@ mod tests {
             &bob,
         );
         state.apply_event(&kick_ev, "").unwrap();
-        assert!(!state.is_member(charlie_id.as_str()), "kicked member removed");
+        assert!(!state.is_member(charlie_id.as_str()), "kicked member is no longer present");
+        // `D-154` clause 2 - a kick is REMEMBERED, not erased.
+        assert!(
+            state.members.get(charlie_id.as_str()).is_some_and(|m| m.left_at.is_some()),
+            "D-154 clause 2 - the kicked member is retained and marked"
+        );
         assert_eq!(
             kick_ev.content["reason"].as_str(),
             Some(REASON_AUTO_TEMPERATURE),
@@ -4190,10 +4342,262 @@ mod tests {
         );
         state.apply_event(&leave_ev, "").unwrap();
         assert!(!state.is_member(carol_id.as_str()));
+        // `D-4` re-expressed against RETENTION rather than deleted. Under `D-154`
+        // carol's record survives her leave, so `resolve_operator` can no longer
+        // rely on her being absent from the map: it reads `self.members` DIRECTLY
+        // and no accessor ruling reaches it. Its five reads gate on presence
+        // explicitly, and this is the test that proves it - revert those filters
+        // and step 1 returns the DEPARTED carol instead of falling to alice.
+        assert!(
+            state.members.get(carol_id.as_str()).is_some_and(|m| m.left_at.is_some()),
+            "D-154 clause 1 - the departed delegate is retained and marked"
+        );
         // Delegation record still in place, but resolution skips it.
         assert!(state.ai_operator_delegations.contains_key(dave_id.as_str()));
 
         assert_eq!(state.resolve_operator(&dave_id).as_deref(), Some(alice_id.as_str()));
+    }
+
+    // ══ Leg E-1 — `D-154`: what a Space remembers about someone who left ══════
+    //
+    // §4's structural binding: `E1-5` (the applier gate) and `E1-6` (the
+    // accessors) are BARRED from sharing a test. `M-1`'s species — a check that
+    // lives only in the applier is a silent no-op on the answer path, and one that
+    // lives only in the accessor is invisible to the applier. Each gets its own
+    // control, and each control must turn something red on its own.
+
+    /// Seat a member at `role` and have them join, mirroring the fixture idiom
+    /// above (seed `pending_invites`, then apply the join).
+    fn seat_and_join(
+        state: &mut SpaceState,
+        space_id: &str,
+        key: &SigningKey,
+        role: Role,
+    ) -> String {
+        let id = sender_id(key);
+        state.pending_invites.insert(xid(&id), PendingInvite::from_role(role));
+        let join = sign_event(
+            build_membership_event(key, space_id, "", EventType::MembershipJoin, json!({})),
+            key,
+        );
+        state.apply_event(&join, "").unwrap();
+        id
+    }
+
+    /// Build a membership event with an EXPLICIT timestamp, so `left_at` can be
+    /// asserted against a known value rather than against whatever `now()`
+    /// produced — two `now()` calls can land in the same millisecond.
+    fn membership_at(
+        key: &SigningKey,
+        space_id: &str,
+        event_type: EventType,
+        content: Value,
+        ts: &str,
+    ) -> Event {
+        let mut ev = build_membership_event(key, space_id, "", event_type, content);
+        ev.timestamp = ts.to_string();
+        sign_event(ev, key)
+    }
+
+    /// `E1-3` / `D-154`① — a leave RETAINS the record and marks it.
+    #[test]
+    fn leave_retains_the_member_record_and_marks_left_at() {
+        let alice = alice_key();
+        let bob = bob_key();
+        let (mut state, space_id) = create_space(&alice);
+        let bob_id = seat_and_join(&mut state, &space_id, &bob, Role::Moderator);
+
+        let leave = membership_at(
+            &bob,
+            &space_id,
+            EventType::MembershipLeave,
+            json!({}),
+            "2026-06-01T00:00:00.000Z",
+        );
+        state.apply_event(&leave, "").unwrap();
+
+        let rec = state
+            .members
+            .get(bob_id.as_str())
+            .expect("D-154 clause 1 - the record is RETAINED, not removed");
+        assert_eq!(
+            rec.left_at.as_deref(),
+            Some("2026-06-01T00:00:00.000Z"),
+            "marked with the departing event's own timestamp"
+        );
+        assert!(!state.is_member(bob_id.as_str()), "and she is no longer PRESENT");
+        // Positive control: a member who never left answers the other way, so this
+        // probe can discriminate rather than merely returning false for everyone.
+        assert!(state.is_member(sender_id(&alice).as_str()), "control: alice is present");
+    }
+
+    /// `E1-6` / `(i)` — the accessors are PRESENT-TENSE, proven WITHOUT any
+    /// applier. The departure is written straight into the map, so this test
+    /// cannot pass because of `apply_leave` (§4's structural binding).
+    #[test]
+    fn accessors_are_present_tense_independently_of_any_applier() {
+        let alice = alice_key();
+        let ghost = bob_key();
+        let (mut state, _space_id) = create_space(&alice);
+        let alice_id = sender_id(&alice);
+        let ghost_id = sender_id(&ghost);
+
+        state.members.insert(
+            xid(&ghost_id),
+            SpaceMember {
+                identity_id: xid(&ghost_id),
+                role: Role::Admin,
+                joined_at: "2026-01-01T00:00:00.000Z".to_string(),
+                invited_by: None,
+                left_at: Some("2026-02-01T00:00:00.000Z".to_string()),
+            },
+        );
+
+        assert!(
+            state.members.contains_key(ghost_id.as_str()),
+            "the record IS in the map - contains_key and is_member stopped being one question"
+        );
+        assert!(!state.is_member(ghost_id.as_str()), "(i) - is_member is present-tense");
+        assert_eq!(
+            state.member_role(ghost_id.as_str()),
+            None,
+            "(i) - a departed member has no role"
+        );
+        // Controls: the present owner answers the other way on BOTH accessors.
+        assert!(state.is_member(alice_id.as_str()));
+        assert_eq!(state.member_role(alice_id.as_str()), Some(&Role::Owner));
+    }
+
+    /// `E1-5` / `D-154`① — the rejoin. Presence is restored; POSITION is not.
+    #[test]
+    fn rejoin_clears_left_at_restamps_joined_at_and_re_derives_role() {
+        // The sharpest form of the clause: the departed party is the OWNER.
+        let alice = alice_key();
+        let (mut state, space_id) = create_space(&alice);
+        let alice_id = sender_id(&alice);
+        assert_eq!(state.member_role(alice_id.as_str()), Some(&Role::Owner), "precondition");
+
+        let leave = membership_at(
+            &alice,
+            &space_id,
+            EventType::MembershipLeave,
+            json!({}),
+            "2026-06-01T00:00:00.000Z",
+        );
+        state.apply_event(&leave, "").unwrap();
+        assert!(!state.is_member(alice_id.as_str()));
+
+        // No invite is issued: Q-2(a) — a former member is re-admitted without one.
+        let rejoin = membership_at(
+            &alice,
+            &space_id,
+            EventType::MembershipJoin,
+            json!({}),
+            "2026-07-01T00:00:00.000Z",
+        );
+        state.apply_event(&rejoin, "").expect(
+            "E1-5's gate lets a DEPARTED record fall through; a bare contains_key refuses AlreadyMember",
+        );
+
+        let rec = state.members.get(alice_id.as_str()).expect("present again");
+        assert!(rec.left_at.is_none(), "D-154 clause 1 - left_at CLEARED");
+        assert_eq!(
+            rec.joined_at, "2026-07-01T00:00:00.000Z",
+            "joined_at RE-STAMPED to the rejoin"
+        );
+        assert_eq!(
+            rec.role,
+            Role::Member,
+            "D-154 clause 1 - a departed OWNER cannot walk back into Owner rights"
+        );
+        assert_eq!(
+            rec.invited_by, None,
+            "re-derived: admitted without an invite means admitted by nobody"
+        );
+        assert!(state.is_member(alice_id.as_str()), "and she is present again");
+    }
+
+    /// `V-3c` — the control Leg D could not reach, because no retained banned
+    /// member existed to reach it with. **The second half is the one that matters.**
+    #[test]
+    fn banned_member_is_retained_and_a_rejoin_is_refused_banned_not_already_member() {
+        let alice = alice_key();
+        let bob = bob_key();
+        let (mut state, space_id) = create_space(&alice);
+        let bob_id = seat_and_join(&mut state, &space_id, &bob, Role::Member);
+
+        let ban = membership_at(
+            &alice,
+            &space_id,
+            EventType::MembershipBan,
+            json!({ "target_identity": bob_id.clone() }),
+            "2026-06-01T00:00:00.000Z",
+        );
+        state.apply_event(&ban, "").unwrap();
+
+        assert!(
+            state.banned.contains(bob_id.as_str()),
+            "self.banned stays the authority for the ban itself"
+        );
+        assert_eq!(
+            state.members.get(bob_id.as_str()).and_then(|m| m.left_at.as_deref()),
+            Some("2026-06-01T00:00:00.000Z"),
+            "D-154 clause 3 - a ban RETAINS AND MARKS"
+        );
+
+        // The half that matters: with the record retained, a bare contains_key gate
+        // refuses AlreadyMember and the ban check below it becomes DEAD CODE for
+        // exactly the people it exists for — a refusal that looks green and is the
+        // wrong refusal.
+        let rejoin = membership_at(
+            &bob,
+            &space_id,
+            EventType::MembershipJoin,
+            json!({}),
+            "2026-07-01T00:00:00.000Z",
+        );
+        assert_eq!(
+            state.apply_event(&rejoin, ""),
+            Err(SpaceError::Banned),
+            "V-3c: a retained banned member must be refused Banned, never AlreadyMember"
+        );
+    }
+
+    /// `E1-3` — a second leave errors and MUST NOT move the boundary. E-2's
+    /// history slice reads `left_at`; moving it forward would widen the gap.
+    #[test]
+    fn a_second_leave_errors_and_does_not_move_left_at() {
+        let alice = alice_key();
+        let bob = bob_key();
+        let (mut state, space_id) = create_space(&alice);
+        let bob_id = seat_and_join(&mut state, &space_id, &bob, Role::Member);
+
+        let first = membership_at(
+            &bob,
+            &space_id,
+            EventType::MembershipLeave,
+            json!({}),
+            "2026-06-01T00:00:00.000Z",
+        );
+        state.apply_event(&first, "").unwrap();
+
+        let second = membership_at(
+            &bob,
+            &space_id,
+            EventType::MembershipLeave,
+            json!({}),
+            "2026-09-01T00:00:00.000Z",
+        );
+        assert_eq!(
+            state.apply_event(&second, ""),
+            Err(SpaceError::NotASpaceMember),
+            "a second leave from someone already gone is not a success"
+        );
+        assert_eq!(
+            state.members.get(bob_id.as_str()).and_then(|m| m.left_at.as_deref()),
+            Some("2026-06-01T00:00:00.000Z"),
+            "the FIRST departure stays the boundary - first-wins is the conservative direction"
+        );
     }
 
     #[test]

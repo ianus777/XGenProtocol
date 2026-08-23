@@ -1,7 +1,7 @@
 # M-SPACE-ADMISSION Leg E Phase-0 — the rejoin story: creating `left_at` and paying for every clause deferred onto it
 
 > **Status**: ACTIVE  
-> Version: 1.2  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-23  
 > Language: English  
@@ -258,8 +258,8 @@ v1.0 put the field and the writes in **E-1** and the fifty readers in **E-2**, a
 
 | leg | content | gated on |
 |---|---|---|
-| **E-1** | **THE MEANING CHANGE — ONE COMMIT, ALL FIFTY READERS.** `left_at: Option<String>` on `SpaceMember` (`state.rs:85-95`) · the four writes (`apply_leave:1203`, `apply_kick:1230`, `apply_ban:1250`, and `apply_node_eject:1275` **pending §8**) retain-and-mark · **`apply_join:1173` gates on `left_at.is_none()`, `:1176`'s ban check becomes reachable ⇒ `D-3` lands and `V-3c` becomes runnable** · `(i)`'s two accessors gate, carrying 30 sites · **`D-3`'s 20 direct sites hand-edited**, incl. `resolve_operator`'s five (`D-4`), `fanout.rs:272` (`C-5`), `runtime.rs:2312` (`C-4`) · `C-7`'s doc comment | §8 |
-| **E-2** | **CLAUSE ④ — THE GAP.** The presence-interval filter at `fanout.rs:276-289` per §5d(C). ⚠️ **The gap's MARKER — that something was said while she was away — is appearance and stays Joe's** (`D-154`'s named non-settlement); E-2 builds the boundary and leaves the marker open rather than inventing it | E-1 |
+| ✅ **E-1 SHIPPED (J-767)** | **THE MEANING CHANGE — ONE COMMIT, ALL FIFTY READERS.** `left_at: Option<String>` on `SpaceMember` (`state.rs:85-95`) · the four writes (`apply_leave:1203`, `apply_kick:1230`, `apply_ban:1250`, and `apply_node_eject:1275` **pending §8**) retain-and-mark · **`apply_join:1173` gates on `left_at.is_none()`, `:1176`'s ban check becomes reachable ⇒ `D-3` lands and `V-3c` becomes runnable** · `(i)`'s two accessors gate, carrying 30 sites · **`D-3`'s 20 direct sites hand-edited**, incl. `resolve_operator`'s five (`D-4`), `fanout.rs:272` (`C-5`), `runtime.rs:2312` (`C-4`) · `C-7`'s doc comment | §8 |
+| **E-2** | **CLAUSE ④ — THE GAP.** The presence-interval filter at `fanout.rs:276-289` per §5d(C). 🛑 **INHERITS `V-4` UNDISCHARGED** — no test proves `C-3`'s `new_joiner` polarity or `C-5b` for a departed member; E-2 needs the rejoiner fixture anyway (E-1 runbook §11). ⚠️ **The gap's MARKER — that something was said while she was away — is appearance and stays Joe's** (`D-154`'s named non-settlement); E-2 builds the boundary and leaves the marker open rather than inventing it | E-1 |
 | **E-3** | **RECORDS AND THE CARRIED ITEMS.** The A-bis test **rename** · **`N-2`**'s two repairs · ch3's membership-lifecycle text · JOURNAL + CLAUDE.md + ROADMAP + task docs in **one atomic commit** (`D-074`) | all |
 
 📌 **E-1 is large and that is the honest shape, not a scoping failure.** `E-0` measured that no reader's meaning survives `(g)`; **the size is the measurement, and splitting it would only hide the moment the meaning changes.**
@@ -314,9 +314,10 @@ v1.0 put the field and the writes in **E-1** and the fifty readers in **E-2**, a
 - [x] **§8 ruled by Joe (a) and written into this file + `D-154`⑥**
 - [x] **§5d's boundary shape decided (Chat) — (C), derive at slice time**
 - [x] **§4b — `F-E`'s citation opened and the finding corrected at all its sites**
-- [ ] E-1 · E-2 · E-3 runbooked, each locked by Joe before Clair opens it
+- [x] **E-1 runbooked, locked, IMPLEMENTED and CLOSED (J-767) — floor 1623 → 1629 / 0 / 62 × 56 SUITES**
+- [ ] E-2 · E-3 runbooked, each locked by Joe before Clair opens it
 - [ ] Every gate re-driven by Chat from `HEAD` (Rule 5), none adopted on report
-- [ ] `V-3c` **RUN** — with `D-3` absent, a retained banned member is refused `AlreadyMember` instead of `Banned`
+- [x] **`V-3c` RUN AT LAST (J-767)** — `banned_member_is_retained_and_a_rejoin_is_refused_banned_not_already_member` is green, and RED under the V-3a disarm. *The control Leg D could not reach.*
 - [ ] **`N-199` observed on every restore:** restore → stamp mtime → **require `Compiling <crate>` in the log**
 - [ ] `N-2`'s duplicate `G` and miscited clause repaired by annotation (`D-131`)
 - [ ] The A-bis test renamed to assert what it tests
@@ -331,7 +332,7 @@ v1.0 put the field and the writes in **E-1** and the fifty readers in **E-2**, a
 
 | instrument | floor | unit |
 |---|---|---|
-| cargo | **1623 / 0 / 62** | **× 56 SUITES** |
+| cargo | **1629 / 0 / 62** (was 1623 pre-E-1; delta MEASURED via `--skip`, `filtered out = 6`) | **× 56 SUITES** |
 | vitest | **172 / 172** | **× 9 FILES** |
 | svelte-check | **0 / 34 / 15** | — |
 | catalogue | 🛑 **UNMEASURED** | — |

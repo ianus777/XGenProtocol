@@ -8,6 +8,54 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-767 — Leg E-1 ships the meaning change, and the sharpest finding is a test that stayed GREEN while ceasing to test anything
+**Date:** 2026-08-23 · **Seats:** Clair (implementation, six findings, three design judgements) · Chat (Rule 5 re-drive, close, records) · Joe (push)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `3c386ea` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean at open.
+
+🎯 **`SpaceState::members` IS NOW A RECORD WITH A LIFECYCLE, NOT A SET OF PEOPLE WHO ARE HERE.** 9 files, **+582 / −38**, zero `ui/**`. `tasks/RUNBOOK_SPACE_ADMISSION_LEG_E1.md` v1.1 → **v1.2 COMPLETED** · `tasks/M_SPACE_ADMISSION_LEGE_PHASE0.md` v1.2 → **v1.3** · ROADMAP v7.51 → **v7.52**.
+
+🔒 **FLOOR: cargo 1623 → 1629 / 0 / 62 × 56 SUITES.** 🔑 **The delta is a MEASUREMENT, not arithmetic:** `--skip` on the six new names returns **exactly `1623 / 0 / 62 × 56`**, and libtest independently reports **`filtered out = 6`**. All six confirmed by exact name. vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15** — carried by scope, zero `ui/**` confirmed by `git status`, **stated rather than skipped**. Catalogue **UNMEASURED**.
+
+## 🛑 `F-3` — RETENTION TURNED A LOAD-BEARING CONVERGENCE WITNESS INTO A TAUTOLOGY, AND NO INSTRUMENT COULD SEE IT
+
+`derive.rs`'s `convergence_mp_f7_rejoin_anchored_after_leave_is_member` asserted **`members.contains_key(a1)`** to witness that a linearly-anchored rejoin **wins**. 🔑 ***Under retention the leave keeps the record ⇒ that assertion is true whether the rejoin landed or was dropped.*** **It became a probe that cannot fail — and it is GREEN**, so neither the compiler nor the red run reports it. Its red twin (`..._at_root_is_dropped`) carried the mirror defect, which is why only half the damage was visible.
+
+🔒 **Both re-expressed against `is_member` + `left_at`, which still discriminate.** ⇒ ***`F-1` with teeth: the green half was where the real damage was.*** 📌 **This is the species to carry forward: a semantic change can leave an assertion TRUE and simultaneously empty it of meaning, and every instrument this project owns reads truth, not meaning.**
+
+## 🛑 THREE DEFECTS IN THE RUNBOOK, ALL CHAT'S, ALL FOUND BY CLAIR
+
+🛑 **`F-1` — §2c's opening claim is false and §2c contradicts itself two paragraphs later.** It says *"a run that leaves them untouched and green would mean the change did not land."* **Measured: of the seven, exactly ONE goes red** — six assert `!is_member(...)`, which **`(i)` PRESERVES**. ✅ **Chat verified by inspection:** only `derive.rs:1071` asserts `!contains_key`. 🔑 ***And §2c's own last paragraph states the mechanism that refutes its opening.***
+
+🛑 **`F-1`'s consequence — `V-6`'s closure mechanism cannot close the set it names.** *"The §2c set is CLOSED by the compiler and the red run"* — **neither instrument can see the six that stay green.** The compiler enumerated the 17 `SpaceMember` literals; the red run enumerated 3 tests. **Closed by READING.** 🔑 ***`N-197` at the level of a gate: a closure mechanism whose blind spot is invisible in its own output*** — V-6 as written would have certified a set it could not have enumerated. 🔒 **RULE: when a semantic change PRESERVES an assertion, no automated instrument can enumerate the affected tests. Say so in the gate and name reading as the mechanism.**
+
+🛑 **`F-5` — §5's `V-3c` expected outcome is wrong, because `E1-8.1` changed it.** §5 predicted *"every §2c test passes again."* That held for the ORIGINAL one-sided assertions; **`E1-8.1` required them strengthened two-sidedly**, so the leave-based ones now go RED. ✅ **CHAT'S OWN CONTROL RUN CONFIRMS IT: V-3c produced 4 RED and `leave_removes_from_space_and_all_rooms` is among them.** **A red §2c test under V-3c is the control WORKING.** 🔑 ***The stated outcome and the stated purpose pointed opposite ways; the strengthening is what makes the purpose real.***
+
+## 🔍 CLAIR'S REMAINING FINDINGS, ALL VERIFIED
+
+📌 **`F-2` — the complete red set is 3, and 2 are OUTSIDE §2c.** Enumerated with `--no-fail-fast`, **because plain `cargo test` halts after the first failing suite and reported only 12 of 56.** 📌 **`F-4` — `resolve_operator`'s "five sites" are 4 GATES + 1 FIELD READ.** ✅ Chat verified by reading: the fn takes `&self`, and `:1417`'s `get(&ai_xgid)` is reached only after the guard established presence **on the same key with no intervening mutation** ⇒ a filter there is **provably dead**, the `N-091` unfed-branch shape. Gated four, left one a plain lookup **with a comment saying why, so the next reader does not take it for a missed site.** The census stays 5 reads; the gate count is 4. 📌 **`F-6` — Clair's own sweep reproduced `E-0`'s `F-2` inside the first hour:** a first-`#[cfg(test)]` predicate silently dropped `admin_ops.rs:3460`, **production code sitting between two test modules.** 🔑 ***The `E1-7` table was complete and her grep was not — which is the measurement that says the runbook's "work from this table, not from a fresh grep" was right.***
+
+🔧 **`J-1` — one predicate, not twenty copies.** `pub fn SpaceMember::is_present()`, **defined exactly once** (`D-067`), read by every site. ✅ **It did not weaken §5, and that is measured, not argued:** Chat's five controls each reverted a **NAMED SITE**, not the helper, and each went red independently. 🔧 **`J-2`** — `mark_departed` takes `&mut HashMap<..>` rather than `&mut self`, so the call line shows it touches membership and **not** `banned` or `pending_invites`. 🔧 **`J-3` — first-wins on `left_at`, with the consequence named:** required by E-2 and conservative in the safe direction. ⚠️ Two concurrent departures for one identity can set different `left_at` under raw incremental-apply arrival order — **the pre-existing divergence J-743 `F-2` records, widened by one field, healing on rebuild exactly as it already does.** The resolved fold converges; every `assert_converges` test is green.
+
+## ✅ RULE 5 — EVERY GATE RE-DRIVEN BY CHAT FROM `HEAD`, NOTHING ADOPTED ON REPORT
+
+**V-1** `1629 / 0 / 62 × 56 SUITES` · sentinel 0 · `Compiling xgen-core` present. **V-2** as above. **V-3a** 3 RED — including **`node_unban_lifts_ban_and_allows_rejoin`, which no list in the runbook named.** **V-3b** 7 RED · **V-3c** 4 RED · **V-3d** 1 RED · **V-3e** 1 RED. 🔒 **`Compiling xgen-core` on EVERY disarm run, all five sha256-restored, zero stray `.bak`, `numstat` byte-identical after** (`N-199`, `N-124b`). **V-5 — `V-3c` RUN AT LAST:** the retained banned member is refused **`Banned`, not `AlreadyMember`**; green, and RED under the V-3a disarm. *The control Leg D could not reach.* **V-7** — `ui/**` 0 · `fanout.rs` exactly 2 hunks · `build_membership_event`'s `prev_events` untouched · `migration/state_machine.rs` 0.
+
+## 🛑 `V-4` IS NOT DISCHARGED, AND IT IS CHAT'S
+
+§6 requires the two claimed free consequences **proven, not asserted**. ✅ **Measured: NO TEST exercises either for a departed member** — none names `new_joiner` against a rejoiner, and every `collect_sync_history` test is member-only by construction. Both are sound by code-reading, **and reading is exactly what `V-4` exists to refuse.**
+
+🔑 **MEASURING IT RETIRED THE LAST OF `C-3`.** Pre-E-1, `apply_leave` **removed**, so a rejoiner's `is_member` was **already** false ⇒ `new_joiner = Some` ⇒ full history. Post-E-1: identical. ⇒ ***`C-3`'s "silent empty room" was a hazard of an intermediate state this leg never created***, and **E-1 ships the status quo, not a regression.** 🎯 **`V-4` RIDES E-2** — E-2 touches exactly `fanout.rs` and needs the rejoiner fixture to build clause ④ at all; discharging it here would build that fixture twice. **Written into E-2's inherited gates, not left as a note.**
+
+📌 **One unreported deviation, Chat's find: `E1-8.7` was specified "New:" and delivered as a FOLD** into `runtime.rs`'s existing DM-leave test. The assertion exists and discriminates, and `E1-8.8` was explicitly a fold, so the pattern is consistent. 🔑 ***Rule 6 covers edits that cannot be built as written; it does not clearly cover "built differently but equivalently" — a gap in Rule 6's phrasing, not in Clair's report.***
+
+📌 **Chat's own instrument error, recorded: a 4-minute MCP stall was MY polling loop exceeding the call budget, not a server outage** — `echo ok` answered immediately after. **A hung harness left one `.bak` behind; the tree was proven intact by SHA256 and by content at the disarm site before continuing.** *An MCP timeout is not evidence of an MCP outage.*
+
+## 📋 STATE
+
+▶️ **NEXT: E-2 — clause ④'s history slice at `fanout.rs:276-289`, per Phase-0 §5d(C): DERIVE the presence intervals from the log already in hand.** It inherits `V-4` undischarged and the boundary-walk caveat — **the walk must handle both departure shapes**, `sender` for `leave` and `content["target_identity"]` for `kick` / `ban` / `node_eject`.
+
+---
 ## Entry J-766 — the fifth removal site is ruled, and the ruling lands as `D-154`'s sixth clause rather than as a new decision
 **Date:** 2026-08-23 · **Seats:** Joe (one ruling) · Chat (records, lock stamp)
 

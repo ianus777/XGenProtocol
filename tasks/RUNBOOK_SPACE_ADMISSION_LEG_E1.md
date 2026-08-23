@@ -1,7 +1,7 @@
 # RUNBOOK — M-SPACE-ADMISSION Leg E-1: the meaning change — `left_at`, the four writes, and all fifty readers in one commit
 
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-23  
 > Language: English  
@@ -16,10 +16,10 @@
 | | |
 |---|---|
 | **Phase-0** | `tasks/M_SPACE_ADMISSION_LEGE_PHASE0.md` **v1.1 ACTIVE** — read §4b, §5d, §6e, §7 before this file |
-| **Status** | 🔒 **ACTIVE, LOCKED (Joe, 2026-08-23; J-766).** Clair implements from **v1.1** and no earlier revision |
+| **Status** | ✅ **COMPLETED (J-767, 2026-08-23).** Implemented by Clair from v1.1; every gate re-driven by Chat from `HEAD` under Rule 5. **Floor 1623 → 1629 / 0 / 62 × 56 SUITES.** 🛑 **`V-4` NOT DISCHARGED — carried to E-2 (§6)** |
 | **Blocking on** | ✅ **NOTHING.** Phase-0 §8 RULED **(a)** — `apply_node_eject` retains and marks. Recorded as **`D-154`⑥**, an amendment at `D-154`'s own table, not a new `D` |
 | **Tree** | every citation measured at **`72262f6`** = `origin/main`, tree clean (`D-152`) |
-| **Floors in** | cargo **1623 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15** · catalogue **UNMEASURED** |
+| **Floors in / out** | cargo **1623 → 1629 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15** · catalogue **UNMEASURED** |
 | **Rule 5** | Chat re-drives **every** gate from `HEAD`. Nothing in §6 is adopted on report |
 | **Rule 6** | Clair reports deviations and never absorbs them. **Leg D's `D-3` was caught this way and the report was correct** |
 
@@ -230,11 +230,68 @@ Each gains `left_at.is_none()`. **Grouped by what a wrong answer does:**
 ## §8 — DoD
 
 - [x] **Joe's §8 ruling written into `E1-4`; arm (b) struck, not deleted**
-- [ ] `E1-1` … `E1-8` implemented from this file, **no improvisation** — a blocked edit is REPORTED (Rule 6, and Leg D's `D-3` is why)
-- [ ] `V-1` … `V-7` re-driven by Chat from `HEAD`, none adopted on report
-- [ ] `V-3a` … `V-3e` each run, each red, each restored with `Compiling` observed
-- [ ] §2c's full set enumerated, edited **two-sidedly**, and its size reported
-- [ ] Phase-0 v1.1 → **v1.2**, this runbook → **COMPLETED**
-- [ ] `D-074` atomic commit: code + JOURNAL + CLAUDE.md + ROADMAP + task docs
+- [x] **`E1-1` … `E1-8` implemented; six findings and three design judgements REPORTED, none absorbed (Rule 6)**
+- [x] **`V-1`, `V-2`, `V-3a…e`, `V-5`, `V-7` re-driven by Chat from `HEAD`; `V-6`'s mechanism corrected (§9b); 🛑 `V-4` NOT discharged, carried to E-2 (§11)**
+- [x] **`V-3a`…`V-3e` each run, each RED, `Compiling xgen-core` on every disarm, all five sha256-restored**
+- [x] **§2c's set closed by READING (§9b), edited two-sidedly, size reported: 7 named + 2 outside**
+- [x] **Phase-0 v1.2 → v1.3; this runbook → COMPLETED**
+- [x] **`D-074` atomic commit: 9 `.rs` files + JOURNAL + CLAUDE.md + ROADMAP + task docs**
 
 📌 **"Commit pushed" is not a DoD item.**
+
+---
+
+## §9 — 🛑 CLOSE ANNOTATIONS (J-767, 2026-08-23). **THREE OF THESE ARE DEFECTS IN THIS DOCUMENT, WRITTEN BY CHAT.**
+
+Corrected at close, never erased (`D-131`). §2c, §5 and §6 above stand as written; each is annotated here.
+
+### §9a — 🛑 **`§2c`'s OPENING CLAIM IS FALSE, AND `§2c` CONTRADICTS ITSELF TWO PARAGRAPHS LATER** *(Clair, `F-1`; verified by Chat)*
+
+§2c opens: *"A run that leaves them untouched and green would mean the change did not land."* **Measured: of the seven, exactly ONE goes red.** Six assert `!is_member(...)`, and **`(i)` PRESERVES that** — they stay green under a correct implementation *and* under a no-op. **`derive.rs:1071` is the only one asserting `!contains_key`.**
+
+🔑 ***And §2c's own last paragraph says so:*** *"`!is_member(bob)` STAYS TRUE under `(i)`."* **The section states the mechanism that refutes its own opening claim, two paragraphs down.** ✅ **Chat verified by inspection at `3c386ea`:** `state.rs:3044 / 3117 / 4063 / 4192`, `runtime.rs:5885` all assert `!is_member`; only `derive.rs:1071` asserts `!contains_key`.
+
+### §9b — 🛑 **`V-6`'s CLOSURE MECHANISM CANNOT CLOSE THE SET IT NAMES** *(Clair, `F-1`; verified by Chat)*
+
+V-6 says *"the §2c set is CLOSED by the compiler and the red run."* **Neither instrument can see the six that stay green** — the compiler enumerated only the 17 `SpaceMember` literals; the red run enumerated 3 tests. **They were closed by READING.**
+
+🔑 ***`N-197` at the level of a gate: a closure mechanism whose blind spot is invisible in its own output.*** V-6 as written would have certified a set it could not have enumerated, and reported a size that was not the size. 🔒 **RULE FOR E-2 AND EVERY LATER LEG: when a semantic change PRESERVES an assertion, no automated instrument can enumerate the affected tests. Say so in the gate, and name reading as the mechanism.**
+
+### §9c — 🛑 **`§5`'s `V-3c` EXPECTED OUTCOME IS WRONG, BECAUSE `E1-8.1` CHANGED IT** *(Clair, `F-5`; CONFIRMED EMPIRICALLY by Chat)*
+
+§5 says under V-3c *"every §2c test passes again — which is the leg's own proof that §2c's edits are gate-dependent."* **That held for §2c's ORIGINAL one-sided assertions. `E1-8.1` required them strengthened two-sidedly**, so the leave-based §2c tests now go **RED** under V-3c.
+
+✅ **CHAT'S OWN CONTROL RUN CONFIRMS IT:** V-3c produced **4 RED**, and `space::state::tests::leave_removes_from_space_and_all_rooms` — a §2c entry — is among them. **A red §2c test under V-3c is the control WORKING, not failing.** 🔑 ***The stated outcome and the stated purpose pointed opposite ways; the strengthening is what makes the purpose real.***
+
+### §9d — ✅ **`E1-8.7` WAS SPECIFIED "New:" AND DELIVERED AS A FOLD** *(Chat, unreported by Clair)*
+
+The `C-4` assertion rides `runtime.rs`'s existing DM-leave test rather than a new one. **The assertion exists and discriminates** (Chat re-read it), and `E1-8.8` was *explicitly* specified as a fold, so the pattern is consistent. 📌 **Recorded as an unreported deviation, not a defect** — Rule 6 covers edits that cannot be built as written; it does not obviously cover *built differently but equivalently*, and that is a gap in Rule 6's phrasing rather than in Clair's report.
+
+---
+
+## §10 — 🔒 CLOSE MEASUREMENTS (Chat, Rule 5, from `HEAD` `3c386ea`)
+
+| gate | measured | |
+|---|---|---|
+| **V-1** | `1629 / 0 / 62 × 56 SUITES` · `XGEN_EXIT_SENTINEL=0` · `Compiling xgen-core` present | ✅ |
+| **V-2** | `--skip` on the six returns **exactly `1623 / 0 / 62 × 56`**; libtest independently reports **`filtered out = 6`**. All six confirmed by exact name. `fn is_present` defined **once** | ✅ **the delta is a MEASUREMENT** |
+| **V-3a** | 3 RED, incl. **`node_unban_lifts_ban_and_allows_rejoin`** — an entry no list in this document named | ✅ |
+| **V-3b** | 7 RED | ✅ |
+| **V-3c** | 4 RED, incl. a §2c entry — see §9c | ✅ |
+| **V-3d** | 1 RED | ✅ |
+| **V-3e** | 1 RED | ✅ |
+| **all five** | `Compiling xgen-core` on **every disarm run** · **all five sha256-restored** · zero stray `.bak` · `numstat` byte-identical after | ✅ `N-199` held |
+| **V-5** | `banned_member_is_retained_and_a_rejoin_is_refused_banned_not_already_member` — **green, and RED under V-3a.** *The control Leg D could not reach is run* | ✅ |
+| **V-7** | `ui/**` 0 files · `fanout.rs` exactly 2 hunks (`@@ -272 +272,9` · `@@ -886,0 +895,55`) · `build_membership_event`'s `prev_events` untouched · `migration/state_machine.rs` 0 files | ✅ |
+| **V-6** | see §9b — closed by reading, mechanism corrected | ⚠️ |
+| **V-4** | 🛑 **NOT DISCHARGED** — see §11 | 🛑 |
+
+---
+
+## §11 — 🛑 `V-4` IS NOT DISCHARGED, AND IT IS CHAT'S, NOT CLAIR'S
+
+§6 requires the two claimed free consequences **proven, not asserted**. ✅ **Measured at `3c386ea`: NO TEST exercises either for a departed member.** No test names `new_joiner` against a rejoiner; every `collect_sync_history` test is member-only by construction. **Both are sound by code-reading — both sites read `is_member`, which is gated — and reading is exactly what `V-4` exists to refuse.**
+
+🔑 **MEASURING IT RETIRED THE LAST OF `C-3`.** Pre-E-1, `apply_leave` **removed**, so a rejoiner's `is_member` was **already** false ⇒ `new_joiner = Some` ⇒ full history. Post-E-1: identical. ⇒ ***`C-3`'s "silent empty room" was a hazard of an intermediate state this leg never created***, and **E-1 ships the status quo, not a regression.** The gap stays open until E-2 closes it — as designed, and now as a measured fact rather than an assumption.
+
+🎯 **DISPOSITION: `V-4` RIDES E-2.** ① **user-visible:** nothing changes either way — the behaviour under test is unchanged by E-1. ② **tier:** none. ③ **cost:** E-2 touches exactly `fanout.rs` and needs a rejoiner fixture to build clause ④ at all; discharging V-4 here would mean building that fixture twice. 🛑 **It is written into E-2's Phase-0 as an inherited gate, not left as a note here.**

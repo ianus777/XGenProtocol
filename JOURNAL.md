@@ -8,6 +8,44 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-766 — the fifth removal site is ruled, and the ruling lands as `D-154`'s sixth clause rather than as a new decision
+**Date:** 2026-08-23 · **Seats:** Joe (one ruling) · Chat (records, lock stamp)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `1cb045d` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean. 🎯 **RECORDS ONLY. ZERO PRODUCT CODE.**
+
+`DECISIONS.md` **161 entries, max `D-155`** — **no new designation; `D-154` AMENDED** · `tasks/M_SPACE_ADMISSION_LEGE_PHASE0.md` v1.1 → **v1.2** · `tasks/RUNBOOK_SPACE_ADMISSION_LEG_E1.md` v1.0 PENDING → **v1.1 ACTIVE LOCKED** · ROADMAP v7.50 → **v7.51**. Floors carried by scope, zero `.rs` since `2965e08`: cargo **1623 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. Catalogue **UNMEASURED**.
+
+## 🔒 RULED (Joe, 2026-08-23): **(a) — `apply_node_eject` RETAINS AND MARKS**
+
+**`membership.node_eject` follows kick and ban.** `self.banned`, `pending_invites.remove` and the room strip are unchanged. ⇒ **`E1-4` arm (a) locked, arm (b) struck at the site, not deleted (`D-131`).**
+
+🛑 **THE GAP IT CLOSES, FOUND BY A SWEEP AND NOT BY `D-154`.** `E-0`'s `C-1` counted **four** `self.members.remove` sites; clauses ②③ named **three**. The fourth — `apply_node_eject` (`state.rs:1275`) — was unruled, and ***an unruled removal site beside three ruled retention sites is exactly the ambiguity clause ② was ruled to prevent***: *"in `members`" would mean two things depending on how you left*, and all fifty production readers would have to know which.
+
+🔑 **THE MEASURED FACT THAT DECIDED IT: `apply_node_eject` ALSO BANS** — `state.rs:1277` `self.banned.insert(target)` ⇒ ***it reaches `apply_ban`'s exact end state by a different authority***, and clause ③ already rules that side of the line. **Retaining for `apply_ban` and removing for `apply_node_eject` would have drawn a line between two paths that terminate identically.** 📌 **The fact was put in front of the question and not used to answer it** — the runbook says so at its own site and keeps the wording, because *the fact came before the ruling* is part of the record.
+
+## 🔑 NO `D-156`, AND THE OMISSION IS DELIBERATE
+
+**A separate entry would have left `D-154`'s clause table — the authoritative register of what a Space remembers — reading as COMPLETE while missing a case.** ⇒ ***`C-8`'s exact species: a register that is authoritative, incomplete, and consulted at the moment of allocation.*** `D-067` binds the same way — one fact, one place. 🔒 **The clause is ADDED to the table, dated and journal-referenced at its own site (`D-131`); nothing above it is rewritten.** 📌 J-676's precedent stands beside this: *"No new D"* is a legal outcome, and so is *"no new D because the existing one is the register."*
+
+⚠️ **THE CAVEAT IS CARRIED, NOT CLOSED BY THE RULING.** Retention makes an ejection a **durable record on a federated, replicated object**, and `membership.node_eject` is **reversible** (`membership.node_unban`) — ***a reversed ejection still leaves the record saying it happened.*** **Accepted knowingly.** It is filed at `D-154`⑥ beside the note that entry already carried: **`self.banned` is already exactly this shape**, and that look is still owed.
+
+## 🛑 `N-202` — `WriteAllLines` SILENTLY CONVERTS A WHOLE FILE'S LINE ENDINGS, AND THE `CR == LF` GUARD CANNOT SEE IT
+
+Splicing `D-154`⑥ into `DECISIONS.md` — **an LF file** — with `[System.IO.File]::WriteAllLines` rewrote **every line** to CRLF, because `WriteAllLines` uses `Environment.NewLine`.
+
+🔑 ***THE GUARD PASSED.*** The standing check is `CR == LF`, zero `\r\r`, zero lone LF, no BOM — and a uniformly CRLF-converted file satisfies **all four**. `CR=5865 · LF=5865 · CRCR=0 · BOM=False`, every assertion true, every assertion about an integrity property that was never at risk. **`E-0`'s ROADMAP half-apply, one layer over: the assertions were sound and were not about the thing that broke.**
+
+✅ **CAUGHT BY THE ONE CHECK THAT WAS ABOUT IT** — `CR` was expected to be **0** on this file and the value was printed rather than compared to a constant, so the mismatch was visible. 🛑 **RULE: `git ls-files --eol` is the authority BEFORE the write, not after** — CLAUDE.md and `docs/ROADMAP.md` are CRLF, **everything else is LF**; use `WriteAllLines` only on the CRLF pair and `WriteAllText` with explicit `\n` everywhere else. 📌 **`git diff --numstat` is the second instrument and it is decisive: a whole-file EOL flip reads as every line changed.** After the repair: **`17 / 1`**, not 5,865.
+
+## 📋 STATE
+
+✅ **E-1 IS LOCKED AND UNBLOCKED.** `RUNBOOK_SPACE_ADMISSION_LEG_E1.md` **v1.1 ACTIVE LOCKED** — Clair implements from v1.1 and no earlier revision, in a session opened by her own kickoff.
+
+🔓 **Nothing open on Joe's side. Nothing open on Chat's side.**
+
+▶️ **NEXT: Clair implements E-1 — the field, the four writes, all fifty readers, one commit. Chat re-drives `V-1`…`V-7` and `V-3a`…`V-3e` from `HEAD` (Rule 5).**
+
+---
 ## Entry J-765 — Leg E-1 is runbooked, and opening two carried citations retires one finding and shrinks the leg
 **Date:** 2026-08-23 · **Seats:** Chat (grounding, corrections, runbook, records) · Joe (one question, unruled at close)
 

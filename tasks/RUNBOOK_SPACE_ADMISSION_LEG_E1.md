@@ -1,7 +1,7 @@
 # RUNBOOK — M-SPACE-ADMISSION Leg E-1: the meaning change — `left_at`, the four writes, and all fifty readers in one commit
 
-> **Status**: PENDING  
-> Version: 1.0  
+> **Status**: ACTIVE  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-23  
 > Language: English  
@@ -16,8 +16,8 @@
 | | |
 |---|---|
 | **Phase-0** | `tasks/M_SPACE_ADMISSION_LEGE_PHASE0.md` **v1.1 ACTIVE** — read §4b, §5d, §6e, §7 before this file |
-| **Status** | 🛑 **PENDING — NOT LOCKED.** Clair does not open this file until Joe locks it |
-| **Blocking on** | 🔓 **Phase-0 §8** — `apply_node_eject`. §3's `E1-4` carries **both arms**; Joe's lock picks one |
+| **Status** | 🔒 **ACTIVE, LOCKED (Joe, 2026-08-23; J-766).** Clair implements from **v1.1** and no earlier revision |
+| **Blocking on** | ✅ **NOTHING.** Phase-0 §8 RULED **(a)** — `apply_node_eject` retains and marks. Recorded as **`D-154`⑥**, an amendment at `D-154`'s own table, not a new `D` |
 | **Tree** | every citation measured at **`72262f6`** = `origin/main`, tree clean (`D-152`) |
 | **Floors in** | cargo **1623 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15** · catalogue **UNMEASURED** |
 | **Rule 5** | Chat re-drives **every** gate from `HEAD`. Nothing in §6 is adopted on report |
@@ -57,7 +57,7 @@
 | `apply_leave` `state.rs:1195` | `:1203` `self.members.remove(leaver)` → `NotASpaceMember` if absent · `:1206-1208` strips every `RoomState.members` |
 | `apply_kick` `state.rs:1212` | `:1230` `self.members.remove(&target)` · `:1231-1233` room strip |
 | `apply_ban` `state.rs:1237` | `:1250` `self.members.remove` · `:1251` `pending_invites.remove` · `:1252` `banned.insert` · `:1253-1255` room strip |
-| `apply_node_eject` `state.rs:1265` | `:1275` `self.members.remove` · `:1276` `pending_invites.remove` · **`:1277` `self.banned.insert`** · `:1278-1280` room strip — 🔓 **§8, both arms** |
+| `apply_node_eject` `state.rs:1265` | `:1275` `self.members.remove` · `:1276` `pending_invites.remove` · **`:1277` `self.banned.insert`** · `:1278-1280` room strip — 🔒 **RULED (a): retains and marks (`D-154`⑥)** |
 | `apply_join` `state.rs:1155` | `:1173` `contains_key` ⇒ `AlreadyMember` · `:1176` `banned.contains` ⇒ `Banned` · `:1179-1182` `pending_invites.remove` ⇒ `(role, invited_by)`, **absent ⇒ `(Role::Member, None)`** · `:1183-1192` `members.insert(...)` |
 
 🔑 **`N-201` (Phase-0 §6e): with `left_at: None` in the literal, the EXISTING `insert` performs `D-154` clause ① exactly** — `left_at` cleared, `joined_at` re-stamped, role and `invited_by` re-derived from `pending_invites`. **The replace is not the defect; it IS the ruling.** ⇒ **`E1-5` is a gate edit, not a write edit.**
@@ -121,16 +121,16 @@
 Same shape as `E1-3` at `state.rs:1230` and `state.rs:1250`, marking the **target**, not the sender.
 `apply_ban`'s `:1251` `pending_invites.remove`, `:1252` `banned.insert` and room strip are **UNCHANGED** — `self.banned` stays the authority for the ban (`D-154`③).
 
-🔓 **`apply_node_eject` (`state.rs:1275`) — BOTH ARMS, JOE PICKS (Phase-0 §8):**
+🔒 **`apply_node_eject` (`state.rs:1275`) — RULED (a) (Joe, 2026-08-23; `D-154`⑥):** the same shape as `apply_kick`, marking `content["target_identity"]`. **`:1276` `pending_invites.remove`, `:1277` `banned.insert` and `:1278-1280`'s room strip are UNCHANGED.** ⚠️ **A doc comment at the site records that this path retains BECAUSE it also bans** (`:1277`) — *the reason must travel with the edit, or the next reader re-derives it.* **The refused arm is struck, not deleted (`D-131`):**
 
 | arm | edit |
 |---|---|
-| **(a)** *retain and mark* | identical to `apply_kick`; `:1276`'s `pending_invites.remove` unchanged |
-| **(b)** *keep removing* | **no edit**, and a doc comment at `:1275` states outright that this site deliberately diverges from `apply_leave`/`kick`/`ban`, and why |
+| ~~**(a)** *retain and mark*~~ | ✅ **TAKEN** — identical to `apply_kick`; `:1276`'s `pending_invites.remove` unchanged |
+| ~~**(b)** *keep removing*~~ | 🛑 **REFUSED** — ~~no edit, and a doc comment at `:1275` states outright that this site deliberately diverges from `apply_leave`/`kick`/`ban`, and why~~ |
 
-🛑 **Whichever arm is locked, the divergence or its absence is WRITTEN DOWN at the site.** *An unruled site that silently matches its neighbours is indistinguishable from a ruled one.*
+✅ **THE DIVERGENCE's ABSENCE IS STILL WRITTEN DOWN AT THE SITE.** *A site that matches its neighbours because it was RULED to is, in the code, indistinguishable from one that matches them by accident — so the doc comment says which.*
 
-🔑 **A FACT MEASURED WHILE WRITING THIS FILE, AND IT LEANS ON §8: `apply_node_eject` ALSO BANS** — `state.rs:1277` `self.banned.insert(target)`. ⇒ ***its end state is `apply_ban`'s end state***, and `D-154`③ already rules that a ban retains. **Retaining for `apply_ban` and removing for `apply_node_eject` would draw a line between two paths that reach the identical state**, which is Chat's strongest ground for arm (a). 🛑 **It is not a licence to take the ruling** — whether `membership.node_eject` falls under ③ is a question about MEANING and stays Joe's; this is the fact put in front of it.
+🔑 **A FACT MEASURED WHILE WRITING THIS FILE, AND IT LEANS ON §8: `apply_node_eject` ALSO BANS** — `state.rs:1277` `self.banned.insert(target)`. ⇒ ***its end state is `apply_ban`'s end state***, and `D-154`③ already rules that a ban retains. **Retaining for `apply_ban` and removing for `apply_node_eject` would draw a line between two paths that reach the identical state**, which is Chat's strongest ground for arm (a). ✅ **It was put in front of the ruling and not used to make it; Joe ruled (a) on 2026-08-23.** 📌 Kept as written, because *the fact came before the ruling* is part of the record.
 
 ### 🔒 `E1-5` — `apply_join`: the gate, and the ban check that comes alive (`D-3`, `V-3c`)
 
@@ -222,14 +222,14 @@ Each gains `left_at.is_none()`. **Grouped by what a wrong answer does:**
 
 ## §7 — OPEN AT LOCK
 
-🔓 **Joe's:** Phase-0 §8 — `apply_node_eject`, `E1-4`'s two arms.
+✅ **NOTHING OPEN — this runbook is LOCKED.** ⚠️ **`D-154`⑥ carries ONE undischarged caveat and it is NOT E-1's to close:** retention makes an ejection a durable federated record while `membership.node_eject` is reversible, so *a reversed ejection still leaves the record saying it happened.* **Filed at `D-154`⑥ beside the `self.banned` look that is still owed.**
 🔓 **Nothing on Chat's side.** §5d's boundary shape is decided; `F-E` is retired to §3's fixture rule.
 
 ---
 
 ## §8 — DoD
 
-- [ ] Joe's §8 ruling written into `E1-4` and the losing arm struck, not deleted
+- [x] **Joe's §8 ruling written into `E1-4`; arm (b) struck, not deleted**
 - [ ] `E1-1` … `E1-8` implemented from this file, **no improvisation** — a blocked edit is REPORTED (Rule 6, and Leg D's `D-3` is why)
 - [ ] `V-1` … `V-7` re-driven by Chat from `HEAD`, none adopted on report
 - [ ] `V-3a` … `V-3e` each run, each red, each restored with `Compiling` observed

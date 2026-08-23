@@ -1,6 +1,6 @@
 # XGen Protocol — Implementation Decisions
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-18  
+> **Last updated:** 2026-08-23  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
 
@@ -5797,6 +5797,22 @@ Both clauses were derived while settling **one** field and neither is about that
 | **③ Ban** | **Same rule as kick.** `self.banned` is unchanged and stays the authority for the ban itself. |
 | **④ What a rejoiner may read** | **Everything up to her departure, plus everything from the rejoin forward. THE GAP STAYS CLOSED.** |
 | **⑤ Rooms** | **A rejoin restores presence in the SPACE ONLY.** Room membership is not restored; she re-enters each room herself. |
+| **⑥ Node-eject** | 🔒 **AMENDED 2026-08-23 (Joe; J-766) — SIXTH CLAUSE ADDED, NOT A REWRITE (`D-131`).** **`membership.node_eject` follows kick and ban: the target is RETAINED and MARKED.** `self.banned`, `pending_invites.remove` and the room strip are unchanged. |
+
+
+### ⑥ — the sixth clause, and why it is an amendment rather than a new `D`
+
+🔒 **RULED (Joe, 2026-08-23; J-766): `apply_node_eject` retains and marks, exactly as kick and ban do.**
+
+🛑 **THE GAP THIS CLOSES, FOUND BY A SWEEP AND NOT BY THIS ENTRY.** `E-0`'s `C-1` counted **four** `self.members.remove` sites; clauses ②③ named **three** of them. The fourth — `apply_node_eject` (`state.rs:1275` at `72262f6`) — was unruled, and **an unruled removal site beside three ruled retention sites is precisely the ambiguity clause ② was ruled to prevent**: *"in `members`" would mean two things depending on how you left*, and all fifty production readers would have to know which.
+
+🔑 **THE FACT THAT DECIDED IT, MEASURED: `apply_node_eject` ALSO BANS.** `state.rs:1277` — `self.banned.insert(target)`. ⇒ ***it reaches `apply_ban`'s exact end state by a different authority.*** Retaining for `apply_ban` and removing for `apply_node_eject` would draw a line between two paths that terminate identically — **and clause ③ already rules that side of the line.**
+
+📌 **① user-visible:** under removal, the Space that ejected her **forgets that it did**, while the messages she wrote stay in the retained log, signed by her — *an auditor reads authored events from a person the Space has no record of ever admitting.* Retention is the only answer where the history and the membership record agree. 📌 **② tier:** the same `T4` argument the original five were ruled on — `D-093` retains the **bytes** and does not retain **who was in the room**; removal reopens that hole for the single case most likely to be audited, an operator-forced removal. 📌 **③ resource:** one line, structurally identical to clause ②'s.
+
+⚠️ **THE CAVEAT, RECORDED AND NOT DISCHARGED.** Retention makes an ejection a **durable record on a federated, replicated object**, and `membership.node_eject` is **reversible** (`membership.node_unban`, 1A) — ***a reversed ejection still leaves the record saying it happened.*** **Accepted knowingly, not traded away silently.** 📌 It joins this entry's existing filed note: **`self.banned` is already exactly this shape** — a permanent federated list of identities — and that look is still owed and is not this decision.
+
+🔑 **WHY NO `D-156`, STATED SO THE OMISSION IS DELIBERATE (`D-134`, `D-140`).** A separate entry would leave **this table — the authoritative register of what a Space remembers — reading as complete while missing a case.** ⇒ ***`C-8`'s exact species: a register that is authoritative, incomplete, and consulted at the moment of allocation.*** `D-067` binds the same way: one fact, one place. **The clause is added to the table, dated and journal-referenced at its own site; nothing above it is rewritten.**
 
 ### Why it earned a `D`
 

@@ -1,7 +1,7 @@
 # M-SPACE-ADMISSION Leg E Phase-0 — the rejoin story: creating `left_at` and paying for every clause deferred onto it
 
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-23  
 > Language: English  
@@ -270,7 +270,7 @@ v1.0 put the field and the writes in **E-1** and the fifty readers in **E-2**, a
 
 ---
 
-## §8 — 🔓 THE ONE OPEN QUESTION. **JOE'S** (`D-155`).
+## §8 — 🔒 RULED (Joe, 2026-08-23; J-766): **(a) — RETAIN AND MARK.** `D-154` GAINS A SIXTH CLAUSE.
 
 **Someone is thrown out of a Space by the Node operator** — not by a member with kick rights, and not by their own choice. The Space is being cleaned up, or the operator is acting on an abuse report.
 
@@ -281,7 +281,7 @@ v1.0 put the field and the writes in **E-1** and the fifty readers in **E-2**, a
 | **(a)** | **The same as a kick.** She stays in the record, marked as gone. If the ejection is ever reversed she comes back as an ordinary member. Anyone auditing the Space later can see she was once here, and when she left. |
 | **(b)** | **Nothing. She is gone.** The record is wiped, as it is today. An auditor sees a Space she was never in. |
 
-🎯 **CHAT RECOMMENDS (a).**
+🔒 **RULED (a) — Joe, 2026-08-23.** `membership.node_eject` follows kick and ban: **the target is RETAINED and MARKED.** `self.banned`, `pending_invites.remove` and the room strip are unchanged. **Recorded as `D-154`⑥ — an AMENDMENT at `D-154`'s own table, not a new `D`**: a separate entry would leave the authoritative register of what a Space remembers reading as complete while missing a case (`C-8`'s species; `D-067`). ⇒ **`E1-4` arm (a) LOCKED, arm (b) STRUCK.** 🛑 **The caveat below is carried into `D-154`⑥ undischarged, not closed by the ruling.** **Chat's recommendation, which the ruling took, follows.**
 
 **① USER-VISIBLE IMPACT.** Under **(b)** the Space that ejected her **forgets that it did** — while the messages she wrote stay, signed by her, in the retained log. Someone reading that history later sees authored events from a person the Space has no record of ever admitting. **(a)** is the only answer in which the history and the membership record agree.
 
@@ -293,7 +293,7 @@ v1.0 put the field and the writes in **E-1** and the fifty readers in **E-2**, a
 
 ⚠️ **THE HONEST CAVEAT, NAMED AND NOT TRADED AWAY.** **(a)** makes an ejection a durable record on a federated, replicated object, and `membership.node_eject` is **reversible** — a reversed ejection still leaves the record saying it happened. 📌 `D-154`'s own filed note applies and is still unlooked-at: **`self.banned` is already exactly this shape.** **That look is not this question and must not be smuggled into it.**
 
-🛑 **IT GATES E-1's LOCK, NOT E-1's RUNBOOK.** The runbook carries **both arms** at `state.rs:1275` so the choice is visible in the document Clair reads, rather than settled by whichever arm got written first.
+✅ **E-1's LOCK IS UNBLOCKED.** `RUNBOOK_SPACE_ADMISSION_LEG_E1.md` → **v1.1 ACTIVE LOCKED**, arm (b) struck at the site rather than deleted (`D-131`). 📌 *The runbook carried both arms so the choice was visible in the document Clair reads, rather than settled by whichever arm got written first — that structure did its job and is recorded as method.*
 
 ---
 
@@ -311,7 +311,7 @@ v1.0 put the field and the writes in **E-1** and the fifty readers in **E-2**, a
 
 ## §10 — DoD
 
-- [ ] §8 ruled by Joe and written into this file
+- [x] **§8 ruled by Joe (a) and written into this file + `D-154`⑥**
 - [x] **§5d's boundary shape decided (Chat) — (C), derive at slice time**
 - [x] **§4b — `F-E`'s citation opened and the finding corrected at all its sites**
 - [ ] E-1 · E-2 · E-3 runbooked, each locked by Joe before Clair opens it

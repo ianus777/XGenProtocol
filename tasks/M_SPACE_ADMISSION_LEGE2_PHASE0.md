@@ -1,7 +1,7 @@
 # M-SPACE-ADMISSION Leg E-2 Phase-0 — clause ④, the gap: what a rejoiner may read, and the three doors that serve it
 
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-23  
 > Language: English  
@@ -29,7 +29,7 @@ Leg E-2 of **M-SPACE-ADMISSION — who may join a Space, and how a leaver comes 
 |---|---|
 | `HEAD` | **`7b7b42f`** = `origin/main` by `git ls-remote origin refs/heads/main`, tree clean |
 | JOURNAL | max **J-767** · DECISIONS 161, max **D-155** (`D-154` has **six** clauses) · ROADMAP **v7.52** |
-| cargo | **1629 / 0 / 62 × 56 SUITES** — measured on the delivered E-1 tree (J-767) |
+| cargo | **1641 / 0 / 62 × 56 SUITES** (was 1629 pre-E-2; delta MEASURED via `--skip`, `filtered out = 12`) |
 | vitest · svelte-check | **172 / 172 × 9 FILES** · **0 / 34 / 15** — carried by scope |
 | catalogue | 🛑 **UNMEASURED** |
 
@@ -177,10 +177,10 @@ A person left a Space months ago. Things happened while she was away: people joi
 
 - [x] **§7 ruled (b) by Joe and recorded as a `D-154`④ clarification at its own site (J-769)**
 - [x] **§4's fork settled: (B), derive from the RESOLVED FOLD — see §4b. The two-sort regression test rides it regardless**
-- [ ] Runbook written, locked by Joe, implemented by Clair from the locked revision
-- [ ] `W-1` … `W-10` re-driven by Chat from `HEAD` (Rule 5), none adopted on report
-- [ ] **`V-4` discharged** — the gate E-1 could not close
-- [ ] `roadmap-format-gate.ps1` exit 0 before any ROADMAP commit
-- [ ] `D-074` atomic close
+- [x] **Runbook written, locked, IMPLEMENTED and CLOSED (J-770) — floor 1629 → 1641 / 0 / 62 × 56 SUITES**
+- [x] **`W-1` … `W-9` re-driven by Chat from `HEAD`; `W-7` RETIRED as unwritable and substituted (runbook §9a)**
+- [x] **`V-4` DISCHARGED** — the gate E-1 could not close
+- [x] **`roadmap-format-gate.ps1` exit 0**
+- [x] **`D-074` atomic close**
 
 📌 **"Commit pushed" is not a DoD item.**

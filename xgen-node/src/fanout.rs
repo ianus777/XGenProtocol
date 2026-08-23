@@ -17,7 +17,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
 
 use tokio::sync::{mpsc, Mutex};
-use crate::node::runtime::NodeRuntime;
+use crate::node::runtime::{topological_sort, NodeRuntime};
 use crate::space::state::SpaceState;
 use crate::wire::types::{Event, EventType};
 use xgen_common::aicontrol::{matches, Filter};
@@ -282,15 +282,23 @@ pub async fn apply_fanout(
         // (the `nodes` filter dimension the pure `matches` can't see). Cheap;
         // consumed only by the observer loop below.
         let event_nodes = derive_event_nodes(&event, space);
-        let history = if req.new_joiner.is_some() {
+        let history = if let Some(joiner) = req.new_joiner.as_ref() {
             rt.stores.get(&space_id).map(|store| {
                 // SE-D6: trait `range(0)` (all events, append order) replaces
                 // the inherent `values()`; sorted below, so order in is fine.
                 let all: Vec<Event> = store.range(0).unwrap_or_default();
+                // `D-154`④ (E2-2) — the presence-interval filter. Computed
+                // BEFORE the delivery sort: the SET comes from core's fold
+                // order, the ORDER stays `topological_sort_events`'. For a
+                // first-time joiner this is the whole log ⇒ byte-identical
+                // payload, which is the property that keeps E-2 from being a
+                // regression.
+                let permitted = permitted_event_ids(&all, joiner);
                 let sorted = topological_sort_events(all);
                 sorted
                     .into_iter()
                     .filter(|e| e.event_id != event_id)
+                    .filter(|e| e.event_id.as_ref().is_some_and(|id| permitted.contains(id)))
                     .collect()
             })
         } else {
@@ -492,6 +500,12 @@ pub async fn collect_sync_history(
     let rt = runtime.lock().await;
     // Build the candidate sequence (all member-Space events in whole-batch order).
     let mut candidate: Vec<Event> = Vec::new();
+    // `E2-3` — the SAME whole-batch order before the clause-④ filter, plus the
+    // union of what she may receive. Kept for exactly one purpose: resolving a
+    // `since` cursor the filter has removed (the fallback below). Nothing else
+    // reads them.
+    let mut unfiltered_order: Vec<EventXgid> = Vec::new();
+    let mut permitted_all: HashSet<EventXgid> = HashSet::new();
     for (space_id, space) in &rt.spaces {
         if !space.is_member(requester_id.as_str()) {
             continue;
@@ -499,7 +513,30 @@ pub async fn collect_sync_history(
         if let Some(store) = rt.stores.get(space_id) {
             // SE-D6: trait `range(0)` replaces inherent `values()` (sorted below).
             let all: Vec<Event> = store.range(0).unwrap_or_default();
-            candidate.extend(topological_sort_events(all));
+            // `D-154`④ (E2-3) — the presence-interval filter, PER SPACE, inside
+            // the loop. `is_member` above is the PRESENT-TENSE accessor Leg E-1
+            // gated, so a REJOINER passes it — gating it correctly is exactly
+            // what makes this door reachable by the person clause ④ bounds
+            // (Leg E-2 Phase-0 §3). Applied per Space here rather than after
+            // pagination, so `continue_from` is always computed over events she
+            // may actually receive — filtering a page after the limit was taken
+            // would return short pages and a cursor into the wrong sequence.
+            // ⚠️ The `since` lookup below therefore runs over the FILTERED list,
+            // which is what makes the fallback there necessary; the reasoning is
+            // at that site.
+            let permitted = permitted_event_ids(&all, requester_id);
+            for e in topological_sort_events(all) {
+                // An id-less event cannot come out of a store — `EventStore::
+                // insert` refuses `MissingEventId` — so this skip is unreachable
+                // and is here to keep the cursor arithmetic below exact rather
+                // than to change any behaviour.
+                let Some(id) = e.event_id.clone() else { continue };
+                unfiltered_order.push(id.clone());
+                if permitted.contains(&id) {
+                    permitted_all.insert(id);
+                    candidate.push(e);
+                }
+            }
         }
     }
     drop(rt);
@@ -513,7 +550,36 @@ pub async fn collect_sync_history(
             .position(|e| e.event_id.as_ref().map(|x| x.as_str()) == Some(since))
         {
             Some(i) => i + 1,
-            None => return (Vec::new(), None),
+            None => {
+                // `E2-6`.7 — the cursor is not in her FILTERED list. Before
+                // clause ④ every member-Space event was, so a miss meant a
+                // genuinely unknown cursor and `(vec![], None)` was truthful.
+                // The filter can now remove a cursor that resolves perfectly
+                // well, and an empty page with no `continue_from` is
+                // byte-identical to *caught up* — `collect_sync_history_
+                // empty_when_caught_up` pins exactly that shape — so the client
+                // would silently believe it had everything (`D-065`).
+                //
+                // 🛑 **DEVIATION FROM `E2-3`'s STATED MECHANISM, REPORTED AND
+                // NOT ABSORBED (Rule 6).** `E2-3` prescribes filter-then-cursor
+                // and says that ordering *avoids* this; measured, that ordering
+                // PRODUCES it, and `E2-6`.7 forbids it. Resolving the cursor in
+                // the unfiltered order and resuming at the first permitted event
+                // after it satisfies both. A cursor unknown in BOTH orders keeps
+                // today's refusal, so an unknown cursor is still refused and only
+                // a WITHHELD one is rescued.
+                //
+                // `candidate` is the permitted subsequence of `unfiltered_order`
+                // in the same order, so the count of permitted ids at or before
+                // the cursor IS the index of the first permitted event after it.
+                match unfiltered_order.iter().position(|id| id.as_str() == since) {
+                    Some(k) => unfiltered_order[..=k]
+                        .iter()
+                        .filter(|id| permitted_all.contains(*id))
+                        .count(),
+                    None => return (Vec::new(), None),
+                }
+            }
         }
     };
     let tail = &candidate[start..];
@@ -560,6 +626,104 @@ fn is_structural_bootstrap_type(event_type: &EventType) -> bool {
             | EventType::MembershipNodeEject
             | EventType::MembershipNodeUnban
     )
+}
+
+/// `D-154`④ (Joe, 2026-08-22) — **the presence-interval filter**, as CLARIFIED
+/// 2026-08-23 (J-769): *structure is not content*.
+///
+/// Returns the set of `event_id`s `identity` may receive from this Space's log:
+/// **everything up to each of her departures, everything from each rejoin
+/// forward, and — for the periods she was absent — the membership structure but
+/// not the conversation.**
+///
+/// **Ordered by [`topological_sort`] (xgen-core), NOT by
+/// [`topological_sort_events`]** — Leg E-2 Phase-0 §4b, option (B). That is the
+/// same function `resolution::derive` folds the state with, so the boundary this
+/// walk computes agrees with `SpaceMember::left_at` **by construction rather
+/// than by coincidence**. The two sorts are different linear extensions of one
+/// DAG and are measurably NOT order-equal on a DAG with concurrency (see
+/// `two_sorts_preserve_the_event_set_and_causal_order`) — which is precisely why
+/// the SET is decided here while the ORDER stays the delivery sort's at the door.
+///
+/// **The walk, one `present` flag:**
+///
+/// - opens `present` at **index 0**, not at her first join. ④ says *everything
+///   up to her departure*, and a first-time joiner receives the whole store
+///   today ⇒ her payload must stay byte-identical.
+/// - **closes** on a departure naming her. 🛑 **Both shapes, or the walk is
+///   wrong** (`N-197`): a `membership.leave` names the departed as `sender`,
+///   while `kick` / `ban` / `node_eject` name the *actor* as sender and her in
+///   `content["target_identity"]`. A walk reading only `sender` yields a
+///   plausible, non-empty, WRONG slice — and every `leave`-based test passes.
+/// - **reopens** on a `membership.join` she sent.
+/// - while absent, [`is_structural_bootstrap_type`] ⇒ **admit**. That predicate
+///   is already the *"membership structure is the least-protected class"* set
+///   the clarification was ruled on (`D-154`④ ②), so the admitted-while-absent
+///   set and the invite-bootstrap set cannot drift apart.
+/// - her own departure and rejoin events are structural ⇒ admitted either way;
+///   no off-by-one guard is needed and none is written.
+///
+/// N leave/rejoin cycles ⇒ N+1 intervals. A single-boundary implementation is
+/// wrong by construction (Leg E Phase-0 §5d(D) was refused for that reason).
+///
+/// 🛑 **`room_id` MUST be empty on `leave` and `join`, and on `kick` — this
+/// mirrors the appliers and is NOT decoration.** `apply_leave` and `apply_kick`
+/// each return early on a room-level event without touching `left_at`
+/// (`state.rs`), so a walk that closed on a room-level leave would open a gap
+/// the fold never opened — the exact walk-disagrees-with-`left_at` failure
+/// option (B) was chosen to eliminate. `apply_ban` / `apply_node_eject` have no
+/// room-level branch, so they close regardless of `room_id`, and this matches.
+///
+/// 📌 **The set is built by SUBTRACTION, not by collecting the sort's output.**
+/// [`topological_sort`] is lossy where [`topological_sort_events`] explicitly
+/// *"guarantees the function preserves all input"*: it drops events with no
+/// `event_id` (`filter_map`) and never emits a cycle member (Kahn). Both are
+/// unreachable through a store today — `EventStore::insert` refuses a
+/// `MissingEventId`, and a hash-linked cycle is not constructible — but
+/// collecting positively from the sort would make the no-op-for-a-first-time-
+/// joiner property depend on that infeasibility argument instead of on the code.
+/// Subtracting keeps it true by construction, and fails toward *delivered as
+/// today* rather than toward *silently withheld from everyone*.
+pub(crate) fn permitted_event_ids(all: &[Event], identity: &IdentityXgid) -> HashSet<EventXgid> {
+    // Start from the whole log; remove only what falls inside an absence.
+    let mut permitted: HashSet<EventXgid> =
+        all.iter().filter_map(|e| e.event_id.clone()).collect();
+
+    let mut present = true;
+    for e in topological_sort(all.to_vec()) {
+        // Classify under the state in effect when the event arrives, then move
+        // the flag. (For the boundary events themselves the order is immaterial:
+        // they are structural and are admitted either way.)
+        if !present && !is_structural_bootstrap_type(&e.event_type) {
+            if let Some(id) = &e.event_id {
+                permitted.remove(id);
+            }
+        }
+
+        let space_level = e.room_id.as_str().is_empty();
+        let targets_her = e.content["target_identity"].as_str() == Some(identity.as_str());
+        let closes = match e.event_type {
+            // `apply_leave` / `apply_kick`: room-level returns early, no `left_at`.
+            EventType::MembershipLeave => space_level && e.sender == *identity,
+            EventType::MembershipKick => space_level && targets_her,
+            // `apply_ban` / `apply_node_eject`: no room-level branch.
+            EventType::MembershipBan | EventType::MembershipNodeEject => targets_her,
+            _ => false,
+        };
+        let reopens =
+            matches!(e.event_type, EventType::MembershipJoin) && space_level && e.sender == *identity;
+
+        // Closing an already-closed interval is a no-op, which is the boolean
+        // form of `mark_departed`'s first-wins rule (`state.rs`): a second
+        // departure never moves the boundary.
+        if closes {
+            present = false;
+        } else if reopens {
+            present = true;
+        }
+    }
+
+    permitted
 }
 
 /// M8.5-B (INV-D1/INV-D2, CP-2/CP-3) — the scoped structural invite-bootstrap
@@ -2349,5 +2513,830 @@ mod tests {
             sorted[0].event_id.cmp(&ev_clone.event_id),
             std::cmp::Ordering::Equal
         );
+    }
+
+    // ── M-SPACE-ADMISSION Leg E-2 — `D-154`④, the gap ─────────────────────
+    //
+    // `E2-6`. Per the runbook's §4 structural binding, the WALK
+    // (`permitted_event_ids`) and the DOORS (`apply_fanout`,
+    // `collect_sync_history`) are barred from sharing a test: a filter proven
+    // only at a door cannot show the walk is right, and a walk proven only in
+    // isolation cannot show the door calls it. The kick control below belongs
+    // to the walk; the sync-history tests belong to door ②.
+
+    /// Which shape ends carol's membership in the fixture. `leave` names the
+    /// departed as `sender`; `kick` names the *actor* as sender and carol in
+    /// `content["target_identity"]` — `N-197`'s whole subject.
+    #[derive(Clone, Copy, PartialEq)]
+    enum Departure {
+        Leave,
+        Kick,
+    }
+
+    /// A Space carrying one completed absence for carol.
+    struct GapFixture {
+        rt: NodeRuntime,
+        space_id: String,
+        room_id: String,
+        alice: ed25519_dalek::SigningKey,
+        carol: ed25519_dalek::SigningKey,
+        alice_id: String,
+        carol_id: String,
+        pre_msg: String,
+        gap_msg: String,
+        post_msg: String,
+        bob_join: String,
+        departure: String,
+        rejoin: String,
+    }
+
+    /// Chain `ev` off the Space's running DAG tip, sign it, ingest it, return
+    /// its id. **`ingest_event` skips validation, but an unchained non-root
+    /// membership event resolves as concurrent and is silently dropped** — the
+    /// `setup_three_member_space` fixture says so at length, and E-1's
+    /// `fanout_excludes_a_departed_member` chains for the same reason.
+    fn chain_ingest(
+        rt: &mut NodeRuntime,
+        sx: &SpaceXgid,
+        mut ev: Event,
+        key: &ed25519_dalek::SigningKey,
+    ) -> String {
+        let tip = rt.dag_tips(sx)[0].clone();
+        ev.prev_events = vec![edx(&tip)];
+        let ev = sign_event(ev, key);
+        let id = event_id_str(&ev);
+        rt.ingest_event(ev);
+        id
+    }
+
+    /// The Leg E-2 fixture:
+    ///
+    /// ```text
+    ///   space_create → room_create → invite(carol) → join(carol)
+    ///   → "pre"                 alice speaks while carol is PRESENT
+    ///   → leave|kick(carol)     the boundary
+    ///   → invite(bob) → join(bob)   STRUCTURE during the gap
+    ///   → "gap"                 CONTENT during the gap
+    ///   → join(carol)           the rejoin (no invite — `D-154`①)
+    ///   → "post"                alice speaks while carol is PRESENT again
+    /// ```
+    fn setup_gap_space(departure: Departure) -> GapFixture {
+        let node_key = keypair::generate();
+        let mut rt = NodeRuntime::new(node_key);
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let carol = keypair::generate();
+        let alice_id = pubkey_uri(&alice);
+        let bob_id = pubkey_uri(&bob);
+        let carol_id = pubkey_uri(&carol);
+        rt.register_identity(make_identity_record(&alice_id)).unwrap();
+        rt.register_identity(make_identity_record(&bob_id)).unwrap();
+        rt.register_identity(make_identity_record(&carol_id)).unwrap();
+
+        let space_ev =
+            sign_event(build_space_create_event(&alice, "Gap", None, 1, HOME, None, false), &alice);
+        let space_id: String = event_id_str(&space_ev);
+        rt.ingest_event(space_ev);
+        let sx = sdx(&space_id);
+
+        let room_ev =
+            sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
+        let room_id: String = event_id_str(&room_ev);
+        rt.ingest_event(room_ev);
+
+        // Carol is invited and joins.
+        chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                json!({ "target_identity": carol_id, "role": "member" }),
+            ),
+            &alice,
+        );
+        chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(&carol, &space_id, "", EventType::MembershipJoin, json!({})),
+            &carol,
+        );
+
+        // Alice speaks while carol is present.
+        let pre_msg = chain_ingest(
+            &mut rt,
+            &sx,
+            build_message_text_event(&alice, &space_id, &room_id, vec![], "pre"),
+            &alice,
+        );
+
+        // Carol departs — by her own hand, or at alice's.
+        let departure_id = match departure {
+            Departure::Leave => chain_ingest(
+                &mut rt,
+                &sx,
+                build_membership_event(&carol, &space_id, "", EventType::MembershipLeave, json!({})),
+                &carol,
+            ),
+            Departure::Kick => chain_ingest(
+                &mut rt,
+                &sx,
+                build_membership_event(
+                    &alice,
+                    &space_id,
+                    "",
+                    EventType::MembershipKick,
+                    json!({ "target_identity": carol_id }),
+                ),
+                &alice,
+            ),
+        };
+
+        // Structure during the gap: bob is invited and joins.
+        chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                json!({ "target_identity": bob_id, "role": "member" }),
+            ),
+            &alice,
+        );
+        let bob_join = chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
+            &bob,
+        );
+
+        // Content during the gap.
+        let gap_msg = chain_ingest(
+            &mut rt,
+            &sx,
+            build_message_text_event(&alice, &space_id, &room_id, vec![], "gap"),
+            &alice,
+        );
+
+        // Carol rejoins. `D-154`① — no invite is required and none is issued.
+        let rejoin = chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(&carol, &space_id, "", EventType::MembershipJoin, json!({})),
+            &carol,
+        );
+
+        // Content after the rejoin.
+        let post_msg = chain_ingest(
+            &mut rt,
+            &sx,
+            build_message_text_event(&alice, &space_id, &room_id, vec![], "post"),
+            &alice,
+        );
+
+        GapFixture {
+            rt,
+            space_id,
+            room_id,
+            alice,
+            carol,
+            alice_id,
+            carol_id,
+            pre_msg,
+            gap_msg,
+            post_msg,
+            bob_join,
+            departure: departure_id,
+            rejoin,
+        }
+    }
+
+    /// All events currently in the Space's store.
+    fn store_events(rt: &NodeRuntime, space_id: &str) -> Vec<Event> {
+        rt.stores
+            .get(&sdx(space_id))
+            .expect("store")
+            .range(0)
+            .unwrap_or_default()
+    }
+
+    /// Drain a receiver and return the first `HistoryBatch` it carries.
+    fn take_history(rx: &mut mpsc::Receiver<OutboundMsg>) -> Vec<Event> {
+        while let Ok(msg) = rx.try_recv() {
+            if let OutboundMsg::HistoryBatch { events } = msg {
+                return events;
+            }
+        }
+        panic!("expected a HistoryBatch");
+    }
+
+    // ── the WALK (`E2-1`) ──────────────────────────────────────────────────
+
+    /// `E2-6`.5 — **THE KICK CONTROL, and it belongs to the WALK** (runbook §4).
+    ///
+    /// 🛑 `N-197`: a walk reading only `event.sender` classifies a `leave`
+    /// correctly and a `kick` not at all — for a kicked, banned or ejected
+    /// member it produces a plausible, non-empty, WRONG slice, and every
+    /// `leave`-based test still passes. This asserts the kick shape at the walk
+    /// directly, so `W-3c` (disarm the walk to read only `sender`) turns THIS
+    /// red while leaving the `leave`-based door test green. **That exact split
+    /// is the proof; if both go red the control is not isolating what it claims.**
+    #[test]
+    fn walk_closes_the_gap_when_the_departure_is_a_kick_not_a_leave() {
+        let f = setup_gap_space(Departure::Kick);
+        let all = store_events(&f.rt, &f.space_id);
+        let permitted = permitted_event_ids(&all, &idx(&f.carol_id));
+
+        assert!(
+            !permitted.contains(&edx(&f.gap_msg)),
+            "N-197: a KICKED member's gap must be closed — a walk reading only \
+             `event.sender` never sees this departure and admits the gap"
+        );
+        assert!(permitted.contains(&edx(&f.pre_msg)), "pre-departure content is hers");
+        assert!(permitted.contains(&edx(&f.post_msg)), "post-rejoin content is hers");
+        assert!(
+            permitted.contains(&edx(&f.bob_join)),
+            "D-154 clause 4 as clarified: STRUCTURE inside the gap still passes"
+        );
+    }
+
+    /// `E2-6`.4 — **two cycles, two gaps.** N leave/rejoin cycles yield N+1
+    /// intervals; a single-boundary implementation is wrong by construction
+    /// (Leg E Phase-0 §5d(D)), and only a second cycle can show it.
+    #[test]
+    fn walk_closes_both_gaps_across_two_leave_rejoin_cycles() {
+        let f = setup_gap_space(Departure::Leave);
+        let mut rt = f.rt;
+        let sx = sdx(&f.space_id);
+
+        // Second cycle: leave, gap content, rejoin, post content.
+        chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(&f.carol, &f.space_id, "", EventType::MembershipLeave, json!({})),
+            &f.carol,
+        );
+        let gap2 = chain_ingest(
+            &mut rt,
+            &sx,
+            build_message_text_event(&f.alice, &f.space_id, &f.room_id, vec![], "gap2"),
+            &f.alice,
+        );
+        chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(&f.carol, &f.space_id, "", EventType::MembershipJoin, json!({})),
+            &f.carol,
+        );
+        let post2 = chain_ingest(
+            &mut rt,
+            &sx,
+            build_message_text_event(&f.alice, &f.space_id, &f.room_id, vec![], "post2"),
+            &f.alice,
+        );
+
+        let all = store_events(&rt, &f.space_id);
+        let permitted = permitted_event_ids(&all, &idx(&f.carol_id));
+
+        assert!(!permitted.contains(&edx(&f.gap_msg)), "first gap closed");
+        assert!(!permitted.contains(&edx(&gap2)), "SECOND gap closed");
+        assert!(permitted.contains(&edx(&f.pre_msg)), "before the first departure");
+        assert!(
+            permitted.contains(&edx(&f.post_msg)),
+            "between the two absences she was present — that interval is hers"
+        );
+        assert!(permitted.contains(&edx(&post2)), "after the second rejoin");
+    }
+
+    /// **Chat's addition beyond the specified nine, and it is REPORTED as one
+    /// (Rule 6).** The runbook's §3 close conditions attach *"`room_id` is
+    /// empty"* to the REOPEN and not to the closes. Measured against the
+    /// appliers: `apply_leave` and `apply_kick` each **return early on a
+    /// room-level event without touching `left_at`** (`state.rs`), so a walk
+    /// that closed on a room-level leave would open a gap the fold never
+    /// opened — the exact walk-disagrees-with-`left_at` failure Phase-0 §4b
+    /// chose option (B) to eliminate. `apply_ban` / `apply_node_eject` have no
+    /// room-level branch and so close regardless; the walk matches both.
+    ///
+    /// Without this test the correct condition is one "simplification" away
+    /// from a green suite — `F-3`'s species from Leg E-1.
+    #[test]
+    fn walk_ignores_a_room_level_leave_because_the_applier_does() {
+        let node_key = keypair::generate();
+        let mut rt = NodeRuntime::new(node_key);
+        let alice = keypair::generate();
+        let carol = keypair::generate();
+        let alice_id = pubkey_uri(&alice);
+        let carol_id = pubkey_uri(&carol);
+        rt.register_identity(make_identity_record(&alice_id)).unwrap();
+        rt.register_identity(make_identity_record(&carol_id)).unwrap();
+
+        let space_ev =
+            sign_event(build_space_create_event(&alice, "RL", None, 1, HOME, None, false), &alice);
+        let space_id: String = event_id_str(&space_ev);
+        rt.ingest_event(space_ev);
+        let sx = sdx(&space_id);
+        let room_ev =
+            sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
+        let room_id: String = event_id_str(&room_ev);
+        rt.ingest_event(room_ev);
+
+        chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                json!({ "target_identity": carol_id, "role": "member" }),
+            ),
+            &alice,
+        );
+        chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(&carol, &space_id, "", EventType::MembershipJoin, json!({})),
+            &carol,
+        );
+        // A ROOM-level leave: room_id is NON-empty.
+        chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(
+                &carol,
+                &space_id,
+                &room_id,
+                EventType::MembershipLeave,
+                json!({}),
+            ),
+            &carol,
+        );
+        let after = chain_ingest(
+            &mut rt,
+            &sx,
+            build_message_text_event(&alice, &space_id, &room_id, vec![], "after"),
+            &alice,
+        );
+
+        // The fold agrees: she never left the Space.
+        assert!(
+            rt.spaces[&sx].is_member(&carol_id),
+            "precondition — a room-level leave must not mark her departed"
+        );
+
+        let all = store_events(&rt, &space_id);
+        let permitted = permitted_event_ids(&all, &idx(&carol_id));
+        assert!(
+            permitted.contains(&edx(&after)),
+            "a room-level leave must not open a Space-level gap — the walk must \
+             match apply_leave's early return"
+        );
+        assert_eq!(
+            permitted.len(),
+            all.len(),
+            "nothing at all is withheld from a member who never left the Space"
+        );
+    }
+
+    /// `E2-6`.8 — **SUBSTITUTED, AND THE SUBSTITUTION IS THE FINDING (Rule 6).**
+    ///
+    /// The runbook specifies *"`topological_sort` and `topological_sort_events`
+    /// **agree** on a fixture DAG with concurrency."* 🛑 **Measured: they do
+    /// not.** On roots `{a, z}` with `a → b` and `b` sorting before `z`,
+    /// `topological_sort_events` yields `[a, b, z]` while `topological_sort`
+    /// yields `[a, z, b]`; on a diamond plus an independent chain, `[a,b,c,d,m,n]`
+    /// against `[a,m,b,c,n,d]`. **Both are valid topological orders** — the
+    /// delivery sort re-sorts the whole remaining set each round and emits every
+    /// ready event (depth-favouring), while core's is Kahn with a FIFO queue
+    /// (breadth-favouring). An order-equality assertion is therefore not
+    /// writable, and could be made true only by unifying them — Phase-0 §4(C),
+    /// explicitly out of scope for this leg.
+    ///
+    /// ✅ **The divergence does not touch clause 4's correctness, and that is
+    /// exactly what option (B) bought:** the SET is decided by core's order —
+    /// the same order the fold used to compute `left_at` — and the delivery
+    /// ORDER is left to the delivery sort. Two functions, two jobs, neither
+    /// asked to do the other's.
+    ///
+    /// 🔒 **So this pins what E-2 actually depends on, which order-equality
+    /// never did:** both sorts return the **same SET** (core's is lossy where
+    /// the delivery sort explicitly preserves all input — `filter_map` on
+    /// `event_id`, and Kahn never emits a cycle member) and both emit every
+    /// in-set predecessor before its successor. **If core's sort ever starts
+    /// losing events this goes red** — and that is the drift that would
+    /// silently withhold events from everyone.
+    #[test]
+    fn two_sorts_preserve_the_event_set_and_causal_order() {
+        use std::collections::HashSet as StdHashSet;
+
+        // Concurrency at every shape that matters: two roots, a fork, a
+        // diamond join, and an independent chain.
+        let evs = vec![
+            mk_event("a", &[]),
+            mk_event("m", &[]),
+            mk_event("b", &["a"]),
+            mk_event("c", &["a"]),
+            mk_event("d", &["b", "c"]),
+            mk_event("n", &["m"]),
+        ];
+
+        let via_events = topological_sort_events(evs.clone());
+        let via_core = topological_sort(evs.clone());
+
+        let set_in: StdHashSet<String> =
+            evs.iter().map(|e| e.event_id.as_ref().unwrap().as_str().to_string()).collect();
+        let set_events: StdHashSet<String> =
+            via_events.iter().map(|e| e.event_id.as_ref().unwrap().as_str().to_string()).collect();
+        let set_core: StdHashSet<String> =
+            via_core.iter().map(|e| e.event_id.as_ref().unwrap().as_str().to_string()).collect();
+
+        assert_eq!(set_events, set_in, "the delivery sort must preserve all input");
+        assert_eq!(
+            set_core, set_in,
+            "core's sort must preserve all input — E2-1 derives the permitted SET \
+             from this walk, so an event lost here is an event withheld from everyone"
+        );
+
+        // Both orders must be causally valid.
+        for (label, sorted) in [("events", &via_events), ("core", &via_core)] {
+            let mut seen: StdHashSet<String> = StdHashSet::new();
+            for e in sorted.iter() {
+                for p in &e.prev_events {
+                    if set_in.contains(p.as_str()) {
+                        assert!(
+                            seen.contains(p.as_str()),
+                            "{}: {} emitted before its predecessor {}",
+                            label,
+                            e.event_id.as_ref().unwrap().as_str(),
+                            p.as_str()
+                        );
+                    }
+                }
+                seen.insert(e.event_id.as_ref().unwrap().as_str().to_string());
+            }
+        }
+    }
+
+    // ── DOOR ① — the joiner push (`E2-2`) ──────────────────────────────────
+
+    /// `E2-6`.1 / `W-4` — **NO-OP FOR A FIRST-TIME JOINER, asserted
+    /// BYTE-IDENTICALLY rather than by a count.** This is the property that
+    /// keeps E-2 from being a regression: a joiner with no departures has one
+    /// interval covering the whole log, so her payload must be exactly what it
+    /// was before the filter existed.
+    ///
+    /// 🛑 **THE FIXTURE IS LOAD-BEARING AND THE FIRST ONE CHOSEN WAS NOT.**
+    /// Written first against `setup_three_member_space`, this test PASSED under
+    /// `W-3d` (open the first interval at her first join instead of at index 0)
+    /// — because that fixture holds **only structural events**, every one of
+    /// which the structural clause re-admits, so the disarm was invisible to it.
+    /// It passed for a reason unrelated to what it claims: `F-3`'s species from
+    /// Leg E-1. **Bob is the subject here instead** — he joins during carol's
+    /// absence and never departs, and `pre_msg` is real CONTENT sitting before
+    /// his join, so `W-3d` can actually bite. The precondition below is what
+    /// stops the fixture silently degrading back.
+    #[tokio::test]
+    async fn first_time_joiner_history_is_byte_identical_to_the_unfiltered_push() {
+        let f = setup_gap_space(Departure::Leave);
+        let all = store_events(&f.rt, &f.space_id);
+        let bob_join_id = edx(&f.bob_join);
+
+        // What door 1 served BEFORE the filter existed: the whole store in
+        // delivery order, minus the triggering event.
+        let expected: Vec<String> = topological_sort_events(all.clone())
+            .into_iter()
+            .filter(|e| e.event_id.as_ref() != Some(&bob_join_id))
+            .map(|e| event_id_str(&e))
+            .collect();
+        assert!(
+            expected.contains(&f.pre_msg),
+            "precondition — the payload must contain NON-STRUCTURAL content from              before this joiner's join, or W-3d cannot turn this test red"
+        );
+
+        let bob_join_ev = all
+            .into_iter()
+            .find(|e| e.event_id.as_ref() == Some(&bob_join_id))
+            .expect("bob's join event");
+        let bob_id = bob_join_ev.sender.clone();
+
+        let runtime = Arc::new(Mutex::new(f.rt));
+        let senders: ClientSenders = Arc::new(Mutex::new(HashMap::new()));
+        let (tx_a, _rx_a) = mpsc::channel::<OutboundMsg>(64);
+        let (tx_b, mut rx_b) = mpsc::channel::<OutboundMsg>(64);
+        senders.lock().await.insert(idx(&f.alice_id), vec![(ConnId::mint(), tx_a)]);
+        senders.lock().await.insert(bob_id.clone(), vec![(ConnId::mint(), tx_b)]);
+
+        apply_fanout(
+            FanoutRequest { event: Some(bob_join_ev), new_joiner: Some(bob_id.clone()) },
+            &bob_id,
+            &runtime,
+            &senders,
+        )
+        .await;
+
+        let got: Vec<String> = take_history(&mut rx_b).iter().map(event_id_str).collect();
+        assert_eq!(
+            got, expected,
+            "W-4: a first-time joiner's push must be byte-identical to the              unfiltered payload — same events, same order"
+        );
+        assert!(!got.is_empty(), "positive control: the push is not trivially empty");
+    }
+
+    /// `E2-6`.2 — **the leg's subject.** A returning member does NOT receive the
+    /// conversation held while she was away. `W-3a` (drop the filter at door ①)
+    /// turns this red; `W-3c` (walk reads only `sender`) must leave it GREEN,
+    /// because this fixture's departure is a `leave`.
+    #[tokio::test]
+    async fn rejoiner_push_withholds_the_gap_conversation() {
+        let f = setup_gap_space(Departure::Leave);
+        let sx = sdx(&f.space_id);
+        let rejoin_ev = store_events(&f.rt, &f.space_id)
+            .into_iter()
+            .find(|e| e.event_id.as_ref() == Some(&edx(&f.rejoin)))
+            .expect("the rejoin event");
+
+        // Precondition: she is present again, so door ① is genuinely reachable.
+        assert!(f.rt.spaces[&sx].is_member(&f.carol_id), "she rejoined");
+
+        let runtime = Arc::new(Mutex::new(f.rt));
+        let senders: ClientSenders = Arc::new(Mutex::new(HashMap::new()));
+        let (tx_a, _rx_a) = mpsc::channel::<OutboundMsg>(64);
+        let (tx_c, mut rx_c) = mpsc::channel::<OutboundMsg>(64);
+        senders.lock().await.insert(idx(&f.alice_id), vec![(ConnId::mint(), tx_a)]);
+        senders.lock().await.insert(idx(&f.carol_id), vec![(ConnId::mint(), tx_c)]);
+
+        let carol_typed = idx(&f.carol_id);
+        apply_fanout(
+            FanoutRequest { event: Some(rejoin_ev), new_joiner: Some(carol_typed.clone()) },
+            &carol_typed,
+            &runtime,
+            &senders,
+        )
+        .await;
+
+        let got: Vec<String> = take_history(&mut rx_c).iter().map(event_id_str).collect();
+        assert!(
+            got.contains(&f.pre_msg),
+            "positive control: she still receives what was said while she was here"
+        );
+        assert!(
+            !got.contains(&f.gap_msg),
+            "D-154 clause 4: the conversation held during her absence is withheld"
+        );
+        assert!(
+            got.contains(&f.post_msg),
+            "and everything from the rejoin forward is hers"
+        );
+    }
+
+    /// `E2-6`.3 — **structure passes.** `D-154`④ as clarified 2026-08-23: the
+    /// gap is closed to CONTENT and open to MEMBERSHIP STRUCTURE. She learns
+    /// that bob joined while she was away; she does not learn what he said.
+    /// `W-3e` (admit nothing while absent) turns this red and leaves
+    /// `E2-6`.2 green.
+    #[tokio::test]
+    async fn rejoiner_push_still_carries_the_gap_membership_structure() {
+        let f = setup_gap_space(Departure::Leave);
+        let rejoin_ev = store_events(&f.rt, &f.space_id)
+            .into_iter()
+            .find(|e| e.event_id.as_ref() == Some(&edx(&f.rejoin)))
+            .expect("the rejoin event");
+
+        let runtime = Arc::new(Mutex::new(f.rt));
+        let senders: ClientSenders = Arc::new(Mutex::new(HashMap::new()));
+        let (tx_c, mut rx_c) = mpsc::channel::<OutboundMsg>(64);
+        senders.lock().await.insert(idx(&f.carol_id), vec![(ConnId::mint(), tx_c)]);
+
+        let carol_typed = idx(&f.carol_id);
+        apply_fanout(
+            FanoutRequest { event: Some(rejoin_ev), new_joiner: Some(carol_typed.clone()) },
+            &carol_typed,
+            &runtime,
+            &senders,
+        )
+        .await;
+
+        let got: Vec<String> = take_history(&mut rx_c).iter().map(event_id_str).collect();
+        assert!(
+            got.contains(&f.bob_join),
+            "structure is not content — she receives bob's join from the gap"
+        );
+        assert!(
+            got.contains(&f.departure),
+            "and her own departure event, which is structural too"
+        );
+        assert!(
+            !got.contains(&f.gap_msg),
+            "while the conversation from the same window stays withheld"
+        );
+    }
+
+    // ── DOOR ② — collect_sync_history (`E2-3`) ─────────────────────────────
+
+    /// `E2-6`.6 / `E2-5`.2 (`C-5b`) — **the door the Phase-0 found.**
+    /// `collect_sync_history`'s gate is `space.is_member(requester)`, the
+    /// PRESENT-TENSE accessor Leg E-1 gated — so a rejoiner passes it and, before
+    /// this leg, was served the entire store. `C-5b` was filed as *"self-closes
+    /// under (i)"*: true for a DEPARTED member and false for a RETURNED one,
+    /// which is why this test exists. `W-3b` (drop the filter at door ②) turns
+    /// it red on its own — door ①'s tests stay green.
+    #[tokio::test]
+    async fn sync_history_withholds_the_gap_for_a_returned_member() {
+        let f = setup_gap_space(Departure::Leave);
+        let sx = sdx(&f.space_id);
+        assert!(
+            f.rt.spaces[&sx].is_member(&f.carol_id),
+            "precondition — she passes the member gate, which is the point"
+        );
+
+        let runtime = Arc::new(Mutex::new(f.rt));
+        let (page, _cursor) =
+            collect_sync_history(&runtime, &idx(&f.carol_id), "", 1000).await;
+        let ids: Vec<String> = page.iter().map(event_id_str).collect();
+
+        assert!(ids.contains(&f.pre_msg), "positive control: pre-departure content is served");
+        assert!(
+            !ids.contains(&f.gap_msg),
+            "D-154 clause 4 at door 2 — the pull is filtered exactly as the push is"
+        );
+        assert!(ids.contains(&f.post_msg), "post-rejoin content is served");
+        assert!(ids.contains(&f.bob_join), "gap STRUCTURE still passes here too");
+    }
+
+    /// `E2-6`.9 — **the positive control that stops every probe here answering
+    /// "withheld" for everyone.** Alice never departed; both doors must serve
+    /// her the complete log, gap events included.
+    #[tokio::test]
+    async fn a_never_departed_member_is_unaffected_at_both_doors() {
+        let f = setup_gap_space(Departure::Leave);
+        let all_ids: Vec<String> = store_events(&f.rt, &f.space_id).iter().map(event_id_str).collect();
+
+        // The walk, directly.
+        let all = store_events(&f.rt, &f.space_id);
+        let permitted = permitted_event_ids(&all, &idx(&f.alice_id));
+        assert_eq!(
+            permitted.len(),
+            all.len(),
+            "the walk withholds nothing from someone who never left"
+        );
+
+        // Door 2.
+        let runtime = Arc::new(Mutex::new(f.rt));
+        let (page, _cursor) =
+            collect_sync_history(&runtime, &idx(&f.alice_id), "", 1000).await;
+        let got: Vec<String> = page.iter().map(event_id_str).collect();
+        assert_eq!(got.len(), all_ids.len(), "door 2 serves alice the complete log");
+        assert!(
+            got.contains(&f.gap_msg),
+            "including the events carol may not see — otherwise this suite would \
+             pass with a filter that withholds from everybody"
+        );
+    }
+
+    /// `E2-6`.7 — **a cursor pointing at an event INSIDE a gap must not produce
+    /// a silent empty sync.**
+    ///
+    /// 🛑 **Why this can bite at all, and why it is E-2's to answer:** before
+    /// clause ④ every event of a member-Space was in the requester's candidate
+    /// list, so a `position()` miss meant a genuinely unknown cursor and
+    /// `(vec![], None)` was truthful. **The filter can now remove a cursor that
+    /// resolves perfectly well** — and an empty page with no `continue_from` is
+    /// byte-identical to "caught up" (`collect_sync_history_empty_when_caught_up`
+    /// asserts exactly that shape). A client would silently believe it had
+    /// everything. `D-065`: honest over polite.
+    #[tokio::test]
+    async fn sync_history_cursor_inside_a_gap_does_not_silently_empty() {
+        let f = setup_gap_space(Departure::Leave);
+        let runtime = Arc::new(Mutex::new(f.rt));
+
+        // The cursor names an event she may not receive.
+        let (page, _cursor) =
+            collect_sync_history(&runtime, &idx(&f.carol_id), &f.gap_msg, 1000).await;
+        let ids: Vec<String> = page.iter().map(event_id_str).collect();
+
+        assert!(
+            !page.is_empty(),
+            "a cursor inside a gap must resume, not return an empty page that is \
+             indistinguishable from being caught up"
+        );
+        assert!(
+            ids.contains(&f.post_msg),
+            "resumption continues at the first permitted event after the cursor"
+        );
+        assert!(
+            !ids.contains(&f.gap_msg) && !ids.contains(&f.pre_msg),
+            "and it does not rewind, nor un-withhold the gap"
+        );
+    }
+
+    /// `E2-6`.7's realistic sibling — **the cursor a returning client actually
+    /// holds.** She synced up to her last pre-departure event, then left. On
+    /// rejoin her client sends that id as `since`. It is permitted, so it
+    /// resolves in the filtered list directly, and what follows is the
+    /// post-rejoin conversation with the gap removed.
+    #[tokio::test]
+    async fn sync_history_resumes_from_a_pre_departure_cursor_skipping_the_gap() {
+        let f = setup_gap_space(Departure::Leave);
+        let runtime = Arc::new(Mutex::new(f.rt));
+
+        let (page, _cursor) =
+            collect_sync_history(&runtime, &idx(&f.carol_id), &f.pre_msg, 1000).await;
+        let ids: Vec<String> = page.iter().map(event_id_str).collect();
+
+        assert!(!ids.contains(&f.pre_msg), "the cursor event itself is not re-sent");
+        assert!(!ids.contains(&f.gap_msg), "the gap stays closed across a resume");
+        assert!(ids.contains(&f.post_msg), "and she catches up on what came after");
+        assert!(
+            ids.contains(&f.bob_join),
+            "structure from the gap still reaches her on this path too"
+        );
+    }
+
+    /// `E2-5`.1 (`C-3`) — **`V-4`'s first half, inherited from Leg E-1 and
+    /// discharged here by MEASUREMENT rather than by reading.**
+    ///
+    /// `runtime.rs`'s new-joiner detection is `!is_member(sender)`, and
+    /// `is_member` is the present-tense accessor Leg E-1 gated. A departed
+    /// record is retained but not present ⇒ a **rejoin dispatches as
+    /// `Accepted { new_joiner: Some(_) }`**, which is what makes door ① fire for
+    /// her at all — and therefore what makes `E2-2` load-bearing rather than
+    /// decorative. Leg E-1 established this by code-reading; `V-4` exists
+    /// precisely to refuse reading.
+    #[test]
+    fn a_rejoiner_dispatches_as_a_new_joiner() {
+        use crate::node::runtime::{DispatchOutcome, EventOrigin};
+
+        let node_key = keypair::generate();
+        let mut rt = NodeRuntime::new(node_key);
+        let alice = keypair::generate();
+        let carol = keypair::generate();
+        let alice_id = pubkey_uri(&alice);
+        let carol_id = pubkey_uri(&carol);
+        rt.register_identity(make_identity_record(&alice_id)).unwrap();
+        rt.register_identity(make_identity_record(&carol_id)).unwrap();
+
+        let space_ev =
+            sign_event(build_space_create_event(&alice, "C3", None, 1, HOME, None, false), &alice);
+        let space_id: String = event_id_str(&space_ev);
+        rt.ingest_event(space_ev);
+        let sx = sdx(&space_id);
+        let room_ev =
+            sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
+        rt.ingest_event(room_ev);
+
+        chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                json!({ "target_identity": carol_id, "role": "member" }),
+            ),
+            &alice,
+        );
+        chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(&carol, &space_id, "", EventType::MembershipJoin, json!({})),
+            &carol,
+        );
+        chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(&carol, &space_id, "", EventType::MembershipLeave, json!({})),
+            &carol,
+        );
+
+        // Two-sided precondition: RETAINED, and NOT present.
+        assert!(
+            rt.spaces[&sx].members.contains_key(carol_id.as_str()),
+            "D-154 - the record survives the departure"
+        );
+        assert!(!rt.spaces[&sx].is_member(&carol_id), "and she is not present");
+
+        // Now dispatch the rejoin through the real path.
+        let tip = rt.dag_tips(&sx)[0].clone();
+        let mut rejoin =
+            build_membership_event(&carol, &space_id, "", EventType::MembershipJoin, json!({}));
+        rejoin.prev_events = vec![edx(&tip)];
+        let rejoin = sign_event(rejoin, &carol);
+
+        let outcome = rt.dispatch_event(rejoin, EventOrigin::LocallySubmitted, None);
+        match outcome {
+            DispatchOutcome::Accepted { new_joiner, .. } => assert_eq!(
+                new_joiner.as_ref().map(|i| i.as_str()),
+                Some(carol_id.as_str()),
+                "C-3: a rejoiner IS a new joiner at dispatch — this is what makes \
+                 door 1 fire for her, and therefore what E2-2 exists to filter"
+            ),
+            other => panic!("expected Accepted, got {:?}", other),
+        }
     }
 }

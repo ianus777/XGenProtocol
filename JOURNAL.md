@@ -8,6 +8,66 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-770 — Leg E-2 closes the gap, and three of the runbook's own specifications turn out to be defective — one of them a gate that could only pass by breaking the runbook's own rule
+**Date:** 2026-08-23 · **Seats:** Clair (implementation, six findings, two self-caught instrument errors) · Chat (Rule 5 re-drive, close, records) · Joe (push)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `b82f942` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean at open.
+
+🎯 **`D-154`④ IS ENFORCED: A RETURNING MEMBER NO LONGER RECEIVES THE CONVERSATION SHE MISSED.** `xgen-node/src/fanout.rs` only, **+993 / −4**, zero `ui/**`, zero `xgen-core`. `tasks/RUNBOOK_SPACE_ADMISSION_LEG_E2.md` v1.0 → **v1.1 COMPLETED** · `tasks/M_SPACE_ADMISSION_LEGE2_PHASE0.md` v1.1 → **v1.2** · ROADMAP v7.54 → **v7.55**.
+
+🔒 **FLOOR: cargo 1629 → 1641 / 0 / 62 × 56 SUITES**, sentinel 0, `Compiling xgen-node` present, `FAILED` **0** case-sensitive. 🔑 **Delta MEASURED, not arithmetic:** `--skip` on the twelve names returns **exactly `1629 / 0 / 62 × 56`** and libtest independently reports **`filtered out = 12`**. **Delivered bytes unchanged after all six controls — `fanout.rs` sha256 `507B85CD…`.** vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15** carried by scope. Catalogue **UNMEASURED**.
+
+## 🛑 `F-1` — A GATE THAT COULD ONLY PASS BY DOING WHAT THE RUNBOOK FORBIDS
+
+`E2-6`.8 / `W-7` asked for *"the two sorts agree on order."* ✅ **They provably do not, and Chat verified it BY INSPECTION rather than by probe:**
+
+**`topological_sort_events`** (`fanout.rs:413-459`) re-sorts **all remaining** events each round and emits everything ready **within that sweep** — `a` emitting makes `b` ready in the same pass ⇒ `{a,z}` with `a→b` gives **`[a, b, z]`**, *depth-favouring*. **`topological_sort`** (`runtime.rs:2367-2425`) is **Kahn with a `VecDeque`** — pop `a`, push `b` to the **back** ⇒ **`[a, z, b]`**, *breadth-favouring*. **Both valid.** Clair measured the same divergence on a diamond-plus-independent-chain.
+
+🔑 ***ORDER-EQUALITY COULD ONLY BE MADE TRUE BY UNIFYING THE TWO SORTS, WHICH §1b.3 OF THE SAME DOCUMENT FORBIDS.*** **A gate that can only pass by breaking the runbook's own rule was never a gate.** ✅ **Substituted with set-preservation + causal validity — what `E2-1` actually depends on, and what order-equality never pinned.** 🔑 ***The divergence does not touch correctness, and that is precisely what option (B) bought:*** the walk uses core's sort, so its boundary agrees with the fold's `left_at` **by construction**, while the delivery order stays the delivery sort's.
+
+## 🛑 `F-2` — THE RUNBOOK SENTENCE WAS INVERTED, AND THE PRESCRIBED ORDER PRODUCES THE DEFECT ITS OWN TEST FORBIDS
+
+`E2-3` said the cursor goes **after** the filter *"otherwise"* you get a silent empty sync. **Backwards.** Before clause ④ **every** member-Space event was in the candidate list, so a `position()` miss meant a genuinely unknown cursor and `(vec![], None)` was truthful. **The filter can now remove a cursor that resolves perfectly well** — and an empty page with no `continue_from` is **byte-identical to *caught up***. ✅ **Measured, not argued: with the prescribed order the suite ran 16 green / 1 red, and the red one was `E2-6`.7.**
+
+✅ **Unfiltered-order fallback implemented and flagged in code at the site.** ✅ **Chat verified the arithmetic:** `candidate` is the permitted subsequence of `unfiltered_order` in the same order (both pushed in one loop), so the count of permitted ids at-or-before the cursor **is** the resume index. **A cursor unknown in BOTH orders keeps today's refusal — only a WITHHELD one is rescued.** 📌 `E2-3` also points at a non-existent `E2-8.4`; the tests are `E2-6`.
+
+## 🛑 `F-3` — THE CLOSE CONDITIONS OMITTED `room_id`-EMPTY, AND THAT WOULD HAVE OPENED A GAP THE FOLD NEVER OPENED
+
+✅ **Verified against the appliers at `b82f942`:** `apply_leave` (`state.rs:1277`) and `apply_kick` (`state.rs:1314`) **each return early on a room-level event without touching `left_at`**; `apply_ban` and `apply_node_eject` have **no room branch** and close regardless. 🔑 ***A walk closing on a room-level leave would open a gap the fold never opened — the exact walk-disagrees-with-`left_at` failure option (B) exists to eliminate.*** **Implemented to match the appliers, plus one test beyond the specified nine, flagged as an addition rather than slipped in.**
+
+## 🔍 CLAIR'S OWN THREE
+
+📌 **`F-4` — her `E2-6`.1 was a test that could not fail, and only the control found it.** Written against `setup_three_member_space`, it passed under `W-3d` — **that fixture holds only structural events, so the disarm was invisible to it.** 🔑 ***E-1 `F-3`'s species one leg later, caught by its own author.*** Rebuilt on bob in `setup_gap_space`, **with a precondition assertion so the fixture cannot silently degrade back.**
+
+📌 **`F-5` — the admit set is built by SUBTRACTION.** Core's sort **`filter_map`s away id-less events** and Kahn never emits a cycle member, while the delivery sort explicitly *"guarantee[s] the function preserves all input."* Both losses are store-unreachable today, **but subtracting keeps `W-4` true BY CONSTRUCTION rather than by an infeasibility argument, and fails toward *delivered as today* rather than *silently withheld from everyone*.**
+
+📌 **`F-6` — A SPACE CREATOR EMITS NO `membership.join`.** Surfaced by `W-3d`'s blast radius: **two PRE-EXISTING pagination tests went red** because alice never reopens under `present = false`. 🔑 ***⇒ "open at index 0" is not a clause-④ nicety — it is required for an OWNER to receive anything at all.*** ✅ **Chat reproduced both reds independently.**
+
+⚠️ **One observation, carried not fixed:** a close event naming her **before her first join** closes an interval the fold never closed (`mark_departed` no-ops on an absent member). **Errs restrictive; fixing it means re-implementing the fold inside the walk.**
+
+## ✅ RULE 5 — EVERY GATE RE-DRIVEN, NOTHING ADOPTED ON REPORT
+
+**W-3a** 2 RED — 📌 *one more than the hand-back reported: the structure test also goes red, because it asserts both halves.* **W-3b** 2 RED. 🔒 **W-3c — EXACTLY ONE RED, the kick walk test, and the leave-based door tests GREEN. *The `N-197` proof, isolating exactly as the gate requires.*** **W-3d** 4 RED incl. both pre-existing pagination tests. **W-3e** 4 RED **and `rejoiner_push_withholds_the_gap_conversation` GREEN** — both halves met. **W-3f GREEN, 44 passed — RECORDED AS A MEASUREMENT, NOT FORCED RED:** every fixture chains off the single running tip, so there is no concurrency at any boundary. 🔒 `Compiling xgen-node` on **every** disarm, **all six sha256-restored**, zero stray `.bak`.
+
+**W-2:** all three doors opened individually; **③ confirmed a NON-EDIT BY READING** — `is_structural_bootstrap_type` serves exactly 3 creates + the 7-event membership chain, **precisely the set ④-as-clarified admits while absent. Intersection empty.** **W-5:** `V-4` **DISCHARGED**. **W-8:** 1 file, 9 hunks, federation delta untouched, `build_membership_event` untouched, **neither sort touched**.
+
+✅ **W-9, named as the runbook requires: essentially no existing tests moved, and that is the EXPECTED outcome, not evidence the change did not land.** Every existing history test asserts what a **PRESENT** member receives. **The closure mechanism is READING; no automated instrument could enumerate the affected set.** 🔑 ***The gate written to pre-empt E-1's §2c mistake worked.***
+
+## 🛑 TWO INSTRUMENT ERRORS, BOTH CAUGHT BY A GUARD RATHER THAN BY OUTPUT
+
+**`head -60` on the control script sent SIGPIPE and killed it mid-run, leaving `W-3e` ARMED — and the next read took a STALE `w3f.log` from the previous run as current. Caught by the sha256 check, not by the output.** Restored, re-run with file redirection.
+
+**The detached cargo log read BEFORE the sentinel: `54 suites / 1641 / 61 ignored` — plausible, complete-looking, WRONG.** 🔑 ***The task notification's "exit code 0" is the LAUNCHER'S, not cargo's; the sentinel is what separates them.*** **`N-197`'s species at the harness layer, twice in one session.**
+
+📌 **And Clair caught herself transcribing `E2-3`'s inverted reasoning into a code comment and corrected it — the J-670 shape, where a bad runbook line outlives the document that carried it.** 🔑 ***That is exactly what `D-131` annotation exists to prevent, caught at the moment of copying.***
+
+## 📋 STATE
+
+🔑 **THE ARC'S RUNNING SCORE ON ITS OWN DOCUMENTS: E-1 produced three runbook defects, E-2 produced three more.** ***Six specification defects across two legs, every one found by the implementing seat and none absorbed*** — which is Rule 6 working, and also a standing measurement of how much a Phase-0 written from grounding still gets wrong at the point of contact.
+
+▶️ **NEXT: M-SPACE-ADMISSION Leg E-3 — records, the A-bis test rename, `N-2`'s two repairs, and ch3's membership-lifecycle text. Then Leg G — `get_rejoin_anchor`, a new wire verb, Joe's seat.**
+
+---
 ## Entry J-769 — clause ④ is clarified, the two-sort fork turns out to cost nothing, and Leg E-2 is runbooked
 **Date:** 2026-08-23 · **Seats:** Joe (one ruling) · Chat (one design fork, records, runbook)
 

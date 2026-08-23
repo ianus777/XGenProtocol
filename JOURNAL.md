@@ -8,6 +8,58 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-765 — Leg E-1 is runbooked, and opening two carried citations retires one finding and shrinks the leg
+**Date:** 2026-08-23 · **Seats:** Chat (grounding, corrections, runbook, records) · Joe (one question, unruled at close)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `72262f6` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean. 🎯 **DESIGN + RECORDS. ZERO PRODUCT CODE.**
+
+`tasks/RUNBOOK_SPACE_ADMISSION_LEG_E1.md` **v1.0 PENDING** (new, deliberately NOT locked) · `tasks/M_SPACE_ADMISSION_LEGE_PHASE0.md` v1.0 → **v1.1** · ROADMAP v7.49 → **v7.50**. Floors carried by scope, zero `.rs` since `2965e08`: cargo **1623 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. Catalogue **UNMEASURED**.
+
+## 🛑 `F-E`'s CITATION IS FALSE, AND SEVEN RECORDS CARRY IT
+
+**`D-153` binds: a finding accepted from another seat is not re-driven until its citation has been opened.** `F-E` — *`build_membership_event` emits `prev_events: vec![]`, a DAG violation on the node ingest path* — was folded into `E-0` §8, `E-0` §9b, `ROADMAP:415`, J-761, J-763, `CLAUDE.md` and **the Leg E Phase-0's own v1.0 §4 and §7**, in every case as a non-blocking note. **The cited line had never been opened.**
+
+✅ **MEASURED AT `72262f6`: every PRODUCTION caller chains `prev_events` on the very next statement.** `ops.rs:933` → `:940` `= vec![room_id]` · `admin_ops.rs:4020` → `:4021` `= tips`. The one caller that does not chain — `state.rs:498`, the DM constructor's bundled auto-invite — is **DISCARDED in production**, and `ops.rs:917-919` says so **in the code**: *"The constructor's bundled auto-invite (empty `prev_events` — latent bug, `D-065`) is discarded; the invite is rebuilt tip-chained below."*
+
+🔑 **AND THE EMPTY VEC IS THE HELPER'S DOCUMENTED CONTRACT, NOT A DEFECT.** `ops.rs:1766`: *"the empty-`prev_events` `build_membership_event` helper is for root-adjacent callers, not this one."* **`join` (`ops.rs:1707`) and `leave` (`:1803`) do not use the helper at all** — they build `Event::new` with tips from `get_dag_tips`, and `:1798` states why: *"a non-root event with empty `prev_events` would fail DAG validation."*
+
+🛑 **WHAT `F-E` ACTUALLY IS: A FIXTURE-AUTHORING HAZARD.** A **test** using the helper for a non-root event without chaining hits exactly the failure that cost two runs — **and the counter-idiom already exists**, verbatim, at `space_admission_gate.rs:56` and `space_admission_mutation.rs:50`.
+
+🔑 ***`F-A`'s EXACT SHAPE ONE ARC LATER: a conclusion that is TRUE (fixtures must chain) resting on a citation that is FALSE (a production DAG violation)*** — and `D-153`'s named hardest case, the non-blocking note, because folding is cheap and the conclusion sounded right. ⇒ 🔒 **`F-E` retired from precondition to fixture rule**, written beside the existing idiom. 🛑 **AND LEG E MAY NOT "FIX" `build_membership_event`** — emitting a chain breaks the root-adjacent contract its three callers rely on. The `state.rs:498` latent bug stays exactly as the code already records it.
+
+## 🛑 `N-201` — THE `insert` `D-154` CALLS THE DEFECT IS, UNDER CLAUSE ①, THE CORRECT BEHAVIOUR
+
+`D-154`'s *Why it earned a D* reads: *`apply_join` ends at `self.members.insert(...)` and `insert` REPLACES ⇒ whatever `(g)` preserved is overwritten wholesale.* **Opening `state.rs:1173-1194`:** `:1179-1182`'s `pending_invites.remove` yields `(role, invited_by)` — **absent ⇒ `(Role::Member, None)`** — and `:1183` writes a fresh record with `joined_at = event.timestamp`.
+
+🔑 **Compare clause ①: `left_at` clears · `joined_at` re-stamped · role RE-DERIVED.** ⇒ ***with `left_at: None` added to the literal, the existing `insert` performs clause ① exactly. The replace is not the defect; it IS the ruling.***
+
+✅ **AND IT SETTLES `invited_by`, WHICH `D-154` DOES NOT NAME.** Re-deriving it alongside role is what *presence, never position* requires: **a rejoiner admitted without an invite was admitted by nobody**, and carrying the old inviter forward would assert an admission that did not happen — a fact `resolve_operator` step 2 (`state.rs:1417-1421`) reads. 📌 **`D-154` is NOT amended and needs no amendment** — all five clauses stand; what is corrected is a supporting argument in its rationale, and the correction makes the leg smaller. **Recorded rather than absorbed (`D-065`).**
+
+## 🛑 AND THE PHASE-0's OWN v1.0 SPLIT CONTRADICTED ITS OWN §3, TWO SCREENS AWAY
+
+v1.0 put the field and the writes in E-1 and the fifty readers in E-2. **§3's aggregate row quotes `E-0` §5e: *`SpaceState.members` is purely present-tense ⇒ all 50 change meaning at once.***
+
+🛑 **GROUNDED, NOT REASONED:** with `apply_leave` retaining and the accessors ungated, a departed member reads as present at fifty sites, and existing tests assert the opposite **by name** — `state.rs:3044` · `:4192` · `runtime.rs:5885` · `derive.rs:1071` · and **`resolve_operator_skips_delegate_who_left_falls_back_to_inviter` (`state.rs:4179`)**, which no accessor ruling reaches. 🔑 ***A leg boundary that leaves the codebase asserting a falsehood is not a boundary — it is a half-applied migration with a commit in the middle of it.*** **Leg D's §5/§7 species, in a document written by the seat that had just recorded the measurement it contradicted.** ⇒ **Split corrected to three: `E-1` the meaning change in one commit · `E-2` clause ④'s slice · `E-3` records.** 📌 **E-1 is large and that is the honest shape** — the size IS the measurement.
+
+## 🔒 THE BOUNDARY SHAPE, DECIDED BY CHAT (`D-123`)
+
+Clause ① **clears** `left_at`, so **one `Option<String>` cannot hold both the departure and the return**, and two leave/rejoin cycles have two gaps. Four shapes priced: **(A)** contradicts clause ① · **(B)** an absence list is the `§6.5` `former_members` GDPR shape re-minted · **(D)** a single watermark loses the middle gap by construction · ✅ **(C) DERIVE THE PRESENCE INTERVALS AT SLICE TIME FROM THE LOG ALREADY IN HAND.**
+
+🔑 ***It is the operation the whole state machine already is*** — `SpaceState` is never persisted, it is folded from the store (`runtime.rs:677/832/857`) — and `fanout.rs:277` **already materialises and topologically sorts the entire store at that exact site**, so the intervals are a filter over a `Vec` already built. ⚠️ **The convergence objection that sank `§6.5`(d)/(h) does NOT transfer: that was about a GATE, where every node must reach the identical decision. This is a DELIVERY filter a Node applies to its own store**, and its invariant is local — *no Node serves an event that falls inside a gap.* ⚠️ **Named cost:** the walk must handle **both departure shapes** — `leave` where the departed is `sender`, and `kick`/`ban`/`node_eject` where the departed is `content["target_identity"]`. **A walk reading only `sender` silently under-counts gaps for kicked members** — `N-197`'s shape, so it goes into E-2's negative controls. ✅ **Consequence: `left_at: Option<String>` is the WHOLE field addition** — the decision removes work rather than adding it.
+
+## 📌 A FACT PUT IN FRONT OF JOE'S OPEN QUESTION, NOT USED TO CLOSE IT
+
+**`apply_node_eject` ALSO BANS** — `state.rs:1277` `self.banned.insert(target)`. ⇒ ***it reaches `apply_ban`'s exact end state***, and `D-154`③ already rules that a ban retains. **Retaining for `apply_ban` and removing for `apply_node_eject` would draw a line between two paths that end identically** — Chat's strongest ground for arm (a). 🛑 **Whether `membership.node_eject` falls under ③ is a question about MEANING and stays Joe's.** The runbook carries **both arms at the site**, so the choice is visible in the document Clair reads rather than settled by whichever arm got written first.
+
+## 📋 STATE
+
+**E-1's runbook is deliberately `PENDING`, not `ACTIVE`** — it is complete and it is not lockable until §8 is ruled. 📌 **`state.rs:1265` corrected from `:1262`, which was a doc-comment line** — `N-3`'s species caught inside the file written to warn about it.
+
+🔓 **OPEN AND JOE'S: Phase-0 §8 / `E1-4`'s two arms.** 🔓 **Nothing on Chat's side.**
+
+▶️ **NEXT: Joe rules §8 and locks E-1; Clair implements from the locked runbook; Chat re-drives every gate (Rule 5).**
+
+---
 ## Entry J-764 — Leg E's Phase-0 lands, and the finding it carried as "mechanical" for two legs turns out to be the site where the ruling gets enforced
 **Date:** 2026-08-23 · **Seats:** Chat (sweep, grounding, Phase-0, records) · Joe (one question routed, unruled at close)
 

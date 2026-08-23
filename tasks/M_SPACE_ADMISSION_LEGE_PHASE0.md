@@ -1,7 +1,7 @@
 # M-SPACE-ADMISSION Leg E Phase-0 — the rejoin story: creating `left_at` and paying for every clause deferred onto it
 
 > **Status**: ACTIVE  
-> Version: 1.3  
+> Version: 1.4  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-23  
 > Language: English  
@@ -175,7 +175,7 @@ let history = if req.new_joiner.is_some() {
 
 ### §5c — WHAT THIS RE-ROUTES
 
-🔒 **`fanout.rs:262-289` IS WHERE CLAUSE ④ LIVES, AND IT IS DELIVERY, NOT ANCHORING.** Leg G's `get_rejoin_anchor` decides what a rejoin **hangs off** (`prev_events`, convergence). This decides what she is **sent**. **Two mechanisms, one clause; only the second is in Leg E.**
+🛑 **ANNOTATED AT THE SITE (`D-131`, J-768): THIS CLAIM IS TOO NARROW.** E-2's Phase-0 §3 censused the sites that SERVE history — as `E-0` censused the sites that READ membership — and found **THREE client-facing doors, not one**: `fanout.rs:285-298` (the push), **`fanout.rs:496-503` `collect_sync_history` (the pull — and a REJOINER PASSES ITS `is_member` GATE)**, and `fanout.rs:608-618` `collect_invite_bootstrap`. ⇒ ***a claim about scope was made here without a census, which is this document's second instance of that shape.*** **v1.3's text stands:** 🔒 **`fanout.rs:262-289` IS WHERE CLAUSE ④ LIVES, AND IT IS DELIVERY, NOT ANCHORING.** Leg G's `get_rejoin_anchor` decides what a rejoin **hangs off** (`prev_events`, convergence). This decides what she is **sent**. **Two mechanisms, one clause; only the second is in Leg E.**
 
 ### §5d — 🔒 THE BOUNDARY SHAPE. **DECIDED BY CHAT (`D-123`), REVERSIBLE ON ONE WORD.**
 

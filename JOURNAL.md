@@ -8,6 +8,60 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-768 — Leg E-2's Phase-0 finds that clause ④ has three doors, and that "her departure" is a position in an order this leg keeps two of
+**Date:** 2026-08-23 · **Seats:** Chat (sweep, census, Phase-0) · Joe (one question, unruled at close)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `7b7b42f` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean. 🎯 **PHASE-0 + RECORDS. ZERO PRODUCT CODE.**
+
+`tasks/M_SPACE_ADMISSION_LEGE2_PHASE0.md` **v1.0 ACTIVE** (new) · `tasks/M_SPACE_ADMISSION_LEGE_PHASE0.md` v1.3 → **v1.4** (annotated) · ROADMAP v7.52 → **v7.53**. Floors carried by scope, zero `.rs`: cargo **1629 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. Catalogue **UNMEASURED**.
+
+## 🛑 THREE DOORS, NOT ONE — AND THE CLAIM THAT SAID OTHERWISE IS MINE
+
+The Leg E Phase-0 §5c states *"`fanout.rs:262-289` IS WHERE CLAUSE ④ LIVES."* **`E-0` censused the sites that READ membership. Nobody had censused the sites that SERVE history.** Done now, `git grep store.range(0)` across the workspace, every hit classified **by who receives the bytes**:
+
+| door | serves | gate today |
+|---|---|---|
+| **①** `fanout.rs:285-298` → `:348-359` | the joining identity, **pushed** | `new_joiner.is_some()` ⇒ 🛑 `store.range(0)`, the ENTIRE store |
+| **②** `fanout.rs:496-503` `collect_sync_history` | **any identity that asks, pulled** | 🛑 **`space.is_member(requester)` — A REJOINER PASSES IT** ⇒ `:501` serves the entire store, paginated |
+| **③** `fanout.rs:608-618` `collect_invite_bootstrap` | a pending invitee | structural-only ⇒ **§7's question** |
+| ❌ `fanout.rs:662` | a peer **NODE** | out — `D-089`, clause ④ is about what a **person** reads |
+| ❌ `runtime.rs:650/830/855/2241` · `app.rs:3938/4023` · `migration_driver.rs:132/194` | **nobody** — local fold, conflict detection, migration | out, and **named so the classification is not re-derived** |
+
+🔑 ***DOOR ② IS THE FINDING, AND GATING IT CORRECTLY IS WHAT OPENS IT.*** `:496`'s `is_member` is the present-tense accessor E-1 gated — so a **rejoiner** passes. 🛑 ***E-1 made door ② reachable by the exact person clause ④ exists to bound.*** The behaviour did not change; **the reasoning that made ② look safe did** — *"member-only, so it is fine"* stopped being true the moment "member" acquired a history.
+
+📌 **AND `V-4`'s SECOND HALF LANDS HERE.** `C-5b` was filed as *"`collect_sync_history` self-closes under `(i)`"* — **true for a DEPARTED member, false for a RETURNED one.** ⇒ ***`C-5b` was half a finding, and the half that was filed is the half that does not matter.***
+
+🔑 **THE SHAPE, STATED PLAINLY: a claim about scope was made without a census — this document's SECOND instance** (v1.0's leg split was the first, J-765). **Annotated at the site, v1.3's text left standing (`D-131`).**
+
+## 🛑 TWO TOPOLOGICAL SORTS, AND "HER DEPARTURE" IS A POSITION IN AN ORDER
+
+`topological_sort` (`xgen-core/src/node/runtime.rs:2367`) drives **the state fold** — `:650`, `:2241` — *the order that decides who is a member.* `topological_sort_events` (`xgen-node/src/fanout.rs:405`) drives **all three delivery doors** — `:290`, `:502`, `:618`. **Two implementations, two crates, one DAG.**
+
+🔑 ***A topological sort chooses ONE linear extension; a DAG with concurrency has many.*** ⇒ an event concurrent with a `membership.leave` can fall on either side of the departure, and **if the two sorts disagree, the slice a person is SERVED disagrees with the membership the Space COMPUTED.** 🛑 **That is not a style observation — it is clause ④'s correctness condition.**
+
+🎯 **CHAT RECOMMENDS: derive the boundary from the RESOLVED FOLD, not from the delivery sort** — the fold is already the authority on membership, so the slice agrees with `left_at` **by construction rather than by coincidence** — **and add the two-sort equality as a regression test regardless**, because the functions will keep drifting whether or not this leg reads them, and a test is the only thing that makes the drift visible. 📌 **Unifying the two sorts is filed, named, and NOT taken here** — a whole-codebase change under a leg about privacy.
+
+## ✅ TWO THINGS THAT MAKE THE LEG SMALLER
+
+**The forward half needs no code.** *"Everything from the rejoin forward"* is already served: E-1's `fanout.rs:275-280` recipient list includes her the moment she is present again. ⇒ ***E-2 only has to close gaps in the PAST.***
+
+**And the slice must be a NO-OP for a first-time joiner** — she has no departures, so her single interval is the whole store, exactly as today. 🔑 **A testable property, not a hope**, and it is `W-4`.
+
+⚠️ **`N-197` WATCH WRITTEN IN NOW:** a walk reading only `event.sender` **silently under-counts gaps for kicked, banned and ejected members** — plausible, non-empty, wrong, and every `leave`-based test passes. **Its negative control must use a KICK.**
+
+## 📌 NAMING — THE FIRST TIME A BARE ID WOULD HAVE RESOLVED TO THE WRONG MILESTONE
+
+`Leg E-2` is **already taken**: `M-RP-MEMBER-ACT` has its own, with `tasks/RUNBOOK_MEMBER_ACT_LEG_E2.md` and `CLAIR_LEG_E2_RUNBOOK_READ.md` on disk. An unscoped sweep for `E-2` returns **48 files**, almost all that milestone's. 🔒 **RULE: always *"M-SPACE-ADMISSION Leg E-2"*, never bare.** *The milestone-naming rule has been a convention until now; this is the case that makes it load-bearing.*
+
+## 📋 STATE
+
+🔓 **OPEN AND JOE'S (§7): does a returning member get to see the MEMBERSHIP CHANGES that happened while she was away?** Chat recommends **yes — structure is not content**, on the ground that `is_structural_bootstrap_type` (`fanout.rs:549-563`) **already serves the full membership chain to a not-yet-member pending invitee**, so refusing it to a returning member gives her **strictly less than a stranger holding an invite gets today**. ⚠️ **And the caveat is named, not traded:** that answer is a **narrowing** of *"the gap stays closed"*, not an application of it — she learns who else was removed, and when, about people who never consented to her return. **If ruled, it goes into `D-154`④ as a clarification at its own site.**
+
+🔓 **Chat's:** §4's fork settles in the runbook before implementation.
+
+▶️ **NEXT: Joe rules §7; Chat writes the M-SPACE-ADMISSION Leg E-2 runbook.**
+
+---
 ## Entry J-767 — Leg E-1 ships the meaning change, and the sharpest finding is a test that stayed GREEN while ceasing to test anything
 **Date:** 2026-08-23 · **Seats:** Clair (implementation, six findings, three design judgements) · Chat (Rule 5 re-drive, close, records) · Joe (push)
 

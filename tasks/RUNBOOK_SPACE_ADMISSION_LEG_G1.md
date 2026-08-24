@@ -1,6 +1,6 @@
 # RUNBOOK — M-SPACE-ADMISSION Leg G-1: the gate's third term
-> **Status**: PENDING  
-> Version: 1.0  
+> **Status**: ACTIVE  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-24  
 > Language: EN  
@@ -14,11 +14,11 @@
 
 **`M-SPACE-ADMISSION` Leg G-1 — the gate's third term.** The dispatch-level admission gate implements two of the three terms its own design specifies, so **a returning member is refused `3047` before the applier that would admit her is ever reached.** This leg adds the missing term.
 
-📌 **Phase-0:** `tasks/M_SPACE_ADMISSION_LEGG_PHASE0.md` v1.0 §2.1. **Design:** `tasks/M_SPACE_ADMISSION_PHASE0.md` v3.0 §15.4 (annotated at the site) + `D-154`①②③ + `Q-2`(a).
+📌 **Phase-0:** `tasks/M_SPACE_ADMISSION_LEGG_PHASE0.md` v1.1 §2.1. **Design:** `tasks/M_SPACE_ADMISSION_PHASE0.md` v3.0 §15.4 (annotated at the site) + `D-154`①②③ + `Q-2`(a).
 
-🛑 **THIS RUNBOOK IS CLAIR'S. It is implemented only from the LOCKED version, in a session opened by her own kickoff.** Deviations are **reported, never absorbed** (Rule 6) — this arc's implementing seat found seven specification defects and absorbed none, and this document is written by the seat that produced all seven.
+🛑 **THIS RUNBOOK IS CLAIR'S. 🔒 LOCKED BY JOE 2026-08-24 — IMPLEMENT FROM THIS VERSION, IN A SESSION OPENED BY HER OWN KICKOFF.** Deviations are **reported, never absorbed** (Rule 6) — this arc's implementing seat found seven specification defects and absorbed none, and this document is written by the seat that produced all seven.
 
-🔒 **EVERY CITATION BELOW IS ANCHORED AT `f66a2cb`** (`D-152` clause 1). **Where a line number is given it is a convenience; the INVARIANT ANCHOR is the quoted comment or symbol, and that is what Clair matches on.**
+🔒 **EVERY CITATION BELOW IS ANCHORED AT `f66a2cb`** (`D-152` clause 1). **Where a line number is given it is a convenience; the INVARIANT ANCHOR is the quoted comment or symbol, and that is what Clair matches on.** ✅ **VERIFIED AT LOCK: `git diff --name-only f66a2cb..8e41273` lists FIVE files and NOT ONE is a `.rs`** — every citation here is still live against `HEAD`. 🔑 ***That is a measurement, not an assumption: a file:line written into a document without its tree has a half-life measured in commits.***
 
 ---
 

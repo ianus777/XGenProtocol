@@ -1,6 +1,6 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-23  
+> **Last updated:** 2026-08-24  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
@@ -8,6 +8,60 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-773 — Leg G opens, and the two claims it was scheduled on both turn out to be false: `3048` is not live, and the gate has two of its three terms
+**Date:** 2026-08-24 · **Seats:** Chat (grounding, Phase-0, record repairs) · Joe (two rulings)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `ce3060e` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean. 🎯 **RECORDS + PHASE-0. ZERO PRODUCT CODE.**
+
+`tasks/M_SPACE_ADMISSION_LEGG_PHASE0.md` **v1.0 ACTIVE** (new, 19,526 B) · `tasks/M_SPACE_ADMISSION_PHASE0.md` v2.9 → **v3.0** · `CLAUDE.md` PLAY head · ROADMAP v7.57 → **v7.58**. **Floors carried by scope, zero `.rs`:** cargo **1641 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. Catalogue **UNMEASURED**.
+
+## 🛑 THE SESSION OPENED BY FALSIFYING ITS OWN KICKOFF
+
+The kickoff, the master Phase-0 §12 and `CLAUDE.md` all carried one sentence licensing Leg G to slip: *it may slip without leaving a silent failure behind, because `3048` already made the residue loud.*
+
+✅ **MEASURED: `3048` and `rejoin_not_anchored` have ZERO occurrences in any `.rs` across all four crates.** ✅ **ch3 §3.6.10.10 (`:2199`) is the one record that was honest** — *3048 remains reserved … and is not yet live.*
+
+🔑 **IT FELL OUT AT DESIGN TIME, NOT AT IMPLEMENTATION TIME.** §12's Leg D row says *`3048` RIDES THIS LEG*. **J-762 — Leg D's own design entry — never mentions `3048` at all**, and J-763 closed Leg D as three of four gates without it. ⇒ ***the item was dropped by the document that was supposed to schedule it, and four records went on citing it as shipped.***
+
+📌 **The accept-then-drop it was meant to refuse is better evidenced than the session-open message said:** `derive.rs:498`, `convergence_mp_f7_rejoin_anchored_at_root_is_dropped` — **a shipped, green assertion**, not a source trace. *Under-claiming a defect is a record error in the same family as over-claiming one.*
+
+## 🛑 AND THE BIGGER ONE: THE GATE IMPLEMENTS TWO OF ITS PREDICATE'S THREE TERMS
+
+§15.4 specifies **admit iff** `open` · **or** a pending invite · **or a FORMER MEMBER**.
+
+✅ **`runtime.rs:1620-1621`:** `if space.admission != ADMISSION_OPEN && !space.pending_invites.contains_key(&event.sender)`. **Two terms.** ✅ **`left_at` has ZERO non-test occurrences in `runtime.rs`** (3 hits, all `#[cfg(test)]`). ✅ **`apply_join` (`state.rs:1214`) DOES carry the third arm** — *record PRESENT but DEPARTED → fall through*.
+
+🔑 **⇒ THE DISPATCH GATE REFUSES HER `3047` BEFORE THE APPLIER THAT WOULD ADMIT HER IS EVER REACHED.** 🛑 **Scope: EVERY DM** — both DM constructors pin `invite`, at **fold** time, so pre-Leg-B DMs too — **plus any Space an owner has closed. A Space left at the default `open` is unaffected, which is exactly why the arc's rejoin work looked complete.**
+
+⚠️ **`D-154`①, `Q-2`(a) and §15.5 all rule that a former member is re-admitted WITHOUT an invite.** `Q-2`(a) was ruled *because* `apply_invite` bars all DM invites, so without it a DM departure is irreversible — **and the gate reinstated the irreversibility from a different line.**
+
+🔑 **CAUSE, AND IT IS A NAMED SHAPE:** §15.4 was written before `left_at` existed; **J-763 Deviation ① correctly found `D-3` unbuildable and moved it to Leg E**; Leg E built `left_at`, four appliers and `apply_join`'s third arm — **and nobody returned to the gate.** ⇒ ***a deferral is valid only as long as its premise holds; when the premise dies the deferral dies with it, and it does not quietly inherit a new one.***
+
+🛑 **NO INSTRUMENT COULD HAVE CAUGHT IT.** ✅ **Thirteen `fn *rejoin*` sites across the workspace** — `derive.rs` ×2, `state.rs` ×4, `ops.rs` ×3, `fanout.rs` ×4. **Every one is applier-, fold-, fanout- or client-level. ZERO exercise the dispatch gate with a former member.** ⇒ ***the suite is green because the case is unwritten, not because it passes.***
+
+## 🔒 THE WIRE SHAPE — RULED ②, AND THE MEASUREMENT INVERTED THE ARGUMENT
+
+§15.7 argued for a new node-side verb partly on: *"an older Node that cannot answer ⇒ the client falls back to exactly today's behaviour."*
+
+✅ **`TransportMessage` is `#[serde(tag = "type")]` (`wire/types.rs:48`) with ZERO `serde(other)`** ⇒ an unrecognised `transport.*` type reaches `serde_json::from_value(value)?` at **`connection.rs:454`** and **errors**; the node's client loop is **`Err(_) => break` (`app.rs:2048`)**. 🔑 ***A new verb sent to an older node DROPS HER SESSION. It is not refused, and there is nothing to fall back from.***
+
+🔒 **JOE RULED ② — one more KEY on `collect_invite_bootstrap`'s authorization, no new `transport.*` variant.** ✅ **The door already serves the right set:** `is_structural_bootstrap_type` (`fanout.rs:615-638`) serves the whole membership chain to a not-yet-member, and the refusal at `:751` is **authorization only**. ⚠️ **THE CAVEAT, NAMED: the wire string then serves a requester holding no invite** — *a name narrower than the thing it describes* — **and the repair is a spec-level restatement of the verb's MEANING, never a wire rename.** 📌 **Unknown-variant transport tolerance FILED as its own node (`H2`, J-601): it is what would make ① safe, and it must not ride Leg G.**
+
+🛑 **AND `G-3` WITHOUT `G-4` IS A NO-OP.** `get_invite_bootstrap` (`batch.rs:262`) scans the batch for **one** thing — a `MembershipInvite` naming the requester. **A rejoiner has none** (her invite was consumed at first join; a DM bars invites) ⇒ widening the node alone returns `Ok(None)` and the client lands on today's `rejoin_anchor_or_root`. ***A leg whose whole effect is invisible until the next leg lands is a leg that will be reported as done and measured as nothing.***
+
+## 📋 WHAT LANDED
+
+🔒 **SIX LEGS, and the ordering is FORCED, not preferred:** `G-0` Phase-0 · `G-1` the gate's third term · `G-2` `3048 rejoin_not_anchored` · `G-3` the door · `G-4` the client anchor selection · `G-5` close. **`G-2` BEFORE `G-3`/`G-4`: `G-1` alone makes rejoins reachable and therefore makes the accept-then-drop reachable in production for the first time.**
+
+✅ **FIVE RECORD CORRECTIONS, all annotated at the site per `D-131`, none deleted:** §12's Leg D row · §12's Leg G row · §15.4 · §15.7 · the ROADMAP node's two stale `v2.8` citations. 🛑 **J-765's text is NOT rewritten** — a journal entry records what was believed on the day, and `D-131` governs citations proven broken, not history.
+
+✅ **`roadmap-format-gate.ps1` PASS, exit 0, tree lines 73..452 clean.** CRLF integrity re-asserted on both CRLF files: **ROADMAP CR 602 == LF 602**, **CLAUDE.md CR 1981 == LF 1981**, zero CRCR, zero lone LF, no BOM; `git ls-files --eol` unchanged (`i/lf w/crlf`) on both.
+
+🔓 **OPEN AND JOE'S: lock the `G-1` runbook.** 🔓 **OPEN AND NOBODY'S:** the arc's three carried caveats, unchanged and none of them Leg G's.
+
+▶️ **NEXT: `G-1` — the gate's third term, runbooked for Clair.**
+
+---
 ## Entry J-772 — the rejoin arc closes, the ROADMAP node sheds 95,000 characters, and I reproduce a hazard written down inside the tool that catches it
 **Date:** 2026-08-23 · **Seats:** Clair (the rename, one Rule 6 refusal) · Chat (Rule 5 re-drive, close, reduction, records) · Joe (push)
 

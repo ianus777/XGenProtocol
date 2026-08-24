@@ -8,6 +8,38 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-774 — the G-1 runbook, and two grounded facts that shrank the leg to three lines
+**Date:** 2026-08-24 · **Seats:** Chat (grounding, runbook) · Joe (push)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `f66a2cb` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean. 🎯 **ONE RUNBOOK. ZERO PRODUCT CODE.**
+
+`tasks/RUNBOOK_SPACE_ADMISSION_LEG_G1.md` **v1.0 PENDING** (new, 13,022 B) · `tasks/M_SPACE_ADMISSION_LEGG_PHASE0.md` v1.0 → **v1.1** · ROADMAP v7.58 → **v7.59**. **Floors carried by scope, zero `.rs`:** cargo **1641 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. Catalogue **UNMEASURED**.
+
+## 🔑 THE LEG GOT SMALLER BECAUSE TWO SITES WERE OPENED RATHER THAN REASONED ABOUT
+
+**The obvious specification would have been *admit a former member who is not banned*.** ✅ **Measured instead: `if space.banned.contains(&event.sender)` sits at `runtime.rs:1523`, under the banner *"MP-F6 (M10.5-D2/D3) — dispatch-level banned pre-check"*, and the `LocallySubmitted` block that holds the admission gate opens at `:1580`.** ⇒ ***a banned identity is refused BEFORE the admission gate is reached, so the new term needs no ban clause at all.***
+
+🛑 **AND WRITING ONE WOULD HAVE BEEN A DEFECT, NOT A BELT-AND-BRACES:** it would be **a second source of truth for *is this person banned* inside one function** — `D-067`'s exact target, and the third such site. ✅ **The fact is asserted by a CONTROL (`V-3`: a banned former member must be refused in the PRE-CHECK's shape, NOT `3047`), so the absent clause is a MEASURED DECISION rather than an omission.** 🔑 ***A control is how you write down a dependency you chose not to re-implement.***
+
+✅ **THE SECOND FACT: a kick is not a ban.** `apply_kick` calls `mark_departed` and **never touches `self.banned`** — only `apply_ban` and `apply_node_eject` insert there. ⇒ **`D-154`②③ fall out of the two checks that already exist**: a kicked member is departed and unbanned, so the new term admits her; a banned or ejected one is stopped at `:1523`. ***Nothing in this leg has to know the difference, and that is the ruling working rather than being re-implemented.***
+
+⇒ **THE EDIT IS ONE CONJUNCT**, spelled `!space.members.get(&event.sender).is_some_and(|m| !m.is_present())` — **`apply_join`'s own spelling (`state.rs:1214`) against `SpaceMember::is_present()` (`state.rs:121`), which its own doc calls *the single definition … `D-067`: one fact, one place*.** 🛑 **The runbook FORBIDS an inline `left_at.is_some()`, a new accessor, and `is_member`** — the last would be `false` for a former member and a stranger alike, ***which is precisely the distinction the term exists to draw.***
+
+## 📌 SEVEN CHECKS, FOUR OF THEM CONTROLS
+
+**`V-1`** the rejoin is Accepted and present · **`V-2`** a stranger is still `3047` — *without it, a blanket admit-everyone passes* · **`V-3`** the banned former member is refused in the pre-check's shape · **`V-4`** the kicked member IS re-admitted · **`V-5`** the open-Space companion stays green and **UNEDITED** · **`V-6`** red-on-revert, **RED WITH `3047`** and the observed code recorded — *a test that goes red for a different reason has not tested this term* · **`V-7`** the DM case, **which is the whole reason `Q-2`(a) was ruled**, and which today is a one-way exit for both parties.
+
+🔒 **The floor MUST move from 1641, and the delta is measured with `--skip` plus libtest's own `filtered out`, never arithmetic.**
+
+## 📋 NAMED AND DELIBERATELY NOT FIXED
+
+⚠️ **A PRESENT member re-joining an invite-only Space is refused `3047`, not `AlreadyMember`** — correct in outcome, mis-named in reason. 🔑 **Not fixed here, on the safer side of a known trap: admitting her past the gate hands the refusal to `apply_join`, whose error every production call site discards, so she would be answered `Accepted` and dropped.** ***A wrong reject code is a smaller defect than a reply that lies.*** 📌 Filed for `G-5`'s sweep.
+
+🔓 **OPEN AND JOE'S: lock `tasks/RUNBOOK_SPACE_ADMISSION_LEG_G1.md`.** 🔓 **Nothing else on either seat.**
+
+▶️ **NEXT: Clair implements `G-1` from the locked runbook; Chat re-drives `V-1`…`V-7` independently (Rule 5).**
+
+---
 ## Entry J-773 — Leg G opens, and the two claims it was scheduled on both turn out to be false: `3048` is not live, and the gate has two of its three terms
 **Date:** 2026-08-24 · **Seats:** Chat (grounding, Phase-0, record repairs) · Joe (two rulings)
 

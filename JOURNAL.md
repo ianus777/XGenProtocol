@@ -8,6 +8,54 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-772 — the rejoin arc closes, the ROADMAP node sheds 95,000 characters, and I reproduce a hazard written down inside the tool that catches it
+**Date:** 2026-08-23 · **Seats:** Clair (the rename, one Rule 6 refusal) · Chat (Rule 5 re-drive, close, reduction, records) · Joe (push)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `08c9e50` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean at open.
+
+🎯 **THE REJOIN ARC IS COMPLETE. Legs A-bis · A · B · C · E-0 · D · E-1 · E-2 · E-3 all shipped.** `tasks/RUNBOOK_SPACE_ADMISSION_LEG_E3.md` v1.1 → **v1.2 COMPLETED** · `tasks/M_SPACE_ADMISSION_PHASE0.md` v2.8 → **v2.9** · ROADMAP v7.56 → **v7.57**. 🔒 **FLOOR UNCHANGED: cargo 1641 / 0 / 62 × 56 SUITES** — sentinel 0, `Compiling xgen-node` present, `FAILED` **0** case-sensitive. **Unchanged is what `X-1` requires: a rename must not move the count in either direction.**
+
+## ✅ THE RENAME, AND ONE REFUSAL THAT WAS RIGHT
+
+`third_party_registered_identity_joins_a_dm_it_is_not_party_to` → **`..._is_refused_a_dm_it_is_not_party_to`**. One file, **+10 / −7**, zero `.md` touched. **`X-1`…`X-5` all green, all re-driven.**
+
+🛑 **`E3-2` INSTRUCTED A FALSE CITATION AND CLAIR REFUSED IT.** The runbook said the replacement comment should record *"the rename happened at **J-771**."* ✅ **Measured: J-771 states *"RECORDS + ONE RUNBOOK. ZERO PRODUCT CODE"* and its tail reads *"NEXT: Clair renames"* — future tense.** 🔑 ***Writing `J-771` in would have asserted product code inside the one entry that records none — `D-153`'s species exactly, a conclusion that is true resting on a citation that is false — and breached `N-198`, which is precisely about an artefact citing a number whose record rides later.*** ✅ **She wrote *"RENAMED at Leg E-3"*: cites the leg, true on the day, checkable, no phantom number. NOT OVERRULED.** 📌 **Seventh specification defect of the arc, seventh found by the implementing seat.**
+
+📌 **`X-2b` DOES NOT SAY WHERE THE OLD NAME MUST BE ABSENT.** It is absent from the run log (0). **But it SURVIVES in source at `:109`, deliberately** — inside the comment recording what the symbol used to be called, which is `D-131` working. ⇒ ***a source-level grep for the old name reads as a MISS, and a gate written that way would have failed a correct implementation.*** **The gate happened to be phrased against the log — the half that discriminates — and that was luck, not design.**
+
+## 🔒 THE ROADMAP NODE REDUCED — JOE'S J-715 MECHANISM, APPLIED AT LAST
+
+**Measured before touching it: the `M-SPACE-ADMISSION` node carried 97 `↳ Owes:` lines totalling 99,929 characters.** 🔑 **Joe ruled the mechanism at J-715: *reduce on COMPLETION, not on a calendar* — a live node keeps its full `Owes`, and the length is what stops the next person reading it.**
+
+✅ **REDUCED: 97 lines / 99,929 chars → 7 lines / 4,524 chars.** What ruled, what was built, the arc's measurement of itself, the findings worth carrying, **Leg G as the one leg left**, and the three caveats accepted knowingly. **The detail lives in the JOURNAL and in the master Phase-0 v2.9, which is the arc's own register.**
+
+📌 **This is the close action most likely to be skipped, because it means deleting text I wrote this week.** *Recorded as such.*
+
+## 🛑 `N-203` — ASSERTING THAT A MUTATION CHANGED SOMETHING IS NOT ASSERTING IT CHANGED INTO WHAT WAS INTENDED
+
+**I broke `docs/ROADMAP.md` mid-reduction and my own guard passed.**
+
+To strip two illegal icons I wrote `$lock = [char]0x1F512`. 🛑 **U+1F512 is OUTSIDE THE BMP, so `[char]` cannot hold it** — the cast silently produced a different BMP character, and `.Replace()` then substituted `LOCKED — ` **for every space** across seven lines, destroying the tree-drawing prefixes. **My guard was `if ($n -ne $o) { $fixed++ }`. It reported *"lines fixed: 7"* and was TRUE: the lines did change.**
+
+🔑 ***It proved a mutation HAPPENED. It did not prove the mutation was the INTENDED one.*** **That is `N-124b` — *assert on CONTENT, not on change* — stated in three runbooks I wrote this week and violated by me in the same session.** ✅ **Caught by `roadmap-format-gate.ps1`, which went from 3 violations to 9.** ✅ **Recovered with `git checkout --`; the 97 originals were safe at `HEAD` because the splice was never committed.**
+
+🛑 **AND THE SHARPER HALF: the hazard is written down INSIDE the tool that caught it.** `roadmap-format-gate.ps1:32` reads, verbatim: ***"The six, built via surrogate pairs - `[char]0x1F7E2` overflows char and corrupts silently."*** 🔑 ***A documented hazard, in a script I invoke before every ROADMAP commit, reproduced by the author of the documents that cite the script.*** 📌 **And the 97 existing `Owes` lines used NO pictographs at all — only ①–⑤ and `−`. The convention was already words-only; the draft was wrong from its first character.**
+
+🔒 **THE RULE, AND IT IS THE ONE WORTH KEEPING: build the replacement, ASSERT IT IS LEGAL, and only then let it touch the file.** The second attempt ran a pre-flight over the block in memory — correct prefix on every line, zero pictographs, **zero surrogates** — before a single byte was written, and every post-splice check asserted on **content** (`THE REJOIN ARC IS COMPLETE`, `THREE CAVEATS`, the trigger, the sibling, the node's own prefix) rather than on counts.
+
+## 📋 WHAT THE ARC LEAVES BEHIND
+
+🔒 **`D-154` — six clauses, all ruled and all built.** ① back as of now, role RE-DERIVED · ② kick remembered · ③ ban follows kick · ④ the gap stays closed, **clarified: closed to CONTENT, open to STRUCTURE** · ⑤ rooms not restored · ⑥ node-eject follows kick and ban.
+
+🔑 **SEVEN specification defects across E-1, E-2 and E-3 — every one found by the implementing seat, none absorbed.** Including **a gate that could only pass by doing what its own runbook forbids**, **a runbook sentence whose prescribed order produced the defect its own test forbade**, and **an instruction to cite a J-number that records zero product code.** **Rule 6 working, and a standing measurement of how much a Phase-0 written from grounding still gets wrong at the point of contact.**
+
+🔓 **OPEN AND JOE'S: LEG G — the rejoin anchor verb.** A node-side `get_rejoin_anchor`: the rejoiner asks the Node for **her own** last membership event and anchors on it, so the causal anchor stops depending on client-local memory. **New wire verb ⇒ Joe-lock.** ⚠️ **Clause ④-as-clarified strengthened the case for it** — a returning member now receives the intervening membership chain, **which is what she needs to compute an anchor at all.**
+
+🔓 **OPEN AND NOBODY'S — three caveats accepted knowingly, carried not discharged:** ① a node-eject is a **durable federated record** while `node_eject` is **reversible** · ② a returning member **learns who else was removed and when** · ③ **`self.banned` is already a permanent federated list** and that look is still owed, older than this arc. ⚠️ Plus E-2's small one: **a close event naming her before her first join closes an interval the fold never closed; errs restrictive.**
+
+▶️ **NEXT: Leg G, or whatever Joe schedules ahead of it.**
+
+---
 ## Entry J-771 — Leg E-3 opens, and its sweep deletes half of what E-3 was supposed to be: ch3 was ahead of the code the whole time
 **Date:** 2026-08-23 · **Seats:** Chat (sweep, records, runbook)
 

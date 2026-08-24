@@ -1,6 +1,6 @@
 # M-SPACE-ADMISSION Phase-0 — who may join a Space, and how a leaver comes back
 > **Status**: ACTIVE  
-> Version: 2.8  
+> Version: 2.9  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-22  
 > Language: EN  
@@ -347,7 +347,7 @@ This is the part of the milestone that is **not** a settings field, and it is th
 | **E** | **THE REJOIN STORY** — §6.5's `left_at` model, §8's convergence questions, and §8 item 3's surviving anchor note. 🔒 **NOW GOVERNED BY `D-154`'s ~~five~~ SIX clauses** (⑥ added by Joe 2026-08-23, J-766; **`N-2c`, corrected not erased — `D-131`**), and carrying `E-0`'s six open findings (`C-3` mechanical · `C-4` · `C-5` · `C-6` · `C-7` · `F-E`), **all Chat's**. ✅ **SPLIT AND SHIPPED (J-765 … J-770): `E-1` the meaning change · `E-2` clause ④'s slice · `E-3` the close.** 🛑 **`C-3` was NOT mechanical** (J-764) and **`F-E`'s citation was FALSE** (J-765) | Legs A + D + **E-0** |
 | ~~**G**~~ | 🛑 **SUPERSEDED BY THE ROW BELOW — `N-2a` (`D-134`: designations are issued unique; this table carried `G` TWICE from 2026-08-18 to 2026-08-23). Struck, not deleted (`D-131`).** 🛑 **AND `N-2b`: this row cited `D-154`③ for *the gap stays closed*, which is clause ④ — ③ is *ban follows kick*. A reader who followed the citation landed on the wrong clause.** ~~THE REJOIN ANCHOR — `get_rejoin_anchor`. `D-154`~~ **④** ~~MAKES THIS LOAD-BEARING, NOT A FORMALITY:~~ *the gap stays closed* requires a per-member history boundary, and **the gap must be MARKED — a silent jump reads as *nothing was said*, which is the direction `D-065` governs. The marker's wording and form are Joe's** | Leg E |
 | **G** | 🔒 **THE REJOIN ANCHOR VERB — ITS OWN LEG (Joe, 2026-08-18, J-756), NOT A RIDER ON E.** A node-side `get_rejoin_anchor`, sibling of `collect_invite_bootstrap`: the rejoiner asks the Node for **her own** last membership event and anchors on it, so the causal anchor stops depending on client-local memory. **New wire surface ⇒ Joe's seat ⇒ its own leg**, sequenced after D, **and it may slip without leaving a silent failure behind, because `3048` already made the residue loud** | Legs A + D + E |
-| ~~**F**~~ → **`E-3`** | 🛑 **`N-2d` (J-771): `F` and the Leg E Phase-0's `E-3` ARE THE SAME LEG UNDER TWO NAMES.** The Leg E Phase-0 split `E` into `E-1`/`E-2`/`E-3` **without reconciling against this table, which already defined `F` as the close** — a leg list held in two documents, and the second one written without reading the first. **Merged: `E-3` IS the close.** ~~**F** — CLOSE, records, `D-074` atomic commit, `roadmap-format-gate.ps1` exit 0~~ | all |
+| ✅ **`E-3` SHIPPED (J-772)** — ~~**F**~~ | 🛑 **`N-2d` (J-771): `F` and the Leg E Phase-0's `E-3` ARE THE SAME LEG UNDER TWO NAMES.** The Leg E Phase-0 split `E` into `E-1`/`E-2`/`E-3` **without reconciling against this table, which already defined `F` as the close** — a leg list held in two documents, and the second one written without reading the first. **Merged: `E-3` IS the close.** ~~**F** — CLOSE, records, `D-074` atomic commit, `roadmap-format-gate.ps1` exit 0~~ | all |
 
 🔓 **Legs are Chat's proposal; the leg list is Joe's to lock, and §6.6 may cut it at D.**
 

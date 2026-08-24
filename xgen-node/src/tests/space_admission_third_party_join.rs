@@ -105,14 +105,17 @@ mod tests {
     /// opposite of what it used to, the DM's *actual* counterpart is still not a
     /// member either.
     ///
-    /// ⚠️ **The function NAME still describes the attempt rather than the
-    /// outcome**, which is at odds with this codebase's convention (`..._is_
-    /// rejected_to_the_sender_end_to_end`). It is kept because renaming is a
-    /// naming decision and the current name is cited by `docs/ROADMAP.md`, the
-    /// `JOURNAL` and the A-bis runbook. Routed at Leg D's hand-back §2, not
-    /// absorbed.
+    /// 🔒 **RENAMED at Leg E-3.** The symbol was
+    /// `third_party_registered_identity_joins_a_dm_it_is_not_party_to` — a name
+    /// describing the ATTEMPT, which after Leg D INVERTED the body asserted the
+    /// opposite of what this test proves. It now names the OUTCOME, matching this
+    /// codebase's convention (`..._is_rejected_to_the_sender_end_to_end`).
+    ///
+    /// 📌 The old name is still cited by `docs/ROADMAP.md`, the `JOURNAL` and
+    /// the A-bis runbook. Those are historical records of what the symbol was
+    /// called at the time and are deliberately NOT rewritten (`D-131`).
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn third_party_registered_identity_joins_a_dm_it_is_not_party_to() {
+    async fn third_party_registered_identity_is_refused_a_dm_it_is_not_party_to() {
         let node = spawn_in_process_node().await;
 
         // ── Setup (runbook §4.2) — `ingest` only; only the subject event goes

@@ -1,7 +1,7 @@
 # RUNBOOK — M-SPACE-ADMISSION Leg E-3 (code half): rename the inverted A-bis test to assert what it tests
 
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-23  
 > Language: English  
@@ -15,11 +15,11 @@
 
 | | |
 |---|---|
-| **Status** | 🔒 **ACTIVE, LOCKED (Joe, 2026-08-23).** Clair implements from **v1.1** and no earlier revision |
+| **Status** | ✅ **COMPLETED (J-772, 2026-08-23).** One file, **+10 / −7**. Every gate re-driven by Chat from `HEAD` under Rule 5. **Floor UNCHANGED at 1641 / 0 / 62 × 56 SUITES.** 🛑 **One of its own instructions was defective — §6a** |
 | **Why it is a runbook at all** | 🔑 **It is one symbol, and it is `.rs`.** Chat writes no product code, and *"it is only a rename"* is exactly the reasoning a seat rule exists to refuse. **Not self-exempted** |
 | **Blocking on** | ✅ **NOTHING** |
 | **Tree** | citations measured at **`c72843a`**; **locked at `920ee62`** = `origin/main`, tree clean (`D-152`). 📌 *No `.rs` changed between them — the citations hold* |
-| **Floors in** | cargo **1641 / 0 / 62 × 56 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15** · catalogue **UNMEASURED** |
+| **Floors in / out** | cargo **1641 / 0 / 62 × 56 SUITES — UNCHANGED, which is what `X-1` requires** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15** · catalogue **UNMEASURED** |
 | **Scope** | 🔒 **ONE FILE: `xgen-node/src/tests/space_admission_third_party_join.rs`.** No production code. No other test |
 
 ---
@@ -85,9 +85,48 @@ async fn third_party_registered_identity_is_refused_a_dm_it_is_not_party_to()
 
 ## §5 — DoD
 
-- [ ] `E3-1` and `E3-2` applied; **one file, nothing else**
-- [ ] `X-1` … `X-5` re-driven by Chat from `HEAD` (Rule 5)
-- [ ] Any need to touch the body REPORTED, not absorbed (Rule 6)
-- [ ] Rides Chat's `E-3` records commit — **`D-074` atomic, one commit**
+- [x] **`E3-1` and `E3-2` applied; one file, +10 / −7, zero `.md` touched**
+- [x] **`X-1` … `X-5` re-driven by Chat from `HEAD`; `X-2b`'s phrasing corrected at §6b**
+- [x] **No body change was needed — the cold read confirmed the body already asserts refusal, so the new name is true of it (§3.3 clear). One SEPARATE deviation reported: §6a**
+- [x] **Rides Chat's `E-3` close commit — `D-074` atomic**
 
 📌 **"Commit pushed" is not a DoD item.**
+
+---
+
+## §6 — 🛑 CLOSE ANNOTATIONS (J-772, 2026-08-23)
+
+Corrected at close, never erased (`D-131`). §2 and §4 above stand as written.
+
+### §6a — 🛑 **`E3-2` INSTRUCTED A FALSE CITATION, AND CLAIR REFUSED IT.** *(Clair, Rule 6; verified by Chat)*
+
+§2's `E3-2` said the replacement comment should record that ***"the rename happened at J-771."***
+
+✅ **MEASURED: J-771 states *"RECORDS + ONE RUNBOOK. ZERO PRODUCT CODE"* and its own tail reads *"NEXT: Clair renames"* — future tense.** The rename lands in the **E-3 close commit**, whose J-number **did not exist when the comment was written** (max was J-771).
+
+🔑 ***Writing `J-771` into the comment would have asserted product code inside the one entry that records none — `D-153`'s species exactly: a conclusion that is true resting on a citation that is false.*** **And it would have breached `N-198`, which is precisely about an artefact citing a number whose record rides later.**
+
+✅ **Clair wrote *"RENAMED at Leg E-3"* — cites the LEG, true on the day it was written, checkable, no phantom number. NOT OVERRULED.** 📌 **The runbook line was Chat's and it was wrong. Seventh specification defect of the arc, seventh found by the implementing seat.**
+
+### §6b — 📌 **`X-2b` DOES NOT SAY WHERE THE OLD NAME MUST BE ABSENT, AND THE ONE PLACE IT SHOULD SURVIVE IS THE HISTORY NOTE.** *(Chat, at re-drive)*
+
+`X-2` reads *"the OLD name ABSENT."* ✅ **Absent from the run log: 0 occurrences.** 🛑 **But it SURVIVES in source at `:109`, deliberately** — inside the new comment recording what the symbol used to be called, which is `D-131` working as intended.
+
+⇒ ***a source-level grep for the old name reads as a MISS, and a gate written that way would have failed a correct implementation.*** 🔑 **The gate happened to be phrased against the log — the half that discriminates — but that was luck, not design.** 🔒 **RULE: a rename gate must name WHERE the old symbol must be absent.**
+
+---
+
+## §7 — 🔒 CLOSE MEASUREMENTS (Chat, Rule 5, from `HEAD` `08c9e50`)
+
+| gate | measured | |
+|---|---|---|
+| **X-1** | `1641 / 0 / 62 × 56 SUITES` — **UNCHANGED in both directions** · `XGEN_EXIT_SENTINEL=0` · `Compiling xgen-node` present · `FAILED` **0** case-sensitive | ✅ |
+| **X-2** | NEW name in log **1**, OLD name in log **0** — both halves; see §6b | ✅ |
+| **X-3** | `third_party_registered_identity_joins_an_open_space ... ok`, still by that name | ✅ |
+| **X-4** | exactly **one** file · **zero `.md` touched** · no untracked | ✅ |
+| **X-5** | the doc-comment hunk + the `fn` line **and nothing else**; **+10 / −7** reconciles (9-for-6 paragraph, 1-for-1 signature); LF preserved | ✅ |
+| **controls** | 📌 **none invented — declined exactly as §4 declines them.** *A rename has no behaviour to disarm* | ✅ |
+
+📌 **The six `.md` citations of the old symbol are left intact** — `CLAUDE.md`, `JOURNAL.md`, `CLAIR_LEG_D_HANDBACK.md` (×2), `M_SPACE_ADMISSION_PHASE0.md`, `RUNBOOK_SPACE_ADMISSION_LEG_A_BIS.md` (×2), and this runbook. **Historical records of what the symbol was called at the time (`D-131`).**
+
+📌 **Clair hit the launcher-vs-cargo exit-code trap again and caught it the same way:** the notification reported *"completed (exit code 0)"* with the log at 19 KB and `cargo.exe` PID 50116 still alive; the log finished at 148 KB. **Only the ABSENT sentinel separated a plausible, complete-looking, wrong count from a real one.**

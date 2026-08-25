@@ -1,8 +1,8 @@
 # RUNBOOK — M-SPACE-ADMISSION Leg G-1: the gate's third term
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-24  
+> **Last updated**: 2026-08-25  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -76,6 +76,8 @@ if space.admission != ADMISSION_OPEN
 3. **Why a kick needs no special case:** `apply_kick` marks and does not ban, so `D-154`②③ fall out of the two checks already present.
 4. **That the term is `!is_present()`, NOT `contains_key`:** a *present* member falls through to the applier, which answers `AlreadyMember`.
 
+🛑 **ANNOTATION AT THE SITE (`D-131`, J-775, 2026-08-25) — POINT 4 IS FALSE ON BOTH PATHS, AND §6 OF THIS SAME DOCUMENT SAYS SO. IT WAS REFUSED BY THE IMPLEMENTING SEAT AND NEVER REACHED THE SOURCE.** ✅ **Traced by Clair and re-driven by Chat:** in an **invite-only** Space all three conjuncts hold for a present member, so **this gate refuses her `3047` and she never reaches the applier**; in an **open** Space she does reach it, and `apply_join`'s `Err(AlreadyMember)` is discarded at **`runtime.rs:867`** (`let _ = state.apply_event(&event, &my_node_id)`), so **she is answered `Accepted`.** 🔑 **The shipped comment says the true thing instead: the term is `!is_present()`, a present member is deliberately NOT admitted, and §6's consequence is recorded at the site with its reason.** 🔑 ***This is the same shape as the arc's `§2c` defect — a document refuted by its own later paragraph — and it is the SECOND time that shape has produced a defect here. Neither fell to a re-read; both fell to reading against a compiler.***
+
 ⚠️ **IF THE BORROW CHECKER OBJECTS**, `space` is already a shared borrow used by both neighbouring conditions — **report it rather than restructuring the block**; a restructure of a gate whose ordering is load-bearing is not a mechanical fix.
 
 ---
@@ -90,7 +92,7 @@ if space.admission != ADMISSION_OPEN
 | **V-2** | **CONTROL A — THE STRANGER.** In the same Space, carol has **never** been a member and holds no invite. | **`Rejected`, code `3047`.** ⚠️ **Without this the term could be a blanket *admit everyone* and V-1 would still pass.** |
 | **V-3** | **CONTROL B — THE BANNED FORMER MEMBER.** dave joins, then is **banned**; dave re-submits. | **`Rejected`**, and the refusal is the **banned pre-check's** shape (`PermissionDenied`-class, unmapped `4000`), **NOT `3047`.** 🔑 **This asserts `G-6`'s ORDERING rather than assuming it, and it is what makes the absent ban clause a measured decision instead of an omission.** |
 | **V-4** | **CONTROL C — THE KICKED MEMBER.** erin joins, is **kicked** by the owner, re-submits. | **`Accepted`**, present afterwards. **`D-154`②③ — a kick is remembered, a ban bars; the difference must be visible on the answer path.** |
-| **V-5** | **CONTROL D — THE OPEN SPACE IS UNTOUCHED.** The existing `third_party_registered_identity_joins_an_open_space` must stay **GREEN and UNEDITED.** | 🛑 **If it must be weakened, that is a FINDING about the term's scope, reported and never absorbed** — `L-E` says a Space at the default `open` is not closed by anything this milestone does. |
+| **V-5** | **CONTROL D — THE OPEN SPACE IS UNTOUCHED.** The existing `third_party_registered_identity_joins_an_open_space` must stay **GREEN and UNEDITED.** 🛑 **ANNOTATION AT THE SITE (`D-131`, J-775): AS WRITTEN THIS WAS UNFALSIFIABLE — that test lives in `xgen-node/src/tests/space_admission_third_party_join.rs:73`, OUTSIDE §1's may-change list, so it is unedited BY CONSTRUCTION and could not have failed.** ✅ **Clair re-seated it on THIS file's own open-space companion, `the_same_uninvited_join_into_an_open_space_is_admitted`, which is genuinely at risk from the edit; green and byte-untouched in both seats' runs.** 🔑 ***A control that cannot fail is not a control.*** | 🛑 **If it must be weakened, that is a FINDING about the term's scope, reported and never absorbed** — `L-E` says a Space at the default `open` is not closed by anything this milestone does. **No such finding was owed: the scope is intact.** |
 | **V-6** | **RED-ON-REVERT, RUN AND RECORDED.** Delete the new conjunct; re-run. | **V-1 and V-4 must go RED, and RED WITH `3047`** — not merely fail. 🛑 **A test that goes red for a different reason has not tested this term.** ✅ **Record the observed code, not just the failure.** |
 | **V-7** | **THE DM CASE, because it is the whole reason `Q-2`(a) was ruled.** A DM: two parties, one leaves, then rejoins. | **`Accepted`.** 📌 **The DM constructors pin `invite` at FOLD time (`G-8`), so this is the same gate with no extra setup** — and before this leg it is the case where **departure is irreversible for both parties.** |
 
@@ -122,13 +124,13 @@ if space.admission != ADMISSION_OPEN
 
 ## §7 — DoD
 
-- [ ] `G1-1` shipped in `xgen-core/src/node/runtime.rs`, comment carrying all four points of §3
-- [ ] `V-1` … `V-7` all run and green, in `xgen-node/src/tests/space_admission_gate.rs`
-- [ ] `V-3` records the OBSERVED refusal shape, proving the banned pre-check ordering rather than asserting it
-- [ ] `V-6` run: the conjunct deleted, V-1 and V-4 observed RED **with `3047`**, the observed code written into the hand-back
-- [ ] `cargo` moved from **1641 / 0 / 62 × 56 SUITES**, the delta MEASURED with `--skip` and `filtered out` cross-checked
-- [ ] `vitest` and `svelte-check` carried **by scope** — zero `ui/**`, zero `.ts`, zero `.svelte`, proven by diffstat, not asserted
-- [ ] Every deviation reported in the hand-back, none absorbed (Rule 6)
-- [ ] Chat re-drives every number independently from `HEAD` before the close (Rule 5)
+- [x] `G1-1` shipped in `xgen-core/src/node/runtime.rs`, comment carrying all four points of §3 — 🛑 **THREE of the four; point 4 was FALSE and was correctly refused (see the §3 annotation). The comment carries the true statement in its place.**
+- [x] `V-1` … `V-7` all run and green, in `xgen-node/src/tests/space_admission_gate.rs` — **as THREE test functions, not one; §1's estimate was not a constraint**
+- [x] `V-3` records the OBSERVED refusal shape — **`code: 4000, name: "generic"`, reason *step 13: permission denied … is banned from Space …*. NOT `3047`. Observed via a throwaway flipped-expectation probe, reverted, zero residue.**
+- [x] `V-6` run: the conjunct deleted, **all three new tests RED with `RejectInfo { code: 3047, name: "admission_required" }`, both pre-existing tests GREEN** — that split IS the isolation. `Compiling xgen-core` present. Restored; sha256 identical, mtime stamped forward (`N-199`).
+- [x] `cargo` **1641 → 1644 / 0 / 62 × 56 SUITES**, delta measured with `--skip` (**exactly 1641**) and libtest's **`filtered out = 3`** cross-checked — ✅ **BOTH SEATS, INDEPENDENTLY (Rule 5)**
+- [x] `vitest` and `svelte-check` carried **by scope** — `git diff --name-only` returns exactly two paths, zero `ui/**`, zero `.ts`, zero `.svelte`
+- [x] **Three deviations reported, none absorbed (Rule 6) — all three CORRECT, and two of them were defects in THIS DOCUMENT**
+- [x] Chat re-drove every number independently from `HEAD` `c94800d` before the close (Rule 5)
 
 📌 **"Commit pushed" is deliberately not a DoD item** — `Status: COMPLETED` in this header is the shipped signal. **Clair never pushes.**

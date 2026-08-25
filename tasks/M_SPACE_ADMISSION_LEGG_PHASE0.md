@@ -1,8 +1,8 @@
 # M-SPACE-ADMISSION Leg G Phase-0 — the rejoin anchor, and the gate that never learned about rejoining
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-24  
+> **Last updated**: 2026-08-25  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -133,7 +133,7 @@ if space.admission != ADMISSION_OPEN
 | leg | content | gated on |
 |---|---|---|
 | **G-0** | ✅ **THIS FILE**, plus §7's record repairs, committed atomically under `D-074` | — |
-| **G-1** | **THE GATE'S THIRD TERM.** `runtime.rs:1620`'s predicate gains the former-member arm, so a retained departed member is admitted where `§15.4` says she is. **Without it there is no rejoin to anchor and the rest of the leg is unreachable.** ✅ **RUNBOOK AUTHORED J-774: `tasks/RUNBOOK_SPACE_ADMISSION_LEG_G1.md` v1.0 PENDING — Joe's to lock, Clair's to implement.** 🔑 **TWO GROUNDED FACTS SHRANK IT: the banned pre-check ALREADY runs, and it runs FIRST** (`runtime.rs:1523`, above the `LocallySubmitted` block at `:1580`) ⇒ **the term needs NO ban clause, and a second one would be `D-067`'s target**; **and `apply_kick` marks without banning** ⇒ `D-154`②③ fall out of the two checks already present. **~3 production lines.** | G-0 |
+| **G-1** | ✅ **SHIPPED J-775. `cargo` 1641 → 1644 / 0 / 62 × 56 SUITES, re-driven independently by both seats.** The gate's predicate gained the former-member conjunct in `apply_join`'s own spelling; **a departed member, a kicked member and a DM party who left can all now return, and a banned one is still stopped upstream by the pre-check.** 🔑 **THE LEG WAS SPECIFIED SMALLER THAN THE OBVIOUS VERSION BECAUSE TWO SITES WERE OPENED INSTEAD OF REASONED ABOUT** — the banned pre-check already runs FIRST (`runtime.rs:1523` above `:1580`), and `apply_kick` marks without banning. 🛑 **THREE DEVIATIONS, ALL CORRECT, TWO OF THEM DEFECTS IN THE RUNBOOK: §3's comment point 4 was false on both paths and was refused before it reached the source; `V-5` named a control living outside §1's scope and was therefore unfalsifiable as written.** Both annotated at their sites (`D-131`). Runbook `tasks/RUNBOOK_SPACE_ADMISSION_LEG_G1.md` **v1.2 COMPLETED**. | G-0 |
 | **G-2** | **`3048 rejoin_not_anchored` — THE LOUD REFUSAL.** The node refuses a rejoin it cannot anchor rather than answering `Accepted` and letting the fold drop it. **Stands alone, ships independently, and reaches clients that never learn to ask.** | G-1 |
 | **G-3** | **THE DOOR.** `collect_invite_bootstrap`'s authorization widens to the retained former member; the doc comment and the ch3 text state what the verb now means (§4's caveat). | G-1 |
 | **G-4** | **THE CLIENT ANCHOR SELECTION.** `ops::join` anchors on her own last `membership.*` event from the served batch instead of on an invite that does not exist; refusal or absence falls back to today. | G-3 |

@@ -8,6 +8,58 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-775 — Leg G-1 ships: a departed member can come back, and the runbook that specified it contained two defects the implementing seat refused
+**Date:** 2026-08-25 · **Seats:** Clair (implementation) · Chat (runbook, Rule 5 re-drive, records) · Joe (lock, push)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `c94800d` **= `origin/main` by `git ls-remote origin refs/heads/main`**. 🎯 **`M-SPACE-ADMISSION` Leg G-1 — THE GATE'S THIRD TERM — SHIPPED.**
+
+🔒 **FLOOR MOVED: cargo 1641 → 1644 / 0 / 62 × 56 SUITES.** ✅ **RE-DRIVEN INDEPENDENTLY BY BOTH SEATS (Rule 5)** — two detached sentinel-separated runs of Chat's own, `--no-fail-fast`, `^test result:` summed case-sensitively, `Compiling xgen-core` present so the binary was rebuilt and not cached, `FAILED` case-sensitive **0**, `^error` **0**, `panicked` **0**. ✅ **DELTA MEASURED THREE WAYS, NEVER ARITHMETIC:** Clair's `--skip` run, libtest's own **`filtered out = 3`**, and Chat's independent `--skip` run returning **exactly 1641 / 0 / 62 × 56**. Carried by scope: vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. Catalogue **UNMEASURED**.
+
+## ✅ WHAT SHIPPED
+
+`xgen-core/src/node/runtime.rs` **(+62/−0)** — the third conjunct, in `apply_join`'s own spelling: `&& !space.members.get(&event.sender).is_some_and(|m| !m.is_present())`. No inline `left_at`, no new accessor, no `is_member`. No borrow-checker objection. · `xgen-node/src/tests/space_admission_gate.rs` **(+489/−2)** — three helpers and three tests, through `submit_locally`, asserting on the `DispatchOutcome` **the sender receives** plus the membership that followed.
+
+🔑 **A departed member, a kicked member and a DM party who left can all now return without a new invite; a banned one is still stopped upstream.** 📌 **`V-7` also discriminates re-derivation from a stale carry-forward: `invited_by` goes `Some(alice)` → `None` across the rejoin (`D-154`① — *a rejoin restores presence, never position*).**
+
+✅ **The `−2` itemised rather than accepted: an import reflow, `space::state::{…}` widening to `space::{membership::Role, state::{…}}`. Both pre-existing tests byte-untouched.** 🔑 ***An unexplained deletion in a control file is exactly where a weakened control hides*** — Clair has taken the check for the next leg.
+
+## 🛑 TWO OF THE THREE DEVIATIONS WERE DEFECTS IN THE RUNBOOK, AND BOTH ARE CHAT'S
+
+**① §3's comment point 4 was FALSE ON BOTH PATHS, and §6 of the same document said so.** It required the source to state *a present member falls through to the applier, which answers `AlreadyMember`*. ✅ **Traced and re-driven:** in an invite-only Space **all three conjuncts hold for a present member**, so the gate refuses her `3047` and she never reaches the applier; in an open Space she does reach it and `Err(AlreadyMember)` is **discarded at `runtime.rs:867`** (`let _ = state.apply_event`), so she is answered **`Accepted`**.
+
+🔑 **THIS IS THE SAME SHAPE AS THE ARC'S `§2c` DEFECT — A DOCUMENT REFUTED BY ITS OWN LATER PARAGRAPH — AND IT IS THE SECOND TIME THAT SHAPE HAS PRODUCED A DEFECT HERE. NEITHER FELL TO A RE-READ. BOTH FELL TO READING AGAINST A COMPILER.** 🎯 **Refusing to write it into the source was the only correct call: *a false comment beside a correct gate outlives the person who wrote it.***
+
+**② `V-5` NAMED A CONTROL THAT COULD NOT FAIL.** `third_party_registered_identity_joins_an_open_space` lives at `space_admission_third_party_join.rs:73`, **outside §1's may-change list** ⇒ unedited **by construction**. ✅ **Re-seated on this file's own open-space companion, which is genuinely at risk from the edit; green and byte-untouched in both seats' runs.** 🔑 ***A control that cannot fail is not a control.*** **No `§5`-item-5 finding was owed — the term's scope is intact.**
+
+**③ Three test functions where §1 estimated one.** **Accepted without reservation, and the pairing is better than what was specified:** `D-154`②③'s requirement is that the kick/ban difference be **visible on the answer path**, and a contrast a reader must assemble across two fixtures is not visible. §1's *expected diff* was an estimate; §7's DoD is what binds, and it is met.
+
+## 🔑 THE CONTROLS THAT WERE OBSERVED RATHER THAN ASSERTED
+
+**`V-3` — the banned former member's ACTUAL refusal, dumped by a throwaway flipped-expectation probe (run once, reverted, zero residue):** `code: 4000, name: "generic"`, reason *step 13: permission denied for membership.join: identity … is banned from Space …*. **NOT `3047`.** ⇒ **`G-6`'s ordering is MEASURED, so the deliberately absent ban clause is a decision and not an omission.** 📌 **The probe doubled as proof the assertion can fail** — `N-139`.
+
+**`V-6` — red-on-revert WITH the code:** conjunct deleted → `Compiling xgen-core` present → **all three new tests RED with `RejectInfo { code: 3047, name: "admission_required" }`, both pre-existing tests GREEN.** 🔑 **That split IS the isolation — the revert breaks the third term and nothing else.** Restored, sha256 identical, mtime stamped forward (`N-199`).
+
+## 📋 NAMED, NOT FIXED
+
+⚠️ **A PRESENT member re-joining an invite-only Space is refused `3047`, not `AlreadyMember`** — correct in outcome, mis-named in reason. **Not repaired, because the repair is worse: admitting her past the gate hands the refusal to a discarded applier error and answers her `Accepted`.** ***A wrong reject code is a smaller defect than a reply that lies.*** 📌 **Recorded in the source at the gate, with its reason.** Filed for `G-5`.
+
+## 🔧 N-204 — A HEREDOC THAT TRUNCATES, AND THE CAREFUL VERSION OF WHAT IS KNOWN
+
+🛑 **MEASURED, AND NARROW:** bash heredocs in this harness truncated on two occasions. **71 lines wrote correctly** (verified by `wc -l` and `tail`). **~170 lines failed, bash reporting line 164; ~430 lines failed, bash reporting line 172.** Both died at **parse** time (`unexpected EOF while looking for matching`), so **nothing partial applied.** ✅ **A 5-line probe carrying every suspect construct — backticks, apostrophes, em dash, `①`, ellipsis, Rust `\` line-continuation, `{fmt:?}`, `$var` — wrote correctly, which ruled out content as the cause.**
+
+🛑 **THE TRUNCATION POINT IS SOMEWHERE BETWEEN 71 AND ~164 LINES AND WAS NOT BISECTED.** 🔑 ***"Chunk at ~70 lines" is a working rule Clair stayed under, NOT a measured threshold, and it does not enter the record as one.*** *Chat's first draft of this note would have promoted it to one; the correction is Clair's.*
+
+⚠️ **THE DANGEROUS SIBLING IS INFERRED, NOT OBSERVED.** A cut landing **outside** a quoted region would leave bash with no complaint and write **a half-file that looks complete**. **It follows from the mechanism; it was never produced.** 🔑 **It belongs to `N-203`'s family — *asserting that a write happened is not asserting that what was written is what was intended* — and the note says which half is which: the safe failure is MEASURED, the unsafe one is INFERRED FROM IT.** 🛑 **And in both observed cases the guards never ran at all, so they proved nothing here either way.** ***That distinction is the entire reason the guards' assertions are worth anything.***
+
+✅ **`N-205` — the launcher lied again, third recorded instance:** the probe run's task notification reported *exit code 0* while `SENTINEL_EXIT=101`. **Only the sentinel separated them.** Both of Chat's re-drive runs were sentinel-separated before this hand-back was read.
+
+📌 **The session crossed midnight. The runbook and lock commit stay dated 2026-08-24 because that is when they happened; this entry carries 2026-08-25.** ***A record is dated when the work happened, not when it was written up.***
+
+🔓 **OPEN AND JOE'S: whether `G-2` follows immediately.** 🔓 **Nothing on Clair's seat.**
+
+▶️ **NEXT: `G-2` — `3048 rejoin_not_anchored`, the loud refusal, and it is now REACHABLE FOR THE FIRST TIME** — `G-1` made rejoins possible, which is exactly what makes the accept-then-drop reachable in production.
+
+---
 ## Entry J-774 — the G-1 runbook, and two grounded facts that shrank the leg to three lines
 **Date:** 2026-08-24 · **Seats:** Chat (grounding, runbook) · Joe (push)
 

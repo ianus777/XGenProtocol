@@ -1617,8 +1617,70 @@ impl NodeRuntime {
                     // Room joins are out of scope by the enclosing `room_id.is_empty()`
                     // condition: a Room join is gated by Space membership, which the
                     // Space-level join this gate guards is what confers.
+                    // M-SPACE-ADMISSION Leg G-1 — THE THIRD TERM. §15.4 specifies
+                    // *admit iff `open`, OR a pending invite, OR a FORMER MEMBER*, and
+                    // until this leg the gate implemented two of those three. The
+                    // conjunct added below carries the third: it admits a sender whose
+                    // membership record is RETAINED and MARKED DEPARTED — `D-154`①,
+                    // `Q-2`(a), *a former member is re-admitted WITHOUT an invite*.
+                    //
+                    // `apply_join` has carried this arm since Leg E-1 (`state.rs`, the
+                    // comment reading *"the three-way gate"*), so before this leg the
+                    // two disagreed and THIS SITE WON: a returning member was refused
+                    // `3047` here, before the applier that would have admitted her was
+                    // ever reached. That bit in EVERY DM — both DM constructors pin
+                    // `admission = invite` at fold time, and her seeded pending invite
+                    // was consumed by her FIRST join — which made departure a one-way
+                    // door for both parties.
+                    //
+                    // THERE IS NO BAN CLAUSE HERE, AND ITS ABSENCE IS A DECISION.
+                    // The dispatch-level banned pre-check — the block above under the
+                    // "MP-F6 (M10.5-D2/D3) — dispatch-level banned pre-check" banner
+                    // — runs EARLIER IN THIS SAME FUNCTION and refuses a banned
+                    // identity outright, so a banned former member never reaches this
+                    // line. A second `banned.contains` here would be a SECOND SOURCE
+                    // OF TRUTH for *is this person banned* inside one function —
+                    // `D-067`'s exact target. It is asserted by a negative control
+                    // instead (`space_admission_gate.rs`, the banned-former-member
+                    // test, which requires the refusal to arrive in the PRE-CHECK's
+                    // shape and NOT as `3047`), so the omission is measured, not
+                    // assumed.
+                    //
+                    // A KICK NEEDS NO SPECIAL CASE, for the same reason from the other
+                    // side: `apply_kick` calls `mark_departed` and does NOT touch
+                    // `self.banned`, whereas `apply_ban` and `apply_node_eject` do
+                    // both. So `D-154`②③ — *a kick is remembered, a ban bars* — fall
+                    // out of the two checks already present: the kicked member is
+                    // departed and unbanned, so the term below admits her; the banned
+                    // one is stopped upstream. Nothing in this gate has to know the
+                    // difference between them.
+                    //
+                    // THE TERM IS `!is_present()`, NOT `contains_key`, and a PRESENT
+                    // member is deliberately NOT admitted by it. `is_member` would be
+                    // wrong for the same reason in reverse: it is `false` for a former
+                    // member and for a stranger alike, which is precisely the
+                    // distinction this term exists to draw. The spelling is
+                    // `apply_join`'s own, through `SpaceMember::is_present()`, which
+                    // `D-067` names *the single definition of the predicate every
+                    // reader of `SpaceState::members` gates on* — two spellings of one
+                    // predicate is how two sites drift apart, which is the defect this
+                    // leg repairs.
+                    //
+                    // CONSEQUENCE, NAMED AND DELIBERATELY NOT FIXED HERE: because a
+                    // present member is not admitted by the term, her re-join of an
+                    // invite-only Space is refused `3047` — correct in OUTCOME,
+                    // mis-named in REASON (`AlreadyMember` is the true one). It is not
+                    // repaired here because the repair is worse: admitting her past
+                    // this gate hands the refusal to `apply_join`, whose `Err` every
+                    // production call site discards (`let _ = state.apply_event`, this
+                    // file), so she would be answered `Accepted` and silently dropped.
+                    // A wrong reject code is a smaller defect than a reply that lies.
                     if space.admission != ADMISSION_OPEN
                         && !space.pending_invites.contains_key(&event.sender)
+                        && !space
+                            .members
+                            .get(&event.sender)
+                            .is_some_and(|m| !m.is_present())
                     {
                         return DispatchOutcome::Rejected(RejectInfo::coded(
                             3047,

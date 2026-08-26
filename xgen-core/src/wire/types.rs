@@ -151,19 +151,40 @@ pub enum TransportMessage {
         protocol_version: String,
         retry_after_ms: u64,
     },
-    /// M8.5-B (INV-D1/INV-D2, CP-2) — a pending invitee's request to bootstrap
-    /// its membership. The Node serves the *structural* events of `space_id`
-    /// (Space/Room creates + the membership chain incl. the invite naming the
-    /// requester) — **no message content** — so the invitee can read the
-    /// invite's `event_id` and chain its `membership.join` causally after it
-    /// (dissolving the M85-A3 concurrency). Authorization is the requester
-    /// holding an **unexpired** `pending_invite` in `space_id`; an absent or
-    /// expired invite is refused with transport code `1011`
-    /// (`invite_bootstrap_refused`). On success the Node replies with the same
-    /// `HistoryBatch` + `SyncComplete` shape as a `sync_request`. The requester
-    /// is the authenticated connection Identity (no separate principal field);
+    /// M8.5-B (INV-D1/INV-D2, CP-2) — a request to bootstrap membership from
+    /// **someone entitled to enter** `space_id` but not yet a member. The Node
+    /// serves the *structural* events (Space/Room creates + membership chain) —
+    /// **no message content** — so the requester can chain a causally-correct
+    /// `membership.join` (dissolving the M85-A3 concurrency). The requester is
+    /// the authenticated connection Identity (no separate principal field);
     /// `space_id` + the home-node endpoint are the inherent out-of-band data of
     /// any invitation. `collect_sync_history` (member-only) is untouched.
+    ///
+    /// **Authorization — TWO routes** (`M-SPACE-ADMISSION` Leg G-3, Joe
+    /// 2026-08-26; the wire STRING is unchanged, its MEANING widened):
+    ///
+    /// 1. **A pending invitee** holding an **unexpired** `pending_invite` — the
+    ///    original M8.5-B case. It reads the invite's `event_id` and chains off it.
+    /// 2. **A retained departed member who is NOT banned** (`D-154`①) — she
+    ///    needs no invite to rejoin and so has none to read; she anchors on her
+    ///    own last membership event. 🛑 The ban test is explicit and load-bearing:
+    ///    `left_at.is_some()` is true for a BANNED and a NODE-EJECTED identity
+    ///    too, and before Leg G-3 the invite requirement was excluding them only
+    ///    as a side effect of their holding no invite.
+    ///
+    /// An absent invite with no former-member standing, an expired invite, or a
+    /// banned/ejected requester is refused with transport code `1011`
+    /// (`invite_bootstrap_refused`). On success the Node replies with the same
+    /// `HistoryBatch` + `SyncComplete` shape as a `sync_request`.
+    ///
+    /// 🛑 **THE SERVED SET DEPENDS ON WHICH ROUTE ADMITTED THE REQUESTER, AND A
+    /// READER OF ONE BRANCH WILL NOT SEE THE OTHER.** Route 1 gets the whole
+    /// membership chain, as it always has. Route 2 gets the creates plus **only
+    /// the membership events naming her** — she is still standing outside, and
+    /// `D-154`④ ruled what a RETURNING member receives, not what a requester
+    /// gets on request while still out. Serving her the chain would widen that
+    /// disclosure as a side effect of a mechanism change. See ch3 §3.3.11 and
+    /// `xgen-node/src/fanout.rs::collect_invite_bootstrap`.
     #[serde(rename = "transport.invite_bootstrap_request")]
     InviteBootstrapRequest {
         protocol_version: String,

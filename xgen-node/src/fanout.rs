@@ -726,21 +726,96 @@ pub(crate) fn permitted_event_ids(all: &[Event], identity: &IdentityXgid) -> Has
     permitted
 }
 
-/// M8.5-B (INV-D1/INV-D2, CP-2/CP-3) — the scoped structural invite-bootstrap
-/// fetch. Serves a **pending invitee** (not yet a member) the structural event
-/// set of `space_id` so it can read the invite naming it and chain its join.
+/// `M-SPACE-ADMISSION` Leg G-3 — **does this event NAME the requester?**
 ///
-/// Sibling to `collect_sync_history`, which stays **member-only** (untouched):
-/// this path's authorization is the requester holding an **unexpired**
-/// `pending_invite` in the Space, NOT membership. The validity read-gate
-/// (INV-D6) lives here — an absent or expired invite is refused **at the
+/// The per-type field test behind the door's served set (§3, option ②). It is
+/// deliberately **not** a `sender == her || target == her` union, and that is
+/// the whole point: a `kick` **she issued** while she was a member carries her
+/// as `sender` and a THIRD PARTY as `target_identity`, so a union would serve
+/// her someone else's removal — the exact disclosure ② withholds.
+///
+/// So the field is read per type, matching the appliers (`state.rs`) and
+/// [`permitted_event_ids`]'s own classification:
+///
+/// - `join` / `leave` — the subject SIGNS them ⇒ read `sender`.
+/// - `invite` / `kick` / `ban` / `node_eject` / `node_unban` — someone else acts
+///   ON the subject and is the `sender` ⇒ read `content["target_identity"]`.
+///   ✅ All five verified at their appliers to use that one field name.
+///
+/// 📌 **No `room_id` condition, and its absence is a decision.**
+/// [`permitted_event_ids`] tests `space_level` because it computes a presence
+/// BOUNDARY that must agree with `left_at`, and the appliers return early on a
+/// room-level event. This is a DISCLOSURE test, not a boundary: a room-level
+/// event naming her still tells her only about herself.
+fn bootstrap_event_names_requester(event: &Event, requester_id: &IdentityXgid) -> bool {
+    match event.event_type {
+        EventType::MembershipJoin | EventType::MembershipLeave => event.sender == *requester_id,
+        EventType::MembershipInvite
+        | EventType::MembershipKick
+        | EventType::MembershipBan
+        | EventType::MembershipNodeEject
+        | EventType::MembershipNodeUnban => {
+            event.content["target_identity"].as_str() == Some(requester_id.as_str())
+        }
+        _ => false,
+    }
+}
+
+/// M8.5-B (INV-D1/INV-D2, CP-2/CP-3) — the scoped structural invite-bootstrap
+/// fetch. Serves someone **entitled to enter** (not yet a member) the structural
+/// event set of `space_id` so they can chain a causally-correct `membership.join`.
+///
+/// **Two entitlement routes** (`M-SPACE-ADMISSION` Leg G-3, Joe 2026-08-26):
+///
+/// 1. **A pending invitee** holding an **unexpired** `pending_invite` — M8.5-B's
+///    original case. It reads the invite naming it and chains off that id.
+/// 2. **A retained departed member who is not banned** — `D-154`①'s rejoiner.
+///    She needs no invite (Leg G-1 admits her at the join gate without one), so
+///    she has none to read; she anchors on her own last membership event.
+///
+/// 🛑 **THE BAN TERM IS LOAD-BEARING AND IS NOT DUPLICATION.** Before Leg G-3
+/// the single line `pending_invites.get(..).ok_or(REFUSED)?` was doing TWO jobs:
+/// proving entitlement AND, as a side effect, excluding the banned — a banned
+/// identity holds no pending invite (`apply_ban` / `apply_node_eject` both
+/// `pending_invites.remove`), so it was refused for the wrong reason. Widening
+/// that line replaces only the first job. **`left_at.is_some()` is true for a
+/// banned and for a node-ejected identity too**, so without the explicit
+/// `space.banned` test route 2 would hand the Space's membership chain to
+/// someone it has permanently excluded.
+///
+/// ⚠️ **This is the INVERSE of Leg G-1's gate, and the difference is measured,
+/// not stylistic.** There, a ban clause would have been a second source of truth
+/// because the dispatch-level pre-check (`runtime.rs`, MP-F6) runs upstream in
+/// the same function. **Here nothing runs upstream at all**: neither this
+/// function nor the node's `InviteBootstrapRequest` arm (`app.rs`, whose own
+/// comment says authorization lives here) reads `banned`, and the dispatch-level
+/// pre-check guards event SUBMISSION, not transport requests. `banned` had zero
+/// occurrences in this file before this leg.
+///
+/// **The served set is route-dependent (§3, ruled ②).** An invitee gets the
+/// whole membership chain, as it always has. A former member standing outside
+/// gets the creates plus **only the membership events naming her** — she learns
+/// nothing new about anyone else until she is actually back in, at which point
+/// `D-154`④ governs as it already does. 🛑 That means **the payload now depends
+/// on who knocks**, which is a real complexity cost, named rather than traded
+/// away, and documented at `wire/types.rs` and ch3 §3.3.11 alongside this.
+///
+/// 🔑 The `D-154`④ presence-interval filter ([`permitted_event_ids`]) is NOT
+/// applied here and would be a **no-op** if it were: its job is to withhold
+/// CONTENT during an absence, and this path serves no content by construction.
+///
+/// Sibling to `collect_sync_history`, which stays **member-only** and untouched
+/// (its `is_member` gate is present-tense, so a former member is refused there
+/// and stays refused). The validity read-gate (INV-D6) still lives here, still
+/// inside the invite route — an absent or expired invite is refused **at the
 /// request**, not served-then-rejected-later. Refusal carries transport wire
 /// `1011 invite_bootstrap_refused` (a `transport.*` refusal belongs in the
 /// 1xxx transport band; 3044 is the join-acceptance gate, a separate band).
 ///
 /// Returns the structural events in topological order on success, or
-/// `Err((1011, "invite_bootstrap_refused"))` when the Space is unknown, the
-/// requester holds no pending invite, or the invite has expired.
+/// `Err((1011, "invite_bootstrap_refused"))` when the Space is unknown, or the
+/// requester neither holds an unexpired pending invite nor is a retained
+/// departed member who is not banned.
 pub async fn collect_invite_bootstrap(
     runtime: &Arc<Mutex<NodeRuntime>>,
     requester_id: &IdentityXgid,
@@ -749,32 +824,95 @@ pub async fn collect_invite_bootstrap(
     const REFUSED: (u32, &str) = (1011, "invite_bootstrap_refused");
     let rt = runtime.lock().await;
     let space = rt.spaces.get(space_id).ok_or(REFUSED)?;
-    // Authorization: the requester must hold a pending invite in this Space.
-    let pending = space.pending_invites.get(requester_id).ok_or(REFUSED)?;
-    // Read-gate (INV-D6): an expired invite is a dead read capability. Mirrors
-    // the join-acceptance gate's fail-closed-for-non-DM rule (C2): on a regular
-    // Space an absent/unparseable `valid_until` is malformed/legacy → refuse;
-    // DM Spaces are exempt by design (`dm_constraints_active`) — DMs don't use
-    // this path, but the exemption stays consistent with the join gate.
-    match pending.valid_until.as_deref() {
-        Some(vu_str) => {
-            let past = chrono::DateTime::parse_from_rfc3339(vu_str)
-                .map(|vu| chrono::Utc::now() > vu.with_timezone(&chrono::Utc))
-                .unwrap_or(true); // unparseable ⇒ fail-closed
-            if past {
-                return Err(REFUSED);
+    // Leg G-3 route 2 — a RETAINED DEPARTED member who is not banned.
+    //
+    // `!m.is_present()` is Leg G-1's and Leg G-2's term, RE-READ not re-spelled:
+    // `SpaceMember::is_present()` is `D-067`'s one fact in one place. Third site,
+    // same spelling. `space.banned` is read DIRECTLY — see the ban paragraph
+    // above; there is no upstream check on this path to defer to.
+    //
+    // 🛑 One `banned` test covers BOTH permanent exclusions: `apply_ban` and
+    // `apply_node_eject` each `banned.insert`, while `apply_kick` does NOT — so
+    // a kicked member stays eligible to fetch her anchor, which is exactly
+    // `D-154`②③ (a kick is remembered; she may return).
+    let is_former_member = space
+        .members
+        .get(requester_id)
+        .is_some_and(|m| !m.is_present())
+        && !space.banned.contains(requester_id);
+
+    // Authorization: an unexpired pending invite, OR route 2.
+    match space.pending_invites.get(requester_id) {
+        Some(pending) => {
+            // Read-gate (INV-D6): an expired invite is a dead read capability.
+            // Mirrors the join-acceptance gate's fail-closed-for-non-DM rule
+            // (C2): on a regular Space an absent/unparseable `valid_until` is
+            // malformed/legacy → refuse; DM Spaces are exempt by design
+            // (`dm_constraints_active`) — DMs don't use this path, but the
+            // exemption stays consistent with the join gate.
+            //
+            // ⚠️ NAMED, NOT FIXED — the invite route SHADOWS route 2. A former
+            // member who was re-invited, whose invite then expired, is refused
+            // here even though route 2 would admit her with no invite at all:
+            // a dead capability she is not relying on defeats the route that
+            // exists precisely so she needs none. Reachable — neither
+            // `apply_leave` nor `apply_kick` clears `pending_invites`. It errs
+            // RESTRICTIVE and a fresh `membership.invite` clears it. Reported
+            // under Rule 6 rather than absorbed: the runbook's §4 prose reads
+            // as an OR while its sketch (implemented here verbatim) and its
+            // "the gate stays inside the invite arm" instruction produce this.
+            match pending.valid_until.as_deref() {
+                Some(vu_str) => {
+                    let past = chrono::DateTime::parse_from_rfc3339(vu_str)
+                        .map(|vu| chrono::Utc::now() > vu.with_timezone(&chrono::Utc))
+                        .unwrap_or(true); // unparseable ⇒ fail-closed
+                    if past {
+                        return Err(REFUSED);
+                    }
+                }
+                None if !space.dm_constraints_active => return Err(REFUSED),
+                None => {}
             }
         }
-        None if !space.dm_constraints_active => return Err(REFUSED),
-        None => {}
+        // No invite to expire, so no expiry to check — and no substitute
+        // deadline is invented for her.
+        None if is_former_member => {}
+        None => return Err(REFUSED),
     }
     // Serve the structural-only set (CP-3), in topological order.
+    //
+    // §3 ruled ②: a former member gets the creates plus only the membership
+    // events NAMING her; an INVITEE's payload is unchanged (`V-6`) — ① was
+    // *"the same set an invitee gets"*, so ② narrows exactly one side. The
+    // creates are unconditional: without them the batch is unparseable.
+    //
+    // 📌 `is_former_member` carries `&& !banned`, but at THIS point the two
+    // coincide: a banned former member was already refused above, so the flag
+    // reads here as plain *she is a departed member*. Someone entitled by BOTH
+    // routes (departed, and re-invited with a live invite) is narrowed — she is
+    // still a person outside the room, and the invite naming her survives the
+    // filter, so the M8.5-B chain (INV-D2/D3) still works for her.
+    //
+    // 🔒 `is_structural_bootstrap_type`'s TYPE SET is untouched. Under ② the
+    // narrowing is a filter on INSTANCES, not on which types are structural —
+    // which is what keeps this set and `permitted_event_ids`'s
+    // admitted-while-absent set from drifting apart (`D-154`④ ②).
     let events: Vec<Event> = match rt.stores.get(space_id) {
         Some(store) => store
             .range(0)
             .unwrap_or_default()
             .into_iter()
             .filter(|e| is_structural_bootstrap_type(&e.event_type))
+            .filter(|e| {
+                !is_former_member
+                    || matches!(
+                        e.event_type,
+                        EventType::StateSpaceCreate
+                            | EventType::StateDmSpaceCreate
+                            | EventType::StateRoomCreate
+                    )
+                    || bootstrap_event_names_requester(e, requester_id)
+            })
             .collect(),
         None => Vec::new(),
     };
@@ -1786,6 +1924,390 @@ mod tests {
             runtime.lock().await.spaces[space_id.as_str()].is_member(&bob_id),
             "bob must be a member after the bootstrap join"
         );
+    }
+
+    // ── M-SPACE-ADMISSION Leg G-3 — the door ───────────────────────────────
+    //
+    // `collect_invite_bootstrap`'s authorization widens: a RETAINED DEPARTED
+    // member who is NOT banned may fetch her own anchor without an invite.
+    //
+    // 🛑 The ban term is the control this leg exists to get right. Before G-3
+    // the pending-invite line was doing two jobs — proving entitlement AND
+    // excluding the banned as a side effect (a banned identity's invite is
+    // removed by `apply_ban` / `apply_node_eject`). Widening replaces only the
+    // first, and `left_at.is_some()` is true for a banned and an ejected
+    // identity too, so without `space.banned` the widening would hand the
+    // membership chain to someone the Space permanently excluded.
+
+    #[derive(Clone, Copy)]
+    enum DepartedBy {
+        Leave,
+        Kick,
+        Ban,
+        NodeEject,
+    }
+
+    struct DepartedFixture {
+        runtime: Arc<Mutex<NodeRuntime>>,
+        space_id: String,
+        carol_id: String,
+        /// Carol's own invite, join and departure — what `G-4` anchors on.
+        carol_invite: String,
+        carol_join: String,
+        carol_departure: String,
+        /// A THIRD PARTY's structure, before her departure and DURING her
+        /// absence. `V-7`'s subject is the second one.
+        bob_join: String,
+        bob_leave_during_her_absence: String,
+        /// Content — must never be served (CP-3).
+        msg: String,
+    }
+
+    /// ```text
+    ///   space_create → room_create
+    ///   → invite(carol) → join(carol)      her own chain
+    ///   → invite(bob)   → join(bob)        third-party structure, she was present
+    ///   → "content"                        CP-3
+    ///   → leave|kick|ban|node_eject(carol) the boundary — her anchor
+    ///   → leave(bob)                       THIRD-PARTY departure during her absence
+    /// ```
+    /// `home_node` is the runtime's REAL node key so `membership.node_eject`
+    /// (Node authority: `sender == home_node`) is constructible here.
+    fn setup_departed_member_space(departure: DepartedBy) -> DepartedFixture {
+        use crate::message::exchange::build_message_text_event;
+        let node_key = keypair::generate();
+        let node_uri = pubkey_uri(&node_key);
+        let mut rt = NodeRuntime::new(node_key.clone());
+        let alice = keypair::generate();
+        let bob = keypair::generate();
+        let carol = keypair::generate();
+        let alice_id = pubkey_uri(&alice);
+        let bob_id = pubkey_uri(&bob);
+        let carol_id = pubkey_uri(&carol);
+        rt.register_identity(make_identity_record(&alice_id)).unwrap();
+        rt.register_identity(make_identity_record(&bob_id)).unwrap();
+        rt.register_identity(make_identity_record(&carol_id)).unwrap();
+
+        let space_ev = sign_event(
+            build_space_create_event(&alice, "Door", None, 1, &node_uri, None, false),
+            &alice,
+        );
+        let space_id: String = event_id_str(&space_ev);
+        rt.ingest_event(space_ev);
+        let sx = sdx(&space_id);
+
+        let room_ev =
+            sign_event(build_room_create_event(&alice, &space_id, "general", None), &alice);
+        let room_id: String = event_id_str(&room_ev);
+        rt.ingest_event(room_ev);
+
+        let carol_invite = chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                json!({ "target_identity": carol_id, "role": "member" }),
+            ),
+            &alice,
+        );
+        let carol_join = chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(&carol, &space_id, "", EventType::MembershipJoin, json!({})),
+            &carol,
+        );
+
+        // A third party, admitted while carol was present.
+        chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(
+                &alice,
+                &space_id,
+                "",
+                EventType::MembershipInvite,
+                json!({ "target_identity": bob_id, "role": "member" }),
+            ),
+            &alice,
+        );
+        let bob_join = chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(&bob, &space_id, "", EventType::MembershipJoin, json!({})),
+            &bob,
+        );
+
+        // Content (CP-3 — never served on this path).
+        let msg = chain_ingest(
+            &mut rt,
+            &sx,
+            build_message_text_event(&alice, &space_id, &room_id, vec![], "secret"),
+            &alice,
+        );
+
+        // Carol departs — four shapes, one `banned` test between them.
+        let carol_departure = match departure {
+            DepartedBy::Leave => chain_ingest(
+                &mut rt,
+                &sx,
+                build_membership_event(&carol, &space_id, "", EventType::MembershipLeave, json!({})),
+                &carol,
+            ),
+            DepartedBy::Kick => chain_ingest(
+                &mut rt,
+                &sx,
+                build_membership_event(
+                    &alice,
+                    &space_id,
+                    "",
+                    EventType::MembershipKick,
+                    json!({ "target_identity": carol_id }),
+                ),
+                &alice,
+            ),
+            DepartedBy::Ban => chain_ingest(
+                &mut rt,
+                &sx,
+                build_membership_event(
+                    &alice,
+                    &space_id,
+                    "",
+                    EventType::MembershipBan,
+                    json!({ "target_identity": carol_id }),
+                ),
+                &alice,
+            ),
+            // Node authority: `apply_node_eject` requires `sender == home_node`.
+            DepartedBy::NodeEject => chain_ingest(
+                &mut rt,
+                &sx,
+                build_membership_event(
+                    &node_key,
+                    &space_id,
+                    "",
+                    EventType::MembershipNodeEject,
+                    json!({ "target_identity": carol_id }),
+                ),
+                &node_key,
+            ),
+        };
+
+        // `V-7`'s subject: a THIRD PARTY's departure, during her absence.
+        let bob_leave_during_her_absence = chain_ingest(
+            &mut rt,
+            &sx,
+            build_membership_event(&bob, &space_id, "", EventType::MembershipLeave, json!({})),
+            &bob,
+        );
+
+        DepartedFixture {
+            runtime: Arc::new(Mutex::new(rt)),
+            space_id,
+            carol_id,
+            carol_invite,
+            carol_join,
+            carol_departure,
+            bob_join,
+            bob_leave_during_her_absence,
+            msg,
+        }
+    }
+
+    /// Assert the fixture actually reached the state each test depends on —
+    /// a departed carol, and (for the two permanent exclusions) a banned one.
+    /// Without this a silently-degraded fixture would make `V-2`/`V-3` pass for
+    /// the wrong reason: refused-because-never-a-member reads exactly like
+    /// refused-because-banned at the `Err` boundary.
+    async fn assert_fixture_state(f: &DepartedFixture, expect_banned: bool) {
+        let rt = f.runtime.lock().await;
+        let space = &rt.spaces[f.space_id.as_str()];
+        let m = space
+            .members
+            .get(&idx(&f.carol_id))
+            .expect("carol's membership record must be RETAINED (`D-154`①②③⑥)");
+        assert!(!m.is_present(), "carol must be marked departed");
+        assert_eq!(
+            space.banned.contains(&idx(&f.carol_id)),
+            expect_banned,
+            "fixture must reach the expected `banned` state"
+        );
+    }
+
+    /// `V-1` — **THE SUBJECT.** A departed member holding NO invite is served,
+    /// and the batch carries her own last membership event: the thing `G-4`
+    /// will anchor her rejoin on.
+    ///
+    /// 🛑 Before this leg she was refused `1011` — not because she was
+    /// unwelcome, but because `pending_invites.get(..).ok_or(REFUSED)?` was the
+    /// only entitlement route and her invite was consumed by her FIRST join.
+    #[tokio::test]
+    async fn invite_bootstrap_serves_a_departed_member_who_holds_no_invite() {
+        let f = setup_departed_member_space(DepartedBy::Leave);
+        assert_fixture_state(&f, false).await;
+
+        // Precondition: she really holds no pending invite — otherwise this
+        // test would be exercising the ORIGINAL route, not the new one.
+        {
+            let rt = f.runtime.lock().await;
+            assert!(
+                !rt.spaces[f.space_id.as_str()]
+                    .pending_invites
+                    .contains_key(&idx(&f.carol_id)),
+                "her invite was consumed at her first join; the new route is what admits her"
+            );
+        }
+
+        let served = collect_invite_bootstrap(&f.runtime, &idx(&f.carol_id), &f.space_id)
+            .await
+            .expect("a retained departed member who is not banned must be served");
+
+        let ids: Vec<String> = served
+            .iter()
+            .filter_map(|e| e.event_id.as_ref().map(|x| x.as_str().to_string()))
+            .collect();
+        assert!(
+            ids.contains(&f.carol_departure),
+            "her own departure — the anchor `G-4` selects — must be served"
+        );
+        assert!(ids.contains(&f.carol_join), "her own join must be served");
+        assert!(ids.contains(&f.carol_invite), "her own invite must be served");
+        assert!(
+            ids.contains(&f.space_id),
+            "the Space create must be served — without it the batch is unparseable"
+        );
+        assert!(
+            served.iter().any(|e| matches!(e.event_type, EventType::StateRoomCreate)),
+            "the Room create must be served"
+        );
+        // CP-3 privacy line, unchanged by this leg.
+        assert!(!ids.contains(&f.msg), "content must NEVER be served on this path");
+    }
+
+    /// `V-2` — 🔒 **THE BAN CONTROL. THE ONE THIS LEG EXISTS TO GET RIGHT.**
+    ///
+    /// A banned former member satisfies `!is_present()` exactly as a leaver
+    /// does. Without the explicit `space.banned` term the widening would serve
+    /// her the Space's membership structure.
+    #[tokio::test]
+    async fn invite_bootstrap_refuses_a_banned_former_member_1011() {
+        let f = setup_departed_member_space(DepartedBy::Ban);
+        assert_fixture_state(&f, true).await;
+
+        let err = collect_invite_bootstrap(&f.runtime, &idx(&f.carol_id), &f.space_id)
+            .await
+            .expect_err("a BANNED former member must be refused, not served her anchor");
+        assert_eq!(err, (1011, "invite_bootstrap_refused"));
+    }
+
+    /// `V-3` — **THE EJECTION CONTROL.** `apply_node_eject` reaches `apply_ban`'s
+    /// end state by a different authority (`D-154`⑥) — it BANS two lines below
+    /// its `mark_departed` — so ONE `banned` test covers both permanent
+    /// exclusions and no second predicate is written for the Node-authority path.
+    #[tokio::test]
+    async fn invite_bootstrap_refuses_a_node_ejected_former_member_1011() {
+        let f = setup_departed_member_space(DepartedBy::NodeEject);
+        assert_fixture_state(&f, true).await;
+
+        let err = collect_invite_bootstrap(&f.runtime, &idx(&f.carol_id), &f.space_id)
+            .await
+            .expect_err("a node-ejected former member must be refused");
+        assert_eq!(err, (1011, "invite_bootstrap_refused"));
+    }
+
+    /// `V-4` — **THE KICK CONTROL, and it is the one that proves the ban term is
+    /// a BAN test rather than a departure test.** `apply_kick` marks departed and
+    /// does NOT ban (`D-154`②③) ⇒ she is eligible to return, so she is eligible
+    /// to fetch her anchor. A term reading *"was removed by someone else"*
+    /// instead of *"is banned"* would turn this red.
+    #[tokio::test]
+    async fn invite_bootstrap_serves_a_kicked_member_who_is_not_banned() {
+        let f = setup_departed_member_space(DepartedBy::Kick);
+        assert_fixture_state(&f, false).await;
+
+        let served = collect_invite_bootstrap(&f.runtime, &idx(&f.carol_id), &f.space_id)
+            .await
+            .expect("a kicked (not banned) member may still fetch her anchor");
+        let ids: Vec<String> = served
+            .iter()
+            .filter_map(|e| e.event_id.as_ref().map(|x| x.as_str().to_string()))
+            .collect();
+        assert!(
+            ids.contains(&f.carol_departure),
+            "the kick NAMING her is her last membership event and must be served"
+        );
+    }
+
+    /// `V-5` — **THE STRANGER CONTROL.** Never a member, no invite. Unchanged
+    /// behaviour, asserted against the SAME fixture so the widening is shown to
+    /// admit exactly one new class and not simply to weaken the door.
+    #[tokio::test]
+    async fn invite_bootstrap_still_refuses_a_stranger_1011() {
+        let f = setup_departed_member_space(DepartedBy::Leave);
+        let dave = keypair::generate();
+        let dave_id = pubkey_uri(&dave);
+
+        let err = collect_invite_bootstrap(&f.runtime, &idx(&dave_id), &f.space_id)
+            .await
+            .expect_err("someone who was never a member and holds no invite must be refused");
+        assert_eq!(err, (1011, "invite_bootstrap_refused"));
+    }
+
+    /// `V-7` — 🔒 **THE DISCLOSURE CONTROL. MANDATORY: §3 ruled ②, and without
+    /// this ② is an intention rather than a behaviour.**
+    ///
+    /// She is standing OUTSIDE. A third party's departure during her absence is
+    /// in the store and must NOT be in her batch: `D-154`④-as-clarified ruled
+    /// what a RETURNING member receives, and serving the chain here would widen
+    /// that from *after readmission* to *on request, while still outside*.
+    ///
+    /// 🛑 Asserted for BOTH third-party shapes, because they fail differently:
+    /// bob's JOIN carries him as `sender`, his LEAVE carries him as `sender`
+    /// too — but a `kick` would carry the ACTOR as sender and the subject in
+    /// `content`. The per-type field test is what keeps a `kick` SHE issued
+    /// (her as `sender`, a third party as target) out of her batch.
+    #[tokio::test]
+    async fn invite_bootstrap_withholds_third_party_membership_from_a_departed_member() {
+        let f = setup_departed_member_space(DepartedBy::Leave);
+
+        // The events are genuinely in the store — otherwise this asserts nothing.
+        {
+            let rt = f.runtime.lock().await;
+            let stored: Vec<String> = rt.stores[&sdx(&f.space_id)]
+                .range(0)
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|e| e.event_id.as_ref().map(|x| x.as_str().to_string()))
+                .collect();
+            assert!(
+                stored.contains(&f.bob_leave_during_her_absence),
+                "precondition: the third party's departure must BE in the store"
+            );
+            assert!(stored.contains(&f.bob_join), "precondition: bob's join is in the store");
+        }
+
+        let served = collect_invite_bootstrap(&f.runtime, &idx(&f.carol_id), &f.space_id)
+            .await
+            .expect("served");
+        let ids: Vec<String> = served
+            .iter()
+            .filter_map(|e| e.event_id.as_ref().map(|x| x.as_str().to_string()))
+            .collect();
+
+        assert!(
+            !ids.contains(&f.bob_leave_during_her_absence),
+            "§3 ②: she must NOT learn that a third party left while she was away"
+        );
+        assert!(
+            !ids.contains(&f.bob_join),
+            "§3 ②: nor a third party's admission — she gets only what names her"
+        );
+        // ...while her own chain is intact. A filter that served her nothing
+        // would satisfy the two assertions above and fail the leg.
+        assert!(ids.contains(&f.carol_departure), "her own chain must survive the filter");
+        assert!(ids.contains(&f.carol_join), "her own chain must survive the filter");
     }
 
     // ── F-7 pagination tests ──────────────────────────────────────────────

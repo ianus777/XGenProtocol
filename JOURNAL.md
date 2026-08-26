@@ -8,6 +8,82 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-777 — Leg G-3 ships: the door opens for a former member, and the filter that nearly leaked what the ruling withheld
+**Date:** 2026-08-26 · **Seats:** Clair (implementation) · Chat (runbook, Rule 5 re-drive, records) · Joe (two rulings, push)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `03e8c28` **= `origin/main` by `git ls-remote origin refs/heads/main`**. 🎯 **`M-SPACE-ADMISSION` Leg G-3 — THE DOOR — SHIPPED.**
+
+🔒 **FLOOR MOVED: cargo 1648 → 1654 / 0 / 62 × 56 SUITES.** ✅ **RE-DRIVEN INDEPENDENTLY BY BOTH SEATS (Rule 5), BOTH ON FORCED REBUILDS** — `Compiling xgen-node` and `Compiling xgen-core` present in both logs, **`N-207` closed at the FRONT of the re-drive this time rather than caught halfway through it.** `--skip` on the six returns **exactly 1648**; libtest's own **`filtered out = 6`**. Three files: `fanout.rs` **+546/−24** · `wire/types.rs` **+32/−11** · `xgen_ch3_specification.md` **+15/−6** (v0.60 → **v0.61**). Carried by scope: vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. Catalogue **UNMEASURED**.
+
+## 🛑 THE FINDING THAT SHAPED THE LEG: ONE LINE WAS DOING TWO JOBS
+
+✅ **`fanout.rs:751` — `space.pending_invites.get(requester_id).ok_or(REFUSED)?`.** ✅ **`banned` has ZERO occurrences in `fanout.rs`.** ✅ **The node's transport arm has no gate either — its own comment says authorization lives inside `collect_invite_bootstrap`.** ✅ **The dispatch-level ban pre-check at `runtime.rs:1523` guards EVENT SUBMISSION, not transport requests, and is not on this path.**
+
+🔑 **⇒ A BANNED IDENTITY WAS EXCLUDED ONLY AS A SIDE EFFECT OF HOLDING NO INVITE.** **Widening that line splits entitlement from exclusion and replaces only one of them**, and **`left_at.is_some()` is true for banned and node-ejected identities too** ⇒ **the ban term is REQUIRED here.**
+
+🔑 ***THIS IS THE EXACT INVERSE OF `G-1`, WHERE A BAN CLAUSE WOULD HAVE BEEN A SECOND SOURCE OF TRUTH BECAUSE THE PRE-CHECK ALREADY RAN UPSTREAM. THE SAME CLAUSE IS A DEFECT IN ONE LEG AND A REQUIREMENT IN THE OTHER, AND THE ONLY WAY TO TELL WHICH IS TO OPEN THE PATH.***
+
+📌 **`is_structural_bootstrap_type`'s comment already anticipated the ban IN THE PAYLOAD** — *a banned identity must not bootstrap as if clean* — **but that is disclosure OF the ban, not a gate against the banned.** *A payload that tells you someone is banned is not a check that stops them reading it.*
+
+## 🔒 §3 RULED ② — SHE IS SERVED ONLY HER OWN MEMBERSHIP EVENTS
+
+**A former member standing outside receives the creates plus only the membership events naming her — not the full chain.** 🔑 **`D-154`④-as-clarified ruled what a RETURNING member receives, and a requester admitted by the gate but not yet rejoined is NOT YET RETURNING.** ⇒ **option ① would have widened that disclosure from *after readmission* to *on request, while still outside*, arriving as a side effect of a mechanism change.** ✅ **It also places no durable copy of third-party membership history on a non-member's device** — the arc's carried caveat ②, which ① would have made worse by being pre-admission. 📌 **The refused arm is STRUCK in the runbook, not deleted, so it reads as considered-and-rejected rather than overlooked.**
+
+## 🔑 N-209 — THE FILTER THAT NEARLY LEAKED WHAT THE RULING WITHHELD
+
+The runbook said **measure the field per type; do not assume one field.** 🛑 **It did not say WHY, because the reason had not been seen when it was written.**
+
+✅ **The case that supplies it: A KICK SHE ISSUED CARRIES HER AS `sender` AND A THIRD PARTY AS `target`.** ⇒ ***a naive `sender || target` union would have leaked exactly what ② withholds — the ruling defeated by one plausible-looking line.***
+
+🔒 **CLAIR'S FRAMING, AND IT IS THE NOTE:** ***the union is not wrong because it is IMPRECISE. It is wrong because it is written from the REQUESTER's point of view — does this event mention her? — when the ruling is about the EVENT's: whose removal does this event disclose? Those two questions agree on every event EXCEPT THE ONE THAT MATTERS.***
+
+✅ **All five actor-on-subject types verified at their appliers to read `content["target_identity"]`, with no guessing.** ✅ **And no `room_id` condition, deliberately — *this is a disclosure test, not a boundary*** — ***the sentence that stops a future reader "fixing" it into a scope check.***
+
+## 📋 THE VERIFICATION THAT EARNED ITS SEPARATION
+
+🔒 **`V-8`'s two reverts ran SEPARATELY and produced DIFFERENT RED SETS.** **Revert A** (former-member arm): `V-1`/`V-4`/`V-7` red with `(1011, "invite_bootstrap_refused")`. **Revert B** (ban term alone): **exactly `V-2`/`V-3` red, failing by returning `Ok`, the dump showing the banned member served her own `MembershipBan`, the creates, her invite and her join.** 🔑 ***Different sets red ⇒ two genuinely independent terms. One revert proving two terms is a coincidence, not a control — and this is the first leg of the arc where that distinction was actually exercised.***
+
+✅ **The ch3 census was confirmed BY THE DIFF, not by reading:** hunks landing at **1237 · 1320 · 1335 · 2442**, the four predicted sites, **no fifth.** 📌 **`:2436`'s *the invite-bootstrap read path checks at request time* stays TRUE, because the expiry gate is untouched; `:1318` and `:2200` make no authorization claim.**
+
+✅ **The `wire/types.rs` doc comment is the best artefact in the diff** — it names both routes, says why the ban test is load-bearing, and carries the line that matters most: 🛑 ***the served set depends on which route admitted the requester, and a reader of one branch will not see the other.*** ***That is the caveat written where it will be read, not where it was filed.***
+
+## 🔒 DEVIATION ① — A DEFECT IN THE RUNBOOK, RULED BY JOE, AND THE RULING REFUTED CHAT'S OWN RECOMMENDATION
+
+**§4's PROSE reads as an `OR`; §4's SKETCH is a `match` reaching the invite arm first. They are not the same predicate.** ✅ **Clair implemented the sketch — correctly, because a sketch is executable and prose is not.** 🔒 **JOE RULED THE SKETCH CORRECT (2026-08-26): a former member holding an EXPIRED invite is refused, and must obtain a fresh invite or stay out.**
+
+✅ **REACHABILITY, BOTH HALVES MEASURED — AND ONLY ONE HALF HAD BEEN.** Clair proved `pending_invites` survives a departure: `pending_invites.remove` appears at exactly THREE appliers, `apply_join:1251`, `apply_ban:1352`, `apply_node_eject:1389`, and **neither `apply_leave` nor `apply_kick` clears it.** 🛑 **The unchecked half was whether an invite can be ISSUED to a departed member at all** — ✅ **`apply_invite` (`state.rs:1178`) checks the actor's role and `banned` and NOTHING about the target's membership.** 🔑 ***A necessary condition proved and a sufficient one assumed — the arc's signature class, caught this time because Joe's recall sent Chat back to `D-154` rather than forward to another argument.***
+
+## 🎯 CHAT RECOMMENDED THE TRUE `OR`. CHAT WAS WRONG, AND HERE IS WHY — RECORDED, NOT DROPPED (`D-065`)
+
+**Chat's case was: a lapsed invite grants her nothing and takes away a route she held without it, so being re-invited makes her worse off than never being re-invited.** 🛑 **Two facts refute it, and Joe's question about prior rulings is what surfaced both.**
+
+🔑 **① `D-154`① — THE INVITE IS THE CARRIER OF THE ROLE, NOT MERELY PERMISSION TO ENTER.** ✅ `apply_join` (`state.rs:1251`): `let (role, invited_by) = match self.pending_invites.remove(joiner) { Some(pi) => (pi.role, pi.invited_by), None => (Role::Member, None) }`, under the comment *a rejoiner admitted without an invite was admitted by nobody, and a departed Owner cannot walk back into Owner rights — **presence, never position**.* ⇒ **under the `OR`, someone re-invited as MODERATOR whose invite expires falls through and is admitted a plain MEMBER — the elevated grant silently dropped, invisible to her and to whoever issued it.** **The refusal forces the inviter to re-affirm the role, which is the better outcome.**
+
+🛑 **② DECISIVE — THE `OR` WOULD HAVE OPENED A DOOR ONTO A LOCKED GATE.** ✅ **The `3044 invite_expired` gate at submission (`runtime.rs:1806`) is `if let Some(pi) = space.pending_invites.get(&event.sender)` — NOT conditioned on the rejoin flag.** ⇒ **a former member holding an expired invite is refused `3044` when she submits her `membership.join`, whatever the bootstrap door served her.** ***Had this leg used the `OR`, she would have fetched her anchor, built a correct join, and been refused at submission anyway.*** 🔒 **The shipped behaviour is the CONSISTENT one: the door matches the gate. This was never a `G-3` quirk — it is the system-wide rule already in force.**
+
+📌 **JOE'S OWN REASONING, AND THE PART OF IT THAT HELD:** *an invite implies intention inside the Space, so an outsider who wants in can obtain one or be told no.* **Chat challenged that a former member is not an outsider (`D-154` retains her record) and that the trigger — whether someone happened to re-invite her — is arbitrary.** 🔑 **That challenge stands against the REACHABILITY argument and falls against the ROLE argument: the trigger is not arbitrary, it is a role grant, and expiry has to mean something for the grant as well as for the entry.**
+
+🔓 **WHAT SURVIVES, AND IT IS A STRING NOT A PREDICATE.** She meets `1011` at the door and `3044` at the gate. **`3044` at least names expiry; the `1011` refusal is INDISTINGUISHABLE FROM A STRANGER'S**, and nothing tells her *ask someone to invite you again.* ⇒ ***the rule is defensible and the experience is not.*** 📌 **Filed for `G-5` as a reason-string fix.**
+
+🛑 **TWO COMMENT-ONLY `.rs` RIDERS FILED FOR `G-4`/`G-5`, NOT CHAT'S SEAT TO WRITE.** ① `fanout.rs`'s in-source *NAMED, NOT FIXED* paragraph needs the ruling and the `3044` consistency added — 🔒 **Clair's condition holds: the losing arm's reasoning STAYS, rewritten never removed, because the next reader hits the same fork and the in-source note is the only place it is visible.** ② `G-2`'s comment at `runtime.rs` states *the `3044` expiry check … never sees a rejoiner* — **TRUE for a rejoiner with no invite, FALSE for one holding an expired one.** ***A claim narrower than the thing it describes, this time in the implementing seat's text.***
+
+## THE OTHER THREE DEVIATIONS
+
+**② `N-206` committed once and self-reported.** An inner `&` again; the wrapper exited, the notification said *exit code 0*, **the log was a 208-byte partial with no sentinel.** ✅ **Caught by the SENTINEL'S ABSENCE, re-run clean.** 📌 **Fifth recorded instance, and reported unprompted on a mistake no artefact would have shown.**
+
+**③ Dual-entitlement narrowing — Clair's call and the right one.** Someone entitled by BOTH routes gets the narrowed set. 🔑 **The reasoning is load-bearing: *she is still outside the room*, and §3's ruling is about POSITION, not about which door opened.** ✅ **And the thing that would have broken was checked: the invite naming her survives the filter, so INV-D2/D3 still works.**
+
+**④ Runbook `Status` left `ACTIVE`** — Chat's seat, flipped in this close.
+
+## 🛑 THE LIMITS, RECORDED AND NOT SOFTENED
+
+**`G-3` ALONE CHANGES NOTHING A USER CAN SEE.** `get_invite_bootstrap` (`batch.rs:262`) scans the batch for a `MembershipInvite` naming the requester, **and a rejoiner has none.** **`G-4` is what makes her select a different anchor.** ⇒ **every assertion in this leg is about WHAT THE NODE SERVES.** **Nothing ran against a live node, a wire, or a second identity.** **And `G-2`'s standing limit holds: `3048` has still never been observed on a wire.**
+
+🔓 **OPEN AND JOE'S: the reject reason string from `G-2`, and whether `G-4` follows.** 🔓 **Nothing on Clair's seat.**
+
+▶️ **NEXT: `G-4` — the client anchor selection, the leg that finally makes a rejoin from a fresh install WORK.**
+
+---
 ## Entry J-776 — Leg G-2 ships: the node stops naming a man it has already dropped, and two instruments fail from one cause, one loudly and one silently
 **Date:** 2026-08-25 · **Seats:** Clair (implementation) · Chat (runbook, Rule 5 re-drive, records) · Joe (lock, push)
 

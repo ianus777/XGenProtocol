@@ -8,6 +8,62 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-776 — Leg G-2 ships: the node stops naming a man it has already dropped, and two instruments fail from one cause, one loudly and one silently
+**Date:** 2026-08-25 · **Seats:** Clair (implementation) · Chat (runbook, Rule 5 re-drive, records) · Joe (lock, push)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `95c7283` **= `origin/main` by `git ls-remote origin refs/heads/main`**. 🎯 **`M-SPACE-ADMISSION` Leg G-2 — `3048 rejoin_not_anchored`, THE LOUD REFUSAL — SHIPPED.**
+
+🔒 **FLOOR MOVED: cargo 1644 → 1648 / 0 / 62 × 56 SUITES.** ✅ **RE-DRIVEN INDEPENDENTLY BY BOTH SEATS (Rule 5)**, `--skip` returning **exactly 1644** and libtest's own **`filtered out = 4`**. Four files: `runtime.rs` **+108/−4** · `space_admission_gate.rs` **+482/−6** · `xgen_ch3_specification.md` **+4/−3** · the Leg G Phase-0 **+3/−3**. Carried by scope: vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. Catalogue **UNMEASURED**.
+
+## 🔑 THE LEG INVENTED NO PREDICATE. IT MOVED ONE ONTO THE ANSWER PATH.
+
+✅ **`ingest_event` ALREADY COMPUTED THIS BOOLEAN** — the SR-D1 conflict gate, `conflicts_in_log` against the store's own range. **When it is true the node discards the incremental apply and rebuilds the Space from `derive_resolved`, and that rebuild drops her join**, because `algorithm.rs` prefers `MembershipLeave` over `MembershipJoin` on a frontier of two. 🔑 ***The node worked out that her rejoin was concurrent with her own departure, rebuilt a Space without her, and had ALREADY REPLIED `Accepted`. The knowledge existed; it was on the wrong side of the reply.*** 📌 **`M-1`'s shape for the third time this arc: a check that lives only past the reply point is a silent no-op on the answer path.**
+
+🛑 **AND THE REVERTED REPLY IS WORSE THAN THE RUNBOOK PREDICTED.** `V-5` deleted the gate and observed, verbatim: **`Accepted { new_joiner: Some(IdentityXgid("xgen://pubkey/ed25519:SMPY5sc1…")) }`, with `bob.is_member() == false` immediately afterwards.** 🔑 ***The lie was STRUCTURED, not incidental — the node does not merely say yes, it NAMES HIM AS THE NEW JOINER while the fold has already dropped him. That is a positive identity assertion about a non-member, of the kind a client could reasonably render, cache or announce.*** ✅ **Recorded in the implementing seat's words, not the design's prediction.**
+
+🔒 **THE GUARD IS THE SCOPE DECISION AND JOE READ IT BEFORE LOCKING.** The gate fires **only** for a retained departed member: the ordinary path never reaches the store, and **a gate that also refused a stranger's un-anchored first join would be a wire code whose name is narrower than what it does** — this project's most-repeated defect class, frozen onto a permanent string. ⚠️ **The residue is thin, NAMED, and now TESTED.**
+
+## ✅ THE ch3 ROW RODE THIS LEG, AND THE REGISTER GAVE THE ORDER
+
+§3.6.10.10 states it in its own words — ***a wire code is allocated in this table in the same change that first emits it*** — with the `3046` incident as the reason: **a table showing a gap at a number already in production sends the next allocator onto a live code, and the collision surfaces on somebody else's deployment.** 🛑 **The Leg G Phase-0 had assigned the row to `G-5`. It was wrong, and `C-8`'s shape is why: a register that exists, is authoritative, and is not consulted at the moment of allocation.** ✅ **The `3048` row shipped with the gate; the *reserved / not yet live* sentence is QUOTED rather than deleted, so a reader who remembers the reservation can see where it ended; the `G-5` entry is STRUCK, not removed.**
+
+## 🛑 N-206 AND N-207 — TWO INSTRUMENTS, ONE CAUSE, AND THE SILENT ONE WORE THE RIGHT ANSWER
+
+**`N-206` — THE LOUD ONE, on Clair's first run of the session.** An inner `&` inside the background wrapper: **the wrapper exited instantly and the notification reported *exit code 0* — the LAUNCHER's.** The log had **no sentinel and ZERO `test result:` lines**, while **cargo had survived and was still running.** ✅ **Polled to the real sentinel; the inner `&` dropped thereafter.** 📌 **Fourth recorded instance of the launcher lying, and the first where the run had not even finished.**
+
+**`N-207` — THE SILENT TWIN, on Chat's first re-drive, and it is the dangerous one.** ✅ **The run returned `1648 / 0 / 62 × 56`, sentinel 0, final `test result:` present, `FAILED` 0 — THE CORRECT ANSWER, every structural gate green — and `Compiling xgen-core: 0`.** 🔑 ***It was measuring Clair's binary, not Chat's tree.*** Stamped both `.rs` mtimes forward, re-ran, `Compiling xgen-core: 1`, **and only then was the number Chat's.**
+
+🔑 **CLAIR'S FRAMING, AND IT IS THE NOTE:** ***a wrong-looking number invites a second look; a right-looking number over someone else's artefact invites nothing at all.*** `N-206` was loud, unmistakable and impossible to bank. `N-207` would have entered the record as an independent re-drive **when it was an echo of the report it was meant to check.** 🔒 ***THIS IS WHY `N-199` PUTS THE GUARD ON `Compiling <crate>` AND NOT ON THE RESULT LINE: the result line cannot distinguish MY SOURCE PASSED from YOUR BINARY PASSED.*** 🛑 **Rule 5 — *re-drive, adopt nothing on report* — has a failure mode in which the re-drive silently re-reads the report, and one line about compilation is the only thing standing between them.**
+
+✅ **`N-208` — Python cannot open Git Bash's `/tmp`.** `open("/tmp/…")` raised `FileNotFoundError` while `ls` on the same path succeeded; resolved via `cygpath -w`. **J-763's path hazard in a new place**, and the important half is Clair's: ***a `try/except` there would have produced a clean-looking zero.***
+
+📌 **Two more, folded rather than numbered.** **A probe that could not fail, caught BEFORE it ran** — `assert_eq!(dag_tips(), dag_tips())`, two reads of one value, rewritten as a real before/after transition; ***catching an unfalsifiable check before executing it is strictly better than catching it after.*** **And `N-203`'s discipline working as designed:** Clair's splice guards fired twice and **refused to write both times** — once on ch3 line numbers counted from a `sed` window instead of measured, once on an over-broad assertion matching the pre-existing Leg D test. **Nothing partial applied either time.**
+
+## FIVE DEVIATIONS, FIVE CORRECT CALLS, TWO OF THEM DEFECTS ON CHAT'S SIDE
+
+**① The shared binding taken, and its cost paid out loud:** `is_rejoin` hoisted above the `3047` gate, the third conjunct now `&& !is_rejoin`, semantics byte-identical, **the lost short-circuit costing one `HashMap` lookup rather than the log scan the guard exists to prevent.**
+
+**② 🛑 THE KICKOFF AND THE RUNBOOK DISAGREED ON SCOPE, AND THE KICKOFF WAS WRONG.** Chat's kickoff said *".rs plus the two ch3 edits only"*; the runbook's DoD carried the Phase-0 correction as a third item. **Clair followed the runbook — correctly: §0 says implement from THIS VERSION, and a kickoff is a chat message while a runbook is a locked artefact.** 🔑 ***Third defect this arc produced by one seat writing two documents that were never read against each other.***
+
+**③ 🛑 §5.7 COLLIDED WITH THE DOCUMENT HEADER CONVENTION AND THE CONVENTION WINS.** ✅ `CLAUDE.md:1945` — *"This header MUST be updated on every file edit"*, standing and unqualified. **§5.7 was drafted to fence SCOPE and fenced the HEADER out with it.** 🔑 ***A prohibition written to bound a change should name what it is NOT bounding.*** Annotated at the site; `ch3` v0.60 and the Phase-0 v1.3 stand.
+
+**④ The re-measure after the `V-5` fix** — the correct call and the expensive one. **Measuring a tree you then change is precisely the artefact `N-199` exists to prevent.**
+
+**⑤ The runbook's `Status` left `ACTIVE`** — task docs are Chat's seat. ***Not taking a decision that isn't yours is the same instinct as not absorbing a bad instruction.***
+
+## 📋 FINDING A — THE RESIDUE IS DETERMINISTIC, AND IT WAS PREDICTED BEFORE IT WAS RUN
+
+**Layer 1 has no invite-vs-join precedence; Layer 3 ties on one node; Layer 4 decides — alice signs the invite as Owner, carol holds no role, so the invite wins EVERY time.** ⇒ **the residue is assertable, and `V-3` asserts it: carol is told `Accepted` and is not a member.** ⚠️ **Written into the test's own doc comment: *a future red here is a resolution change, not a gate change*** — ***which is the part a test name can never carry.***
+
+## 🛑 THE LIMIT, RECORDED AND NOT SOFTENED
+
+**Nothing ran against a live node, a wire, or a second identity. All four tests go through `submit_locally` in-process. `3048` HAS NEVER BEEN OBSERVED ON A WIRE.** 📌 **That bound belongs to `G-4`, and it is stated here rather than left to be discovered by whoever assumes otherwise.**
+
+🔓 **OPEN AND JOE'S: the reject reason string (shipped as drafted, his to overwrite in place), and whether `G-3` follows.** 🔓 **Nothing on Clair's seat.**
+
+▶️ **NEXT: `G-3` — the door: `collect_invite_bootstrap`'s authorization widens to the retained former member.**
+
+---
 ## Entry J-775 — Leg G-1 ships: a departed member can come back, and the runbook that specified it contained two defects the implementing seat refused
 **Date:** 2026-08-25 · **Seats:** Clair (implementation) · Chat (runbook, Rule 5 re-drive, records) · Joe (lock, push)
 

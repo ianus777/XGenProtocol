@@ -1675,12 +1675,21 @@ impl NodeRuntime {
                     // production call site discards (`let _ = state.apply_event`, this
                     // file), so she would be answered `Accepted` and silently dropped.
                     // A wrong reject code is a smaller defect than a reply that lies.
+                    // G-2 HOISTS THIS TERM TO A BINDING because the gate below
+                    // needs the same predicate in the positive. Two spellings of
+                    // one predicate is how two sites drift apart (`D-067`), and
+                    // these two sites are four lines apart. The term itself is
+                    // unchanged — same `is_present()`, same meaning; only the
+                    // short-circuit is lost, and what that costs is one `HashMap`
+                    // lookup, not the full log scan the guard below exists to
+                    // avoid.
+                    let is_rejoin = space
+                        .members
+                        .get(&event.sender)
+                        .is_some_and(|m| !m.is_present());
                     if space.admission != ADMISSION_OPEN
                         && !space.pending_invites.contains_key(&event.sender)
-                        && !space
-                            .members
-                            .get(&event.sender)
-                            .is_some_and(|m| !m.is_present())
+                        && !is_rejoin
                     {
                         return DispatchOutcome::Rejected(RejectInfo::coded(
                             3047,
@@ -1691,6 +1700,101 @@ impl NodeRuntime {
                                 event.sender.as_str()
                             ),
                         ));
+                    }
+                    // M-SPACE-ADMISSION Leg G-2 — `3048 rejoin_not_anchored`.
+                    // `3047` above asks *do you need an invite at all?*; this
+                    // asks the next question in the sequence: *does your rejoin
+                    // follow your own departure?* The `3044` expiry check below
+                    // lives inside the pending-invite branch and never sees a
+                    // rejoiner, so this is the last gate she meets.
+                    //
+                    // THE NODE ALREADY COMPUTES THIS BOOLEAN, AND IT ARRIVES ONE
+                    // STEP TOO LATE TO REACH HER. `ingest_event` runs exactly
+                    // this predicate — the SR-D1 conflict gate, `conflicts_in_log`
+                    // under the *"Every other event takes the SR-D1 conflict
+                    // gate"* banner in this file. When it is true the node throws
+                    // away the incremental apply and rebuilds the Space from
+                    // `derive_resolved`, and that rebuild DROPS her join, because
+                    // `algorithm.rs` prefers `MembershipLeave` over
+                    // `MembershipJoin` on a frontier of two. So the node works
+                    // out that her rejoin is concurrent with her own departure,
+                    // rebuilds a Space without her, and has ALREADY REPLIED
+                    // `Accepted`. The knowledge existed; it was on the wrong side
+                    // of the reply. This gate invents no predicate — it moves an
+                    // existing one onto the answer path.
+                    //
+                    // `M-1`'s shape once more: a check that lives only past the
+                    // reply point is a silent no-op on the answer path. The drop
+                    // is asserted today by a shipped, GREEN test —
+                    // `resolution/derive.rs`'s
+                    // `convergence_mp_f7_rejoin_anchored_at_root_is_dropped`.
+                    // This leg does not discover it; it makes the sender hear
+                    // about it.
+                    //
+                    // THE `is_rejoin` GUARD IS THE SCOPE DECISION AND BOTH ITS
+                    // REASONS ARE LOAD-BEARING. (1) COST: `conflicts_in_log`
+                    // runs a full `topological_sort` plus `build_ancestors` over
+                    // the entire Space log. A rejoin is rare; a message is not —
+                    // and the ordinary path does not even reach the store.
+                    // (2) NAMING HONESTY: the wire name is `rejoin_not_anchored`.
+                    // A gate that also refused a stranger's un-anchored FIRST
+                    // join would be a code whose name is NARROWER THAN THE THING
+                    // IT DESCRIBES — this project's most-repeated defect class,
+                    // and here it would be frozen onto a permanent wire string.
+                    // The guard is what makes the name exactly true.
+                    //
+                    // THE RESIDUE IS NAMED, NOT TRADED AWAY: a first-time joiner
+                    // whose join is concurrent with a same-key event — her own
+                    // `membership.invite` keys the same
+                    // `membership:{space}:{identity}` — still gets today's silent
+                    // drop. It is thin, because her client anchors on that invite
+                    // and that is what `collect_invite_bootstrap` exists to
+                    // serve, but it is not empty and this leg does not close it.
+                    // It is pinned by a control in `space_admission_gate.rs`, so
+                    // it is a tested boundary rather than an unexamined one.
+                    //
+                    // THERE IS NO SECOND `event_id` CHECK HERE, AND ITS ABSENCE
+                    // IS A DECISION. `conflicts_in_log` FAILS OPEN on an event
+                    // carrying no `event_id` — a check whose failure mode reads
+                    // exactly like success. It is unreachable at this line ONLY
+                    // because `validate_event`'s step 8 already refused such an
+                    // event earlier in this same function. Re-implementing that
+                    // check here would be a second source of truth for one fact
+                    // (`D-067`); the ordering is asserted by a negative control
+                    // instead, exactly as G-1's absent ban clause is.
+                    if is_rejoin {
+                        // `conflicts_in_log`'s contract is that `log` MUST
+                        // contain `incoming` — its transitive-ancestry
+                        // computation resolves `incoming`'s own ancestors out of
+                        // the log. At `ingest_event` that holds for free, because
+                        // the event is appended to the store before the gate
+                        // runs. HERE it has not been appended and will not be
+                        // unless this gate passes, so it is pushed onto the
+                        // borrowed copy.
+                        //
+                        // An absent store yields an empty log, and a log holding
+                        // only `incoming` cannot produce a same-key peer, so the
+                        // answer is *no conflict* and the join takes today's
+                        // path. That is the honest reading rather than an
+                        // invented one: with no log there is nothing to be
+                        // concurrent WITH.
+                        let mut log: Vec<Event> = self
+                            .stores
+                            .get(&space_id)
+                            .and_then(|s| s.range(0).ok())
+                            .unwrap_or_default();
+                        log.push(event.clone());
+                        if conflicts_in_log(&event, &log) {
+                            return DispatchOutcome::Rejected(RejectInfo::coded(
+                                3048,
+                                "rejoin_not_anchored",
+                                format!(
+                                    "rejoin_not_anchored (3048): the re-join by {} into Space {} is concurrent with that identity's own last membership event instead of chained on it, so the Space would accept it and then resolve it away. Re-anchor the join on the Space's current membership chain and re-submit",
+                                    event.sender.as_str(),
+                                    space_id.as_str()
+                                ),
+                            ));
+                        }
                     }
                     // D-090 — read the injected clock once before the
                     // pending-invite lookup. `space` borrows `self.spaces`;

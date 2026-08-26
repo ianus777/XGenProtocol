@@ -378,24 +378,45 @@ mod tests {
         node.ingest(ev).await;
     }
 
+    /// Submit a space-level `membership.join` for `key` anchored on the GIVEN
+    /// tips, through the production local-client path, and return what the
+    /// SENDER receives.
+    ///
+    /// The anchor is a parameter because Leg G-2 is entirely about it: the same
+    /// identity submitting the same join into the same Space gets opposite
+    /// answers depending on whether the event is chained on her own last
+    /// membership event or floats concurrent with it. `submit_join` below is
+    /// this function with `tips = current`, so there is ONE construction path
+    /// and the anchored and un-anchored cases cannot drift apart in any way
+    /// except the one under test.
+    async fn submit_join_on(
+        node: &InProcessNode,
+        key: &ed25519_dalek::SigningKey,
+        space_id: &str,
+        tips: &[String],
+    ) -> DispatchOutcome {
+        assert!(
+            !tips.is_empty(),
+            "the join has an anchor; step 10 rejects malformed prev_events BEFORE the \
+             admission gate, and that failure would look like an admission refusal"
+        );
+        let ev = sign_event(
+            space_level_ev(key, space_id, tips, EventType::MembershipJoin, json!({})),
+            key,
+        );
+        node.submit_locally(ev).await
+    }
+
     /// Submit a space-level `membership.join` for `key` through the production
-    /// local-client path and return what the SENDER receives.
+    /// local-client path and return what the SENDER receives. Anchored on the
+    /// Space's CURRENT tips — the well-behaved client's shape.
     async fn submit_join(
         node: &InProcessNode,
         key: &ed25519_dalek::SigningKey,
         space_id: &str,
     ) -> DispatchOutcome {
         let tips = node.dag_tips(space_id).await;
-        assert!(
-            !tips.is_empty(),
-            "the DAG has tips; step 10 rejects malformed prev_events BEFORE the \
-             admission gate, and that failure would look like an admission refusal"
-        );
-        let ev = sign_event(
-            space_level_ev(key, space_id, &tips, EventType::MembershipJoin, json!({})),
-            key,
-        );
-        node.submit_locally(ev).await
+        submit_join_on(node, key, space_id, &tips).await
     }
 
     /// SUBJECT (Leg G-1 `V-1`) — a member who joined, then LEFT, re-joins an
@@ -807,5 +828,460 @@ mod tests {
             "and `invited_by` re-derived to None — it read `Some(alice)` from the \
              seeded invite before he left (`D-154`①)"
         );
+    }
+
+    /// SUBJECT + DISCRIMINATOR (Leg G-2 `V-1` + `V-2`) — a returning member's
+    /// UN-ANCHORED re-join is refused `3048` to its SENDER, and the identical
+    /// re-join ANCHORED on her own `membership.leave` is admitted.
+    ///
+    /// They are one test because the contrast is the whole property. `3048`
+    /// refusing every rejoin would look exactly like `3048` working, and it
+    /// would silently undo Leg G-1 while every other test in this file stayed
+    /// green. The second half is what makes the first half mean *un-anchored*
+    /// rather than *rejoin*.
+    ///
+    /// WHAT THE REFUSAL REPLACES. Before this leg the node accepted the
+    /// un-anchored re-join, appended it, and then — in `ingest_event`, one step
+    /// past the reply — computed `conflicts_in_log` over the very same log,
+    /// found the join concurrent with bob's own leave, and rebuilt the Space
+    /// from `derive_resolved` WITHOUT him (`algorithm.rs` Layer 1 prefers
+    /// `MembershipLeave` over `MembershipJoin`). The sender was told yes and the
+    /// fold dropped him. The drop itself is asserted by a shipped green test —
+    /// `resolution/derive.rs`'s
+    /// `convergence_mp_f7_rejoin_anchored_at_root_is_dropped`; this leg is about
+    /// the reply, not the drop.
+    ///
+    /// THE ORDER IS LOAD-BEARING and gives a property for free: the un-anchored
+    /// submission runs FIRST. Had it landed, bob would be a PRESENT member and
+    /// the anchored submission below would be refused `3047` (a present member
+    /// is deliberately not admitted by the rejoin term). So the anchored half
+    /// passing is itself evidence that the un-anchored half did not land.
+    ///
+    /// RED-on-revert: delete the `if is_rejoin { ... }` block in
+    /// `dispatch_event` and the un-anchored submission returns `Accepted` with
+    /// bob NOT a member afterwards — the silent failure, reproduced.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn an_unanchored_rejoin_is_refused_3048_while_the_anchored_one_lands() {
+        let node = spawn_in_process_node().await;
+
+        let alice_key = keypair::generate(); // Space owner
+        let bob_key = keypair::generate(); // joins, leaves, re-joins twice
+        let bob_id = pubkey_uri(&bob_key);
+
+        node.register_identity(&alice_key).await;
+        node.register_identity(&bob_key).await;
+
+        let space_ev = sign_event(
+            build_space_create_event_with_admission(
+                &alice_key,
+                "Leg G-2 invite-only Space",
+                None,
+                1,
+                &node.node_id,
+                None,
+                false,
+                ADMISSION_INVITE,
+            ),
+            &alice_key,
+        );
+        let space_id = event_id_str(&space_ev);
+        node.ingest(space_ev).await;
+
+        // bob is invited, joins, and leaves — the state the rejoin term admits.
+        ingest_invite(&node, &alice_key, &space_id, &bob_id).await;
+        let outcome = submit_join(&node, &bob_key, &space_id).await;
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "precondition: the invited first join lands; got {outcome:?}"
+        );
+        assert!(
+            node.space_state(&space_id).await.expect("Space resolves").is_member(&bob_id),
+            "precondition: bob is a present member"
+        );
+
+        ingest_membership(&node, &bob_key, &space_id, EventType::MembershipLeave, json!({})).await;
+        let left = node.space_state(&space_id).await.expect("Space resolves");
+        let left_rec = left
+            .members
+            .get(&idx(&bob_id))
+            .expect("precondition: bob's record is RETAINED across the departure (`D-154`①)");
+        assert!(
+            !left_rec.is_present(),
+            "precondition: bob is DEPARTED — the state the rejoin term keys on, and \
+             therefore the state that makes this gate reachable at all"
+        );
+
+        // Captured BEFORE the refused submission so the store-growth check below
+        // is a transition and not two reads of one value.
+        let tips_before = node.dag_tips(&space_id).await;
+
+        // SUBJECT (`V-1`) — bob re-joins anchored on the CREATE ROOT, which is
+        // the fresh-install shape: a client with no local memory of its own
+        // membership chain has nothing else to point at. The Space id IS the
+        // create event's id, so this anchor is the root.
+        let root_anchor = vec![space_id.clone()];
+        let outcome = submit_join_on(&node, &bob_key, &space_id, &root_anchor).await;
+
+        // Membership is read BEFORE the outcome is matched, so that a REVERTED
+        // run records BOTH halves of the silent failure in one message: the
+        // sender was told `Accepted`, and the fold dropped him anyway. Reading it
+        // only after the match would let the red run report the wrong reply
+        // without showing the drop that makes the reply a lie.
+        let member_after = node
+            .space_state(&space_id)
+            .await
+            .expect("Space resolves")
+            .is_member(&bob_id);
+
+        let reject = match outcome {
+            DispatchOutcome::Rejected(info) => info,
+            other => panic!(
+                "an un-anchored re-join must be REFUSED, not accepted-then-dropped. \
+                 Got {other:?}, and bob.is_member() == {member_after} immediately \
+                 afterwards. `Accepted` together with `false` there IS the defect this \
+                 leg closes, written out: the sender was told it landed and \
+                 `derive_resolved` discarded it"
+            ),
+        };
+        assert_eq!(
+            reject.code, 3048,
+            "and refused by the ANCHOR gate specifically — not 3047 (bob is a former \
+             member, so the admission term admits him), not 3044, not a validation \
+             failure; got {reject:?}"
+        );
+        assert_eq!(reject.name, "rejoin_not_anchored");
+
+        // The refusal precedes `ingest_event`, so nothing was appended: a stored
+        // join would have become the Space's sole tip.
+        assert_eq!(
+            node.dag_tips(&space_id).await,
+            tips_before,
+            "the store did not grow — the gate returns before `ingest_event`, so the \
+             refused join was never appended"
+        );
+        assert!(
+            !member_after,
+            "bob is still departed — the refusal has teeth, it did not merely reply"
+        );
+
+        // DISCRIMINATOR (`V-2`) — the IDENTICAL re-join, anchored on bob's own
+        // `membership.leave` (the Space's current tip). Everything else is the
+        // same: same identity, same Space, same event type, same empty content,
+        // same helper. Only the anchor moved.
+        let outcome = submit_join(&node, &bob_key, &space_id).await;
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "an ANCHORED re-join still lands. Got {outcome:?}. A `3048` here means the \
+             gate is refusing every rejoin rather than every UN-ANCHORED one — which \
+             would silently undo Leg G-1 while every other test in this file stayed \
+             green, and is precisely why this half exists"
+        );
+        let after = node.space_state(&space_id).await.expect("Space resolves");
+        let bob_rec = after
+            .members
+            .get(&idx(&bob_id))
+            .expect("bob has a membership record after the anchored re-join");
+        assert!(
+            bob_rec.is_present(),
+            "and he is PRESENT — an `Accepted` that left him departed would be the \
+             reply lying in the other direction, which is the whole species this leg \
+             is about"
+        );
+        assert!(
+            bob_rec.left_at.is_none(),
+            "with the departure boundary cleared (`D-154`①)"
+        );
+    }
+
+    /// CONTROL (Leg G-2 `V-3`) — THE GATE IS REJOIN-ONLY, AND THE RESIDUE IS A
+    /// TESTED BOUNDARY RATHER THAN AN UNEXAMINED ONE.
+    ///
+    /// A FIRST-TIME invited joiner submits a join anchored at the create root.
+    /// That join is genuinely concurrent with her own `membership.invite` — both
+    /// key `membership:{space}:{carol}` and neither is an ancestor of the other
+    /// — so `conflicts_in_log` would return true for it. She is nevertheless NOT
+    /// refused `3048`, because she has no membership record and the gate is
+    /// guarded on `is_rejoin`.
+    ///
+    /// THAT GUARD IS THE POINT, AND IT COSTS SOMETHING. Refusing her too would
+    /// close this residue — and would make the wire name `rejoin_not_anchored`
+    /// narrower than the thing it describes, permanently, on a wire string.
+    /// §3.1 of the runbook takes the name over the coverage. This test is where
+    /// that trade is written down so a later reader finds a measurement instead
+    /// of an omission.
+    ///
+    /// AND THE RESIDUE IS ASSERTED, NOT MERELY NAMED: carol is told `Accepted`
+    /// and is NOT a member afterwards. The drop is deterministic rather than a
+    /// tiebreak coin-flip — `algorithm.rs` Layer 1 has no invite-vs-join
+    /// precedence, so resolution falls to Layer 4 (role within Space), where
+    /// alice signs the invite as Owner and carol has no role yet, so the INVITE
+    /// wins and the join is the loser the rebuild excludes.
+    ///
+    /// ⚠️ If this test ever goes red at the membership assertion, that is a
+    /// change in RESOLUTION, not in this gate — read `algorithm.rs` before
+    /// touching `dispatch_event`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_first_time_joiners_unanchored_join_is_not_refused_3048() {
+        let node = spawn_in_process_node().await;
+
+        let alice_key = keypair::generate(); // Space owner
+        let carol_key = keypair::generate(); // FIRST-TIME joiner — never a member
+        let carol_id = pubkey_uri(&carol_key);
+
+        node.register_identity(&alice_key).await;
+        node.register_identity(&carol_key).await;
+
+        let space_ev = sign_event(
+            build_space_create_event_with_admission(
+                &alice_key,
+                "Leg G-2 residue Space",
+                None,
+                1,
+                &node.node_id,
+                None,
+                false,
+                ADMISSION_INVITE,
+            ),
+            &alice_key,
+        );
+        let space_id = event_id_str(&space_ev);
+        node.ingest(space_ev).await;
+
+        // The invite chains on the create root, so carol's root-anchored join
+        // below is its SIBLING — same state key, neither an ancestor of the
+        // other, which is exactly the concurrency `conflicts_in_log` detects.
+        ingest_invite(&node, &alice_key, &space_id, &carol_id).await;
+        let mid = node.space_state(&space_id).await.expect("Space resolves");
+        assert!(
+            mid.pending_invites.contains_key(&idx(&carol_id)),
+            "precondition: carol holds a pending invite"
+        );
+        assert!(
+            !mid.members.contains_key(&idx(&carol_id)),
+            "precondition, and it is what makes this the CONTROL: carol has NO \
+             membership record at all, so `is_rejoin` is false for her. A retained \
+             departed record here would make this the subject case instead"
+        );
+
+        let root_anchor = vec![space_id.clone()];
+        let outcome = submit_join_on(&node, &carol_key, &space_id, &root_anchor).await;
+        if let DispatchOutcome::Rejected(ref info) = outcome {
+            assert_ne!(
+                info.code, 3048,
+                "the gate must NOT reach a first-time joiner. A `3048` here means it \
+                 was widened past rejoins and the wire name is now narrower than what \
+                 the code refuses; got {info:?}"
+            );
+        }
+        assert!(
+            matches!(outcome, DispatchOutcome::Accepted { .. }),
+            "today's outcome, unchanged: she is admitted at the reply. Got {outcome:?}"
+        );
+
+        // …and then silently dropped by resolution. This is the residue §3.1
+        // names, measured rather than described.
+        let after = node.space_state(&space_id).await.expect("Space resolves");
+        assert!(
+            !after.is_member(&carol_id),
+            "THE RESIDUE: carol was told `Accepted` and is not a member. This leg does \
+             NOT close this case, and the assertion is here so that the boundary is \
+             known and tested rather than discovered later as a surprise"
+        );
+    }
+
+    /// CONTROL (Leg G-2 `V-4`) — THE ORDERING THAT MAKES `conflicts_in_log`'s
+    /// FAIL-OPEN UNREACHABLE AT THE GATE.
+    ///
+    /// `conflicts_in_log` returns `false` for an event carrying no `event_id`:
+    /// `event_id_owned` yields `None` and it returns early. That is a check
+    /// whose failure mode reads exactly like success — an un-anchored rejoin
+    /// with no `event_id` would sail past the gate looking anchored.
+    ///
+    /// It is unreachable ONLY because `validate_event`'s step 8 already refused
+    /// such an event, ~350 lines earlier in the same `dispatch_event`. The gate
+    /// therefore contains NO second `event_id` check: re-implementing one would
+    /// be a second source of truth for one fact (`D-067`). This test asserts the
+    /// ordering instead, which is the same discipline that lets Leg G-1's ban
+    /// clause stay absent — the omission is measured, not assumed.
+    ///
+    /// The subject is a bob who WOULD be refused `3048`: a retained departed
+    /// member submitting a root-anchored join. Stripping his `event_id` must
+    /// change WHICH gate refuses him, not WHETHER he is refused. An `Accepted`
+    /// here would mean the fail-open is live on the answer path.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_join_with_no_event_id_is_refused_by_validation_before_the_anchor_gate() {
+        let node = spawn_in_process_node().await;
+
+        let alice_key = keypair::generate();
+        let bob_key = keypair::generate();
+        let bob_id = pubkey_uri(&bob_key);
+
+        node.register_identity(&alice_key).await;
+        node.register_identity(&bob_key).await;
+
+        let space_ev = sign_event(
+            build_space_create_event_with_admission(
+                &alice_key,
+                "Leg G-2 ordering-control Space",
+                None,
+                1,
+                &node.node_id,
+                None,
+                false,
+                ADMISSION_INVITE,
+            ),
+            &alice_key,
+        );
+        let space_id = event_id_str(&space_ev);
+        node.ingest(space_ev).await;
+
+        // Bring bob to the exact state that produces `3048`.
+        ingest_invite(&node, &alice_key, &space_id, &bob_id).await;
+        assert!(
+            matches!(submit_join(&node, &bob_key, &space_id).await, DispatchOutcome::Accepted { .. }),
+            "precondition: the invited first join lands"
+        );
+        ingest_membership(&node, &bob_key, &space_id, EventType::MembershipLeave, json!({})).await;
+        assert!(
+            !node.space_state(&space_id).await.expect("Space resolves").is_member(&bob_id),
+            "precondition: bob is departed, so the anchor gate is reachable for him"
+        );
+
+        // The same root-anchored re-join, signed and then stripped of its
+        // `event_id`. Signed FIRST so nothing else about the event differs from
+        // the one that earns `3048`.
+        let root_anchor = vec![space_id.clone()];
+        let mut ev = sign_event(
+            space_level_ev(
+                &bob_key,
+                &space_id,
+                &root_anchor,
+                EventType::MembershipJoin,
+                json!({}),
+            ),
+            &bob_key,
+        );
+        assert!(
+            ev.event_id.is_some(),
+            "precondition: `sign_event` stamps the canonical hash, so removing it \
+             below is a real mutation and not a no-op"
+        );
+        ev.event_id = None;
+
+        let outcome = node.submit_locally(ev).await;
+        let reject = match outcome {
+            DispatchOutcome::Rejected(info) => info,
+            other => panic!(
+                "an event with no `event_id` must be refused by VALIDATION. Got \
+                 {other:?}. An `Accepted` here means `conflicts_in_log`'s fail-open is \
+                 live on the answer path — it returns `false` for an id-less event, so \
+                 an un-anchored rejoin would read as anchored"
+            ),
+        };
+        assert_ne!(
+            reject.code, 3048,
+            "and refused BEFORE the anchor gate, not by it. A `3048` would mean the \
+             gate ran on an event validation should already have refused, which is the \
+             ordering this control exists to pin; got {reject:?}"
+        );
+        assert!(
+            reject.reason.contains("event_id"),
+            "the refusal names the missing `event_id` — step 8's `MissingEventId`, \
+             which carries no wire code and lands as the 4000 generic fallback. Got \
+             {reject:?}"
+        );
+    }
+
+    /// THE DM CASE (Leg G-2 `V-7`) — a DM party who left, re-joining
+    /// UN-ANCHORED, is refused `3048`.
+    ///
+    /// This is the case that matters most, and it is not merely another Space
+    /// shape. A DM leaver has no other route back: both DM constructors pin
+    /// `admission = invite` at fold time, her seeded invite was consumed by her
+    /// first join, and `apply_invite` bars every DM invite as its first
+    /// statement — so nobody can mint her a second one. Leg G-1 opened that door
+    /// by admitting her as a former member; this gate is what stops the door
+    /// from opening onto a reply that lies.
+    ///
+    /// Without it the DM would report her back and then resolve her away, in a
+    /// two-person room where she is half the room and the other party has no way
+    /// to correct it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_dm_partys_unanchored_rejoin_is_refused_3048() {
+        let node = spawn_in_process_node().await;
+
+        let alice_key = keypair::generate(); // DM creator
+        let bob_key = keypair::generate(); // the counterparty — leaves and returns
+        let bob_id = pubkey_uri(&bob_key);
+
+        node.register_identity(&alice_key).await;
+        node.register_identity(&bob_key).await;
+
+        let dm_ev = sign_event(
+            build_dm_space_create_event(&alice_key, &bob_id, &node.node_id),
+            &alice_key,
+        );
+        let space_id = event_id_str(&dm_ev);
+        node.ingest(dm_ev).await;
+
+        let before = node.space_state(&space_id).await.expect("the DM Space resolves");
+        assert!(
+            before.dm_constraints_active,
+            "precondition: this is a DM, not an ordinary Space"
+        );
+        assert_eq!(
+            before.admission, ADMISSION_INVITE,
+            "precondition: the constructor PINS `invite` — nobody chose it and no owner \
+             can open it, which is why the rejoin path is her only way back"
+        );
+
+        assert!(
+            matches!(submit_join(&node, &bob_key, &space_id).await, DispatchOutcome::Accepted { .. }),
+            "precondition: bob joins his DM on the seeded invite"
+        );
+        ingest_membership(&node, &bob_key, &space_id, EventType::MembershipLeave, json!({})).await;
+        let left = node.space_state(&space_id).await.expect("Space resolves");
+        assert!(!left.is_member(&bob_id), "precondition: bob has left the DM");
+        assert!(
+            !left.pending_invites.contains_key(&idx(&bob_id)),
+            "precondition, and it is why this case has no alternative route: the seeded \
+             invite is CONSUMED and `apply_invite` refuses to mint a DM invite"
+        );
+
+        let tips_before = node.dag_tips(&space_id).await;
+
+        // SUBJECT — bob comes back un-anchored, the fresh-install shape.
+        let root_anchor = vec![space_id.clone()];
+        let outcome = submit_join_on(&node, &bob_key, &space_id, &root_anchor).await;
+        let reject = match outcome {
+            DispatchOutcome::Rejected(info) => info,
+            other => panic!(
+                "an un-anchored DM re-join must be REFUSED. Got {other:?}. An \
+                 `Accepted` here tells bob he is back in a two-person room the fold is \
+                 about to remove him from, and there is no second invite to correct it \
+                 with"
+            ),
+        };
+        assert_eq!(reject.code, 3048, "refused by the anchor gate; got {reject:?}");
+        assert_eq!(reject.name, "rejoin_not_anchored");
+        assert_eq!(
+            node.dag_tips(&space_id).await,
+            tips_before,
+            "and nothing was appended — the gate returns before `ingest_event`"
+        );
+        assert!(
+            !node.space_state(&space_id).await.expect("Space resolves").is_member(&bob_id),
+            "bob is still out of the DM"
+        );
+
+        // And the anchored re-join still works — the DM door Leg G-1 opened is
+        // not closed by this gate, only made honest.
+        assert!(
+            matches!(submit_join(&node, &bob_key, &space_id).await, DispatchOutcome::Accepted { .. }),
+            "an ANCHORED DM re-join lands. A refusal here would mean this gate had \
+             re-closed the one-way door Leg G-1 opened"
+        );
+        let after = node.space_state(&space_id).await.expect("Space resolves");
+        assert!(after.is_member(&bob_id), "and he is back in the DM");
     }
 }

@@ -1,6 +1,6 @@
 # RUNBOOK — M-SPACE-ADMISSION Leg G-2: `3048 rejoin_not_anchored`, the loud refusal
-> **Status**: ACTIVE  
-> Version: 1.1  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-25  
 > Language: EN  
@@ -138,17 +138,21 @@ if is_rejoin {
 6. 🛑 **Do not touch `conflicts_in_log`, `state_key_for_event`, or `algorithm.rs`.** Resolution is correct; the reply was wrong.
 7. 🛑 **No ch3 edit beyond the `3048` row and its prose line** (`G2-2`). The standing *must not amend ch3* ruling (J-739) governs everything else.
 
+🛑 **ANNOTATION AT THE SITE (`D-131`, J-776, 2026-08-25) — ITEM 7 COLLIDES WITH A STANDING CONVENTION AND THE CONVENTION WINS.** ✅ **`CLAUDE.md:1945`, Document Header Convention: *"This header MUST be updated on every file edit"* — standing and unqualified.** **Item 7 was drafted to fence SCOPE and it fenced the HEADER out with it.** ✅ **Clair took the convention and reported the collision rather than absorbing it; `ch3` v0.59 → v0.60 and the Phase-0 v1.2 → v1.3 both stand.** 🔑 ***A prohibition written to bound a change should name what it is NOT bounding; item 7 named a limit and silently swallowed an obligation.***
+
 ---
 
 ## §6 — DoD
 
-- [ ] `G2-1` shipped in `xgen-core/src/node/runtime.rs`, guarded on the rejoin term, comment carrying §1's finding (*the node already computes this boolean and replies before it*) and §3.1's two reasons
-- [ ] `G2-2`: the `3048` row added to ch3 §3.6.10.10 **in this same change**, and the *reserved / not yet live* line annotated at the site (`D-131`), **with §3.6.10.10's own allocation rule cited as the reason it rides here**
-- [ ] `tasks/M_SPACE_ADMISSION_LEGG_PHASE0.md` §5 corrected — the ch3 row is `G-2`'s, not `G-5`'s
-- [ ] `V-1` … `V-7` run and green
-- [ ] `V-5` run: block deleted, **`Accepted` + not-a-member OBSERVED and recorded** — the silent failure reproduced once, on purpose, and then closed
-- [ ] `cargo` moved from **1644 / 0 / 62 × 56 SUITES**, delta measured with `--skip` and `filtered out` cross-checked
-- [ ] `vitest` / `svelte-check` carried **by scope**, proven by `git diff --name-only`, not asserted
-- [ ] Every deviation reported, none absorbed (Rule 6); Chat re-drives every number from `HEAD` (Rule 5)
+- [x] `G2-1` shipped in `xgen-core/src/node/runtime.rs` (**+108/−4**), guarded on the rejoin term, comment carrying §1's finding and §3.1's two reasons — 📌 **`is_rejoin` HOISTED to a binding above the `3047` gate (Deviation ①): semantics identical, the four deleted lines are exactly the old inline term, and the lost short-circuit costs one `HashMap` lookup rather than the log scan the guard prevents**
+- [x] `G2-2`: the `3048` row added to ch3 §3.6.10.10 **in this same change**, and the *reserved / not yet live* sentence **quoted rather than deleted**, with §3.6.10.10's own allocation rule cited as the reason it rode here
+- [x] `tasks/M_SPACE_ADMISSION_LEGG_PHASE0.md` §5 corrected — the ch3 row struck from `G-5` and re-homed to `G-2`, **struck rather than deleted so the re-assignment is visible**
+- [x] `V-1` … `V-7` run and green; **four new tests, nine in the file (2 pre-`G-1` + 3 `G-1` + 4 new)**
+- [x] `V-5` run: gate deleted (34 lines), targeted run RED, sentinel 101 — 🔑 **OBSERVED `Accepted { new_joiner: Some(IdentityXgid(…)) }` with `is_member() == false` immediately afterwards.** 🛑 **WORSE THAN THIS RUNBOOK PREDICTED: the reverted reply does not merely say yes, it NAMES HIM AS THE NEW JOINER while the fold has already dropped him — a positive identity assertion a client could render, cache or announce.** Restored, sha256 verified identical, mtime stamped, next run showed `Compiling xgen-core`
+- [x] `cargo` **1644 → 1648 / 0 / 62 × 56 SUITES**; delta measured with `--skip` (**exactly 1644**) and libtest's **`filtered out = 4`** — ✅ **BOTH SEATS INDEPENDENTLY (Rule 5), Chat's on a FORCED REBUILD (`Compiling xgen-core: 1`) after its first re-drive was caught serving a cached binary**
+- [x] `vitest` / `svelte-check` carried **by scope**, proven by `git diff --name-only`: four paths, zero `ui/**`, zero `.ts`/`.svelte`
+- [x] **Five deviations reported, none absorbed (Rule 6) — all five correct, and TWO were defects on Chat's side** (the kickoff's scope line, and item 7 above)
+
+🛑 **THE LIMIT, RECORDED AND NOT SOFTENED: nothing ran against a live node, a wire, or a second identity. All four tests go through `submit_locally` in-process. `3048` has never been observed on a wire.** 📌 **That bound is `G-4`'s to close, not this leg's to soften.**
 
 📌 **"Commit pushed" is deliberately not a DoD item** — `Status: COMPLETED` in this header is the shipped signal. **Clair never pushes.**

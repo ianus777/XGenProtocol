@@ -1,6 +1,6 @@
 # RUNBOOK — M-SPACE-ADMISSION Leg G-4: the client anchor selection
 > **Status**: ACTIVE  
-> Version: 1.0  
+> Version: 1.1  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-26  
 > Language: EN  
@@ -18,7 +18,7 @@
 
 🎯 **THIS IS THE LEG THAT MAKES THE ARC PAY.** G-1 admits her at the gate, G-2 refuses her honestly when she cannot be anchored, G-3 serves her the material — **and she still cannot come back from a fresh install.** After G-4 she can.
 
-🛑 **AND IT IS THE FIRST LEG OF THE ARC WHERE ANYTHING RUNS AGAINST A LIVE NODE, A WIRE AND A SECOND IDENTITY.** `3048` has never been observed on a wire. See §5 `V-9` and §8 `OD-1`.
+🛑 **AND IT IS THE FIRST LEG OF THE ARC WHERE ANYTHING RUNS AGAINST A LIVE NODE, A WIRE AND A SECOND IDENTITY.** `3048` has never been observed on a wire. 🔒 **RULED (Joe, 2026-08-26): the live run RIDES THIS LEG, and its home is `xgen-mptest` — see §5b and §8 `OD-1`.**
 
 🛑 **THIS RUNBOOK IS CLAIR'S. IMPLEMENT FROM THIS VERSION, IN A SESSION OPENED BY HER OWN KICKOFF.** Deviations are **reported, never absorbed** (Rule 6). ⚠️ **Where this runbook and any chat message disagree, THIS DOCUMENT WINS — and the disagreement is itself a finding.**
 
@@ -121,8 +121,44 @@ At `:1707-1709`: *"The `3044` expiry check below lives inside the pending-invite
 | **V-6** | Unit: a `kick` **she issued** against a third party is **NOT** selected (its key names the third party) — the client-side twin of `N-209`. |
 | **V-7** | Unit: >10 surviving candidates ⇒ exactly 10 returned, and they are the **last ten in batch order** (§3 step 4), lexicographically sorted. |
 | **V-8** | 🔒 **NEGATIVE CONTROL, RUN SEPARATELY.** Revert **only** step 3 (the reference subtraction) and, separately, **only** step 4's ordering. **Two reverts, two DIFFERENT red sets.** 🔑 ***One revert proving two behaviours is a coincidence, not a control.*** |
-| **V-9** | 🎯 **THE LIVE LEG — see `OD-1`.** Two identities, a real node process, a real wire: alice creates an invite-only Space, invites bob, bob joins, bob leaves, **bob's client state is deleted**, bob rejoins. ✅ **Assert the anchor on the wire, `Accepted`, and `bob.is_member()`.** 🛑 **Then, with G4-1 reverted, assert `3048` on the wire — the FIRST observation of that code outside an in-process test.** |
-| **V-10** | `cargo` floor moves from **1654 / 0 / 62 × 56 SUITES**; delta measured three ways (`--skip`, libtest's own `filtered out`, and an independent re-drive). Carried by scope: vitest **172 / 172 × 9 FILES**, svelte-check **0 / 34 / 15**. **Catalogue UNMEASURED — write no number.** |
+| **V-9** | 🎯 **THE LIVE LEG. ⚠️ SUPERSEDED BY §5b AT v1.1 (`D-131`) — the v1.0 text is kept below because it is what the leg was scheduled on, and it was under-specified in a way worth seeing.** ~~*Two identities, a real node process, a real wire: alice creates an invite-only Space, invites bob, bob joins, bob leaves, bob's client state is deleted, bob rejoins. Assert the anchor on the wire, `Accepted`, and `bob.is_member()`. Then, with G4-1 reverted, assert `3048` on the wire.*~~ 🛑 **It described SYSTEM-GATE work inside a table of implementation checks, and named no home** — see §5b for `V-9a` / `V-9b`. |
+| **V-10** | `cargo` floor moves from **1654 / 0 / 62 × 56 SUITES**; delta measured three ways (`--skip`, libtest's own `filtered out`, and an independent re-drive). Carried by scope: vitest **172 / 172 × 9 FILES**, svelte-check **0 / 34 / 15**. **Catalogue UNMEASURED — write no number.** 🛑 **AND THE FLOOR DELTA COMES FROM `V-1`…`V-8` ONLY. §5b's scenarios are `#[ignore]` by design and DO NOT MOVE IT** — say so explicitly in the hand-back, or an unmoved live-leg contribution reads as *no Rust landed*, which is the 6.1i/6.1j signal INVERTED and would be believed. |
+
+---
+
+## §5b — 🎯 THE SYSTEM GATE. **RULED (Joe, 2026-08-26) — IT RIDES THIS LEG.**
+
+🛑 **§5 IS AN IMPLEMENTATION GATE; THIS IS A SYSTEM GATE, AND CONFLATING THEM IS WHY v1.0's `V-9` WAS UNDER-SPECIFIED.** §5 asks *does the function return what the runbook says*. **§5b asks whether the composition does** — serialisation, transport routing, the client's own data directory, the node's store, and the order things actually happen in. ***No test in §5 can fail the way §5b can fail, and that is the whole reason it exists.***
+
+### The home, measured
+
+✅ **`xgen-mptest`.** Its own header states the purpose: the orchestrator **spawns the real built binaries as separate OS processes**, drives each actor through its `--aicontrol` JSONL pipe, observes through `.events` / `state`, and **does not link the binaries** — *the in-process → real-binary crossing the existing harness cannot do.*
+
+✅ **`join` is already drivable there** — `ClientCommand::Join` is wired into the aicontrol dispatch at `xgen-client/src/aicontrol.rs:488`, **above** the not-exposed block at `:541`. ✅ **The closest template is `xgen-mptest/tests/m12_3_federation_fetch_e2e.rs`** — alice `create-space` (`:191`) → `invite` (`:193`) → bob `join` (`:206`), all over real binaries. ✅ **Restart / same-data-dir shape:** `xgen-mptest/tests/mp_r2_restart.rs`, `ManagedProcess` + `instance_label`.
+
+🔒 **New file: `xgen-mptest/tests/mp_g4_rejoin_e2e.rs`.** `#[tokio::test]` + `#[ignore = "heavy: …"]`, run out-of-band exactly as its siblings are:
+
+```text
+cargo build -p xgen-node && cargo build -p xgen-client
+cargo test -p xgen-mptest --test mp_g4_rejoin_e2e -- --ignored --nocapture
+```
+
+🛑 **NOT `smoke-ph2`, and the reason is diagnostic, not stylistic.** `cmd_smoke_ph2`'s `fail!` macro calls `std::process::exit(1)` (`xgen-client/src/app.rs:1557-1565`) — it tells you a **step number** and dies. mptest has an oracle and a capture-by-default artifact dir. ***A gate that can only report WHICH step failed is a gate you cannot use to find out WHY.***
+
+### The scenarios
+
+| # | scenario |
+|---|---|
+| **V-9a** | 🎯 **THE LEG'S SUBJECT — REQUIRED.** alice creates an invite-only Space → invites bob → bob joins → bob leaves → **bob's `last_local_events` entry for that Space is removed from `xgen-client_state.json`** → bob rejoins. ✅ **Assert: `Accepted`, and bob is a member again.** 🔑 **That one map entry IS the fresh-install condition for this leg** — `rejoin_anchor_or_root` (`ops.rs:142-147`) reads exactly it, and its absence is what sent her to the create root. `ClientState.last_local_events` is `#[serde(default)]` (`xgen-common`), so removing the key is a legal state, not a corruption. |
+| **V-9b** | ⚠️ **THE TRUE FRESH INSTALL — REQUIRED IF REACHABLE, AND ITS REACHABILITY IS UNMEASURED.** A clean data directory with bob's **same identity**, then rejoin. 🛑 **Whether the harness can re-seat an existing identity into an empty data dir HAS NOT BEEN MEASURED and this runbook does not assume it.** ✅ **Measure it and report.** If it cannot, **file it as a finding with the blocker named** — ***do not silently drop it and do not let `V-9a` stand in for it in the record***, because `V-9a` isolates the anchor path while `V-9b` is the thing a person actually does. |
+| **V-9c** | 🛑 **`3048` ON A WIRE — THE FIRST TIME EVER.** Re-run `V-9a` with **G4-1 reverted**. ✅ **Assert the refusal arrives at the client** carrying `3048` / `rejoin_not_anchored`, and **quote the reply verbatim in the hand-back.** 🔑 **This is the leg's most valuable single artefact:** `3048` has existed in the node for two legs and **no client has ever received it**. ***A wire code nothing has ever received is a string, not a behaviour.*** |
+
+### The rules this gate runs under
+
+🛑 **`#[ignore]`, ALWAYS.** mptest's own constraint — *the fast unit suite must not spawn processes*. ⇒ **§5b contributes ZERO to the `cargo` floor**, and `V-10` must say so out loud.
+⚠️ **A SPAWN OR CONNECT TIMEOUT IS A FLAKE, NOT A FAILURE** — re-run isolated before recording anything (`mp_r2_restart.rs`'s Rule 2). 🛑 **But a flake re-run until green and then recorded as green is `N-207`'s shape wearing a different hat: state HOW MANY RUNS the recorded result took.**
+🛑 **THE HARNESS DRIVES AND OBSERVES; IT NEVER PATCHES.** A real defect surfaced here is **a finding routed to a fix-arc**, never patched under the G-4 banner.
+🛑 **PORTS AND LABELS ARE PER-RUN.** Pick a port not used by the sibling tests; `instance_label` gives the data-dir isolation. **Kill-on-drop is `ManagedProcess`'s job — verify no orphan process or port survives the run**, and say so.
 
 ---
 
@@ -142,7 +178,8 @@ At `:1707-1709`: *"The `3044` expiry check below lives inside the pending-invite
 
 - [ ] G4-1 · G4-2 landed; `V-1`…`V-8` green; `V-8`'s two reverts run separately with different red sets, then restored, sha256-identical, mtimes stamped (`N-199`).
 - [ ] G4-3 · G4-4 landed, comment-only, proven by `git show --stat` + a diff read.
-- [ ] `V-9` per `OD-1`'s ruled arm.
+- [ ] §5b `V-9a` green; `V-9b` green **or** filed as a finding with its blocker named and measured (never silently dropped).
+- [ ] §5b `V-9c` run: `3048` observed on a wire, transcript quoted verbatim in the hand-back.
 - [ ] `V-10` floors re-driven **independently by both seats on forced rebuilds**, `Compiling` present in both logs.
 - [ ] `rejoin_anchor_or_root`'s doc annotated at the site (`D-131`), not deleted.
 - [ ] Every `file:line` written into the source or the hand-back names the tree it was measured on (`D-152` clause 1).
@@ -154,7 +191,11 @@ At `:1707-1709`: *"The `3044` expiry check below lives inside the pending-invite
 
 ## §8 — 🔓 OPEN DECISIONS, SITTING INSIDE THE RUNBOOK, BOTH ARMS SPECIFIED
 
-### `OD-1` — 🎯 **JOE'S. Does the live two-identity wire run ride this leg, or wait?**
+### `OD-1` — ✅ **RULED (Joe, 2026-08-26): ARM A — THE LIVE RUN RIDES THIS LEG, IN `xgen-mptest`.** The question and both arms are kept below; the ruling is recorded at the site, and §5b is the executable form of it.
+
+⚠️ **THE PRICE IN ARM A BELOW WAS WRONG AND IS CORRECTED HERE (`D-131`).** It read *the most expensive verification leg of the arc by a wide margin*, costed as **building a rig**. ✅ **Measured after the fact: there is no rig to build.** `xgen-mptest` spawns the real built `.exe`s as OS processes and drives them over `--aicontrol` JSONL — its own header names the purpose as *the in-process → real-binary crossing the existing harness cannot do* — and `ClientCommand::Join` is already exposed there (`xgen-client/src/aicontrol.rs:488`, above the not-exposed block at `:541`). 🔑 ***The recommendation was right and the reason given for its cost was not; both are recorded, because a recommendation accepted on a wrong price is a decision the record cannot audit.***
+
+### `OD-1` — 🎯 **JOE'S (as originally put). Does the live two-identity wire run ride this leg, or wait?**
 
 *A member left your Space. She reinstalls the app on a new machine — nothing of hers survives locally — and asks to come back. Everything built so far says she can. **Nobody has ever watched it happen.***
 

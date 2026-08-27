@@ -30,9 +30,19 @@ use xgen_core::space::state::{
 };
 use xgen_core::transport::client::connect_url;
 use xgen_core::transport::connection::{Connection, Inbound};
+use xgen_core::resolution::{state_key_for_event, StateKey};
 use xgen_core::wire::types::{Event, EventType, TransportMessage};
 
 use crate::batch::get_invite_bootstrap;
+
+/// M-SPACE-ADMISSION Leg G-4 — the state key of the join the caller is about to
+/// sign, built the way `ops::join` builds it (Space join ⇒ empty `room_id`).
+/// Production ALWAYS passes `Some(..)` here, so these tests do too: passing
+/// `None` would exercise a configuration the product never reaches.
+fn space_join_key(who: &ed25519_dalek::SigningKey, space_id: &str) -> StateKey {
+    let probe = build_membership_event(who, space_id, "", EventType::MembershipJoin, serde_json::json!({}));
+    state_key_for_event(&probe).expect("a membership.join always yields a state key")
+}
 
 const T: Duration = Duration::from_secs(5);
 const NODE: &str = "xgen://pubkey/ed25519:NODE";
@@ -145,12 +155,15 @@ async fn get_invite_bootstrap_returns_invite_id_naming_self() {
     let mut conn = connect_url(&format!("ws://{addr}/xgen")).await.expect("connect");
     conn.client_authenticate(&bob).await.expect("auth");
 
-    let found = get_invite_bootstrap(&mut conn, &space_id, &bob_id, T)
+    // Leg G-4: the rejoin selector is ARMED (as in production) and the invite
+    // still wins — V-1, an invitee is byte-identical to before this leg.
+    let key = space_join_key(&bob, &space_id);
+    let found = get_invite_bootstrap(&mut conn, &space_id, &bob_id, Some(&key), T)
         .await
         .expect("bootstrap fetch");
     assert_eq!(
-        found.as_deref(),
-        Some(invite_id.as_str()),
+        found,
+        vec![invite_id.clone()],
         "client must discover the event_id of the invite naming it (to chain its join)"
     );
 }
@@ -162,14 +175,17 @@ async fn get_invite_bootstrap_refusal_yields_none_for_fallback() {
     let bob_id = id_uri(&bob);
     let (_events, space_id, _invite_id) = structural_set(&alice, &bob_id);
 
-    // Node refuses with 1011 → the helper returns None so ops::join falls back
-    // to get_dag_tips (a normal outcome, not an error).
+    // Node refuses with 1011 → the helper returns EMPTY so ops::join falls back
+    // to get_dag_tips (a normal outcome, not an error). Leg G-4 did not change
+    // this: a refused requester was served no events, so there is nothing to
+    // select from either.
     let (addr, _server) = spawn_bootstrap_server(vec![], true).await;
     let mut conn = connect_url(&format!("ws://{addr}/xgen")).await.expect("connect");
     conn.client_authenticate(&bob).await.expect("auth");
 
-    let found = get_invite_bootstrap(&mut conn, &space_id, &bob_id, T)
+    let key = space_join_key(&bob, &space_id);
+    let found = get_invite_bootstrap(&mut conn, &space_id, &bob_id, Some(&key), T)
         .await
         .expect("bootstrap fetch must not error on a 1011 refusal");
-    assert_eq!(found, None, "a 1011 refusal must yield None (fall back), not an error");
+    assert!(found.is_empty(), "a 1011 refusal must yield empty (fall back), not an error");
 }

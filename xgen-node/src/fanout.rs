@@ -851,16 +851,45 @@ pub async fn collect_invite_bootstrap(
             // (`dm_constraints_active`) — DMs don't use this path, but the
             // exemption stays consistent with the join gate.
             //
-            // ⚠️ NAMED, NOT FIXED — the invite route SHADOWS route 2. A former
-            // member who was re-invited, whose invite then expired, is refused
-            // here even though route 2 would admit her with no invite at all:
-            // a dead capability she is not relying on defeats the route that
-            // exists precisely so she needs none. Reachable — neither
-            // `apply_leave` nor `apply_kick` clears `pending_invites`. It errs
-            // RESTRICTIVE and a fresh `membership.invite` clears it. Reported
-            // under Rule 6 rather than absorbed: the runbook's §4 prose reads
-            // as an OR while its sketch (implemented here verbatim) and its
-            // "the gate stays inside the invite arm" instruction produce this.
+            // ⚠️ NAMED, AND NOW RULED — the invite route SHADOWS route 2. A
+            // former member who was re-invited, whose invite then expired, is
+            // refused here even though route 2 would admit her with no invite
+            // at all. Reachable: neither `apply_leave` nor `apply_kick` clears
+            // `pending_invites`, and `apply_invite` checks the actor's role and
+            // `banned` but nothing about the target's membership, so a departed
+            // member CAN be re-invited.
+            //
+            // 🔒 JOE RULED THE SHADOW CORRECT (2026-08-26, J-777): she is
+            // refused, and must obtain a fresh invite or stay out.
+            //
+            // The argument that lost is kept, rewritten not removed, because the
+            // next reader hits the same fork and this is the only place it is
+            // visible: *a dead capability she is not relying on defeats the
+            // route that exists precisely so she needs none, and whether someone
+            // happened to re-invite her is arbitrary.* Two facts answer it:
+            //
+            //  1. `D-154`① — THE INVITE IS THE CARRIER OF THE ROLE, not merely
+            //     permission to enter. `apply_join` takes `(role, invited_by)`
+            //     from `pending_invites.remove`, defaulting to `Role::Member`.
+            //     Under a true OR, someone re-invited as MODERATOR whose invite
+            //     expired would fall through and be admitted a plain member —
+            //     the elevated grant silently dropped, invisible to her and to
+            //     whoever issued it. The refusal forces the inviter to re-affirm
+            //     the role. So the trigger is not arbitrary: it is a role grant,
+            //     and expiry has to mean something for the grant as well as for
+            //     the entry.
+            //  2. DECISIVE — THE OR WOULD OPEN A DOOR ONTO A LOCKED GATE. The
+            //     `3044 invite_expired` gate at event submission
+            //     (`xgen-core/src/node/runtime.rs:1804`, measured at `fa0f8ad`)
+            //     is `if let Some(pi) = space.pending_invites.get(&event.sender)`
+            //     — NOT conditioned on the rejoin flag. She would fetch her
+            //     anchor here, build a correct join, and be refused `3044` at
+            //     submission anyway. Refusing at the door is the CONSISTENT
+            //     behaviour; this was never a G-3 quirk.
+            //
+            // 🔓 What survives is a STRING, not a predicate: this refusal is
+            // `1011` and is indistinguishable from a stranger's, so nothing
+            // tells her to ask for a fresh invite. Filed for `G-5`.
             match pending.valid_until.as_deref() {
                 Some(vu_str) => {
                     let past = chrono::DateTime::parse_from_rfc3339(vu_str)

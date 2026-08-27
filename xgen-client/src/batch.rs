@@ -18,8 +18,9 @@ use anyhow::{Context, Result};
 use tokio::sync::Mutex;
 
 use xgen_core::{
+    resolution::{state_key_for_event, StateKey},
     transport::connection::Inbound,
-    wire::types::{EventType, TransportMessage},
+    wire::types::{Event, EventType, TransportMessage},
 };
 
 // ── Resident health state (M4) ────────────────────────────────────────────────
@@ -248,25 +249,149 @@ pub async fn get_dag_tips(
     }
 }
 
-/// M8.5-B (INV-D1/INV-D2/INV-D3) — scoped invite-bootstrap fetch. Sends a
-/// `transport.invite_bootstrap_request` for `space_id`, drains the structural
-/// `HistoryBatch` the Node serves to a pending invitee, and returns the
-/// `event_id` of the `membership.invite` naming `my_identity` so `ops::join`
-/// can chain its join causally after it (dissolving the M85-A3 concurrency).
+// ── Leg G-4 rejoin anchor (M-SPACE-ADMISSION) ─────────────────────────────────
+
+/// M-SPACE-ADMISSION Leg G-4 — pick the `prev_events` anchor for a **rejoin**
+/// out of the structural batch the Node serves a retained former member (Leg
+/// G-3 route 2). Returns the ids to chain the `membership.join` after; empty ⇒
+/// the caller falls through to today's path unchanged.
 ///
-/// Returns `Ok(Some(invite_id))` on success; `Ok(None)` when the Node refuses
-/// the bootstrap (wire `1011` — the requester is not a pending invitee, e.g. an
-/// already-member re-join or a Room join) or no invite naming the requester is
-/// found, so `ops::join` falls back to `get_dag_tips`. A refusal is a normal
-/// outcome here, not an error. Sibling to `get_dag_tips`; same drain shape.
+/// `key` is the state key of the join **as it will be signed**
+/// ([`state_key_for_event`] on a prospective `membership.join`; `ops::join`
+/// builds it, because `ops::join` builds the join).
+///
+/// 🔑 **The client does NOT write its own *does this event name me?* predicate.**
+/// The very function the Node judges the join by — `conflicts_in_log` →
+/// `state_key_for_event`, the `3048` gate — is the one that selects the anchor
+/// here, so scope, sender-vs-target and Space are decided in ONE place
+/// (`D-067`), by construction rather than by mirroring. A hand-written
+/// sender/target union on this side would have to re-derive the scope rules,
+/// and a **room-level** kick of her does not collide with a **space-level**
+/// rejoin (different key): a client that anchored on one would build a longer
+/// chain that still leaves the space-level pair concurrent — a plausible,
+/// non-empty, WRONG anchor that every leave-based test would pass (`N-197`, one
+/// crate over).
+///
+/// The rule (runbook §3):
+/// 1. Keep every served event whose state key equals `key`. Nothing else — no
+///    type list, no sender/target union, no `room_id` test, and no Space filter:
+///    the key already encodes all four.
+/// 2. Drop any kept event that another **kept** event references in
+///    `prev_events`. The reference set is built ONLY from the kept subset, never
+///    from the whole batch — the served set is a *discovery* payload, not an
+///    authoritative DAG (`fanout.rs`'s own words), so most `prev_events` point
+///    at events that are not in it at all and a whole-batch reference set would
+///    subtract edges it cannot see.
+/// 3. Keep **batch order** (the Node emits `topological_sort_events`); if more
+///    than `MAX_PREV_EVENTS` survive, keep the **last ten** — topological order
+///    makes the tail the entries most likely to descend from the rest — then
+///    sort lexicographically for `D-076` wire-order determinism.
+///
+/// ⚠️ **Deliberately not [`compute_frontier`].** That truncates *after* a
+/// lexicographic sort, so on an over-wide set it keeps an arbitrary ten, and a
+/// dropped sibling is a `3048` the user cannot act on. `compute_frontier` /
+/// `cooperative_frontier` are untouched here — they serve every cooperative
+/// send, and G-4 gets its own function rather than changing theirs.
+///
+/// ⚠️ **Residue, named and not closed:** more than ten mutually-unordered events
+/// on one key — roughly five-plus leave/rejoin cycles, or a long ban/unban
+/// history — can still truncate to an anchor that leaves a sibling concurrent,
+/// and the Node answers `3048`. The refusal is honest and re-submittable; this
+/// leg does not close it.
+///
+/// Pure (no I/O, no `Connection`) so it unit-tests directly.
+fn select_rejoin_anchor(events: &[Event], key: &StateKey) -> Vec<String> {
+    // (1) Same-key candidates, batch order preserved.
+    let kept: Vec<&Event> = events
+        .iter()
+        .filter(|e| state_key_for_event(e).as_ref() == Some(key))
+        .collect();
+
+    // (2) Reference set from the KEPT subset's `prev_events` only (see fn doc).
+    let referenced: HashSet<&str> = kept
+        .iter()
+        .flat_map(|e| e.prev_events.iter().map(|p| p.as_str()))
+        .collect();
+
+    let mut leaves: Vec<String> = kept
+        .iter()
+        .filter_map(|e| e.event_id.as_ref().map(|id| id.as_str()))
+        .filter(|id| !referenced.contains(id))
+        .map(|id| id.to_string())
+        .collect();
+
+    // (3) Cap: the LAST ten in batch order, then lexicographic (D-076).
+    let cap = xgen_core::dag::graph::MAX_PREV_EVENTS;
+    if leaves.len() > cap {
+        leaves = leaves.split_off(leaves.len() - cap);
+    }
+    leaves.sort();
+    leaves
+}
+
+/// M8.5-B (INV-D1/INV-D2/INV-D3) + **M-SPACE-ADMISSION Leg G-4** — scoped
+/// invite-bootstrap fetch. Sends a `transport.invite_bootstrap_request` for
+/// `space_id`, drains the structural `HistoryBatch` the Node serves, and returns
+/// the `prev_events` the caller should chain its `membership.join` after.
+///
+/// **Two anchor sources, ONE drain, in precedence order:**
+///
+/// 1. **The invite (INV-D2/INV-D3, unchanged).** A pending invitee sources the
+///    `membership.invite` naming `my_identity` and chains its join causally
+///    after it, so the two are not concurrent on
+///    `membership:{space}:{invitee}` — this is what dissolves M85-A3. Returned
+///    as `vec![invite_id]`.
+/// 2. **The rejoin (Leg G-4).** With no invite, `rejoin_key` selects the
+///    requester's own membership events out of **the same batch**: Leg G-3
+///    route 2 serves a retained former member the creates plus only the
+///    membership events naming her. See [`select_rejoin_anchor`].
+///
+/// Precedence is unchanged and load-bearing: an invite naming her still wins,
+/// so an invitee's behaviour is byte-identical to before this leg. A
+/// dual-entitled requester (departed **and** holding a live invite) takes the
+/// invite — G-3's narrowed set keeps the invite naming her, so INV-D2/D3 still
+/// works.
+///
+/// Returns `Ok(vec![])` when neither yields anything — the Node refused the
+/// bootstrap (wire `1011`: not a pending invitee **and** not a retained former
+/// member, e.g. a stranger or a Room join), or the batch held nothing on the key
+/// — so `ops::join` falls back to `get_dag_tips` / `rejoin_anchor_or_root`
+/// exactly as before. A refusal is a normal outcome here, not an error.
+///
+/// `rejoin_key` is [`state_key_for_event`] on the join **as it will be signed**.
+/// The caller owns it because the caller owns the join. `None` (no key is
+/// derivable) ⇒ select nothing, per runbook §3 step 1.
+///
+/// 🛑 **The name is unchanged deliberately.** It is client-internal, and
+/// renaming it inside a behaviour leg would make the diff argue two cases at
+/// once. What changed is what it RETURNS, and that is stated here rather than
+/// in a new identifier — a restatement of meaning, not a rename.
+///
+/// Sibling to `get_dag_tips`; same drain shape, and still exactly one round
+/// trip — the rejoin anchor is selected out of the batch the invite scan is
+/// already reading.
 pub async fn get_invite_bootstrap(
     conn: &mut xgen_core::transport::connection::Connection<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
     space_id: &str,
     my_identity: &str,
+    rejoin_key: Option<&StateKey>,
     completion_timeout: tokio::time::Duration,
-) -> Result<Option<String>> {
+) -> Result<Vec<String>> {
+    /// Resolve whatever the drain has accumulated, invite first (see fn doc).
+    fn resolve(
+        invite_id: Option<String>,
+        served: &[Event],
+        rejoin_key: Option<&StateKey>,
+    ) -> Vec<String> {
+        match (invite_id, rejoin_key) {
+            (Some(id), _) => vec![id],
+            (None, Some(key)) => select_rejoin_anchor(served, key),
+            (None, None) => vec![],
+        }
+    }
+
     let req = TransportMessage::InviteBootstrapRequest {
         protocol_version: "0.1".to_string(),
         space_id: space_id.to_string(),
@@ -275,6 +400,10 @@ pub async fn get_invite_bootstrap(
 
     let deadline = tokio::time::Instant::now() + completion_timeout;
     let mut invite_id: Option<String> = None;
+    // Leg G-4: accumulate the served events once, in the same drain. No second
+    // request, no second round trip. No Space filter is needed or wanted — the
+    // state key carries the Space, so a foreign-Space event can never match.
+    let mut served: Vec<Event> = vec![];
     loop {
         match tokio::time::timeout_at(deadline, conn.recv()).await {
             Ok(Ok(Inbound::Event(ev))) => {
@@ -287,17 +416,20 @@ pub async fn get_invite_bootstrap(
                         invite_id = Some(id.as_str().to_string());
                     }
                 }
+                served.push(ev);
             }
             // Success end-of-batch.
             Ok(Ok(Inbound::Transport(TransportMessage::SyncComplete { .. }))) => {
-                return Ok(invite_id)
+                return Ok(resolve(invite_id, &served, rejoin_key))
             }
-            // Refusal (1011) or any transport error → fall back (no invite_id).
-            Ok(Ok(Inbound::Transport(TransportMessage::Error { .. }))) => return Ok(None),
+            // Refusal (1011) or any transport error → fall back (empty). A
+            // refused requester was served no events, so there is nothing to
+            // select from either.
+            Ok(Ok(Inbound::Transport(TransportMessage::Error { .. }))) => return Ok(vec![]),
             Ok(Ok(Inbound::Transport(TransportMessage::Goodbye { .. })))
-            | Ok(Ok(Inbound::Closed)) => return Ok(invite_id),
+            | Ok(Ok(Inbound::Closed)) => return Ok(resolve(invite_id, &served, rejoin_key)),
             Ok(Ok(_)) => {} // ignore unrelated chatter
-            Ok(Err(_)) => return Ok(invite_id),
+            Ok(Err(_)) => return Ok(resolve(invite_id, &served, rejoin_key)),
             Err(_) => {
                 anyhow::bail!(
                     "invite_bootstrap safety-net timeout — Node never completed within {} ms",
@@ -1225,5 +1357,220 @@ mod mp_f14_cooperative_frontier_tests {
             !frontier.contains(&"s".to_string()),
             "the referenced root must not be a tip, got {frontier:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod g4_rejoin_anchor_tests {
+    //! M-SPACE-ADMISSION Leg G-4 — `select_rejoin_anchor` (box-free,
+    //! RED-on-revert). Exercises the selector directly, with no live
+    //! `Connection`, exactly as the MP-F14 frontier tests do.
+    //!
+    //! 🔑 The selector calls the REAL [`state_key_for_event`], so these tests
+    //! exercise the Node's own scope rule rather than a transcription of it —
+    //! which is the whole point of §1: the client must not re-derive
+    //! *does this event name me?*.
+    use super::select_rejoin_anchor;
+    use serde_json::json;
+    use xgen_common::xgid::{EventXgid, IdentityXgid, RoomXgid, SpaceXgid, Xgid};
+    use xgen_core::resolution::{state_key_for_event, StateKey};
+    use xgen_core::wire::types::{Event, EventType};
+
+    const SPACE: &str = "xgen://hash/sha256:SPACE";
+    const ROOM: &str = "xgen://hash/sha256:ROOM";
+    const HER: &str = "xgen://pubkey/ed25519:HER";
+    const THIRD: &str = "xgen://pubkey/ed25519:THIRD";
+
+    /// A served event, id already set (the Node only serves signed+persisted
+    /// events, so `event_id` is always present on this path).
+    fn ev(
+        id: &str,
+        ty: EventType,
+        sender: &str,
+        room: &str,
+        prev: &[&str],
+        content: serde_json::Value,
+    ) -> Event {
+        let mut e = Event::new(
+            ty,
+            IdentityXgid::from_xgid(Xgid::new(sender.to_string())),
+            RoomXgid::from_xgid(Xgid::new(room.to_string())),
+            SpaceXgid::from_xgid(Xgid::new(SPACE.to_string())),
+            prev.iter().map(|p| EventXgid::from_xgid(Xgid::new(p.to_string()))).collect(),
+            "2026-08-27T00:00:00.000Z".to_string(),
+            content,
+        );
+        e.event_id = Some(EventXgid::from_xgid(Xgid::new(id.to_string())));
+        e
+    }
+
+    fn join(id: &str, who: &str, room: &str, prev: &[&str]) -> Event {
+        ev(id, EventType::MembershipJoin, who, room, prev, json!({}))
+    }
+
+    fn leave(id: &str, who: &str, room: &str, prev: &[&str]) -> Event {
+        ev(id, EventType::MembershipLeave, who, room, prev, json!({}))
+    }
+
+    fn kick(id: &str, actor: &str, target: &str, room: &str, prev: &[&str]) -> Event {
+        ev(
+            id,
+            EventType::MembershipKick,
+            actor,
+            room,
+            prev,
+            json!({ "target_identity": target }),
+        )
+    }
+
+    /// The key of the rejoin `ops::join` is about to sign — built the same way
+    /// production builds it (`room` empty ⇒ a Space rejoin).
+    fn rejoin_key(room: &str) -> StateKey {
+        state_key_for_event(&join("PROSPECTIVE", HER, room, &[])).expect("join yields a state key")
+    }
+
+    // ── V-5 — scope. The key already encodes the room, so nothing here tests
+    // `room_id` directly; that is the point.
+    #[test]
+    fn v5_room_level_kick_is_not_selected_for_a_space_rejoin() {
+        // A room-level kick of HER keys `membership:{space}:{room}:{her}`; the
+        // Space rejoin keys `membership:{space}:{her}`. Different keys ⇒ NOT a
+        // candidate. A hand-written "does this event name me?" union would have
+        // selected it, built a longer chain, and STILL left the space-level pair
+        // concurrent — a plausible, non-empty, wrong anchor.
+        let served = vec![kick("k_room", THIRD, HER, ROOM, &["root"])];
+        assert!(
+            select_rejoin_anchor(&served, &rejoin_key("")).is_empty(),
+            "a room-level kick must not anchor a SPACE rejoin"
+        );
+    }
+
+    #[test]
+    fn v5_room_level_kick_is_selected_for_a_rejoin_of_that_room() {
+        // Same event, same selector, room-scoped key ⇒ it IS the candidate.
+        let served = vec![kick("k_room", THIRD, HER, ROOM, &["root"])];
+        assert_eq!(
+            select_rejoin_anchor(&served, &rejoin_key(ROOM)),
+            vec!["k_room".to_string()],
+            "a room-level kick must anchor a rejoin of THAT room"
+        );
+    }
+
+    // ── V-6 — the client-side twin of N-209. A kick SHE ISSUED names a third
+    // party; its key is the third party's, not hers.
+    #[test]
+    fn v6_a_kick_she_issued_against_a_third_party_is_not_selected() {
+        let served = vec![
+            kick("k_by_her", HER, THIRD, "", &["root"]),
+            leave("lv_her", HER, "", &["root"]),
+        ];
+        assert_eq!(
+            select_rejoin_anchor(&served, &rejoin_key("")),
+            vec!["lv_her".to_string()],
+            "only events keyed on HER own membership may anchor her rejoin; a kick \
+             she ISSUED is keyed on its target (N-209, client side)"
+        );
+    }
+
+    // ── Step 3 — the reference subtraction (V-8 revert A goes RED here).
+    #[test]
+    fn step3_only_the_leaf_of_her_own_chain_survives() {
+        // j1 → lv1 (a linear chain on one key). lv1 references j1, so j1 is not
+        // a leaf. Anchoring on BOTH would be harmless-looking and wrong: it
+        // widens `prev_events` with an event already transitively covered.
+        let served = vec![
+            join("j1", HER, "", &["root"]),
+            leave("lv1", HER, "", &["j1"]),
+        ];
+        assert_eq!(
+            select_rejoin_anchor(&served, &rejoin_key("")),
+            vec!["lv1".to_string()],
+            "an event another KEPT event references is not a leaf"
+        );
+    }
+
+    #[test]
+    fn step3_reference_set_is_built_only_from_the_kept_subset() {
+        // The served batch is a DISCOVERY payload, not an authoritative DAG:
+        // the create root references nothing of hers, and a third party's
+        // membership event referencing HER leave must NOT subtract it — that
+        // event is not on her key and is therefore not "kept".
+        let served = vec![
+            leave("lv_her", HER, "", &["root"]),
+            leave("lv_third", THIRD, "", &["lv_her"]),
+        ];
+        assert_eq!(
+            select_rejoin_anchor(&served, &rejoin_key("")),
+            vec!["lv_her".to_string()],
+            "a NON-kept event's prev_events must not subtract a kept leaf"
+        );
+    }
+
+    // ── V-7 — the cap (V-8 revert B goes RED here, and ONLY here).
+    #[test]
+    fn v7_over_wide_selection_keeps_the_last_ten_in_batch_order() {
+        // Twelve mutually-unordered events on her key (each anchored on the
+        // create root, so step 3 subtracts nothing — this test isolates step 4).
+        // Batch order is ASCENDING ("a".."l") and the Node emits
+        // `topological_sort_events`, so the tail is the entries most likely to
+        // descend from the rest.
+        //
+        //   correct  (last ten in batch order, then sorted) → c..l
+        //   reverted (sort first, then truncate — `compute_frontier`) → a..j
+        //
+        // The two differ, which is what makes this a control rather than a
+        // restatement: sorting first keeps an ARBITRARY ten, and a dropped
+        // sibling is a `3048` the user cannot act on.
+        let ids: Vec<String> = ('a'..='l').map(|c| c.to_string()).collect();
+        assert_eq!(ids.len(), 12, "fixture must exceed MAX_PREV_EVENTS");
+        let served: Vec<Event> =
+            ids.iter().map(|id| leave(id, HER, "", &["root"])).collect();
+
+        let got = select_rejoin_anchor(&served, &rejoin_key(""));
+        assert_eq!(
+            got.len(),
+            xgen_core::dag::graph::MAX_PREV_EVENTS,
+            "the cap is the Node's step-10 fan-in limit"
+        );
+        let want: Vec<String> = ('c'..='l').map(|c| c.to_string()).collect();
+        assert_eq!(
+            got, want,
+            "the LAST ten in batch order, then lexicographically sorted (D-076) \
+             — not the lexicographically-first ten"
+        );
+    }
+
+    // ── Empty ⇒ select nothing (the caller falls through unchanged).
+    #[test]
+    fn empty_selection_when_the_batch_holds_nothing_on_her_key() {
+        let served = vec![
+            join("j_third", THIRD, "", &["root"]),
+            kick("k_third", THIRD, THIRD, "", &["root"]),
+        ];
+        assert!(
+            select_rejoin_anchor(&served, &rejoin_key("")).is_empty(),
+            "nothing on her key ⇒ empty ⇒ today's fallback"
+        );
+    }
+
+    /// The five actor-on-subject types all key on `content.target_identity`, so
+    /// a ban / node_eject / node_unban naming HER anchors her rejoin exactly as
+    /// a kick does — without this selector naming a single one of them.
+    #[test]
+    fn actor_on_subject_events_naming_her_are_selected_by_the_key_alone() {
+        for ty in [
+            EventType::MembershipBan,
+            EventType::MembershipNodeEject,
+            EventType::MembershipNodeUnban,
+            EventType::MembershipInvite,
+        ] {
+            let served =
+                vec![ev("x", ty.clone(), THIRD, "", &["root"], json!({ "target_identity": HER }))];
+            assert_eq!(
+                select_rejoin_anchor(&served, &rejoin_key("")),
+                vec!["x".to_string()],
+                "{ty:?} naming her must be a candidate"
+            );
+        }
     }
 }

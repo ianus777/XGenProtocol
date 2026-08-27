@@ -1704,9 +1704,24 @@ impl NodeRuntime {
                     // M-SPACE-ADMISSION Leg G-2 — `3048 rejoin_not_anchored`.
                     // `3047` above asks *do you need an invite at all?*; this
                     // asks the next question in the sequence: *does your rejoin
-                    // follow your own departure?* The `3044` expiry check below
-                    // lives inside the pending-invite branch and never sees a
-                    // rejoiner, so this is the last gate she meets.
+                    // follow your own departure?*
+                    //
+                    // ⚠️ CORRECTED AT LEG G-4 — the sentence that stood here
+                    // was narrower than the thing it described. It read: *the
+                    // `3044` expiry check below lives inside the pending-invite
+                    // branch and never sees a rejoiner, so this is the last gate
+                    // she meets.* TRUE for a rejoiner holding no invite; FALSE
+                    // for one holding an EXPIRED invite. Neither `apply_leave`
+                    // nor `apply_kick` clears `pending_invites`, and
+                    // `apply_invite` does not check the target's membership, so
+                    // a departed member can hold a stale pending invite — and
+                    // the `3044` gate below is `pending_invites.get(sender)`,
+                    // NOT conditioned on `is_rejoin`. She reaches it and is
+                    // refused `3044`. That is the ruled behaviour (Joe,
+                    // 2026-08-26, J-777) and does not move: the invite-bootstrap
+                    // door refuses her the same way, so the door matches the
+                    // gate. This gate is therefore the last one only for a
+                    // rejoiner with NO pending invite.
                     //
                     // THE NODE ALREADY COMPUTES THIS BOOLEAN, AND IT ARRIVES ONE
                     // STEP TOO LATE TO REACH HER. `ingest_event` runs exactly

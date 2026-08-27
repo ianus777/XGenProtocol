@@ -139,6 +139,15 @@ fn load_or_default_state(
 /// leave) → a linear `j→lv→rj` chain not concurrent with the leave on
 /// `membership:{space}:identity`. Absent (true first join / fresh / cleared
 /// state) → the create root, exactly as before. Best-effort: never an error.
+///
+/// ⚠️ **ANNOTATED, NOT REPLACED (`D-131`) — M-SPACE-ADMISSION Leg G-4.** The
+/// sentence above is now narrower than the truth: a starved rejoiner mostly no
+/// longer lands here. `get_invite_bootstrap` selects her anchor out of the
+/// batch the Node serves her (Leg G-3 route 2), so this fallback is reached
+/// only when that yields nothing — an older Node, a `1011` refusal, or a batch
+/// holding nothing on her key. 🛑 It is still LOAD-BEARING for the case it was
+/// written for and must not be removed: on the create-root branch it is the
+/// only thing standing between a fresh-install rejoin and a `3048`.
 fn rejoin_anchor_or_root(state: &xgen_common::state::ClientState, space: &str) -> Vec<String> {
     match state.last_local_events.get(space) {
         Some(anchor) => vec![anchor.clone()],
@@ -1645,6 +1654,7 @@ pub async fn join(
         trace_event, EventDirection, SessionContext, SpaceRole,
     };
     use xgen_core::{
+        resolution::state_key_for_event,
         space::state::sign_event,
         wire::types::{Event, EventType},
     };
@@ -1662,24 +1672,56 @@ pub async fn join(
     // MP-F7-D3 — captured before the `conn` borrow so the rejoin-anchor fallback
     // can read this client's persisted last local event for the Space.
     let data_dir = ctx.data_dir;
+    // M-SPACE-ADMISSION Leg G-4 — the state key of the join AS IT WILL BE
+    // SIGNED, built here because this is where the join is built: same sender,
+    // same Space, same room as the signed event below. The rejoin anchor is
+    // therefore selected on the VERY key the Node judges the join by
+    // (`conflicts_in_log` -> `state_key_for_event`, the `3048` gate), so the
+    // client never re-derives the scope rules — one fact, one place (`D-067`).
+    // `state_key_for_event` reads only the type, sender, Space and room; the
+    // content and timestamp are not part of the key, and `prev_events` is the
+    // thing we are about to compute, so the prospective event carries none.
+    // `None` (no key derivable) ⇒ select nothing, per runbook §3 step 1.
+    let rejoin_key = state_key_for_event(&Event::new(
+        EventType::MembershipJoin,
+        IdentityXgid::from_xgid(Xgid::new(identity_id.clone())),
+        RoomXgid::from_xgid(Xgid::new(args.room.clone().unwrap_or_default())),
+        SpaceXgid::from_xgid(Xgid::new(args.space.clone())),
+        vec![],
+        Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+        json!({}),
+    ));
     let event_id = {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
-        // M8.5-B (INV-D3) — the bootstrap. A pending invitee sources the invite
-        // naming it via the scoped structural fetch and chains its join
-        // `prev_events=[invite_id]` — causally *after* the invite, so the two
-        // are not concurrent on the `membership:{space}:{invitee}` key (this is
-        // what dissolves M85-A3; the join is no longer dropped by derive_resolved
-        // Layer 4). When the fetch yields no invite (already a member, a Room
-        // join, or the Node refuses), fall back to the DAG tip.
+        // M8.5-B (INV-D3) + M-SPACE-ADMISSION Leg G-4 — the bootstrap. ONE
+        // request, TWO anchor sources, in precedence order:
+        //
+        //  1. INV-D3 — a pending invitee sources the `membership.invite` naming
+        //     it and chains its join `prev_events=[invite_id]`, causally *after*
+        //     the invite, so the two are not concurrent on the
+        //     `membership:{space}:{invitee}` key (this is what dissolves M85-A3;
+        //     the join is no longer dropped by derive_resolved Layer 4).
+        //  2. Leg G-4 — with no invite, a RETAINED FORMER MEMBER selects her own
+        //     membership events out of the same served batch (Leg G-3 route 2
+        //     serves her the creates plus only the membership events naming
+        //     her), so her rejoin chains after her own departure instead of
+        //     racing it. Without this she anchors on the create root, the rejoin
+        //     is concurrent with her own leave, and the Node answers `3048`.
+        //
+        // Precedence is unchanged: an invite naming her still wins, so an
+        // invitee's behaviour is byte-identical to before this leg. Empty (the
+        // Node refuses with `1011`, or nothing matched the key) ⇒ fall through
+        // to the DAG tip / `rejoin_anchor_or_root`, exactly as before.
         let prev_events = match crate::batch::get_invite_bootstrap(
             conn,
             &args.space,
             &identity_id,
+            rejoin_key.as_ref(),
             sync_timeout,
         )
         .await
         {
-            Ok(Some(invite_id)) => vec![invite_id],
+            Ok(ids) if !ids.is_empty() => ids,
             _ => {
                 // INV-D4 — `get_dag_tips` fallback now treats `Ok(empty)` like
                 // `Err`: an empty tip set (e.g. the invitee saw no member-visible
@@ -1691,6 +1733,9 @@ pub async fn join(
                     Ok(tips) if !tips.is_empty() => tips,
                     // MP-F7-D3/D4 — a just-left rejoiner is a non-member, so
                     // member-gated sync starves `get_dag_tips` and we land here.
+                    // ⚠️ Leg G-4 narrowed this: she now usually anchors from the
+                    // bootstrap above and never reaches this arm. It still holds
+                    // for an older Node, a `1011`, or an empty selection.
                     // Anchor after this client's own last local event for the
                     // Space (its leave) when known → the rejoin causally descends
                     // from the leave (linear j→lv→rj), not concurrent with it.

@@ -8,6 +8,103 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-778 — Leg G-4 ships: she comes back from a fresh install, and a rule Joe had locked was the thing that stopped her
+**Date:** 2026-08-26 · **Seats:** Clair (implementation, two hand-backs) · Chat (runbook v1.0→v1.2, Rule 5 re-drives, records) · Joe (the ruling, push)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `2926b84` **= `origin/main` by `git ls-remote origin refs/heads/main`**. 🎯 **`M-SPACE-ADMISSION` Leg G-4 — THE CLIENT ANCHOR SELECTION — SHIPPED, AND THE ARC'S STANDING LIMIT IS CLOSED.**
+
+🔒 **FLOOR MOVED: cargo 1654 → 1665 / 0 / 64 × 57 SUITES**, re-driven **independently by both seats on FORCED REBUILDS** — `Compiling xgen-core`, `xgen-client`, `xgen-node` and `xgen-mptest` all present in both logs **before** any number was read. Delta measured, never arithmetic: `--skip` returning 229 against 232 on the client lib, libtest's own `filtered out` = 3, and 229 corroborated a third time as the pre-delta figure recorded at `31c843c` in a different session. Carried by scope: vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. Catalogue **UNMEASURED**.
+⚠️ **SUITES 56 → 57 AND IGNORED 62 → 64 ARE THIS LEG DELIBERATELY** — a new `tests/` file is a new test binary carrying two `#[ignore]` scenarios and **zero passing tests**. Stated out loud because the arc treats 56 as structural, and an unmoved contribution would otherwise read as *no Rust landed*.
+
+---
+
+### 🎯 WHAT SHIPPED
+
+**A member can now leave a Space, lose everything local, reinstall, and come back.** G-1 admitted her at the gate, G-2 refused her honestly when she could not be anchored, G-3 served her her own membership events — and until this leg **she still could not return**, because `get_invite_bootstrap` looked for an invite a rejoiner does not have.
+
+✅ **AND IT WAS WATCHED HAPPEN.** `xgen-mptest/tests/mp_g4_rejoin_e2e.rs` — real `xgen-node` and `xgen-client` binaries as separate OS processes over `--aicontrol` JSONL, two identities, a real wire. `V-9a` (cleared local anchor) and `V-9b` (clean data directory, same identity) both **green**, re-driven independently by Chat: `2 passed; 0 failed` in 34s, no orphan process, nothing on the test ports outside TIME-WAIT.
+
+🔑 **`3048 rejoin_not_anchored` WAS RECEIVED BY A CLIENT FOR THE FIRST TIME.** It had existed in the node for two legs and no client had ever seen it. ***A wire code nothing has ever received is a string, not a behaviour.***
+
+---
+
+### 🛑 THE FINDING, AND IT WAS IN A RULE JOE HAD ALREADY LOCKED
+
+Chat's runbook §3 said **an invite naming her still wins**. Joe locked it. Clair implemented it faithfully. **Both system-gate scenarios then failed `3048` on a real wire.**
+
+🔑 **TWO OBJECTS SHARE ONE WORD.**
+- **The entitlement** — `PendingInvite` in `space.pending_invites`, carrying role and `valid_until`. **`apply_join` CONSUMES it** (`state.rs:1251`). It ceases to exist, exactly as one would expect.
+- **The record** — the `membership.invite` EVENT. **Permanent**, because her own first join names it by hash, and `D-154`② already rules that membership history is remembered, never erased.
+
+🛑 **THE CLIENT ASKED A HISTORY QUESTION AND READ THE ANSWER AS A STATE QUESTION.** *Is there an invite event naming me?* — answer **yes, forever**. Acted on as *do I hold an invite?* — answerable **only** from `pending_invites`, which is **node state the client cannot read and never will**. ⇒ every rejoin anchored on a stale invite her own first join already descended from, leaving the rejoin concurrent with her leave.
+
+⚠️ **THE FAILURE HAD NO TIME DIMENSION, AND CHAT'S FIRST FRAMING OF IT TO JOE IMPLIED OTHERWISE.** Chat wrote *"invited once, long ago"*; Joe asked whether that meant past the 14-day ceiling. **It does not and cannot:** the `3044` expiry gate reads `pending_invites.get(&event.sender)`, so a **consumed** invite is never even looked at. ***A rejoin sixty seconds after a leave failed identically.*** Corrected at the point it was made.
+
+🔒 **THE MIRROR PAIR, WHICH IS THE PART WORTH CARRYING:** a rejoiner holding an **expired but unconsumed** invite is refused `3044` (ruled correct at J-777); a rejoiner holding a **consumed** one is not refused at all, because the gate cannot see it — **and the client picked it up anyway.** ***The map and the log disagree about whether she has an invite, and each subsystem asks a different one. Both answers are locally correct.***
+
+✅ **THE RULING (Joe, 2026-08-26).** The precedence clause is **DELETED**, struck at its site under `D-131`. `state_key_for_event` keys a `MembershipInvite` on `membership:{space}:{target}` — **her key** — so **every invite naming her was ALREADY in the selection**, and §3's steps already treat each correctly: a **consumed** one subtracted at step 3 because her own join references it, a **live** one kept because nothing does. ***The clause was a second, blinder copy of a decision the mechanism beside it already made.***
+
+🔑 **JOE'S SENTENCE, RECORDED BECAUSE IT SETTLED IT:** ***the link is purely positional — `prev_events` says this happened after that, and nothing more.*** 🛑 Naming her old `leave` restores **no** part of her former standing. `D-154`① governs unchanged: **presence, never position.** `apply_join` re-derives role from `pending_invites` (absent ⇒ `Member`), never from anything in `prev_events`.
+
+✅ **THE REJECTED ARM, KEPT (`D-131`).** *Restrict the invite scan to invites nothing kept descends from* — correct **today**, and only because G-3's disclosure happens to include her own join. 🛑 **It infers node state from another subsystem's disclosure policy.** Narrow that policy later and it goes wrong with every test still green. **Rejected for that reason, not for cost.**
+
+📌 ⇒ **`D-156`.**
+
+---
+
+### 🔑 THE BEHAVIOUR THAT PRODUCED THE FINDING
+
+🛑 **CLAIR DID NOT PATCH IT.** She measured the cause by A/B on **one variable**, restored the probe byte-exact, and routed it back **as a locked-rule question** — with all three options measured and **none applied**. ***That is the behaviour the seat split exists to produce, and it is the entire reason the defect is in a document instead of in the product.***
+
+✅ **AND THE FIX WAS THREE LINES.** `select_rejoin_anchor`'s body hashes **IDENTICALLY** across `31c843c` → `51788ef` (verified by Chat: same sha256 prefix over the same line span). It needed nothing — **it was already correct by construction, which is what the new reading of §3 says it always was.** The whole executable change is `resolve`'s match order.
+
+---
+
+### 🛑 RED BEFORE GREEN, EARNED — AND ONE TEST THAT COULD NOT HAVE FAILED
+
+Chat reverted **only** the resolution order, on its own copy. **Exactly two tests went red**, and nothing else moved: `v2b_a_spent_invite_is_subtracted_and_the_anchor_is_her_departure` and `v2c_dual_entitlement_selects_both_her_departure_and_the_live_invite`. Restored by **file copy**, sha256 identical.
+
+🔑 **AND CLAIR VOLUNTEERED THAT A TEST SHE HAD WRITTEN WAS PREVIOUSLY VACUOUS.** Under v1.1 `V-1` **could not have failed** — both calls took the invite arm, **the same code path twice**. It becomes a real convergence test only under v1.2, where the two arms genuinely differ and agree **because her key carries exactly one event**. ⚠️ ***An assertion that holds because two branches are the same branch is not an assertion*** — J-772's shape, one leg later, found by the seat that wrote it.
+
+✅ **`V-8` RE-RUN, NOT CARRIED** — *a carry is a scope argument.* Two disjoint red sets; the step-3 set **widened 1 → 3** as the new tests earned their keep.
+
+---
+
+### 🔧 INSTRUMENTS — THREE, AND ALL THREE ARE NEW
+
+🛑 **`N-210` — `git checkout --` IS NOT A RESTORE PRIMITIVE FOR AN UNSTAGED WORKING STATE.** Nothing was staged, so the index was `HEAD`, and it **discarded all of G4-1**. **Restore by file copy, both ways.**
+🛑 **`N-211` — `autocrlf` DEFEATS `N-199`'s sha256 RESTORE GUARD.** `git checkout --` restores content **correctly** and **changes the bytes** ⇒ a raw sha256 compare **cries wolf on a good restore and can mask a bad one**. Clair mis-diagnosed a real loss as an EOL artefact and "fixed" it by normalising line endings — **moving the number closer to right while the content was still gone.** ***Compare content, not only bytes.***
+🛑 **`N-212` — `N-207` IS NOT ONLY ABOUT THE OTHER SEAT'S BINARY; A FILE-COPY RESTORE CAN HAND YOU A STALE ONE.** Chat's restore run reported the **same two failures over a cached binary**: `Copy-Item` carries the **source's** `LastWriteTime`, so the restored file landed with an **older** mtime and cargo did not rebuild. It looked like a failed restore. Stamping forward and **requiring `Compiling xgen-client`** gave `232 passed; 0 failed`. ✅ **The `Compiling` guard caught it, exactly as `N-199` intends.**
+⚠️ **`N-206`, TWICE MORE, A NEW FACE:** an inline `-Command` launch produced **zero processes, zero log bytes and no sentinel** while looking launched. **Launch from a `.ps1` FILE, never an argument string.** And one §5b run produced real output but **no `test result:` line and no sentinel** — cite the observations, not a suite result.
+
+---
+
+### 🛑 DEVIATIONS — NINE ACROSS THE LEG, NONE ABSORBED, FOUR OF THEM DEFECTS IN CHAT'S DOCUMENTS
+
+① **§4's first option was unreachable under §6 rule 3** — extending `FrontierEvent` forces an edit to `get_dag_tips`'s struct literal, which §6 forbids. Clair took a **third realisation the runbook did not enumerate**, chosen so the selector calls `state_key_for_event` itself and `V-5`/`V-6` test the node's real scope rule **rather than her transcription of it**.
+② `get_invite_bootstrap` gained a `rejoin_key` parameter the runbook did not name; the prospective key is built in `ops::join`, **which owns the join as it will be signed**.
+③ `V-1`'s *byte-untouched* named the **node** function; the two client-side tests are forced by the signature change and were armed with a real key, **since production now always passes one** — `None` would test a configuration the product never reaches.
+④ 🛑 **`mutates_state_file` OMITS `leave`.** Re-measured by Chat: five `ops::*` sites call `write_client_state` — `register:466`, `create_space:732`, `create_room:816`, `create_dm_space:1050`, **`leave:1887`** — and the list names only the first four plus `self`. ⇒ **the MP-F7 leave anchor, which is exactly what G-4's fallback reads, is written OUTSIDE `StateFileLock`.** The list's own doc says *revisit if `ops::*` grows a new state-file writer*, **and it did.** **Filed for G-5, not patched.**
+⑤ **Two citation defects in Chat's runbook**, both confirmed: `conflicts_in_log` is `derive.rs:260`, and the `3044` gate entry is the `pending_invites.get` site, not a line inside its body.
+⑥ 🛑 **A FRESH INSTALL NEEDS `register --re-registration`; THE KEYPAIR ALONE IS NOT ENOUGH.** A clean data dir holding only the keypair has no `xgen-client_state.json` and every verb refuses until re-registration runs. ⚠️ ***The arc's central sentence — she reinstalls and comes back — has a step in it that is nowhere written down.*** `V-9b`'s reachability, which the runbook left explicitly **UNMEASURED**, is now **confirmed**.
+⑦ 🔑 **A CITATION THAT WAS CORRECT WHEN WRITTEN AND WRONG WHEN SHIPPED.** `fanout.rs`'s reference to `runtime.rs:1804` held at `fa0f8ad` and at the runbook's anchor `2926b84`; **G4-4's own comment edit to that file moved the site to `:1819`.** `D-152` clause 1 held because the citation **named its tree** — but a shipped-tree reader would have landed on the `3048` reject arm instead of the `3044` gate. ✅ **Re-anchored on the SYMBOL** (`pending_invites.get(&event.sender)`, verified by Chat as the **only** occurrence in the file), line kept as a convenience, both trees named. ***A leg that edits a file invalidates its own citations into that file — and the anchor-commit convention hides it, because the citation stays technically true.***
+⑧ `V-9c` reverted **only the resolution order**, not all of G4-1 — deliberately, so the control isolates one variable and proves the delta load-bearing **at the system level**, not only the unit level.
+⑨ `V-2b`/`V-2c` were sited in the **integration** file, not the unit module: the unit selector **already handled the spent invite correctly**, so only `get_invite_bootstrap` discriminates v1.1 from v1.2 — **the only level at which the RED is real.** ✅ ***The `V-1` lesson applied before the mistake was made.***
+
+---
+
+### 📌 FILED, NOT CLAIMED
+
+The refusal's envelope carries `code: "GENERIC_4000"` while the specific `3048` rides in `reject_code`. **Not a defect — `reject_code` carries it** — but it is the first time anyone has seen that envelope in use, and **`D-070` is the entry it bears on.** Not this leg's.
+
+---
+
+### 🔓 WHAT G-5 INHERITS
+
+The `1011` reason string (a stranger's refusal and *you need a fresh invite* read identically) · G-2's reject reason string, Joe's to overwrite in place · `apply_invite`'s `valid_until` comment, opened halfway and not claimed · **`mutates_state_file`'s missing `leave`** · **the undocumented `register --re-registration` step**. 🔓 Older and nobody's: `D-154`⑥'s reversible-ejection record · `D-154`④'s third-party disclosure · `self.banned` as a permanent federated list.
+
+---
+
 ## Entry J-777 — Leg G-3 ships: the door opens for a former member, and the filter that nearly leaked what the ruling withheld
 **Date:** 2026-08-26 · **Seats:** Clair (implementation) · Chat (runbook, Rule 5 re-drive, records) · Joe (two rulings, push)
 

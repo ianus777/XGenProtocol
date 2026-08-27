@@ -1,6 +1,6 @@
 # RUNBOOK — M-SPACE-ADMISSION Leg G-4: the client anchor selection
-> **Status**: ACTIVE  
-> Version: 1.2  
+> **Status**: COMPLETED  
+> Version: 1.3  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-26  
 > Language: EN  
@@ -21,6 +21,8 @@
 🛑 **AND IT IS THE FIRST LEG OF THE ARC WHERE ANYTHING RUNS AGAINST A LIVE NODE, A WIRE AND A SECOND IDENTITY.** `3048` has never been observed on a wire. 🔒 **RULED (Joe, 2026-08-26): the live run RIDES THIS LEG, and its home is `xgen-mptest` — see §5b and §8 `OD-1`.**
 
 🛑 **THIS RUNBOOK IS CLAIR'S. IMPLEMENT FROM THIS VERSION, IN A SESSION OPENED BY HER OWN KICKOFF.** Deviations are **reported, never absorbed** (Rule 6). ⚠️ **Where this runbook and any chat message disagree, THIS DOCUMENT WINS — and the disagreement is itself a finding.**
+
+✅ **SHIPPED AT J-778 (2026-08-26), commit `51788ef`. Floor 1654 → 1665 / 0 / 64 × 57 SUITES. §5b GREEN on a live wire. ⇒ `D-156`.** 🛑 **v1.3 is a CLOSE-OUT REVISION: status, the DoD ledger, and two citations that this leg's own edits invalidated (⑧ below). No requirement changed.**
 
 ---
 
@@ -104,11 +106,11 @@
 
 ### G4-3 — `xgen-node/src/fanout.rs` — the `NAMED, NOT FIXED` paragraph (rider filed at J-777)
 
-At `:854-863`. **Add:** 🔒 **Joe ruled the sketch correct (2026-08-26)** — a former member holding an **expired** invite is refused and must obtain a fresh one; and the consistency reason: **the `3044` gate at `runtime.rs:1804` is not conditioned on the rejoin flag**, so the `OR` would have opened a door onto a locked gate. 🔒 **Clair's condition holds: the losing arm's reasoning STAYS, rewritten never removed** — the next reader hits the same fork and this is the only place it is visible.
+At `:854-863`. **Add:** 🔒 **Joe ruled the sketch correct (2026-08-26)** — a former member holding an **expired** invite is refused and must obtain a fresh one; and the consistency reason: **the `3044` gate is not conditioned on the rejoin flag**, so the `OR` would have opened a door onto a locked gate. 🛑 **CITE THE SYMBOL, NOT THE LINE (v1.3, `D-131`):** the gate is the **only** `pending_invites.get(&event.sender)` site in `runtime.rs` — `:1804` at `2926b84` and `fa0f8ad`, ~~and this runbook said `:1806`, which was a line INSIDE the gate rather than its entry~~, **and this leg's own G4-4 comment edit moved it to `:1819` at `951b758`.** ⚠️ ***A leg that edits a file invalidates its own citations into that file, and the anchor-commit convention hides it because the citation stays technically true.*** 🔒 **Clair's condition holds: the losing arm's reasoning STAYS, rewritten never removed** — the next reader hits the same fork and this is the only place it is visible.
 
 ### G4-4 — `xgen-core/src/node/runtime.rs` — the G-2 comment that is narrower than the thing it describes
 
-At `:1707-1709`: *"The `3044` expiry check below lives inside the pending-invite branch and never sees a rejoiner."* 🛑 **TRUE for a rejoiner with no invite, FALSE for one holding an expired one** — she reaches `:1804` and is refused `3044`. **Correct it in place, naming both cases.** ⚠️ **Comment only. The gate's behaviour is Joe-ruled and does not move.**
+At `:1707-1709`: *"The `3044` expiry check below lives inside the pending-invite branch and never sees a rejoiner."* 🛑 **TRUE for a rejoiner with no invite, FALSE for one holding an expired one** — she reaches the `pending_invites.get(&event.sender)` gate (`:1804` at the anchor tree, `:1819` after this leg's own edit — see G4-3) and is refused `3044`. **Correct it in place, naming both cases.** ⚠️ **Comment only. The gate's behaviour is Joe-ruled and does not move.**
 
 ---
 
@@ -182,18 +184,18 @@ cargo test -p xgen-mptest --test mp_g4_rejoin_e2e -- --ignored --nocapture
 
 ---
 
-## §7 — DoD
+## §7 — DoD — ✅ **DISCHARGED AT J-778 (2026-08-26). Every box measured, none inferred.**
 
-- [ ] G4-1 · G4-2 landed; `V-1`…`V-8` green (**including v1.2's `V-2b` and `V-2c`**); `V-8`'s two reverts run separately with different red sets, then restored, mtimes stamped (`N-199`).
-- [ ] 🛑 **`V-2b` proven RED against v1.1's resolution order before it is green against v1.2's.** A regression test that was never red is not a regression test.
-- [ ] ⚠️ **`N-199`'s sha256 restore guard is DEFEATED BY `autocrlf`** — `git checkout --` restores content correctly and changes the bytes. **Restore by file copy both ways, never by `git checkout --` on an unstaged working state**, and compare content, not only bytes.
-- [ ] G4-3 · G4-4 landed, comment-only, proven by `git show --stat` + a diff read.
-- [ ] §5b `V-9a` green; `V-9b` green **or** filed as a finding with its blocker named and measured (never silently dropped).
-- [ ] §5b `V-9c` run: `3048` observed on a wire, transcript quoted verbatim in the hand-back.
-- [ ] `V-10` floors re-driven **independently by both seats on forced rebuilds**, `Compiling` present in both logs.
-- [ ] `rejoin_anchor_or_root`'s doc annotated at the site (`D-131`), not deleted.
-- [ ] Every `file:line` written into the source or the hand-back names the tree it was measured on (`D-152` clause 1).
-- [ ] Deviations reported, never absorbed (Rule 6) — including any disagreement with this document.
+- [x] G4-1 · G4-2 landed; `V-1`…`V-8` green (**including v1.2's `V-2b` and `V-2c`**); `V-8`'s two reverts run separately with different red sets — step 3 → `{step3_leaf, v2b, v2c}`, step 4 → `{v7_cap}` — then restored, mtimes stamped (`N-199`). ✅ **`V-8` was RE-RUN, not carried: a carry is a scope argument.**
+- [x] 🛑 **`V-2b` proven RED against v1.1's resolution order before green against v1.2's.** ✅ **Chat re-drove the control on its own copy: EXACTLY two tests red, nothing else moved.** 🔑 **And `V-1` under v1.1 could not have failed at all — both calls took the invite arm, the same code path twice. Reported by Clair, unprompted.**
+- [x] ⚠️ **`N-199`'s sha256 restore guard is DEFEATED BY `autocrlf`.** ✅ **Restores were by file copy both ways; `git checkout --` never used after it destroyed G4-1 once (`N-210`, `N-211`).**
+- [x] G4-3 · G4-4 landed, **comment-only, proven mechanically**: filtering both diffs to non-comment `+`/`-` lines returns **EMPTY**.
+- [x] §5b `V-9a` **GREEN** · `V-9b` **GREEN** — 🔑 **its reachability, left explicitly UNMEASURED by v1.1, is now CONFIRMED, and the measurement produced a product finding: a fresh install needs `register --re-registration`; the keypair alone is not enough.**
+- [x] §5b `V-9c`: **`3048` observed on a wire, transcript quoted verbatim.** ⚠️ **Deviation ⑧: the control reverted only the resolution order, not all of G4-1** — deliberately, so it isolates one variable at the SYSTEM level.
+- [x] `V-10` floors re-driven **independently by both seats on forced rebuilds**, `Compiling` present in **both** logs before any number. **1654 → 1665 / 0 / 64 × 57 SUITES.** ⚠️ **§5b is `#[ignore]` and moved NO floor; 56→57 SUITES and 62→64 ignored are this leg deliberately.**
+- [x] `rejoin_anchor_or_root`'s doc annotated at the site (`D-131`), not deleted. **Verified: comment-only, body untouched.**
+- [x] Every `file:line` names the tree it was measured on (`D-152` clause 1). 🛑 **AND THE CONVENTION'S BLIND SPOT WAS FOUND HERE (⑦): this leg's own edit moved `runtime.rs:1804` to `:1819`, and the citation stayed TECHNICALLY TRUE while pointing a shipped-tree reader at the wrong wire code. Re-anchored on the SYMBOL.**
+- [x] Deviations reported, never absorbed (Rule 6). **NINE. Four were defects in Chat's documents.** 🔑 **Including one in a rule JOE HAD LOCKED — routed back as a question with three options measured and NONE applied, rather than patched.**
 
 *(No `commit pushed` item: it is unflippable inside the commit that pushes. `Status: COMPLETED` in this header is the canonical shipped signal.)*
 

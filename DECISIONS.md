@@ -5880,3 +5880,50 @@ Both clauses were derived while settling **one** field and neither is about that
 📌 **What this does NOT license.** It is a rule about **FORM**, not about scope. It does not move anything into or out of Joe's seat, it does not soften `D-123`'s held-hardest clause, and it is **not permission to simplify away a real fork**: where two options are genuinely both honest, both are still put up. ***Plain language is a requirement on the asking, never a reduction of what is asked.*** 🛑 **Nor does it license withholding the technical detail** — the detail belongs in the Phase-0 and the journal, where the implementing seat reads it; it simply does not belong in the sentence that carries the question.
 
 📌 **Provenance (`D-141`):** **the rule is Joe's, requested explicitly and in his own words.** **The three failed framings are Chat's**, and the record keeps them because *the form that worked is only legible against the two that did not.*
+
+---
+
+## D-156 — A client must not infer node state from the shape of the log
+
+**Date:** 2026-08-26 · **Layer:** Protocol-wide invariant (client ↔ node) · **Ref:** `D-067` (one fact, one place), `D-154`①② (presence never position; history remembered never erased), `D-065` (a refuted recommendation is recorded as refuted), `D-131` (annotate at the site) · **Journal:** J-778 · **Code:** `xgen-client/src/batch.rs` (`get_invite_bootstrap`, `select_rejoin_anchor`), `xgen-core/src/resolution/state_key.rs`
+
+**Decision (Joe, 2026-08-26).** ***A client answers a question about NODE STATE only by asking the node, or by asking a STRUCTURAL question whose answer does not depend on node state at all. It never answers one by pattern-matching the events it was served.***
+
+### The rule
+
+| | |
+|---|---|
+| **① Name which kind of question is being asked** | **HISTORY** — *did this ever happen?* The log answers it, and once true it is **true forever**. **STATE** — *is this the case now?* Only the authoritative holder answers it. |
+| **② A served batch answers history questions only** | It is a **discovery payload**, not a projection of node state. A type-and-field match over it (*is there an event of type X naming me?*) is a HISTORY question **whatever the variable is called**. |
+| **③ Where a structural answer exists, prefer it to either** | A question posed in terms the resolution algorithm itself uses — **state keys, ancestry, frontier** — has one correct answer under both readings and needs no node state to compute. |
+| **④ An inference that happens to be correct today is still a violation** | if its correctness rests on **another subsystem's disclosure or retention policy**. That policy is free to narrow, and the inference then fails **with every test still green**. |
+
+### What it cost, stated so the rule is not read as obvious
+
+🛑 **TWO OBJECTS SHARED ONE WORD AND FOUR PEOPLE MISSED IT.** Chat wrote the rule, Joe locked it, Clair implemented it faithfully, and **both system-gate scenarios failed on a live wire.**
+- **The entitlement** — `PendingInvite` in `space.pending_invites`, carrying role and `valid_until`. **`apply_join` CONSUMES it** (`xgen-core/src/space/state.rs:1251`).
+- **The record** — the `membership.invite` EVENT, **permanent**, because her own first join names it by hash and `D-154`② rules that membership history is remembered, never erased.
+
+🔑 **THE CLIENT'S SCAN ASKED *is there an invite event naming me?* — answer YES, FOREVER — AND ACTED ON IT AS *do I hold an invite?*,** which only `pending_invites` can answer and which no client can read. ⇒ every rejoin anchored on an invite her own first join already descended from, leaving her return concurrent with her departure: wire **`3048 rejoin_not_anchored`**.
+
+⚠️ **AND THE MISREADING HAD NO TIME DIMENSION, WHICH IS WHAT MAKES IT A CLEAN CASE.** The `3044` expiry gate reads `pending_invites.get(&event.sender)`, so a **consumed** invite is never examined at all — ***a rejoin sixty seconds after a leave failed identically to one sixty days after.*** Nothing about age, expiry or validity was involved; the client was simply answering the wrong question.
+
+🔒 **THE MIRROR PAIR IS THE DIAGNOSTIC WORTH KEEPING.** A rejoiner holding an **expired but unconsumed** invite is refused `3044`. A rejoiner holding a **consumed** one is not refused at all — the gate cannot see it — **and the client picked it up anyway.** ***The map and the log disagreed about whether she had an invite, and each subsystem asked a different one. Both answers were locally correct.*** ⇒ **when two subsystems disagree about a fact, look for two different questions before looking for a bug.**
+
+### The structural answer that was available by construction
+
+✅ `state_key_for_event` keys a `MembershipInvite` on `membership:{space}:{target}` — **the rejoiner's own key** ⇒ **every invite naming her was ALREADY in a key-based selection**, which treats each correctly **without knowing anything about node state**: a **consumed** invite is subtracted because her own join references it; a **live** one survives because nothing does.
+
+🔑 **AND IT IS THE SAME FUNCTION `conflicts_in_log` USES TO DECIDE `3048`** — so the client selects its anchor with the very predicate the node will judge it by. **`D-067` satisfied by construction rather than by mirroring.**
+
+🛑 **THE REJECTED ARM, KEPT (`D-131`).** *Restrict the invite scan to invites nothing kept descends from* — **correct today**, and only because Leg G-3's disclosure happens to serve her own join alongside. **It infers node state from another subsystem's disclosure policy** ⇒ clause ④. **Rejected for that reason, not for cost.**
+
+### 📌 What this does NOT say
+
+It does **not** say the log should forget. **The log keeping the invite event is correct and necessary** — the DAG requires it and `D-154`② rules it. It does **not** say the node's disclosure was wrong: serving a returning member her own membership history is exactly what Leg G-3 ruled. ***The log was right, the disclosure was right, and the question was wrong.***
+
+It does **not** license a new client→node state query. **③ is the first resort**, and in this case it removed the need for one entirely.
+
+📌 **The TYPES were already correctly distinct** — `EventType::MembershipInvite` versus `PendingInvite`. **No refactor is implied.** What blurred them was prose and one local variable named `invite_id`.
+
+📌 **Provenance (`D-141`):** the defective clause and its reasoning are **Chat's**. The measurement that refuted it — A/B on one variable, probe restored, **routed back as a locked-rule question rather than patched** — is **Clair's**. The ruling and the sentence that settled it — ***the link is purely positional: `prev_events` says this happened after that, and nothing more*** — are **Joe's**.

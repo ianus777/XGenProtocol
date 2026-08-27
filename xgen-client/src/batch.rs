@@ -334,23 +334,45 @@ fn select_rejoin_anchor(events: &[Event], key: &StateKey) -> Vec<String> {
 /// `space_id`, drains the structural `HistoryBatch` the Node serves, and returns
 /// the `prev_events` the caller should chain its `membership.join` after.
 ///
-/// **Two anchor sources, ONE drain, in precedence order:**
+/// **ONE drain, and when a key exists, ONE source.**
 ///
-/// 1. **The invite (INV-D2/INV-D3, unchanged).** A pending invitee sources the
-///    `membership.invite` naming `my_identity` and chains its join causally
-///    after it, so the two are not concurrent on
-///    `membership:{space}:{invitee}` — this is what dissolves M85-A3. Returned
-///    as `vec![invite_id]`.
-/// 2. **The rejoin (Leg G-4).** With no invite, `rejoin_key` selects the
-///    requester's own membership events out of **the same batch**: Leg G-3
-///    route 2 serves a retained former member the creates plus only the
-///    membership events naming her. See [`select_rejoin_anchor`].
+/// 1. **`rejoin_key` present ⇒ [`select_rejoin_anchor`] decides, whatever it
+///    returns, including empty.** It selects out of the served batch every event
+///    on the requester's own membership key — which INCLUDES every invite naming
+///    her, because `state_key_for_event` keys a `MembershipInvite` on
+///    `membership:{space}:{target}`. A pending invitee therefore still sources
+///    her `membership.invite` and chains her join after it (INV-D2/INV-D3, which
+///    is what dissolves M85-A3); a retained former member sources her own
+///    departure (Leg G-3 route 2 serves her the creates plus only the membership
+///    events naming her).
+/// 2. **No key derivable ⇒ the invite scan**, returned as `vec![invite_id]`. A
+///    FALLBACK, never a precedence.
 ///
-/// Precedence is unchanged and load-bearing: an invite naming her still wins,
-/// so an invitee's behaviour is byte-identical to before this leg. A
-/// dual-entitled requester (departed **and** holding a live invite) takes the
-/// invite — G-3's narrowed set keeps the invite naming her, so INV-D2/D3 still
-/// works.
+/// 🛑 **THE INVITE-FIRST PRECEDENCE WAS DELETED AT RUNBOOK v1.2 (Joe,
+/// 2026-08-26) AFTER IT FAILED ON A LIVE WIRE.** It was a second, blinder copy
+/// of a decision [`select_rejoin_anchor`] already makes, and it could not tell a
+/// SPENT invite from a LIVE one — because the object that distinguishes them,
+/// `PendingInvite.valid_until`, is NODE state this side cannot read, and
+/// `apply_join` consumed it at her FIRST join. Two objects share one word: the
+/// **entitlement** (`PendingInvite`, consumed) and the **record** (the
+/// `membership.invite` EVENT, permanent, because her own join names it by hash
+/// and `D-154`② rules membership history is remembered, never erased). Scanning
+/// the batch asks a HISTORY question — *is there an invite event naming me?*,
+/// answer *yes, forever* — and reading it as a STATE question anchored every
+/// rejoin on a stale invite her own first join already descended from, leaving
+/// the rejoin concurrent with her leave: wire `3048 rejoin_not_anchored`.
+/// ⚠️ **The failure had no time dimension** — a rejoin sixty seconds after a
+/// leave failed identically.
+///
+/// ✅ **An invitee is unaffected, by construction rather than by rule:** her key
+/// carries exactly ONE event, so *the leaf of her record* and *her invitation*
+/// are the same id. That convergence is load-bearing and is asserted, not
+/// assumed (`V-1`).
+///
+/// ✅ **A dual-entitled requester (departed AND holding a live invite) takes
+/// BOTH** — the live invite survives step 3 because nothing references it — so
+/// the join chains past her leave **and** `pending_invites.get(sender)` still
+/// grants the role (`D-154`①, `V-2c`).
 ///
 /// Returns `Ok(vec![])` when neither yields anything — the Node refused the
 /// bootstrap (wire `1011`: not a pending invitee **and** not a retained former
@@ -379,15 +401,24 @@ pub async fn get_invite_bootstrap(
     rejoin_key: Option<&StateKey>,
     completion_timeout: tokio::time::Duration,
 ) -> Result<Vec<String>> {
-    /// Resolve whatever the drain has accumulated, invite first (see fn doc).
+    /// Resolve whatever the drain has accumulated: **the key when there is one,
+    /// the invite scan only when there is not** (see fn doc).
     fn resolve(
         invite_id: Option<String>,
         served: &[Event],
         rejoin_key: Option<&StateKey>,
     ) -> Vec<String> {
-        match (invite_id, rejoin_key) {
-            (Some(id), _) => vec![id],
-            (None, Some(key)) => select_rejoin_anchor(served, key),
+        match (rejoin_key, invite_id) {
+            // A key exists ⇒ the selection is the ONLY source, INCLUDING when it
+            // comes back empty. It already sees every invite naming her —
+            // `state_key_for_event` keys a `MembershipInvite` on
+            // `membership:{space}:{target}`, which IS her key — and steps 2–4
+            // treat each correctly by construction: a SPENT invite is subtracted
+            // because her own first join references it, a LIVE one survives
+            // because nothing does.
+            (Some(key), _) => select_rejoin_anchor(served, key),
+            // No key derivable ⇒ the invite scan. A FALLBACK, never a precedence.
+            (None, Some(id)) => vec![id],
             (None, None) => vec![],
         }
     }

@@ -880,8 +880,12 @@ pub async fn collect_invite_bootstrap(
             //     the entry.
             //  2. DECISIVE — THE OR WOULD OPEN A DOOR ONTO A LOCKED GATE. The
             //     `3044 invite_expired` gate at event submission
-            //     (`xgen-core/src/node/runtime.rs:1804`, measured at `fa0f8ad`)
             //     is `if let Some(pi) = space.pending_invites.get(&event.sender)`
+            //     — `runtime.rs`, the ONLY `pending_invites.get(&event.sender)`
+            //     site in the file (`:1819` at `951b758`; it read `:1804` at
+            //     `fa0f8ad` and Leg G-4's own comment edit to that file moved it,
+            //     which is why the SYMBOL is the anchor and the line is only a
+            //     convenience — `D-152` clause 1)
             //     — NOT conditioned on the rejoin flag. She would fetch her
             //     anchor here, build a correct join, and be refused `3044` at
             //     submission anyway. Refusing at the door is the CONSISTENT

@@ -1694,24 +1694,29 @@ pub async fn join(
     let event_id = {
         let conn = ctx.session.ensure_connected(ctx.node_override).await?;
         // M8.5-B (INV-D3) + M-SPACE-ADMISSION Leg G-4 — the bootstrap. ONE
-        // request, TWO anchor sources, in precedence order:
+        // request, and when a key exists, ONE source:
         //
-        //  1. INV-D3 — a pending invitee sources the `membership.invite` naming
-        //     it and chains its join `prev_events=[invite_id]`, causally *after*
-        //     the invite, so the two are not concurrent on the
-        //     `membership:{space}:{invitee}` key (this is what dissolves M85-A3;
-        //     the join is no longer dropped by derive_resolved Layer 4).
-        //  2. Leg G-4 — with no invite, a RETAINED FORMER MEMBER selects her own
-        //     membership events out of the same served batch (Leg G-3 route 2
-        //     serves her the creates plus only the membership events naming
-        //     her), so her rejoin chains after her own departure instead of
-        //     racing it. Without this she anchors on the create root, the rejoin
-        //     is concurrent with her own leave, and the Node answers `3048`.
+        //  1. `rejoin_key` present ⇒ the selection decides, whatever it returns.
+        //     It keeps every served event on this identity's own membership key,
+        //     which INCLUDES every invite naming her (`state_key_for_event` keys
+        //     a `MembershipInvite` on `membership:{space}:{target}`). So a
+        //     pending invitee still chains `prev_events=[invite_id]` causally
+        //     *after* her invite — INV-D3, what dissolves M85-A3 — and a
+        //     RETAINED FORMER MEMBER chains after her own departure instead of
+        //     racing it. Without the latter she anchors on the create root, the
+        //     rejoin is concurrent with her own leave, and the Node says `3048`.
+        //  2. No key derivable ⇒ the invite scan. A fallback, not a precedence.
         //
-        // Precedence is unchanged: an invite naming her still wins, so an
-        // invitee's behaviour is byte-identical to before this leg. Empty (the
-        // Node refuses with `1011`, or nothing matched the key) ⇒ fall through
-        // to the DAG tip / `rejoin_anchor_or_root`, exactly as before.
+        // The invite-first precedence was DELETED at runbook v1.2 (Joe,
+        // 2026-08-26) after it failed on a live wire: it could not tell a SPENT
+        // invite from a LIVE one, because `PendingInvite.valid_until` is NODE
+        // state this side cannot read and `apply_join` consumed it at her first
+        // join, while the invite EVENT is permanent. See
+        // `batch::get_invite_bootstrap`'s doc for the full reading.
+        //
+        // Empty (the Node refuses with `1011`, or nothing matched the key) ⇒
+        // fall through to the DAG tip / `rejoin_anchor_or_root`, exactly as
+        // before.
         let prev_events = match crate::batch::get_invite_bootstrap(
             conn,
             &args.space,

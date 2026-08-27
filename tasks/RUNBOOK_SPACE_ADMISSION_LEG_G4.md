@@ -1,6 +1,6 @@
 # RUNBOOK — M-SPACE-ADMISSION Leg G-4: the client anchor selection
 > **Status**: ACTIVE  
-> Version: 1.1  
+> Version: 1.2  
 > Date: Aug 2026  
 > **Last updated**: 2026-08-26  
 > Language: EN  
@@ -36,7 +36,7 @@
 
 ✅ **`xgen-client` ALREADY DEPENDS ON IT AND ALREADY CALLS IT** — `xgen-client/src/ai_service.rs:50` imports `resolution::{derive::conflicts_in_log, derive_resolved, state_key_for_event}` and uses it at `:547`.
 
-🔑 **⇒ THE CLIENT MUST NOT WRITE ITS OWN *does this event name me?* PREDICATE, AND THIS LEG DOES NOT.** G-3's `bootstrap_event_names_requester` (`xgen-node/src/fanout.rs:750`) is a **disclosure** test on the node's seat; what the client needs is a **collision** test, and `state_key_for_event` is that test — **the same function `conflicts_in_log` (`xgen-core/src/resolution/derive.rs:261`) uses to decide `3048`.**
+🔑 **⇒ THE CLIENT MUST NOT WRITE ITS OWN *does this event name me?* PREDICATE, AND THIS LEG DOES NOT.** G-3's `bootstrap_event_names_requester` (`xgen-node/src/fanout.rs:750`) is a **disclosure** test on the node's seat; what the client needs is a **collision** test, and `state_key_for_event` is that test — **the same function `conflicts_in_log` (`xgen-core/src/resolution/derive.rs:260`) uses to decide `3048`.**
 
 🔒 ***The client selects its anchor with the very function the node will judge it by. One fact, one place (`D-067`) — by construction, not by mirroring.***
 
@@ -77,7 +77,13 @@
 
 ⚠️ **THE RESIDUE, NAMED AND NOT CLOSED.** More than ten mutually-unordered events on her key — roughly five-plus leave/rejoin cycles, or a long ban/unban history — can still truncate to an anchor that leaves a sibling concurrent, and she meets `3048`. **The refusal is honest and re-submittable; the leg does not close this.** ✅ It is pinned by `V-7` so it is a tested boundary rather than an unexamined one.
 
-🔒 **PRECEDENCE IS UNCHANGED AND THAT IS LOAD-BEARING.** An invite naming her still wins. ✅ **An invitee's behaviour must be byte-identical** — `V-1` asserts it. A dual-entitled requester (departed **and** re-invited with a live invite) takes the invite: G-3 already ruled her narrowed set keeps the invite naming her, so INV-D2/D3 still works.
+🛑 **PRECEDENCE IS DELETED (v1.2, Joe 2026-08-26). `D-131` — the v1.1 clause is struck, not removed:** ~~*PRECEDENCE IS UNCHANGED AND THAT IS LOAD-BEARING. An invite naming her still wins. A dual-entitled requester takes the invite.*~~ 🔑 **IT WAS A SECOND, BLINDER COPY OF A DECISION §3 ALREADY MAKES.** `state_key_for_event` keys a `MembershipInvite` on `membership:{space}:{target}` — **her key** (§1's table, `state_key.rs:77-86`) ⇒ **every invite naming her is ALREADY IN THE SELECTION**, and steps 2–4 already treat each correctly: a **consumed** invite is subtracted at step 3 (her own join references it), a **live** one survives (nothing does). ⚠️ **The clause could not tell them apart, because the object that distinguishes them — `PendingInvite.valid_until` in `space.pending_invites` — is NODE state the client cannot read, and `apply_join` (`xgen-core/src/space/state.rs:1251`) removed it at her FIRST join.** 🛑 **The failure it caused had NO TIME DIMENSION: a rejoin sixty seconds after a leave failed identically, because the `3044` expiry gate reads `pending_invites.get(sender)` (`runtime.rs:1804`) and simply never sees a consumed invite.**
+
+🔒 **⇒ THE SELECTION IS THE ONLY SOURCE WHEN A KEY EXISTS.** `resolve` keeps the invite scan **solely** for the no-key case (`rejoin_key == None`, or `state_key_for_event` returning `None`) — it is a fallback, not a precedence.
+
+✅ **AND THE INVITEE IS STILL UNAFFECTED, BY CONSTRUCTION RATHER THAN BY RULE.** A first-time invitee has exactly ONE event on her key — the invitation — so *the leaf of her record* and *her invitation* are the same id. 🛑 **That convergence is now LOAD-BEARING and must be asserted, never assumed: see `V-1` (v1.2).**
+
+🔑 **AND THE LINK IS PURELY POSITIONAL (Joe, 2026-08-26 — the sentence that settled it).** `prev_events` says *this happened after that*, and nothing more. 🛑 **Naming her old `leave` restores NO part of her former standing** — `D-154`① governs unchanged: **presence, never position.** She returns a plain `Role::Member` with `left_at` cleared, because `apply_join` re-derives role from `pending_invites` (absent ⇒ `Member`), not from anything in `prev_events`.
 
 ---
 
@@ -86,7 +92,7 @@
 ### G4-1 — `xgen-client/src/batch.rs` — the drain keeps what it already receives
 
 - Add a private `fn select_rejoin_anchor(events: &[FrontierEvent], key: &StateKey) -> Vec<String>` implementing §3 steps 2–5. 🔑 **`FrontierEvent` must carry the whole `Event`'s key material** — extend it, or add a sibling projection struct; **either is acceptable, state which and why in the hand-back.** It must be callable **without a `Connection`**, exactly as `cooperative_frontier` is, so `V-5`/`V-6`/`V-7` are unit tests.
-- Widen `get_invite_bootstrap`'s return from `Result<Option<String>>` to **`Result<Vec<String>>`**: invite found ⇒ `vec![invite_id]`; else ⇒ `select_rejoin_anchor(...)`; else ⇒ `vec![]`. Accumulate the projection **in the same drain** — 🛑 **no second request, no second round trip.**
+- Widen `get_invite_bootstrap`'s return from `Result<Option<String>>` to **`Result<Vec<String>>`**. 🛑 **RESOLUTION ORDER (v1.2 — CHANGED, this is the fix for the RED system gate):** a **key present** ⇒ `select_rejoin_anchor(...)`, **whatever it returns, including empty**; **no key** ⇒ the invite scan's `vec![invite_id]`; neither ⇒ `vec![]`. ⚠️ **The invite scan is NOT deleted and NOT a precedence** — it is the no-key fallback and nothing else. Accumulate the projection **in the same drain** — 🛑 **no second request, no second round trip.**
 - The `Error` / `Goodbye` / `Closed` / `Err` arms return what has been accumulated so far, mirroring today's arms exactly. A `1011` refusal still yields **empty** ⇒ fall back.
 - 🛑 **The function NAME stays `get_invite_bootstrap`.** It is client-internal, and a rename inside a behaviour leg makes the diff argue two cases at once (§4's own ruling shape in the Phase-0). **Its doc comment is rewritten to say what it now returns and why** — the same repair §4 prescribed for the wire verb: *a restatement of meaning, not a rename.*
 
@@ -98,7 +104,7 @@
 
 ### G4-3 — `xgen-node/src/fanout.rs` — the `NAMED, NOT FIXED` paragraph (rider filed at J-777)
 
-At `:854-863`. **Add:** 🔒 **Joe ruled the sketch correct (2026-08-26)** — a former member holding an **expired** invite is refused and must obtain a fresh one; and the consistency reason: **the `3044` gate at `runtime.rs:1806` is not conditioned on the rejoin flag**, so the `OR` would have opened a door onto a locked gate. 🔒 **Clair's condition holds: the losing arm's reasoning STAYS, rewritten never removed** — the next reader hits the same fork and this is the only place it is visible.
+At `:854-863`. **Add:** 🔒 **Joe ruled the sketch correct (2026-08-26)** — a former member holding an **expired** invite is refused and must obtain a fresh one; and the consistency reason: **the `3044` gate at `runtime.rs:1804` is not conditioned on the rejoin flag**, so the `OR` would have opened a door onto a locked gate. 🔒 **Clair's condition holds: the losing arm's reasoning STAYS, rewritten never removed** — the next reader hits the same fork and this is the only place it is visible.
 
 ### G4-4 — `xgen-core/src/node/runtime.rs` — the G-2 comment that is narrower than the thing it describes
 
@@ -113,8 +119,10 @@ At `:1707-1709`: *"The `3044` expiry check below lives inside the pending-invite
 
 | # | check |
 |---|---|
-| **V-1** | 🔒 **AN INVITEE IS BYTE-IDENTICAL.** A pending invitee with a live invite still anchors on `vec![invite_id]`, and the served payload is unchanged. **Both pre-existing `collect_invite_bootstrap` tests green and byte-untouched.** |
+| **V-1** | 🛑 **THE INVITEE, AND v1.2 CHANGED WHAT THIS ASSERTS.** ~~*A pending invitee still anchors on `vec![invite_id]`.*~~ ✅ **NOW: assert CONVERGENCE explicitly** — for a first-time invitee the key-based selection and the invite scan return **the same single id**, and the served payload is unchanged. 🔑 **This is no longer a property that holds by rule; it holds because her key carries exactly one event. Assert it so that the day it stops holding, this goes RED instead of quiet.** ✅ Both pre-existing **node-side** `collect_invite_bootstrap` tests green and byte-untouched. |
 | **V-2** | A departed member with **no** invite and **no** local state selects her own last space-level membership event(s) and the node accepts the join. |
+| **V-2b** | 🎯 **NEW AT v1.2 — THE CASE THAT WAS RED.** A departed member whose **consumed** invite is still in the served batch. ✅ **Assert the consumed invite is SUBTRACTED at step 3** (her own join references it) **and the anchor is her departure**, not the invite. 🛑 **This is the unit-level twin of the live failure; it must be RED against v1.1's resolution order and GREEN against v1.2's.** |
+| **V-2c** | 🎯 **NEW AT v1.2 — DUAL ENTITLEMENT.** Departed **and** re-invited with a live invite. ✅ **Assert BOTH her departure and the live invite are selected** (the invite survives step 3 because nothing references it), so the join is chained past her leave **and** `pending_invites.get(sender)` still grants the role. 🔑 `D-154`① — the invite is the carrier of the role, and this is the only case where that still matters. |
 | **V-3** | A **kicked** member selects the `membership.kick` naming her (`D-154`②) and is admitted. |
 | **V-4** | A **banned** member is refused `1011` at the door ⇒ empty selection ⇒ today's fallback. |
 | **V-5** | Unit: a **room-level** kick of her is **NOT** selected for a Space rejoin (different key), and **IS** selected for a rejoin of that room. |
@@ -176,7 +184,9 @@ cargo test -p xgen-mptest --test mp_g4_rejoin_e2e -- --ignored --nocapture
 
 ## §7 — DoD
 
-- [ ] G4-1 · G4-2 landed; `V-1`…`V-8` green; `V-8`'s two reverts run separately with different red sets, then restored, sha256-identical, mtimes stamped (`N-199`).
+- [ ] G4-1 · G4-2 landed; `V-1`…`V-8` green (**including v1.2's `V-2b` and `V-2c`**); `V-8`'s two reverts run separately with different red sets, then restored, mtimes stamped (`N-199`).
+- [ ] 🛑 **`V-2b` proven RED against v1.1's resolution order before it is green against v1.2's.** A regression test that was never red is not a regression test.
+- [ ] ⚠️ **`N-199`'s sha256 restore guard is DEFEATED BY `autocrlf`** — `git checkout --` restores content correctly and changes the bytes. **Restore by file copy both ways, never by `git checkout --` on an unstaged working state**, and compare content, not only bytes.
 - [ ] G4-3 · G4-4 landed, comment-only, proven by `git show --stat` + a diff read.
 - [ ] §5b `V-9a` green; `V-9b` green **or** filed as a finding with its blocker named and measured (never silently dropped).
 - [ ] §5b `V-9c` run: `3048` observed on a wire, transcript quoted verbatim in the hand-back.
@@ -190,6 +200,20 @@ cargo test -p xgen-mptest --test mp_g4_rejoin_e2e -- --ignored --nocapture
 ---
 
 ## §8 — 🔓 OPEN DECISIONS, SITTING INSIDE THE RUNBOOK, BOTH ARMS SPECIFIED
+
+### `OD-3` — ✅ **RULED (Joe, 2026-08-26) at v1.2, AFTER Clair's hand-back proved the leg RED on a live node. The precedence clause is DELETED; the key-based selection is the only source when a key exists.**
+
+🔑 **WHAT IT COST TO FIND, AND WHY IT IS RECORDED RATHER THAN QUIETLY FIXED (`D-065`):** Chat wrote the clause, Joe locked it, Clair implemented it faithfully, **and both system-gate scenarios failed `3048` on a real wire.** ✅ **Clair did not patch it** — she measured the cause by A/B on one variable, restored the probe byte-exact, and routed it back as a locked-rule question. 🛑 ***That is the behaviour the seat split exists to produce, and it is the reason the defect is in this document instead of in the product.***
+
+⚠️ **THE SPECIES, NAMED SO IT IS RECOGNISED NEXT TIME.** Two different objects share one word:
+- **the entitlement** — `PendingInvite` in `space.pending_invites`, **consumed** at `state.rs:1251`, carrying role and `valid_until`;
+- **the record** — the `membership.invite` event, **permanent**, because her own first join names it by hash and `D-154`② already rules that membership history is remembered, never erased.
+
+🛑 **The client asked a HISTORY question (*is there an invite event naming me?* — answer: yes, forever) and read the answer as a STATE question (*do I hold an invite?* — answerable only from `pending_invites`, which is NODE state the client cannot see).** 🔑 ***The log was right, the disclosure was right, and the question was wrong.***
+
+✅ **THE REJECTED ARM, KEPT (`D-131`).** *Restrict the invite scan to invites nothing kept descends from* — correct **today**, and only because G-3's disclosure happens to include her own join. 🛑 **It infers node state from another subsystem's disclosure policy. Narrow that policy later and it goes wrong with every test still green** — this arc's signature failure. **Rejected for that reason, not for cost.**
+
+📝 **A note, not an arc:** the TYPES are already correctly distinct (`EventType::MembershipInvite` vs `PendingInvite`). Nothing needs refactoring. What blurred them was prose and one variable called `invite_id`. **Worth a line in the notes file so the next reader does not repeat it.**
 
 ### `OD-1` — ✅ **RULED (Joe, 2026-08-26): ARM A — THE LIVE RUN RIDES THIS LEG, IN `xgen-mptest`.** The question and both arms are kept below; the ruling is recorded at the site, and §5b is the executable form of it.
 
@@ -213,4 +237,6 @@ cargo test -p xgen-mptest --test mp_g4_rejoin_e2e -- --ignored --nocapture
 - The `1011` reason string — a stranger's refusal and *you need a fresh invite* read identically. **`G-5`.**
 - `G-2`'s reject reason string, shipped as drafted, **Joe's to overwrite in place. `G-5`.**
 - `apply_invite`'s comment says an absent `valid_until` means no expiry, while both read gates refuse on absent for a regular Space. **Opened halfway, not claimed. `G-5`.**
+- 🛑 **`mutates_state_file` OMITS `leave` (`xgen-client/src/aicontrol.rs:155`).** Five `ops::*` sites call `write_client_state` — `register:466`, `create_space:732`, `create_room:816`, `create_dm_space:1050`, **`leave:1887`** — and the list names only the first four plus `self`. ⇒ **the MP-F7 leave anchor, which is exactly what G-4's fallback reads, is written OUTSIDE `StateFileLock`.** The list's own doc says *revisit if `ops::*` grows a new state-file writer*, and it did. **Found by Clair, re-measured by Chat, NOT this leg's. Own arc or `G-5`.**
+- 🛑 **A FRESH INSTALL NEEDS `register --re-registration`; THE KEYPAIR ALONE IS NOT ENOUGH.** A clean data dir holding only the keypair has no `xgen-client_state.json` and every verb refuses until re-registration runs. ⚠️ **The arc's central sentence — *she reinstalls and comes back* — has a step in it that is nowhere written down.** Measured by Clair at `V-9b`. **Product-meaning, Joe's, `G-5` or later.**
 - `D-154`⑥'s reversible-ejection record · `D-154`④'s third-party disclosure · `self.banned` as a permanent federated list. **Older and nobody's.**

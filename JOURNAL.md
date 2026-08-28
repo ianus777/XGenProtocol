@@ -8,6 +8,65 @@ property purposes. Entries are written contemporaneously with the work described
 
 ---
 
+## Entry J-780 — M-ADMISSION-SOUNDNESS filed: the grounding pass found two ruled clauses that nothing on any shipped surface can cause
+**Date:** 2026-08-27 · **Seats:** Joe (instrument ruling, Q-1, lock) · Chat (grounding, Phase-0, records) · Clair (not yet engaged)
+
+✅ **STATE:** `HEAD` `bbd8b3b` **= `origin/main` by `git ls-remote origin refs/heads/main`**, tree clean at open. Floors **unchanged and untouched — zero `.rs`, zero `.ts`, zero `.svelte`**: cargo **1667 / 0 / 64 × 57 SUITES** · vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 **Catalogue UNMEASURED.**
+
+🎯 **JOE'S ASK, IN SUBSTANCE: simulate some real situations related to the mechanism, and find out whether its logic is sound.** `M-SPACE-ADMISSION` closed the day before with six ruled clauses and every leg gate green — ***but each leg had proved its own term in isolation, and nobody had ever driven the whole story as one sequence.***
+
+⚠️ **CHAT'S FIRST ANSWER WAS WRONG AND JOE CORRECTED IT IN SIX WORDS.** Chat proposed a standing acceptance *test suite*. Joe: *"i meant simulate some real situations."* 🔑 ***A test asserts what we already decided; a simulation shows us what we never asked.*** The correction is the entire shape of this milestone, and it is recorded rather than smoothed over (`D-065`).
+
+🔒 **INSTRUMENT RULED (Joe): option (a)** — a driver in `xgen-mptest`, not a throwaway PowerShell rig. ⚠️ The rejected arm was cheaper to start and would have been a **second instrument**; this arc carries `N-206`, `N-207` and `N-212`, all about instruments that lie while looking correct.
+
+---
+
+### 🛑 THE GROUNDING PASS ANSWERED PART OF THE QUESTION BEFORE A LINE OF SIMULATION WAS WRITTEN
+
+**TWO OF THE MECHANISM'S RULED CLAUSES HAVE NO EMITTER ON ANY SHIPPED SURFACE.** Found by exhaustive grep of each identifier across every `.rs` in the workspace, then **re-driven by opening each site individually** (`D-153`) rather than by re-running the grep.
+
+**① `membership.kick` — `D-154`② says *kick is remembered*. Nothing can kick.**
+The receiving side is complete: parsed (`wire.rs:189, :287`), permission-mapped (`exchange.rs:815`), validated (`exchange.rs:897`), resolved with its own precedence (`algorithm.rs:90, :134-142`), state-keyed (`state_key.rs:65`), applied (`state.rs:786 → apply_kick`, whose body carries a `D-154`② comment at `:1341-1344` and calls `mark_departed`), disclosed (`fanout.rs:624, :708, :754`) and audited (`protocol_audit.rs:121`). 🛑 **And every site that constructs one is a test fixture.** `ClientCommand`'s 27 variants carry `Ban` and **not `Kick`**; no node admin op emits one either.
+
+**② `state.space_admission` — `D-148` says admission is owner-settable. Nothing can set it.**
+Same shape and worse. `apply_space_admission` (`state.rs:968`) is not merely present but *carefully* written — it bars DMs first, then uses a **role predicate** and explicitly not an identity-equality test, with a comment naming the two sibling appliers that get that wrong. The gate is live: `3047 admission_required` at `runtime.rs:1695`. 🛑 **No emitter, and `create-space` carries no `admission` argument** — zero matches for `admission` across the entire client clap surface. ⇒ ***every Space that has ever been created is `open` by `DEFAULT_ADMISSION`, and the `3047` gate cannot fire outside a unit test.***
+
+🔑 **THE LOGIC IS SOUND AND THE SURFACE IS ABSENT.** The milestone built a complete, correct, well-tested RECEIVING half for two clauses and no SENDING half for either.
+
+🛑 **AND THIS IS THE ARC'S OWN LESSON RECURRING AT MILESTONE SCALE.** `N-194`: *a check whose failure mode reads exactly like success is not a check.* Here — ***a clause whose only exerciser is a fixture reads exactly like a shipped clause.*** Every leg gate constructed its own events directly, so **no leg ever needed a verb, so no leg ever noticed there wasn't one**, and the milestone closed with every test green and two of six ruled behaviours unreachable by any user or operator.
+
+📌 **`membership.node_eject` is NOT in this category** — `admin_ops.rs:4169 space_force_eject` and `:4256 space_unban` are real admin ops with live-fanout tests. Clause ⑥ is reachable.
+
+---
+
+### 🔒 Q-1 RULED **B** (Joe): SIMULATE THE REACHABLE EIGHT, FILE THE MISSING SURFACES
+
+⇒ **`M-ADMISSION-SURFACE` — the verbs that cause a kick and set a Space's admission**, filed and unscheduled. 🔑 **It is NEW PRODUCT, not verification** — a kick needs its own ruling about what it looks like to the person kicked; an admission setter needs one about whether it is a create-time flag, a post-create event, or both. Folding either in would have turned an observation pass into a feature arc.
+
+⚠️ **THE CARRIED COST OF B, NAMED IN THE PHASE-0'S OWN §4 AND NOT IN A FOOTNOTE:** this milestone will ship a transcript with two ruled clauses it could not stage. ***A reader a year out must be able to tell a hole that was found from a hole that was missed.***
+
+---
+
+### ✅ LEG 0 — TEN SITUATIONS MAPPED TO DRIVABILITY, AND TWO OF CHAT'S OWN WERE WRONG
+
+⚠️ **S-2 was unstageable for a reason Chat had not guessed, and restating it made it SHARPER.** Chat wrote *"someone is promoted into her role"*. **There is no role-mutation event in the protocol at all** — `wire.rs` carries eight `membership.*` types and nothing that changes a role after invite. **Nobody is ever promoted, ever.** But `apply_join`'s no-invite arm hard-codes `Role::Member` (`state.rs:1273-1276`) under a comment reading *"a departed Owner cannot walk back into Owner rights. Presence, never position."* ⇒ **an admin who leaves and rejoins on her own anchor comes back a plain Member, and nothing tells her.** 🔑 ***That is clause ① working exactly as ruled, and it is now the sharpest thing in the list to look at.***
+
+⚠️ **S-8 needed no clock harness.** Chat had it down as *needs clock reach over `valid_until`*. `invite --valid-for-days` is `Option<u32>` and `ops.rs:1187` computes `Utc::now() + days` with **no lower bound** ⇒ **`--valid-for-days 0` stamps an already-spent invite.** No collision with `3045`, which is the *ceiling*. 📌 Leg 1 must **observe** the refusal, not assume it — `valid_until == now` is a boundary.
+
+✅ **S-3/S-4 are stageable for Joe's eyes.** `desktop.rs:988` resolves the data root by the same precedence as the CLI — `--data-dir` > `XGEN_DATA_DIR` > platform default (`D-067`) ⇒ the harness drives the rejoin over `--aicontrol`, then the GUI launches on that same instance dir against that same live node. 🛑 **WHICH FORCES LEG 2'S SHAPE: the rig must be LEFT ALIVE.** A cargo test tears its node down at the end and leaves nothing to attach to ⇒ ***Leg 2's driver is a staging harness, not a test*** — recorded before implementation rather than discovered during it.
+
+✅ **V-9a/V-9b audited (`D-071`).** Between them they assert: member after first join · **not** present after leave · rejoin `is_ok()` · present again after rejoin, through the node's own `derive_resolved`. ⇒ **they cover clause ①'s PRESENCE half and nothing else.** Position, kick, ban, the content/structure gap, rooms and node-eject are asserted **nowhere**. 📌 The earlier estimate *"roughly one and a half of six"* was generous; measured, it is **half of one**.
+
+🛑 **THE INSTRUMENT'S HARD BOUND, STATED BEFORE ANYTHING IS BUILT: the harness sees the WIRE, not the SCREEN.** For S-3 and S-4 — the two situations where the ruled behaviour *is* an experience — it reaches the payload and **the last step is Joe's eyes or it is absent.**
+
+---
+
+### 📌 FILED
+
+`M-ADMISSION-SOUNDNESS` 🟢 (Legs 0…4; Leg 0 closed here) · `M-ADMISSION-SURFACE` 🟡 unscheduled · **`M-CLIENT-RESTORE` 🟡 — ruled at J-779 and OWED ITS OWN NODE EVER SINCE; added here rather than left living inside a closed milestone's `Owes` list.** All three names collision-checked corpus-wide at file time: **0 occurrences each.** `tasks/M_ADMISSION_SOUNDNESS_PHASE0.md` **v1.1 ACTIVE**, ROADMAP **v7.65**, gate exit 0. 🔓 **Q-2 (scheduled vs parked) is sequencing only and does not gate Leg 1.** **No new `D`. No new `N`.** One commit, `D-074`.
+
+---
+
 ## Entry J-779 — Leg G-5 closes M-SPACE-ADMISSION: three comments that had gone false, a negative control nobody could run, and one verb that had been writing outside its lock for four legs
 **Date:** 2026-08-27 · **Seats:** Joe (four rulings, push) · Chat (runbook v1.0→v1.2, Rule 5 re-drives, records) · Clair (implementation, one hand-back, five deviations)
 

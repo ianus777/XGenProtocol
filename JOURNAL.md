@@ -1,10 +1,86 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-24  
+> **Last updated:** 2026-08-27  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-779 — Leg G-5 closes M-SPACE-ADMISSION: three comments that had gone false, a negative control nobody could run, and one verb that had been writing outside its lock for four legs
+**Date:** 2026-08-27 · **Seats:** Joe (four rulings, push) · Chat (runbook v1.0→v1.2, Rule 5 re-drives, records) · Clair (implementation, one hand-back, five deviations)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `39cf7d3` **= `origin/main` by `git ls-remote origin refs/heads/main`** — the remote ref, never the tracking ref. Tree clean. 🎯 **`M-SPACE-ADMISSION — who may join a Space, and how a leaver comes back` IS CLOSED.** It was filed at J-741 and its first design entry is J-742.
+
+🔒 **FLOOR MOVED: cargo 1665 → 1667 / 0 / 64 × 57 SUITES**, re-driven by both seats on FORCED REBUILDS — every edited source mtime-stamped forward, `Compiling` present for **all four** edited crates before any number was read (`N-207`/`N-212`). Delta confirmed two independent ways, neither arithmetic: `--skip` on the two new names returns exactly **1665 / 0 / 64 × 57**, and libtest's own **`filtered out = 2`**. Carried by scope, stated not measured (zero `.ts`, `.svelte`, `ui/**`): vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 **Catalogue UNMEASURED — its harness has never been located; no number is written for it.**
+
+🔑 **THE LEG'S SHAPE, AND IT IS THE POINT: ONE BEHAVIOUR CHANGE AND THREE COMMENTS THAT HAD BECOME FALSE.** A close leg is where an arc's residue is either swept or inherited. This one found that **the residue was mostly true statements that had stopped being true**, and that the arc's own instruments were among them.
+
+### 🛑 `G5-1` — `leave` had been writing outside `StateFileLock` for the whole of Legs G-1…G-4, and it writes the one record the rejoin path depends on
+
+`aicontrol.rs`'s `mutates_state_file` classified five verbs. `crate::app::write_client_state` has five call sites in `ops.rs`: `register:466` · `create_space:732` · `create_room:816` · `create_dm_space:1050` · **`leave:1892`** (symbols are the anchor; the lines are a convenience — `D-152` clause 1). ⇒ **`leave` wrote unserialised**, and what it writes is the **MP-F7 leave anchor** — the `last_local_events` entry that Leg G-4's `select_rejoin_anchor` fallback reads.
+
+⚠️ **THE COMMENT ABOVE THE CLASSIFIER HAD ALREADY ASKED FOR THIS:** *"Revisit if `ops::*` grows a new state-file writer."* ***It grew one and nobody revisited*** — a standing instruction with no owner and no trigger is the J-598 shape (*a deferral written as a code comment*) pointed at a lock.
+
+🔑 **AND THE PRE-EXISTING TEST COULD NEVER HAVE CAUGHT IT.** `verb_tiers_classify_local_vs_network` asserted one positive and two negatives and **never asserted the SET** ⇒ a new writer could land in `ops.rs` and escape the lock silently, which is exactly what happened. `V-2` now sweeps the **whole CLI verb surface**: 6 classified + 21 non-writers = **27**, matching clap `ClientCommand`'s 27 top-level variants exactly, **both sides counted rather than one subtracted**. A seventh writer now fails a test instead of shipping.
+
+🔑 **`self` IS THE NON-OBVIOUS MEMBER, AND THE REASON IS RECORDED IN THE CODE.** `self_open` (`ops.rs:1087`) **never calls `write_client_state`** — it **delegates to `create_dm_space`** (`:1123`) when the self thread is absent, so it writes conditionally and never by its own hand. ⇒ ***a reader diffing the classifier against a grep would "correct" `self` away — the same blindness that let `leave` escape, pointed the other way.***
+
+### 🛑 `G5-2` — the `valid_until` comment stated the DM exception as the general rule
+
+`state.rs`'s `PendingInvite` doc and `apply_invite`'s inline comment both said an absent `valid_until` means the invite **never expires**. **True on a DM only.** On a regular Space **both gates refuse it**: the join gate with `3044 invite_expired — non-DM invite carries no valid_until (malformed/legacy)` (`runtime.rs`, the `None if !space.dm_constraints_active` arm), and the read gate in `collect_invite_bootstrap` (`fanout.rs`, the same arm). The DM exemption is **structural** — `dm_constraints_active` forecloses the invite path, so the absence of `valid_until` is the absence of the window it guards, not an omission. Both sites struck at the site, not deleted (`D-131`).
+
+### 🛑 `G5-3` — the system gate's own module doc said both its scenarios fail, and its negative control named a line that does not exist
+
+`mp_g4_rejoin_e2e.rs` is the file whose entire job is to be the system gate, and it carried two false statements at close:
+
+1. **`:45-79` still read *"STATUS AT HAND-BACK: BOTH SCENARIOS FAIL"* and *"§3's precedence is Joe-locked"*.** Both scenarios pass (`2 passed; 0 failed`, J-778), and Joe **deleted** that precedence at runbook v1.2. **`N-109` again**, and in the worst possible file for it. **Kept and dated rather than deleted** — its diagnosis of the CAUSE was correct and became `D-156`; *the refutation is worth more than the erasure* (`D-065`).
+2. 🛑 **AND `V-9c` WAS UNFOLLOWABLE.** Its disarm procedure told the next operator to edit `(None, Some(key)) => select_rejoin_anchor(served, key)` — **an arm that does not exist and never shipped.** The shipped match is `(Some(key), _)` · `(None, Some(id))` · `(None, None)` (`batch.rs:411-423`, opened and read). ⇒ ***`V-9c` is the negative control for the whole leg, and a procedure that cannot be executed is not a control.*** Re-pointed onto the shipped arm, anchored on the match rather than the line.
+
+📌 **`V-9c` WAS NOT RUN, AND NOTHING IN THE RECORD IMPLIES IT WAS.** Making it followable was the deliverable.
+
+### 🔒 `G5-4` — two wire strings ruled UNCHANGED, and the ruling recorded at the site
+
+No string was edited. Two comments were added so the next reader does not re-open a closed question — **the J-513 lesson: *a resolved question that keeps advertising itself as open trains its readers to distrust the record*.**
+
+🔒 **`1011 invite_bootstrap_refused` — ONE WORD FOR EVERY REFUSAL, DELIBERATELY (Joe, 2026-08-27).** A stranger, a banned former member, a node-ejected one and a returning member holding a lapsed invite all hear the same code. 🔑 **Differentiating them would make the refusal a MEMBERSHIP ORACLE: anyone holding a pubkey could learn whether that identity had ever been in this Space by reading an error.** ⚠️ **THE COST IS CARRIED, NOT TRADED AWAY (`D-065`):** a real person whose invite lapsed is told nothing that helps her. ***The honest place to fix that is the INVITE she needs, not the refusal*** — filed and unowned.
+
+🔒 **`3048`'s operator message — UNCHANGED (Joe, 2026-08-27).** Chat-drafted at G-2, reviewed at the close, kept: read by an operator or a log and never by a member, and it names the **remedy** rather than only the fault.
+
+### 🔒 THE FOURTH RULING, AND IT LEAVES THE ARC WITH A SUCCESSOR RATHER THAN A HOLE
+
+🛑 **THE ARC'S CENTRAL SENTENCE — *she reinstalls and comes back* — HAS A STEP IN IT THAT IS NOWHERE WRITTEN DOWN.** Measured at V-9b: a clean data directory has no `xgen-client_state.json` and **every verb refuses** until `register --re-registration` runs. **The keypair alone is not enough to act.**
+
+🔒 **RULED (Joe): the app tells her, in her words, and restores behind ONE deliberate confirmation.** ❌ **NOT the silent version** — *a launch-time write to node-side identity state is the one thing a person cannot audit*, and this project's thesis is that identity moves deliberately.
+
+🛑 **AND THE RULING IS FILED, NOT BUILT, ON A MEASURED GROUND: the desktop client has NO ROUTE TO `ops::join` AT ALL** (J-740: three callers — CLI, AI control, tests; **no GUI caller**). ***A UI ruling with no surface to land on is a `D` locked for a design nobody can see run*** — the shape refused at J-515. ⇒ **`M-CLIENT-RESTORE` — bringing an account back on a new device** (name checked corpus-wide: **0 collisions**).
+
+⚠️ **ITS PHASE-0's FIRST QUESTION IS ALREADY VISIBLE AND IS NOT ANSWERED HERE:** the verb is called `re-registration` and ch3 §3.13.8 defines it as **re-home onto a NEW node**. It is being reused for **rebuild local state on the SAME node**. Whether that is one mechanism or two is a real question, not a naming one.
+
+### 🛑 FIVE DEVIATIONS, NONE ABSORBED, THREE OF THEM DEFECTS IN CHAT'S OWN RUNBOOK — IN A FOUR-EDIT LEG
+
+① **`D-1`, BLOCKING — THE RUNBOOK'S OWN INSTRUCTION WOULD HAVE SHIPPED A FALSE COMMENT, IN THE LEG WHOSE PURPOSE IS DELETING FALSE COMMENTS.** §3 and the DoD both said the doc comment must say **five verbs**; after adding `leave` the classifier holds **six**. 🔑 **THE MECHANISM WAS TYPOGRAPHIC AND IS WORTH KEEPING: §2's rows A and B placed two DIFFERENT five-item lists adjacently as though they were one set.** Classifier `{register, create-space, create-room, create-dm-space, self}`; writers `{register, create_space, create_room, create_dm_space, leave}`. ***The overlap is four.*** Clair wrote the truth — six classified, five direct writers, `self` explained — rather than what she was told.
+
+② **`D-2`, BLOCKING — THE RUNBOOK'S PRESCRIBED CITATION WAS STALED BY THE SAME COMMIT THAT CONTAINED IT.** §3 told her to write `runtime.rs:1836-1841` into `state.rs`; **`G5-4` inserts five comment lines above that arm**, moving it to `:1841`. Measured on both trees, not reasoned. 🔑 ***This is J-778's own finding — a leg that edits a file invalidates its own citations into that file — recurring inside G-5's artefact, in the section that names it.*** Re-anchored on the symbol (`D-152` clause 1).
+
+③ **`D-3` — §2's site F cited neither refusal.** `fanout.rs:849` is a comment; `:897` is the match head; the arm that returns `Err(REFUSED)` is `:906`. ***The claim was true and the sites were not the site.***
+
+④ **`D-4`, Clair's own** — her first `V-9c` note landed **between a code fence and its continuation**, splitting the procedure. Caught on read-back and re-seated. 📌 *A comment edit can break a document the way a code edit breaks a build, and only reading the result finds it.*
+
+⑤ **`D-5`, Clair's own, and it is `N-197`.** A scoping check reported *"none of this leg's files violate rustfmt"* — **false**, caused by path normalisation leaving a leading slash so **nothing could match**. ⚠️ **A CHECK WHOSE FAILURE MODE READS EXACTLY LIKE SUCCESS.** Corrected: all five violate — **but so do 209 files workspace-wide, most untouched by this arc** ⇒ **rustfmt is not clean on baseline and is not a gate** (the J-689 clippy shape). `cargo fmt` was **not** run; its two suggestions were applied to the new test only. **Filed, not fixed.**
+
+🔑 **RUNNING TOTAL FOR THE ARC: TWENTY-FOUR DEVIATIONS REPORTED, ZERO ABSORBED, THIRTEEN OF THEM DEFECTS IN CHAT'S DOCUMENTS.** ***The seat split is not paying for itself in code; it is paying for itself in specifications.***
+
+### ✅ MEASURED (Chat re-drove every leg, Rule 5 — not one number taken on report)
+
+**`V-1`** positive (`leave`) + negative (`spaces`); **`V-2`** exact set, 6 + 21 = 27 against clap's 27 variants, re-derived independently from `app.rs:731-840`; **`V-3`** 1667 / 0 / 64 × 57, sentinel 0, `FAILED` 0, `error[` 0, `panicked` 0, 57 terminators summed **case-sensitively** and programmatically; **negative control re-driven by Chat, not accepted on report** — `"leave"` removed ⇒ **exit 101**, both tests RED **by name**, `Compiling xgen-client` present; restored by **file copy** (`N-210`), compared by **content not bytes** (`N-211`), mtime stamped (`N-212`), **diffstat byte-for-byte identical to pre-control**; **`V-4`** `git diff -U0` ⇒ **0 non-comment added lines** across all four comment-only files (28 / 5 / 9 / 38 added, all comments) — *stated as a scope argument, never as a measurement*; **`V-5`** `batch.rs:419` read from the file; **`V-6`** the painted module doc carries no undated present-tense false claim. **EOL:** `runtime.rs` CR=6442/LF=6442 and `state.rs` CR=4999/LF=4999 pure CRLF, the other three pure LF, all five `i/lf` in the index, **no flip** — 5 and 34 changed lines against 6442 and 4999 (`N-202`: a flip reads as every line).
+
+### 🔓 WHAT LEAVES THE ARC, WITH OWNERS NAMED
+
+**Joe's to schedule:** `M-CLIENT-RESTORE`. **Filed and unowned:** the expired-invite dead end (②'s carried cost) · `D-154`⑥'s reversible-ejection durable record · `D-154`④'s third-party disclosure · `self.banned` as a permanent federated list · the `GENERIC_4000` envelope carrying `3048` in `reject_code` (`D-070`'s entry, first sighted J-778) · **rustfmt unclean on baseline, 209 files** · `N-204`'s unbisected heredoc boundary. 📌 **Each carries a named owner or an explicit *nobody* — stated so the difference between *nothing was open* and *nobody looked* is legible.**
+
+📌 `tasks/RUNBOOK_SPACE_ADMISSION_LEG_G5.md` **v1.2 COMPLETED** · `tasks/M_SPACE_ADMISSION_LEGG_PHASE0.md` **COMPLETED** · `tasks/M_SPACE_ADMISSION_PHASE0.md` **COMPLETED** · ROADMAP **v7.64**, the `M-SPACE-ADMISSION` node 🟡 → ✅ and **reduced per Joe's J-715 mechanism: 18 `↳` lines / 14,584 characters → 9 lines / 5,117 characters**, measured on both sides rather than estimated. ⚠️ **CHAT'S OWN NUMBER WAS WRONG AND THE MEASUREMENT CAUGHT IT:** the figure carried into this session was **25,095 characters**, which summed lines `368-401` — **thirty-four lines spanning into the two NEXT milestones' nodes**, not this node's eighteen. Corrected here at the site (`D-131`). ***An off-by-sixteen-lines slice reads exactly like a measurement, which is why the splice asserted its own fence before cutting.*** **No new `D`. No new `N` designated** — `D-5`'s rustfmt finding is recorded here and at its site rather than minted, and that omission is deliberate and visible (`D-134`, `D-140`). One commit, `D-074`.
 
 ---
 

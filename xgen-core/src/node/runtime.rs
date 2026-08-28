@@ -1800,6 +1800,11 @@ impl NodeRuntime {
                             .unwrap_or_default();
                         log.push(event.clone());
                         if conflicts_in_log(&event, &log) {
+                            // 🔒 M-SPACE-ADMISSION Leg G-5 (Joe, 2026-08-27) — THE
+                            // OPERATOR MESSAGE BELOW IS RULED UNCHANGED. Chat-drafted at
+                            // Leg G-2, reviewed at the close, kept: it is read by an
+                            // operator or a log and never by a member, and it names the
+                            // REMEDY (re-anchor and re-submit) rather than only the fault.
                             return DispatchOutcome::Rejected(RejectInfo::coded(
                                 3048,
                                 "rejoin_not_anchored",

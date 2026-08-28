@@ -147,12 +147,33 @@ fn verb_tier(cmd: &str) -> TimeoutTier {
 }
 
 /// True for the verbs whose `ops::*` call read-modify-writes
-/// `xgen-client_state.json` (the verbs that call `write_client_state`). These
-/// run under the [`StateFileLock`] (locked C2-rider resolution). Kept precise
-/// — over-locking would needlessly serialise concurrent network reads. Revisit
-/// if `ops::*` grows a new state-file writer.
+/// `xgen-client_state.json`. These run under the [`StateFileLock`] (locked
+/// C2-rider resolution). Kept precise — over-locking would needlessly
+/// serialise concurrent network reads. Revisit if `ops::*` grows a new
+/// state-file writer.
+///
+/// **SIX verbs classified, FIVE direct writers, and the two are not the same
+/// set.** `crate::app::write_client_state` has five call sites in `ops.rs`:
+/// `register` · `create_space` · `create_room` · `create_dm_space` ·
+/// `leave` (`:466` · `:732` · `:816` · `:1050` · `:1892` at `39cf7d3`; the
+/// SYMBOLS are the anchor, the lines a convenience — `D-152` clause 1).
+/// `self` is classified here because `self_open` DELEGATES to
+/// `create_dm_space` when the self thread is absent, so it writes
+/// conditionally and never by its own hand. Do not
+/// "correct" `self` away by diffing this list against a grep for
+/// `write_client_state`: the indirect writer is the one a grep cannot see.
+///
+/// M-SPACE-ADMISSION Leg G-5 (2026-08-27) — `leave` added. `ops::leave`
+/// writes the MP-F7 leave anchor (the `last_local_events` entry that Leg
+/// G-4's `select_rejoin_anchor` fallback reads) and did so OUTSIDE this lock
+/// for the whole of Legs G-1…G-4, which is the one record the rejoin path
+/// depends on. The comment above already said *revisit if `ops::*` grows a new
+/// state-file writer*; it grew one and nobody revisited.
 fn mutates_state_file(cmd: &str) -> bool {
-    matches!(cmd, "register" | "create-space" | "create-room" | "create-dm-space" | "self")
+    matches!(
+        cmd,
+        "register" | "create-space" | "create-room" | "create-dm-space" | "leave" | "self"
+    )
 }
 
 /// The result field a `bind` names as the bare-`$name` primary value (§5/§6).
@@ -982,6 +1003,80 @@ mod tests {
         assert!(mutates_state_file("create-space"));
         assert!(!mutates_state_file("send"));
         assert!(!mutates_state_file("whoami"));
+    }
+
+    /// `V-1` (M-SPACE-ADMISSION Leg G-5) — `leave` is inside the state-file
+    /// lock.
+    ///
+    /// `ops::leave` read-modify-writes `xgen-client_state.json`, and what it
+    /// writes is the MP-F7 leave anchor — the `last_local_events` entry that
+    /// Leg G-4's `select_rejoin_anchor` fallback reads. It sat OUTSIDE
+    /// `StateFileLock` for the whole of Legs G-1…G-4.
+    ///
+    /// The negative arm is load-bearing, not decoration: a classifier that
+    /// returned `true` for everything satisfies the positive arm alone, and
+    /// would serialise every concurrent network read for no reason.
+    #[test]
+    fn leave_is_classified_as_a_state_file_mutator() {
+        assert!(
+            mutates_state_file("leave"),
+            "ops::leave writes xgen-client_state.json and must hold StateFileLock"
+        );
+        assert!(
+            !mutates_state_file("spaces"),
+            "`spaces` is a local read — classifying it would over-lock"
+        );
+    }
+
+    /// `V-2` (M-SPACE-ADMISSION Leg G-5) — the classifier names EXACTLY the
+    /// state-file writers, swept against the whole CLI verb surface.
+    ///
+    /// Six verbs classify true. `crate::app::write_client_state` has five call
+    /// sites, all in `ops.rs` (census run in both directions at `39cf7d3`: no
+    /// writer exists anywhere else in the crate). `self` is the sixth because
+    /// `self_open` DELEGATES to `create_dm_space` when the self thread is
+    /// absent, so it writes conditionally and never by its own hand.
+    ///
+    /// This is the assertion that would have caught `leave`. The pre-existing
+    /// coverage asserted one positive and two negatives and never asserted the
+    /// SET — so a new writer could land in `ops.rs` and silently escape the
+    /// lock, which is exactly what happened. A seventh writer now fails here
+    /// instead of shipping unserialised.
+    #[test]
+    fn mutates_state_file_names_exactly_the_state_file_writers() {
+        const EXPECTED: [&str; 6] = [
+            "register",
+            "create-space",
+            "create-room",
+            "create-dm-space",
+            "leave",
+            "self",
+        ];
+        for verb in EXPECTED {
+            assert!(
+                mutates_state_file(verb),
+                "{verb} writes client state — it must hold the lock"
+            );
+        }
+
+        // The remaining 21 of clap `ClientCommand`'s 27 top-level verbs,
+        // kebab-cased as the surface accepts them (`SelfThread` is renamed
+        // `self`). 6 + 21 = 27: both sides counted, not one subtracted.
+        const NON_WRITERS: [&str; 21] = [
+            "init", "whoami", "status", "spaces", "rooms", "version", "invite", "ban",
+            "room-update", "thread", "join", "send", "history", "fetch", "redact", "members",
+            "smoke-test", "stress-test", "smoke-ph2", "stress-complete", "ai",
+        ];
+        for verb in NON_WRITERS {
+            assert!(
+                !EXPECTED.contains(&verb),
+                "{verb} is in both lists — the sweep can no longer fail"
+            );
+            assert!(
+                !mutates_state_file(verb),
+                "{verb} does not write client state — classifying it would over-lock"
+            );
+        }
     }
 
     // ── AC-D4 token gate (M7C-D1, B1) ─────────────────────────────────────────

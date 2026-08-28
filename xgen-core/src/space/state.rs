@@ -154,10 +154,26 @@ fn mark_departed(
 /// is read from the `membership.invite` event content by `apply_invite`, so it
 /// is deterministic across Nodes and convergence-neutral (no `state_key` of its
 /// own — it rides the `pending_invites` map's `PartialEq`). `None` for invites
-/// that carry no `valid_until` (the seeded DM invite, pre-M8.5-B invites): such
-/// an invite never expires (the join-acceptance / read gates only bite when the
-/// value is present and past). The number is filled by the inviter-side cascade
-/// (C2); the Node only reads and enforces it here.
+/// that carry no `valid_until` (the seeded DM invite, pre-M8.5-B invites). The
+/// number is filled by the inviter-side cascade (C2); the Node only reads and
+/// enforces it here.
+///
+/// 🛑 **ABSENT ⇒ NO EXPIRY ON A DM ONLY.** On a regular Space BOTH gates
+/// treat an absent value as malformed/legacy and REFUSE: the join gate with
+/// `3044 invite_expired` (`xgen-core/src/node/runtime.rs`, the
+/// `None if !space.dm_constraints_active` arm of the `pi.valid_until` match)
+/// and the read gate in `collect_invite_bootstrap` (`xgen-node/src/fanout.rs`,
+/// the same arm of the `pending.valid_until` match). The DM exemption is
+/// structural — `dm_constraints_active` forecloses the invite path, so an
+/// absent `valid_until` is the absence of the window it guards, not an
+/// omission. The SYMBOLS are the anchor and not line numbers, because Leg G-5
+/// itself edits `runtime.rs` above that arm (`D-152` clause 1).
+///
+/// ~~Superseded (M-SPACE-ADMISSION Leg G-5, 2026-08-27): this read "such an
+/// invite never expires (the join-acceptance / read gates only bite when the
+/// value is present and past)" — the DM exception stated as the general
+/// rule, and false for every other Space.~~ (`D-131`: struck at the site, not
+/// deleted.)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingInvite {
     pub role: Role,
@@ -1197,8 +1213,14 @@ impl SpaceState {
         let role_str = event.content["role"].as_str().unwrap_or("member");
         let role = Role::from_str(role_str).unwrap_or(Role::Member);
         // M8.5-B (INV-D6): carry the invite's validity deadline (absolute
-        // timestamp). Deterministic from content → convergence-neutral. Absent
-        // ⇒ no expiry (the join/read gates only bite on a present, past value).
+        // timestamp). Deterministic from content → convergence-neutral.
+        // Absent ⇒ no expiry ON A DM ONLY. On a regular Space both the join
+        // gate (`3044 invite_expired`) and the read gate in
+        // `collect_invite_bootstrap` treat an absent value as malformed/legacy
+        // and refuse — see `PendingInvite`'s doc above for the full rule.
+        // ~~Superseded (Leg G-5, 2026-08-27): "Absent ⇒ no expiry (the
+        // join/read gates only bite on a present, past value)" stated the DM
+        // exception as the general rule.~~ (`D-131`)
         let valid_until = event.content["valid_until"]
             .as_str()
             .filter(|s| !s.is_empty())

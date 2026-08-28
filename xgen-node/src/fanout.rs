@@ -822,6 +822,15 @@ pub async fn collect_invite_bootstrap(
     space_id: &str,
 ) -> Result<Vec<Event>, (u32, &'static str)> {
     const REFUSED: (u32, &str) = (1011, "invite_bootstrap_refused");
+    // 🔒 M-SPACE-ADMISSION Leg G-5 (Joe, 2026-08-27) — ONE WORD FOR EVERY
+    // REFUSAL, DELIBERATELY. A stranger, a banned former member, a node-ejected
+    // one, and a returning member holding a lapsed invite all hear the same
+    // `1011`. Differentiating them would make the refusal a MEMBERSHIP ORACLE:
+    // anyone holding a pubkey could learn whether that identity had ever been in
+    // this Space by reading the error. The cost is carried, not traded away
+    // (`D-065`) — a real person whose invite lapsed is told nothing that helps
+    // her, and the honest place to fix that is the INVITE she needs, not this
+    // refusal. Filed and unowned at Leg G-5 §6.
     let rt = runtime.lock().await;
     let space = rt.spaces.get(space_id).ok_or(REFUSED)?;
     // Leg G-3 route 2 — a RETAINED DEPARTED member who is not banned.

@@ -32,8 +32,8 @@
 //! helper ignore the selection —
 //!
 //! ```text
-//! (None, Some(key)) => select_rejoin_anchor(served, key),   // ← replace with
-//! (None, Some(_)) => vec![],                                // ← this
+//! (Some(key), _) => select_rejoin_anchor(served, key),   // ← replace with
+//! (Some(_), _) => vec![],                                // ← this
 //! ```
 //!
 //! — then `cargo build -p xgen-client` and re-run `v9a_...`. The rejoin reply is
@@ -42,7 +42,42 @@
 //! (**not** `git checkout --`, which restores from the index and discards
 //! unstaged work).
 //!
-//! ## 🛑 STATUS AT HAND-BACK: BOTH SCENARIOS FAIL, AND THAT IS THE FINDING
+//! (`batch.rs:419` at `39cf7d3`; the anchor is `resolve`'s match on
+//! `(rejoin_key, invite_id)` — the line is only a convenience, `D-152`
+//! clause 1.)
+//!
+//! 🛑 **RE-POINTED AT LEG G-5 (2026-08-27), BECAUSE IT WAS
+//! UNFOLLOWABLE.** This procedure previously named
+//! `(None, Some(key)) => select_rejoin_anchor(served, key)` — an arm that
+//! does not exist and never shipped. The invite-first PRECEDENCE it was
+//! written against was DELETED at runbook v1.2 (2026-08-26, stated in capitals
+//! above `select_rejoin_anchor`'s doc in `batch.rs`), and the disarm was left
+//! pointing at the deleted shape. `V-9c` is the negative control for the whole
+//! leg, and a procedure that cannot be executed is not a control. A leg that
+//! edits a file invalidates its own citations into that file — which is why
+//! the match, not the line, is the anchor above.
+//!
+//! ## 📌 HISTORY — status at the Leg G-4 hand-back (SUPERSEDED 2026-08-26)
+//!
+//! 🛑 **THIS BLOCK IS A DATED RECORD, NOT THE CURRENT STATE. BOTH
+//! SCENARIOS PASS** at `39cf7d3` — `2 passed; 0 failed`, re-driven
+//! independently by both seats (J-778). It is KEPT rather than deleted
+//! because the refutation is the record: it diagnosed a real RED state, and
+//! that diagnosis became `D-156`.
+//!
+//! Two of its claims are false as of 2026-08-26:
+//!
+//! - *"BOTH SCENARIOS FAIL"* — both passed once the precedence was deleted.
+//! - *"§3's precedence is Joe-locked"* — Joe DELETED that precedence at
+//!   runbook v1.2 after it failed on a live wire. `D-156`: two objects share
+//!   one word — the invite ENTITLEMENT (`PendingInvite`, CONSUMED by
+//!   `apply_join`) and the invite RECORD (the `membership.invite` event,
+//!   PERMANENT). The client asked a HISTORY question, *is there an invite
+//!   event naming me?* — answer yes, forever — and read it as a STATE
+//!   question, which only `pending_invites` can answer and no client can read.
+//!
+//! The block's own diagnosis of the CAUSE was correct and is why the fix was
+//! three lines. The original text follows verbatim.
 //!
 //! These tests assert the INTENDED behaviour and are RED against the shipped
 //! (runbook-locked) implementation. They are deliberately **not** rewritten to

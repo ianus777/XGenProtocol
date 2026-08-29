@@ -5,7 +5,13 @@
 // Change License: GPL-2.0-or-later
 // See LICENSE in the project root for full terms.
 
-//! M-ADMISSION-SOUNDNESS Leg 1 — the four wire situations (`#[ignore]`, box-gated).
+//! M-ADMISSION-SOUNDNESS — the wire situations (`#[ignore]`, box-gated).
+//!
+//! ⚠️ **This file's title read *Leg 1 — the four wire situations* until J-782.**
+//! True when written; **Leg 2 added `S-3` and `S-4`, so it is six.** Corrected
+//! rather than left standing (`D-131`) — a file whose own first line miscounts
+//! its contents is the `D-2` species from G-5, and this leg exists partly
+//! because that species keeps recurring.
 //!
 //! 🛑 **THIS FILE DOES NOT TEST. IT OBSERVES.** *A test asserts what we already
 //! decided; a simulation shows us what we never asked.* Every instinct in a
@@ -35,13 +41,26 @@
 //! would not know. If that line cannot be written honestly from what was
 //! printed, the situation did not observe enough — which is itself a finding.
 //!
+//! 🔒 **`D-3` (Leg 1, filed by the implementing seat against itself): a
+//! `READING` written before the run is a prediction wearing an observation's
+//! clothes.** All four of Leg 1's were drafted early and one was wrong. Every
+//! `READING` here is written **after** its output existed, and the file is then
+//! re-run to confirm the lines render true.
+//!
 //! ## Scope (`Q-1` ruled **B** at J-780)
 //!
-//! - **In:** `S-1` (leave/return), `S-2` (the silent demotion), `S-7`
+//! - **In (Leg 1):** `S-1` (leave/return), `S-2` (the silent demotion), `S-7`
 //!   (node-eject → rejoin → unban → rejoin), `S-8` (stranger vs spent invite
 //!   vs live invite).
-//! - **Out:** `S-3`/`S-4` are Leg 2 (they need a live rig and Joe's eyes).
-//!   `S-5`/`S-6`/`S-10` are **not drivable at all** — `membership.kick` and
+//! - **In (Leg 2, J-782):** `S-3` (the gap she returns to) and `S-4` (the Space
+//!   that may never have appeared) — their **WIRE halves**. ⚠️ Leg 1's text
+//!   here read *"Out: `S-3`/`S-4` are Leg 2 (they need a live rig and Joe's
+//!   eyes)"*; **half of that is still true and is the half that matters.** The
+//!   wire halves run here; **the SCREEN halves do not and cannot** — they need
+//!   `examples/stage_admission.rs`, a live node, two GUIs and Joe's eyes.
+//!   ***A situation whose ruled behaviour is an experience is not closed by a
+//!   green transcript.***
+//! - **Out:** `S-5`/`S-6`/`S-10` are **not drivable at all** — `membership.kick` and
 //!   `state.space_admission` have a complete receiving half and **no emitter on
 //!   any shipped surface**. They are `M-ADMISSION-SURFACE`'s.
 //!
@@ -73,6 +92,17 @@ const PORT_S1: u16 = 8592;
 const PORT_S2: u16 = 8593;
 const PORT_S7: u16 = 8594;
 const PORT_S8: u16 = 8595;
+
+// Leg 2 (J-782). 🛑 **8596 is NOT free and is deliberately skipped here**: it
+// belongs to `xgen-mptest/examples/stage_admission.rs`, the staging harness this
+// leg's screen half runs on. An example is not a test, so nothing in `tests/`
+// would ever collide with it *while the suite runs* — but the two can be alive
+// at the same time on one box (the example blocks while a GUI is attached), and
+// a port claimed by a live process is claimed regardless of which target
+// claimed it. Re-swept at `3dde2d0`: 8596-8598 have no other user in
+// `xgen-mptest/tests/` or `src/`. **The next file to need one starts at 8599.**
+const PORT_S3: u16 = 8597;
+const PORT_S4: u16 = 8598;
 
 /// A deliberate pause. `S-8` needs one and says why at its call site.
 async fn pause(ms: u64) {
@@ -527,4 +557,384 @@ async fn s8_stranger_spent_invite_and_live_invite() {
          the Space at all.",
     );
     ftr("S-8");
+}
+
+// ══ Leg 2 (J-782) — S-3 and S-4, the two situations whose ruled behaviour is an
+// ══ experience. Their WIRE halves live here; their SCREEN halves are
+// ══ `examples/stage_admission.rs` plus Joe.
+
+/// Message texts for a room, in order, rendered for a person. A refusal is
+/// rendered verbatim rather than flattened to an empty list — *the history is
+/// empty* and *the history could not be read* are different facts and must not
+/// print alike.
+async fn history_texts(c: &mut AicontrolClient, space: &str, room: &str) -> String {
+    let r = call(c, "history", json!({ "space": space, "room": room })).await;
+    match r.data().and_then(|d| d.get("messages")).and_then(|v| v.as_array()) {
+        Some(msgs) => {
+            let texts: Vec<String> = msgs
+                .iter()
+                .map(|m| {
+                    m.get("text")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("<no text>")
+                        .to_string()
+                })
+                .collect();
+            format!("[{}] ({} messages)", texts.join(" | "), texts.len())
+        }
+        None => format!("<no history readable: {}>", verdict(&r)),
+    }
+}
+
+/// A roster rendered as `role:tail8` per row — short enough to sit on one line
+/// beside its control, long enough to tell two identities apart.
+fn render_roster(rows: &[serde_json::Value]) -> String {
+    if rows.is_empty() {
+        return "<empty>".to_string();
+    }
+    let cells: Vec<String> = rows
+        .iter()
+        .map(|m| {
+            let id = m.get("identity_id").and_then(|v| v.as_str()).unwrap_or("?");
+            let tail: String = id.chars().rev().take(8).collect::<Vec<_>>().into_iter().rev().collect();
+            let role = m.get("role").and_then(|v| v.as_str()).unwrap_or("?");
+            format!("{role}:…{tail}")
+        })
+        .collect();
+    format!("[{}]", cells.join(", "))
+}
+
+/// bob's own client state at one point in the story, with alice's beside it.
+///
+/// 🔑 **The control is the whole instrument here.** `spaces` and `rooms` both
+/// read `xgen-client_state.json` and never touch the node, so a bare *bob sees
+/// nothing* is indistinguishable from *the verb is broken* or *the rig never
+/// started*. alice is a CREATOR — `create_space` and `create_room` DO write her
+/// state — so her reads say whether these verbs can return anything at all.
+async fn point(
+    a: &mut AicontrolClient,
+    b: &mut AicontrolClient,
+    space: &str,
+    label: &str,
+) {
+    let bs = own_spaces(b).await;
+    let br = own_rooms(b, space).await;
+    let as_ = own_spaces(a).await;
+    let ar = own_rooms(a, space).await;
+    eprintln!("   ── {label} ──");
+    line("bob", format!("spaces = {bs}"));
+    line("bob", format!("rooms  = {br}"));
+    line("alice", format!("spaces = {as_}  [control]"));
+    line("alice", format!("rooms  = {ar}  [control]"));
+}
+
+/// An identity's own view of the Spaces it knows — a read of **its**
+/// `xgen-client_state.json` (`ops::spaces` is synchronous and never touches the
+/// node). Labelled as a belief in the transcript, because that is what it is:
+/// what a person in that seat would see, which need not match the node.
+async fn own_spaces(c: &mut AicontrolClient) -> String {
+    let r = call(c, "spaces", json!({})).await;
+    match r.data().and_then(|d| d.get("spaces")).and_then(|v| v.as_array()) {
+        Some(spaces) => {
+            if spaces.is_empty() {
+                return "[] (0 spaces)".to_string();
+            }
+            let names: Vec<String> = spaces
+                .iter()
+                .map(|s| {
+                    let n = s.get("name").and_then(|v| v.as_str()).unwrap_or("<unnamed>");
+                    let role = s.get("role").and_then(|v| v.as_str()).unwrap_or("?");
+                    let nrooms = s.get("rooms").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+                    format!("{n} (role={role}, rooms={nrooms})")
+                })
+                .collect();
+            format!("[{}] ({} spaces)", names.join(", "), names.len())
+        }
+        None => format!("<no spaces readable: {}>", verdict(&r)),
+    }
+}
+
+// ── S-3 — the gap: what she can see of what happened while she was away ───────
+
+/// alice keeps the Space running while bob is away: two people arrive, one of
+/// them is removed, and three messages are said. bob comes back and looks.
+///
+/// 🔑 **`D-154`④ rules the gap CLOSED TO CONTENT and OPEN TO MEMBERSHIP
+/// STRUCTURE.** This situation looks at both halves through the surfaces bob
+/// actually has, and asserts neither.
+///
+/// 📌 **The pre-gap message is the discriminator, and the situation is worth
+/// nothing without it.** alice says one thing while bob is still present, then
+/// three more while he is away. Without the first, *his history is empty* and
+/// *his history withholds the gap* are the same reading; with it, three
+/// outcomes are distinguishable — he keeps his prior reach and is denied the
+/// gap, he is given everything, or he is left with nothing.
+///
+/// 📌 **carol and dave JOIN before carol is banned.** A ban on someone who never
+/// joined removes nobody, and *whether carol's removal is visible* would then be
+/// a question about an event that never happened. Recorded because it is a
+/// fixture decision taken in the implementing seat, not a line from the runbook.
+#[tokio::test]
+#[ignore = "heavy: spawns a real xgen-node + 4 real client residents; box-gated RUN"]
+async fn s3_the_gap_she_returns_to() {
+    let bins = binloc::locate().expect("locate binaries");
+    let (_node, _alicep, _bobp, mut a, mut b, url) = rig("MP-AS-S3", PORT_S3).await;
+    hdr("S-3", "the gap she returns to");
+
+    let (space, room, bob_id) = setup(&mut a, &mut b, "AS-S3", "member", None).await;
+    line("setup", format!("alice created {space} + room `general`, invited bob"));
+
+    ok(&mut b, "join", json!({ "space": &space })).await;
+    ok(&mut b, "join", json!({ "space": &space, "room": &room })).await;
+
+    // Said while bob is PRESENT. Everything this situation can conclude rests on
+    // being able to tell this message apart from the three that follow.
+    let pre = call(
+        &mut a,
+        "send",
+        json!({ "space": &space, "room": &room, "text": "BEFORE-THE-GAP" }),
+    )
+    .await;
+    line("action", format!("alice says one thing while bob is here -> {}", verdict(&pre)));
+
+    let hist_before = history_texts(&mut b, &space, &room).await;
+    line("before", format!("bob's history while present = {hist_before}"));
+
+    let left = ok(&mut b, "leave", json!({ "space": &space })).await;
+    line("action", format!("bob leaves -> {}", verdict(&left)));
+
+    // ── the gap ───────────────────────────────────────────────────────────────
+    let carol_p = ManagedProcess::init_and_spawn_client(
+        &bins,
+        &instance_label("MP-AS-S3", "carol"),
+        &url,
+        false,
+        None,
+    )
+    .expect("spawn carol");
+    let mut c = AicontrolClient::connect(&carol_p.aicontrol_pipe, DEFAULT_CONNECT_TIMEOUT)
+        .await
+        .expect("connect carol aicontrol");
+    let carol_id = ok(&mut c, "register", json!({ "name": "carol" }))
+        .await
+        .data_str("identity_id")
+        .expect("carol identity_id")
+        .to_string();
+
+    let dave_p = ManagedProcess::init_and_spawn_client(
+        &bins,
+        &instance_label("MP-AS-S3", "dave"),
+        &url,
+        false,
+        None,
+    )
+    .expect("spawn dave");
+    let mut d = AicontrolClient::connect(&dave_p.aicontrol_pipe, DEFAULT_CONNECT_TIMEOUT)
+        .await
+        .expect("connect dave aicontrol");
+    let dave_id = ok(&mut d, "register", json!({ "name": "dave" }))
+        .await
+        .data_str("identity_id")
+        .expect("dave identity_id")
+        .to_string();
+
+    ok(&mut a, "invite", json!({ "space": &space, "identity": &carol_id, "role": "member" })).await;
+    ok(&mut a, "invite", json!({ "space": &space, "identity": &dave_id, "role": "member" })).await;
+    let cj = call(&mut c, "join", json!({ "space": &space })).await;
+    let dj = call(&mut d, "join", json!({ "space": &space })).await;
+    line("gap", format!("carol joins -> {} | dave joins -> {}", verdict(&cj), verdict(&dj)));
+
+    let ban = call(&mut a, "ban", json!({ "space": &space, "identity": &carol_id })).await;
+    line("gap", format!("alice removes carol (ban) -> {}", verdict(&ban)));
+    eprintln!("   verbatim   {ban:?}");
+
+    for n in 1..=3 {
+        let m = call(
+            &mut a,
+            "send",
+            json!({ "space": &space, "room": &room, "text": format!("GAP-MESSAGE-{n}") }),
+        )
+        .await;
+        line("gap", format!("alice says GAP-MESSAGE-{n} -> {}", verdict(&m)));
+    }
+
+    // ── she comes back ────────────────────────────────────────────────────────
+    let rejoin = call(&mut b, "join", json!({ "space": &space })).await;
+    line("action", format!("bob rejoins -> {}", verdict(&rejoin)));
+    eprintln!("   verbatim   {rejoin:?}");
+    assert!(
+        rejoin.is_ok(),
+        "the rejoin was refused, so the gap was never reached: {rejoin:?}"
+    );
+
+    // ── what bob can see ──────────────────────────────────────────────────────
+    // Driven from BOB, not from alice: the question is what a person in his seat
+    // is shown. alice's identical read follows immediately, as the control that
+    // says whether the verb works at all.
+    let bob_rows = roster(&mut b, &space).await;
+    let alice_rows = roster(&mut a, &space).await;
+    line("bob", format!("members ({} rows) = {}", bob_rows.len(), render_roster(&bob_rows)));
+    line(
+        "alice",
+        format!("members ({} rows) = {}  [control]", alice_rows.len(), render_roster(&alice_rows)),
+    );
+
+    let has = |rows: &[serde_json::Value], who: &str| {
+        rows.iter()
+            .any(|m| m.get("identity_id").and_then(|v| v.as_str()) == Some(who))
+    };
+    line(
+        "bob",
+        format!(
+            "carol in bob's roster = {} | dave in bob's roster = {}",
+            has(&bob_rows, &carol_id),
+            has(&bob_rows, &dave_id)
+        ),
+    );
+
+    let hist_after = history_texts(&mut b, &space, &room).await;
+    line("bob", format!("history after rejoin = {hist_after}"));
+
+    // The discriminator, computed rather than eyeballed.
+    let pre_readable = hist_after.contains("BEFORE-THE-GAP");
+    let gap_present: Vec<String> = (1..=3)
+        .filter(|n| hist_after.contains(&format!("GAP-MESSAGE-{n}")))
+        .map(|n| format!("GAP-MESSAGE-{n}"))
+        .collect();
+    line(
+        "content",
+        format!("pre-gap message readable = {pre_readable} | gap messages present = {gap_present:?}"),
+    );
+
+    // Was he told anything about carol, or about having been away? The client's
+    // `history` verb projects `EventType::MessageText` ONLY (`ops.rs`), so a
+    // membership event cannot reach this surface even when the node serves it.
+    // That is the observation; this leg does not change it.
+    let raw_hist = format!(
+        "{:?}",
+        call(&mut b, "history", json!({ "space": &space, "room": &room })).await
+    );
+    let lower = raw_hist.to_lowercase();
+    let removal_words: Vec<&str> = ["ban", "kick", "remov", "depart", "membership"]
+        .into_iter()
+        .filter(|w| lower.contains(w))
+        .collect();
+    let reason_words: Vec<&str> = ["reason", "because", "why"]
+        .into_iter()
+        .filter(|w| lower.contains(w))
+        .collect();
+    line("bob", format!("removal terms anywhere in his history reply: {removal_words:?}"));
+    line("bob", format!("reason terms anywhere in his history reply: {reason_words:?}"));
+
+    let _ = bob_id;
+
+    // 🔒 `D-3` — written from the output above, after the run, never before.
+    // Held across three further isolated runs of this situation: the four-message
+    // history reproduced identically in all three.
+    line(
+        "READING",
+        "bob came back and read every word said while he was away: all three gap \
+         messages arrived alongside the one from before he left. About the people \
+         he learned nothing - carol was a member and was removed, and his roster \
+         simply omits her, with no trace that she was ever there and no reason \
+         given; dave is listed with nothing to say he arrived during the absence. \
+         On this surface the gap is closed to nobody and open to nothing: the \
+         content came through, and the structure did not reach him.",
+    );
+    ftr("S-3");
+}
+
+// ── S-4 — the Space that may never have appeared ──────────────────────────────
+
+/// bob joins a Space with three rooms, joins all three, leaves and returns. His
+/// own client is read at four points, with alice's identical read beside it.
+///
+/// 🛑 **This is NOT the question S-4 was filed as.** It was filed as *she had
+/// rooms and does not get them back*. Leg 1 measured, while looking at something
+/// else, that `ops::join` never writes client state — the five
+/// `write_client_state` sites are `register`, `create_space`, `create_room`,
+/// `create_dm_space` and `leave` — so the question became **whether a Space she
+/// JOINED appears in her client at all, before she ever leaves.**
+///
+/// 🛑 **That is a code read across three files, and nothing here asserts it.**
+/// alice is a CREATOR and bob is a JOINER; her reads are the control that says
+/// whether the verb works at all. If bob's client shows the Space, the
+/// prediction is wrong and *that* is the finding.
+#[tokio::test]
+#[ignore = "heavy: spawns a real xgen-node + 2 real client residents; box-gated RUN"]
+async fn s4_the_space_that_may_never_have_appeared() {
+    let (_node, _alicep, _bobp, mut a, mut b, _url) = rig("MP-AS-S4", PORT_S4).await;
+    hdr("S-4", "the Space that may never have appeared");
+
+    ok(&mut a, "register", json!({ "name": "alice" })).await;
+    let bob_id = ok(&mut b, "register", json!({ "name": "bob" }))
+        .await
+        .data_str("identity_id")
+        .expect("bob identity_id")
+        .to_string();
+
+    let space = ok(&mut a, "create-space", json!({ "name": "AS-S4" }))
+        .await
+        .data_str("space_id")
+        .expect("space_id")
+        .to_string();
+    let mut rooms = Vec::new();
+    for name in ["general", "design", "random"] {
+        let r = ok(&mut a, "create-room", json!({ "space": &space, "name": name })).await;
+        rooms.push(r.data_str("room_id").expect("room_id").to_string());
+    }
+    ok(&mut a, "invite", json!({ "space": &space, "identity": &bob_id, "role": "member" })).await;
+    line("setup", format!("alice created {space} with 3 rooms and invited bob"));
+
+    // P1 — he has joined the Space and nothing else.
+    ok(&mut b, "join", json!({ "space": &space })).await;
+    point(&mut a, &mut b, &space, "P1 after join").await;
+
+    // P2 — he has joined all three rooms and spoken. Deliberately a DIFFERENT
+    // state from P1, so the second reading is a second observation rather than a
+    // repeat of the first.
+    for r in &rooms {
+        ok(&mut b, "join", json!({ "space": &space, "room": r })).await;
+    }
+    let sent = call(
+        &mut b,
+        "send",
+        json!({ "space": &space, "room": &rooms[0], "text": "bob is here" }),
+    )
+    .await;
+    line("action", format!("bob joined all 3 rooms and sent one message -> {}", verdict(&sent)));
+    point(&mut a, &mut b, &space, "P2 before leave").await;
+
+    let left = ok(&mut b, "leave", json!({ "space": &space })).await;
+    line("action", format!("bob leaves the whole Space -> {}", verdict(&left)));
+    point(&mut a, &mut b, &space, "P3 after leave").await;
+
+    let rejoin = call(&mut b, "join", json!({ "space": &space })).await;
+    line("action", format!("bob rejoins -> {}", verdict(&rejoin)));
+    eprintln!("   verbatim   {rejoin:?}");
+    assert!(
+        rejoin.is_ok(),
+        "the rejoin was refused, so the four-point comparison never completed: {rejoin:?}"
+    );
+    point(&mut a, &mut b, &space, "P4 after rejoin").await;
+
+    // The node's own view, so *his client shows nothing* can be told apart from
+    // *he is not a member*. Read from alice — a departed member cannot drain,
+    // and at P4 he is present again anyway.
+    let (p, r) = presence_and_role(&mut a, &space, &bob_id).await;
+    line("node", format!("the NODE's view of bob at P4: present = {p}, role = {r:?}"));
+
+    // 🔒 `D-3` — written from the output above, after the run, never before.
+    line(
+        "READING",
+        "bob's own client never listed the Space at all - not after he joined it, \
+         not after he joined its three rooms and spoke in one, not after he left, \
+         not after he came back. alice's identical reads return the Space and its \
+         three rooms at every one of those points, so the verbs work, and the node \
+         says bob is a present member. He can act in a Space his own client does \
+         not know exists, and the question this situation was filed to ask - \
+         whether he gets his rooms back - never arises, because he was never shown \
+         them in the first place.",
+    );
+    ftr("S-4");
 }

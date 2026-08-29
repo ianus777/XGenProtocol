@@ -1,10 +1,83 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-27  
+> **Last updated:** 2026-08-29  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-781 — Leg 1 drives the four wire situations: the stranger walked in, the invited man was turned away, and the demotion is silent
+**Date:** 2026-08-29 · **Seats:** Joe (lock) · Chat (runbook v1.0→v1.1, Rule 5 re-drives, records) · Clair (implementation, one hand-back, three deviations)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `011ea475` **= `origin/main` by `git ls-remote origin refs/heads/main`** — the remote ref, never the tracking ref. ⚠️ **The session kickoff carried `ed8f789` and was one commit stale** — `011ea475 skills: add xgen-session-kickoff` landed after it was written. **Re-measured, not inherited; the kickoff's own first instruction is what caught it.** Tree carried **three untracked files at open**, one of them a fully verified deliverable in no record.
+
+🔒 **FLOOR, RE-DRIVEN INDEPENDENTLY BY CHAT ON A FORCED REBUILD (Rule 5), NOT TAKEN ON REPORT:** cargo **1667 / 0 / 68 × 58 SUITES**, exit 0, **58 `test result:` terminators summed programmatically and case-sensitively**; `FAILED` 0 · `error[` 0 · `panicked` 0; **`Compiling xgen-mptest` present** (mtimes stamped forward across the crate first, `N-212`). Carried by scope, stated not measured (zero `.ts`, zero `.svelte`, zero `ui/**`): vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 **Catalogue UNMEASURED.**
+
+🔑 **THE PASSING COUNT DID NOT MOVE — 1667 BEFORE AND 1667 AFTER.** The delta is **+1 SUITE and +4 ignored**, confirmed **by name** in the run output (`running 4 tests`, all four `ignored, heavy: …`), never by arithmetic. ***A soundness leg that moves the passing count has become a test leg; §6.5 made that a finding rather than a success, and it did not happen.***
+
+---
+
+### 🛑 THE ANSWER TO JOE'S QUESTION: THE LOGIC IS SOUND AND THE MECHANISM IS INVERTED ON A REAL WIRE
+
+**`S-8`, measured, three approaches to one Space:**
+
+| | who | outcome |
+|---|---|---|
+| **(1)** | **carol** — never invited, no relationship to the Space at all | ✅ **ACCEPTED**, role = member |
+| **(2)** | **bob** — invited, invite lapsed (`--valid-for-days 0`, `ops.rs:1187` has no lower bound) | 🛑 **REFUSED `3044`**, quoting his exact missed deadline |
+| **(3)** | **bob** — invited, live 14-day invite (the control) | ✅ **ACCEPTED** |
+
+🔑 **THE STRANGER WALKED IN. THE PERSON WHO WAS ACTUALLY INVITED WAS TURNED AWAY.** ⚠️ **And it is not a bug — it is Leg 0's two findings meeting each other.** `admission` is `open` on **every Space that can exist**, because nothing can set it ⇒ `3047` never fires ⇒ carol is never asked for anything. bob holds a `pending_invites` entry ⇒ the expiry branch is entered ⇒ he is refused. ⇒ ***the invite is not what opens the door; it is the only thing that can be CHECKED, and therefore the only thing that can FAIL.*** **Holding a spent invite leaves you worse off than having no relationship to the Space at all.**
+
+**`S-2` — the demotion is real and the silence is now a MEASUREMENT, not a claim.**
+
+```
+before   bob role = Some("admin")
+after    bob role = Some("member")
+role-words present in the rejoin reply: []
+```
+
+Not one of `role` / `admin` / `member` / `demot` / `privile` appears anywhere in the reply that readmitted him, and it is **shaped identically to S-1's ordinary member rejoin**. `D-154`① working exactly as ruled — ***and nothing he receives would let him find out.*** 📌 **The runbook forbade asserting it** (`§6.2`): an `assert_eq!(role, "member")` would have reported a contradiction of a Joe-ruled clause as *this leg failing*, and hidden it.
+
+**`S-7`** — the ban door speaks plainly (bob is told he is banned, naming him and the Space); **un-banning alone does not put him back** — he stays absent until he asks again, and is then readmitted as a plain member with nothing said about the ejection that stays in the record (`D-154`⑥'s carried cost, seen rather than argued). **`S-1`** — he came back with the same role and the same reach and still reads the room's history.
+
+---
+
+### ⚠️ RULE 6 — THREE DEVIATIONS, NONE ABSORBED. TWO ARE DEFECTS IN CHAT'S OWN RUNBOOK.
+
+**① `§3` S-8's `1011` premise does not hold on this path, and S-8 could never have observed it.** **`1011` appeared in NONE of the three replies.** It is `collect_invite_bootstrap`'s refusal (`fanout.rs:824`), and **`ops::join` swallows it** — the `_ =>` arm at `ops.rs:1729` — then falls through to `rejoin_anchor_or_root` and submits the join anyway. ⇒ **`1011` is not reachable by a user attempting to join at all**; what a joining user receives is the join gate's verdict (`3044` / `4000` / ACCEPTED). **Clair built it exactly as written and reported that it observed something *adjacent* to what §3 anticipated, rather than quietly redefining the situation.** ⚠️ **This lands on a ruling Joe made.** At `J-779` he ruled `1011` stays one word on the membership-oracle argument, on Chat's recommendation. **The ruling stands and is unaffected — it governs the bootstrap door.** But the reasoning Chat gave for it was about *what a returning member hears*, and ***a returning member never hears it.***
+
+**② `§3` S-1 assumed `rooms` would be readable. It is not — before OR after leaving.** The reply is not an empty list; it is `no known Space with ID …`. **Not a rejoin effect: `ops::join` never writes client state.** The five `write_client_state` sites in `ops.rs` are `register` · `create_space` · `create_room` · `create_dm_space` · `leave`. **`join` is not among them** ⇒ ***a member's own client records his departure and never his arrival.*** 📌 **The same omission family as G-5's `leave`-outside-the-lock, pointing the other way.** Printed verbatim rather than dropped. 🛑 **It reaches the GUI** — `desktop.rs:629 get_spaces` reads that same local state — **which is why it reshapes Leg 2's S-4 completely, and why Leg 2 §7.1 forbids fixing it: it is a five-line change, obviously right, and it would destroy the observation.**
+
+**③ Clair's own, and she caught it herself. 🔒 `D-3` — A `READING` LINE WRITTEN BEFORE THE RUN IS A PREDICTION WEARING AN OBSERVATION'S CLOTHES.** All four `READING` lines were drafted **provisionally before the run**, and **S-1's was wrong** — she predicted that losing room membership would cost bob his reach; **he read the history fine.** Corrected from the observed output and **re-run to confirm they render true**; every number recorded here is from that second, final run. 📌 ***It is the only defect in this arc so far that came from the implementing seat rather than the specifying one*** — and it is now a standing constraint written into Leg 2's `§0`.
+
+---
+
+### ✅ GATES
+
+| id | result |
+|---|---|
+| **V-1** | `cargo test --workspace` ⇒ **1667 / 0 / 68 × 58 SUITES** — passed **+0**, ignored **+4**, suites **+1**. Re-driven by Chat on a forced rebuild. |
+| **V-2** | `--ignored --test-threads=1` ⇒ **4 passed, 0 failed**, ~79 s; full transcript captured. |
+| **V-3** | 4 headers · 4 footers · **4 non-empty `READING` lines**, read from the captured output and not inferred from the source. |
+| **V-4** | Ports **8592-8595**, **0 uses** anywhere else in `xgen-mptest/tests` or `src`. **Next file starts at 8596.** |
+| **V-5** | `git diff --stat` **empty** — zero tracked files modified; one new file and nothing else. |
+
+**Shipped:** `xgen-mptest/tests/mp_admission_soundness.rs` — **530 lines, four `#[tokio::test] #[ignore]` scenarios**, box-gated like all 32 sibling `mp` files, **contributing zero to the cargo floor**.
+
+---
+
+### 🛑 BOUNDS, STATED AND NOT SOFTENED
+
+**S-3 and S-4 were not driven** — Leg 2, and they need a live rig and Joe's eyes. **S-5, S-6's missing half and S-10 have no emitter at all** and are `M-ADMISSION-SURFACE`'s. ⚠️ ***A reader a year out must be able to tell a hole that was found from a hole that was missed*** — Q-1's carried cost, named here rather than in a footnote.
+
+🔓 **THREE FINDINGS AWAIT JOE AND ARE DELIBERATELY NOT GATED ON LEG 2:** ① **the open door** — every Space that can exist is `open` and cannot be otherwise · ② **the spent invite** — should a lapsed invite fall back to the Space's admission rule rather than hard-refuse? · ③ **the silent demotion.** 📌 **Chat recommended ruling them at Leg 3 with the screens in hand rather than from a JSON transcript** — ***which is the exact substitution this milestone exists to stop making.***
+
+🔧 **Tooling, earned this session:** a here-string in a pasted commit block once swallowed `git commit`, `git push` and every verify line after it — **files staged, nothing committed, and it looked done** ⇒ **the commit body is written to `temp/` (gitignored) and taken with `git commit -F`.** 📌 `rustfmt` remains unclean on baseline across **209 files** and is not a gate (`D-5`, carried from G-5).
+
+**Runbook `tasks/RUNBOOK_ADMISSION_SOUNDNESS_LEG1.md` → v1.2 COMPLETED**, all three deviations annotated at their sites (`D-131`), none deleted. `tasks/RUNBOOK_ADMISSION_SOUNDNESS_LEG2.md` **v1.0 PENDING**, written and awaiting Joe's lock. ROADMAP **v7.66**. **No new `D`. No new `N`.** One commit, `D-074`.
 
 ---
 

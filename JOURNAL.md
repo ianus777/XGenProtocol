@@ -1,10 +1,100 @@
 # XGen Protocol — Development Journal
 > **Status:** ACTIVE  
-> **Last updated:** 2026-08-29  
+> **Last updated:** 2026-08-30  
 
 This document is a chronological record of development activity on the XGen Protocol project.
 It is intended to establish authorship, timeline, and scope of original work for intellectual
 property purposes. Entries are written contemporaneously with the work described.
+
+---
+
+## Entry J-782 — Leg 2: the gap did not close, and bob's own client never listed the Space at all
+**Date:** 2026-08-30 · **Seats:** Joe (lock, `③` ruled) · Chat (runbook lock, Rule 5 re-drive, V-4, records) · Clair (implementation, one hand-back, four deviations)
+
+✅ **STATE, RE-MEASURED AT OPEN:** `HEAD` `9e6221e` **= `origin/main`**. 🛑 **AND THAT IS A CONTRADICTION OF THE HAND-BACK, RECORDED RATHER THAN SMOOTHED:** Clair's hand-back states *"Committed 9e6221e, code only, NOT pushed. Local ahead of origin/main (3dde2d0)."* **The remote ref says otherwise.** Clair never pushes. ⚠️ **Which seat pushed it was asked of Joe and not answered, and this entry does not guess.** 🔑 **It was caught only because the remote ref was measured rather than the tracking ref** — the same discipline that caught the session kickoff carrying a stale `ed8f789` at J-781.
+
+🔒 **FLOOR, RE-DRIVEN BY CHAT ON A FORCED REBUILD (Rule 5), NOT TAKEN ON REPORT:** cargo **1667 / 0 / 70 × 58 SUITES**, exit 0, **58 `test result:` terminators summed programmatically and case-sensitively**; `FAILED` 0 · `error[` 0 · `panicked` 0 · **`warning` 0**; `Compiling xgen-mptest` present. **Passed UNCHANGED at 1667, SUITES UNCHANGED at 58, ignored 68 → 70** — confirmed **by name** (`running 6 tests`, all six `ignored, heavy: …`), never by arithmetic. Carried by scope: vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 **Catalogue UNMEASURED.**
+
+**Shipped at `9e6221e`:** `xgen-mptest/tests/mp_admission_soundness.rs` **+414/−4** (S-3 and S-4, ports 8597/8598, both `#[ignore]`, same binary) · `xgen-mptest/examples/stage_admission.rs` **371 lines, new** — an **example**, never a `[[bin]]`; `Cargo.toml` untouched since `7637366`. 📌 Her hand-back cited `+418/−4`; `git show --numstat` says **414**. Four lines, immaterial, **recorded because a number that is nearly right reads exactly like a number that is right.**
+
+---
+
+### 🛑 FINDING 1 — `D-154`④ IS CONTRADICTED ON A REAL WIRE, AND IT IS ONE HALF, NOT BOTH
+
+```
+bob     history after rejoin = [BEFORE-THE-GAP | GAP-MESSAGE-1 | GAP-MESSAGE-2 | GAP-MESSAGE-3]  (4 messages)
+content pre-gap message readable = true | gap messages present = ["GAP-MESSAGE-1","GAP-MESSAGE-2","GAP-MESSAGE-3"]
+bob     removal terms anywhere in his history reply: []
+```
+
+**④ rules the gap closed to CONTENT. It is open.** bob left, alice said three things while he was away, bob rejoined and **read all three**. Reproduced by Clair five times and **independently by Chat on a forced rebuild**. 🔑 **The pre-gap message is the discriminator and the situation is worthless without it** — absent it, *history is empty* and *history withholds the gap* are the same reading. **Nothing asserts it:** an assert that the gap is empty would have reported a contradiction of Joe's own clause as this leg failing, and hidden it.
+
+⚠️ **CHAT'S OWN FIRST READING OF THIS WAS WRONG AND IS CORRECTED HERE.** Chat reported the clause *"inverted end to end"*. It is not. **bob's roster is byte-identical to the owner's** — `members (3 rows)` matching alice's control exactly, `carol in bob's roster = false | dave in bob's roster = true`. ⇒ **④'s STRUCTURE half is SATISFIED.** What he lacks is the *narrative* of the change, and that is because `ops::history` filters `EventType::MessageText` only (`ops.rs:2158`) — **a client surface absence, Leg 0's own species, not a node gap defect.** 🔑 ***Only one half of ④ is violated, and overstating it by one half would have doubled the repair.***
+
+**Candidate mechanism — grounded, NOT proven, and this entry does not promote it.** `collect_sync_history` (`app.rs:1758`) **applies** the filter, so it is not missing. `rejoin_anchor_or_root` (`ops.rs:151-156`) anchors the rejoin on `last_local_events[space]`, which `leave` writes ⇒ **bob's rejoin and `GAP-MESSAGE-1` are literal siblings**, and concurrent branches have no causal order. 🔑 **That is the caveat `J-770` filed against its own control W-3f in those words — the fixture has no concurrency at the boundary** — and `setup_gap_space` chains linearly, so **no unit test can produce this shape.** Proving it needs a probe inside `xgen-node`, which §7 forbids.
+
+---
+
+### 🛑 FINDING 2 — S-4, AND THE CONTROL IS WHAT MAKES IT A MEASUREMENT
+
+**bob: `spaces = []` at all four points; `rooms` fails `no known Space with ID …` at all four.** alice's identical reads return the Space and its three rooms at **every** point, and the node says **`present = true, role = Some("member")`**. ⇒ ***he can act in a Space his own client does not know exists*** — he joined three rooms and sent a message. 🔑 **The question S-4 was filed to ask — whether he gets his rooms back — never arises, because he was never shown them.**
+
+---
+
+### ✅ V-4 — THE SCREENS, DRIVEN BY CHAT
+
+**The route neither seat had:** `main.rs:40` resolves the root **`--data-dir` > `XGEN_DATA_DIR` > platform default**, and with no `--instance` the root **is** the dir; `run-client.ps1` never sets that variable. ⇒ **`XGEN_DATA_DIR=<staged instance dir>` + `cargo tauri dev --config cdp.dev.conf.json` aims the debug GUI at a staged identity with zero change to the launcher or the client.** Confirmed live: `about-data-dir` read back the staged path on both. **Sequential only** — 5173 and 9222 are pinned.
+
+| | bob — present member | alice — owner, control |
+|---|---|---|
+| **Spaces** | 🛑 **"No spaces yet"** (`count: 0`) | ✅ **`ST · Studio`** (`count: 1`) |
+| Rooms / Messages | "Select a space" / "Select a room to see its messages." | same |
+| Members | **bob, alone** | alice, alone |
+| Status | Reconnecting | Reconnecting |
+
+🔑 **bob is a present member who joined three rooms and spoke in one, and his own client offers him nothing to click.** ⚠️ **Both GUIs read `Reconnecting` — and the control is what disarms it:** `get_spaces` reads **local client state**, not the node, so **alice showing `count: 1` under the identical disconnection proves the connection is not what empties bob's screen.** ***Without that control the entire capture would have been worthless.*** Screens at `temp/shot_bob.png` and `temp/shot_alice.png` (gitignored — retention for Leg 3 is Joe's call).
+
+---
+
+### ⚠️ RULE 6 — SIX DEVIATIONS. **FIVE OF THE SIX ARE CHAT'S.**
+
+| id | seat | what |
+|---|---|---|
+| **`D-1`** | **Chat** | §6 **V-1 and V-2 contradict each other.** V-1 says `68 × 58 UNCHANGED, any movement is a finding`; V-2 says `+2 ignored`. **Ignored must move to 70.** Both pass on the reading that V-1's subject is the example and V-2's the scenarios — **but the runbook says both, and a gate that can be read two ways is not a gate.** |
+| **`D-2`** | **Chat** | §5 step 3's **GUI launch line is not reachable as written.** The built exe exposes no CDP port (`additionalBrowserArgs` lives only in `cdp.dev.conf.json`, `D-104`), and `run-client.ps1 -Debug` is `cargo tauri dev` taking no `--data-dir`/`--instance` and pinning Vite 5173 + CDP 9222. 🔑 **Worse than she reported: `cdp-debug.ps1`'s own header records that WebView2 ≥136 IGNORES `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`, and its `-Launch` was RETIRED for exactly this.** ⇒ **§4's "side by side" is unreachable, permanently, without new tooling.** |
+| **`D-3`** | **Clair** | carol and dave **JOIN before carol is banned** — a ban on someone who never joined removes nobody. A fixture decision, not a runbook line, and correctly reported rather than silently taken. |
+| **`D-4`** | **Clair** | The harness **stops alice's and bob's residents before handing over** (keeping their dirs). Found by reading `desktop.rs`: the Tauri shell starts its own `.aicontrol` server on the same derived pipe name and holds the same state file ⇒ a resident and a GUI on one instance label contend for both. |
+| **`D-5`** | **Chat** | 🛑 **The staged config points at the WRONG NODE.** `xgen-client_config.toml` in both instance dirs reads `node = "ws://127.0.0.1:8080/xgen"` — **the default** — while the staged node runs on **8596**. The harness passes `--node` to the residents and never persists it ⇒ **no GUI launched against a staged dir can connect.** **§5 never specified it.** Cost nothing here only because `get_spaces` reads local state and alice was the control. |
+| **`D-6`** | **Chat** | **`cdp-debug.ps1 -OutFile` fails SILENTLY on a relative path** — exit 1, no file, **no error text**, just the two banner lines, which read exactly like success. Absolute path worked first try. 🔒 **`[System.IO.File]` needs ABSOLUTE paths, and this is the second time that has cost a measurement.** |
+
+📌 **Clair's own instrument error, reported by her unprompted:** she sampled for orphans **while a run was in flight** and briefly read a live test client as a leak; caught within one call and re-measured after teardown. 🔒 ***A process census during a run measures the run.***
+
+---
+
+### ✅ GATES
+
+| id | result |
+|---|---|
+| **V-1** | **1667 / 0 / 70 × 58 SUITES.** Passed **+0**, SUITES **+0**, ignored **+2**. ⇒ **the example is BUILT and never COLLECTED.** |
+| **V-2** | `--ignored --test-threads=1` ⇒ **6 passed, 0 failed, 129.44 s**, transcript captured whole; **6 `READING` lines**. Leg 1's four reproduce exactly. |
+| **V-3** | `READY=True`; **`HASEXITED=False` six seconds after the marker** — it genuinely blocks rather than sleeping; Enter ⇒ prints what it removed, **exit 0**. |
+| **V-4** | **Two CDP snapshots and two screenshots, non-null**, captured and handed to Joe. |
+| **V-5** | **0 orphan `xgen-*`**; 5173 / 9222 / 8596 / 8597 / 8598 **all free**; **0 instance dirs left**. |
+| **V-6** | **Two files.** Zero `xgen-client/`, zero `ui/`, zero `skin.css`, zero `[[bin]]`, `Cargo.toml` untouched, **zero compiler warnings**, LF preserved (940 / 371 lines, CR=0). **Ports 8592-8598 swept: no other user. The next file starts at 8599.** |
+
+🔒 **`D-3` HONOURED (Leg 1's, and it was hers).** Every `READING` was written **after** its output existed; a named placeholder constant enforced it during development, the suite was re-run to confirm both lines render true, and **the constant was removed before shipping (0 occurrences).**
+
+---
+
+### 🛑 NOT DONE, DELIBERATELY
+
+**`ops::join`'s missing state write is NOT fixed** — five lines, obviously right, **and it would have destroyed the observation.** Nothing asserts the Space is absent. **S-5 / S-6 / S-10 not driven** — no emitter exists; they are `M-ADMISSION-SURFACE`'s.
+
+🔓 **JOE RULED `③` THIS SESSION, AND IT IS THE MILESTONE'S FIRST FORWARD DECISION.** The gap is to be closed **interval-scoped, not marker-scoped**: **block A retained, block B withheld, block C delivered.** 📌 **Chat's own framing of the option was wrong and Joe's correction fixed it** — Chat had described the reading as *his client opens at his rejoin*, **which would have killed block A too.** Grounding against prior art: **Discord, Slack (public and private), and Teams do not filter the gap at all**; **Signal and WhatsApp cannot leak it because they hold no server history**; **Matrix is the only system to make history visibility a protocol primitive**, and its four modes are **marker-scoped, not interval-scoped** — an open spec issue records that Matrix has no way to say *users can only see events if they were joined at the time*. 🔑 ***Where the A·B·C shape did occur in Matrix, it occurred as a federation failure and was filed as a DEFECT.*** ⇒ **nobody has built this deliberately on a server that still holds the messages.**
+
+🔓 **Four findings now stand for Leg 3:** the open door · the spent invite · the silent demotion · **the gap that did not close.** 📌 The repair becomes its own milestone with a Phase-0, **never a patch inside an observation leg**. Its opening questions, from this session: **the dangling reference** (a block-C reply whose parent is in block B), **one gap or many** (per-interval membership history, not a single departure marker), **federation** (a remote node holding bob's membership events partially or not at all), **compaction** (membership events become permanently load-bearing, a constraint on `D-080`), and 🛑 **scope asymmetry — measured in this leg's own transcript, bob JOINED three rooms individually and LEFT the whole Space in one event**, so symmetric intervals cannot be folded out of asymmetric events.
+
+**Runbook `tasks/RUNBOOK_ADMISSION_SOUNDNESS_LEG2.md` → v1.2 COMPLETED**, all six deviations recorded, `D-1`/`D-2`/`D-5` annotated at their sites (`D-131`), none deleted. ROADMAP **v7.67**. **No new `D`. No new `N`.** One commit, `D-074`.
 
 ---
 

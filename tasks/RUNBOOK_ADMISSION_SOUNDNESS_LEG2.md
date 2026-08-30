@@ -1,8 +1,8 @@
 # RUNBOOK — M-ADMISSION-SOUNDNESS Leg 2: the two situations that need eyes
-> **Status**: PENDING  
-> Version: 1.0  
+> **Status**: COMPLETED  
+> Version: 1.2  
 > Date: Aug 2026  
-> **Last updated**: 2026-08-27  
+> **Last updated**: 2026-08-30  
 > Language: EN  
 > Author: JozefN  
 > Credits: Concept, philosophy, requirements, project direction: Jozef Nižnanský. Technical assistance and implementation support: AI-assisted development tools.  
@@ -12,7 +12,9 @@
 
 ## §0 — WHAT THIS LEG IS
 
-The second leg of `M-ADMISSION-SOUNDNESS — driving the ruled admission mechanism as one lived story`. Leg 1 handed back at `ed8f789` + one untracked file; this leg takes the two situations Leg 1 could not answer.
+🔒 **LOCKED IN PLACE BY JOE, 2026-08-29 (v1.0 PENDING → v1.1 ACTIVE).** One factual correction at lock and no other change to the body: **§0's base is now `3dde2d0`, not `ed8f789` + an untracked file.** Leg 1 shipped at `3dde2d0` (J-781, 6 files, +963/−6) and **the tree is clean.** 📌 Corrected rather than left standing, because a runbook that names a base commit which no longer describes the tree is `D-2`'s own species from G-5.
+
+The second leg of `M-ADMISSION-SOUNDNESS — driving the ruled admission mechanism as one lived story`. This leg takes the two situations Leg 1 could not answer.
 
 - **S-3** — she returns and looks at the gap. `D-154`④: **content closed, membership structure open.**
 - **S-4** — she was in rooms; she returns. `D-154`⑤: **rooms are not restored.**
@@ -96,6 +98,8 @@ alice creates the Space and **three rooms**. bob joins, is added to the rooms, l
 1. `cargo run -p xgen-mptest --example stage_admission` detached from a **`.ps1` file** (`N-206`), sentinel + log.
 2. Poll for the staged-and-waiting marker in the log. **Do not proceed on elapsed time.**
 3. Launch the GUI **detached, `-Debug`**, once per identity, with `XGEN_DATA_DIR` set to that identity's dir (site A).
+
+⚠️ **ANNOTATION AT THE SITE (`D-131`, J-782, 2026-08-30) — TWO DEFECTS IN THE STEP ABOVE, BOTH CHAT'S.** **`D-2`: the built exe exposes NO CDP port** — `additionalBrowserArgs` lives only in `cdp.dev.conf.json` (`D-104`), and `cdp-debug.ps1`'s own header records that **WebView2 ≥136 IGNORES `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`**, which is why its `-Launch` was **RETIRED**. `run-client.ps1 -Debug` is `cargo tauri dev`, takes no `--data-dir`/`--instance`, and pins Vite **5173** + CDP **9222** ⇒ **one GUI at a time, and §4's "side by side" is unreachable, permanently, without new tooling. Captures were SEQUENTIAL.** **`D-5`: the staged config points at the WRONG NODE** — `xgen-client_config.toml` in both instance dirs reads `node = "ws://127.0.0.1:8080/xgen"`, the default, while the staged node runs on **8596**; the harness passes `--node` to the residents and never persists it ⇒ **no GUI launched against a staged dir can connect, and both captures read `Reconnecting`.** ✅ **What DID work, and neither seat had it beforehand:** `main.rs:40` resolves the root **`--data-dir` > `XGEN_DATA_DIR` > platform default**, and with no `--instance` the root **is** the dir ⇒ `XGEN_DATA_DIR` aims the debug GUI at a staged identity **with zero change to the launcher or the client**. 🔑 **The capture survived `D-5` only because `get_spaces` reads LOCAL client state: alice showing `count: 1` under the identical disconnection is what proves the connection is not what empties bob's screen.**
 4. Poll CDP **9222**; ⚠️ **retry `snapshot()` until non-null** — the port opens before Svelte mounts.
 5. Capture the registry snapshot **and a screenshot** per identity.
 6. Send Enter to the example; confirm teardown; **verify zero orphan `xgen-*` processes and zero ports left open.**
@@ -110,14 +114,14 @@ alice creates the Space and **three rooms**. bob joins, is added to the rooms, l
 
 | id | what it proves | how |
 |---|---|---|
-| **V-1** | The example builds and adds nothing to the suite | `cargo test --workspace` ⇒ **1667 / 0 / 68 × 58 SUITES, UNCHANGED.** 🛑 **An example must not appear as a test. Any movement at all is a finding.** |
+| **V-1** | The example builds and adds nothing to the suite | `cargo test --workspace` ⇒ **1667 / 0 / 68 × 58 SUITES, UNCHANGED.** 🛑 **An example must not appear as a test. Any movement at all is a finding.** ⚠️ **ANNOTATION (`D-131`, J-782): THIS CONTRADICTS V-2 AND IS CHAT'S DEFECT (`D-1`).** V-1 says the floor is unchanged and any movement is a finding; V-2 says `+2 ignored`. **Ignored MUST move to 70.** Both gates pass on the reading that **V-1's subject is the example** (passed and SUITES unchanged) **and V-2's is the scenarios** — but the runbook says both, and 🔒 ***a gate that can be read two ways is not a gate.*** **Measured result: 1667 / 0 / 70 × 58** — passed +0, SUITES +0, ignored +2. |
 | **V-2** | The wire halves run | The two situations added to `mp_admission_soundness.rs` ⇒ **+2 ignored, +0 passed, +0 SUITES** (same binary). Then `-- --ignored` ⇒ **6 passed**, transcript captured whole. |
 | **V-3** | The staging harness stages | The example reaches its wait marker, prints both data dirs and the node URL, and exits 0 on Enter. |
 | **V-4** | The screens were seen | Two CDP snapshots and two screenshots, **non-null**, captured and handed to Joe. |
 | **V-5** | Nothing leaked | Zero orphan `xgen-*` processes; ports 8596 and 9222 free after teardown. |
 | **V-6** | Scope | `git diff --stat` ⇒ **one modified test file and one new example, nothing else.** 🛑 **A change under `xgen-client/` or `ui/` is a deviation to REPORT** — this leg observes the client, it does not fix it. |
 
-🔒 Carried by scope: vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 **Catalogue UNMEASURED.**
+🔒 **BASELINE, RE-DRIVEN BY CHAT ON A FORCED REBUILD AT J-781 AND NOT INHERITED:** cargo **1667 / 0 / 68 × 58 SUITES**, exit 0, 58 terminators summed programmatically and case-sensitively. Carried by scope: vitest **172 / 172 × 9 FILES** · svelte-check **0 / 34 / 15**. 🛑 **Catalogue UNMEASURED.**
 
 ---
 
@@ -136,15 +140,15 @@ alice creates the Space and **three rooms**. bob joins, is added to the rooms, l
 
 ## §8 — DoD
 
-- [ ] `xgen-mptest/examples/stage_admission.rs` exists; port 8596; prints both data dirs, the node URL and the GUI launch line; blocks on stdin; tears down on Enter
-- [ ] S-3 and S-4 wire halves added to `mp_admission_soundness.rs`, `#[ignore]`, ports 8597-8598 with a collision comment
-- [ ] Both situations print alice's control alongside bob's observation
-- [ ] `V-1` — workspace floor **UNCHANGED at 1667 / 0 / 68 × 58**
-- [ ] `V-2` — 6 passed under `--ignored`, transcript captured whole
-- [ ] `V-3`, `V-5` — staging reached, clean teardown, zero orphans, ports free
-- [ ] `V-4` — two CDP snapshots and two screenshots, non-null
-- [ ] Every `READING` written **after** the output existed
-- [ ] Deviations **reported, not absorbed** (Rule 6)
+- [x] `xgen-mptest/examples/stage_admission.rs` exists; port 8596; prints both data dirs, the node URL and the GUI launch line; blocks on stdin; tears down on Enter — **371 lines; `READY=True`, `HASEXITED=False` six seconds after the marker, exit 0 on Enter**
+- [x] S-3 and S-4 wire halves added to `mp_admission_soundness.rs`, `#[ignore]`, ports 8597-8598 with a collision comment — **+414/−4; 8592-8598 swept, no other user; next file starts at 8599**
+- [x] Both situations print alice's control alongside bob's observation — **and the control is what made both findings measurements**
+- [x] `V-1` — workspace floor **1667 / 0 / 70 × 58**, re-driven by Chat on a forced rebuild; passed +0, SUITES +0, ignored +2 (see the `D-1` annotation at §6)
+- [x] `V-2` — **6 passed, 0 failed, 129.44 s** under `--ignored --test-threads=1`, transcript captured whole, 6 `READING` lines
+- [x] `V-3`, `V-5` — staging reached; **0 orphan `xgen-*`; 5173 / 9222 / 8596 / 8597 / 8598 all free; 0 instance dirs left**
+- [x] `V-4` — **two CDP snapshots and two screenshots, non-null**, handed to Joe
+- [x] Every `READING` written **after** the output existed — enforced by a named placeholder constant, **removed before shipping (0 occurrences)**
+- [x] Deviations **reported, not absorbed** (Rule 6) — **six, §11. Five of the six are Chat's.**
 
 📌 **"Commit pushed" is deliberately not a DoD item.**
 
@@ -153,3 +157,38 @@ alice creates the Space and **three rooms**. bob joins, is added to the rooms, l
 ## §9 — 🔓 OPEN DECISIONS INSIDE THIS RUNBOOK
 
 **None for the implementing seat.** 🔓 **Three findings await Joe's ruling and are deliberately NOT gated on this leg** — the open door (every Space is `open` and cannot be otherwise) · the spent invite (a lapsed invite leaves you worse off than no relationship at all) · the silent demotion. **Leg 3 is where they are put to him, with the screens in hand.** 📌 Stated as a count so a reader can tell *nothing was open* from *nobody looked*.
+
+⚠️ **ANNOTATION AT CLOSE (J-782, 2026-08-30): THERE ARE NOW FOUR.** This leg produced a fourth — **the gap that did not close** — and it is the only one that contradicts a clause Joe had already ruled.
+
+---
+
+## §10 — ✅ WHAT WAS OBSERVED (J-782)
+
+**`S-3` — 🛑 `D-154`④'s CONTENT HALF IS VIOLATED. ITS STRUCTURE HALF IS NOT.**
+
+```
+bob     history after rejoin = [BEFORE-THE-GAP | GAP-MESSAGE-1 | GAP-MESSAGE-2 | GAP-MESSAGE-3]  (4 messages)
+content pre-gap message readable = true | gap messages present = ["GAP-MESSAGE-1","GAP-MESSAGE-2","GAP-MESSAGE-3"]
+bob     removal terms anywhere in his history reply: []
+```
+
+He read **every word said while he was away**. 🔑 **The pre-gap message is the discriminator** — without it, *history is empty* and *history withholds the gap* are the same reading. ⚠️ **But his roster is byte-identical to the owner's** (`carol = false`, `dave = true`), so **④'s structure half is SATISFIED**; what he lacks is the *narrative*, and that is `ops::history` projecting `EventType::MessageText` only (`ops.rs:2158`) — **a client surface absence, not a node gap defect.** 📌 **Chat's first reading called the clause "inverted end to end" and that was wrong by one half.**
+
+**`S-4` — 🛑 THE SPACE NEVER APPEARED.** `spaces = []` and `rooms` failing `no known Space with ID …` **at all four points**, against alice's control returning the Space and its three rooms at every point, with the node reporting **`present = true, role = Some("member")`**. ⇒ ***he can act in a Space his own client does not know exists.*** **On the screen: "No spaces yet", an empty roster holding only himself, and nothing to click.**
+
+---
+
+## §11 — ⚠️ DEVIATIONS (Rule 6) — **SIX. FIVE OF THE SIX ARE CHAT'S.**
+
+| id | seat | what |
+|---|---|---|
+| **`D-1`** | **Chat** | §6 **V-1 and V-2 contradict each other** on `ignored`. Annotated at its site. *A gate that can be read two ways is not a gate.* |
+| **`D-2`** | **Chat** | §5 step 3's **GUI launch is not reachable as written**, and §4's *side by side* is **permanently** unreachable through the shipped launcher. Annotated at its site. |
+| **`D-3`** | **Clair** | carol and dave **JOIN before carol is banned** — a ban on someone who never joined removes nobody. A fixture decision, not a runbook line. |
+| **`D-4`** | **Clair** | The harness **stops both residents before handing over**, keeping their dirs: the Tauri shell starts its own `.aicontrol` server on the same derived pipe name and holds the same state file. Found by reading `desktop.rs`. |
+| **`D-5`** | **Chat** | **The staged config points at the wrong node** (`8080` vs the staged `8596`). Annotated at its site. |
+| **`D-6`** | **Chat** | **`cdp-debug.ps1 -OutFile` fails SILENTLY on a relative path** — exit 1, no file, **no error text**, output identical to success. 🔒 **`[System.IO.File]` needs ABSOLUTE paths; second time this has cost a measurement.** |
+
+📌 **Clair's own instrument error, reported unprompted:** she sampled for orphans **while a run was in flight** and briefly read a live test client as a leak; caught within one call, re-measured after teardown. 🔒 ***A process census during a run measures the run.***
+
+📌 `D-5` from G-5 still stands and is not this leg's: **`cargo fmt` is unclean on baseline across 209 files and is not a gate.**
